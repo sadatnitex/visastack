@@ -11,7 +11,7 @@ Two things need the owner's decision (see "Findings" below): the central access 
 |---|---------|---------------------|
 | 1 | Ended access never gives a fresh read. After the traveller revokes the grant, the grant expires, the agency member is removed, or the agency is suspended, a waiting copy and an accepted copy both give no download link, no storage call, no listing for the agency, and a link made earlier is refused. | `trust-rules.test.ts`, "Rule 1" (4 tests, one per way access can end) |
 | 2 | An accepted receipt always names the same exact copy. A newer version, a rename, a replacement document and another request answered with the newer version leave the saved copy byte for byte the same; the agency still sees version 1 and its fingerprint as accepted; a download is served from the pinned file only. | "Rule 2" |
-| 3 | An unrelated party cannot tell whether a record exists. A real request or copy of another agency and a made-up id get the same answer (code and message) from review, decision, withdrawal, listing and download, and no storage call happens. Same for a second traveller who is not the owner. Open gap: the central gate itself, see Findings | "Rule 3" (3 tests) and the two FINDING tests (expected failures) |
+| 3 | An unrelated party cannot tell whether a record exists. A real request or copy of another agency and a made-up id get the same answer (code and message) from review, decision, withdrawal, listing and download, and no storage call happens. Same for a second traveller who is not the owner. Open gap: the central gate itself, see Findings | "Rule 3" (3 tests) and the two KNOWN GAP tests |
 | 4 | Nothing is shared without the traveller confirming it. An agency asking, a newer version or another matching document sends nothing; only the owner's own send creates a copy. The agency admin, an unrelated account and a second traveller cannot create one. | "Rule 4" (2 tests) |
 | 5 | Earlier declarations and accepted copies stay readable and unchanged: earlier document versions and accepted copies, earlier saved versions of a profile detail (still in the owner's history), and consent records (withdrawing and granting again only adds rows). | "Rule 5" (3 tests) |
 | 6 | Retrying never duplicates. The same send with the same key twice gives one copy, one notice per admin and channel, one audit entry. Deciding twice gives one decision. Two sends racing, or two decisions racing, give exactly one winner. | "Rule 6" (3 tests) |
@@ -21,14 +21,14 @@ Randomized sequences (`trust-sequences.test.ts`): 12 fixed seeds, 40 random step
 
 Seeds: 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233. Steps per seed: 40.
 
-## Findings (honest tests, not bent to pass)
+## Findings (recorded by tests that pin the gap, not hidden)
 
 1. The access gate answers differently. `requireAccess` for a stranger on a real traveller returns `forbidden` "access denied (default_deny)"; for a made-up id it returns `not_found` "record not found". This is the gate's own documented contract: callers are meant to give one answer before anything reaches a screen. Every evidence entry point in rule 3 does. An audit of all 99 places where the screens call the gate (12 Nov 2026) found that almost all collapse the two into one answer, and three do not, so a signed-in stranger who already holds a traveller's internal id (a long random value that is never shown to other people) could tell that the record exists:
    - `apps/web/src/app/app/applicant/[id]/section-actions.ts`, `markNotCurrentAction` and `markEndedAction`: a denied record says "Only the profile owner can change this.", a missing one says "This detail is no longer here. Reload the page."
    - `apps/web/src/app/app/applicant/[id]/actions.ts`, the automatic document-kind suggestion: the raw refusal text is shown ("Access denied (default_deny)." or "Record not found."), only when an AI reader is configured.
 
-   Nothing built in this run depends on those paths: the new screens check ownership first and answer "not found" for everyone else. The two gate tests in `describe('FINDING: the access gate ...')` are written with `it.fails`, so the gap is recorded in every run and the tests turn red on purpose when the gate gives one answer. Fixing the three actions, or the gate itself, changes existing access behaviour (and one of the files belongs to another open pull request), so it is listed for the owner's decision and not merged here. Not checked: response timing, and services that make their own access checks outside the gate.
-2. An accepted detail answer follows the detail. Probe `probe: an accepted detail answer after the fact changes`: a field request was answered with the phone fact and accepted; the traveller then changed the phone. The request record keeps only `responding_fact_id`, the id of the detail (not of the saved version), and the decision record keeps the same id. Following it now gives the new value (+8801700000222), not the value that was accepted (+8801700000111). The test states what a traveller would expect and is written with `it.fails` (vitest 4 supports it): it counts as an expected failure, so the suite stays green while the gap is open, and it turns red on purpose the day the record starts pinning the accepted value; remove `.fails` then. Documents do not have this gap: a copy sent in answer to a document request pins the exact version, object and checksum.
+   Nothing built in this run depends on those paths: the new screens check ownership first and answer "not found" for everyone else. The two gate tests in `describe('KNOWN GAP: the access gate ...')` pin today's exact answers (both are refusals, with these two different codes), so the gap is recorded in every run, nothing else can hide behind it, and the tests fail on purpose when the gate gives one answer. Fixing the three actions, or the gate itself, changes existing access behaviour (and one of the files belongs to another open pull request), so it is listed for the owner's decision and not merged here. Not checked: response timing, and services that make their own access checks outside the gate.
+2. An accepted detail answer follows the detail. Probe `probe: an accepted detail answer after the fact changes`: a field request was answered with the phone fact and accepted; the traveller then changed the phone. The request record keeps only `responding_fact_id`, the id of the detail (not of the saved version), and the decision record keeps the same id. Following it now gives the new value (+8801700000222), not the value that was accepted (+8801700000111). The test pins today's behaviour step by step and its last assertion names the gap: it fails on purpose the day the record starts pinning the accepted value, and is then changed to expect that value. Documents do not have this gap: a copy sent in answer to a document request pins the exact version, object and checksum.
 
 ## Failure proofs
 
@@ -48,7 +48,7 @@ For each rule, one small realistic break was made in the real code, the rule's t
 
 | File | Tests | Wall time |
 |------|-------|-----------|
-| `trust-rules.test.ts` | 21 (18 pass, 3 expected failures that record the two findings) | about 35 s |
+| `trust-rules.test.ts` | 21, all pass (3 of them pin the two known gaps) | about 35 s |
 | `trust-sequences.test.ts` | 13 (12 seeds plus one check that the seeds did real work) | about 55 s |
 
 The sequences file is well under the four-minute budget; every database-building test has an explicit timeout (60 s, and 180 s per seed).
@@ -61,7 +61,7 @@ The sequences file is well under the four-minute budget; every database-building
 
 ## The new step's own guards (Answer From Your Records)
 
-`packages/services/src/evidence-answer-plan.test.ts` holds 16 tests against the real services. Each
+`packages/services/src/evidence-answer-plan.test.ts` holds 19 tests against the real services. Each
 guard below was proven able to fail the same way: one break in `evidence-answer-plan.ts`, the named
 test goes red, the file is restored from a copy and compared byte for byte.
 

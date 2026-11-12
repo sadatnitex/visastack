@@ -68,9 +68,9 @@ export type AnswerCopyState =
   | 'EXPIRED'
   /** Older than the checklist item allows. */
   | 'TOO_OLD'
-  /** The exact copy this agency sent back on this request. */
+  /** An exact copy this agency already turned down on this request, in any round. */
   | 'SENT_BACK'
-  /** Not finished, or not passed, its safety checks. */
+  /** Cannot be sent as it is: still being checked, did not pass its checks, or no longer stored. */
   | 'NOT_CHECKED';
 
 export interface AnswerCopy {
@@ -79,6 +79,7 @@ export interface AnswerCopy {
   readonly versionId: string;
   readonly versionNumber: number;
   readonly name: string;
+  /** When this exact version was added (not when the document was first saved). */
   readonly addedAt: Date;
   /** `YYYY-MM-DD`, or null when no expiry date is saved. */
   readonly expiresOn: string | null;
@@ -109,9 +110,9 @@ export type AnswerReadiness =
   | 'CHECK_DATE'
   /** Every copy of this kind is expired or older than the checklist allows. */
   | 'OUTDATED'
-  /** The only copy is the one this agency sent back. */
+  /** Every copy is one this agency already turned down on this request. */
   | 'NEEDS_NEW_COPY'
-  /** A copy exists but has not finished, or did not pass, its safety checks. */
+  /** A copy exists but cannot be sent as it is (still checking, failed its checks, or erased). */
   | 'NOT_CHECKED'
   /** Nothing of this kind is saved. */
   | 'MISSING'
@@ -185,48 +186,66 @@ export async function planEvidenceAnswers(
   return ok(await buildPlan(access.tx, access.applicant.id, input.now ?? new Date()));
 }
 
+/** Which optional tables exist, asked once and handed to every plan a confirmation works out. */
+interface TablesPresent {
+  readonly submissions: boolean;
+  readonly lifecycle: boolean;
+  readonly expiryEntries: boolean;
+}
+
+async function tablesPresent(db: Db): Promise<TablesPresent> {
+  const [submissions, lifecycle, expiryEntries] = await Promise.all([
+    evidenceSubmissionsPresent(db),
+    lifecycleTablesPresent(db),
+    documentExpiryEntriesTablePresent(db),
+  ]);
+  return { submissions, lifecycle, expiryEntries };
+}
+
 /**
- * The one definition of the plan, for the whole record or (`onlyRequestId`) for a single request:
- * the confirmation runs it again for each answer inside that answer's own locked transaction, so
- * the rule that offers a copy and the rule that sends it cannot drift apart.
+ * The one definition of the plan, for the whole record or for a single request (`decide`): the
+ * confirmation runs it again for each answer inside that answer's own locked transaction, so the
+ * rule that offers a copy and the rule that sends it cannot drift apart. For a decision only what
+ * decides is read: names, reference codes and the history of earlier acceptances are left out.
  */
 async function buildPlan(
   db: Db,
   applicantId: string,
   now: Date,
-  onlyRequestId?: string,
+  decide?: { readonly requestId: string; readonly present: TablesPresent },
 ): Promise<EvidenceAnswerPlan> {
+  const onlyRequestId = decide?.requestId;
+  const forDisplay = decide === undefined;
+  const present = decide?.present ?? (await tablesPresent(db));
+  const available = present.submissions;
+  const lifecycle = present.lifecycle;
   const requests = schema.evidenceRequests;
 
-  const [available, waitingRows] = await Promise.all([
-    evidenceSubmissionsPresent(db),
-    db
-      .select({
-        id: requests.id,
-        organizationId: requests.organizationId,
-        missionId: requests.missionId,
-        kind: requests.kind,
-        docType: requests.docType,
-        fieldKey: requests.fieldKey,
-        status: requests.status,
-        dueDate: requests.dueDate,
-        respondingDocumentId: requests.respondingDocumentId,
-        requirementId: schema.packRequirements.id,
-        maxAgeDays: schema.packRequirements.maxAgeDays,
-        optional: schema.packRequirements.optional,
-      })
-      .from(requests)
-      .leftJoin(schema.packRequirements, eq(schema.packRequirements.id, requests.packRequirementId))
-      .where(
-        and(
-          eq(requests.applicantId, applicantId),
-          inArray(requests.status, WAITING_STATUSES),
-          onlyRequestId === undefined ? undefined : eq(requests.id, onlyRequestId),
-        ),
-      )
-      .orderBy(sql`${requests.dueDate} asc nulls last`, asc(requests.createdAt), asc(requests.id))
-      .limit(ANSWER_PLAN_REQUEST_LIMIT + 1),
-  ]);
+  const waitingRows = await db
+    .select({
+      id: requests.id,
+      organizationId: requests.organizationId,
+      missionId: requests.missionId,
+      kind: requests.kind,
+      docType: requests.docType,
+      fieldKey: requests.fieldKey,
+      status: requests.status,
+      dueDate: requests.dueDate,
+      requirementId: schema.packRequirements.id,
+      maxAgeDays: schema.packRequirements.maxAgeDays,
+      optional: schema.packRequirements.optional,
+    })
+    .from(requests)
+    .leftJoin(schema.packRequirements, eq(schema.packRequirements.id, requests.packRequirementId))
+    .where(
+      and(
+        eq(requests.applicantId, applicantId),
+        inArray(requests.status, WAITING_STATUSES),
+        onlyRequestId === undefined ? undefined : eq(requests.id, onlyRequestId),
+      ),
+    )
+    .orderBy(sql`${requests.dueDate} asc nulls last`, asc(requests.createdAt), asc(requests.id))
+    .limit(ANSWER_PLAN_REQUEST_LIMIT + 1);
   const more = waitingRows.length > ANSWER_PLAN_REQUEST_LIMIT;
   const waiting = waitingRows.slice(0, ANSWER_PLAN_REQUEST_LIMIT);
   if (waiting.length === 0) return { available, agencies: [], more: false };
@@ -237,12 +256,13 @@ async function buildPlan(
       waiting.flatMap((row) => (row.kind === 'DOCUMENT' && row.docType ? [row.docType] : [])),
     ),
   ];
-  const lifecycle = await lifecycleTablesPresent(db);
   const [organizationRows, documents, codes] = await Promise.all([
-    db
-      .select({ id: schema.organizations.id, name: schema.organizations.name })
-      .from(schema.organizations)
-      .where(inArray(schema.organizations.id, organizationIds)),
+    forDisplay
+      ? db
+          .select({ id: schema.organizations.id, name: schema.organizations.name })
+          .from(schema.organizations)
+          .where(inArray(schema.organizations.id, organizationIds))
+      : Promise.resolve([]),
     docTypes.length === 0
       ? Promise.resolve([])
       : db
@@ -266,11 +286,13 @@ async function buildPlan(
             ),
           )
           .orderBy(desc(schema.documents.createdAt), desc(schema.documents.id)),
-    referenceCodesFor(
-      db,
-      'R',
-      waiting.map((row) => row.id),
-    ),
+    forDisplay
+      ? referenceCodesFor(
+          db,
+          'R',
+          waiting.map((row) => row.id),
+        )
+      : Promise.resolve(new Map<string, string>()),
   ]);
   const organizationName = new Map(organizationRows.map((row) => [row.id, row.name] as const));
 
@@ -297,18 +319,15 @@ async function buildPlan(
   const latestVersion = new Map<string, VersionRow>();
   const expiryEntries = new Map<string, ExpiryEntry[]>();
   if (documentIds.length > 0) {
-    const [versions, entriesPresent] = await Promise.all([
-      db
-        .select()
-        .from(schema.documentVersions)
-        .where(inArray(schema.documentVersions.documentId, documentIds))
-        .orderBy(desc(schema.documentVersions.versionNumber)),
-      documentExpiryEntriesTablePresent(db),
-    ]);
+    const versions = await db
+      .select()
+      .from(schema.documentVersions)
+      .where(inArray(schema.documentVersions.documentId, documentIds))
+      .orderBy(desc(schema.documentVersions.versionNumber));
     for (const version of versions) {
       if (!latestVersion.has(version.documentId)) latestVersion.set(version.documentId, version);
     }
-    if (entriesPresent) {
+    if (present.expiryEntries) {
       const rows = await db
         .select({
           documentId: schema.documentExpiryEntries.documentId,
@@ -336,55 +355,90 @@ async function buildPlan(
     versionRows.map((version) => version.storageObjectId),
   );
 
-  // Earlier acceptances of these exact versions, and the version each waiting request last sent.
-  const accepted = new Map<string, { times: number; lastAt: Date; lastBy: string }>();
-  const lastSentVersion = new Map<string, string>();
-  if (available) {
+  // What each waiting request's agency already turned down, in every round and not only the last:
+  // the exact versions it decided against, and, for a send made before exact copies were kept,
+  // the document that decision named. A copy the agency rejected is never offered to it again on
+  // that request; a newer upload of the same document is a new copy.
+  const rejectedVersions = new Map<string, Set<string>>();
+  /** By request, then document: the moment of the latest decision against an unpinned send. */
+  const rejectedDocuments = new Map<string, Map<string, Date>>();
+  {
+    const decisions = schema.evidenceRequestDecisions;
+    const links = schema.evidenceRequestDecisionSubmissions;
     const submissions = schema.evidenceRequestSubmissions;
-    const sentBackIds = waiting
-      .filter((row) => row.status === 'NEEDS_REPLACEMENT')
-      .map((row) => row.id);
-    const [acceptedRows, lastSends] = await Promise.all([
-      versionIds.length === 0
-        ? Promise.resolve([])
-        : db
-            .select({
-              versionId: submissions.documentVersionId,
-              decidedAt: schema.evidenceRequestDecisions.createdAt,
-              organizationId: requests.organizationId,
-            })
-            .from(submissions)
-            .innerJoin(
-              schema.evidenceRequestDecisionSubmissions,
-              eq(schema.evidenceRequestDecisionSubmissions.submissionId, submissions.id),
-            )
-            .innerJoin(
-              schema.evidenceRequestDecisions,
-              eq(
-                schema.evidenceRequestDecisions.id,
-                schema.evidenceRequestDecisionSubmissions.decisionId,
-              ),
-            )
-            .innerJoin(requests, eq(requests.id, submissions.evidenceRequestId))
-            .where(
-              and(
-                eq(requests.applicantId, applicantId),
-                inArray(submissions.documentVersionId, versionIds),
-                eq(schema.evidenceRequestDecisions.outcome, 'ACCEPTED'),
-              ),
-            )
-            .orderBy(asc(schema.evidenceRequestDecisions.createdAt)),
-      sentBackIds.length === 0
-        ? Promise.resolve([])
-        : db
-            .select({
-              requestId: submissions.evidenceRequestId,
-              versionId: submissions.documentVersionId,
-            })
-            .from(submissions)
-            .where(inArray(submissions.evidenceRequestId, sentBackIds))
-            .orderBy(asc(submissions.roundNo)),
+    const requestIds = waiting.map((row) => row.id);
+    const turnedDown = inArray(decisions.outcome, [
+      'NEEDS_REPLACEMENT',
+      'CONTRADICTION',
+      'CORRECTION_PROPOSED',
     ]);
+    const rows = available
+      ? await db
+          .select({
+            requestId: decisions.evidenceRequestId,
+            documentId: decisions.respondingDocumentId,
+            decidedAt: decisions.createdAt,
+            versionId: submissions.documentVersionId,
+          })
+          .from(decisions)
+          .leftJoin(links, eq(links.decisionId, decisions.id))
+          .leftJoin(submissions, eq(submissions.id, links.submissionId))
+          .where(and(inArray(decisions.evidenceRequestId, requestIds), turnedDown))
+      : (
+          await db
+            .select({
+              requestId: decisions.evidenceRequestId,
+              documentId: decisions.respondingDocumentId,
+              decidedAt: decisions.createdAt,
+            })
+            .from(decisions)
+            .where(and(inArray(decisions.evidenceRequestId, requestIds), turnedDown))
+        ).map((row) => ({ ...row, versionId: null }));
+    for (const row of rows) {
+      if (row.versionId !== null) {
+        const set = rejectedVersions.get(row.requestId) ?? new Set<string>();
+        set.add(row.versionId);
+        rejectedVersions.set(row.requestId, set);
+      } else if (row.documentId !== null) {
+        const byDocument = rejectedDocuments.get(row.requestId) ?? new Map<string, Date>();
+        const earlier = byDocument.get(row.documentId);
+        if (!earlier || earlier < row.decidedAt) byDocument.set(row.documentId, row.decidedAt);
+        rejectedDocuments.set(row.requestId, byDocument);
+      }
+    }
+  }
+
+  // Earlier acceptances of these exact versions, on any request of this traveller (display only).
+  const accepted = new Map<string, { times: number; lastAt: Date; lastBy: string }>();
+  if (forDisplay && available && versionIds.length > 0) {
+    const submissions = schema.evidenceRequestSubmissions;
+    const acceptedRows = await db
+      .select({
+        versionId: submissions.documentVersionId,
+        decidedAt: schema.evidenceRequestDecisions.createdAt,
+        organizationId: requests.organizationId,
+      })
+      .from(submissions)
+      .innerJoin(
+        schema.evidenceRequestDecisionSubmissions,
+        eq(schema.evidenceRequestDecisionSubmissions.submissionId, submissions.id),
+      )
+      .innerJoin(
+        schema.evidenceRequestDecisions,
+        eq(
+          schema.evidenceRequestDecisions.id,
+          schema.evidenceRequestDecisionSubmissions.decisionId,
+        ),
+      )
+      .innerJoin(requests, eq(requests.id, submissions.evidenceRequestId))
+      .where(
+        and(
+          eq(requests.applicantId, applicantId),
+          inArray(submissions.documentVersionId, versionIds),
+          eq(schema.evidenceRequestDecisions.outcome, 'ACCEPTED'),
+        ),
+      )
+      .orderBy(asc(schema.evidenceRequestDecisions.createdAt));
     for (const row of acceptedRows) {
       const earlier = accepted.get(row.versionId);
       accepted.set(row.versionId, {
@@ -393,19 +447,17 @@ async function buildPlan(
         lastBy: row.organizationId,
       });
     }
-    // Oldest round first, so the last write per request is its newest send.
-    for (const row of lastSends) lastSentVersion.set(row.requestId, row.versionId);
-  }
-  // The names of agencies that accepted a copy before, which may not be asking now.
-  const acceptedBy = [...new Set([...accepted.values()].map((entry) => entry.lastBy))].filter(
-    (id) => !organizationName.has(id),
-  );
-  if (acceptedBy.length > 0) {
-    const rows = await db
-      .select({ id: schema.organizations.id, name: schema.organizations.name })
-      .from(schema.organizations)
-      .where(inArray(schema.organizations.id, acceptedBy));
-    for (const row of rows) organizationName.set(row.id, row.name);
+    // The names of agencies that accepted a copy before, which may not be asking now.
+    const acceptedBy = [...new Set([...accepted.values()].map((entry) => entry.lastBy))].filter(
+      (id) => !organizationName.has(id),
+    );
+    if (acceptedBy.length > 0) {
+      const rows = await db
+        .select({ id: schema.organizations.id, name: schema.organizations.name })
+        .from(schema.organizations)
+        .where(inArray(schema.organizations.id, acceptedBy));
+      for (const row of rows) organizationName.set(row.id, row.name);
+    }
   }
 
   const copiesFor = (row: (typeof waiting)[number]): AnswerCopy[] => {
@@ -428,14 +480,12 @@ async function buildPlan(
         document.expiresAt,
         expiryEntries.get(document.id) ?? [],
       ).mismatch;
-      // The copy the agency sent back is that exact version; a newer upload of the same document
-      // is a new copy. Without a pinned send on record, the document it named stands for it.
-      const sentVersion = lastSentVersion.get(row.id);
+      // Turned down as this exact version; or, when the send kept no exact copy, as this document
+      // in a version that already existed when the agency decided.
+      const unpinnedAt = rejectedDocuments.get(row.id)?.get(document.id);
       const sentBack =
-        row.status === 'NEEDS_REPLACEMENT' &&
-        (sentVersion !== undefined
-          ? sentVersion === version.id
-          : row.respondingDocumentId === document.id);
+        rejectedVersions.get(row.id)?.has(version.id) === true ||
+        (unpinnedAt !== undefined && version.createdAt <= unpinnedAt);
       const state: AnswerCopyState = !usable
         ? 'NOT_CHECKED'
         : sentBack
@@ -453,7 +503,7 @@ async function buildPlan(
         versionId: version.id,
         versionNumber: version.versionNumber,
         name: document.approvedName ?? document.originalName,
-        addedAt: document.createdAt,
+        addedAt: version.createdAt,
         expiresOn,
         documentDate: document.documentDate,
         ageDays: staleness.ageDays,
@@ -509,49 +559,49 @@ async function buildPlan(
   };
 }
 
-export interface WaitingAgency {
+export interface AskingAgency {
   readonly organizationId: string;
   readonly organizationName: string;
-  /** Requests of this agency that wait on the traveller. */
+  /** Requests of this agency that wait on the traveller (0 when all are answered or closed). */
   readonly waiting: number;
-  /** How many of them ask for a document (the ones the review step can answer). */
-  readonly documents: number;
+  /** How many of the waiting ones ask for a document (the ones the review step can answer). */
+  readonly waitingDocuments: number;
 }
 
 /**
- * Who is waiting, in one query: each agency with a request waiting on the traveller, by name, with
- * how many requests wait. For the card on the Requests page, which must stay cheap; it says nothing
- * about what is held.
+ * Who has asked, in one query: every agency with a request for this traveller, by name, with how
+ * many of its requests wait on the traveller. Agencies with something waiting come first, soonest
+ * due date first. For the card on the Requests page and the "Asked by" line of each request; it
+ * must stay cheap and says nothing about what is held.
  */
-export async function listWaitingAgencies(
+export async function listAskingAgencies(
   access: AuthorizedApplicant<'MANAGE'>,
-): Promise<Result<readonly WaitingAgency[], ServiceError>> {
+): Promise<Result<readonly AskingAgency[], ServiceError>> {
   if (!ownerOnly(access)) return err(serviceError('not_found', NOT_FOUND));
   const requests = schema.evidenceRequests;
+  const waits = inArray(requests.status, WAITING_STATUSES);
   const rows = await access.tx
     .select({
       organizationId: requests.organizationId,
       organizationName: schema.organizations.name,
-      waiting: sql<number>`count(*)::int`,
-      documents: sql<number>`(count(*) filter (where ${requests.kind} = 'DOCUMENT' and ${requests.docType} is not null))::int`,
-      firstDue: sql<Date | null>`min(${requests.dueDate})`,
+      waiting: sql<number>`(count(*) filter (where ${waits}))::int`,
+      waitingDocuments: sql<number>`(count(*) filter (where ${waits} and ${requests.kind} = 'DOCUMENT' and ${requests.docType} is not null))::int`,
     })
     .from(requests)
     .innerJoin(schema.organizations, eq(schema.organizations.id, requests.organizationId))
-    .where(
-      and(
-        eq(requests.applicantId, access.applicant.id),
-        inArray(requests.status, WAITING_STATUSES),
-      ),
-    )
+    .where(eq(requests.applicantId, access.applicant.id))
     .groupBy(requests.organizationId, schema.organizations.name)
-    .orderBy(sql`min(${requests.dueDate}) asc nulls last`, asc(schema.organizations.name));
+    .orderBy(
+      sql`(count(*) filter (where ${waits})) = 0`,
+      sql`min(${requests.dueDate}) filter (where ${waits}) asc nulls last`,
+      asc(schema.organizations.name),
+    );
   return ok(
     rows.map((row) => ({
       organizationId: row.organizationId,
       organizationName: row.organizationName,
       waiting: Number(row.waiting),
-      documents: Number(row.documents),
+      waitingDocuments: Number(row.waitingDocuments),
     })),
   );
 }
@@ -632,7 +682,9 @@ export async function confirmEvidenceAnswers(
   const db = access.tx;
   const actorAccountId = access.applicant.ownerAccountId;
   const applicantId = access.applicant.id;
-  if (!(await evidenceSubmissionsPresent(db))) {
+  // Asked once here: each answer below runs on its own transaction handle, which would ask again.
+  const present = await tablesPresent(db);
+  if (!present.submissions) {
     return err(serviceError('invalid', 'answering in one step is not available yet'));
   }
   const organizationId = isUuid(input.organizationId) ? input.organizationId.toLowerCase() : null;
@@ -720,7 +772,10 @@ export async function confirmEvidenceAnswers(
           )
           .limit(1)
           .for('update');
-        const plan = await buildPlan(tx, applicantId, input.now ?? new Date(), requestId);
+        const plan = await buildPlan(tx, applicantId, input.now ?? new Date(), {
+          requestId,
+          present,
+        });
         const item = plan.agencies
           .find((agency) => agency.organizationId === organizationId)
           ?.items.find((candidate) => candidate.requestId === requestId);
@@ -832,7 +887,6 @@ export async function readEvidenceAnswerReceipt(
     .select({
       id: submissions.id,
       requestId: submissions.evidenceRequestId,
-      key: submissions.idempotencyKey,
       title: submissions.titleAtSend,
       docType: submissions.docTypeAtSend,
       versionNumber: submissions.versionNumber,
@@ -852,11 +906,10 @@ export async function readEvidenceAnswerReceipt(
       ),
     )
     .orderBy(asc(submissions.sentAt), asc(submissions.id));
-  const mine = rows.filter((row) => row.key === sendKey(input.confirmationKey, row.requestId));
-  if (mine.length === 0) return ok(empty);
+  if (rows.length === 0) return ok(empty);
 
-  const submissionIds = mine.map((row) => row.id);
-  const requestIds = [...new Set(mine.map((row) => row.requestId))];
+  const submissionIds = rows.map((row) => row.id);
+  const requestIds = [...new Set(rows.map((row) => row.requestId))];
   const [decisions, newest, codes, organization] = await Promise.all([
     db
       .select({
@@ -889,10 +942,11 @@ export async function readEvidenceAnswerReceipt(
   ]);
   const decided = new Map(decisions.map((row) => [row.submissionId, row.outcome] as const));
   const newestRound = new Map(newest.map((row) => [row.requestId, Number(row.roundNo)] as const));
-  const stateOf = (row: (typeof mine)[number]): AnswerReceiptState => {
+  const stateOf = (row: (typeof rows)[number]): AnswerReceiptState => {
     const outcome = decided.get(row.id);
     if (outcome === 'ACCEPTED') return 'ACCEPTED';
-    if (outcome !== undefined) return outcome === 'CANCELLED' ? 'CLOSED' : 'SENT_BACK';
+    // Any other decision on a send is the agency turning it down (a withdrawn request links none).
+    if (outcome !== undefined) return 'SENT_BACK';
     const stillNewest = newestRound.get(row.requestId) === row.roundNo;
     return stillNewest && (row.requestStatus === 'RECEIVED' || row.requestStatus === 'UNDER_REVIEW')
       ? 'WAITING_FOR_REVIEW'
@@ -901,7 +955,7 @@ export async function readEvidenceAnswerReceipt(
   return ok({
     organizationId,
     organizationName: first(organization)?.name ?? '',
-    lines: mine.map((row) => ({
+    lines: rows.map((row) => ({
       submissionId: row.id,
       requestId: row.requestId,
       referenceCode: codes.get(row.requestId) ?? null,

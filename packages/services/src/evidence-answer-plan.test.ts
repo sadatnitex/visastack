@@ -8,7 +8,7 @@ import {
   type AnswerItem,
   type EvidenceAnswerPlan,
   confirmEvidenceAnswers,
-  listWaitingAgencies,
+  listAskingAgencies,
   planEvidenceAnswers,
   readEvidenceAnswerReceipt,
 } from './evidence-answer-plan';
@@ -356,30 +356,115 @@ describe('planEvidenceAnswers: what is held for each waiting request', () => {
   );
 
   it(
+    'never offers again a copy the agency turned down in any earlier round of the same request',
+    async () => {
+      const first = await cleanDocument(w.db, w.rahim, 'passport', 'TEST passport A.pdf');
+      const second = await cleanDocument(
+        w.db,
+        w.rahim,
+        'passport',
+        'TEST passport B.pdf',
+        'b'.repeat(64),
+      );
+      const requestId = await openRequest(w.db, w.unrelated, w.rahim, 'passport');
+      expect(isOk(await send(w.db, w.rahim, requestId, first.documentId))).toBe(true);
+      await sendBack(w, w.unrelated, requestId);
+      expect(isOk(await send(w.db, w.rahim, requestId, second.documentId))).toBe(true);
+      await sendBack(w, w.unrelated, requestId);
+
+      const item = itemOf(await plan(w), w.unrelated, requestId);
+      expect(item.copies.map((copy) => copy.state)).toEqual(['SENT_BACK', 'SENT_BACK']);
+      expect(item.readiness).toBe('NEEDS_NEW_COPY');
+      // Pressed anyway, neither rejected copy goes.
+      const forced = await confirm(w, w.unrelated, confirmationKey(), [{ requestId, doc: first }]);
+      if (!isOk(forced)) throw new Error(forced.error.message);
+      expect(forced.value).toMatchObject({ sent: 0, changed: 1 });
+      expect(await submissionCount(w.db)).toBe(2);
+
+      // The same copy is still a fair answer to another agency that never saw it.
+      const elsewhere = await openRequest(w.db, w.north, w.rahim, 'passport');
+      expect(itemOf(await plan(w), w.north, elsewhere).readiness).toBe('CHOOSE');
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'holds back a copy sent back before exact copies were kept, until a newer version exists',
+    async () => {
+      const letter = await cleanDocument(w.db, w.rahim, 'employment_letter', 'TEST letter.pdf');
+      const requestId = await openRequest(w.db, w.unrelated, w.rahim, 'employment_letter');
+      expect(isOk(await send(w.db, w.rahim, requestId, letter.documentId))).toBe(true);
+      await sendBack(w, w.unrelated, requestId);
+      // As an older send looks: the decision names the document, and no exact copy is on record.
+      await w.db.delete(schema.evidenceRequestDecisionSubmissions);
+      await w.db.delete(schema.evidenceRequestSubmissions);
+
+      const held = itemOf(await plan(w), w.unrelated, requestId);
+      expect(held.copies[0]).toMatchObject({ state: 'SENT_BACK', sendable: false });
+      expect(held.readiness).toBe('NEEDS_NEW_COPY');
+
+      const clearer = await addVersion(w.db, w.rahim, letter.documentId, {
+        sha256: 'e'.repeat(64),
+      });
+      const again = itemOf(await plan(w), w.unrelated, requestId);
+      expect(again.readiness).toBe('READY');
+      expect(again.copies[0]?.versionId).toBe(clearer.versionId);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'dates a copy by when that exact version was added',
+    async () => {
+      const passport = await cleanDocument(w.db, w.rahim, 'passport', 'TEST passport.pdf');
+      const requestId = await openRequest(w.db, w.unrelated, w.rahim, 'passport');
+      const [stored] = await w.db
+        .select({ createdAt: schema.documentVersions.createdAt })
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.id, passport.versionId));
+      expect(itemOf(await plan(w), w.unrelated, requestId).copies[0]?.addedAt).toEqual(
+        stored?.createdAt,
+      );
+    },
+    TIMEOUT,
+  );
+
+  it(
     'says an agency whose access ended can receive nothing, and counts who is waiting',
     async () => {
       await cleanDocument(w.db, w.rahim, 'passport', 'TEST passport.pdf');
       const requestId = await openRequest(w.db, w.unrelated, w.rahim, 'passport');
       await openRequest(w.db, w.north, w.rahim, 'passport');
       const proof = await ownerProof(w.db, w.rahim);
-      const waiting = await listWaitingAgencies(proof);
-      if (!isOk(waiting)) throw new Error('waiting');
-      expect(
-        [...waiting.value].sort((a, b) => a.organizationName.localeCompare(b.organizationName)),
-      ).toEqual([
+      const asking = async () => {
+        const listed = await listAskingAgencies(proof);
+        if (!isOk(listed)) throw new Error('asking');
+        return [...listed.value].sort((a, b) =>
+          a.organizationName.localeCompare(b.organizationName),
+        );
+      };
+      expect(await asking()).toEqual([
         {
           organizationId: w.north.organizationId,
           organizationName: 'TEST Agency North',
           waiting: 1,
-          documents: 1,
+          waitingDocuments: 1,
         },
         {
           organizationId: w.unrelated.organizationId,
           organizationName: 'TEST Agency Unrelated',
           waiting: 1,
-          documents: 1,
+          waitingDocuments: 1,
         },
       ]);
+      // An agency whose request was answered is still named, with nothing waiting.
+      const statement = await cleanDocument(w.db, w.rahim, 'bank_statement', 'TEST statement.pdf');
+      const answered = await openRequest(w.db, w.north, w.rahim, 'bank_statement');
+      expect(isOk(await send(w.db, w.rahim, answered, statement.documentId))).toBe(true);
+      expect((await asking())[0]).toMatchObject({ waiting: 1, waitingDocuments: 1 });
+      const second = await traveller(w.db, 'test-second-synthetic@example.test');
+      const theirs = await listAskingAgencies(await ownerProof(w.db, second));
+      expect(isOk(theirs) && theirs.value).toEqual([]);
 
       const revoked = await revokeGrant(w.db, {
         actorAccountId: w.rahim.accountId,
@@ -411,8 +496,8 @@ describe('who may read or confirm: the owner only, and denied looks like missing
 
       const planned = await planEvidenceAnswers(northProof);
       expect(planned.ok ? null : planned.error).toMatchObject(expected);
-      const waiting = await listWaitingAgencies(northProof);
-      expect(waiting.ok ? null : waiting.error).toMatchObject(expected);
+      const asking = await listAskingAgencies(northProof);
+      expect(asking.ok ? null : asking.error).toMatchObject(expected);
       const confirmed = await confirmEvidenceAnswers(northProof, {
         organizationId: w.unrelated.organizationId,
         confirmationKey: confirmationKey(),
@@ -578,6 +663,30 @@ describe('confirmEvidenceAnswers: one explicit confirmation to one named agency'
       if (!isOk(wrongKind)) throw new Error(wrongKind.error.message);
       expect(wrongKind.value.changed).toBe(1);
       expect(await submissionCount(w.db)).toBe(0);
+
+      // A file still in quarantine is not sent, even when its exact version is named.
+      const photo = await cleanDocument(w.db, w.rahim, 'photo', 'TEST photo.jpg');
+      const unsafe = await addVersion(w.db, w.rahim, photo.documentId, {
+        safetyStatus: 'QUARANTINED',
+      });
+      const forPhoto = await openRequest(w.db, w.unrelated, w.rahim, 'photo');
+      const notSafe = await confirm(w, w.unrelated, confirmationKey(), [
+        { requestId: forPhoto, doc: { documentId: photo.documentId, versionId: unsafe.versionId } },
+        { requestId: forCard, doc: card },
+      ]);
+      if (!isOk(notSafe)) throw new Error(notSafe.error.message);
+      expect(notSafe.value.outcomes.map((o) => o.outcome)).toEqual(['CHANGED', 'CHANGED']);
+
+      // The copy the agency sent back is not sent to it again on that request.
+      const forStatement = await openRequest(w.db, w.unrelated, w.rahim, 'bank_statement');
+      expect(isOk(await send(w.db, w.rahim, forStatement, statement.documentId))).toBe(true);
+      await sendBack(w, w.unrelated, forStatement);
+      const rejected = await confirm(w, w.unrelated, confirmationKey(), [
+        { requestId: forStatement, doc: statement },
+      ]);
+      if (!isOk(rejected)) throw new Error(rejected.error.message);
+      expect(rejected.value).toMatchObject({ sent: 0, changed: 1 });
+      expect(await submissionCount(w.db)).toBe(1);
     },
     TIMEOUT,
   );

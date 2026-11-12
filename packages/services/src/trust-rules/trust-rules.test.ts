@@ -434,7 +434,7 @@ describe('Rule 3: an unrelated party cannot tell whether a record exists', () =>
 });
 
 // ---------------------------------------------------------------------------------------------
-describe('FINDING: the access gate tells a stranger whether a traveller record exists', () => {
+describe('KNOWN GAP: the access gate tells a stranger whether a traveller record exists', () => {
   /**
    * Rule 3 asks for one identical answer, for a record that exists and one that does not. For the
    * gate itself (requireAccess, used for every agency and traveller proof) the answers differ, by
@@ -443,13 +443,31 @@ describe('FINDING: the access gate tells a stranger whether a traveller record e
    * Callers are meant to collapse the two before anything reaches a screen; an audit on 12 Nov
    * 2026 found three server actions that do not (docs/product/breakthrough/TRUST-RULES.md).
    *
-   * These two tests state what the rule expects and are written with `it.fails`: they count as
-   * expected failures while the gap is open, so the gap is on record in every run, and they turn
-   * red on purpose the day the gate gives one answer. Remove `.fails` then. Changing the gate is a
-   * change to existing access behaviour and is left for the owner to decide.
+   * These tests pin today's exact behaviour, so the gap is on record in every run and nothing
+   * else can hide behind it: both answers must be refusals, with exactly these codes. The day the
+   * gate gives one answer, they fail on purpose; replace them then with one assertion that the two
+   * results are equal. Changing the gate is a change to existing access behaviour and is left for
+   * the owner to decide.
    */
-  it.fails(
-    'TEST Agency Unrelated gets the same gate answer for a real and a made-up applicant id',
+  const pinGap = (
+    real: Awaited<ReturnType<typeof requireAccess>>,
+    madeUp: Awaited<ReturnType<typeof requireAccess>>,
+  ) => {
+    // Never let in, whichever id was named.
+    expect(isErr(real)).toBe(true);
+    expect(isErr(madeUp)).toBe(true);
+    expect(real.ok ? null : real.error).toMatchObject({
+      code: 'forbidden',
+      message: 'access denied (default_deny)',
+    });
+    expect(madeUp.ok ? null : madeUp.error).toMatchObject({
+      code: 'not_found',
+      message: 'record not found',
+    });
+  };
+
+  it(
+    'TEST Agency Unrelated is refused for a real and for a made-up applicant id, with different words',
     async () => {
       const w = await trustWorld();
       const gate = (applicantId: string) =>
@@ -460,15 +478,13 @@ describe('FINDING: the access gate tells a stranger whether a traveller record e
           { applicantId },
           { purpose: EACH_GRANT, actingFor: { organizationId: w.unrelated.organizationId } },
         );
-      const real = await gate(w.rahim.applicantId);
-      expect(isErr(real)).toBe(true);
-      expect(real).toEqual(await gate(randomId()));
+      pinGap(await gate(w.rahim.applicantId), await gate(randomId()));
     },
     TIMEOUT,
   );
 
-  it.fails(
-    'a second traveller gets the same gate answer for another traveller and for a made-up applicant id',
+  it(
+    'a second traveller is refused for another traveller and for a made-up applicant id, with different words',
     async () => {
       const w = await trustWorld();
       const gate = (applicantId: string) =>
@@ -479,9 +495,7 @@ describe('FINDING: the access gate tells a stranger whether a traveller record e
           { applicantId },
           { purpose: 'owner_view_sends' },
         );
-      const real = await gate(w.rahim.applicantId);
-      expect(isErr(real)).toBe(true);
-      expect(real).toEqual(await gate(randomId()));
+      pinGap(await gate(w.rahim.applicantId), await gate(randomId()));
     },
     TIMEOUT,
   );
@@ -831,17 +845,18 @@ describe('Rule 7: AI output never becomes a confirmed fact without a person appr
 });
 
 // ---------------------------------------------------------------------------------------------
-describe('FINDING: an accepted detail answer after the fact changes', () => {
+describe('KNOWN GAP: an accepted detail answer follows the detail, not the value accepted', () => {
   /**
    * What a traveller would expect: once an agency accepted "my phone is A", the accepted answer
-   * still says A even after the traveller later changes the detail to B.
+   * still says A even after the traveller later changes the detail to B. Today the request keeps
+   * only the id of the detail, so following it gives B.
    *
-   * This is written with `it.fails` (vitest 4 supports it): the test body states the expectation
-   * honestly and the run counts it as expected-to-fail. It passes only while the expectation is
-   * broken. The day the record starts pinning the accepted value, this test turns red on purpose,
-   * and the `.fails` must then be removed. See docs/product/breakthrough/TRUST-RULES.md.
+   * This test pins today's exact behaviour, step by step, so the gap is on record in every run
+   * and nothing else can hide behind it. The day the record starts pinning the accepted value, its
+   * last assertion fails on purpose: change it then to expect the value that was accepted.
+   * Documents do not have this gap. See docs/product/breakthrough/TRUST-RULES.md.
    */
-  it.fails(
+  it(
     'probe: an accepted detail answer after the fact changes',
     async () => {
       const w = await trustWorld();
@@ -880,10 +895,14 @@ describe('FINDING: an accepted detail answer after the fact changes', () => {
       // What the record points at now: follow the accepted request to the value it names.
       const request = await requestRow(w.db, field.value.id);
       expect(request.status).toBe('ACCEPTED');
+      // The record still names the same detail, and the detail's earlier value is kept unchanged
+      // in its history (rule 5); but nothing on the request says which value was accepted.
+      expect(request.respondingFactId).toBe(first.value.fact.id);
       const pointed = request.respondingFactId
         ? await getCurrentFactVersion(w.db, request.respondingFactId)
         : undefined;
-      expect(pointed?.value).toBe('+8801700000111');
+      // The gap: this is the new value. A traveller would expect '+8801700000111' here.
+      expect(pointed?.value).toBe('+8801700000222');
     },
     TIMEOUT,
   );
