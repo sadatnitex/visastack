@@ -3,14 +3,23 @@ import { renderServer, textOf } from '../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
 // The locale is set here directly, as the auth screens' test does.
-const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', generation: 0 }));
 vi.mock('../lib/locale', () => ({ getLocale: async () => current.locale }));
 // Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+// Each cached function keeps its own result, per request.
 vi.mock('react', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react')>()),
-  cache: (build: () => unknown) => () => {
-    current.holder ??= build();
-    return current.holder;
+  cache: <T extends (...args: never[]) => unknown>(build: T): T => {
+    let seen = -1;
+    let value: unknown;
+    const cached = (...args: Parameters<T>) => {
+      if (seen !== current.generation || args.length > 0) {
+        seen = current.generation;
+        value = build(...args);
+      }
+      return value;
+    };
+    return cached as unknown as T;
   },
 }));
 vi.mock('../lib/public-beta', () => ({ isPublicBetaOpen: () => false }));
@@ -24,7 +33,7 @@ const BENGALI = /[\u0980-\u09FF]/;
 
 async function render(locale: 'en' | 'bn') {
   current.locale = locale;
-  current.holder = null;
+  current.generation += 1;
   return textOf(await renderServer(HomePage({ searchParams: Promise.resolve({}) })));
 }
 

@@ -152,8 +152,8 @@ describe('the public invitation page (v1.2 B09: neutral, no bearer access)', () 
       }),
     );
     const pending = render({ kind: 'client', token: TOKEN });
-    // The page first settles the visitor's language, then starts both lookups together.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+    await Promise.resolve();
     expect(mocks.load).toHaveBeenCalledTimes(1);
     expect(mocks.signedIn).toHaveBeenCalledTimes(1);
     finish({ state: 'unavailable' });
