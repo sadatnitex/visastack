@@ -103,7 +103,7 @@ describe('catalog quality', () => {
           placeholders(en[key] as string),
         );
         expect(value.normalize('NFC'), `${name}.${key} NFC`).toBe(value);
-        expect(value.includes('—'), `${name}.${key} em dash`).toBe(false);
+        expect(value.includes(String.fromCodePoint(0x2014)), `${name}.${key} em dash`).toBe(false);
       }
     });
   }
