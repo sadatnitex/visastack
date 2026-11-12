@@ -3,7 +3,7 @@
 #   OBSERVED_DIFFERENT_FORM  a verified row matches the intent exactly but uses different Bengali; editor chooses
 #   OBSERVED_RELATED_ONLY    only verified rows with similar or loose English (same word, not the same meaning)
 #   LLM_RECOMMENDATION       nothing observed; wording proposed by a language model and not verified against any product
-import csv, collections, re, unicodedata
+import csv, collections, unicodedata
 with open('VISASTACK_PLATFORM_LANGUAGE_EVIDENCE.csv', encoding='utf-8') as fh:
     ev = [r for r in csv.DictReader(fh) if r['evidence_quality'] in ('OFFICIAL_STRING_RESOURCE', 'DIRECT_SCREEN', 'BILINGUAL_OFFICIAL_PAGE')]
 by = collections.defaultdict(list)

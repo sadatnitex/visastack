@@ -22,7 +22,8 @@ function markerEnd(s, i) {
   return s[j] === '>' ? j + 1 : -1;
 }
 
-function stripOnce(s) {
+/** One pass only (exported for the test, which shows why a single pass is not enough). */
+export function stripOnce(s) {
   const parts = [];
   let last = 0;
   let i = s.indexOf('<');
@@ -94,7 +95,7 @@ export function removeBlocks(input, tag, replacer = () => ' ') {
   let i = input.indexOf('<');
   while (i !== -1) {
     if (isOpenAt(lower, i, tag)) {
-      const close = lower.indexOf(`</${tag}`, i);
+      const close = findEndTag(lower, i, tag);
       let end = input.length;
       if (close !== -1) {
         const gt = lower.indexOf('>', close);
@@ -109,6 +110,17 @@ export function removeBlocks(input, tag, replacer = () => ' ') {
   }
   parts.push(input.slice(last));
   return parts.join('');
+}
+
+/** Index of the next `</tag` that really is that end tag (not `</tagname` of a longer name), or -1. */
+function findEndTag(lower, from, tag) {
+  let at = lower.indexOf(`</${tag}`, from);
+  while (at !== -1) {
+    const next = lower[at + tag.length + 2];
+    if (next === undefined || next === '>' || next === '/' || /\s/.test(next)) return at;
+    at = lower.indexOf(`</${tag}`, at + 1);
+  }
+  return -1;
 }
 
 /** Remove `<!-- ... -->` comments. An unclosed comment is removed to the end. */

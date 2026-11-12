@@ -75,7 +75,7 @@ Measured: bn draft swapped 43 of 54 text runs (80%). Sideways overflow in pixels
 | Confirmed itinerary |  | G1_state_word | no draft |
 | Original files stay protected |  | G8_data_action | no draft |
 | Review, pause or end future access in your sharing page. | আপনার শেয়ারিং পাতায় ভবিষ্যতের অ্যাক্সেস পর্যালোচনা, স্থগিত বা শেষ করুন। | G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack Private Pilot | VisaStack প্রাইভেট পাইলট |  | PASS |
 | What Works Today | আজ যা কাজ করছে |  | PASS |
@@ -112,7 +112,7 @@ Measured: bn draft swapped 44 of 51 text runs (86%). Sideways overflow in pixels
 | Your Name (Optional) | আপনার নাম (ঐচ্ছিক) | G3_requirement_level | PASS |
 | This acknowledgement does not enable marketing, AI processing or sharing with an agency. | এই স্বীকৃতি মার্কেটিং, এআই দিয়ে প্রক্রিয়াকরণ বা এজেন্সির সঙ্গে শেয়ার করার অনুমতি দেয় না। | G8_data_action | PASS |
 | We will email you a link to confirm your address before you can sign in. | সাইন ইন করার আগে আপনার ঠিকানা নিশ্চিত করতে আমরা আপনাকে একটি লিংক ইমেইল করব। | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack Private Pilot | VisaStack প্রাইভেট পাইলট |  | PASS |
 | What Works Today | আজ যা কাজ করছে |  | PASS |
@@ -130,7 +130,7 @@ Measured: bn draft swapped 34 of 38 text runs (89%). Sideways overflow in pixels
 | Test version. Made-up details only. | পরীক্ষামূলক সংস্করণ। শুধু বানানো তথ্য। | G6_copy_version | PASS |
 | Keep your details together. Reuse what you need, and choose what you share. | আপনার তথ্য এক জায়গায় রাখুন। যা দরকার আবার ব্যবহার করুন, আর কী শেয়ার করবেন তা আপনিই ঠিক করুন। | G8_data_action | PASS |
 | Send the Link Again | লিংকটি আবার পাঠান | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack Private Pilot | VisaStack প্রাইভেট পাইলট |  | PASS |
 | What Works Today | আজ যা কাজ করছে |  | PASS |
@@ -166,7 +166,7 @@ Measured: bn draft swapped 30 of 34 text runs (88%). Sideways overflow in pixels
 | Test version. Made-up details only. | পরীক্ষামূলক সংস্করণ। শুধু বানানো তথ্য। | G6_copy_version | PASS |
 | Keep your details together. Reuse what you need, and choose what you share. | আপনার তথ্য এক জায়গায় রাখুন। যা দরকার আবার ব্যবহার করুন, আর কী শেয়ার করবেন তা আপনিই ঠিক করুন। | G8_data_action | PASS |
 | Send Me a Link | আমাকে একটি লিংক পাঠান | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack Private Pilot | VisaStack প্রাইভেট পাইলট |  | PASS |
 | What Works Today | আজ যা কাজ করছে |  | PASS |
@@ -188,7 +188,7 @@ Measured: bn draft swapped 29 of 33 text runs (88%). Sideways overflow in pixels
 | Keep your details together. Reuse what you need, and choose what you share. | আপনার তথ্য এক জায়গায় রাখুন। যা দরকার আবার ব্যবহার করুন, আর কী শেয়ার করবেন তা আপনিই ঠিক করুন। | G8_data_action | PASS |
 | That link has expired or is not valid. Ask for a new one. | লিংকটির মেয়াদ শেষ হয়ে গেছে অথবা এটি সঠিক নয়। নতুন একটি চান। | G5_share_lifecycle | PASS |
 | Send Me a New Link | আমাকে একটি নতুন লিংক পাঠান | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack Private Pilot | VisaStack প্রাইভেট পাইলট |  | PASS |
 | What Works Today | আজ যা কাজ করছে |  | PASS |
@@ -221,7 +221,7 @@ Measured: bn draft swapped 61 of 75 text runs (81%). Sideways overflow in pixels
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -242,7 +242,7 @@ Measured: bn draft swapped 68 of 81 text runs (84%). Sideways overflow in pixels
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -304,7 +304,7 @@ Measured: bn draft swapped 118 of 200 text runs (59%). Sideways overflow in pixe
 | Everything: upcoming dates, recent activity, profile and sharing. | সবকিছু: আসন্ন তারিখ, সাম্প্রতিক কার্যকলাপ, প্রোফাইল ও শেয়ারিং। | G8_data_action | PASS |
 | Pick a checklist to see what is ready | কী প্রস্তুত তা দেখতে একটি চেকলিস্ট বেছে নিন | G1_state_word | PASS |
 | Manage Sharing → | শেয়ারিং পরিচালনা করুন → | G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -395,7 +395,7 @@ Measured: bn draft swapped 88 of 136 text runs (65%). Sideways overflow in pixel
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | Details we read from your documents. Nothing is added to your profile until you accept it. | আপনার ডকুমেন্ট থেকে আমরা যে তথ্য পড়েছি। আপনি গ্রহণ না করা পর্যন্ত আপনার প্রোফাইলে কিছুই যোগ করা হয় না। | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -449,7 +449,7 @@ Measured: bn draft swapped 77 of 111 text runs (69%). Sideways overflow in pixel
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -508,7 +508,7 @@ Measured: bn draft swapped 90 of 153 text runs (59%). Sideways overflow in pixel
 | Sharing & Requests | শেয়ারিং ও অনুরোধ | G8_data_action | PASS |
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -533,7 +533,7 @@ Measured: bn draft swapped 82 of 134 text runs (61%). Sideways overflow in pixel
 | Through a visa application centre | ভিসা আবেদন কেন্দ্রের মাধ্যমে | G4_who_is_asking | PASS |
 | Official Page | অফিসিয়াল পাতা | G9_claim_strength | PASS |
 | This list may not be complete. Check the official page for everything you need to submit. | এই তালিকা সম্পূর্ণ নাও হতে পারে। জমা দিতে আপনার যা যা লাগবে তার জন্য অফিসিয়াল পাতা দেখে নিন। | G9_claim_strength | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 
@@ -579,7 +579,7 @@ Measured: bn draft swapped 172 of 241 text runs (71%). Sideways overflow in pixe
 |---|---|---|
 | ![](screens/J10-rahim_app_applicant_id_outputs-en.jpg) | ![](screens/J10-rahim_app_applicant_id_outputs-bn.jpg) | ![](screens/J10-rahim_app_applicant_id_outputs-rtl.jpg) |
 
-Measured: bn draft swapped 176 of 270 text runs (65%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 7, bn 7, RTL 7.
+Measured: bn draft swapped 175 of 264 text runs (66%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 7, bn 7, RTL 7.
 
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
@@ -645,7 +645,7 @@ Measured: bn draft swapped 68 of 106 text runs (64%). Sideways overflow in pixel
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | Someone granted you access to their records. Access only begins once you accept. | কেউ আপনাকে তাঁর রেকর্ডে অ্যাক্সেস দিয়েছেন। আপনি গ্রহণ করার পরেই অ্যাক্সেস শুরু হবে। | G5_share_lifecycle | PASS |
 | Accept Access | অ্যাক্সেস গ্রহণ করুন | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -681,7 +681,7 @@ Measured: bn draft swapped 68 of 106 text runs (64%). Sideways overflow in pixel
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | Someone granted you access to their records. Access only begins once you accept. | কেউ আপনাকে তাঁর রেকর্ডে অ্যাক্সেস দিয়েছেন। আপনি গ্রহণ করার পরেই অ্যাক্সেস শুরু হবে। | G5_share_lifecycle | PASS |
 | Accept Access | অ্যাক্সেস গ্রহণ করুন | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -700,7 +700,7 @@ Measured: bn draft swapped 71 of 105 text runs (68%). Sideways overflow in pixel
 | Sharing & Requests | শেয়ারিং ও অনুরোধ | G8_data_action | PASS |
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -734,7 +734,7 @@ Measured: bn draft swapped 70 of 85 text runs (82%). Sideways overflow in pixels
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -763,7 +763,7 @@ Measured: bn draft swapped 143 of 170 text runs (84%). Sideways overflow in pixe
 | Destination | গন্তব্য | G7_country_role | PASS |
 | No cases are reachable yet - a traveller must grant this organization access to a specific case. | পৌঁছানো যায় এমন কোনো ভিসা ফাইল এখনো নেই - কোনো ভ্রমণকারীকে নির্দিষ্ট একটি ভিসা ফাইলে এই প্রতিষ্ঠানকে অ্যাক্সেস দিতে হবে। | G4_who_is_asking | PASS |
 | Once a client accepts, their cases appear here with how many checklist items are ready. | ক্লায়েন্ট গ্রহণ করলে তাঁদের ভিসা ফাইল এখানে দেখা যাবে, সঙ্গে চেকলিস্টের কয়টি আইটেম প্রস্তুত তা-ও থাকবে। | G1_state_word | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 
 Human review sign-off (to be completed by the editor and, for legal wording, a qualified reviewer):
 
@@ -786,7 +786,7 @@ Human review sign-off (to be completed by the editor and, for legal wording, a q
 |---|---|---|
 | ![](screens/J14-agencyOwner_app_agency_orgId_-en.jpg) | ![](screens/J14-agencyOwner_app_agency_orgId_-bn.jpg) | ![](screens/J14-agencyOwner_app_agency_orgId_-rtl.jpg) |
 
-Measured: bn draft swapped 242 of 405 text runs (60%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 4, bn 4, RTL 4.
+Measured: bn draft swapped 244 of 405 text runs (60%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 4, bn 4, RTL 4.
 
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
@@ -798,7 +798,7 @@ Measured: bn draft swapped 242 of 405 text runs (60%). Sideways overflow in pixe
 | Ready to Export | এক্সপোর্টের জন্য প্রস্তুত | G1_state_word, G8_data_action | PASS |
 | Destination | গন্তব্য | G7_country_role | PASS |
 | Traveller Confirmed | ভ্রমণকারী নিশ্চিত করেছেন | G1_state_word | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 
 ### Screen: agencyOwner__app_agency__orgId__cases
@@ -813,7 +813,7 @@ Measured: bn draft swapped 108 of 205 text runs (53%). Sideways overflow in pixe
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | Assign a team member and leave case notes on any case this organization has a grant for. | যে ভিসা ফাইলে এই প্রতিষ্ঠানের অ্যাক্সেস-অনুমতি আছে, সেখানে টিমের একজন সদস্যকে দায়িত্ব দিন এবং ভিসা ফাইলের নোট রাখুন। | G4_who_is_asking | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -848,7 +848,7 @@ Measured: bn draft swapped 58 of 87 text runs (67%). Sideways overflow in pixels
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -864,7 +864,7 @@ Measured: bn draft swapped 58 of 87 text runs (67%). Sideways overflow in pixels
 |---|---|---|
 | ![](screens/J15-rahim_app_applicant_id_outputs-en.jpg) | ![](screens/J15-rahim_app_applicant_id_outputs-bn.jpg) | ![](screens/J15-rahim_app_applicant_id_outputs-rtl.jpg) |
 
-Measured: bn draft swapped 176 of 270 text runs (65%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 7, bn 7, RTL 7.
+Measured: bn draft swapped 175 of 264 text runs (66%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 7, bn 7, RTL 7.
 
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
@@ -906,7 +906,7 @@ Human review sign-off (to be completed by the editor and, for legal wording, a q
 | collection/actions.ts:190 | Choose a checklist. |  |  |
 | collection/actions.ts:202 | Official checklist applied. |  |  |
 | collection/actions.ts:202 | Now your agency checklist. |  |  |
-| collection/actions.ts:221 | Revision {revisionNo} issued. Copy the link now: it is shown only once. | {revisionNo} নম্বর কপি ইস্যু করা হয়েছে। এখনই লিংকটি কপি করুন: এটি শুধু একবারই দেখানো হয়। | PASS |
+| collection/actions.ts:221 | Revision {revisionNo} issued. Copy the link now: it is shown only once. | সংস্করণ {revisionNo} ইস্যু করা হয়েছে। এখনই লিংকটি কপি করুন: এটি শুধু একবারই দেখানো হয়। | PASS |
 | collection/actions.ts:241 | New link ready. Copy it now: it is shown only once. | নতুন লিংক প্রস্তুত। এখনই কপি করুন: এটি শুধু একবারই দেখানো হয়। | PASS |
 | collection/actions.ts:250 | Email accepted for delivery. That does not prove it reached the inbox. | ইমেইলটি পাঠানোর জন্য গ্রহণ করা হয়েছে। এর মানে এই নয় যে এটি ইনবক্সে পৌঁছেছে। | PASS |
 | collection/actions.ts:251 | Email queued. It will be retried if the first try did not go through. |  |  |
@@ -941,7 +941,7 @@ Measured: bn draft swapped 78 of 116 text runs (67%). Sideways overflow in pixel
 | Sharing & Requests | শেয়ারিং ও অনুরোধ | G8_data_action | PASS |
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -1021,7 +1021,7 @@ Measured: bn draft swapped 66 of 98 text runs (67%). Sideways overflow in pixels
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | Removal Records | সরানোর রেকর্ড | G8_data_action | PASS |
 | Removed from VisaStack. Backup copies expire within 90 days and are never brought back. | VisaStack থেকে সরানো হয়েছে। ব্যাকআপ কপির মেয়াদ ৯০ দিনের মধ্যে শেষ হয়ে যায় এবং সেগুলো কখনো ফিরিয়ে আনা হয় না। | G5_share_lifecycle, G9_claim_strength | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -1056,7 +1056,7 @@ Measured: bn draft swapped 81 of 130 text runs (62%). Sideways overflow in pixel
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | Everything: the older ones you have read. | সবকিছু: আপনার পড়া পুরোনোগুলো। | G6_copy_version | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -1076,7 +1076,7 @@ Measured: bn draft swapped 124 of 181 text runs (69%). Sideways overflow in pixe
 | Sharing & Requests | শেয়ারিং ও অনুরোধ | G8_data_action | PASS |
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |
@@ -1112,7 +1112,7 @@ Measured: bn draft swapped 23 of 25 text runs (92%). Sideways overflow in pixels
 |---|---|---|---|
 | Test version. Made-up details only. | পরীক্ষামূলক সংস্করণ। শুধু বানানো তথ্য। | G6_copy_version | PASS |
 | This pilot is invite-only | এই পাইলট শুধু আমন্ত্রিতদের জন্য | G5_share_lifecycle | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack Private Pilot | VisaStack প্রাইভেট পাইলট |  | PASS |
 | What Works Today | আজ যা কাজ করছে |  | PASS |
@@ -1135,7 +1135,7 @@ Measured: bn draft swapped 106 of 169 text runs (63%). Sideways overflow in pixe
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | AI App Original Files | এআই অ্যাপের মূল ডকুমেন্ট | G8_data_action | PASS |
-| About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| About This Version | এই সংস্করণ সম্পর্কে | G6_copy_version | PASS |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
 | Menu | মেনু |  | PASS |

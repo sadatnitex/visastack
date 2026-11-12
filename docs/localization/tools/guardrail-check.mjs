@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripMarkers } from './text-markers.mjs';
+import { splitOnTags, stripMarkers } from './text-markers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -100,7 +100,7 @@ const BANNED_BN = [
 
 const say = (s) => process.stdout.write(`${s}\n`);
 const tokens = (s, re) => [...s.matchAll(re)].map((m) => m[0]).sort();
-export function check(enIn, bnIn) {
+export function check(enIn, bnIn, opts = {}) {
   let en = enIn;
   let bn = bnIn;
   const f = [];
@@ -110,10 +110,22 @@ export function check(enIn, bnIn) {
   bn = bn.replace(/&[a-z]+;/g, ' ');
   const phE = tokens(en, /\{\w+\}/g);
   const phB = tokens(bn, /\{\w+\}/g);
-  const dropOk = /\{choice\}/.test(en); // English-only plural switch may be dropped
-  const phEcmp = dropOk ? phE.filter((x) => x !== '{choice}') : phE;
-  if (JSON.stringify(phEcmp) !== JSON.stringify(phB))
-    f.push({ rule: 'PLACEHOLDER_MISMATCH', detail: `en ${phE.join(' ')} vs bn ${phB.join(' ')}` });
+  // {choice} glued to a word is an English plural suffix and may go; a free-standing {choice} (or {plural}) holds
+  // real text built at run time and must stay. {agree} is an English verb-agreement switch and may go.
+  const countOf = (arr, x) => arr.filter((y) => y === x).length;
+  const glued = (en.match(/[A-Za-z)]\{choice\}/g) ?? []).length;
+  const placeholderIssues = [];
+  for (const name of new Set([...phE, ...phB])) {
+    const total = countOf(phE, name);
+    let required = total;
+    if (name === '{agree}') required = 0;
+    if (name === '{choice}') required = opts.choiceDropOk ? 0 : total - glued;
+    const got = countOf(phB, name);
+    if (got < required || got > total)
+      placeholderIssues.push(`${name}: en ${total} (needs ${required}), bn ${got}`);
+  }
+  if (placeholderIssues.length)
+    f.push({ rule: 'PLACEHOLDER_MISMATCH', detail: placeholderIssues.join('; ') });
   const tgE = tokens(en, /<\/?[A-Za-z][\w.]*\/?>/g);
   const tgB = tokens(bn, /<\/?[A-Za-z][\w.]*\/?>/g);
   if (JSON.stringify(tgE) !== JSON.stringify(tgB))
@@ -184,13 +196,22 @@ export function check(enIn, bnIn) {
         'A Bengali word is glued to ডকুমেন্ট: a terminology replacement cut into another word (for example প্রোফাইল)',
     });
   const enNoPh = `${en.replace(/\{[^}]*\}/g, ' ')}${/\bv\{/i.test(en) ? ' version' : ''}`;
+  // Legal hold is আইনি হোল্ড at any length; the word for Saved (সংরক্ষণ) must never stand for it.
+  if (/legal hold/i.test(en) && !/আইনি হোল্ড/.test(bn))
+    f.push({ rule: 'LEGAL_HOLD_TERM', detail: 'English says legal hold; write আইনি হোল্ড' });
+  if (/আইনি (কারণে )?সংরক্ষণ/.test(bn))
+    f.push({
+      rule: 'LEGAL_HOLD_TERM',
+      detail: 'আইনি সংরক্ষণ reads as Saved; use আইনি হোল্ড, or আইনি কারণে রেখে দেওয়া for retention',
+    });
+  if (/সংস্করণর/.test(bn)) f.push({ rule: 'TYPO', detail: 'সংস্করণর: the genitive is সংস্করণের' });
   // Version words: banned only where the English does not mean a version; and a real version must not silently become a copy.
-  if (/সংস্করণ|ভার্সন/.test(bn) && !/\bversion/i.test(enNoPh))
+  if (/সংস্করণ|ভার্সন/.test(bn) && !/\b(version|revision)/i.test(enNoPh))
     f.push({
       rule: 'BANNED_WORDING',
       detail: 'Version wording where the English says copy or document (no Version 2 semantics)',
     });
-  if (/\bversions?\b/i.test(enNoPh) && !/সংস্করণ|ভার্সন/.test(bn))
+  if (/\b(versions?|revisions?)\b/i.test(enNoPh) && !/সংস্করণ|ভার্সন/.test(bn))
     f.push({
       rule: 'VERSION_CONCEPT_REVIEW',
       detail:
@@ -200,10 +221,9 @@ export function check(enIn, bnIn) {
   for (const [re, why] of BANNED_BN)
     if (re.test(bn)) f.push({ rule: 'BANNED_WORDING', detail: why });
   // Owner decision 2026-11-12: Bengali digits in prose. Latin digits are allowed only inside placeholders, tags and code-like tokens.
-  const prose = bn.replace(
-    /\{[^}]*\}|<[^>]*>|[A-Za-z][\w./-]*[0-9][\w./-]*|[0-9][\w./-]*[A-Za-z][\w./-]*/g,
-    ' ',
-  );
+  const prose = splitOnTags(bn.replace(/\{[^}]*\}/g, ' '))
+    .join(' ')
+    .replace(/[A-Za-z][\w./-]*[0-9][\w./-]*|[0-9][\w./-]*[A-Za-z][\w./-]*/g, ' ');
   if (/[0-9]/.test(prose))
     f.push({
       rule: 'WARN_LATIN_DIGITS',

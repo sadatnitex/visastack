@@ -21,12 +21,18 @@ for b in before:
     ru_now = rules(n) if still else []
     changed = bn0 != bn1
     low = en.lower()
-    if 'legal hold' in low and 'আইনি কারণে সংরক্ষণ' in bn0:
+    note = n['draft_note'] if n else ''
+    runtime_text = '{plural}' in bn1 or 'ENGLISH_FRAGMENT' in note or 'runtime' in note.lower() or ('{choice}' in bn1 and 'PLACEHOLDER_MISMATCH' in ru)
+    if 'PLACEHOLDER_MISMATCH' in ru and runtime_text:
+        cls, why, act = 'SOURCE_ISSUE_OPEN', 'The English builds part of the sentence at run time (a placeholder holds English text such as "3 items"). The Bengali keeps the placeholder, so it will print English inside Bengali until the source becomes a count-aware message.', 'Engineering: rewrite source as ICU message before Bengali release'
+    elif 'legal hold' in low and 'আইনি কারণে সংরক্ষণ' in bn0:
         cls, why, act = 'SEMANTIC_ERROR_FIXED', 'The word for Saved (সংরক্ষণ) was used for legal hold, so a hold read as a save. Now আইনি হোল্ড.', ''
     elif low.strip() == 'checked for viruses':
         cls, why, act = 'SEMANTIC_ERROR_FIXED', 'English says checked for viruses; স্ক্যান added a scan method the English does not state. Now পরীক্ষা.', ''
-    elif changed and 'version' in re.sub(r'\{[^}]*\}', ' ', low) + (' version' if re.search(r'\bv\{', low) else ''):
+    elif changed and re.search(r'version|revision', re.sub(r'\{[^}]*\}', ' ', low) + (' version' if re.search(r'\bv\{', low) else '')) and (bn1.count('সংস্করণ') > bn0.count('সংস্করণ') or bn1.count('স্ন্যাপশট') > bn0.count('স্ন্যাপশট')):
         cls, why, act = 'SEMANTIC_ERROR_FIXED', 'A real numbered, pack, snapshot or profile version had been written as কপি (or "copy number N"). Now সংস্করণ or স্ন্যাপশট.', ''
+    elif changed and still and 'VERSION_CONCEPT_REVIEW' in ru_now:
+        cls, why, act = 'ACCEPTED_DOCUMENT_HISTORY_WORDING', 'Wording also changed by the terminology rules. English says version; the draft says কপি because this is the history of a document (current copy, earlier document, exact copy), not a numbered version.', 'Editor: confirm'
     elif changed:
         cls, why, act = 'TERMINOLOGY_UPDATED', 'Wording changed by the case, document and navigation term rules (ভিসা ফাইল, ডকুমেন্ট, ডকুমেন্টস).', ''
     elif not still:
@@ -59,6 +65,8 @@ for b in before:
             cls, why, act = 'ACCEPTED_BY_DESIGN', 'Idiomatic Bengali (যাচাই for a sign-in or genuineness check) matches the English meaning of check; no stronger claim.', 'Editor: confirm'
         else:
             cls, why, act = 'OPEN_EDITOR_DECISION', 'Still flagged.', 'Editor'
+    if cls == 'SEMANTIC_ERROR_FIXED' and still:
+        cls, why, act = 'FIX_INCOMPLETE_OPEN', 'Changed, but the checker still flags it: ' + why, 'Editor'
     tally[cls] += 1
     rows.append([b['semantic_group'], en, bn0, ' + '.join(ru), bn1, 'yes' if still else 'no', cls, why, act])
 

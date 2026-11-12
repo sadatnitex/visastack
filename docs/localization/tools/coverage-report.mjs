@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Generates VISASTACK_COVERAGE_REPORT.md from the census, the rendered cross-check and the register. */
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,7 +52,12 @@ add(
 // ---- 1 scan scope
 add('## 1. What was scanned', '');
 const notScanned = census.notScanned.map(([g, why]) => {
-  const n = sh(`git ls-files '${g}' | wc -l`);
+  // Arguments are passed as an array, never through a shell, because the pattern comes from a data file.
+  const n = String(
+    execFileSync('git', ['ls-files', '--', g], { cwd: ROOT, encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean).length,
+  );
   return [`\`${g}\``, n, why];
 });
 add(
@@ -628,7 +633,11 @@ add(
   'Owner decisions applied (2026-11-12, `data/drafts/OWNER_DECISIONS.json`): Bengali first; case is ফাইল; Bengali digits in prose; the owner is editor and legal reviewer.',
   '',
 );
-add('## 10. Independent review and what was done about it', '');
+add('## 10. Independent reviews and what was done about them', '');
+add(
+  'A second independent review of the fixes (`data/INDEPENDENT_REVIEW_2.md`, `data/independent-review-2-sample.csv`) found 18 meaning errors, 7 wrong audit dispositions and several code-scanning patterns; all confirmed items were fixed and each is listed in `data/REVIEW_RESPONSE.md`.',
+  '',
+);
 add(
   'A separate session re-checked the census, the report and the drafts (`data/INDEPENDENT_REVIEW.md`, rows in `data/independent-review-sample.csv`). Actions taken are in `data/REVIEW_RESPONSE.md`. Headline: census precision 92.5 percent on its sample; drafts 110 OK, 5 minor, 5 error of 120. Its five most serious findings and their status: (1) about 900 service error messages were missing from the census: now extracted as `ERROR_CALL` rows; (2) this report was stale: regenerated, with counts computed by script; (3) the no-version rule was applied to real versions: the checker now flags dropped versions for an editor and bans version words only where English means a copy, and the five error drafts were corrected in `data/drafts/bn-BD.corrections.jsonl`; (4) no qualified reviewer: the owner assigned themself as editor and legal reviewer; nothing is reviewed; queues are in `data/review-queues/`; (5) platform evidence was overclaimed: wording corrected, attestation classified per term (section 9).',
   '',

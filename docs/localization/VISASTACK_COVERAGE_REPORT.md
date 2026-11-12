@@ -191,15 +191,15 @@ State tags come from words in each string and from the function it sits in; they
 
 ## 4. Rendered check: do the words on real screens appear in the census?
 
-120 rendered screens contain **16557** distinct visible strings (text runs, plus aria-label, title, alt and placeholder values), counted once per screen. Each was looked up in the census.
+120 rendered screens contain **16547** distinct visible strings (text runs, plus aria-label, title, alt and placeholder values), counted once per screen. Each was looked up in the census.
 
 | Result | Strings | Share |
 |---|---|---|
-| Exact text match to a source row | 13649 | 82.4% |
+| Exact text match to a source row | 13643 | 82.4% |
 | Match that differs only by letter case (the product title-cases terms when drawing them) | 36 | 0.2% |
 | Match to a template with placeholders | 1279 | 7.7% |
-| Contains a known source fragment (sentence assembled from parts and data) | 369 | 2.2% |
-| Recognised data (names, dates, money, ids, country and city names from the platform, made-up seed values) | 1166 | 7.0% |
+| Contains a known source fragment (sentence assembled from parts and data) | 368 | 2.2% |
+| Recognised data (names, dates, money, ids, country and city names from the platform, made-up seed values) | 1163 | 7.0% |
 | **Not explained by the census** | 58 | 0.4% |
 
 Explained by source text (exact, case-changed or template): **90.4%**. Including fragments: **92.6%**. This measures recall on the drawn screens only; it says nothing about screens that were not drawn.
@@ -262,8 +262,8 @@ Interpretation: most are staff-only admin status words, single-word button label
 
 | Coverage flag | Rows |
 |---|---|
-| SOURCE_ONLY_NOT_RENDERED | 10043 |
-| CONFIRMED_RENDERED | 3936 |
+| SOURCE_ONLY_NOT_RENDERED | 10048 |
+| CONFIRMED_RENDERED | 3931 |
 | CANDIDATE_NEEDS_REVIEW | 2893 |
 | EXCLUDED_MATCHING_KEY | 985 |
 | EXCLUDED_INTERNAL_DESIGN_REGISTER | 447 |
@@ -346,13 +346,13 @@ No email, PDF, calendar file, export or chat message was generated or opened. Th
 |---|---|
 | Semantic groups in the register | 12523 |
 | Groups with a bn-BD draft | 3205 |
-| Drafts passing every automated guardrail check | 3119 |
-| Drafts flagged by an automated check (need an editor) | 86 |
+| Drafts passing every automated guardrail check | 3157 |
+| Drafts flagged by an automated check (need an editor) | 48 |
 | Groups not drafted yet (queued by priority) | 9313 |
-| Draft confidence | HIGH 2574, MEDIUM 454, LOW 177 |
+| Draft confidence | HIGH 2566, MEDIUM 464, LOW 175 |
 | Human-reviewed groups | 0 |
 | Groups needing a qualified reviewer (legal, privacy, terms, billing, official rules) | 1954 (297 already have a model draft); reviewer assigned: none |
-| Drafts where English says version and Bengali dropped it (editor to confirm) | 26 |
+| Drafts where English says version and Bengali dropped it (editor to confirm) | 21 |
 
 Review packet: 20 journeys; screens drawn per journey are in `review-packet/REVIEW_PACKET.md`. Journey J16 (guest request) has no drawn screen.
 
@@ -363,7 +363,7 @@ Measured on the packet screens at 390 px wide: sideways overflow in 0 of 114 ima
 | Check | Result |
 |---|---|
 | Drafts containing a bare ফাইল (ambiguous between the visa file and an uploaded document) | 0 |
-| Drafts using ভিসা ফাইল for the case | 209 |
+| Drafts using ভিসা ফাইল for the case | 208 |
 | Drafts holding both the visa file and an uploaded document (listed for the editor) | 14 |
 | Drafts using নথি (non-standard for document) | 0 |
 | Drafts using দলিল (allowed only for deeds) | 2 (Property Deed, Sale Deed) |
@@ -372,7 +372,7 @@ Measured on the packet screens at 390 px wide: sideways overflow in 0 of 114 ima
 
 ### The 231 drafts flagged at PR head bd5eb8bc
 
-Every one was reviewed (`data/FLAGGED_AUDIT.csv`). Dispositions: CHECKER_FALSE_POSITIVE_REMOVED 83, SEMANTIC_ERROR_FIXED 62, ACCEPTED_BY_DESIGN 36, TERMINOLOGY_UPDATED 17, ACCEPTED_DOCUMENT_HISTORY_WORDING 16, SOURCE_ISSUE_OPEN 12, OPEN_EDITOR_DECISION 5. Drafts flagged by the automated checks today: 86. A flag is a prompt for an editor, not a verdict; drafts still flagged are listed with the reason they were kept.
+Every one was reviewed (`data/FLAGGED_AUDIT.csv`). Dispositions: CHECKER_FALSE_POSITIVE_REMOVED 86, SEMANTIC_ERROR_FIXED 54, SOURCE_ISSUE_OPEN 31, ACCEPTED_DOCUMENT_HISTORY_WORDING 21, ACCEPTED_BY_DESIGN 19, TERMINOLOGY_UPDATED 15, OPEN_EDITOR_DECISION 5. Drafts flagged by the automated checks today: 48. A flag is a prompt for an editor, not a verdict; drafts still flagged are listed with the reason they were kept.
 
 ### Review queues (assigned to the owner; none reviewed)
 
@@ -395,7 +395,9 @@ Every item in every queue shows `assigned_reviewer` = owner, `reviewed` = NO and
 
 Owner decisions applied (2026-11-12, `data/drafts/OWNER_DECISIONS.json`): Bengali first; case is ফাইল; Bengali digits in prose; the owner is editor and legal reviewer.
 
-## 10. Independent review and what was done about it
+## 10. Independent reviews and what was done about them
+
+A second independent review of the fixes (`data/INDEPENDENT_REVIEW_2.md`, `data/independent-review-2-sample.csv`) found 18 meaning errors, 7 wrong audit dispositions and several code-scanning patterns; all confirmed items were fixed and each is listed in `data/REVIEW_RESPONSE.md`.
 
 A separate session re-checked the census, the report and the drafts (`data/INDEPENDENT_REVIEW.md`, rows in `data/independent-review-sample.csv`). Actions taken are in `data/REVIEW_RESPONSE.md`. Headline: census precision 92.5 percent on its sample; drafts 110 OK, 5 minor, 5 error of 120. Its five most serious findings and their status: (1) about 900 service error messages were missing from the census: now extracted as `ERROR_CALL` rows; (2) this report was stale: regenerated, with counts computed by script; (3) the no-version rule was applied to real versions: the checker now flags dropped versions for an editor and bans version words only where English means a copy, and the five error drafts were corrected in `data/drafts/bn-BD.corrections.jsonl`; (4) no qualified reviewer: the owner assigned themself as editor and legal reviewer; nothing is reviewed; queues are in `data/review-queues/`; (5) platform evidence was overclaimed: wording corrected, attestation classified per term (section 9).
 

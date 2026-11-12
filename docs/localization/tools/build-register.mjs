@@ -54,7 +54,7 @@ const CASE_MARK = '';
  * the case is written ভিসা ফাইল; an uploaded file is a ডকুমেন্ট; bare ফাইল is never used; the
  * navigation label Documents is ডকুমেন্টস; prose digits are Bengali (codes and addresses are not).
  */
-function applyOwnerDecisions(text, english) {
+function applyOwnerDecisions(text, english, keepLatinDigits = false) {
   let t = text;
   // 1. the case (already-final text is left alone, so the transform is idempotent)
   t = t.replace(/ভিসা ফাইল/g, CASE_MARK);
@@ -77,7 +77,7 @@ function applyOwnerDecisions(text, english) {
   // 3. navigation label
   if (english.trim().toLowerCase() === 'documents') t = 'ডকুমেন্টস';
   // 4. digits in prose
-  if (decisions.digits_in_prose === 'bengali')
+  if (decisions.digits_in_prose === 'bengali' && !keepLatinDigits)
     t = t
       .split(KEEP_TOKEN)
       .map((part, i) => (i % 2 ? part : part.replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)])))
@@ -244,10 +244,10 @@ for (const g of [...groups.values()].sort(
   let note = '';
   let prov = 'NOT_DRAFTED';
   if (d?.bn) {
-    bn = applyOwnerDecisions(d.bn, g.english);
+    bn = applyOwnerDecisions(d.bn, g.english, d.keep_latin_digits === true);
     conf = d.conf ?? '';
     note = d.note ?? '';
-    const all = check(g.english, bn);
+    const all = check(g.english, bn, { choiceDropOk: d.choice_drop_ok === true });
     const f = all.filter((x) => !x.rule.startsWith('WARN_'));
     const warn = all.filter((x) => x.rule.startsWith('WARN_'));
     checks = f.length

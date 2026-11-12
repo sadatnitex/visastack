@@ -31,3 +31,18 @@ Source: `data/INDEPENDENT_REVIEW.md` (separate session; findings re-checked agai
 | Version wording | FIXED | Numbered pack, checklist, snapshot, letter and profile-detail versions keep সংস্করণ or স্ন্যাপশট; document history keeps কপি; 26 rows remain flagged for an editor to confirm |
 | Number and date rules | DOCUMENTED | `data/NUMBER_DATE_FORMAT_RULES.md`, audit found no changed identifier; no runtime change |
 | Review queues | SPLIT | Four queues; all items assigned to the owner and none reviewed |
+
+## Second independent review (`data/INDEPENDENT_REVIEW_2.md`)
+
+A fresh reviewer checked the fixes above and found 18 meaning errors the checker had missed. Disposition:
+
+| Finding | Status | What was done |
+|---|---|---|
+| Legal hold still read as Saved in 5 long sentences (the cross-use check only ran on strings of 40 characters or fewer); one more said আইনি সংরক্ষণ | FIXED | The five drafts and the retention sentence corrected; new rule `LEGAL_HOLD_TERM` applies at any length |
+| Runtime English text dropped with `{choice}` in 9 drafts; the rule let any `{choice}` go | FIXED | Rule now allows a drop only where `{choice}` is glued to a word (plural suffix) or the row is explicitly accepted; five drafts restored to keep the runtime text, three accepted with a reason, one noun restored; the rows that still print English at run time are `SOURCE_ISSUE_OPEN` |
+| কপি written for real versions (About This Version, checklist and request revisions, a newer checklist, pinned version) | FIXED | Corrected to সংস্করণ; the checker now treats Revision like Version |
+| Two misspellings সংস্করণর | FIXED | Corrected; rule `TYPO` added |
+| "Creates their file" drafted as "document"; one garbled sentence; one missing genitive; a typed example in Bengali digits | FIXED | Corrected; typed examples keep Latin digits (`keep_latin_digits`) and are documented in the number audit |
+| Audit called some rows fixed that were not; two runtime-plural rows marked accepted | FIXED | Audit now reports `FIX_INCOMPLETE_OPEN` for any changed row the checker still flags, and moves runtime-text rows to `SOURCE_ISSUE_OPEN` |
+| Code scanning: unclosed `open()`, unused variable and import, shell command built from data, one-pass tag regex, `</scripture` ending a script block | FIXED | `execFileSync` with an argument array; `with open`; scanner end tag must be followed by `>`, `/` or whitespace (test added); entity decoding guarded |
+| The landing page "file" (SG-e60ff7d8, SG-8da7faca, SG-c89d1fc2) means the person's private record, so ভিসা ফাইল reads as one visa case | OPEN, owner decision | Left as ভিসা ফাইল under the owner's case rule; the owner should say whether the landing-page "file" is the same object |

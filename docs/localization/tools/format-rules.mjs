@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { splitOnTags } from './text-markers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const LOC = path.join(ROOT, 'docs/localization');
@@ -92,7 +93,17 @@ const BN = '০১২৩৪৫৬৭৮৯';
 const toLatin = (s) => s.replace(/[০-৯]/g, (c) => String(BN.indexOf(c)));
 const PROTECT =
   /https?:\/\/\S+|\S+@\S+\.\S+|[A-Za-z][\w./-]*[0-9][\w./-]*|[0-9][\w./-]*[A-Za-z][\w./-]*/g;
-const strip = (s) => s.replace(/\{[^}]*\}|<[^>]*>/g, ' ');
+const strip = (s) => splitOnTags(s.replace(/\{[^}]*\}/g, ' ')).join(' ');
+// Typed examples keep the Latin form the field accepts (owner rule: typed values are never reformatted).
+const typedExamples = new Set(
+  fs
+    .readFileSync(path.join(LOC, 'data/drafts/bn-BD.corrections.jsonl'), 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+    .filter((o) => o.keep_latin_digits === true)
+    .map((o) => o.sg),
+);
 const exceptions = [];
 let drafted = 0;
 let withDigits = 0;
@@ -125,7 +136,7 @@ for (const r of reg) {
   const bnLatin = bnNoProt.match(/[0-9]+/g) ?? [];
   const bnBengali = (bnNoProt.match(/[০-৯]+/g) ?? []).map(toLatin);
   if (bnBengali.length) withDigits++;
-  if (bnLatin.length)
+  if (bnLatin.length && !typedExamples.has(r.semantic_group))
     exceptions.push([
       r.semantic_group,
       'LATIN_DIGITS_LEFT_IN_PROSE',
@@ -133,7 +144,11 @@ for (const r of reg) {
       r.english,
       r.bn_BD_draft,
     ]);
-  if (enDigits.length && JSON.stringify(enDigits) !== JSON.stringify([...bnBengali, ...bnLatin]))
+  if (
+    !typedExamples.has(r.semantic_group) &&
+    enDigits.length &&
+    JSON.stringify(enDigits) !== JSON.stringify([...bnBengali, ...bnLatin])
+  )
     exceptions.push([
       r.semantic_group,
       'NUMBER_CHANGED_OR_MISSING',
@@ -194,7 +209,7 @@ const L = [
   '',
   '## 4. What the register drafts do today',
   '',
-  `Static digits in drafted Bengali prose were converted to Bengali digits by the register builder, skipping placeholders, tags, URLs, email addresses and code-like tokens. Audit of ${drafted} drafted groups: ${withDigits} contain Bengali digits; ${protectedChecked} protected tokens (emails, URLs, code-like tokens) in the English were checked for survival in the Bengali; ${exceptions.length} exception(s) are listed in \`data/NUMBER_DATE_AUDIT.csv\` (issue types: protected token changed or missing, Latin digits left in prose, number changed or missing).`,
+  `Static digits in drafted Bengali prose were converted to Bengali digits by the register builder, skipping placeholders, tags, URLs, email addresses and code-like tokens. Audit of ${drafted} drafted groups: ${withDigits} contain Bengali digits; ${protectedChecked} protected tokens (emails, URLs, code-like tokens) in the English were checked for survival in the Bengali; ${typedExamples.size} typed example(s) deliberately keep Latin digits (the form the field accepts); ${exceptions.length} exception(s) are listed in \`data/NUMBER_DATE_AUDIT.csv\` (issue types: protected token changed or missing, Latin digits left in prose, number changed or missing).`,
   '',
   '## 5. What a later implementation must do (not done here)',
   '',

@@ -43,11 +43,14 @@ const ENT = {
   ndash: '-',
   hellip: '...',
 };
+/** A numeric entity outside Unicode would throw; leave it as written instead. */
+const safeCodePoint = (n, fallback) =>
+  Number.isInteger(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : fallback;
 const decode = (s) =>
   s.replace(/&(#x?[0-9a-fA-F]+|\w+);/g, (m, g) => {
     if (ENT[g] !== undefined) return ENT[g];
-    if (g.startsWith('#x')) return String.fromCodePoint(Number.parseInt(g.slice(2), 16));
-    if (g.startsWith('#')) return String.fromCodePoint(Number.parseInt(g.slice(1), 10));
+    if (g.startsWith('#x')) return safeCodePoint(Number.parseInt(g.slice(2), 16), m);
+    if (g.startsWith('#')) return safeCodePoint(Number.parseInt(g.slice(1), 10), m);
     return m;
   });
 const norm = (s) => s.replace(/\s+/g, ' ').trim();

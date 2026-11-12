@@ -9,7 +9,6 @@ att = [r for r in ev if r['evidence_quality'] in ATTESTED]
 by_src = collections.defaultdict(lambda: collections.Counter())
 for r in ev:
     by_src[r['platform']][r['evidence_quality'] + (' / ' + r['intent_match'] if r['intent_match'] else '')] += 1
-loc = collections.Counter((r['platform'], r['locale']) for r in att)
 cls = collections.Counter(t['attestation_class'] for t in gl)
 exact_rows = sum(1 for r in att if r['intent_match'] == 'EXACT')
 S = {
@@ -18,7 +17,8 @@ S = {
     'firefox_bn': sum(1 for r in att if r['platform'] == 'Firefox' and r['locale'] == 'bn'), 'firefox_bn_BD': sum(1 for r in att if r['platform'] == 'Firefox' and r['locale'] == 'bn-BD'),
     'glossary': dict(cls), 'direct_or_bilingual_bangladeshi': 0,
 }
-json.dump(S, open('data/ATTESTATION_STATUS.json', 'w'), indent=1)
+with open('data/ATTESTATION_STATUS.json', 'w', encoding='utf-8') as out:
+    json.dump(S, out, indent=1)
 GAPS = [
     ('Facebook / Meta Bengali login and account labels', 'facebook.com and bn-in.facebook.com: no connection through the session proxy (HTTP 000) on 2026-11-12, curl and web-fetch tools', 'Needs the host allowed, or a person with the live product'),
     ('bKash EN/Bangla public navigation', 'bkash.com/bn: no connection (HTTP 000)', 'Same'),
@@ -58,5 +58,6 @@ L += ['', '## 4. Research gaps (inaccessible sources)', '', 'Attempted on 2026-1
 for a, b, c in GAPS: L.append(f'| {a} | {b} | {c} |')
 L += ['', '## 5. What this means for the register', '',
       'Every Bengali sentence in `VISASTACK_TRANSLATION_REGISTER.csv` is a language-model draft (`provenance` column). The register never calls a draft attested. Where a draft uses a glossary term, the term may be OBSERVED_EXACT_FORM (short words such as Save, Delete, Sign in, Password, Settings, Next, Cancel, Close, Try again, Learn more), but the surrounding sentence is not. Words with the highest product risk (the state words, file safety, requirement levels, sharing and legal hold) have no observation at all and rest on the guardrails and the owner as editor.', '']
-open('data/ATTESTATION_STATUS.md', 'w', encoding='utf-8').write('\n'.join(L) + '\n')
+with open('data/ATTESTATION_STATUS.md', 'w', encoding='utf-8') as out:
+    out.write('\n'.join(L) + '\n')
 print(json.dumps(S))

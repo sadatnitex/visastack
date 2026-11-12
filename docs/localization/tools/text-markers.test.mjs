@@ -6,12 +6,13 @@ import {
   removeComments,
   splitOnTags,
   stripMarkers,
+  stripOnce,
   titleOf,
 } from './text-markers.mjs';
 
-test('the old one-pass regex really does leave a tag behind (why this module exists)', () => {
-  const naive = '<scr<b>ipt>x'.replace(/<\/?[\w.]+\/?>/g, '');
-  assert.ok(naive.includes('<script'));
+test('one pass can leave a tag behind (why stripMarkers repeats until nothing is left)', () => {
+  assert.equal(stripOnce('<scr<b>ipt>x'), '<script>x');
+  assert.equal(stripMarkers('<scr<b>ipt>x'), 'x');
 });
 
 test('stripMarkers leaves no tag even when pieces rebuild one', () => {
@@ -38,6 +39,8 @@ test('removeBlocks handles end tags with spaces, upper case and unclosed blocks'
     '<scripture>kept</scripture>',
   );
   assert.equal(removeBlocks('<script>a</script><script>b</script>c', 'script'), '  c');
+  // an end tag of a longer name must not close the block
+  assert.equal(removeBlocks('<script>x</scripture>y</script>z', 'script'), ' z');
 });
 
 test('comments, svg titles and tag splitting', () => {
