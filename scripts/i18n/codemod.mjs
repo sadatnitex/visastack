@@ -23,6 +23,7 @@ import {
   catalogIdent,
   catalogRel,
   readCatalog,
+  readIfExists,
   readSources,
   renderCatalog,
   renderSources,
@@ -107,10 +108,8 @@ export const RUNTIME_FILES = [
 ];
 export function assertRuntime(root) {
   const missing = RUNTIME_FILES.filter(([rel, needs]) => {
-    const p = path.join(root, rel);
-    if (!fs.existsSync(p)) return true;
-    const code = fs.readFileSync(p, 'utf8');
-    return !needs.every((re) => re.test(code));
+    const code = readIfExists(path.join(root, rel));
+    return code === null || !needs.every((re) => re.test(code));
   }).map(([rel]) => rel);
   if (missing.length)
     throw new Error(
@@ -301,7 +300,7 @@ export function runCodemod({
     const before = new Map();
     for (const [rel, text] of writes) {
       const abs = path.join(root, rel);
-      before.set(rel, fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : null);
+      before.set(rel, readIfExists(abs));
       fs.mkdirSync(path.dirname(abs), { recursive: true });
       fs.writeFileSync(abs, text);
     }

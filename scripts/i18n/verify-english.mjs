@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readIfExists } from './catalog.mjs';
 
 const say = (line) => process.stdout.write(`${line}\n`);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -69,8 +70,8 @@ export function compareRenders(before, after) {
       diffs.push({ slug, route: s.route, problem: `outcome ${s.outcome} -> ${t.outcome}` });
     const fa = path.join(before.html, `${slug}.html`);
     const fb = path.join(after.html, `${slug}.html`);
-    const ha = fs.existsSync(fa) ? fs.readFileSync(fa, 'utf8') : null;
-    const hb = fs.existsSync(fb) ? fs.readFileSync(fb, 'utf8') : null;
+    const ha = readIfExists(fa);
+    const hb = readIfExists(fb);
     if (ha !== hb)
       diffs.push({
         slug,

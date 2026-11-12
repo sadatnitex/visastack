@@ -51,9 +51,19 @@ export function parseCatalog(code, file = 'catalog.ts') {
   return out;
 }
 
+/** A file's text, or null when it does not exist (one read, no separate existence check). */
+export function readIfExists(abs) {
+  try {
+    return fs.readFileSync(abs, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
 export function readCatalog(abs) {
-  if (!fs.existsSync(abs)) return { en: {}, bn: {} };
-  return parseCatalog(fs.readFileSync(abs, 'utf8'), abs);
+  const code = readIfExists(abs);
+  return code === null ? { en: {}, bn: {} } : parseCatalog(code, abs);
 }
 
 /** A JS string literal with no em dash in the file (written as an escape). */
@@ -88,8 +98,8 @@ export function renderCatalog(surface, en, bn) {
 }
 
 export function readSources(abs) {
-  if (!fs.existsSync(abs)) return {};
-  return JSON.parse(fs.readFileSync(abs, 'utf8'));
+  const text = readIfExists(abs);
+  return text === null ? {} : JSON.parse(text);
 }
 
 export function renderSources(map) {

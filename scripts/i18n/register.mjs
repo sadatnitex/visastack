@@ -7,7 +7,7 @@
  * the message's placeholders, and it holds no em dash or unresolved marker. Anything else is
  * left to English fallback with a reason.
  */
-import fs from 'node:fs';
+import { readIfExists } from './catalog.mjs';
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
 export const CENSUS_REL = 'docs/localization/VISASTACK_UI_SOURCE_CENSUS.csv';
@@ -82,7 +82,7 @@ export class Register {
   static load(root) {
     const read = (rel) => {
       const p = `${root}/${rel}`;
-      return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+      return readIfExists(p) ?? '';
     };
     return new Register({ registerCsv: read(REGISTER_REL), censusCsv: read(CENSUS_REL) });
   }
