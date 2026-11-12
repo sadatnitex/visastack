@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { primeLocale } from '../../../lib/i18n-server';
 import { signOutCurrentUser } from '../../../lib/sign-out';
 import { AuthShell } from '../auth-ui';
 
 export const metadata: Metadata = { title: 'Account Access Needs Verification' };
 
-export default function AccountRecoveryPage() {
+export default async function AccountRecoveryPage() {
+  await primeLocale();
   return (
     <AuthShell title="Account Access Needs Verification">
       <p className="card-body">

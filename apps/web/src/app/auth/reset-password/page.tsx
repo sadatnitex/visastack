@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { authCatalog } from '../../../i18n/auth';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { resetPasswordAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 
@@ -15,23 +17,25 @@ const ERRORS: Record<string, string> = {
 export default async function ResetPasswordPage({
   searchParams,
 }: { searchParams: Promise<{ token?: string; e?: string; error?: string }> }) {
+  await primeLocale();
+  const t = getServerT(authCatalog);
   const { token, e, error: linkError } = await searchParams;
   if (!token || linkError) {
     return (
-      <AuthShell title="Choose a New Password">
+      <AuthShell title={t('auth.authResetPasswordPage.chooseANewPassword')}>
         <ErrorLine
           id="reset-error"
-          message="That link has expired or is not valid. Ask for a new one."
+          message={t('auth.authResetPasswordPage.thatLinkHasExpiredOrIs')}
         />
         <p className="card-body">
-          <Link href="/auth/forgot-password">Send Me a New Link</Link>
+          <Link href="/auth/forgot-password">{t('auth.authResetPasswordPage.sendMeANewLink')}</Link>
         </p>
       </AuthShell>
     );
   }
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title="Choose a New Password">
+    <AuthShell title={t('auth.authResetPasswordPage.chooseANewPassword')}>
       <meta name="referrer" content="no-referrer" />
       <ErrorLine id="reset-error" message={error} />
       <div className="card u-mb-100">
@@ -41,7 +45,7 @@ export default async function ResetPasswordPage({
             id="password"
             name="password"
             type="password"
-            label="New Password (At Least 8 Characters)"
+            label={t('auth.authResetPasswordPage.newPasswordAtLeast8Characters')}
             autoComplete="new-password"
             required
             minLength={8}
@@ -52,14 +56,14 @@ export default async function ResetPasswordPage({
             id="confirm"
             name="confirm"
             type="password"
-            label="Type the New Password Again"
+            label={t('auth.authResetPasswordPage.typeTheNewPasswordAgain')}
             autoComplete="new-password"
             required
             minLength={8}
             maxLength={128}
           />
           <button type="submit" className="btn btn-primary">
-            Change Password
+            {t('auth.authResetPasswordPage.changePassword')}
           </button>
         </form>
       </div>

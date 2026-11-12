@@ -26,6 +26,7 @@ import {
   decodeAiFilePicks,
   rememberedAiFilePicks,
 } from '../../../lib/ai-file-picks-retry';
+import { primeLocale } from '../../../lib/i18n-server';
 import {
   type AuthorizeParams,
   checkAuthorizeRequest,
@@ -79,6 +80,7 @@ export default async function AuthorizePage({
 }: {
   readonly searchParams: Promise<Search>;
 }) {
+  await primeLocale();
   if (!aiConnectorEnabled()) notFound();
   const search = await searchParams;
   const params: Record<string, string> = {};

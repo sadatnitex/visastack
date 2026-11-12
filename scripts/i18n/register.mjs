@@ -6,8 +6,36 @@
  * Bengali is used only when the row's automated_checks starts with PASS, its placeholders are
  * the message's placeholders, and it holds no em dash or unresolved marker. Anything else is
  * left to English fallback with a reason.
+ *
+ * Owner rule (the language switch goes live): Bengali comes only from register rows in the
+ * ordinary-screen review queue. Rows in the commercial, privacy/consent/legal and official visa
+ * requirement queues (and any row with no queue) keep English until the owner signs them off,
+ * whatever their automated checks say. Add a queue to RELEASED_QUEUES only on that sign-off.
  */
+
+/** Review queues whose Bengali must not ship yet. Anything not ORDINARY_UI is held back. */
+export const RELEASED_QUEUES = new Set(['ORDINARY_UI']);
 import { readIfExists } from './catalog.mjs';
+
+/**
+ * Register rows that stay English even though their review queue is released, each with the
+ * reason. Add a row here when the owner or the review decides a specific string waits; remove it
+ * only on that sign-off.
+ */
+export const HOLDBACK = new Map([
+  [
+    'SG-22bda9c8',
+    'Public beta risk notice (real details, virus scanning): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-0f9d5b37',
+    'Consent acknowledgement (marketing, AI processing, sharing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-361e0c20',
+    'Terms: a legal document name, held English like Privacy until the owner signs off.',
+  ],
+]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
 export const CENSUS_REL = 'docs/localization/VISASTACK_UI_SOURCE_CENSUS.csv';
@@ -115,6 +143,10 @@ export class Register {
     }
     if (!row) return { group: null, bn: null, reason: 'no_register_match' };
     const group = row.semantic_group;
+    if (HOLDBACK.has(group)) return { group, bn: null, reason: `held_back:${HOLDBACK.get(group)}` };
+    const queue = row.review_queue ?? '';
+    if (!RELEASED_QUEUES.has(queue))
+      return { group, bn: null, reason: `review_queue_not_signed_off:${queue || 'none'}` };
     const checks = row.automated_checks ?? '';
     if (!checks.startsWith('PASS'))
       return { group, bn: null, reason: `checks_not_pass:${checks.split(/[;|:]/)[0] || 'empty'}` };

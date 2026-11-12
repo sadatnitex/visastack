@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { parseCatalog } from './catalog.mjs';
@@ -7,7 +8,7 @@ import { runCodemod } from './codemod.mjs';
 import { FILES, loadFormatter, loadModule, makeRoot, readTree, render } from './fixtures.mjs';
 import { renderedJsxText } from './jsx-text.mjs';
 import { KeyAllocator, fileSlug, textSlug } from './keys.mjs';
-import { Register } from './register.mjs';
+import { HOLDBACK, Register } from './register.mjs';
 
 const SRC = Object.keys(FILES).filter((f) => f.endsWith('.tsx'));
 const CAT = 'apps/web/src/i18n/fixture.ts';
@@ -307,6 +308,107 @@ describe('dry run', () => {
   });
 });
 
+describe('review queues not signed off', () => {
+  const header = 'semantic_group,review_queue,english,bn_BD_draft,automated_checks\n';
+  const lookupIn = (queue) =>
+    new Register({
+      registerCsv: `${header}SG-X,${queue},Terms of use,\u09b6\u09b0\u09cd\u09a4,PASS\n`,
+    }).lookup({ file: 'a.tsx', line: 1, censusText: 'Terms of use', english: 'Terms of use' });
+
+  test('a PASS row in the privacy, commercial or official-requirement queue is refused', () => {
+    for (const queue of ['PRIVACY_CONSENT_LEGAL', 'COMMERCIAL', 'OFFICIAL_VISA_REQUIREMENT']) {
+      const r = lookupIn(queue);
+      assert.equal(r.bn, null, queue);
+      assert.equal(r.reason, `review_queue_not_signed_off:${queue}`);
+    }
+  });
+
+  test('a row with no queue is refused, and an ordinary-screen row is used', () => {
+    assert.equal(lookupIn('').reason, 'review_queue_not_signed_off:none');
+    assert.equal(lookupIn('ORDINARY_UI').reason, null);
+    assert.ok(lookupIn('ORDINARY_UI').bn);
+  });
+});
+
+describe('holdback list', () => {
+  const header = 'semantic_group,review_queue,english,bn_BD_draft,automated_checks\n';
+  const lookup = (group) =>
+    new Register({
+      registerCsv: `${header}${group},ORDINARY_UI,Terms,\u09b6\u09b0\u09cd\u09a4,PASS\n`,
+    }).lookup({ file: 'a.tsx', line: 1, censusText: 'Terms', english: 'Terms' });
+
+  test('names exactly the three held strings, each with a reason', () => {
+    assert.deepEqual([...HOLDBACK.keys()].sort(), ['SG-0f9d5b37', 'SG-22bda9c8', 'SG-361e0c20']);
+    for (const [group, reason] of HOLDBACK) assert.ok(reason.length > 10, group);
+  });
+
+  test('a held row stays English even when its queue is released and its checks pass', () => {
+    for (const group of HOLDBACK.keys()) {
+      const r = lookup(group);
+      assert.equal(r.bn, null, group);
+      assert.match(r.reason, /^held_back:/);
+    }
+    assert.ok(lookup('SG-other').bn);
+  });
+});
+
+describe('a failed format', () => {
+  // A formatter that scribbles over every file it was given and then exits 1, like a broken tool.
+  const failing = (root, rels) => {
+    for (const rel of rels) fs.writeFileSync(path.join(root, rel), 'GARBAGE');
+    throw new Error('formatter exited 1');
+  };
+  const touched = (root) =>
+    [...SRC, CAT, SOURCES, ...Object.keys(TWINS)].filter((r) => fs.existsSync(path.join(root, r)));
+
+  test('a first conversion leaves every file as it was, and creates none', () => {
+    const root = fresh(TWINS);
+    const rels = [...SRC, ...Object.keys(TWINS), CAT, SOURCES];
+    const before = readTree(root, rels);
+    assert.throws(
+      () => run(root, [...SRC, ...Object.keys(TWINS)], { format: true, formatter: failing }),
+      /formatter exited 1/,
+    );
+    assert.deepEqual(readTree(root, rels), before);
+    assert.equal(fs.existsSync(path.join(root, CAT)), false);
+    assert.equal(fs.existsSync(path.join(root, SOURCES)), false);
+  });
+
+  test('a later conversion puts back the catalogue and sources already on disk', () => {
+    const root = fresh(TWINS);
+    run(root, SRC);
+    const rels = touched(root);
+    const before = readTree(root, rels);
+    assert.ok(before[CAT]);
+    assert.throws(
+      () => run(root, [...SRC, ...Object.keys(TWINS)], { format: true, formatter: failing }),
+      /formatter exited 1/,
+    );
+    assert.deepEqual(readTree(root, touched(root)), before);
+  });
+});
+
+describe('the formatter used to prove English is unchanged', () => {
+  test('is the real runtime, never a copy', async () => {
+    const { name, format } = await loadFormatter();
+    assert.equal(name, 'runtime');
+    // The old stand-in turned every # into the number, even inside a nested {braces} message.
+    assert.equal(format('{n, plural, one {# item} other {# items}}', { n: 1234 }), '1,234 items');
+  });
+
+  test('a missing packages/i18n/src/icu.ts makes it throw instead of falling back to a copy', async () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'icu-missing-'));
+    try {
+      const missing = path.join(empty, 'packages/i18n/src/icu.ts');
+      await assert.rejects(loadFormatter({ icuPath: missing, fresh: true }), (e) =>
+        e.message.includes(`the i18n runtime formatter is missing: ${missing}`),
+      );
+    } finally {
+      fs.rmSync(empty, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('JSX text rules', () => {
   test('line breaks and indentation collapse as the JSX transform does', () => {
     assert.deepEqual(renderedJsxText('\n    Hello\n    world  \n  '), { text: 'Hello world' });
@@ -389,9 +491,9 @@ export function OpenB() {
 apps/web/src/components/open-a.tsx,3,Open,SG-STATUS
 apps/web/src/components/open-b.tsx,3,Open,SG-ACTION
 `,
-    'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv': `semantic_group,english,bn_BD_draft,automated_checks
-SG-STATUS,Open,\u0996\u09cb\u09b2\u09be,PASS
-SG-ACTION,Open,\u0996\u09c1\u09b2\u09c1\u09a8,PASS
+    'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv': `semantic_group,review_queue,english,bn_BD_draft,automated_checks
+SG-STATUS,ORDINARY_UI,Open,\u0996\u09cb\u09b2\u09be,PASS
+SG-ACTION,ORDINARY_UI,Open,\u0996\u09c1\u09b2\u09c1\u09a8,PASS
 `,
   };
   const files = Object.keys(EDGE).filter((f) => f.endsWith('.tsx'));

@@ -18,6 +18,10 @@ const state = vi.hoisted(() => ({ pathname: '/' }));
 export const navigationState = state;
 
 vi.mock('next/navigation', () => ({
+  // Like the real one: Next's own signals travel on, any other error is left to the caller.
+  unstable_rethrow: (error: unknown) => {
+    if (error instanceof Error && /^NEXT_/.test(error.message)) throw error;
+  },
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
   },

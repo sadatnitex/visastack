@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { authCatalog } from '../../../i18n/auth';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { reauthAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
@@ -15,11 +17,13 @@ const ERRORS: Record<string, string> = {
 export default async function ReauthPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; returnTo?: string }> }) {
+  await primeLocale();
+  const t = getServerT(authCatalog);
   const { e, returnTo } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title="Confirm it is you">
-      <p className="card-body">For your safety, please type your password again to continue.</p>
+    <AuthShell title={t('auth.authReauthPage.confirmItIsYou')}>
+      <p className="card-body">{t('auth.authReauthPage.forYourSafetyPleaseTypeYour')}</p>
       <ErrorLine id="reauth-error" message={error} />
       <div className="card u-mb-100">
         <form action={reauthAction} className="field-list">
@@ -28,7 +32,7 @@ export default async function ReauthPage({
             id="password"
             name="password"
             type="password"
-            label="Password"
+            label={t('auth.authReauthPage.password')}
             autoComplete="current-password"
             required
             minLength={8}
@@ -36,7 +40,7 @@ export default async function ReauthPage({
             errorId={error ? 'reauth-error' : undefined}
           />
           <button type="submit" className="btn btn-primary">
-            Continue
+            {t('auth.authReauthPage.continue')}
           </button>
         </form>
       </div>
