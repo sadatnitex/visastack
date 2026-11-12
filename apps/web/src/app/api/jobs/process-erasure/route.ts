@@ -2,6 +2,7 @@ import { systemPrincipal } from '@visastack/services';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerErasureWorker } from '../../../../lib/jobs';
 import { runGuestRetentionPurge } from '../../../../lib/lifecycle-jobs/guest-purge';
+import { runHeldJobRequeue } from '../../../../lib/lifecycle-jobs/hold-requeue';
 import { runRecentlyDeletedPurge } from '../../../../lib/lifecycle-jobs/purge';
 
 /**
@@ -31,6 +32,7 @@ export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
 
+  const startedAt = Date.now();
   // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
   // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
   const recentlyDeleted = await runRecentlyDeletedPurge(systemPrincipal('process-erasure'));
@@ -46,6 +48,22 @@ export async function GET(request: Request): Promise<Response> {
     if (result.processed + result.blocked + result.failed < BATCH_SIZE) break; // caught up
   }
 
+  // Jobs parked by a hold that has since ended (a release normally re-queues them at once; this
+  // catches a release that raced the worker, older parked jobs, and holds ended by a backup repair).
+  // After the worker so its own work always runs first, and with a time budget: no new applicant is
+  // started after 35 seconds into the run, because this route stops at 60 seconds and the guest
+  // purge below has 20. If the worker used the whole budget, the sweep waits for the next run.
+  const heldRequeue = await runHeldJobRequeue(systemPrincipal('process-erasure'), {
+    stopAt: startedAt + 35_000,
+  });
+  // Work what the sweep just put back in this same run, instead of leaving it a day.
+  if (heldRequeue.requeued > 0) {
+    const result = await triggerErasureWorker({ limit: BATCH_SIZE });
+    totalProcessed += result.processed;
+    totalBlocked += result.blocked;
+    totalFailed += result.failed;
+  }
+
   // UMPE P9, after the erasure worker so its daily safety net always runs first: guest answers to
   // agency requests whose chosen period ended (never under a legal hold), and desk sessions that
   // can never be used again. Bounded by its own time budget.
@@ -55,6 +73,7 @@ export async function GET(request: Request): Promise<Response> {
     processed: totalProcessed,
     blocked: totalBlocked,
     failed: totalFailed,
+    heldRequeue,
     recentlyDeleted,
     guestRetention,
   });

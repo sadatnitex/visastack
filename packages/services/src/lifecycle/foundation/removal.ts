@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { appendAuditEvent } from '../../audit';
 import { type Db, first, schema } from '../../db';
 import { enqueueErasureJob } from '../../erasure';
@@ -167,7 +167,8 @@ export async function enqueueDocumentRemoval(
   const objects = await tx
     .select()
     .from(schema.storageObjects)
-    .where(inArray(schema.storageObjects.id, storageObjectIds));
+    .where(inArray(schema.storageObjects.id, storageObjectIds))
+    .orderBy(asc(schema.storageObjects.id));
   for (const object of objects) {
     await enqueueErasureJob(tx, {
       reason: 'DOCUMENT_REMOVAL',

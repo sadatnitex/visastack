@@ -89,3 +89,16 @@ callers end-to-end, including driving a queued job through
 `packages/services/src/{erasure,deletion,retention,reconciliation,export,
 legal-hold}.ts`, `packages/adapters/src/{neon-blob,vercel-blob}.ts`,
 `packages/services/src/storage.ts`, or `apps/web/src/lib/jobs.ts`.
+
+## Update (2026-11-12): held jobs now resume on their own
+
+The known limitation "No automatic retry sweep for `BLOCKED_BY_HOLD`" (above) no longer holds
+(owner decision D2). Releasing a legal hold re-queues the applicant's `BLOCKED_BY_HOLD` erasure
+jobs in the same transaction, unless another active hold still covers the item (same checks as the
+worker). A daily pass in the `process-erasure` job re-queues parked jobs no hold covers: a release
+that raced the worker, jobs parked before this change, and holds ended by a backup repair. Both
+paths write `ERASURE_JOB_RETRIED` with method SYSTEM and cause `HOLD_RELEASED` or
+`HOLD_NO_LONGER_ACTIVE`; a `FAILED` job still needs a person. If the re-queue fails, the release
+rolls back. Lock order: applicant, then parked jobs (by id), then audit writes.
+
+Update, second review round (2026-11-12): only document removal requests are put back in the queue when a hold ends, by the release and by the daily pass. A parked retention purge job stays parked for the retention purge pass, which re-checks that the document is still due under the retention policy as it is now. The applicant lock a release takes is the weaker "no key update" form so it cannot deadlock with the hold review reminder sweep. Parked jobs are now locked in stored-file order (not job id order), the order in which purge and document removal queue a document's files, so a sweep cannot cross a half-queued multi-file document.
