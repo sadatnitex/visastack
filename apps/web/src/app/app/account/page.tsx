@@ -96,7 +96,7 @@ export default async function AccountPage() {
             </div>
           ) : null}
 
-          {/* Hidden until translation work starts (see LANGUAGE_CHOICE_ENABLED). */}
+          {/* Shown while language choice is on (see LANGUAGE_CHOICE_ENABLED). */}
           {LANGUAGE_CHOICE_ENABLED ? (
             <article className="card" {...atLevel('browse')}>
               <p className="card-kicker">Preferences</p>

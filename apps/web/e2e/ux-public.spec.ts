@@ -138,22 +138,23 @@ test.describe('keyboard navigation', () => {
 });
 
 test.describe('language choice', () => {
-  // Translation is deferred (owner decision), so the switch is hidden and every page is English,
-  // even for someone who saved a Bangla choice before (src/lib/locale.ts LANGUAGE_CHOICE_ENABLED).
-  test('offers no language switch and stays English while translation has not started', async ({
-    page,
-    context,
-    baseURL,
-  }) => {
+  // Language choice is on (owner decision 2026-11-12, src/lib/language-choice.ts). One switch to
+  // Bangla and one back. Not tagged @live: the live set is capped (scripts/live-checks.test.mjs).
+  test('the header switch changes the page language to Bangla and back', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.getByRole('button', { name: 'বাংলা' })).toHaveCount(0);
-    await expect(page.locator('.lang-switch')).toHaveCount(0);
+    await page.locator('.lang-switch').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    await page.locator('.lang-switch').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  });
+
+  test('a saved Bangla choice is followed on the next page', async ({ page, context, baseURL }) => {
     await context.addCookies([
       { name: 'visastack_locale', value: 'bn', url: baseURL ?? page.url() },
     ]);
     await page.goto('/status');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
   });
 });
 
