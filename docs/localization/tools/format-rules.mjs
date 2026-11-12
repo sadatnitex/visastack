@@ -43,6 +43,11 @@ const ex = [
     n('bn-BD', { style: 'currency', currency: 'USD' }, 150),
   ],
   [
+    'Amount in BDT (code)',
+    n('en-GB', { style: 'currency', currency: 'BDT', currencyDisplay: 'code' }, 25000),
+    n('bn-BD', { style: 'currency', currency: 'BDT', currencyDisplay: 'code' }, 25000),
+  ],
+  [
     'Amount in USD (code)',
     n('en-GB', { style: 'currency', currency: 'USD', currencyDisplay: 'code' }, 150),
     n('bn-BD', { style: 'currency', currency: 'USD', currencyDisplay: 'code' }, 150),
@@ -201,7 +206,7 @@ const L = [
   '| Email addresses and URLs | `jane@example.com`, `https://` | Keep exactly |',
   '| Counts shown to a person | `{count}`, `{length}` | bn-BD number format (Bengali digits, lakh grouping) |',
   '| Dates and times shown to a person | expiry dates, reminders, history | bn-BD date format. Gregorian calendar only. Do not use the Bengali (Bongabdo) calendar unless the owner decides |',
-  '| Fees and amounts | visa fee and plan amounts | Decision for the editor: bn-BD currency format (`২৫,০০০.০০৳`) or keep the ISO currency code beside the amount, for official fees where ambiguity would be costly. Never convert currencies |',
+  '| Fees and amounts | visa fee and plan amounts | **Decided (owner, 2026-11-12): keep the ISO currency code beside the amount**, for example `১৫০.০০ USD` as `Intl` writes it with the code, or `USD ১৫০.০০` if the editor prefers the code first. No currency symbol (`৳`, `$`) is used and no currency is ever converted. Digits follow the prose rule; the code stays in Latin letters |',
   '| File sizes | `4 MB`, `{uploadLimitLabel}` | Digits follow the prose rule; the unit stays `MB` unless the editor chooses a Bengali unit |',
   '| Durations in prose | `7 days`, `24 hours` | Bengali digits; no plural suffix is needed |',
   '| Typed confirmation keywords | `DELETE` | Keep exactly; the person must type it |',
@@ -216,7 +221,7 @@ const L = [
   '1. Pass the resolved locale (`bn-BD`) to every `Intl` and `toLocale*` call. 30 calls in the web app fix English today (see the coverage report).',
   '2. Format only values meant for people. Render identifiers, codes and typed values through a path that never formats.',
   "3. Keep input fields (dates, numbers, phone) in the control's own format; validate on the Latin form the server expects.",
-  '4. Decide AM/PM versus 24-hour time, and the currency display, with the editor.',
+  '4. Decide AM/PM versus 24-hour time with the editor. The currency display is decided: the ISO code stays beside every amount (use `currencyDisplay: "code"`).',
   '',
 ];
 fs.writeFileSync(path.join(LOC, 'data/NUMBER_DATE_FORMAT_RULES.md'), L.join('\n'));

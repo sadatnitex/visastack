@@ -95,11 +95,13 @@ Made by the owner on 2026-11-12 (recorded in `data/drafts/OWNER_DECISIONS.json` 
 | First language | Bengali (bn-BD) | Slices in Section 3.3 run for Bengali only; ar, fr, de, es and zh-Hans stay not started |
 | Word for "case" | ফাইল, written ভিসা ফাইল | Every case is ভিসা ফাইল in the drafts, uploaded evidence is ডকুমেন্ট or আপলোড করা ডকুমেন্ট, and a bare ফাইল is never used for either, so the two objects cannot be confused (follow-up of 2026-11-12). Drafts holding both objects are listed in `data/CASE_FILE_COLLISION_REVIEW.csv`. Case manager is ভিসা ফাইল ম্যানেজার |
 | Digits in prose | Bengali | Static prose digits in drafts converted (57 drafts with Bengali digits; identifiers, codes, emails and URLs untouched, audited in `data/NUMBER_DATE_AUDIT.csv`). Runtime numbers need the locale formatter: with `bn-BD` the platform's own `Intl` already gives Bengali digits and lakh grouping, so the helper in Section 3.4 must pass the locale and must not force Latin digits. Typed identifiers (passport and document numbers, codes, emails) stay as typed, so inputs and read-back values need an explicit Latin-digit rule |
+| Amounts | ISO currency code beside the amount | No symbol, no conversion; the formatter in Section 3.4 must pass `currencyDisplay: "code"` |
 | Editor and legal reviewer | The owner, for both | Recorded as the owner's own decision. The brief notes an owner as editor does not by itself replace a qualified legal reviewer; the review queues (`data/review-queues/`: ordinary UI, commercial, privacy and legal, official visa requirements) are assigned to the owner and nothing is reviewed yet |
+
+Accepted as drafted on 2026-11-12: the landing-page "file" stays ভিসা ফাইল; ডকুমেন্টস for the Documents label; the blame-free generic error wording.
 
 Still open:
 
-1. Whether to keep Google-attested "কিছু ভুল হয়েছে" or the blame-free "কিছু একটা সমস্যা হয়েছে".
 2. Whether the language choice should later be saved on the account (needs a migration) or stay a cookie.
 3. Whether platform staff screens are translated at all.
 4. The Bengali unit for file sizes ("MB" is left in Latin letters in drafts).

@@ -23,5 +23,13 @@
     "navigation_documents": "The English navigation label Documents is ডকুমেন্টস",
     "format_wording": "File format checked is ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে (not ফাইলের ধরন, which now reads as the visa file)",
     "legal_quotations": "দলিল is kept only for real deeds (Property Deed, Sale Deed)"
+  },
+  "review_of_pr_511_2026-11-12": {
+    "reply": "all good, and keep iso currency code beside",
+    "currency": "Amounts keep the ISO currency code beside the amount (for example USD 150.00 or BDT 25,000.00). No currency symbol is used and no currency is converted. Digits follow the Bengali-digit rule; the code stays in Latin letters.",
+    "landing_page_file": "Accepted as drafted: the landing-page word file stays ভিসা ফাইল.",
+    "document_navigation_labels": "Accepted as drafted: ডকুমেন্টস for the label Documents; other document-label strings stay as listed in data/NAV_TERM_REVIEW.csv.",
+    "generic_error_wording": "Accepted as drafted: কিছু একটা সমস্যা হয়েছে.",
+    "note": "The reply was read as accepting the drafted answers to the four open items and deciding the currency display. Nothing has been reviewed."
   }
 }
