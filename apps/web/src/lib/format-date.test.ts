@@ -76,3 +76,13 @@ describe('formatTimestamp and daysUntilDateOnly', () => {
     expect(daysUntilDateOnly('2026-10-04', now)).toBe(-2);
   });
 });
+
+describe('formatDateOnly for a Bengali reader', () => {
+  it('uses Bengali digits and month names, on the same calendar day in any timezone', () => {
+    expect(formatDateOnly('2027-01-15', 'bn')).toBe('১৫ জানু, ২০২৭');
+  });
+  it('leaves the English output exactly as it was', () => {
+    expect(formatDateOnly('2027-01-15', 'en')).toBe(formatDateOnly('2027-01-15'));
+    expect(formatDateOnly('2027-01-15')).toBe('Jan 15, 2027');
+  });
+});

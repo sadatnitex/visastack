@@ -81,6 +81,26 @@ export const HOLDBACK = new Map([
     'Invitation consent withdrawal statement (stop sharing at any time): owner sign-off.',
   ],
   ['SG-f8a50812', 'Invitation expiry rule (7 days) and revocation: a stated rule, owner sign-off.'],
+  [
+    'SG-57b3157f',
+    'Agency invitation promise on the home page (you approve it, you can stop it): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-58fc0338',
+    'Your records belong to you, choose the recipient: a sharing and ownership promise, owner sign-off.',
+  ],
+  [
+    'SG-4bfc56d4',
+    'Review, pause or end future access: a statement about stopping sharing, owner sign-off.',
+  ],
+  [
+    'SG-a5b2278c',
+    'A suggestion stays separate until you approve it: a promise about AI and confirmed facts, owner sign-off.',
+  ],
+  [
+    'SG-2604b090',
+    'AI never changes your profile on its own: a promise about AI behaviour, owner sign-off.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

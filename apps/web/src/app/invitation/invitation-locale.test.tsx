@@ -1,3 +1,4 @@
+import { DEFAULT_CLIENT_GRANT_ACTIONS } from '@visastack/services';
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
 
@@ -21,8 +22,9 @@ vi.mock('react', async (importOriginal) => ({
     return cached as unknown as T;
   },
 }));
+const preview = vi.hoisted(() => ({ page: { state: 'unavailable' } as Record<string, unknown> }));
 vi.mock('../../lib/invitation-preview', () => ({
-  loadClientInvitationPage: async () => ({ state: 'unavailable' }),
+  loadClientInvitationPage: async () => preview.page,
 }));
 vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => false }));
 
@@ -72,6 +74,41 @@ describe('the public invitation page under Bengali', () => {
     expect(page).toContain(
       invitationCatalog.en['invitation.invitationPage.invitationsExpireAfter7DaysIf'],
     );
+  });
+
+  it('shows the open offer in Bengali, with the consent sentences still English', async () => {
+    preview.page = {
+      state: 'open',
+      view: {
+        agencyName: 'Acme Visas',
+        verified: true,
+        accentColor: null,
+        logoVersion: null,
+        grantActions: DEFAULT_CLIENT_GRANT_ACTIONS,
+        expiresAt: new Date(Date.now() + 6.5 * 24 * 60 * 60 * 1000),
+      },
+    };
+    try {
+      const offer = await render('bn', { kind: 'client', token: TOKEN });
+      const bn = invitationCatalog.bn;
+      // The strings that have approved Bengali show it; the rest of the offer stays English.
+      expect(offer).toContain(
+        bn['invitation.invitationClientInvitationOffer.ifYouResetYourPasswordOpen'],
+      );
+      expect(offer).toContain(bn['invitation.invitingAgency.poweredByVisastack']);
+      expect(offer).toContain('Acme Visas Invited You');
+      expect(offer).toContain('They Could Not');
+      expect(offer).not.toMatch(/invitation\.invitationClientInvitationOffer\./);
+      expect(offer).not.toMatch(/\{[A-Za-z]+\}/);
+      // Consent wording is held back: the English sentence shows, not Bengali.
+      expect(offer).toContain(
+        invitationCatalog.en[
+          'invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou'
+        ],
+      );
+    } finally {
+      preview.page = { state: 'unavailable' };
+    }
   });
 
   it('has no raw placeholder in any Bengali string', () => {

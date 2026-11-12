@@ -207,7 +207,6 @@ export const homeCatalog = defineCatalog({
     'home.page.addYourDetailsOnce': 'আপনার তথ্য একবারই যোগ করুন',
     'home.page.added': 'যোগ করা হয়েছে',
     'home.page.addedToJapanCase': 'জাপান ভিসা ফাইলে যোগ করা হয়েছে',
-    'home.page.aiNeverChangesYourProfileOn': 'এআই কখনো নিজে থেকে আপনার প্রোফাইল বদলায় না',
     'home.page.aiSuggestionsFromYourDocumentsAnd':
       'আপনার ডকুমেন্ট থেকে এআই-এর পরামর্শ এবং কাগজপত্রের মেয়াদ শেষ হওয়ার আগেই সতর্কবার্তা, প্রতিটি ধাপে ধাপে চালু করা হচ্ছে। আজ ঠিক কোনটি কাজ করছে তা স্ট্যাটাস পাতায় দেখা যায়।',
     'home.page.answerAnAgencySDocumentRequest': 'এজেন্সির ডকুমেন্টের অনুরোধের উত্তর এক জায়গা থেকে দিন',
@@ -241,8 +240,6 @@ export const homeCatalog = defineCatalog({
     'home.page.illustrativeInterfaceSampleInformation': 'উদাহরণ হিসেবে দেখানো ইন্টারফেস · নমুনা তথ্য',
     'home.page.illustrativeInterfaceWithSampleInformation': 'নমুনা তথ্যসহ উদাহরণ হিসেবে দেখানো ইন্টারফেস',
     'home.page.inThePilotToday': 'আজ পাইলটে যা আছে',
-    'home.page.inviteAnAgencyToSeeSpecific':
-      'নির্দিষ্ট সময়ের জন্য একটি এজেন্সিকে নির্দিষ্ট কিছু আইটেম দেখার আমন্ত্রণ জানান। আপনি তা অনুমোদন করেন, আপনি তা বন্ধ করতে পারেন, এবং তাঁরা কী খুলেছেন তা আপনি দেখতে পারেন।',
     'home.page.inviteOnlyPilot': 'শুধু আমন্ত্রিতদের জন্য পাইলট',
     'home.page.keepAClearRecordOfWho': 'কে কী করেছে এবং কখন, তার একটি স্পষ্ট রেকর্ড রাখুন',
     'home.page.keepAnAccurateHistoryOfPrevious':

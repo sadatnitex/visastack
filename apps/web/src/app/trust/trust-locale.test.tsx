@@ -39,6 +39,8 @@ const { default: PackPage } = await import('./[packKey]/page');
 
 const BENGALI = /[ঀ-৿]/;
 
+const dates = { effectiveDate: null as string | null };
+
 function route(): PublicTrustRoute {
   return {
     packKey: 'uk.standard-visitor',
@@ -48,7 +50,7 @@ function route(): PublicTrustRoute {
     purpose: 'Tourism',
     routeDescription: 'Short tourist stays.',
     version: 3,
-    effectiveDate: null,
+    effectiveDate: dates.effectiveDate,
     nextReviewDate: '2027-01-15',
     officialFee: null,
     officialChannelName: 'UK Visas and Immigration',
@@ -102,6 +104,22 @@ describe('the public trust pages under Bengali', () => {
       expect(key in trustCatalog.bn, key).toBe(false);
     }
     expect(pack).toContain(trustCatalog.en['trust.trustPackkeyPage.officialChannel']);
+  });
+
+  it('writes the route dates for a Bengali reader, and keeps the English format for English', async () => {
+    dates.effectiveDate = '2026-11-12';
+    try {
+      const bn = await render('bn', 'pack');
+      // 15 January 2027 and 12 November 2026, with Bengali digits and month names.
+      expect(bn).toContain('পরবর্তী পর্যালোচনা ১৫ জানু, ২০২৭');
+      expect(bn).toContain('১২ নভে, ২০২৬');
+      expect(bn).not.toMatch(/Jan 15, 2027|Nov 12, 2026/);
+      const en = await render('en', 'pack');
+      expect(en).toContain('Next reviewed Jan 15, 2027');
+      expect(en).toContain('In effect since Nov 12, 2026');
+    } finally {
+      dates.effectiveDate = null;
+    }
   });
 
   it('keeps every fee, requirement and official-process sentence English (not in the Bengali catalogue)', () => {

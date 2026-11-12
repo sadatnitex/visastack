@@ -60,7 +60,7 @@ export default async function PublicTrustRoutePage({
 }: {
   readonly params: Promise<{ packKey: string }>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(trustCatalog);
   const { packKey } = await params;
   const { route, unavailable } = await loadRoute(packKey);
@@ -97,14 +97,14 @@ export default async function PublicTrustRoutePage({
           {route.effectiveDate ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
               {t('trust.trustPackkeyPage.inEffectSinceFormatdateonly', {
-                formatDateOnly: formatDateOnly(route.effectiveDate),
+                formatDateOnly: formatDateOnly(route.effectiveDate, locale),
               })}
             </p>
           ) : null}
           {route.nextReviewDate ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.25rem' }}>
               {t('trust.trustPackkeyPage.nextReviewedFormatdateonly', {
-                formatDateOnly: formatDateOnly(route.nextReviewDate),
+                formatDateOnly: formatDateOnly(route.nextReviewDate, locale),
               })}
             </p>
           ) : null}

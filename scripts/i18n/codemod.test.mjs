@@ -337,9 +337,35 @@ describe('holdback list', () => {
       registerCsv: `${header}${group},ORDINARY_UI,Terms,\u09b6\u09b0\u09cd\u09a4,PASS\n`,
     }).lookup({ file: 'a.tsx', line: 1, censusText: 'Terms', english: 'Terms' });
 
-  test('keeps the three original held strings and gives every held string a reason', () => {
-    for (const group of ['SG-0f9d5b37', 'SG-22bda9c8', 'SG-361e0c20'])
-      assert.ok(HOLDBACK.has(group), group);
+  // The exact list, so deleting a held group (which would let its Bengali ship) turns this red.
+  // Adding a held group means adding it here too, in the same change. Wave B (#521) adds its own
+  // groups to this list when it lands.
+  const EXPECTED_HELD = [
+    'SG-0f9d5b37',
+    'SG-1fec77cc',
+    'SG-22bda9c8',
+    'SG-2604b090',
+    'SG-361e0c20',
+    'SG-461caf20',
+    'SG-4bfc56d4',
+    'SG-57b3157f',
+    'SG-57e8fee4',
+    'SG-58fc0338',
+    'SG-7d8d7a57',
+    'SG-8939253f',
+    'SG-8e79eb73',
+    'SG-a5b2278c',
+    'SG-b6f48122',
+    'SG-c26f3e5b',
+    'SG-cda9a1ac',
+    'SG-f5a73aec',
+    'SG-f8a50812',
+    'SG-f92f9f0f',
+    'SG-fe6d2f71',
+  ];
+
+  test('names exactly the held groups, each with a reason', () => {
+    assert.deepEqual([...HOLDBACK.keys()].sort(), EXPECTED_HELD);
     for (const [group, reason] of HOLDBACK) assert.ok(reason.length > 10, group);
   });
 
