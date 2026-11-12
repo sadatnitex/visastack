@@ -7,6 +7,11 @@ import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
 import { LandingStoryHelper } from './landing-story';
 import './landing-c1.css';
+import type { CatalogKey } from '@visastack/i18n';
+import { homeCatalog } from '../i18n/home';
+import { getServerT, primeLocale } from '../lib/i18n-server';
+
+type HomeKey = CatalogKey<typeof homeCatalog>;
 
 /**
  * The public home page, built on the frozen Harbor C1 reference (Programme X WP-L1).
@@ -23,27 +28,40 @@ import './landing-c1.css';
 // The promise (owner decision, 27 Oct 2026, Growth G1): "A clean file you can stand behind."
 // It is about the person's own file being complete, current and tidy. It never says or implies
 // that any authority has approved, accepted or guaranteed anything.
-const HERO_HEADLINE_FIRST = 'A clean file';
-const HERO_HEADLINE_SECOND = 'you can stand behind.';
+const HERO_HEADLINE_FIRST: HomeKey = 'home.page.aCleanFile';
+const HERO_HEADLINE_SECOND: HomeKey = 'home.page.youCanStandBehind';
 
 interface PhoneFile {
-  readonly name: string;
-  readonly detail: string;
-  readonly tag: string;
+  readonly name: HomeKey;
+  readonly detail: HomeKey;
+  readonly tag: HomeKey;
   readonly warning?: boolean;
 }
 
 const PHONE_FILES: readonly PhoneFile[] = [
-  { name: 'Passport', detail: 'Current record · Version 2', tag: 'Current' },
-  { name: 'Employment Letter', detail: 'Added to Japan case', tag: 'Added' },
-  { name: 'Bank Statement', detail: 'Newer copy requested', tag: 'Update', warning: true },
+  {
+    name: 'home.page.passport',
+    detail: 'home.page.currentRecordVersion2',
+    tag: 'home.page.current',
+  },
+  {
+    name: 'home.page.employmentLetteraaddbb',
+    detail: 'home.page.addedToJapanCase',
+    tag: 'home.page.added',
+  },
+  {
+    name: 'home.page.bankStatement',
+    detail: 'home.page.newerCopyRequested',
+    tag: 'home.page.update',
+    warning: true,
+  },
 ];
 
 interface Float {
   readonly id: 'c1-fc1' | 'c1-fc2' | 'c1-fc3' | 'c1-fc4';
   readonly icon: string;
-  readonly title: string;
-  readonly detail: string;
+  readonly title: HomeKey;
+  readonly detail: HomeKey;
   readonly warning?: boolean;
 }
 
@@ -53,129 +71,129 @@ const FLOATS: readonly Float[] = [
   {
     id: 'c1-fc1',
     icon: '⌛',
-    title: 'Document Needs Updating',
-    detail: 'Bank statement · Japan case',
+    title: 'home.page.documentNeedsUpdating',
+    detail: 'home.page.bankStatementJapanCase',
     warning: true,
   },
   {
     id: 'c1-fc2',
     icon: '▤',
-    title: 'Previous Version Kept',
-    detail: 'History stays available to you',
+    title: 'home.page.previousVersionKept',
+    detail: 'home.page.historyStaysAvailableToYou',
   },
   {
     id: 'c1-fc3',
     icon: '◷',
-    title: 'Reminder Before It Expires',
-    detail: 'Passport · sample record',
+    title: 'home.page.reminderBeforeItExpires',
+    detail: 'home.page.passportSampleRecord',
   },
   {
     id: 'c1-fc4',
     icon: '◉',
-    title: 'Access Ends 30 November',
-    detail: 'Three selected records shared',
+    title: 'home.page.accessEnds30November',
+    detail: 'home.page.threeSelectedRecordsShared',
   },
 ];
 
-const BEFORE: readonly string[] = [
-  'The same passport scan sent again for every application',
-  'Documents buried in chats, emails and phone galleries',
-  'No idea which version an agency is holding',
-  'Surprise requests for papers that have quietly expired',
+const BEFORE: readonly HomeKey[] = [
+  'home.page.theSamePassportScanSentAgain',
+  'home.page.documentsBuriedInChatsEmailsAnd',
+  'home.page.noIdeaWhichVersionAnAgency',
+  'home.page.surpriseRequestsForPapersThatHave',
 ];
 
-const AFTER: readonly string[] = [
-  'Enter your details once and reuse them everywhere',
-  'Every document in one private place, with its date',
-  'Every change kept as a new version you can look back on',
-  'A warning before a document runs out, not after',
+const AFTER: readonly HomeKey[] = [
+  'home.page.enterYourDetailsOnceAndReuse',
+  'home.page.everyDocumentInOnePrivatePlace',
+  'home.page.everyChangeKeptAsANew',
+  'home.page.aWarningBeforeADocumentRuns',
 ];
 
 interface Step {
-  readonly title: string;
-  readonly body: string;
+  readonly title: HomeKey;
+  readonly body: HomeKey;
   readonly icon: IconName;
 }
 
 const STEPS: readonly Step[] = [
   {
-    title: 'Add Your Details Once',
-    body: 'Fill in your profile and upload your documents. Each change is saved with its date, so you can always see what was added and when.',
+    title: 'home.page.addYourDetailsOnce',
+    body: 'home.page.fillInYourProfileAndUpload',
     icon: 'upload',
   },
   {
-    title: 'See what is missing',
-    body: 'Pick a visa route and check your file against its requirements. You see what is complete, what is missing and what is close to expiring.',
+    title: 'home.page.seeWhatIsMissing',
+    body: 'home.page.pickAVisaRouteAndCheck',
     icon: 'clipboard',
   },
   {
-    title: 'Share only what is needed',
-    body: 'Invite an agency to see specific items for a set time. You approve it, you can stop it, and you can see what they opened.',
+    title: 'home.page.shareOnlyWhatIsNeeded',
+    body: 'home.page.inviteAnAgencyToSeeSpecific',
     icon: 'share',
   },
 ];
 
 interface Audience {
-  readonly who: string;
-  readonly title: string;
-  readonly points: readonly string[];
+  readonly who: HomeKey;
+  readonly title: HomeKey;
+  readonly points: readonly HomeKey[];
   readonly icon: IconName;
 }
 
 const AUDIENCES: readonly Audience[] = [
   {
-    who: 'For travellers',
-    title: 'Know where your papers are and what to do next',
+    who: 'home.page.forTravellers',
+    title: 'home.page.knowWhereYourPapersAreAnd',
     points: [
-      'Store passport and supporting documents once, then reuse them',
-      'See which documents are missing for each visa route',
-      'Answer an agency’s document request in one place',
+      'home.page.storePassportAndSupportingDocumentsOnce',
+      'home.page.seeWhichDocumentsAreMissingFor',
+      'home.page.answerAnAgencySDocumentRequest',
     ],
     icon: 'user',
   },
   {
-    who: 'For Agencies',
-    title: 'Stop Chasing Documents by Message',
+    who: 'home.page.forAgencies',
+    title: 'home.page.stopChasingDocumentsByMessage',
     points: [
-      'Ask a client for a specific document and see when it arrives',
-      'Open a case and see at once what is missing or overdue',
-      'Keep a clear record of who did what, and when',
+      'home.page.askAClientForASpecific',
+      'home.page.openACaseAndSeeAt',
+      'home.page.keepAClearRecordOfWho',
     ],
     icon: 'briefcase',
   },
 ];
 
-const PROMISES: readonly { readonly icon: IconName; readonly text: string }[] = [
-  { icon: 'eye', text: 'Record sharing starts with your permission' },
-  { icon: 'activity', text: 'Sharing decisions are recorded' },
-  { icon: 'file', text: 'Changes are kept as new versions' },
-  { icon: 'building', text: 'Official information shows where it came from' },
-  { icon: 'shield', text: 'AI never changes your profile on its own' },
-  { icon: 'check', text: 'A manual way to manage your profile' },
+const PROMISES: readonly { readonly icon: IconName; readonly text: HomeKey }[] = [
+  { icon: 'eye', text: 'home.page.recordSharingStartsWithYourPermission' },
+  { icon: 'activity', text: 'home.page.sharingDecisionsAreRecorded' },
+  { icon: 'file', text: 'home.page.changesAreKeptAsNewVersions' },
+  { icon: 'building', text: 'home.page.officialInformationShowsWhereItCame' },
+  { icon: 'shield', text: 'home.page.aiNeverChangesYourProfileOn' },
+  { icon: 'check', text: 'home.page.aManualWayToManageYour' },
 ];
 
 const HORIZONS: readonly {
-  readonly label: string;
-  readonly title: string;
-  readonly body: string;
+  readonly label: HomeKey;
+  readonly title: HomeKey;
+  readonly body: HomeKey;
   readonly state: 'now' | 'next' | 'later';
 }[] = [
   {
-    label: 'In the Pilot Today',
-    title: 'The Core of One Profile',
-    body: 'Your profile with saved versions, a private document vault, document checks against official requirements, and sharing with agencies.',
+    label: 'home.page.inThePilotToday',
+    title: 'home.page.theCoreOfOneProfile',
+    body: 'home.page.yourProfileWithSavedVersionsA',
     state: 'now',
   },
   {
-    label: 'Being Switched On',
-    title: 'Help That Stays in Your Hands',
-    body: 'AI suggestions from your documents and earlier warnings before papers expire, each switched on step by step. The status page shows exactly what works today.',
+    label: 'home.page.beingSwitchedOn',
+    title: 'home.page.helpThatStaysInYourHands',
+    body: 'home.page.aiSuggestionsFromYourDocumentsAnd',
     state: 'next',
   },
   {
-    label: 'Where we are heading',
-    title: 'One Trusted File for Every Journey',
-    body: 'We are working toward a single, verified file that follows a person across visa routes and countries, and gives agencies a calm, clear way to work with it.',
+    label: 'home.page.whereWeAreHeading',
+    title: 'home.page.oneTrustedFileForEveryJourney',
+    body: 'home.page.weAreWorkingTowardASingle',
     state: 'later',
   },
 ];
@@ -235,6 +253,8 @@ interface HomePageProps {
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
+  await primeLocale();
+  const t = getServerT(homeCatalog);
   // A failed sign-in sends the visitor back here with a short reference that holds no
   // personal information (see apps/web/src/app/callback/route.ts), so they get a way
   // forward instead of a blank error page.
@@ -243,10 +263,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const signedIn = await isSignedIn();
   const betaOpen = isPublicBetaOpen();
   const startLabel = signedIn
-    ? 'Open your workspace'
+    ? t('home.page.openYourWorkspace')
     : betaOpen
-      ? 'Create your free account'
-      : 'Sign in to get started';
+      ? t('home.page.createYourFreeAccount')
+      : t('home.page.signInToGetStarted');
   const startHref = !signedIn && betaOpen ? '/auth/sign-up' : '/app';
 
   return (
@@ -254,19 +274,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="c1-hero c1-shell" aria-labelledby="land-hero-title">
         {authError ? (
           <p className="notice notice-warn c1-alert" role="alert">
-            Sign-in didn’t complete. Please try again. If it keeps happening, contact support and
-            quote reference <strong>{authError}</strong>.
+            {t('home.page.signInDidnTCompletePlease')} <strong>{authError}</strong>.
           </p>
         ) : null}
-        <p className="c1-nudge">{betaOpen ? 'Free Public Beta' : 'Invite-Only Pilot'}</p>
-        <h1 className="c1-headline" id="land-hero-title">
-          {HERO_HEADLINE_FIRST} <br />
-          {HERO_HEADLINE_SECOND}
-        </h1>
-        <p className="c1-subline">
-          One private file for your passport and papers. See what is missing, keep every version,
-          and share only the part someone needs.
+        <p className="c1-nudge">
+          {betaOpen ? t('home.page.freePublicBeta') : t('home.page.inviteOnlyPilot')}
         </p>
+        <h1 className="c1-headline" id="land-hero-title">
+          {t(HERO_HEADLINE_FIRST)} <br />
+          {t(HERO_HEADLINE_SECOND)}
+        </h1>
+        <p className="c1-subline">{t('home.page.onePrivateFileForYourPassport')}</p>
         <div className="c1-cta">
           <a className="c1-pill" href={startHref}>
             {startLabel}{' '}
@@ -275,12 +293,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </span>
           </a>
           <Link className="c1-pill c1-pill-light" href="/status">
-            See What Works Today
+            {t('home.page.seeWhatWorksToday')}
           </Link>
         </div>
-        <p className="c1-meta">One personal record. Separate cases. Explicit sharing.</p>
+        <p className="c1-meta">{t('home.page.onePersonalRecordSeparateCasesExplicit')}</p>
 
-        <figure className="c1-devices" aria-label="Illustrative interface with sample information">
+        <figure
+          className="c1-devices"
+          aria-label={t('home.page.illustrativeInterfaceWithSampleInformation')}
+        >
           <div className="c1-phone">
             <div className="c1-island" />
             <div className="c1-statusbar" aria-hidden="true">
@@ -288,47 +309,47 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <span>●●● ▰</span>
             </div>
             <div className="c1-phonebody">
-              <p className="c1-tinycap">VisaStack / Personal record</p>
+              <p className="c1-tinycap">{t('home.page.visastackPersonalRecord')}</p>
               <p className="c1-phonename">
                 Ready for
                 <br />
                 what’s next.
               </p>
-              <p className="c1-sample">Ayesha’s record · Example</p>
+              <p className="c1-sample">{t('home.page.ayeshaSRecordExample')}</p>
               <div className="c1-segment" aria-hidden="true">
-                <span>Documents</span>
-                <span>Cases</span>
-                <span>Sharing</span>
+                <span>{t('home.page.documents')}</span>
+                <span>{t('home.page.cases')}</span>
+                <span>{t('home.page.sharing')}</span>
               </div>
               <div className="c1-phonepanel">
-                <p className="c1-tinycap c1-panelcap">Your documents</p>
+                <p className="c1-tinycap c1-panelcap">{t('home.page.yourDocuments')}</p>
                 {PHONE_FILES.map((file) => (
                   <div className="c1-fileline" key={file.name}>
                     <span className="c1-fileico" aria-hidden="true">
                       ▤
                     </span>
                     <span className="c1-fileinfo">
-                      <b>{file.name}</b>
-                      <small>{file.detail}</small>
+                      <b>{t(file.name)}</b>
+                      <small>{t(file.detail)}</small>
                     </span>
                     <span className={file.warning ? 'c1-tag c1-tag-warning' : 'c1-tag'}>
-                      {file.tag}
+                      {t(file.tag)}
                     </span>
                   </div>
                 ))}
               </div>
               <div className="c1-phonepanel">
-                <p className="c1-next-label">NEXT ACTION</p>
-                <b className="c1-next-title">Replace Bank Statement</b>
-                <p className="c1-next-detail">Requested for your Japan visitor visa case.</p>
-                <span className="c1-capsule">Review request →</span>
+                <p className="c1-next-label">{t('home.page.nextAction')}</p>
+                <b className="c1-next-title">{t('home.page.replaceBankStatement')}</b>
+                <p className="c1-next-detail">{t('home.page.requestedForYourJapanVisitorVisa')}</p>
+                <span className="c1-capsule">{t('home.page.reviewRequest')}</span>
               </div>
             </div>
             <div className="c1-bottomnav" aria-hidden="true">
-              <span>▣ Home</span>
-              <span>▤ Record</span>
-              <span>◷ Cases</span>
-              <span>◯ Sharing</span>
+              <span>{t('home.page.home')}</span>
+              <span>{t('home.page.record')}</span>
+              <span>{t('home.page.casese84518')}</span>
+              <span>{t('home.page.sharingc17536')}</span>
             </div>
           </div>
           {FLOATS.map((float) => (
@@ -340,13 +361,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 {float.icon}
               </span>
               <span>
-                <b>{float.title}</b>
-                <small>{float.detail}</small>
+                <b>{t(float.title)}</b>
+                <small>{t(float.detail)}</small>
               </span>
             </div>
           ))}
           <figcaption className="c1-fineprint">
-            Illustrative interface · Sample information
+            {t('home.page.illustrativeInterfaceSampleInformation')}
           </figcaption>
         </figure>
       </section>
@@ -359,13 +380,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         >
           <div className="land-wrap">
             <div className="land-head">
-              <p className="land-kicker">See Your Checklist</p>
+              <p className="land-kicker">{t('home.page.seeYourChecklist')}</p>
               <h2 className="land-h2" id="land-country-title">
-                Pick a country. See what is usually asked.
+                {t('home.page.pickACountrySeeWhatIs')}
               </h2>
-              <p className="land-sub">
-                No account is needed to look. Create one only when you want to keep going.
-              </p>
+              <p className="land-sub">{t('home.page.noAccountIsNeededToLook')}</p>
             </div>
             <CountryChecklistPicker
               variant="home"
@@ -380,15 +399,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="c1-shell">
           <div className="c1-darkintro">
             <div>
-              <p className="c1-nudge">The product, not just the promise</p>
+              <p className="c1-nudge">{t('home.page.theProductNotJustThePromise')}</p>
               <h2 className="c1-sectionhead" id="land-product-title">
-                Less paperwork. More control.
+                {t('home.page.lessPaperworkMoreControl')}
               </h2>
             </div>
-            <p>
-              Your documents live in your personal record. Cases use selected versions. Agencies
-              receive only the access you choose, within the permissions the platform provides.
-            </p>
+            <p>{t('home.page.yourDocumentsLiveInYourPersonal')}</p>
           </div>
           {/* WP-SB8: on a phone the four cards sit in one row that scrolls sideways (no stacked grid). */}
           <div
@@ -400,66 +416,58 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             tabIndex={0}
           >
             <article className="c1-feature c1-feature-glow c1-feature-big">
-              <span className="c1-small-label">01 / A reusable record</span>
+              <span className="c1-small-label">{t('home.page.01AReusableRecord')}</span>
               <h3>
                 Keep the details.
                 <br />
                 Lose the repetition.
               </h3>
-              <p>Find your current documents and see their earlier versions.</p>
+              <p>{t('home.page.findYourCurrentDocumentsAndSee')}</p>
               <div className="c1-miniui" aria-hidden="true">
-                <b>Personal Record</b>
+                <b>{t('home.page.personalRecord')}</b>
                 <div className="c1-fileline">
                   <span className="c1-fileico">▤</span>
                   <span className="c1-fileinfo">
-                    <b>Passport</b>
-                    <small>Current version · Updated 8 Oct</small>
+                    <b>{t('home.page.passport')}</b>
+                    <small>{t('home.page.currentVersionUpdated8Oct')}</small>
                   </span>
-                  <span className="c1-tag">Current</span>
+                  <span className="c1-tag">{t('home.page.current')}</span>
                 </div>
               </div>
             </article>
             <article className="c1-feature c1-feature-mid">
-              <span className="c1-small-label">02 / Specific requests</span>
+              <span className="c1-small-label">{t('home.page.02SpecificRequests')}</span>
               <h3>
                 See exactly
                 <br />
                 what’s missing.
               </h3>
-              <p>One clear request, with the document needed and the action to take.</p>
+              <p>{t('home.page.oneClearRequestWithTheDocument')}</p>
               <p className="c1-request" aria-hidden="true">
-                <span>✳ Employment letter</span>
-                <span className="c1-request-state">Requested</span>
+                <span>{t('home.page.employmentLetter')}</span>
+                <span className="c1-request-state">{t('home.page.requested')}</span>
               </p>
             </article>
             <article className="c1-feature c1-feature-light">
-              <span className="c1-small-label">03 / Your choice</span>
+              <span className="c1-small-label">{t('home.page.03YourChoice')}</span>
               <h3>
                 Share the part.
                 <br />
                 Not the whole.
               </h3>
-              <p>
-                Select records, review the scope and, if you want, set an access end date before
-                agreeing to share.
-              </p>
+              <p>{t('home.page.selectRecordsReviewTheScopeAnd')}</p>
             </article>
             <article className="c1-feature c1-feature-deep">
-              <span className="c1-small-label">04 / Historical accuracy</span>
+              <span className="c1-small-label">{t('home.page.04HistoricalAccuracy')}</span>
               <h3>
                 Yesterday stays
                 <br />
                 yesterday.
               </h3>
-              <p>
-                Keep an accurate history of previous declarations, even when your circumstances
-                change.
-              </p>
+              <p>{t('home.page.keepAnAccurateHistoryOfPrevious')}</p>
             </article>
           </div>
-          <p className="c1-chapter-note">
-            Privacy and sharing are governed by actual product permissions.
-          </p>
+          <p className="c1-chapter-note">{t('home.page.privacyAndSharingAreGovernedBy')}</p>
         </div>
       </section>
 
@@ -474,32 +482,29 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <StoryGroup
             id="problem"
             titleId="land-problem-title"
-            kicker="The Problem"
-            title="Every visa starts with the same scramble"
+            kicker={t('home.page.theProblem')}
+            title={t('home.page.everyVisaStartsWithTheSame')}
           >
-            <p className="land-sub">
-              Your life does not change between applications. The paperwork should not have to start
-              from zero each time.
-            </p>
+            <p className="land-sub">{t('home.page.yourLifeDoesNotChangeBetween')}</p>
             <div className="land-versus">
               <div className="land-versus-col land-versus-before">
-                <p className="land-versus-label">Without One Profile</p>
+                <p className="land-versus-label">{t('home.page.withoutOneProfile')}</p>
                 <ul>
                   {BEFORE.map((line) => (
                     <li key={line}>
                       <Icon name="close" size={16} />
-                      <span>{line}</span>
+                      <span>{t(line)}</span>
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="land-versus-col land-versus-after">
-                <p className="land-versus-label">With VisaStack</p>
+                <p className="land-versus-label">{t('home.page.withVisastack')}</p>
                 <ul>
                   {AFTER.map((line) => (
                     <li key={line}>
                       <Icon name="check" size={16} />
-                      <span>{line}</span>
+                      <span>{t(line)}</span>
                     </li>
                   ))}
                 </ul>
@@ -510,10 +515,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <StoryGroup
             id="how-it-works"
             titleId="land-how-title"
-            kicker="Three Simple Steps"
-            title="How It Works"
+            kicker={t('home.page.threeSimpleSteps')}
+            title={t('home.page.howItWorks')}
           >
-            <p className="land-sub">Three steps, and the first one only happens once.</p>
+            <p className="land-sub">{t('home.page.threeStepsAndTheFirstOne')}</p>
             <ol className="land-steps">
               {STEPS.map((step, index) => (
                 <li className="land-step" key={step.title}>
@@ -521,8 +526,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                     <Icon name={step.icon} size={22} />
                   </span>
                   <p className="land-step-kicker">Step {index + 1}</p>
-                  <h3 className="land-h3">{step.title}</h3>
-                  <p className="land-body">{step.body}</p>
+                  <h3 className="land-h3">{t(step.title)}</h3>
+                  <p className="land-body">{t(step.body)}</p>
                 </li>
               ))}
             </ol>
@@ -531,8 +536,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <StoryGroup
             id="capabilities"
             titleId="land-cap-title"
-            kicker="What Works Today"
-            title="Switched On Step by Step"
+            kicker={t('home.page.whatWorksToday')}
+            title={t('home.page.switchedOnStepByStep')}
           >
             <p className="land-sub">
               {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
@@ -540,15 +545,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Checking a file shows how complete it is, never a guess at your chances of approval.
             </p>
             <p className="land-trust-link">
-              <Link href="/status">See What Works Today</Link>
+              <Link href="/status">{t('home.page.seeWhatWorksToday')}</Link>
             </p>
           </StoryGroup>
 
           <StoryGroup
             id="for-agencies"
             titleId="land-who-title"
-            kicker="Who It Is For"
-            title="Calmer for the Traveller, Clearer for the Agency"
+            kicker={t('home.page.whoItIsFor')}
+            title={t('home.page.calmerForTheTravellerClearerFor')}
           >
             <div className="land-who">
               {AUDIENCES.map((audience) => (
@@ -556,13 +561,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   <span className="land-tile-icon">
                     <Icon name={audience.icon} size={22} />
                   </span>
-                  <p className="land-step-kicker">{audience.who}</p>
-                  <h3 className="land-h3">{audience.title}</h3>
+                  <p className="land-step-kicker">{t(audience.who)}</p>
+                  <h3 className="land-h3">{t(audience.title)}</h3>
                   <ul className="land-ticks">
                     {audience.points.map((point) => (
                       <li key={point}>
                         <Icon name="check" size={16} />
-                        <span>{point}</span>
+                        <span>{t(point)}</span>
                       </li>
                     ))}
                   </ul>
@@ -571,58 +576,55 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </div>
             {/* VS-016, chosen by the owner on 6 Nov 2026: what the product does, with no number to prove. */}
             <p className="land-sub land-proof">
-              One traveller profile, so agencies stop asking for the same documents twice.
+              {t('home.page.oneTravellerProfileSoAgenciesStop')}
             </p>
           </StoryGroup>
 
           <StoryGroup
             id="trust"
             titleId="land-trust-title"
-            kicker="Trust, Built In"
-            title="How VisaStack Treats Your Information"
+            kicker={t('home.page.trustBuiltIn')}
+            title={t('home.page.howVisastackTreatsYourInformation')}
             className="land-trust"
           >
-            <p className="land-sub">
-              These promises are built into how the product works, not options you have to switch
-              on.
-            </p>
+            <p className="land-sub">{t('home.page.thesePromisesAreBuiltIntoHow')}</p>
             <ul className="land-promises">
               {PROMISES.map((promise) => (
                 <li key={promise.text}>
                   <span className="land-promise-icon">
                     <Icon name={promise.icon} size={20} />
                   </span>
-                  <span>{promise.text}</span>
+                  <span>{t(promise.text)}</span>
                 </li>
               ))}
             </ul>
             <p className="land-trust-link">
-              <Link href="/trust">Read Our Public Trust Page</Link>
+              <Link href="/trust">{t('home.page.readOurPublicTrustPage')}</Link>
             </p>
           </StoryGroup>
 
           <StoryGroup
             id="road-ahead"
             titleId="land-road-title"
-            kicker="The Road Ahead"
-            title="Honest about where we are"
+            kicker={t('home.page.theRoadAhead')}
+            title={t('home.page.honestAboutWhereWeAre')}
           >
             <p className="land-sub">
               {betaOpen
-                ? 'Registration is open for public beta, and some features are not switched on yet.'
-                : 'This is a private pilot for invited users, and some features are not switched on yet.'}{' '}
-              {betaOpen
-                ? 'It is free to use at your own risk while we finish switching on protections such as virus scanning of uploads. The status page shows exactly what works today.'
-                : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.'}
+                ? t('home.page.registrationIsOpenForPublicBeta')
+                : t('home.page.thisIsAPrivatePilotFor')}{' '}
+              {betaOpen ? t('home.page.itIsFreeToUseAt') : t('home.page.pleaseUseMadeUpDetailsOr')}
             </p>
             <ol className="land-horizons">
               {HORIZONS.map((horizon) => (
                 <li className={`land-horizon land-horizon-${horizon.state}`} key={horizon.title}>
                   <p className="land-horizon-label">
-                    {horizon.state === 'now' && betaOpen ? 'Available in Beta' : horizon.label}
+                    {horizon.state === 'now' && betaOpen
+                      ? t('home.page.availableInBeta')
+                      : t(horizon.label)}
                   </p>
-                  <h3 className="land-h3">{horizon.title}</h3>
-                  <p className="land-body">{horizon.body}</p>
+                  <h3 className="land-h3">{t(horizon.title)}</h3>
+                  <p className="land-body">{t(horizon.body)}</p>
                 </li>
               ))}
             </ol>
@@ -636,18 +638,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="land-wrap">
           <div className="land-final-card">
             <h2 className="land-final-title" id="land-final-title">
-              Stop starting from zero.
+              {t('home.page.stopStartingFromZero')}
             </h2>
-            <p className="land-final-sub">
-              Build your profile once and let every application start from it.
-            </p>
+            <p className="land-final-sub">{t('home.page.buildYourProfileOnceAndLet')}</p>
             <div className="cta-row land-final-cta">
               <a className="btn land-btn land-btn-light" href={startHref}>
                 {startLabel}
                 <Icon name="arrow" size={18} />
               </a>
               <Link className="btn land-btn land-btn-ghost" href="/status">
-                See What Works Today
+                {t('home.page.seeWhatWorksToday')}
               </Link>
             </div>
           </div>

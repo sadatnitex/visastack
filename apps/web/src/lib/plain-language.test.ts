@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { homeCatalog } from '../i18n/home';
+import { invitationCatalog } from '../i18n/invitation';
+import { statusCatalog } from '../i18n/status';
+import { trustCatalog } from '../i18n/trust';
 import { visibleText } from './visible-text.test-support';
 
 /**
@@ -70,10 +74,19 @@ const ENGINEERING_TALK: readonly { readonly pattern: RegExp; readonly say: strin
   { pattern: new RegExp(EM_DASH), say: 'no em dash in written text' },
 ];
 
-const visible = PUBLIC_FILES.flatMap((file) => {
-  const path = join(WEB_SRC, file);
-  return visibleText(path, readFileSync(path, 'utf8'));
-});
+// Wording that moved into a message catalogue is still what the visitor reads, so its English is
+// checked as well as the files above.
+const CATALOGUES = [homeCatalog, trustCatalog, statusCatalog, invitationCatalog];
+
+const visible = [
+  ...PUBLIC_FILES.flatMap((file) => {
+    const path = join(WEB_SRC, file);
+    return visibleText(path, readFileSync(path, 'utf8'));
+  }),
+  ...CATALOGUES.flatMap((catalog) =>
+    Object.entries(catalog.en).map(([key, text]) => ({ file: key, line: 0, text })),
+  ),
+];
 
 describe('the guard itself', () => {
   it('reads the public pages it is meant to check', () => {

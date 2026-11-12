@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { EN } from '@visastack/i18n';
 import { describe, expect, it } from 'vitest';
 import { authCatalog } from '../i18n/auth';
+import { homeCatalog } from '../i18n/home';
 
 /**
  * Guard for the words about file checks. Until a trusted antivirus scan has recorded a pass for a
@@ -83,7 +84,13 @@ describe('words about file checks', () => {
       expect(flat, name).toContain('virus scanning of uploads');
       expect(flat, name).toContain('not switched on yet');
     }
-    expect(read(SURFACES.home).replace(/\s+/g, ' ')).toContain(
+    // The home wording lives in the home message catalogue: the page must still use the key, and
+    // the key's English must hold the exact words.
+    const HOME_NOTICE_KEY = 'home.page.itIsFreeToUseAt';
+    expect(read(SURFACES.home), 'home page uses the risk notice key').toContain(
+      `t('${HOME_NOTICE_KEY}')`,
+    );
+    expect(homeCatalog.en[HOME_NOTICE_KEY].replace(/\s+/g, ' ')).toContain(
       'protections such as virus scanning of uploads',
     );
   });

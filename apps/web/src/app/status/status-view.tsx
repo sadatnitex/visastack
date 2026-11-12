@@ -1,4 +1,8 @@
+'use client';
+
+import { useT } from '../../components/i18n-provider';
 import type { VersionNoticeCopy } from '../../components/version-notice';
+import { statusCatalog } from '../../i18n/status';
 import { VERDICT_WORDS, capabilityRows, verdictOf } from './capability-names';
 
 /** What one health check answered: whether it succeeded, the status word it gave, and its body. */
@@ -57,6 +61,7 @@ export function StatusView({
    */
   readonly paymentsNote?: string | null;
 }) {
+  const t = useT(statusCatalog);
   const verdict = VERDICT_WORDS[verdictOf(live, ready)];
   const rows = capabilityRows(ready?.data.platform).map((row) =>
     row.key === 'payments' && paymentsNote ? { ...row, label: 'Partly Live' } : row,
@@ -79,36 +84,36 @@ export function StatusView({
   return (
     <section className="section container">
       <div className="section-head status-head">
-        <span className="eyebrow">Live</span>
-        <h1 className="section-title u-m-0">What Works Today</h1>
+        <span className="eyebrow">{t('status.statusStatusView.live')}</span>
+        <h1 className="section-title u-m-0">{t('status.statusStatusView.whatWorksToday')}</h1>
         {/* The answer comes first. <output> is what a screen reader announces when it changes. */}
         <output className={`${badgeClass(verdict.tone)} status-verdict`}>{verdict.label}</output>
         <p className="section-sub u-m-0">
-          Features that are not switched on yet are listed too, so you always know what to expect.
+          {t('status.statusStatusView.featuresThatAreNotSwitchedOn')}
         </p>
       </div>
 
       {rows.length === 0 ? (
         <article className="card">
-          <h2 className="card-title">Features</h2>
+          <h2 className="card-title">{t('status.statusStatusView.features')}</h2>
           <p className="muted u-m-0">
             {ready === null
-              ? 'Checking which features are working…'
-              : 'The list of features is not available right now.'}
+              ? t('status.statusStatusView.checkingWhichFeaturesAreWorking')
+              : t('status.statusStatusView.theListOfFeaturesIsNot')}
           </p>
         </article>
       ) : (
         <>
           {usable.length > 0 ? (
             <article className="card u-mb-125">
-              <h2 className="card-title">You Can Use Now</h2>
+              <h2 className="card-title">{t('status.statusStatusView.youCanUseNow')}</h2>
               {featureList(usable)}
               {showPaymentsNote ? <p className="muted u-fs-085 u-mt-050">{paymentsNote}</p> : null}
             </article>
           ) : null}
           {notYet.length > 0 ? (
             <article className="card u-mb-125">
-              <h2 className="card-title">Not Switched On Yet</h2>
+              <h2 className="card-title">{t('status.statusStatusView.notSwitchedOnYet')}</h2>
               {featureList(notYet)}
             </article>
           ) : null}
@@ -122,7 +127,7 @@ export function StatusView({
           aria-labelledby="about-this-version-title"
         >
           <h2 className="card-title" id="about-this-version-title">
-            About This Version
+            {t('status.statusStatusView.aboutThisVersion')}
           </h2>
           <p className="u-m-0">
             <b>{versionNotice.label}.</b> {versionNotice.detail}
@@ -132,7 +137,9 @@ export function StatusView({
 
       <div className="toolbar">
         <span className="muted u-fs-085">
-          {updatedAt ? `Updated ${updatedAt}. This page checks again by itself.` : 'Loading…'}
+          {updatedAt
+            ? t('status.statusStatusView.updatedUpdatedatThisPageChecksAgain', { updatedAt })
+            : t('status.statusStatusView.loading')}
         </span>
         {/* Not `disabled`: this page re-checks by itself every 15 seconds, and a button that
             disables itself drops keyboard focus whenever that happens. */}
@@ -144,7 +151,7 @@ export function StatusView({
             if (!loading) onRefresh();
           }}
         >
-          {loading ? 'Checking…' : 'Check Now'}
+          {loading ? t('status.statusStatusView.checking') : t('status.statusStatusView.checkNow')}
         </button>
       </div>
     </section>
