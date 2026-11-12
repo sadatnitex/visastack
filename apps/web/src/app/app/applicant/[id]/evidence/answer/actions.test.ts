@@ -136,7 +136,8 @@ describe('confirmAnswersAction: what it says', () => {
       sent: 0,
       changed: 2,
     });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    // The records moved, so the page is read again and the person sees the current list.
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/applicant/a1/evidence/answer');
     await runAfter();
     expect(mocks.triggerNotificationWorker).not.toHaveBeenCalled();
   });

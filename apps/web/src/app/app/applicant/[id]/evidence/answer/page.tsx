@@ -37,15 +37,20 @@ type Read = {
   readonly receipt: EvidenceAnswerReceipt | null;
 };
 
-/** The agency being answered: the one the address names, or the only one that is waiting. Never a guess. */
+/**
+ * The agency being answered: the one the address names, or, when the address names none, the only
+ * one that is waiting. Never a guess: an address that names an agency with nothing waiting (for
+ * example right after everything it asked for was sent) is never answered with another agency.
+ */
 function chooseAgency(
   plan: EvidenceAnswerPlan,
   requested: string | undefined,
 ): AnswerAgencyGroup | undefined {
-  const named = requested
-    ? plan.agencies.find((group) => group.organizationId.toLowerCase() === requested.toLowerCase())
-    : undefined;
-  if (named) return named;
+  if (requested) {
+    return plan.agencies.find(
+      (group) => group.organizationId.toLowerCase() === requested.toLowerCase(),
+    );
+  }
   return plan.agencies.length === 1 ? plan.agencies[0] : undefined;
 }
 
@@ -79,9 +84,9 @@ export default async function AnswerFromRecordsPage({
     const planned = await planEvidenceAnswers(access.value);
     if (!planned.ok) return { applicant: who, plan: null, receipt: null };
     const plan = planned.value;
-    // A receipt is for the agency chosen: the one in the address, which may have nothing left
-    // waiting after the answers went, or the only one that waits.
-    const organizationId = chooseAgency(plan, requestedAgency)?.organizationId ?? requestedAgency;
+    // A receipt is for the agency the address names, which may have nothing left waiting after
+    // the answers went; with no agency in the address, for the only one that waits.
+    const organizationId = requestedAgency ?? chooseAgency(plan, undefined)?.organizationId;
     const receipt =
       doneKey && organizationId
         ? await readEvidenceAnswerReceipt(access.value, {

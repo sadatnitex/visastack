@@ -265,6 +265,30 @@ describe('with exactly one agency waiting', () => {
     expect(textOf(html)).not.toContain('All Agencies');
   });
 
+  it('never answers an address that names another agency with this one: the receipt shows, and the person chooses', async () => {
+    // Everything TEST Agency North asked for was just sent, so only the other agency still waits.
+    mocks.planEvidenceAnswers.mockResolvedValue(one());
+    mocks.readEvidenceAnswerReceipt.mockResolvedValue({
+      ok: true,
+      value: {
+        organizationId: ORG_B,
+        organizationName: 'TEST Agency North',
+        lines: [LINE('statement')],
+      },
+    });
+    const html = await render({ agency: ORG_B, done: KEY });
+    const text = textOf(html);
+    expect(mocks.readEvidenceAnswerReceipt).toHaveBeenCalledWith(
+      { gate: 'proof' },
+      { organizationId: ORG_B, confirmationKey: KEY },
+    );
+    expect(text).toContain('1 exact copy went to TEST Agency North.');
+    // The other agency is offered by name, not opened for the person.
+    expect(text).toContain('Who Is Asking');
+    expect(html).toContain(`href="/app/applicant/a1/evidence/answer?agency=${ORG_A}"`);
+    expect(stubProps(html, 'AnswerSetForm')).toHaveLength(0);
+  });
+
   it('makes a new confirmation key for every render, in the server', async () => {
     mocks.planEvidenceAnswers.mockResolvedValue(one());
     const keys = new Set<string>();

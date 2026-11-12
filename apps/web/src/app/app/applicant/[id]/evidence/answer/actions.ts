@@ -132,12 +132,16 @@ export async function confirmAnswersAction(
       changed,
     };
   });
-  if (result.ok) {
+  // The page is read again whenever anything was sent or the records turned out to have moved, so
+  // the list the person sees next is the current one.
+  if (result.ok || result.changed > 0) {
     revalidatePath(`/app/applicant/${applicantId}/evidence`);
     revalidatePath(`/app/applicant/${applicantId}/evidence/answer`);
     // The agency hears about the new answers now, not at the next daily run (a repeat of the same
     // confirmation only asks the worker to look again; it queues nothing twice).
-    if (result.sent > 0) after(() => triggerNotificationWorker().then(() => undefined));
+    if (result.ok && result.sent > 0) {
+      after(() => triggerNotificationWorker().then(() => undefined));
+    }
   }
   return result;
 }
