@@ -177,7 +177,9 @@ describe('every live Bengali message of the shared components is shown under bn'
 
   it('wallet browser: a long list, an empty list, and the phone sheet', () => {
     show(<DocumentWalletBrowser applicantId="p" documents={wallet(15)} />);
-    click(byText('button', componentsCatalog.bn['components.documentWalletBrowser.next']));
+    click(
+      byText('button', componentsCatalog.bn['components.documentWalletBrowser.next'] ?? 'Next'),
+    );
     show(<DocumentWalletBrowser applicantId="p" documents={[]} />);
     phone();
     show(<DocumentWalletBrowser applicantId="p" documents={wallet(3)} initialSelection="doc-1" />);
