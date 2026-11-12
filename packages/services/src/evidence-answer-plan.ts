@@ -3,15 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { MAX_EVIDENCE_REQUESTS_PER_SEND, orgGrantPermits, submitEvidenceResponse } from './agency';
 import { type Db, first, schema } from './db';
-import {
-  type ExpiryEntry,
-  describeExpiry,
-  expiryDay,
-  expiryDayCountsAsExpired,
-  toExpiryEntry,
-} from './document-expiry-rules';
-import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
-import { isDocumentVersionUsable } from './documents';
+import { isDocumentVersionUsable, listDocumentsDetailed } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { listRequestHistoriesForOwner } from './evidence-request-histories';
@@ -185,23 +177,21 @@ export async function planEvidenceAnswers(
   input: { readonly now?: Date } = {},
 ): Promise<Result<EvidenceAnswerPlan, ServiceError>> {
   if (!ownerOnly(access)) return err(serviceError('not_found', NOT_FOUND));
-  return ok(await buildPlan(access.tx, access.applicant.id, input.now ?? new Date()));
+  return ok(await buildPlan(access.tx, access.applicant, input.now ?? new Date()));
 }
 
 /** Which optional tables exist, asked once and handed to every plan a confirmation works out. */
 interface TablesPresent {
   readonly submissions: boolean;
   readonly lifecycle: boolean;
-  readonly expiryEntries: boolean;
 }
 
 async function tablesPresent(db: Db): Promise<TablesPresent> {
-  const [submissions, lifecycle, expiryEntries] = await Promise.all([
+  const [submissions, lifecycle] = await Promise.all([
     evidenceSubmissionsPresent(db),
     lifecycleTablesPresent(db),
-    documentExpiryEntriesTablePresent(db),
   ]);
-  return { submissions, lifecycle, expiryEntries };
+  return { submissions, lifecycle };
 }
 
 /**
@@ -212,10 +202,11 @@ async function tablesPresent(db: Db): Promise<TablesPresent> {
  */
 async function buildPlan(
   db: Db,
-  applicantId: string,
+  applicant: { readonly id: string; readonly ownerAccountId: string },
   now: Date,
   decide?: { readonly requestId: string; readonly present: TablesPresent },
 ): Promise<EvidenceAnswerPlan> {
+  const applicantId = applicant.id;
   const onlyRequestId = decide?.requestId;
   const forDisplay = decide === undefined;
   const present = decide?.present ?? (await tablesPresent(db));
@@ -330,21 +321,12 @@ async function buildPlan(
           .from(schema.documentVersions)
           .where(inArray(schema.documentVersions.documentId, documentIds))
           .orderBy(schema.documentVersions.documentId, desc(schema.documentVersions.versionNumber)),
-    documentIds.length === 0 || !present.expiryEntries
-      ? Promise.resolve([])
-      : db
-          .select({
-            documentId: schema.documentExpiryEntries.documentId,
-            source: schema.documentExpiryEntries.source,
-            expiresOn: schema.documentExpiryEntries.expiresOn,
-            mirrored: schema.documentExpiryEntries.mirrored,
-          })
-          .from(schema.documentExpiryEntries)
-          .where(inArray(schema.documentExpiryEntries.documentId, documentIds))
-          .orderBy(
-            desc(schema.documentExpiryEntries.createdAt),
-            desc(schema.documentExpiryEntries.id),
-          ),
+    // Whether a typed and a read expiry date disagree, through the one reader allowed to say
+    // where a saved date came from. It changes what is ticked in advance, never what may be sent,
+    // so a decision does not read it.
+    forDisplay && documentIds.length > 0
+      ? listDocumentsDetailed(db, applicant.ownerAccountId, applicantId, { withExpiry: true })
+      : Promise.resolve(undefined),
     available
       ? db
           .select({
@@ -389,12 +371,11 @@ async function buildPlan(
   const latestVersion = new Map(
     versionRows.map((version) => [version.documentId, version] as const),
   );
-  const expiryEntries = new Map<string, ExpiryEntry[]>();
-  for (const row of expiryRows) {
-    const list = expiryEntries.get(row.documentId) ?? [];
-    list.push(toExpiryEntry(row));
-    expiryEntries.set(row.documentId, list);
-  }
+  const datesDisagreeFor = new Set(
+    expiryRows?.ok
+      ? expiryRows.value.flatMap((summary) => (summary.expiry?.mismatch ? [summary.id] : []))
+      : [],
+  );
 
   // What each waiting request's agency already turned down, in every round and not only the last:
   // the exact versions it decided against, and, for a send made before exact copies were kept,
@@ -474,12 +455,12 @@ async function buildPlan(
         processingStatus: version.processingStatus,
         erased: erased.has(version.storageObjectId),
       });
-      const expiresOn = document.expiresAt ? expiryDay(document.expiresAt) : null;
+      // Saved as midnight UTC of its day, and expired from the start of that day: the same
+      // comparison readiness and the wallet make.
+      const expiresOn = document.expiresAt ? document.expiresAt.toISOString().slice(0, 10) : null;
+      const expired = document.expiresAt !== null && document.expiresAt.getTime() <= now.getTime();
       const staleness = classifyStaleness(parseDocumentDate(document.documentDate), rule, now);
-      const datesDisagree = describeExpiry(
-        document.expiresAt,
-        expiryEntries.get(document.id) ?? [],
-      ).mismatch;
+      const datesDisagree = datesDisagreeFor.has(document.id);
       // Turned down as this exact version; or, when the send kept no exact copy, as this document
       // in a version that already existed when the agency decided.
       const unpinnedAt = rejectedDocuments.get(row.id)?.get(document.id);
@@ -490,7 +471,7 @@ async function buildPlan(
         ? 'NOT_CHECKED'
         : sentBack
           ? 'SENT_BACK'
-          : expiresOn !== null && expiryDayCountsAsExpired(expiresOn, now)
+          : expired
             ? 'EXPIRED'
             : staleness.status === 'stale'
               ? 'TOO_OLD'
@@ -765,7 +746,7 @@ export async function confirmEvidenceAnswers(
           )
           .limit(1)
           .for('update');
-        const plan = await buildPlan(tx, applicantId, input.now ?? new Date(), {
+        const plan = await buildPlan(tx, access.applicant, input.now ?? new Date(), {
           requestId,
           present,
         });

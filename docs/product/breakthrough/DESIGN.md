@@ -1,4 +1,4 @@
-# Answer From Your Records: design
+# Answer from Your Records: design
 
 Written 12 Nov 2026 on main `0d1137e`. This is the design the independent critic reviewed. Reasons and
 rejected alternatives live in `DECISION-LOG.md`; results live in `REPORT.md`.
@@ -44,7 +44,7 @@ same `orgGrantPermits` test the send itself uses), and one item per request:
 | `CHOOSE` | More than one copy qualifies | Only after the person picks one |
 | `CHECK_DATE` | A copy qualifies, but the checklist has an age rule and the document has no date of its own, so its age cannot be worked out | Only after the person ticks it |
 | `OUTDATED` | Every copy of that kind is expired, or older than the checklist's own age rule | No (it can still be chosen on the request's own page) |
-| `NEEDS_NEW_COPY` | The only copy is the exact one this agency sent back | No |
+| `NEEDS_NEW_COPY` | Every copy is one this agency already turned down on this request, in any round | No |
 | `NOT_CHECKED` | A copy exists but has not finished, or did not pass, its safety checks | No |
 | `MISSING` | Nothing of that kind is saved | No |
 | `OWN_STEP` | A detail (a profile fact) or a request with no document kind | No, link to the request's own page |
@@ -55,8 +55,9 @@ A copy "qualifies" when all of these hold, each by the product's existing rule:
 - the document is of the asked kind, present, not archived, not replaced by another document
   (`documents.superseded_by_document_id is null`, `everydayDocumentCondition`);
 - its newest version is usable (`isDocumentVersionUsable`: clean, processed, not erased);
-- it is not the copy this agency just sent back on this request;
-- it is not expired (`expiryDayCountsAsExpired`, the rule readiness and the wallet already use);
+- it is not a copy this agency already turned down on this request, in any round;
+- it is not expired (expired from the start of its expiry day, the comparison readiness and the
+  wallet already make);
 - when the request came from a checklist item with `maxAgeDays`, `classifyStaleness` does not say
   `stale`. `unknown` (rule present, no document date) qualifies but is never `READY`; neither is a
   copy whose typed and read expiry dates disagree.
@@ -104,10 +105,11 @@ the file had when sent, version number, checksum fingerprint, the moment, and wh
 stands now. An unknown key, another agency's id and another traveller's key all give the same empty
 receipt.
 
-### `listWaitingAgencies(access)`
+### `listAskingAgencies(access)`
 
-Read-only, owner only, one query: each agency with a request waiting on the traveller, by name, with
-how many wait. It feeds the card on the Requests page, which must stay cheap.
+Read-only, owner only, one query: every agency that has asked this traveller for something, by name,
+with how many of its requests wait. It feeds the card and the "Asked by" line on the Requests page,
+which must stay cheap.
 
 ## Trust rules preserved
 
@@ -149,3 +151,10 @@ to a fixed version today, so a one-step send must not multiply it (see DECISION-
 
 None. A later, approved migration could pin a detail answer to its fact version (D6); it is specified
 in the report and not built here.
+
+## Changes after review
+
+The screens use the name "Answer from Your Records" (the interface name guard asks for a lowercase
+"from"). Review findings changed details of this design; each is recorded in `DECISION-LOG.md`
+(D13 to D21). The typed-versus-read expiry check is taken from the existing document list reader,
+because an existing guard reserves direct reads of typed expiry dates for a short list of files.

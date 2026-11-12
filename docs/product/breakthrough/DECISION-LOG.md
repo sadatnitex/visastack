@@ -177,3 +177,89 @@ the report with the one-line change for the owner's decision.
 
 The web type check stops at Node's default memory ceiling on this machine. Local runs set a larger
 ceiling in the shell (not in the repository). CI is unchanged.
+
+## Phase 3 and 4: decisions made while building and proving
+
+### D13. The name is "Answer from Your Records"
+
+The interface name guard requires a lowercase "from" in a title. The guard wins; documents written
+before the screens existed say "From".
+
+### D14. The Requests page card says who waits, not what is held
+
+The card reads one cheap query (who has asked, how many requests wait). The full plan is read only
+on the review page. Reason: the critic's cost objection; the Requests page already makes many reads.
+
+### D15. Code review: 15 findings, 13 fixed, 2 answered
+
+Fixed: a copy turned down in an earlier round of the same request is never offered again (all
+rounds are read, and a send made before exact copies were kept is recognised from the decision that
+named its document); the result message survives the list being rebuilt; the per-answer work at
+confirmation no longer re-reads names, reference codes, history or table checks; "Open This Request"
+reaches a request beyond the first ten; more than 25 ticked answers is said plainly instead of some
+being dropped; "Asked by" shows on every request; wording for a file that cannot be sent; the time
+shown beside a version is that version's own; unique ids in choice groups; the three known-gap tests
+assert today's exact behaviour instead of "expected to fail"; the confirm test covers a sent-back
+and an unsafe copy; dead code removed.
+
+Answered, not changed:
+
+- The existing request page never marks the copy an agency sent back (it reads a field the decision
+  clears). That is existing sending behaviour, so it is reported for the owner (REPORT section 6,
+  item 3). The new step does not depend on it: its own "sent back" comes from the decision history,
+  and a sent-back item links to Add Documents as well as to the request.
+- Dates use the product's one date helper, as every other screen does. Changing its English output
+  would change every screen.
+
+### D16. Security review: no finding met its bar
+
+Checked: who can call each function; cross-traveller and cross-agency sends; the wrong copy; the
+receipt by key; every SQL fragment; the browser-side code; the action's input.
+
+### D17. Cleanup review: applied, with two exceptions
+
+Applied: independent reads in the plan run together; only the newest version of each document is
+read; the receipt takes "where it stands" from the one reader the request's own conversation uses;
+the reply form's date rule is pinned to the service rule by a test; duplicate markup merged.
+Not applied: feeding the Requests page from the full plan (it would put the plan's cost on that
+page, D14), and merging that page's three access checks (it would change existing reads).
+
+### D18. Accessibility and wording passes
+
+After sending, the list may be rebuilt and the pressed button removed; focus now moves to the
+result so a keyboard or screen reader user is not dropped at the top of the page. A short line says
+why the button is not available when nothing is ticked. Each choice is named once and described
+once. Sentences that asked the person to check a date now say so directly.
+
+### D19. A helper's copy of the repository inside the repository breaks an existing guard
+
+A helper worked in its own copy under `.claude/worktrees/`. While that copy existed, the access
+ratchet test counted its files as violations. It was removed before the full check. For later
+sessions: remove a helper's copy before running the checks.
+
+### D20. One browser check fails on untouched main on this machine
+
+`scroll-budget/WP-SB2.spec.ts` measures 1,518 px against a 1,500 px limit for the case page at phone
+width on main `0d1137e` here, before any change. Main's CI is green. It is a screen this run did not
+touch; the same result appears with this change. It is reported, not explained away, and CI on the
+pull request decides.
+
+### D21. Measured against the predictions
+
+See REPORT section 5. The prediction of 3 actions after counted opening the review from the card;
+the browser measurement starts on the review itself and counts 2 (choose the photo, press the
+button), so 3 with the opening click. Before: 7 at 1280 px and 9 at 390 px, as predicted.
+
+### D22. An existing guard reserves typed expiry dates for a short list of readers
+
+The new service first read the typed expiry entries itself to see whether a typed and a read date
+disagree. An existing test allows only named files to read them and says a new reader is the
+owner's decision. The service was changed instead of the guard: it asks the existing document list
+reader, which is already allowed, and judges "expired" by the plain comparison readiness and the
+wallet make. The guard is untouched and passes.
+
+### D23. The style block is named WP-RT2
+
+An existing guard accepts only whole, closed blocks with known name shapes at the end of the style
+file. The block is named as the second Requests block and closed with its end line; the guard is
+untouched and passes.
