@@ -11,13 +11,18 @@ export const bnText = (key: string): string => {
   return value;
 };
 
+const ENTITIES: Readonly<Record<string, string>> = {
+  '&amp;': '&',
+  '&#x27;': "'",
+  '&quot;': '"',
+  '&lt;': '<',
+  '&gt;': '>',
+};
+
+/** One pass over the markup, so a decoded "&" can never start another entity. */
 const decode = (html: string) =>
   html
-    .replaceAll('&amp;', '&')
-    .replaceAll('&#x27;', "'")
-    .replaceAll('&quot;', '"')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
+    .replace(/&(?:amp|#x27|quot|lt|gt);/g, (entity) => ENTITIES[entity] ?? entity)
     .replace(/\s+/g, ' ');
 
 /** The fixed words of a message: its text with every {placeholder} (and plural block) cut out. */
