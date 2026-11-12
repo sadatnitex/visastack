@@ -19,7 +19,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { NextStepCard, PageHeader } from '../../../../../../components/ui';
+import { appApplicantCatalog } from '../../../../../../i18n/app-applicant';
 import { resolvePlatformCapabilities } from '../../../../../../lib/capabilities';
+import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { evidenceDocumentGroups } from '../../../../../../lib/master-profile';
 import { describeReading } from '../../../../../../lib/reading-state';
 import { addCheckStep } from '../../../../../../lib/scan-state';
@@ -76,6 +78,8 @@ export default async function AddDocumentsPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams: Promise<{ type?: string | string[] }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const { type: requestedType } = await searchParams;
   // Only a kind the catalogue knows opens the kind choice ready; anything else is ignored.
@@ -163,11 +167,11 @@ export default async function AddDocumentsPage({
   return (
     <>
       <PageHeader
-        title="Add Documents"
+        title={t('appApplicant.appApplicantIdDocumentsAddPage.addDocuments')}
         description={
           data.reading.reads
-            ? 'Drop your files or a whole folder here. We check each one, read what we can, and you approve every detail.'
-            : 'Drop your files or a whole folder here. We check each one and keep it for you.'
+            ? t('appApplicant.appApplicantIdDocumentsAddPage.dropYourFilesOrAWhole')
+            : t('appApplicant.appApplicantIdDocumentsAddPage.dropYourFilesOrAWhole088508')
         }
         back={{ href: `/app/applicant/${id}/documents`, label: 'Documents' }}
         {...(data.coreGranted
@@ -186,7 +190,9 @@ export default async function AddDocumentsPage({
         <>
           {data.foundDetails > 0 ? (
             <NextStepCard
-              title={`We Found ${plural(data.foundDetails, 'Detail', 'Details')} to Check`}
+              title={t('appApplicant.appApplicantIdDocumentsAddPage.weFoundPluralToCheck', {
+                plural: plural(data.foundDetails, 'Detail', 'Details'),
+              })}
               why="Accept what is right and skip what is not. Nothing reaches your profile until you do."
               href={`/app/applicant/${id}/review`}
               action={`Review ${plural(data.foundDetails, 'Detail', 'Details')}`}
@@ -195,7 +201,9 @@ export default async function AddDocumentsPage({
           {data.needsAnswer > 0 ? (
             <p className="add-answer">
               <Link href={`/app/applicant/${id}/documents#needs-decision`}>
-                {plural(data.needsAnswer, 'File Needs', 'Files Need')} One Answer
+                {t('appApplicant.appApplicantIdDocumentsAddPage.pluralOneAnswer', {
+                  plural: plural(data.needsAnswer, 'File Needs', 'Files Need'),
+                })}
               </Link>
             </p>
           ) : null}
@@ -213,7 +221,7 @@ export default async function AddDocumentsPage({
             />
             <details className="add-more" open={initialKind ? true : undefined}>
               <summary className="add-more-summary">
-                Take a Photo, or Say What Kind of Document It Is
+                {t('appApplicant.appApplicantIdDocumentsAddPage.takeAPhotoOrSayWhat')}
               </summary>
               <DocumentUploader
                 key={initialKind}
@@ -228,14 +236,14 @@ export default async function AddDocumentsPage({
               />
             </details>
             <UsageMeter
-              label="Document Storage"
+              label={t('appApplicant.appApplicantIdDocumentsAddPage.documentStorage')}
               usedBytes={data.evidenceBytes}
               limitBytes={data.personLimitBytes}
             />
           </article>
           <section className="add-next" aria-labelledby="add-next-title">
             <h2 id="add-next-title" className="card-title">
-              What Happens Next
+              {t('appApplicant.appApplicantIdDocumentsAddPage.whatHappensNext')}
             </h2>
             <ol className="add-next-list">
               {nextSteps(data.reading.reads, data.virusScanning).map((step) => (
@@ -246,7 +254,7 @@ export default async function AddDocumentsPage({
               ))}
             </ol>
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/documents`}>
-              Open My Documents
+              {t('appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments')}
             </Link>
           </section>
         </>

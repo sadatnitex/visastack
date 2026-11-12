@@ -141,6 +141,314 @@ export const HOLDBACK = new Map([
     'SG-9e771a8e',
     'Joiner word between names (" or "): its spaces carry the layout and the sentence around it is still English.',
   ],
+  [
+    'SG-e6123c0d',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-0016aa98',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-5018af46',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-e7158ae3',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-afe937a3',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-ce511844',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-81bf750c',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-67266d24',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-61e87632',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-8829c695',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-72d9142d',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-a59d20ba',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-882d2ab6',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-6dc10a9f',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-24776023',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-1436ceee',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-1065be84',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-5463c56c',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-b9d38c86',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-0b6663fd',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-226bab50',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-f6430216',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-03b8a6b0',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-4d48fa01',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-197fdeca',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-eac05478',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-3a222fbf',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-e78bd437',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-f1f5bccb',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-7b432da4',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-fe795501',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-a17de272',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-66f87a10',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-583aa6b5',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-3141220f',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-16600835',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-37c14fc0',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-b41c58b1',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-3d6b855e',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-e3fdc097',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-eb382184',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-8546093a',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-de969496',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-59d94eb1',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-5a6c4e41',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-b08c4520',
+    'Applicant screens: Process promise about checking saved documents against a checklist: waits for the owner sign-off.',
+  ],
+  [
+    'SG-d7a62e22',
+    'Applicant screens: Status of automatic reading (AI processing): waits for the owner sign-off.',
+  ],
+  [
+    'SG-1549c176',
+    'Applicant screens: Statement about what visa forms require: waits for the owner sign-off.',
+  ],
+  [
+    'SG-ff7d2a1c',
+    'Applicant screens: Statement about what visa forms require: waits for the owner sign-off.',
+  ],
+  [
+    'SG-d9696fe7',
+    'Applicant screens: Says a value was read from the document by automatic reading (AI processing): waits for the owner sign-off.',
+  ],
+  [
+    'SG-ac40a214',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-338d92d1',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-c9a7f414',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-aa9771db',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-19b168cd',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-68e8afb4',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-fe5feab6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-6cdf21a6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-a8684ed6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-dedaa54b',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-4e812a3e',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-826d2c99',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-153f9777',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-c1fb8969',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-658e1cac',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-d2c91826',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-ba0fbeb7',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-e4498255',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-d5319908',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8d14d065',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-e8727ba5',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8881fc69',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8fd6641e',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-bd7b343f',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-9d878677',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-a7694752',
+    'Applicant screens: Joiner text whose trailing space carries the layout, so its Bengali would run into the next sentence.',
+  ],
+  [
+    'SG-6775fd3b',
+    'Applicant screens: Heading over what automatic reading found (AI processing): waits for the owner sign-off.',
+  ],
   // Wave E: case screens and the document collection flow.
   ['SG-094bebc7', 'Case answer status "Submitted to Agency": a sharing outcome, owner sign-off.'],
   [

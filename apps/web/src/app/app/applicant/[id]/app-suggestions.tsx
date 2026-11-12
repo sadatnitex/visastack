@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FormMessage } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { plural } from '../../../../lib/plural';
 import type { ActionState } from './actions';
 import { AiProposalReview, type AiProposalViewModel } from './ai-review';
@@ -23,6 +25,7 @@ export function AppSuggestionsSection({
   readonly proposals: readonly AiProposalViewModel[];
   readonly canApprove: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
   const [decided, setDecided] = useState<ReadonlySet<string>>(new Set());
   const heading = useRef<HTMLHeadingElement>(null);
@@ -36,17 +39,20 @@ export function AppSuggestionsSection({
       id="ai-app-suggestions"
       aria-labelledby="ai-app-suggestions-title"
     >
-      <p className="card-kicker">AI Apps</p>
+      <p className="card-kicker">{t('appApplicant.appApplicantIdAppSuggestions.aiApps')}</p>
       <h2 className="card-title" id="ai-app-suggestions-title" ref={heading} tabIndex={-1}>
-        Suggestions from AI Apps
+        {t('appApplicant.appApplicantIdAppSuggestions.suggestionsFromAiApps')}
       </h2>
       {waiting.length > 0 ? (
         <p className="card-body">
-          {plural(waiting.length, 'change', 'changes')} your AI apps suggested for your profile.
-          Nothing is saved until you accept it. Check each one: an app can be wrong.
+          {t('appApplicant.appApplicantIdAppSuggestions.pluralYourAiAppsSuggestedFor', {
+            plural: plural(waiting.length, 'change', 'changes'),
+          })}
         </p>
       ) : (
-        <p className="card-body muted">Nothing waiting.</p>
+        <p className="card-body muted">
+          {t('appApplicant.appApplicantIdAppSuggestions.nothingWaiting')}
+        </p>
       )}
       <FormMessage result={lastResult} />
       {waiting.map((proposal) => (
