@@ -3,8 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it, vi } from 'vitest';
 import PrivacyPage from './page';
 
+const beta = vi.hoisted(() => ({ open: true }));
 vi.mock('../../lib/identity-selection', () => ({ selectedIdentityProvider: () => 'neon_auth' }));
-afterEach(() => vi.unstubAllEnvs());
+vi.mock('../../lib/public-beta', () => ({ isPublicBetaOpen: () => beta.open }));
+afterEach(() => {
+  vi.unstubAllEnvs();
+  beta.open = true;
+});
 
 it('discloses the configured R2 document and archive processor with the updated notice version', () => {
   vi.stubEnv('STORAGE_PROVIDER', 'r2');
@@ -36,4 +41,19 @@ it('does not invent a document provider when selection is absent', () => {
   const html = renderToStaticMarkup(<PrivacyPage />);
   expect(html).toContain('The configured private storage service stores private files');
   expect(html).not.toContain('Vercel stores private files');
+});
+
+it('in public beta mode keeps the own-risk wording and not the made-up-details rule', () => {
+  beta.open = true;
+  const html = renderToStaticMarkup(<PrivacyPage />);
+  expect(html).toContain('you may add your own information and documents at your own risk');
+  expect(html).not.toContain('Real applicant details are not accepted yet');
+});
+
+it('in pilot mode repeats the made-up-details rule and does not invite real details', () => {
+  beta.open = false;
+  const html = renderToStaticMarkup(<PrivacyPage />);
+  expect(html).toContain('Please use made-up details');
+  expect(html).toContain('Real applicant details are not accepted yet');
+  expect(html).not.toContain('you may add your own information and documents');
 });

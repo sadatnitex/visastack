@@ -204,6 +204,7 @@ Baseline: `baseline/privacy.json`, two states (no consent changes yet; consent h
 | Consent History | Browse | always |
 | Export with files (the large export panel) | Everything | always |
 | Delete Your Account | Everything; **Glance while a deletion is scheduled**, so cancelling it is never hidden (tested) | always |
+| Delete Your Account explanation: the audit trail sentences sit behind "What Happens to Your Audit Trail" (owner decision D1, 2026-11-12; the sentence also names an internal reference number and, for invitations, the email address used, owner decision of the same day) | Same level as the card; the closed detail adds no words to the 30-word count | always |
 | New line linking to Permissions You Control on Home (`/app#permissions`) | Everything | always |
 
 ## 10. Evidence Requests (`/app/applicant/{id}/evidence`)

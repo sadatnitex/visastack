@@ -112,7 +112,7 @@ export default async function SharingInvitationPage({
           ) : (
             <p>
               Review and turn on the required consent above to continue.{' '}
-              <Link href="/privacy">Read the Privacy Policy</Link>.
+              <Link href="/privacy">Read the Privacy Notice</Link>.
             </p>
           )}
           <Link href="/app">Leave Without Accepting</Link>

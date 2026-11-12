@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { hasTag, splitOnTags, stripMarkers } from './text-markers.mjs';
+import { hasTag, isMessageKey, splitOnTags, stripMarkers } from './text-markers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const OUT = process.argv.includes('--out')
@@ -805,7 +805,9 @@ function processFile(rel) {
         : /starter-checklists\/seed-rows/.test(rel) &&
             ['purpose', 'country', 'reference'].includes(partial.prop ?? '')
           ? 'EXCLUDED_MATCHING_KEY'
-          : partial.evidence,
+          : isMessageKey(text)
+            ? 'EXCLUDED_MATCHING_KEY'
+            : partial.evidence,
       confidence: partial.confidence ?? '',
       english: text,
       placeholders: ph.join(','),

@@ -40,7 +40,7 @@ reports the second fact before actually checking it.
 | Applicants, missions, grants, documents, versions, facts | Deleted (cascade from `applicants`) | Owned outright by the account |
 | Storage bytes | Queued to the erasure outbox, not deleted synchronously | See above |
 | Memberships, assignments, recipient-side grants, consents | Deleted (existing `onDelete: cascade` FKs) | Account-scoped |
-| Product events, audit trail actor references | Anonymized (`set null` FK) | The aggregate/history is retained; the identity is not |
+| Product events, audit trail actor references | Kept as written: the audit table has no link to accounts, so the actor id stays verbatim (it no longer resolves to an account) along with IP, device and details | Append-only, hash-chained history; pseudonymous at best, not anonymous. The person is told so on the Privacy screen (owner decision D1, 2026-11-12) |
 | Rate-limit buckets | Deleted explicitly (`subjectId` is the raw accountId, not FK-linked) | Named explicitly in the directive; nothing else would ever clean these up |
 | Mission notes authored by this account | Anonymized explicitly (`authorAccountId` set null) | Collaborative history can live on a mission this account never owned (an org member's note on someone else's mission) — this column has no FK to enforce it declaratively, so it's done in application code |
 | A due request is actually executed | `/api/jobs/process-deletions` (Vercel Cron) calls `executeAccountDeletion` for every request whose grace window has elapsed. Before this PR, nothing ever called it — a request would sit at `PENDING` forever | `lifecycle.test.ts`; manual verification on the cron schedule |

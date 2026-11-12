@@ -174,7 +174,7 @@ export default async function TripInvitationPage({
               <CoreConsentStep />
               <p className="muted u-m-0">
                 Turn on the consent above to continue.{' '}
-                <Link href="/privacy">Read the Privacy Policy</Link>.
+                <Link href="/privacy">Read the Privacy Notice</Link>.
               </p>
             </>
           )}
