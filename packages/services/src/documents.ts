@@ -46,7 +46,7 @@ import {
 } from './document-expiry-rules';
 import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
 import { enqueueErasureJob, hasActiveOrVerifiedErasureJob, safeCopyDrawingIds } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { isValidDocumentDateString } from './expiry';
 import {
   everydayDocumentCondition,
@@ -128,7 +128,7 @@ export async function registerDocument(
   input: RegisterDocumentInput,
 ): Promise<Result<Document, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'documents.applicantNotFound'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
     const asContributor =
       input.onBehalfOfContributorRequestId !== undefined &&
@@ -138,16 +138,14 @@ export async function registerDocument(
         applicantId: input.applicantId,
       }));
     if (!asContributor) {
-      return err(
-        serviceError('forbidden', 'documents may only be registered by the owning account'),
-      );
+      return err(keyedError('forbidden', 'documents.documentsMayOnlyBeRegisteredBy'));
     }
   }
   if (input.originalName.trim().length === 0) {
-    return err(serviceError('invalid', 'a document name is required'));
+    return err(keyedError('invalid', 'documents.aDocumentNameIsRequired'));
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
-    return err(serviceError('consent_required', 'Core processing consent is required'));
+    return err(keyedError('consent_required', 'documents.coreProcessingConsentIsRequired'));
   }
 
   return db.transaction(async (tx) => {
@@ -319,9 +317,9 @@ export async function addDocumentVersion(
   input: AddDocumentVersionInput,
 ): Promise<Result<AddDocumentVersionResult, ServiceError>> {
   const document = await findPresentDocument(db, input.documentId);
-  if (!document) return err(serviceError('not_found', 'document not found'));
+  if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
   const applicant = await getApplicant(db, document.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'documents.applicantNotFound'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
     const asContributor =
       input.onBehalfOfContributorRequestId !== undefined &&
@@ -331,7 +329,7 @@ export async function addDocumentVersion(
         applicantId: document.applicantId,
       }));
     if (!asContributor) {
-      return err(serviceError('forbidden', 'versions may only be added by the owning account'));
+      return err(keyedError('forbidden', 'documents.versionsMayOnlyBeAddedBy'));
     }
   }
 
@@ -363,12 +361,7 @@ export async function addDocumentVersion(
         .limit(1),
     );
     if (activePurgeJob) {
-      return err(
-        serviceError(
-          'invalid',
-          'this document has a retention purge in progress and cannot be modified until it completes',
-        ),
-      );
+      return err(keyedError('invalid', 'documents.thisDocumentHasARetentionPurge'));
     }
 
     const storageObject = required(
@@ -641,7 +634,7 @@ export async function recordDocumentReview(
   },
 ): Promise<Result<DocumentReview, ServiceError>> {
   const document = await findPresentDocument(db, input.documentId);
-  if (!document) return err(serviceError('not_found', 'document not found'));
+  if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
 
   const applicant = await getApplicant(db, document.applicantId);
   let authorized = applicant?.ownerAccountId === input.actorAccountId;
@@ -655,7 +648,8 @@ export async function recordDocumentReview(
       }
     }
   }
-  if (!authorized) return err(serviceError('forbidden', 'not authorized to review this document'));
+  if (!authorized)
+    return err(keyedError('forbidden', 'documents.notAuthorizedToReviewThisDocument'));
 
   return db.transaction(async (tx) => {
     const review = required(
@@ -747,7 +741,7 @@ export async function setDocumentDate(
   },
 ): Promise<Result<Document, ServiceError>> {
   const document = await findPresentDocument(db, input.documentId);
-  if (!document) return err(serviceError('not_found', 'document not found'));
+  if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
 
   const applicant = await getApplicant(db, document.applicantId);
   let authorized = applicant?.ownerAccountId === input.actorAccountId;
@@ -761,12 +755,10 @@ export async function setDocumentDate(
       }
     }
   }
-  if (!authorized) return err(serviceError('forbidden', 'not authorized to edit this document'));
+  if (!authorized) return err(keyedError('forbidden', 'documents.notAuthorizedToEditThisDocument'));
 
   if (input.documentDate !== null && !isValidDocumentDateString(input.documentDate)) {
-    return err(
-      serviceError('invalid', 'documentDate must be a valid YYYY-MM-DD date, not in the future'),
-    );
+    return err(keyedError('invalid', 'documents.documentdateMustBeAValidYyyy'));
   }
 
   return db.transaction(async (tx) => {
@@ -808,19 +800,14 @@ export function prepareDocumentKind(
   if (chosen.length === 0) return ok({ docType: null, subject: null });
   const found = resolveDocumentType(chosen);
   if (!found) {
-    return err(
-      serviceError(
-        'invalid',
-        `"${chosen}" is not a known document type. Pick one from the list, or use "Other Document".`,
-      ),
-    );
+    return err(keyedError('invalid', 'documents.chosenIsNotAKnownDocument', { chosen }));
   }
   const named = (subject ?? '').trim();
   if (!isOtherDocumentType(found.key) || named.length === 0) {
     return ok({ docType: found.key, subject: null });
   }
   if (named.length > 120) {
-    return err(serviceError('invalid', 'the name of the document may be at most 120 characters'));
+    return err(keyedError('invalid', 'documents.theNameOfTheDocumentMay'));
   }
   return ok({ docType: found.key, subject: named });
 }
@@ -847,13 +834,11 @@ export async function setDocumentType(
   },
 ): Promise<Result<Document, ServiceError>> {
   const document = await findPresentDocument(db, input.documentId);
-  if (!document) return err(serviceError('not_found', 'document not found'));
+  if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
 
   const applicant = await getApplicant(db, document.applicantId);
   if (applicant?.ownerAccountId !== input.actorAccountId) {
-    return err(
-      serviceError('forbidden', 'only the owner can change what kind of document this is'),
-    );
+    return err(keyedError('forbidden', 'documents.onlyTheOwnerCanChangeWhat'));
   }
 
   const kind = prepareDocumentKind(input.docType, input.subject);
@@ -873,7 +858,7 @@ export async function setDocumentType(
         .limit(1)
         .for('update'),
     );
-    if (!current) return err(serviceError('not_found', 'document not found'));
+    if (!current) return err(keyedError('not_found', 'documents.documentNotFound'));
     // A document still listed under its automatic title takes the title of its new kind
     // ("Document, Nazmus, 27 Oct 2026" becomes "Passport, Nazmus"); a name the person chose stays.
     const retitle =
@@ -1006,9 +991,9 @@ export async function listDocuments(
   options: ListDocumentsOptions = {},
 ): Promise<Result<Document[], ServiceError>> {
   const applicant = await getApplicant(db, applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'documents.applicantNotFound'));
   if (applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to list these documents'));
+    return err(keyedError('forbidden', 'documents.notAuthorizedToListTheseDocuments'));
   }
   const view = options.lifecycle ?? 'present';
   const lifecycle = view !== 'all' && (await lifecycleTablesPresent(db));
@@ -1345,7 +1330,7 @@ async function accessDocument(
   input: DocumentAccessInput,
 ): Promise<Result<AccessRef, ServiceError>> {
   const document = await findPresentDocument(db, input.documentId);
-  if (!document) return err(serviceError('not_found', 'document not found'));
+  if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
 
   // Preview is ALWAYS the rendered `redacted` derivative, for the owner and
   // any third party alike (PRD §5: "Use safe rendered previews with active
@@ -1468,10 +1453,10 @@ async function accessDocument(
     });
   });
   if (!version) {
-    return err(serviceError('not_found', 'document has no stored version'));
+    return err(keyedError('not_found', 'documents.documentHasNoStoredVersion'));
   }
   if (!servable) {
-    return err(serviceError('forbidden', 'this document is not yet available'));
+    return err(keyedError('forbidden', 'documents.thisDocumentIsNotYetAvailable'));
   }
 
   return issueVersionReadRef(db, storage, {
@@ -1521,7 +1506,7 @@ async function issueVersionReadRef(
       .where(eq(schema.storageObjects.id, version.storageObjectId))
       .limit(1),
   );
-  if (!storageObject) return err(serviceError('not_found', 'stored object missing'));
+  if (!storageObject) return err(keyedError('not_found', 'documents.storedObjectMissing'));
 
   const ref = await storage.issueReadRef({
     bucket: storageObject.bucket,
@@ -1622,7 +1607,7 @@ export async function downloadCollectionResponseVersion(
 ): Promise<Result<AccessRef, ServiceError>> {
   const problem = collectionResponseAccessProblem(access);
   if (problem) return err(problem);
-  const notFound = err(serviceError('not_found', 'document not found'));
+  const notFound = err(keyedError('not_found', 'documents.documentNotFound'));
   if (!isUuid(input.documentVersionId)) return notFound;
   const items = schema.agencyCollectionResponseItems;
   const responses = schema.agencyCollectionResponses;
@@ -1688,7 +1673,7 @@ export async function downloadCollectionResponseVersion(
         metadata,
       });
     });
-    return err(serviceError('step_up_required', 'confirm it is you to download this file'));
+    return err(keyedError('step_up_required', 'documents.confirmItIsYouToDownload'));
   }
   const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
   const servable = isDocumentVersionUsable({
@@ -1712,7 +1697,7 @@ export async function downloadCollectionResponseVersion(
       metadata,
     });
   });
-  if (!servable) return err(serviceError('forbidden', 'this document is not yet available'));
+  if (!servable) return err(keyedError('forbidden', 'documents.thisDocumentIsNotYetAvailable'));
   return issueVersionReadRef(db, storage, {
     document,
     version,
@@ -1946,7 +1931,7 @@ export async function downloadDocument(
 ): Promise<Result<AccessRef, ServiceError>> {
   const variant: AccessVariant = input.variant ?? 'redacted';
   if (variant === 'redacted') {
-    return err(serviceError('invalid', 'safe copies are made only through the safe copy route'));
+    return err(keyedError('invalid', 'documents.safeCopiesAreMadeOnlyThrough'));
   }
   const action: PermissionAction =
     variant === 'original' ? 'DOWNLOAD_ORIGINAL' : 'DOWNLOAD_REDACTED';

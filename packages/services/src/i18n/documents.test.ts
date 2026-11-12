@@ -1,0 +1,141 @@
+import { catalogTranslator } from '@visastack/i18n';
+import { describe, expect, it } from 'vitest';
+import { keyedError } from '../errors';
+import { SAFE_COPY_TOO_LARGE_MESSAGE } from '../redaction';
+import { documentsBn, documentsEn } from './documents';
+import { serviceMessages } from './messages';
+
+// The English each document refusal carried before it was keyed, kept here independently of the
+// catalogue so a changed word fails this test.
+const OLD_ENGLISH: ReadonlyArray<readonly [keyof typeof documentsEn, string]> = [
+  ['documents.applicantNotFound', 'applicant not found'],
+  [
+    'documents.documentsMayOnlyBeRegisteredBy',
+    'documents may only be registered by the owning account',
+  ],
+  ['documents.aDocumentNameIsRequired', 'a document name is required'],
+  ['documents.coreProcessingConsentIsRequired', 'Core processing consent is required'],
+  ['documents.documentNotFound', 'document not found'],
+  ['documents.versionsMayOnlyBeAddedBy', 'versions may only be added by the owning account'],
+  [
+    'documents.thisDocumentHasARetentionPurge',
+    'this document has a retention purge in progress and cannot be modified until it completes',
+  ],
+  ['documents.notAuthorizedToReviewThisDocument', 'not authorized to review this document'],
+  ['documents.notAuthorizedToEditThisDocument', 'not authorized to edit this document'],
+  [
+    'documents.documentdateMustBeAValidYyyy',
+    'documentDate must be a valid YYYY-MM-DD date, not in the future',
+  ],
+  ['documents.theNameOfTheDocumentMay', 'the name of the document may be at most 120 characters'],
+  [
+    'documents.onlyTheOwnerCanChangeWhat',
+    'only the owner can change what kind of document this is',
+  ],
+  ['documents.notAuthorizedToListTheseDocuments', 'not authorized to list these documents'],
+  ['documents.documentHasNoStoredVersion', 'document has no stored version'],
+  ['documents.thisDocumentIsNotYetAvailable', 'this document is not yet available'],
+  ['documents.storedObjectMissing', 'stored object missing'],
+  ['documents.confirmItIsYouToDownload', 'confirm it is you to download this file'],
+  [
+    'documents.safeCopiesAreMadeOnlyThrough',
+    'safe copies are made only through the safe copy route',
+  ],
+  ['safeCopy.documentNotFound', 'document not found'],
+  ['safeCopy.thisDocumentIsTooLargeFor', 'This document is too large for a safe copy'],
+  ['safeCopy.thisPageTookTooLongTo', 'this page took too long to prepare'],
+  ['safeCopy.safeCopiesAreMadeFromPdf', 'safe copies are made from PDF files and photos only'],
+  ['safeCopy.thisFileCouldNotBeRead', 'this file could not be read for a safe copy'],
+  ['safeCopy.theSafeCopyIsNotPrepared', 'the safe copy is not prepared yet'],
+  ['safeCopy.safeCopiesAreNotReadyYet', 'safe copies are not ready yet'],
+  ['safeCopy.aNewerVersionOrNewerBoxes', 'a newer version or newer boxes have been saved'],
+  ['safeCopy.thisDocumentIsNotAvailableYet', 'this document is not available yet'],
+  ['safeCopy.accessDenied', 'access denied'],
+  ['safeCopy.onlyTheOwnerCanPrepareA', 'only the owner can prepare a safe copy'],
+  ['safeCopy.chooseAPageOfThisDocument', 'choose a page of this document'],
+  ['safeCopy.markEveryPageOfTheDocument', 'mark every page of the document'],
+  ['safeCopy.aPageCanHaveAtMost', 'a page can have at most 200 boxes'],
+  ['safeCopy.aBoxIsNotOnThe', 'a box is not on the page'],
+  ['safeCopy.theSuggestionCountDoesNotMatch', 'the suggestion count does not match the boxes'],
+  ['safeCopy.removeTheBoxesOrDoNot', 'remove the boxes, or do not choose nothing to hide'],
+  ['safeCopy.addABoxOrChooseNothing', 'add a box, or choose Nothing to Hide on This Document'],
+  ['safeCopy.onlyTheOwnerCanChangeA', 'only the owner can change a safe copy'],
+  ['safeCopy.recordNotFound', 'record not found'],
+  ['photos.accessDenied', 'access denied'],
+  [
+    'photos.onlyTheOwnerOfThisProfile',
+    'Only the owner of this profile can see or change its photo.',
+  ],
+  ['photos.chooseAJpegOrPngPhoto', 'Choose a JPEG or PNG photo.'],
+  ['photos.chooseAPhotoSmallerThan5', 'Choose a photo smaller than 5 MB.'],
+  ['photos.thisFileIsNotTheKind', 'This file is not the kind of photo it says it is.'],
+  ['photos.thePhotoDidNotUploadCorrectly', 'The photo did not upload correctly. Please try again.'],
+  ['photos.thisPhotoDidNotPassThe', 'This photo did not pass the safety check.'],
+  ['photos.thisPhotoCouldNotBeRead', 'This photo could not be read. Try a JPEG or PNG photo.'],
+  ['photos.thePhotoDidNotSaveCorrectly', 'The photo did not save correctly. Please try again.'],
+  ['photos.tooManyPhotoChangesInA', 'Too many photo changes in a short time. Try later.'],
+  [
+    'photos.photosAreNotAvailableYetPlease',
+    'Photos are not available yet. Please try again later.',
+  ],
+  ['photos.noPhoto', 'no photo'],
+  ['naming.aProposedNameIsRequired', 'a proposed name is required'],
+  ['naming.documentNotFound', 'document not found'],
+  ['naming.nameVersionNotFound', 'name version not found'],
+  ['naming.thisNamingProposalHasAlreadyBeen', 'this naming proposal has already been decided'],
+  ['naming.notAuthorizedToDecideThisDocument', 'not authorized to decide this document name'],
+  ['naming.aFinalNameIsRequiredTo', 'a final name is required to accept a naming proposal'],
+  ['naming.onlyTheOwnerCanRenameThis', 'only the owner can rename this document'],
+  ['naming.enterANameForThisDocument', 'enter a name for this document'],
+  ['uploads.applicantNotFound', 'applicant not found'],
+  [
+    'uploads.platformStorageCapacityReachedNewUploads',
+    'platform storage capacity reached; new uploads are temporarily paused',
+  ],
+  ['uploads.notAuthorized', 'not authorized'],
+  ['uploads.theFileSizeIsNotValid', 'the file size is not valid'],
+  ['uploads.thisUploadIsNoLongerIn', 'this upload is no longer in progress'],
+  ['suggestions.onlyTheOwnerCanDecideWhat', 'only the owner can decide what this document is'],
+  ['suggestions.thereIsNoSuggestionToDecide', 'there is no suggestion to decide'],
+  ['suggestions.chooseWhatKindOfDocumentThis', 'choose what kind of document this is'],
+  ['suggestions.enterANameForThisDocument', 'enter a name for this document'],
+  ['suggestions.documentNotFound', 'document not found'],
+  ['suggestions.thisFileHasNotFinishedIts', 'this file has not finished its safety checks'],
+  ['suggestions.suggestedNameNotFound', 'suggested name not found'],
+  ['suggestions.thisSuggestionHasAlreadyBeenDecided', 'this suggestion has already been decided'],
+  ['suggestions.suggestedKindNotFound', 'suggested kind not found'],
+  ['readingState.onlyTheOwnerCanSeeHow', 'only the owner can see how a file was read'],
+];
+
+describe('document refusals keep their English', () => {
+  it('every key has exactly its old English message', () => {
+    for (const [key, english] of OLD_ENGLISH) {
+      expect(keyedError('invalid', key).message).toBe(english);
+      expect(keyedError('invalid', key).messageKey).toBe(key);
+    }
+    expect(OLD_ENGLISH.length).toBe(Object.keys(documentsEn).length - 1);
+  });
+
+  it('the wording with a name in it fills the name in', () => {
+    expect(
+      keyedError('invalid', 'documents.chosenIsNotAKnownDocument', { chosen: 'Visa Slip' }).message,
+    ).toBe(
+      '"Visa Slip" is not a known document type. Pick one from the list, or use "Other Document".',
+    );
+  });
+
+  it('the exported too-large sentence is the catalogue English', () => {
+    expect(documentsEn['safeCopy.thisDocumentIsTooLargeFor']).toBe(SAFE_COPY_TOO_LARGE_MESSAGE);
+  });
+
+  it('Bangla exists only for keys that have English, and renders under bn', () => {
+    const t = catalogTranslator(serviceMessages as never, 'bn') as (key: string) => string;
+    const keys = Object.keys(documentsBn) as Array<keyof typeof documentsBn>;
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) {
+      expect(documentsEn).toHaveProperty(key);
+      expect(t(key)).toBe(documentsBn[key]);
+      expect(t(key)).not.toBe(documentsEn[key]);
+    }
+  });
+});

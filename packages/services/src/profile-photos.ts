@@ -6,7 +6,7 @@ import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { enqueueErasureJob } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import type { MalwareScannerPort } from './intake';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import type { BlobStore } from './storage';
@@ -119,24 +119,24 @@ export function applicantPhotoPath(applicantId: string, version: string): string
  */
 function ownerProblem(access: unknown, action: PermissionAction): ServiceError | undefined {
   if (!AuthorizedApplicant.isGenuine(access, action) || access.resource.kind !== 'applicant') {
-    return serviceError('forbidden', 'access denied');
+    return keyedError('forbidden', 'photos.accessDenied');
   }
   if (access.actor.kind !== 'applicant_owner') {
-    return serviceError('forbidden', 'Only the owner of this profile can see or change its photo.');
+    return keyedError('forbidden', 'photos.onlyTheOwnerOfThisProfile');
   }
   return undefined;
 }
 
 function inputProblem(input: ProfilePhotoInput): ServiceError | undefined {
   if (!(PROFILE_PHOTO_INPUT_TYPES as readonly string[]).includes(input.contentType)) {
-    return serviceError('invalid', 'Choose a JPEG or PNG photo.');
+    return keyedError('invalid', 'photos.chooseAJpegOrPngPhoto');
   }
   if (input.bytes.byteLength === 0 || input.bytes.byteLength > PROFILE_PHOTO_MAX_INPUT_BYTES) {
-    return serviceError('invalid', 'Choose a photo smaller than 5 MB.');
+    return keyedError('invalid', 'photos.chooseAPhotoSmallerThan5');
   }
   const signature = input.contentType === 'image/png' ? PNG_SIGNATURE : JPEG_SIGNATURE;
   if (!startsWith(input.bytes, signature)) {
-    return serviceError('invalid', 'This file is not the kind of photo it says it is.');
+    return keyedError('invalid', 'photos.thisFileIsNotTheKind');
   }
   return undefined;
 }
@@ -165,11 +165,11 @@ async function scanAndReencode(
     });
     const stored = await ports.storage.getObject(objectKey);
     if (!stored || sha256Hex(stored.bytes) !== sha256) {
-      return err(serviceError('invalid', 'The photo did not upload correctly. Please try again.'));
+      return err(keyedError('invalid', 'photos.thePhotoDidNotUploadCorrectly'));
     }
     const scan = await ports.scanner.scan({ bucket: 'QUARANTINE', objectKey });
     if (!scan.safe) {
-      return err(serviceError('invalid', 'This photo did not pass the safety check.'));
+      return err(keyedError('invalid', 'photos.thisPhotoDidNotPassThe'));
     }
     let encoded: EncodedPhoto;
     try {
@@ -179,7 +179,7 @@ async function scanAndReencode(
         maxInputPixels: PROFILE_PHOTO_MAX_INPUT_PIXELS,
       });
     } catch {
-      return err(serviceError('invalid', 'This photo could not be read. Try a JPEG or PNG photo.'));
+      return err(keyedError('invalid', 'photos.thisPhotoCouldNotBeRead'));
     }
     if (
       encoded.width !== PROFILE_PHOTO_SIZE ||
@@ -188,7 +188,7 @@ async function scanAndReencode(
       encoded.bytes.byteLength > PROFILE_PHOTO_MAX_OUTPUT_BYTES ||
       !startsWith(encoded.bytes, JPEG_SIGNATURE)
     ) {
-      return err(serviceError('invalid', 'This photo could not be read. Try a JPEG or PNG photo.'));
+      return err(keyedError('invalid', 'photos.thisPhotoCouldNotBeRead'));
     }
     return ok(encoded);
   } finally {
@@ -223,7 +223,7 @@ async function storeEncoded(
     const stored = await storage.getObject(objectKey);
     if (!stored || sha256Hex(stored.bytes) !== sha256) {
       await discardObject(db, storage, 'CLEAN', object);
-      return err(serviceError('invalid', 'The photo did not save correctly. Please try again.'));
+      return err(keyedError('invalid', 'photos.thePhotoDidNotSaveCorrectly'));
     }
   } catch (error) {
     await discardObject(db, storage, 'CLEAN', object);
@@ -315,17 +315,13 @@ export async function readUnlessPhotoTableMissing<T>(
   }
 }
 
-const PHOTOS_UNAVAILABLE = 'Photos are not available yet. Please try again later.';
-
 async function changeAllowed(db: Db, ownerAccountId: string): Promise<ServiceError | undefined> {
   const allowed = await checkRateLimit(
     db,
     { subjectId: ownerAccountId, action: 'profile_photo.change', label: 'photo' },
     RATE_LIMITS.PROFILE_PHOTO_CHANGE,
   );
-  return allowed.allowed
-    ? undefined
-    : serviceError('rate_limited', 'Too many photo changes in a short time. Try later.');
+  return allowed.allowed ? undefined : keyedError('rate_limited', 'photos.tooManyPhotoChangesInA');
 }
 
 /** Add or replace the photo on a traveller record. Owner only. */
@@ -347,7 +343,7 @@ export async function setApplicantPhoto(
     await currentPhoto(tx, applicantId);
     return true;
   });
-  if (!ready) return err(serviceError('upstream_error', PHOTOS_UNAVAILABLE));
+  if (!ready) return err(keyedError('upstream_error', 'photos.photosAreNotAvailableYetPlease'));
   const limited = await changeAllowed(db, ownerAccountId);
   if (limited) return err(limited);
 
@@ -495,14 +491,14 @@ export async function readApplicantPhoto(
   const photo = await readUnlessPhotoTableMissing(access.tx, undefined, (tx) =>
     currentPhoto(tx, access.applicant.id),
   );
-  if (!photo) return err(serviceError('not_found', 'no photo'));
+  if (!photo) return err(keyedError('not_found', 'photos.noPhoto'));
   const stored = await storage.getObject(photo.objectKey);
   if (
     !stored ||
     sha256Hex(stored.bytes) !== photo.contentSha256 ||
     !startsWith(stored.bytes, JPEG_SIGNATURE)
   ) {
-    return err(serviceError('not_found', 'no photo'));
+    return err(keyedError('not_found', 'photos.noPhoto'));
   }
   return ok({
     bytes: stored.bytes,

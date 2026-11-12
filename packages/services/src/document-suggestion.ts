@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
+import type { MessageParams } from '@visastack/i18n';
 import { and, desc, eq } from 'drizzle-orm';
 import {
   AuthorizedApplicant,
@@ -10,7 +11,8 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { decideDocumentName, proposeDocumentName } from './document-naming';
 import { prepareDocumentKind, setDocumentType } from './documents';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
+import type { ServiceMessageKey } from './i18n';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { cleanDocumentName } from './naming';
 import { recordProductEvent } from './product-events';
@@ -88,8 +90,12 @@ class Refusal extends Error {
   }
 }
 
-function refuse(code: ServiceError['code'], message: string): never {
-  throw new Refusal(serviceError(code, message));
+function refuseKeyed(
+  code: ServiceError['code'],
+  key: ServiceMessageKey,
+  params?: MessageParams,
+): never {
+  throw new Refusal(keyedError(code, key, params));
 }
 
 /**
@@ -107,10 +113,10 @@ export async function decideDocumentSuggestion(
     proof.actor.kind !== 'applicant_owner' ||
     proof.resource.kind !== 'document'
   ) {
-    return err(serviceError('forbidden', 'only the owner can decide what this document is'));
+    return err(keyedError('forbidden', 'suggestions.onlyTheOwnerCanDecideWhat'));
   }
   if (input.nameVersionId === null && input.typeProposalId === null) {
-    return err(serviceError('invalid', 'there is no suggestion to decide'));
+    return err(keyedError('invalid', 'suggestions.thereIsNoSuggestionToDecide'));
   }
 
   let kind: { readonly docType: string | null; readonly subject: string | null } | undefined;
@@ -119,11 +125,12 @@ export async function decideDocumentSuggestion(
     const prepared = prepareDocumentKind(input.docType, input.subject);
     if (!prepared.ok) return prepared;
     if (prepared.value.docType === null) {
-      return err(serviceError('invalid', 'choose what kind of document this is'));
+      return err(keyedError('invalid', 'suggestions.chooseWhatKindOfDocumentThis'));
     }
     kind = prepared.value;
     name = cleanDocumentName(input.name);
-    if (name.length === 0) return err(serviceError('invalid', 'enter a name for this document'));
+    if (name.length === 0)
+      return err(keyedError('invalid', 'suggestions.enterANameForThisDocument'));
   }
 
   const documentId = proof.resource.document.id;
@@ -145,7 +152,7 @@ export async function decideDocumentSuggestion(
           .limit(1)
           .for('update'),
       );
-      if (!document) refuse('not_found', 'document not found');
+      if (!document) refuseKeyed('not_found', 'suggestions.documentNotFound');
       // Nothing is decided for a file that is not, or is no longer, past its safety checks.
       const latest = first(
         await tx
@@ -164,7 +171,7 @@ export async function decideDocumentSuggestion(
         latest.safetyStatus !== 'CLEAN' ||
         !DECIDABLE_PROCESSING_STATES.has(latest.processingStatus)
       ) {
-        refuse('invalid', 'this file has not finished its safety checks');
+        refuseKeyed('invalid', 'suggestions.thisFileHasNotFinishedIts');
       }
       const nameVersion = input.nameVersionId
         ? await lockWaitingName(tx, input.nameVersionId, documentId)
@@ -311,8 +318,10 @@ async function lockWaitingName(
       .limit(1)
       .for('update'),
   );
-  if (!row || row.documentId !== documentId) refuse('not_found', 'suggested name not found');
-  if (row.decision !== 'PENDING') refuse('invalid', 'this suggestion has already been decided');
+  if (!row || row.documentId !== documentId)
+    refuseKeyed('not_found', 'suggestions.suggestedNameNotFound');
+  if (row.decision !== 'PENDING')
+    refuseKeyed('invalid', 'suggestions.thisSuggestionHasAlreadyBeenDecided');
   return row;
 }
 
@@ -334,9 +343,10 @@ async function lockWaitingKind(
       .for('update'),
   );
   if (!found || found.documentVersionId !== latestVersionId) {
-    refuse('not_found', 'suggested kind not found');
+    refuseKeyed('not_found', 'suggestions.suggestedKindNotFound');
   }
-  if (found.status !== 'PENDING') refuse('invalid', 'this suggestion has already been decided');
+  if (found.status !== 'PENDING')
+    refuseKeyed('invalid', 'suggestions.thisSuggestionHasAlreadyBeenDecided');
   return found;
 }
 
