@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ShowMore } from '../../../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../../../components/ui';
+import { applicantMemoryCatalog } from '../../../../../../i18n/applicant-memory';
 import {
   AMOUNT_BASIS_LABELS,
   RESULT_NEXT_STEPS,
@@ -26,6 +27,7 @@ import {
 } from '../../../../../../lib/application-memory-labels';
 import { fieldStatusWords } from '../../../../../../lib/field-state-words';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../../../lib/paging';
 import { createKeyManagementPort } from '../../../../../../lib/providers';
 import { withSession } from '../../../../../../lib/session';
@@ -74,6 +76,7 @@ export default async function ThenAndNowPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Search;
 }) {
+  await primeLocale();
   const { id } = await params;
   const query = (await searchParams) ?? {};
   const snapshotId = one(query.snapshot);
@@ -137,6 +140,7 @@ function ChangesView({
   /** The `show` address value: ten changes at a time, Show More for the next ten (WP-SB1). */
   readonly show: string | string[] | undefined;
 }) {
+  const t = getServerT(applicantMemoryCatalog);
   const { snapshot } = changes;
   // The changes are already read in full (comparing needs them all), so every one stays reachable.
   const paging = {
@@ -149,26 +153,40 @@ function ChangesView({
     <>
       <PageHeader
         back={{ href: memoryHref(applicantId), label: 'Case History' }}
-        eyebrow="Then and Now"
-        title={`Since Snapshot ${snapshot.version}`}
-        description={`${snapshot.missionTitle}: what differs today from snapshot ${snapshot.version}, taken on ${formatTimestampDate(snapshot.takenAt)}. Names only; open a detail to compare it.`}
+        eyebrow={t('applicantMemory.appApplicantIdMemoryComparePage.thenAndNow')}
+        title={t('applicantMemory.appApplicantIdMemoryComparePage.sinceSnapshotVersion', {
+          version: snapshot.version,
+        })}
+        description={t(
+          'applicantMemory.appApplicantIdMemoryComparePage.missiontitleWhatDiffersTodayFromSnapshot',
+          {
+            missionTitle: snapshot.missionTitle,
+            version: snapshot.version,
+            formatTimestampDate: formatTimestampDate(snapshot.takenAt),
+          },
+        )}
         as="h2"
       />
       {unavailable ? (
         <p className="notice notice-warn">
-          This comparison cannot be shown right now. Try again later.
+          {t.node(
+            'applicantMemory.appApplicantIdMemoryComparePage.thisComparisonCannotBeShownRight',
+          )}
         </p>
       ) : null}
       <article className="card then-now-card">
         <p className="then-now-review">{reviewSentence(snapshot.version, changes.review)}</p>
         {!snapshot.exact ? (
           <p className="then-now-note">
-            This older snapshot did not record exact versions, so the changes cannot be listed.
+            {t.node(
+              'applicantMemory.appApplicantIdMemoryComparePage.thisOlderSnapshotDidNotRecord',
+            )}
           </p>
         ) : changes.changes.length === 0 ? (
           <p className="then-now-note">
-            Nothing differs by version: every detail and document in this snapshot is still the one
-            in use.
+            {t.node(
+              'applicantMemory.appApplicantIdMemoryComparePage.nothingDiffersByVersionEveryDetail',
+            )}
           </p>
         ) : (
           <>
@@ -191,9 +209,12 @@ function ChangesView({
                       <Link
                         className="case-change-link"
                         href={compareHref(applicantId, snapshot.id, version)}
-                        aria-label={`Compare ${line.name}, then and now`}
+                        aria-label={t(
+                          'applicantMemory.appApplicantIdMemoryComparePage.compareNameThenAndNow',
+                          { name: line.name },
+                        )}
                       >
-                        Compare
+                        {t.node('applicantMemory.appApplicantIdMemoryComparePage.compare')}
                       </Link>
                     ) : null}
                   </li>
@@ -215,8 +236,11 @@ function ChangesView({
         {snapshot.exact && changes.unchangedDetailCount > 0 ? (
           <p className="then-now-note">
             {changes.unchangedDetailCount === 1
-              ? '1 detail is still the version this snapshot used.'
-              : `${changes.unchangedDetailCount} details are still the versions this snapshot used.`}
+              ? t.node('applicantMemory.appApplicantIdMemoryComparePage.1DetailIsStillTheVersion')
+              : t.node(
+                  'applicantMemory.appApplicantIdMemoryComparePage.unchangeddetailcountDetailsAreStillTheVersions',
+                  { unchangedDetailCount: changes.unchangedDetailCount },
+                )}
           </p>
         ) : null}
         <div className="then-now-actions">
@@ -224,10 +248,12 @@ function ChangesView({
             className="btn btn-secondary"
             href={`/app/mission/${snapshot.missionId}/snapshots/${snapshot.id}`}
           >
-            View Snapshot {snapshot.version}
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.viewSnapshotVersion', {
+              version: snapshot.version,
+            })}
           </Link>
           <Link className="btn btn-secondary" href={`/app/mission/${snapshot.missionId}`}>
-            Open the Case
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.openTheCase')}
           </Link>
         </div>
       </article>
@@ -249,45 +275,58 @@ function SideFacts({
   readonly asOf: string;
   readonly amount: boolean;
 }) {
+  const t = getServerT(applicantMemoryCatalog);
   return (
     <dl className="then-now-facts">
-      <dt>Value</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.value')}</dt>
       <dd className="then-now-value">
-        {hidden ? 'Hidden here to keep it private' : (side.value ?? 'Not recorded')}
+        {hidden
+          ? t.node('applicantMemory.appApplicantIdMemoryComparePage.hiddenHereToKeepItPrivate')
+          : (side.value ?? t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded'))}
       </dd>
       {amount ? (
         <>
-          <dt>Currency</dt>
-          <dd>{side.currency ?? 'Not recorded'}</dd>
-          <dt>Before or After Tax</dt>
-          <dd>{side.basis ? AMOUNT_BASIS_LABELS[side.basis] : 'Not recorded'}</dd>
+          <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.currency')}</dt>
+          <dd>
+            {side.currency ?? t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
+          </dd>
+          <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.beforeOrAfterTax')}</dt>
+          <dd>
+            {side.basis
+              ? AMOUNT_BASIS_LABELS[side.basis]
+              : t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
+          </dd>
         </>
       ) : null}
-      <dt>True From</dt>
-      <dd>{side.effectiveFrom ? formatDateOnly(side.effectiveFrom) : 'Not recorded'}</dd>
-      <dt>Saved On</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.trueFrom')}</dt>
+      <dd>
+        {side.effectiveFrom
+          ? formatDateOnly(side.effectiveFrom)
+          : t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
+      </dd>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.savedOn')}</dt>
       <dd>{formatTimestampDate(side.recordedAt)}</dd>
-      <dt>As Of</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.asOf')}</dt>
       <dd>{asOf}</dd>
-      <dt>How It Was Saved</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.howItWasSaved')}</dt>
       <dd>{fieldStatusWords(side.status)}</dd>
-      <dt>Note Saved with It</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.noteSavedWithIt')}</dt>
       <dd>
         {hidden ? (
           noteSaved ? (
-            'A note was saved (hidden here to keep it private)'
+            t.node('applicantMemory.appApplicantIdMemoryComparePage.aNoteWasSavedHiddenHere')
           ) : (
-            'None'
+            t.node('applicantMemory.appApplicantIdMemoryComparePage.none')
           )
         ) : side.explanation ? (
           <>
             <q>{side.explanation}</q>
             <span className="then-now-assertion">
-              What was written at the time. A statement, not proof.
+              {t.node('applicantMemory.appApplicantIdMemoryComparePage.whatWasWrittenAtTheTime')}
             </span>
           </>
         ) : (
-          'None'
+          t.node('applicantMemory.appApplicantIdMemoryComparePage.none')
         )}
       </dd>
     </dl>
@@ -301,6 +340,7 @@ function DetailView({
   readonly applicantId: string;
   readonly detail: SnapshotDetailComparison;
 }) {
+  const t = getServerT(applicantMemoryCatalog);
   const { snapshot, comparison, review, valuesHidden } = detail;
   const name = detailName(comparison.fieldKey);
   const next = RESULT_NEXT_STEPS[comparison.result];
@@ -315,29 +355,34 @@ function DetailView({
           href: compareHref(applicantId, snapshot.id),
           label: `Since Snapshot ${snapshot.version}`,
         }}
-        eyebrow="Then and Now"
+        eyebrow={t('applicantMemory.appApplicantIdMemoryComparePage.thenAndNow')}
         title={name}
-        description={`${snapshot.missionTitle}: this detail as snapshot ${snapshot.version} recorded it, beside the version in use today.`}
+        description={t(
+          'applicantMemory.appApplicantIdMemoryComparePage.missiontitleThisDetailAsSnapshotVersion',
+          { missionTitle: snapshot.missionTitle, version: snapshot.version },
+        )}
         as="h2"
       />
 
       <section className="card then-now-result" aria-labelledby="then-now-result-heading">
         <h3 className="then-now-kicker" id="then-now-result-heading">
-          Result
+          {t.node('applicantMemory.appApplicantIdMemoryComparePage.result')}
         </h3>
         <p className="then-now-result-line">
           <StatusBadge tone={RESULT_TONES[comparison.result]}>{comparison.label}</StatusBadge>
           <span>{comparison.reasonText}</span>
         </p>
         <p className="then-now-note">
-          This compares what was recorded. It does not say which value is true.
+          {t.node('applicantMemory.appApplicantIdMemoryComparePage.thisComparesWhatWasRecordedIt')}
         </p>
       </section>
 
       <div className="then-now-sides">
         <article className="card then-now-side" aria-labelledby="then-now-then">
           <h3 className="card-title" id="then-now-then">
-            In Snapshot {snapshot.version}
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.inSnapshotVersion', {
+              version: snapshot.version,
+            })}
           </h3>
           <SideFacts
             side={comparison.prior}
@@ -349,7 +394,7 @@ function DetailView({
         </article>
         <article className="card then-now-side" aria-labelledby="then-now-now">
           <h3 className="card-title" id="then-now-now">
-            Today
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.today')}
           </h3>
           <SideFacts
             side={comparison.current}
@@ -363,7 +408,7 @@ function DetailView({
 
       <section className="card then-now-next" aria-labelledby="then-now-next-heading">
         <h3 className="card-title" id="then-now-next-heading">
-          What to Do Next
+          {t.node('applicantMemory.appApplicantIdMemoryComparePage.whatToDoNext')}
         </h3>
         <p className="then-now-review">{reviewSentence(snapshot.version, review)}</p>
         <p>{next.text}</p>
@@ -373,19 +418,23 @@ function DetailView({
               className="btn btn-primary"
               href={profileSectionHref(applicantId, comparison.fieldKey)}
             >
-              Update This Detail
+              {t.node('applicantMemory.appApplicantIdMemoryComparePage.updateThisDetail')}
             </Link>
           ) : null}
           <Link
             className={next.updateDetail ? 'btn btn-secondary' : 'btn btn-primary'}
             href={`/app/mission/${snapshot.missionId}#snapshots`}
           >
-            Open the Case
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.openTheCase')}
           </Link>
         </div>
         <p className="then-now-note">
-          Snapshot {snapshot.version} keeps exactly what it held. Updating a detail adds a new
-          version and never changes a snapshot.
+          {t.node(
+            'applicantMemory.appApplicantIdMemoryComparePage.snapshotVersionKeepsExactlyWhatIt',
+            {
+              version: snapshot.version,
+            },
+          )}
         </p>
       </section>
     </>

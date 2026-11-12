@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
 import { ReplaceAction } from '../documents/manage/replace/replace-action';
 import { chooseLegendId } from './response-choices';
 
@@ -30,6 +32,7 @@ export function ClearerCopyPanel({
   /** No other copy can be sent, so this is the way forward and reads as the main action. */
   readonly primary?: boolean;
 }) {
+  const t = useT(applicantEvidenceCatalog);
   const [open, setOpen] = useState(false);
 
   function close() {
@@ -47,7 +50,7 @@ export function ClearerCopyPanel({
       <summary
         className={`evidence-clearer-toggle lc-clearer${primary ? ' evidence-clearer-primary lc-clearer-primary' : ''}`}
       >
-        Upload a Clearer Copy
+        {t.node('applicantEvidence.appApplicantIdEvidenceClearerCopyPanel.uploadAClearerCopy')}
         <span className="sr-only">: {documentName}</span>
       </summary>
       {open ? (

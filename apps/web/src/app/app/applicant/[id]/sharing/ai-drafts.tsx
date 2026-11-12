@@ -7,6 +7,8 @@ import {
   NO_RESULT,
   SubmitButton,
 } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { plural } from '../../../../../lib/plural';
 import { deleteAiDraftAction } from './ai-draft-actions';
 
@@ -30,6 +32,7 @@ function AiDraft({
   readonly draft: AiDraftItem;
   readonly onDeleted: (id: string, result: FormResult) => void;
 }) {
+  const t = useT(applicantSharingCatalog);
   const [state, formAction, pending] = useActionState(
     async (previous: FormResult, formData: FormData) => {
       const result = await deleteAiDraftAction(previous, formData);
@@ -58,7 +61,7 @@ function AiDraft({
         {draft.caseTitle ? `, for ${draft.caseTitle}` : ''}.
       </p>
       <details className="ai-draft-text">
-        <summary>Show Draft</summary>
+        <summary>{t.node('applicantSharing.appApplicantIdSharingAiDrafts.showDraft')}</summary>
         {/* A long draft scrolls in its own box, which keyboard users can reach and scroll. */}
         <p
           className="ai-draft-body"
@@ -66,7 +69,9 @@ function AiDraft({
           tabIndex={0}
           // biome-ignore lint/a11y/useSemanticElements: a named, focusable scroll box for one draft's text.
           role="region"
-          aria-label={`Draft text: ${draft.title}`}
+          aria-label={t('applicantSharing.appApplicantIdSharingAiDrafts.draftTextTitle', {
+            title: draft.title,
+          })}
         >
           {draft.body}
         </p>
@@ -76,9 +81,11 @@ function AiDraft({
           type="button"
           className="btn btn-secondary"
           onClick={copy}
-          aria-label={`Copy Draft: ${draft.title}`}
+          aria-label={t('applicantSharing.appApplicantIdSharingAiDrafts.copyDraftTitle', {
+            title: draft.title,
+          })}
         >
-          Copy Draft
+          {t.node('applicantSharing.appApplicantIdSharingAiDrafts.copyDraft')}
         </button>
         <form action={formAction}>
           <input type="hidden" name="applicantId" value={applicantId} />
@@ -88,7 +95,9 @@ function AiDraft({
             idle="Delete Draft"
             busy="Deleting…"
             className="btn btn-secondary"
-            label={`Delete Draft: ${draft.title}`}
+            label={t('applicantSharing.appApplicantIdSharingAiDrafts.deleteDraftTitle', {
+              title: draft.title,
+            })}
           />
         </form>
       </div>
@@ -112,6 +121,7 @@ export function AiDraftsSection({
   readonly drafts: readonly AiDraftItem[];
   readonly more: number;
 }) {
+  const t = useT(applicantSharingCatalog);
   const [lastResult, setLastResult] = useState<FormResult>(NO_RESULT);
   const [deleted, setDeleted] = useState<ReadonlySet<string>>(new Set());
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -122,14 +132,14 @@ export function AiDraftsSection({
   }, [lastResult]);
   return (
     <article className="card ai-drafts" id="ai-drafts" aria-labelledby="ai-drafts-title">
-      <p className="card-kicker">AI Apps</p>
+      <p className="card-kicker">
+        {t.node('applicantSharing.appApplicantIdSharingAiConnections.aiApps')}
+      </p>
       <h2 className="card-title" id="ai-drafts-title" ref={headingRef} tabIndex={-1}>
-        Drafts from AI Apps
+        {t.node('applicantSharing.appApplicantIdSharingAiDrafts.draftsFromAiApps')}
       </h2>
       <p className="card-body">
-        Drafts your AI apps saved for you, such as letters and notes. They are kept here for you
-        only: nothing is sent anywhere, and agencies never see them. Drafts stay until you delete
-        them.
+        {t.node('applicantSharing.appApplicantIdSharingAiDrafts.draftsYourAiAppsSavedFor')}
       </p>
       <FormMessage result={lastResult} />
       {shown.length > 0 ? (
@@ -147,12 +157,15 @@ export function AiDraftsSection({
           ))}
         </ul>
       ) : (
-        <p className="card-body muted">No drafts from AI apps.</p>
+        <p className="card-body muted">
+          {t.node('applicantSharing.appApplicantIdSharingAiDrafts.noDraftsFromAiApps')}
+        </p>
       )}
       {more > 0 ? (
         <p className="card-body muted">
-          And {plural(more, 'more draft', 'more drafts')}, not shown here. Delete ones you no longer
-          need to see the rest.
+          {t.node('applicantSharing.appApplicantIdSharingAiDrafts.andPluralNotShownHereDelete', {
+            plural: plural(more, 'more draft', 'more drafts'),
+          })}
         </p>
       ) : null}
     </article>
