@@ -670,11 +670,11 @@ const GUARD_TAGS = [
   ],
   [
     'G2_safety_check',
-    /\b(antivirus|malware|virus|scanned|scan|format checked|held for safety|quarantine|safe to open|file check|checked)\b/i,
+    /\b(antivirus|malware|viruses|virus|scanned|scanning|scan|format checked|held for safety|quarantine|quarantined|safe to open|file check)\b/i,
   ],
   [
     'G3_requirement_level',
-    /\b(mandatory|required|optional|recommended|one of|any of|either|unknown|not applicable|n\/a|if applicable|depending)\b/i,
+    /\b(mandatory|required|optional|recommended|one of|any of|unknown|not applicable|n\/a|if applicable|depending)\b/i,
   ],
   [
     'G4_who_is_asking',
@@ -761,6 +761,7 @@ function processFile(rel) {
       /::\w+|\btimestamptz\b|\bSELECT\b|\bWHERE\b/.test(text)
     )
       return;
+    if (/^system: /.test(text)) return;
     if (partial.prop === 'reference' && /\.(pdf|jpe?g|png|docx?|xlsx?)$/i.test(text)) return;
     // Markup inside a string (an email body, an offline page): each text run is its own unit.
     if (
@@ -804,7 +805,12 @@ function processFile(rel) {
       jsx_path: partial.jsxPath ?? '',
       kind: partial.kind,
       prop_or_attr: partial.prop ?? '',
-      evidence: audience ? `EXCLUDED_${audience.toUpperCase()}` : partial.evidence,
+      evidence: audience
+        ? `EXCLUDED_${audience.toUpperCase()}`
+        : /starter-checklists\/seed-rows/.test(rel) &&
+            ['purpose', 'country', 'reference'].includes(partial.prop ?? '')
+          ? 'EXCLUDED_MATCHING_KEY'
+          : partial.evidence,
       confidence: partial.confidence ?? '',
       english: text,
       placeholders: ph.join(','),
@@ -1221,6 +1227,28 @@ function processFile(rel) {
               });
         }
       }
+    }
+    // --- service refusals: serviceError(code, 'message'). Some reach a screen word for word.
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'serviceError' &&
+      node.arguments[1]
+    ) {
+      const r = resolveValue(node.arguments[1], sf);
+      for (const st of r.strings)
+        if (LETTER.test(st.text) && /\s/.test(st.text))
+          emit(node.arguments[1], {
+            kind: 'service_error_message',
+            prop: `serviceError(${node.arguments[0]?.getText(sf).replace(/['"]/g, '')})`,
+            evidence: 'ERROR_CALL',
+            confidence: 'MEDIUM',
+            text: st.text,
+            ph: st.ph,
+            plural: st.plural,
+            branch: st.branch,
+          });
+      for (const d of r.dyn) emitDynamic(node, d, 'dynamic_property_text', 'serviceError');
     }
     // --- validation messages: z.string().min(1, 'msg'), .refine(fn, 'msg' | {message})
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {

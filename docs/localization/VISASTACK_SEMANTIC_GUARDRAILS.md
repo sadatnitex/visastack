@@ -17,7 +17,7 @@ Each row is a set of different facts. A translation must give each English word 
 | State words | Saved | Stored in VisaStack. Nothing left VisaStack | সংরক্ষণ করা হয়েছে | জমা (submitted), পাঠানো (sent) |
 | | Submitted | Given to a named party inside VisaStack | জমা দেওয়া হয়েছে | সংরক্ষণ, পাঠানো, পাওয়া |
 | | Sent | Left VisaStack. Delivery is not implied | পাঠানো হয়েছে | জমা, সংরক্ষণ, পাওয়া |
-| | Received | The other side has it | পাওয়া গেছে (পেয়েছে in a sentence) | গ্রহণ (accepted), জমা |
+| | Received | The other side has it | পাওয়া হয়েছে (পেয়েছে in a sentence) | গ্রহণ (accepted), জমা |
 | | Reviewed | A person looked at it | পর্যালোচনা করা হয়েছে | যাচাই, অনুমোদিত, নিশ্চিত |
 | | Accepted | An invitation or grant was taken | গ্রহণ করা হয়েছে | অনুমোদিত |
 | | Verified | One named fact was checked (for example an email address) | যাচাই করা হয়েছে | পরীক্ষা, অনুমোদিত, and never an official-source implication |
@@ -43,9 +43,11 @@ Each row is a set of different facts. A translation must give each English word 
 | | Grant accepted | The recipient accepted. Access exists within scope | অ্যাক্সেস গ্রহণ করা হয়েছে | |
 | | Scope revoked | Access withdrawn for the future | প্রত্যাহার করা হয়েছে | মুছে (deleted) |
 | | Downloaded copy already retained | A copy someone saved earlier still exists | আগে ডাউনলোড করা কপি | a promise that revoking removes it |
-| Copies | Current copy / earlier document / replaced copy / exact copy / pinned | See `docs/localization/data/BN_BD_CORE_GLOSSARY.csv` T080 to T084 | বর্তমান কপি / আগের ডকুমেন্ট / প্রতিস্থাপিত কপি / হুবহু কপি / নির্দিষ্ট করা | সংস্করণ, ভার্সন, any "Version 2" idea |
+| Copies | Current copy / earlier document / replaced copy / exact copy / pinned | See `docs/localization/data/BN_BD_CORE_GLOSSARY.csv` T080 to T084 | বর্তমান কপি / আগের ডকুমেন্ট / প্রতিস্থাপিত কপি / হুবহু কপি / নির্দিষ্ট করা | সংস্করণ, ভার্সন, any "Version 2" idea, for document copies. Where the English really says version (a snapshot number, a published checklist pack, a product release), keep the version idea; replacing it with কপি changes the meaning |
 | Country roles | Nationality / residence / destination / where you apply | Four different facts | জাতীয়তা / বসবাসের দেশ / গন্তব্য / যেখান থেকে আবেদন করবেন | using one for another |
-| Data actions | Export data / share access / download original / safe copy / archive / delete / permanent erasure | Different actions with different effects. Erasure is not available under a legal hold | এক্সপোর্ট / শেয়ার / মূল ফাইল / নিরাপদ কপি / আর্কাইভ / মুছে ফেলুন / স্থায়ীভাবে মুছে ফেলুন | merging any two |
+| Data actions | Legal hold is আইনি হোল্ড and never সংরক্ষণ (the word for Saved). Export data / share access / download original / safe copy / archive / delete / permanent erasure | Different actions with different effects. Erasure is not available under a legal hold | এক্সপোর্ট / শেয়ার / মূল ফাইল / নিরাপদ কপি / আর্কাইভ / মুছে ফেলুন / স্থায়ীভাবে মুছে ফেলুন | merging any two |
+
+The word নিরাপদ is allowed only inside the product noun "Safe copy" (নিরাপদ কপি), where the English says safe. It must never describe a format check, a file or a document.
 
 ## 3. Critical errors
 
@@ -59,7 +61,7 @@ A draft with any of these must not be released. Each has an automated check wher
 | C4 | Optional, recommended or unknown shown as mandatory or as not required; the condition in "mandatory if applicable" dropped | GLOSSARY_TERM_MISSING |
 | C5 | An agency request shown as a government application, or any sentence implying VisaStack filed an application | needs human review; GLOSSARY_FORBIDDEN_STEM for আবেদন/অনুরোধ |
 | C6 | An opened link shown as granted access; revocation shown as erasing a copy already kept | needs human review |
-| C7 | Any "Version 2" style wording (সংস্করণ, ভার্সন) | BANNED_WORDING |
+| C7 | "Version 2" style wording (সংস্করণ, ভার্সন) where the English says copy or document; and the reverse, dropping "version" where the English means a real version (snapshot, pack, product release) | BANNED_WORDING, VERSION_CONCEPT_REVIEW |
 | C8 | Nationality, residence, destination and place of application swapped | GLOSSARY_FORBIDDEN_STEM |
 | C9 | Export, share, download, delete and erase blurred together; erasure promised under a legal hold | needs human review |
 | C10 | A stronger claim than English: secure, safe, verified, official, government, approved, guaranteed, encrypted, confirmed | STRONGER_CLAIM |
@@ -105,7 +107,7 @@ These notes are for the owner's later launch decision. No translation into these
 
 The tables below are generated from the census (rows carrying each guard tag), so reviewers see the real wording each rule applies to.
 
-### State words (G1_state_word): 524 rows, 441 distinct texts
+### State words (G1_state_word): 551 rows, 465 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -118,20 +120,20 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-088b07da22 | Provider acceptance is different from delivery. Receipt endpoint registration and signed events must also be verified. | `lib/provider-operations.ts:131` (seen on a screen) |
 | SRC-10383ec347 | Approved Medical Centre Result | `core/src/catalogue/documents.ts:1260` (seen on a screen) |
 
-### File safety (G2_safety_check): 119 rows, 105 distinct texts
+### File safety (G2_safety_check): 38 rows, 33 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
-| SRC-05d9d5d3b5 | Date Checked | `app/app/admin/ai-settings/forms.tsx:893` (seen on a screen) |
-| SRC-06271c9ad2 | Nothing is checked yet: this case has no checklist | `app/app/mission/[id]/case-status-panel.tsx:204` (seen on a screen) |
-| SRC-0a0c1e4949 | No publications checked yet. | `app/app/admin/packs/corrections/page.tsx:213` (seen on a screen) |
 | SRC-0bb3f749d7 | Held for Safety | `lib/scan-state.ts:91` (seen on a screen) |
-| SRC-131c031f9e | Browse: requests being checked or finished. | `lib/ccd/depth-words.ts:41` (seen on a screen) |
 | SRC-5966316bc3 | The file type and structure were checked. It has not been scanned for viruses. | `lib/scan-state.ts:60` (seen on a screen) |
-| SRC-5ed1b644d2 | Documents are added in VisaStack, not in chat, so they stay private and checked. | `app/app/account/whatsapp/page.tsx:91` (seen on a screen) |
-| SRC-607a360273 | Delivery receipts are not being checked yet. | `lib/provider-operations.ts:259` (seen on a screen) |
+| SRC-96c8506898 | Sends scan pictures, not just text, to an AI. | `lib/labels.ts:278` (seen on a screen) |
+| SRC-b0830845c5 | The picture of a scan is sent to an AI service to read it. This shares more than text alone. | `lib/labels.ts:249` (seen on a screen) |
+| SRC-0dc984915a | this image failed the required safety scan | `services/src/branding.ts:295` |
+| SRC-2483eed991 | 2 Copy of Passport bio page & copy of previous travel history (Hard Copy + Scan JPG) | `core/src/starter-checklists/seed-rows.ts:3590` |
+| SRC-2871f3175e | {PDF_NEEDS_SCAN_TEXT} Add a photo or scan of each page as a JPG or PNG instead. | `lib/upload-rules.ts:158` |
+| SRC-30c2f803b9 | We are making sure this file is safe to open. This page updates by itself. | `lib/document-reading.ts:28` |
 
-### Requirement level (G3_requirement_level): 221 rows, 152 distinct texts
+### Requirement level (G3_requirement_level): 302 rows, 203 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -144,7 +146,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-33c77ba0a1 | Requested Route (Optional) | `app/app/agency/[orgId]/client-invitation-form.tsx:70` (seen on a screen) |
 | SRC-3fd82f942b | Evidence (Optional) | `app/app/mission/[id]/outcome-panel.tsx:149` (seen on a screen) |
 
-### Who is asking (G4_who_is_asking): 121 rows, 92 distinct texts
+### Who is asking (G4_who_is_asking): 159 rows, 118 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -157,7 +159,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-260445b0d3 | Grant Access | `app/app/applicant/[id]/sharing/page.tsx:446` (seen on a screen) |
 | SRC-315be58e3a | What actually happened to your data, not just what a grant permits. | `app/app/applicant/[id]/sharing/page.tsx:713` (seen on a screen) |
 
-### Share lifecycle (G5_share_lifecycle): 355 rows, 295 distinct texts
+### Share lifecycle (G5_share_lifecycle): 386 rows, 310 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -170,7 +172,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-4c169b0ebb | Someone wants to share their information with you. Nothing is shared until you accept. | `app/app/(home)/page.tsx:189` (seen on a screen) |
 | SRC-4f19c35c5b | Access Ends 30 November | `app/page.tsx:75` (seen on a screen) |
 
-### Copies and versions (G6_copy_version): 222 rows, 191 distinct texts
+### Copies and versions (G6_copy_version): 260 rows, 212 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -183,7 +185,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-37863c095b | Version Diff | `app/app/admin/packs/[packId]/diff/page.tsx:62` (seen on a screen) |
 | SRC-3ab31c3e0c | Some earlier sends have no time on record. | `components/request-thread/request-thread.tsx:13` (seen on a screen) |
 
-### Country roles (G7_country_role): 60 rows, 51 distinct texts
+### Country roles (G7_country_role): 61 rows, 52 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -196,7 +198,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-4cace4cfc4 | Temporary Residence Permit | `core/src/catalogue/documents.ts:435` (seen on a screen) |
 | SRC-6be4286880 | Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage. | `app/app/agency/[orgId]/page.tsx:452` (seen on a screen) |
 
-### Data actions (G8_data_action): 407 rows, 334 distinct texts
+### Data actions (G8_data_action): 459 rows, 371 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -209,7 +211,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-1aac4eb887 | Sharing decisions are recorded | `app/page.tsx:150` (seen on a screen) |
 | SRC-1bb3ff252a | Back to Sharing | `app/app/applicant/[id]/sharing/page.tsx:479` (seen on a screen) |
 
-### Claim strength (G9_claim_strength): 201 rows, 171 distinct texts
+### Claim strength (G9_claim_strength): 217 rows, 183 distinct texts
 
 | Source id | English | Where |
 |---|---|---|

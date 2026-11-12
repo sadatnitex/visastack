@@ -364,9 +364,16 @@ for (const r of census.rows) {
             r.file,
           )
         ? 'OFFICIAL_RULE_CONTENT'
-        : /billing|payment|invoice|receipt|refund|plan/.test(r.file)
+        : /(billing|payment|invoice|receipt|refund)|\/plan\/|plan-forms|plans\//.test(r.file)
           ? 'PAYMENT_BILLING'
           : 'STANDARD_UI';
+  const handlingNote = /packages\/core\/src\/catalogue\/fields\//.test(r.file)
+    ? 'STORED_ANSWER_VALUE_TRANSLATE_AT_DISPLAY_ONLY'
+    : r.evidence === 'ERROR_CALL'
+      ? 'MAY_REACH_SCREEN_VIA_error.message_PASS_THROUGH'
+      : r.evidence === 'EXCLUDED_MATCHING_KEY'
+        ? 'MATCHED_BY_CODE_DO_NOT_TRANSLATE'
+        : '';
   const coverageFlag = r.evidence.startsWith('EXCLUDED')
     ? r.evidence
     : r.evidence === 'CANDIDATE_ONLY'
@@ -389,6 +396,7 @@ for (const r of census.rows) {
     rendered: renderedState,
     priority,
     review_class: reviewClass,
+    handling_note: handlingNote,
     coverage_flag: coverageFlag,
   });
 }
@@ -466,6 +474,7 @@ const dynRows = census.dynamic.map((d) => {
     rendered: 'NOT_APPLICABLE',
     priority: 'NEEDS_RENDERED_CHECK',
     review_class: '',
+    handling_note: '',
     coverage_flag: resolved ? `DYNAMIC_${resolved}` : 'DYNAMIC_REQUIRES_RENDERED_CHECK',
     dup_count: '',
     homograph: '',
@@ -509,6 +518,7 @@ const COLS = [
   'rendered',
   'priority',
   'review_class',
+  'handling_note',
   'coverage_flag',
 ];
 const q = (v) => {

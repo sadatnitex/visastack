@@ -18,7 +18,7 @@ for t in g:
     n_att += 1
     stems = [v for v in variants]
     base = t['bn_bd_proposed'].replace(' করুন','').replace(' দিন','')
-    exact = {t['bn_bd_proposed'], base}
+    exact = {t['bn_bd_proposed']}
     if any(v.rstrip('…. ') in exact for v in stems):
         t['evidence_quality'] = 'OFFICIAL_STRING_RESOURCE'
         n_match += 1

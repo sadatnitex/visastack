@@ -25,6 +25,7 @@ R = {
  'mission.readiness.needsReview': ('MEDIUM','MEANING_CHANGE','"বিষয়" (matters) replaces requirements.','{count}টি প্রয়োজনীয়তা নিশ্চিত করতে আরও তথ্য লাগবে।'),
  'grant.status.paused': ('HIGH','WRONG_TERM','"বিরত" means abstained or refrained, not paused.','স্থগিত'),
  'grant.pending': ('HIGH','AMBIGUOUS','Reads as "{recipient} is waiting to receive". English: waiting for {recipient} to accept.','{recipient}-এর গ্রহণের অপেক্ষায়।'),
+ 'document.quarantined': ('LOW','TERMINOLOGY_INCONSISTENT','Uses "নথি" while the glossary and neighbouring corrected rows use ডকুমেন্ট; one screen would show both words.','এই ডকুমেন্ট চিহ্নিত করা হয়েছে এবং আপনার মনোযোগ দরকার।'),
  'consent.ai.title': ('MEDIUM','TERMINOLOGY','"নিষ্কাশন" is a technical Sanskritised word with a drainage sense. Plain wording: AI reading information from a document.','ডকুমেন্ট থেকে এআই-এর তথ্য পড়ার সম্মতি'),
  'consent.ocr.title': ('LOW','TERMINOLOGY','"ওসিআর" is jargon. Keep only if the English keeps OCR.','এআই দিয়ে লেখা পড়ার সম্মতি (ওসিআর)'),
  'consent.issuerContact.title': ('LOW','TERMINOLOGY','Reads as a contact between issuers. Clearer: consent to contact the issuing body.','ইস্যুকারী প্রতিষ্ঠানের সঙ্গে যোগাযোগের সম্মতি'),
@@ -35,7 +36,7 @@ R = {
  'applicant.relationship.self': ('LOW','TERMINOLOGY','"নিজে" alone is incomplete as a label.','আমি নিজে'),
  'applicant.relationship.minorGuardian': ('MEDIUM','GENDERED','"নাবালক" is the male form in everyday use. Neutral: "অপ্রাপ্তবয়স্ক".','অপ্রাপ্তবয়স্ক (অভিভাবক)'),
  'error.generic.title': ('LOW','OK_WITH_NOTE','Google Bengali uses "কিছু ভুল হয়েছে" (attested). "ভুল" can still read as the person\'s mistake; "সমস্যা" is the blame-free alternative. Editor decides.','কিছু একটা সমস্যা হয়েছে'),
- 'legalHold.active': ('HIGH','MISSING','No Bengali string; English shows. Legal review required before any wording.','এই রেকর্ডে আইনি কারণে সংরক্ষণ রাখা হয়েছে, তাই এটি মুছে ফেলা যাবে না।'),
+ 'legalHold.active': ('HIGH','MISSING','No Bengali string; English shows. Legal review required before any wording.','এই রেকর্ডে আইনি হোল্ড আছে, তাই এটি মুছে ফেলা যাবে না।'),
 }
 with open('docs/localization/data/BN_EXISTING_CATALOGUE_REVIEW.csv','w',newline='',encoding='utf-8') as f:
     w = csv.writer(f)

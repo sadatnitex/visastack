@@ -19,13 +19,21 @@ const drafts = new Map();
 const draftDir = path.join(LOC, 'data/drafts');
 for (const f of fs
   .readdirSync(draftDir)
-  .filter((x) => /^bn-BD\.part-.*\.jsonl$/.test(x))
-  .sort()) {
+  .filter((x) => /^bn-BD\.(part-.*|corrections)\.jsonl$/.test(x))
+  .sort(
+    (a, b) =>
+      Number(a.includes('corrections')) - Number(b.includes('corrections')) || a.localeCompare(b),
+  )) {
   for (const line of fs.readFileSync(path.join(draftDir, f), 'utf8').split('\n')) {
     if (!line.trim()) continue;
     try {
       const o = JSON.parse(line);
-      drafts.set(o.sg, { ...o, part: f.replace('bn-BD.part-', '').replace('.jsonl', '') });
+      drafts.set(o.sg, {
+        ...o,
+        part: f.includes('corrections')
+          ? 'corrections after independent review'
+          : f.replace('bn-BD.part-', '').replace('.jsonl', ''),
+      });
     } catch {
       /* ignore a torn last line */
     }
@@ -124,6 +132,9 @@ const stats = {
   ownerDecision: 0,
 };
 const flaggedList = [];
+const queue = [];
+stats.qualified = { total: 0, drafted: 0 };
+stats.versionReview = 0;
 for (const g of [...groups.values()].sort(
   (a, b) =>
     a.priority.localeCompare(b.priority) ||
@@ -167,6 +178,14 @@ for (const g of [...groups.values()].sort(
     g.rc !== 'STANDARD_UI' || /LEGAL_REVIEW|OFFICIAL_RULE|BILLING_REVIEW/.test(note)
       ? `YES (${g.rc !== 'STANDARD_UI' ? g.rc : note})`
       : '';
+  if (legal) {
+    stats.qualified.total++;
+    if (bn) stats.qualified.drafted++;
+    queue.push(
+      [g.sg, g.rc, g.domain, g.english, bn, checks, 'REVIEWER_NOT_ASSIGNED'].map(q).join(','),
+    );
+  }
+  if (checks.includes('VERSION_CONCEPT_REVIEW')) stats.versionReview++;
   out.push(
     [
       g.sg,
@@ -199,6 +218,10 @@ for (const g of [...groups.values()].sort(
   );
 }
 fs.writeFileSync(path.join(LOC, 'VISASTACK_TRANSLATION_REGISTER.csv'), `${out.join('\n')}\n`);
+fs.writeFileSync(
+  path.join(LOC, 'data/QUALIFIED_REVIEW_QUEUE.csv'),
+  `${['semantic_group,review_class,domain,english,bn_BD_draft,automated_checks,reviewer_state', ...queue].join('\n')}\n`,
+);
 fs.writeFileSync(
   path.join(WORK, 'register-stats.json'),
   JSON.stringify({ ...stats, flaggedSample: flaggedList.slice(0, 40) }, null, 1),

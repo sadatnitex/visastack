@@ -67,7 +67,14 @@ add(
       ['Source rows recorded (strings with a source anchor)', stats.rows],
       ['Dynamic expression rows (words not resolvable from source)', stats.dynamicRows],
       ['Distinct English texts (text groups, placeholders unified)', stats.textGroups],
-      ['Semantic groups (same text, same domain; the translation unit)', stats.semanticGroups],
+      [
+        'Semantic groups over every census row (same text, same domain; includes fragments, excluded and review-first rows)',
+        stats.semanticGroups,
+      ],
+      [
+        '... of which are translation units in the register (people-facing, not a fragment, not a URL or typed keyword)',
+        reg.groups,
+      ],
       ['Texts that appear in more than one domain (homograph review)', stats.homographGroups],
       [
         'Sentences split by markup or expressions, recorded as one composed unit plus fragments',
@@ -108,6 +115,10 @@ add(
           'A property or label-map value whose name implies display (label, message, title, status maps): probable display',
         VALIDATION: 'Validation message passed to a schema check',
         CATALOGUE: 'Entry of the existing `packages/i18n` catalogue',
+        ERROR_CALL:
+          'Text passed to `serviceError(code, message)`: a refusal; some actions show it on screen word for word',
+        EXCLUDED_MATCHING_KEY:
+          'Excluded: a key matched by code (for example starter checklist purpose and country), not shown as written',
         CANDIDATE_ONLY:
           'Sentence-like string with no display evidence: needs review, NOT counted as confirmed',
       }[k] ?? (k.startsWith('EXCLUDED') ? 'Excluded: not shown to people' : ''),
@@ -478,8 +489,12 @@ add(
       ],
       ['Human-reviewed groups', '0'],
       [
-        'Legal or official-rule groups needing a qualified reviewer (in drafted scope)',
-        'see `qualified_review_required` column',
+        'Groups needing a qualified reviewer (legal, privacy, terms, billing, official rules)',
+        `${reg.qualified.total} (${reg.qualified.drafted} already have a model draft); reviewer assigned: none`,
+      ],
+      [
+        'Drafts where English says version and Bengali dropped it (editor to confirm)',
+        reg.versionReview,
       ],
     ],
   ),
@@ -492,12 +507,72 @@ add(
 const shots = Object.values(packet).flatMap((p) => p.shots);
 if (shots.length) {
   const over = shots.filter((s) => s.overflowX > 0);
-  const clip = (v) => shots.filter((s) => s.variant === v).reduce((n, s) => n + s.clipped, 0);
   add(
-    `Measured on the packet screens at 390 px wide: sideways overflow in ${over.length} of ${shots.length} images; clipped text blocks English ${clip('en')}, bn draft ${clip('bn')}, RTL probe ${clip('rtl')}.`,
+    `Measured on the packet screens at 390 px wide: sideways overflow in ${over.length} of ${shots.length} images. A clipped-text measure was tried and dropped: it gave identical values for English, bn and RTL, so it was not measuring text.`,
     '',
   );
 }
+// ---- evidence, review and open requirements
+const evText = fs
+  .readFileSync(path.join(LOC, 'VISASTACK_PLATFORM_LANGUAGE_EVIDENCE.csv'), 'utf8')
+  .split('\n')
+  .slice(1)
+  .filter(Boolean);
+const evCount = { attested: 0, bnGeneric: 0, bnBD: 0, unverified: 0, direct: 0, bilingual: 0 };
+for (const l of evText) {
+  if (l.includes('"OFFICIAL_STRING_RESOURCE","OFFICIAL_STRING_RESOURCE"')) {
+    evCount.attested++;
+    if (l.includes('"bn-BD"')) evCount.bnBD++;
+    else evCount.bnGeneric++;
+  }
+  if (l.includes('"DIRECT_SCREEN","')) evCount.direct++;
+  if (l.includes('"BILINGUAL_OFFICIAL_PAGE","')) evCount.bilingual++;
+}
+add('## 9. Platform evidence: what is and is not attested', '');
+add(
+  `${evText.length} evidence rows. Product-attested rows are Firefox string files only (\`OFFICIAL_STRING_RESOURCE\`): ${evCount.attested}, of which ${evCount.bnBD} are locale \`bn-BD\` and ${evCount.bnGeneric} are generic \`bn\`. Every one was re-fetched and its Bengali text found in the source file. There are no \`DIRECT_SCREEN\` or \`BILINGUAL_OFFICIAL_PAGE\` rows: Google Bengali pages were read by the research helper but could not be reproduced on re-check, so those rows are downgraded to \`UNVERIFIED\`. Facebook, bKash, myGov, e-Passport, Pathao and the Microsoft terminology search were unreachable from this environment (blocked or no usable page), so they are \`UNVERIFIED\` or \`CONTEXTUAL_ANALOGY\` with the reason recorded. No Bangladeshi government, bank or ride app is attested. Glossary terms marked \`OFFICIAL_STRING_RESOURCE\` are only those whose exact proposed form appears in the evidence.`,
+  '',
+);
+add('## 10. Independent review and what was done about it', '');
+add(
+  'A separate session re-checked the census, the report and the drafts (`data/INDEPENDENT_REVIEW.md`, rows in `data/independent-review-sample.csv`). Actions taken are in `data/REVIEW_RESPONSE.md`. Headline: census precision 92.5 percent on its sample; drafts 110 OK, 5 minor, 5 error of 120. Its five most serious findings and their status: (1) about 900 service error messages were missing from the census: now extracted as `ERROR_CALL` rows; (2) this report was stale: regenerated, with counts computed by script; (3) the no-version rule was applied to real versions: the checker now flags dropped versions for an editor and bans version words only where English means a copy, and the five error drafts were corrected in `data/drafts/bn-BD.corrections.jsonl`; (4) no qualified reviewer is assigned: still open, queue in `data/QUALIFIED_REVIEW_QUEUE.csv`; (5) platform evidence was overclaimed: wording corrected above.',
+  '',
+);
+add('## 11. Requirements not met or only partly met', '');
+add(
+  table(
+    ['Requirement', 'Status'],
+    [
+      [
+        'Complete inventory',
+        'Not verified complete. Static scan plus a rendered check on the drawn screens only; the pass-through of error text and runtime-generated words stay partly dynamic',
+      ],
+      [
+        'Rendered check of all roles and states',
+        'Not met: guest, token-bound invitee, reviewer, other staff roles, loading, offline, error boundary and post-submit states were not drawn',
+      ],
+      [
+        'Generated outputs (email, PDF, calendar, export)',
+        'Source rows only; none generated or opened',
+      ],
+      [
+        'Platform evidence from Bangladeshi products',
+        'Not met: unreachable from this environment; needs network access or a person with the products',
+      ],
+      ['Qualified legal review', 'Not started: no reviewer exists; queue prepared'],
+      ['Human editor review of any Bengali', 'Not started: every draft is DRAFT_NOT_FOR_RELEASE'],
+      [
+        'ar, fr, de, es, zh-Hans',
+        'Research notes only, by design; no drafts until the owner picks a launch locale',
+      ],
+      [
+        'Research kit (workbook with 189 terms, 54 phrases, 46 keys, and three CSV files)',
+        'Not available on the machine; not used',
+      ],
+    ],
+  ),
+  '',
+);
 fs.writeFileSync(path.join(LOC, 'VISASTACK_COVERAGE_REPORT.md'), `${L.join('\n')}\n`);
 
 // product copy findings (em dash strings)

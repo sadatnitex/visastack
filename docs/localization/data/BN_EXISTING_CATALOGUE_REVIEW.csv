@@ -13,7 +13,7 @@ mission.readiness.ready,All required items are provided.,সমস্ত প্�
 mission.readiness.needsReview,{count} requirement(s) need more information to confirm.,{count}টি বিষয় নিশ্চিত করতে আরও তথ্য প্রয়োজন।,CHANGE,MEDIUM,MEANING_CHANGE,"""বিষয়"" (matters) replaces requirements.",{count}টি প্রয়োজনীয়তা নিশ্চিত করতে আরও তথ্য লাগবে।,PROPOSED_NOT_APPLIED
 mission.readiness.manualOnly,This case is not automatically assessed.,এই কেসটি স্বয়ংক্রিয়ভাবে মূল্যায়ন করা হয় না।,KEEP,,,,,
 document.scanning,This document is being checked.,নিরাপত্তার জন্য এই নথিটি স্ক্যান করা হচ্ছে।,CHANGE,CRITICAL,STRONGER_CLAIM,"English says ""being checked"". Bengali says ""scanned for safety"", which claims a security scan.",এই ডকুমেন্ট পরীক্ষা করা হচ্ছে।,PROPOSED_NOT_APPLIED
-document.quarantined,This document was flagged and needs attention.,এই নথিটি চিহ্নিত করা হয়েছে এবং মনোযোগ প্রয়োজন।,KEEP,,,,,
+document.quarantined,This document was flagged and needs attention.,এই নথিটি চিহ্নিত করা হয়েছে এবং মনোযোগ প্রয়োজন।,CHANGE,LOW,TERMINOLOGY_INCONSISTENT,"Uses ""নথি"" while the glossary and neighbouring corrected rows use ডকুমেন্ট; one screen would show both words.",এই ডকুমেন্ট চিহ্নিত করা হয়েছে এবং আপনার মনোযোগ দরকার।,PROPOSED_NOT_APPLIED
 document.status.clean,Format Checked,পরিষ্কার,CHANGE,CRITICAL,STRONGER_CLAIM,"English says only that the file type and structure were checked. ""পরিষ্কার"" means clean and reads as virus-free.",ফাইলের ধরন পরীক্ষা করা হয়েছে,PROPOSED_NOT_APPLIED
 document.status.pending,Waiting to Be Checked,মুলতুবি,CHANGE,HIGH,WRONG_TERM,"""মুলতুবি"" means adjourned or postponed; English says waiting to be checked.",পরীক্ষার অপেক্ষায়,PROPOSED_NOT_APPLIED
 document.status.scanning,Being Checked,স্ক্যান করা হচ্ছে,CHANGE,CRITICAL,STRONGER_CLAIM,"English ""Being Checked"" became ""স্ক্যান করা হচ্ছে"" (being scanned).",পরীক্ষা করা হচ্ছে,PROPOSED_NOT_APPLIED
@@ -36,7 +36,7 @@ grant.status.active,Active,সক্রিয়,KEEP,,,,,
 grant.status.paused,Paused,বিরত,CHANGE,HIGH,WRONG_TERM,"""বিরত"" means abstained or refrained, not paused.",স্থগিত,PROPOSED_NOT_APPLIED
 grant.status.revoked,Revoked,প্রত্যাহৃত,CHANGE,LOW,TERMINOLOGY_INCONSISTENT,"""প্রত্যাহৃত"" is correct but formal; buttons use ""প্রত্যাহার করুন"".",প্রত্যাহার করা হয়েছে,PROPOSED_NOT_APPLIED
 grant.status.expired,Expired,মেয়াদ উত্তীর্ণ,KEEP_WITH_NOTE,LOW,OK_WITH_NOTE,"""মেয়াদ উত্তীর্ণ"" is used in official Bengali. Either is acceptable; pick one and keep it.",মেয়াদ শেষ হয়েছে,PROPOSED_NOT_APPLIED
-legalHold.active,This record is under legal hold and cannot be deleted.,,CHANGE,HIGH,MISSING,No Bengali string; English shows. Legal review required before any wording.,"এই রেকর্ডে আইনি কারণে সংরক্ষণ রাখা হয়েছে, তাই এটি মুছে ফেলা যাবে না।",PROPOSED_NOT_APPLIED
+legalHold.active,This record is under legal hold and cannot be deleted.,,CHANGE,HIGH,MISSING,No Bengali string; English shows. Legal review required before any wording.,"এই রেকর্ডে আইনি হোল্ড আছে, তাই এটি মুছে ফেলা যাবে না।",PROPOSED_NOT_APPLIED
 applicant.relationship.self,Myself,নিজে,CHANGE,LOW,TERMINOLOGY,"""নিজে"" alone is incomplete as a label.",আমি নিজে,PROPOSED_NOT_APPLIED
 applicant.relationship.familyMember,Family Member,পরিবারের সদস্য,KEEP,,,,,
 applicant.relationship.minorGuardian,Minor (Guardian),নাবালক (অভিভাবক),CHANGE,MEDIUM,GENDERED,"""নাবালক"" is the male form in everyday use. Neutral: ""অপ্রাপ্তবয়স্ক"".",অপ্রাপ্তবয়স্ক (অভিভাবক),PROPOSED_NOT_APPLIED

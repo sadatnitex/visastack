@@ -12,6 +12,9 @@ Documentation and data only. Nothing in the product was changed. The language sw
 | `VISASTACK_I18N_ENGINEERING_PROPOSAL.md` | Bounded proposal for extending `packages/i18n` |
 | `review-packet/REVIEW_PACKET.md` | 20 journeys with phone screenshots in English, bn draft and an RTL layout probe |
 | `data/` | Glossary, existing Bengali catalogue review, drafting inputs and outputs, journeys, independent review, product copy findings |
+| `data/INDEPENDENT_REVIEW.md`, `data/REVIEW_RESPONSE.md` | A separate session's re-check of this work and what was done about each finding |
+| `data/QUALIFIED_REVIEW_QUEUE.csv` | Every group needing a qualified (legal, privacy, billing, official-rule) reviewer; no reviewer is assigned |
+| `data/SAMPLE_KEY_CHECKS.md` | Sample rows re-opened against the real source files |
 | `tools/` | Scripts that generate everything. Run `docs/localization/run-all.sh` |
 
 The research kit named in the brief (a workbook with 189 terms, 54 phrases and 46 keys, plus three CSV files and a README) was not present in the repository or on the machine in this session, so it could not be read or used. The 46 canonical keys match the 46 English keys that exist in `packages/i18n`, which were reviewed directly.

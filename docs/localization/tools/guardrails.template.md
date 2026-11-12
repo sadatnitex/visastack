@@ -17,7 +17,7 @@ Each row is a set of different facts. A translation must give each English word 
 | State words | Saved | Stored in VisaStack. Nothing left VisaStack | সংরক্ষণ করা হয়েছে | জমা (submitted), পাঠানো (sent) |
 | | Submitted | Given to a named party inside VisaStack | জমা দেওয়া হয়েছে | সংরক্ষণ, পাঠানো, পাওয়া |
 | | Sent | Left VisaStack. Delivery is not implied | পাঠানো হয়েছে | জমা, সংরক্ষণ, পাওয়া |
-| | Received | The other side has it | পাওয়া গেছে (পেয়েছে in a sentence) | গ্রহণ (accepted), জমা |
+| | Received | The other side has it | পাওয়া হয়েছে (পেয়েছে in a sentence) | গ্রহণ (accepted), জমা |
 | | Reviewed | A person looked at it | পর্যালোচনা করা হয়েছে | যাচাই, অনুমোদিত, নিশ্চিত |
 | | Accepted | An invitation or grant was taken | গ্রহণ করা হয়েছে | অনুমোদিত |
 | | Verified | One named fact was checked (for example an email address) | যাচাই করা হয়েছে | পরীক্ষা, অনুমোদিত, and never an official-source implication |
@@ -43,9 +43,11 @@ Each row is a set of different facts. A translation must give each English word 
 | | Grant accepted | The recipient accepted. Access exists within scope | অ্যাক্সেস গ্রহণ করা হয়েছে | |
 | | Scope revoked | Access withdrawn for the future | প্রত্যাহার করা হয়েছে | মুছে (deleted) |
 | | Downloaded copy already retained | A copy someone saved earlier still exists | আগে ডাউনলোড করা কপি | a promise that revoking removes it |
-| Copies | Current copy / earlier document / replaced copy / exact copy / pinned | See `docs/localization/data/BN_BD_CORE_GLOSSARY.csv` T080 to T084 | বর্তমান কপি / আগের ডকুমেন্ট / প্রতিস্থাপিত কপি / হুবহু কপি / নির্দিষ্ট করা | সংস্করণ, ভার্সন, any "Version 2" idea |
+| Copies | Current copy / earlier document / replaced copy / exact copy / pinned | See `docs/localization/data/BN_BD_CORE_GLOSSARY.csv` T080 to T084 | বর্তমান কপি / আগের ডকুমেন্ট / প্রতিস্থাপিত কপি / হুবহু কপি / নির্দিষ্ট করা | সংস্করণ, ভার্সন, any "Version 2" idea, for document copies. Where the English really says version (a snapshot number, a published checklist pack, a product release), keep the version idea; replacing it with কপি changes the meaning |
 | Country roles | Nationality / residence / destination / where you apply | Four different facts | জাতীয়তা / বসবাসের দেশ / গন্তব্য / যেখান থেকে আবেদন করবেন | using one for another |
-| Data actions | Export data / share access / download original / safe copy / archive / delete / permanent erasure | Different actions with different effects. Erasure is not available under a legal hold | এক্সপোর্ট / শেয়ার / মূল ফাইল / নিরাপদ কপি / আর্কাইভ / মুছে ফেলুন / স্থায়ীভাবে মুছে ফেলুন | merging any two |
+| Data actions | Legal hold is আইনি হোল্ড and never সংরক্ষণ (the word for Saved). Export data / share access / download original / safe copy / archive / delete / permanent erasure | Different actions with different effects. Erasure is not available under a legal hold | এক্সপোর্ট / শেয়ার / মূল ফাইল / নিরাপদ কপি / আর্কাইভ / মুছে ফেলুন / স্থায়ীভাবে মুছে ফেলুন | merging any two |
+
+The word নিরাপদ is allowed only inside the product noun "Safe copy" (নিরাপদ কপি), where the English says safe. It must never describe a format check, a file or a document.
 
 ## 3. Critical errors
 
@@ -59,7 +61,7 @@ A draft with any of these must not be released. Each has an automated check wher
 | C4 | Optional, recommended or unknown shown as mandatory or as not required; the condition in "mandatory if applicable" dropped | GLOSSARY_TERM_MISSING |
 | C5 | An agency request shown as a government application, or any sentence implying VisaStack filed an application | needs human review; GLOSSARY_FORBIDDEN_STEM for আবেদন/অনুরোধ |
 | C6 | An opened link shown as granted access; revocation shown as erasing a copy already kept | needs human review |
-| C7 | Any "Version 2" style wording (সংস্করণ, ভার্সন) | BANNED_WORDING |
+| C7 | "Version 2" style wording (সংস্করণ, ভার্সন) where the English says copy or document; and the reverse, dropping "version" where the English means a real version (snapshot, pack, product release) | BANNED_WORDING, VERSION_CONCEPT_REVIEW |
 | C8 | Nationality, residence, destination and place of application swapped | GLOSSARY_FORBIDDEN_STEM |
 | C9 | Export, share, download, delete and erase blurred together; erasure promised under a legal hold | needs human review |
 | C10 | A stronger claim than English: secure, safe, verified, official, government, approved, guaranteed, encrypted, confirmed | STRONGER_CLAIM |

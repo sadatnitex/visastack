@@ -85,7 +85,6 @@ const CLAIMS = [
   { en: /\b(clean)\b/i, bn: /পরিষ্কার/, name: 'cleanliness claim' },
 ];
 const BANNED_BN = [
-  [/সংস্করণ|ভার্সন/, 'Version wording is banned: use কপি (no Version 2 semantics)'],
   [/দলিল/, '"দলিল" means a deed; the word for document is ডকুমেন্ট'],
   [/নাবালক|নাবালিকা/, 'Gendered word for a minor; use অপ্রাপ্তবয়স্ক'],
   [/[০-৯]/, 'Bengali digits are not used in drafts (identifiers must keep their shape)'],
@@ -155,6 +154,18 @@ export function check(enIn, bnIn) {
         rule: 'STRONGER_CLAIM',
         detail: `Bengali has a ${c.name} the English does not make`,
       });
+  // Version words: banned only where the English does not mean a version; and a real version must not silently become a copy.
+  if (/সংস্করণ|ভার্সন/.test(bn) && !/\bversion/i.test(en))
+    f.push({
+      rule: 'BANNED_WORDING',
+      detail: 'Version wording where the English says copy or document (no Version 2 semantics)',
+    });
+  if (/\bversions?\b/i.test(en) && !/সংস্করণ|ভার্সন/.test(bn))
+    f.push({
+      rule: 'VERSION_CONCEPT_REVIEW',
+      detail:
+        'English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm',
+    });
   // 4. banned wording
   for (const [re, why] of BANNED_BN)
     if (re.test(bn)) f.push({ rule: 'BANNED_WORDING', detail: why });

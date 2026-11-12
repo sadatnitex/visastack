@@ -9,7 +9,7 @@ rows = [
 ("T004","Submitted","জমা দেওয়া হয়েছে","G1_state","জমা","সংরক্ষণ|পাঠানো|পাওয়া","Not 'Sent' and not 'Received'."),
 ("T005","Send","পাঠান","G1_state","পাঠা|পাঠিয়ে","জমা|সংরক্ষণ",""),
 ("T006","Sent","পাঠানো হয়েছে","G1_state","পাঠানো|পাঠিয়ে|পাঠা","জমা|সংরক্ষণ|পাওয়া","Delivery is not implied."),
-("T007","Received","পাওয়া গেছে","G1_state","পাওয়া|পেয়ে|পেল|হাতে","পাঠানো|জমা|গ্রহণ","Means the other side has it. Not 'Accepted'."),
+("T007","Received","পাওয়া হয়েছে","G1_state","পাওয়া|পেয়ে|পেল|হাতে","পাঠানো|জমা|গ্রহণ","Means the other side has it. Not 'Accepted'."),
 ("T008","Review","পর্যালোচনা করুন","G1_state","পর্যালোচ","যাচাই|অনুমোদন",""),
 ("T009","Reviewed","পর্যালোচনা করা হয়েছে","G1_state","পর্যালোচ","যাচাই|অনুমোদিত|নিশ্চিত","A person looked at it. It does not mean approved or verified."),
 ("T010","Accept","গ্রহণ করুন","G1_state","গ্রহণ","অনুমোদন|নিশ্চিত","Invitation or grant acceptance."),
@@ -31,7 +31,7 @@ rows = [
 ("T033","Held for safety","নিরাপত্তার জন্য আটকে রাখা হয়েছে","G2_safety","আটকে|আটক","মুছে|বাতিল","The file is not deleted. It is held back from use."),
 ("T034","Antivirus scan","অ্যান্টিভাইরাস স্ক্যান","G2_safety","স্ক্যান","","Use only where English really says an antivirus scan ran. Today most screens say 'format checked' only."),
 ("T035","Scanned","স্ক্যান করা হয়েছে","G2_safety","স্ক্যান","","Only for a real antivirus scan."),
-("T036","Safe copy","নিরাপদ কপি","G2_safety","কপি","মূল","A cleaned copy made by VisaStack (for example with parts hidden). Not the original."),
+("T036","Safe copy","নিরাপদ কপি","G2_safety","কপি","মূল","A cleaned copy made by VisaStack (for example with parts hidden). Not the original. নিরাপদ is allowed here only because the English product noun says safe; it must never describe a format check or a file."),
 # --- G3 requirement levels
 ("T040","Mandatory","বাধ্যতামূলক","G3_level","বাধ্যতামূলক","ঐচ্ছিক|প্রস্তাবিত",""),
 ("T041","Mandatory if applicable","প্রযোজ্য হলে বাধ্যতামূলক","G3_level","প্রযোজ্য হলে","ঐচ্ছিক","Keep the condition. Do not shorten to 'mandatory'."),
@@ -80,7 +80,7 @@ rows = [
 ("T103","Archive","আর্কাইভ","G8_data","আর্কাইভ","মুছে",""),
 ("T104","Delete","মুছে ফেলুন","G8_data","মুছে","স্থায়ী",""),
 ("T105","Erase permanently","স্থায়ীভাবে মুছে ফেলুন","G8_data","স্থায়ী","",""),
-("T106","Legal hold","আইনি কারণে সংরক্ষণ রাখা হয়েছে","G8_data","আইনি","","Under a hold, erasure is not available. Legal review required."),
+("T106","Legal hold","আইনি হোল্ড আছে","G8_data","আইনি","সংরক্ষণ|জমা","Under a hold, erasure is not available. Legal review required."),
 ("T107","Remove","সরান","G8_data","সরা|সরান|অপসারণ|মুছে","",""),
 # --- people and objects
 ("T110","Traveller","ভ্রমণকারী","people","ভ্রমণকারী","",""),
