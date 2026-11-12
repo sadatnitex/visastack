@@ -88,7 +88,13 @@ async function render(locale: 'en' | 'bn', node: () => Promise<string> | string,
 }
 
 function client(locale: 'en' | 'bn', node: React.ReactNode): string {
-  return textOf(renderToStaticMarkup(<I18nProvider locale={locale} pageLang="en">{node}</I18nProvider>));
+  return textOf(
+    renderToStaticMarkup(
+      <I18nProvider locale={locale} pageLang="en">
+        {node}
+      </I18nProvider>,
+    ),
+  );
 }
 
 const PENDING = '00000000-0000-4000-8000-0000000000a1';
