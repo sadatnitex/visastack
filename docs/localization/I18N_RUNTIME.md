@@ -46,3 +46,13 @@ Anything unexpected gives English. The language picker, `setLocaleAction` and ev
   - `t.lang(key)`: `{}` or `{ lang }`, to spread onto an element that holds only that message, for example `<h2 {...t.lang('k')}>`.
 - English is unchanged: under locale `en` every key resolves `en` and the page is `en`, so `t.node` returns the bare string and the English HTML is byte-identical (checked with `verify-english snapshot` and `compare`).
 - Call sites are not converted here. A marking pass after the conversion waves merge switches JSX text from `{t('k')}` to `{t.node('k')}` across the converted screens at once. Keep `t('k')` for attributes and other plain-string uses.
+
+## Numbers in `{token}` (number params)
+
+A numeric `{token}` is formatted by the language the message is actually written in, the same rule the plural `#` already follows (`catalogResolve` picks the language, `formatMessage` formats).
+
+- Resolved `en`: exactly `String(value)`. English output is byte-identical to before, so `1000` stays `1000` (no grouping is added).
+- Resolved `bn`: Bengali digits with the locale's grouping (`12,34,567`), as `NUMBER_DATE_FORMAT_RULES.md` asks for counts shown to a person.
+- A Bengali visitor who gets an English fallback message sees Latin digits ("6 of 12"), never Bengali digits inside English.
+- Strings and other values are inserted unchanged. Pass a raw number, not `formatNumber(value, locale)`: a pre-formatted string is locked to the visitor's language and shows Bengali digits inside an English fallback. Keep passing strings for values that must not change (codes, reference numbers, money from `formatMoney`).
+- Converted call site: the notification bell label in `workspace-record-toolbar.tsx` now passes the raw unread count. Only an unread count of 1000 or more differs in English (`1000`, was `1,000`); the badge itself caps at 99+.
