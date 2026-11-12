@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { axeViolations } from '../../../lib/axe.test-support';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -53,13 +54,15 @@ const note = (id: string, read: boolean) => ({
   createdAt: new Date('2026-10-20T08:00:00Z'),
 });
 
-async function render(locale: 'en' | 'bn', notifications: unknown[]) {
+async function markup(locale: 'en' | 'bn', notifications: unknown[]) {
   state.locale = locale;
   state.generation += 1;
   state.notifications = notifications;
   const page = await NotificationsPage({ searchParams: Promise.resolve({}) });
-  return textOf(await renderServer(<I18nProvider locale={locale}>{page}</I18nProvider>));
+  return renderServer(<I18nProvider locale={locale}>{page}</I18nProvider>);
 }
+const render = async (locale: 'en' | 'bn', notifications: unknown[]) =>
+  textOf(await markup(locale, notifications));
 
 describe('notifications under Bengali', () => {
   it('empty state: the Bengali drafts under bn, the unchanged English under en', async () => {
@@ -94,5 +97,12 @@ describe('notifications under Bengali', () => {
     expect(shown).not.toContain('20 Oct 2026');
     const english = await render('en', [note('r1', true)]);
     expect(english).toContain('20 Oct 2026');
+  });
+
+  it('has no accessibility violations under Bengali, empty or with items', async () => {
+    expect(await axeViolations(await markup('bn', []))).toEqual([]);
+    expect(await axeViolations(await markup('bn', [note('n1', false), note('r1', true)]))).toEqual(
+      [],
+    );
   });
 });

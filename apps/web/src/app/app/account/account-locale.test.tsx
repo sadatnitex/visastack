@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { axeViolations } from '../../../lib/axe.test-support';
 import { renderServer, stub, textOf } from '../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -164,6 +165,14 @@ describe('WhatsApp page under Bengali', () => {
     expect(shown).toContain('২০');
     expect(shown).not.toContain('Oct 20, 2026');
     expect(textOf(await whatsapp('en'))).toContain('Oct 20, 2026');
+  });
+});
+
+describe('accessibility under Bengali', () => {
+  it('the account, WhatsApp and plan pages have no axe violations', async () => {
+    expect(await axeViolations(await account('bn'))).toEqual([]);
+    expect(await axeViolations(await whatsapp('bn'))).toEqual([]);
+    expect(await axeViolations(await plan('bn'))).toEqual([]);
   });
 });
 
