@@ -351,6 +351,7 @@ export {
   placeLegalHold,
   purgeExpiredDocuments,
   releaseLegalHold,
+  requeueUncoveredParkedJobs,
   setRetentionPolicy,
   sweepLegalHoldReviewReminders,
 } from './retention';

@@ -31,6 +31,7 @@ import {
 import { parseDocumentTypeInput } from '../../../lib/catalogue-input';
 import { triggerErasureWorker, triggerNotificationWorker } from '../../../lib/jobs';
 import { isRecordId } from '../../../lib/record-id';
+import { reportServerError } from '../../../lib/server-error';
 import { withSession } from '../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
 import { createStorage } from '../../../lib/storage';
@@ -148,6 +149,7 @@ export async function releaseLegalHoldAction(
 ): Promise<ActionState> {
   const holdId = String(formData.get('holdId') ?? '').trim();
   if (holdId.length === 0) return { ok: false, message: 'Missing hold id.' };
+  let requeued = 0;
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'LEGAL_HOLD_RELEASE'))) {
       return DENIED;
@@ -160,15 +162,35 @@ export async function releaseLegalHoldAction(
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
-    const released = await releaseLegalHold(db, {
-      actorAccountId: accountId,
-      holdId,
-      stepUpSatisfied: true,
-    });
+    // The release and the re-queue are one step: if the re-queue fails, the release is rolled back
+    // and the hold stays on. Say so here, on the same screen, rather than on the error page; whatever the cause, the person is told to check the list.
+    // (The sign-in redirect above is outside this try, so it is never swallowed.)
+    let released: Awaited<ReturnType<typeof releaseLegalHold>>;
+    try {
+      released = await releaseLegalHold(db, {
+        actorAccountId: accountId,
+        holdId,
+        stepUpSatisfied: true,
+      });
+    } catch (error) {
+      reportServerError('releaseLegalHoldAction', error, { step: 'release' });
+      return {
+        ok: false,
+        message:
+          'The hold could not be released just now. Check the list of holds, then try again.',
+      } satisfies ActionState;
+    }
     if (!released.ok) return { ok: false, message: released.error.message } satisfies ActionState;
+    requeued = released.value.requeuedJobs;
     return { ok: true, message: 'Legal hold released.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath('/app/admin');
+  if (result.ok) {
+    revalidatePath('/app/admin');
+    // Held documents are put back in the queue by the release itself; when any were, wake the
+    // worker after the response (one batch of at most 5; the daily run does the rest). Best effort: the daily sweep is the backstop, and a failure here
+    // never fails the release.
+    if (requeued > 0) after(() => triggerErasureWorker({ limit: Math.min(requeued, 5) }));
+  }
   return result;
 }
 
