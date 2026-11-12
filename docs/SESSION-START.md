@@ -88,6 +88,7 @@ The rule itself is in `CLAUDE.md` (sections 5 and 7). Two practical notes: write
 - 25 Oct: profile photos (one per person), visa photo sizes (sized copies per country rule, no face editing, never claim acceptance).
 - 26 Oct (Small Commercial V1): target 100 to 1,000 users; preserve what works; **payments start** with one hosted Bangladesh gateway (SSLCOMMERZ) behind `PaymentPort`, invoice by invoice, plus verified manual payments (ADR 0020; this replaces "Stripe first"); **AI Context Gateway**: read-only remote MCP so people connect ChatGPT or Claude to chosen parts of their own record (ADR 0021); document reading becomes automatic, cheapest reader first (ADR 0019). Plan: `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md`; deferred controls: `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`.
 - 26 Oct (same day, scope widened): payments (recurring invoices, refunds, second provider), the AI connector (original files, suggestion tools, agency connectors) and product features (real redaction, all WP-V5 outputs) are **built now**; only security and compliance items are deferred (register part 2). Bangla stays last, on the owner's word.
+- 12 Nov: Bengali localization is in progress by owner decision (2026-11-12); see docs/localization/ and docs/localization/data/drafts/OWNER_DECISIONS.json. The language switch is on (PR #516); screens convert wave by wave with Bengali only from approved register rows.
 
 ## 7. Open work, in order
 
@@ -98,7 +99,7 @@ State on 1 Nov 2026 (main `b8bb2df4`). Done since 29 Oct: the Resource Lifecycle
 3. **Lifecycle cleanup** (not urgent): remove the per-request presence checks for the lifecycle tables now that 0113 is on production.
 4. **Paid plans go-live**, on the owner's items D7, D12, O6 and "go live"; then T7 and T8 (ADR 0025).
 5. **Deferred, with triggers:** H30 to H32 and the rest of `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`; engineering roadmap steps 4 and 5 (H20, H21) run alongside, never ahead.
-6. **Owner's word only:** S24 commercial acceptance with WP-V6 (never merged automatically), S25 Bangla, S19 proper (a second payment provider).
+6. **Owner's word only:** S24 commercial acceptance with WP-V6 (never merged automatically), S25 Bangla (in progress since 12 Nov by owner decision), S19 proper (a second payment provider).
 
 The owner checked on screen that Ask Us to Remove This File appears (owner check, 1 Nov 2026, reported by the coordinator). Not verified: a signed-in live click-through of the other lifecycle actions; signed-in Scroll Budget pages on the live site.
 
