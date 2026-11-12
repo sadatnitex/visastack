@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
@@ -478,16 +478,26 @@ export async function requeueUncoveredParkedJobs(
   if (!SystemScope.isGenuine(scope) || scope.job !== 'process-erasure') {
     throw new Error('the parked job sweep needs the scope of the erasure job');
   }
+  // An applicant-wide hold covers every one of its jobs, so those applicants are skipped in the
+  // query (written out in SQL: a subquery built from the table helpers can lose which table the
+  // outer column belongs to). The rest come in random order, so a few applicants whose scoped holds
+  // still stand can never crowd the others out of the limit run after run.
   const applicants = await db
-    .selectDistinct({ applicantId: schema.erasureJobs.applicantId })
+    .select({ applicantId: schema.erasureJobs.applicantId })
     .from(schema.erasureJobs)
     .where(
       and(
         eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
         isNotNull(schema.erasureJobs.applicantId),
+        sql`not exists (
+          select 1 from legal_holds lh
+          where lh.applicant_id = erasure_jobs.applicant_id
+            and lh.active = true and lh.mission_id is null and lh.document_id is null
+        )`,
       ),
     )
-    .orderBy(asc(schema.erasureJobs.applicantId))
+    .groupBy(schema.erasureJobs.applicantId)
+    .orderBy(sql`random()`)
     .limit(options.limit ?? REQUEUE_SWEEP_APPLICANT_LIMIT);
   let requeued = 0;
   let failed = 0;
