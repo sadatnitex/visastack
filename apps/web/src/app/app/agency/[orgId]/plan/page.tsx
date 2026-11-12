@@ -100,7 +100,7 @@ export default async function OrgPlanPage({
         description={t('appAgency.appAgencyOrgidPlanPage.yourAgencySPlanAndHow')}
         actions={
           <Link className="btn btn-secondary" href={`/app/agency/${orgId}/plan/invoices`}>
-            {t('appAgency.appAgencyOrgidPlanInvoicesPage.invoices')}
+            {t.node('appAgency.appAgencyOrgidPlanInvoicesPage.invoices')}
           </Link>
         }
         as="h2"
@@ -111,25 +111,25 @@ export default async function OrgPlanPage({
       {!data.usage ? (
         <article className="card">
           <p className="card-body">
-            {data.error ?? t('appAgency.appAgencyOrgidPlanPage.youDonTHaveAccessTo')}
+            {data.error ?? t.node('appAgency.appAgencyOrgidPlanPage.youDonTHaveAccessTo')}
           </p>
         </article>
       ) : (
         <>
           <article className="card u-mb-150">
-            <p className="card-kicker">{t('appAgency.appAgencyOrgidPlanPage.currentPlan')}</p>
+            <p className="card-kicker">{t.node('appAgency.appAgencyOrgidPlanPage.currentPlan')}</p>
             <h2 className="card-title">
               {data.usage.plan
                 ? data.usage.plan.name
-                : t('appAgency.appAgencyOrgidPlanPage.accessOfferNotRecorded')}
+                : t.node('appAgency.appAgencyOrgidPlanPage.accessOfferNotRecorded')}
             </h2>
             {!data.usage.planAssigned || !data.usage.plan ? (
               <p className="card-body">
-                {t('appAgency.appAgencyOrgidPlanPage.anAccessOfferHasNotBeen')}
+                {t.node('appAgency.appAgencyOrgidPlanPage.anAccessOfferHasNotBeen')}
               </p>
             ) : data.usage.entitlements.bypassLimits ? (
               <p className="card-body">
-                {t('appAgency.appAgencyOrgidPlanPage.complimentaryDuringPublicBetaNoPayment')}
+                {t.node('appAgency.appAgencyOrgidPlanPage.complimentaryDuringPublicBetaNoPayment')}
               </p>
             ) : (
               <>
@@ -145,7 +145,7 @@ export default async function OrgPlanPage({
                 </p>
                 {data.usage.entitlements.plan?.nextPrice ? (
                   <p className="notice plan-change-notice">
-                    {t(
+                    {t.node(
                       'appAgency.appAgencyOrgidPlanPage.fromFormatbillingdateYourNextBillingPeriod',
                       {
                         formatBillingDate: formatBillingDate(
@@ -173,9 +173,9 @@ export default async function OrgPlanPage({
 
           <article className="card">
             <p className="card-kicker">
-              {t('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
+              {t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
             </p>
-            <h2 className="card-title">{t('appAgency.appAgencyOrgidPlanPage.usage')}</h2>
+            <h2 className="card-title">{t.node('appAgency.appAgencyOrgidPlanPage.usage')}</h2>
             <div className="rows u-mt-100">
               {data.usage.meters.map((meter) => (
                 <div key={meter.key} className="u-mb-125">
@@ -195,7 +195,7 @@ export default async function OrgPlanPage({
                   >
                     {meter.definition}
                     {meter.shownOnly
-                      ? t('appAgency.appAgencyOrgidPlanPage.shownForYourInformationItDoes')
+                      ? t.node('appAgency.appAgencyOrgidPlanPage.shownForYourInformationItDoes')
                       : ''}
                   </p>
                 </div>
@@ -208,9 +208,11 @@ export default async function OrgPlanPage({
           {data.usage.entitlements.features ? (
             <article className="card u-mt-150">
               <p className="card-kicker">
-                {t('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
+                {t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
               </p>
-              <h2 className="card-title">{t('appAgency.appAgencyOrgidPlanPage.aiFeatures')}</h2>
+              <h2 className="card-title">
+                {t.node('appAgency.appAgencyOrgidPlanPage.aiFeatures')}
+              </h2>
               <div className="rows rows-grid">
                 {AI_FEATURE_KEYS.map((feature) => {
                   const included = data.usage?.entitlements.features?.[feature];
@@ -226,13 +228,13 @@ export default async function OrgPlanPage({
           ) : (
             <article className="card u-mt-150" aria-labelledby="agency-ai-features-title">
               <p className="card-kicker">
-                {t('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
+                {t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
               </p>
               <h2 className="card-title" id="agency-ai-features-title">
-                {t('appAgency.appAgencyOrgidPlanPage.aiFeatures')}
+                {t.node('appAgency.appAgencyOrgidPlanPage.aiFeatures')}
               </h2>
               <p className="card-body">
-                {t('appAgency.appAgencyOrgidPlanPage.everythingInVisastackWorksWithoutAi')}
+                {t.node('appAgency.appAgencyOrgidPlanPage.everythingInVisastackWorksWithoutAi')}
               </p>
               {/* S22: the agency features its plan decides, counted for the whole agency. */}
               <div className="rows rows-grid">

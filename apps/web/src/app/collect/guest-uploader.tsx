@@ -124,19 +124,19 @@ export function GuestUploader({ pdfAccepted }: { readonly pdfAccepted: boolean }
   return (
     <section className="collect-upload" aria-labelledby={`${inputId}-title`}>
       <h2 id={`${inputId}-title`} className="collect-step-title">
-        {t('collect.collectGuestUploader.addYourFiles')}
+        {t.node('collect.collectGuestUploader.addYourFiles')}
       </h2>
       <div
         className={`collect-drop${drop.dragging ? ' collect-drop-active' : ''}`}
         {...drop.handlers}
       >
-        <p>{t('collect.collectGuestUploader.dropFilesOrAFolderHere')}</p>
+        <p>{t.node('collect.collectGuestUploader.dropFilesOrAFolderHere')}</p>
         <button
           type="button"
           className="btn btn-secondary"
           onClick={() => filesRef.current?.click()}
         >
-          {t('collect.collectGuestUploader.chooseFiles')}
+          {t.node('collect.collectGuestUploader.chooseFiles')}
         </button>
         <input
           ref={filesRef}
@@ -175,7 +175,7 @@ export function GuestUploader({ pdfAccepted }: { readonly pdfAccepted: boolean }
                   className="btn btn-secondary"
                   onClick={() => queue.retry(item.id)}
                 >
-                  {t('collect.collectGuestUploader.tryAgainForName', { name: item.name })}
+                  {t.node('collect.collectGuestUploader.tryAgainForName', { name: item.name })}
                 </button>
               ) : null}
             </li>

@@ -214,14 +214,14 @@ export default async function ExpiryCentrePage({
         title={t('appApplicant.appApplicantIdExpiryPage.datesExpiry')}
         actions={
           <Link href={`/app/applicant/${id}/calendar`} className="btn btn-secondary">
-            {t('appApplicant.appApplicantIdExpiryPage.addDatesToMyCalendar')}
+            {t.node('appApplicant.appApplicantIdExpiryPage.addDatesToMyCalendar')}
           </Link>
         }
       />
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What the three signals are, one tap away. */}
       <AboutDisclosure summary={t('appApplicant.appApplicantIdExpiryPage.aboutTheseDates')}>
-        <p>{t('appApplicant.appApplicantIdExpiryPage.threeSeparateDatesWhenADocument')}</p>
+        <p>{t.node('appApplicant.appApplicantIdExpiryPage.threeSeparateDatesWhenADocument')}</p>
       </AboutDisclosure>
 
       <DepthScope family="expiry" depth={depth}>
@@ -240,16 +240,18 @@ export default async function ExpiryCentrePage({
         <div className="grid">
           <article className="card" {...atLevel('browse')}>
             <p className="card-kicker">
-              {t('appApplicant.appApplicantIdExpiryPage.documentExpiry')}
+              {t.node('appApplicant.appApplicantIdExpiryPage.documentExpiry')}
             </p>
-            <h2 className="card-title">{t('appApplicant.appApplicantIdExpiryPage.documents')}</h2>
+            <h2 className="card-title">
+              {t.node('appApplicant.appApplicantIdExpiryPage.documents')}
+            </h2>
             {data.intrinsic.length === 0 ? (
               <EmptyState
                 icon="file"
                 title={t('appApplicant.appApplicantIdExpiryPage.noDocumentsYet')}
                 action={{ href: `/app/applicant/${id}/documents/add`, label: 'Add a Document' }}
               >
-                {t('appApplicant.appApplicantIdExpiryPage.documentsWithAnExpiryDateSuch')}
+                {t.node('appApplicant.appApplicantIdExpiryPage.documentsWithAnExpiryDateSuch')}
               </EmptyState>
             ) : (
               <>
@@ -279,12 +281,21 @@ export default async function ExpiryCentrePage({
                             {classification.daysRemaining !== null && doc.expiresAt ? (
                               <span className="attention-detail">
                                 {classification.daysRemaining >= 0
-                                  ? t('appApplicant.appApplicantIdExpiryPage.expiresInPlural', {
-                                      plural: plural(classification.daysRemaining, 'day'),
-                                    })
-                                  : t('appApplicant.appApplicantIdExpiryPage.expiredPluralAgo', {
-                                      plural: plural(Math.abs(classification.daysRemaining), 'day'),
-                                    })}
+                                  ? t.node(
+                                      'appApplicant.appApplicantIdExpiryPage.expiresInPlural',
+                                      {
+                                        plural: plural(classification.daysRemaining, 'day'),
+                                      },
+                                    )
+                                  : t.node(
+                                      'appApplicant.appApplicantIdExpiryPage.expiredPluralAgo',
+                                      {
+                                        plural: plural(
+                                          Math.abs(classification.daysRemaining),
+                                          'day',
+                                        ),
+                                      },
+                                    )}
                                 {' · '}
                                 {formatDateOnly(doc.expiresAt, locale)}
                               </span>
@@ -298,7 +309,9 @@ export default async function ExpiryCentrePage({
                                       href={`/app/applicant/${id}/documents?document=${doc.id}#expiry-${doc.id}`}
                                       aria-label={`${t('appApplicant.appApplicantIdExpiryPage.setExpiryDate')}: ${doc.approvedName ?? doc.originalName}`}
                                     >
-                                      {t('appApplicant.appApplicantIdExpiryPage.setExpiryDate')}
+                                      {t.node(
+                                        'appApplicant.appApplicantIdExpiryPage.setExpiryDate',
+                                      )}
                                     </Link>
                                   </>
                                 ) : null}
@@ -306,12 +319,12 @@ export default async function ExpiryCentrePage({
                             ) : null}
                             {doc.expiresAt && doc.expiry?.origin === 'TYPED' ? (
                               <span className="attention-detail">
-                                {t('appApplicant.appApplicantIdExpiryPage.enteredByYou')}
+                                {t.node('appApplicant.appApplicantIdExpiryPage.enteredByYou')}
                               </span>
                             ) : null}
                             {doc.expiry?.mismatch ? (
                               <span className="attention-detail">
-                                {t(
+                                {t.node(
                                   'appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck',
                                 )}
                               </span>
@@ -337,18 +350,22 @@ export default async function ExpiryCentrePage({
 
           <article className="card" {...atLevel('browse')}>
             <p className="card-kicker">
-              {t('appApplicant.appApplicantIdExpiryPage.routeDateRules')}
+              {t.node('appApplicant.appApplicantIdExpiryPage.routeDateRules')}
             </p>
-            <h2 className="card-title">{t('appApplicant.appApplicantIdExpiryPage.routeRules')}</h2>
+            <h2 className="card-title">
+              {t.node('appApplicant.appApplicantIdExpiryPage.routeRules')}
+            </h2>
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}>
-              {t('appApplicant.appApplicantIdExpiryPage.someRequirementsDemandEvidenceDatedWithin')}
+              {t.node(
+                'appApplicant.appApplicantIdExpiryPage.someRequirementsDemandEvidenceDatedWithin',
+              )}
             </p>
             {data.freshnessRows.length === 0 ? (
               <EmptyState
                 icon="calendar"
                 title={t('appApplicant.appApplicantIdExpiryPage.noDateRulesYet')}
               >
-                {t('appApplicant.appApplicantIdExpiryPage.someVisaRoutesNeedADocument')}
+                {t.node('appApplicant.appApplicantIdExpiryPage.someVisaRoutesNeedADocument')}
               </EmptyState>
             ) : (
               <>
@@ -400,17 +417,17 @@ export default async function ExpiryCentrePage({
 
           <article className="card" {...atLevel('browse')}>
             <p className="card-kicker">
-              {t('appApplicant.appApplicantIdExpiryPage.confirmationDates')}
+              {t.node('appApplicant.appApplicantIdExpiryPage.confirmationDates')}
             </p>
             <h2 className="card-title">
-              {t('appApplicant.appApplicantIdExpiryPage.confirmationsFromIssuers')}
+              {t.node('appApplicant.appApplicantIdExpiryPage.confirmationsFromIssuers')}
             </h2>
             {data.verifications.length === 0 ? (
               <EmptyState
                 icon="check"
                 title={t('appApplicant.appApplicantIdExpiryPage.noConfirmationsYet')}
               >
-                {t('appApplicant.appApplicantIdExpiryPage.whenAnIssuerSuchAsA')}
+                {t.node('appApplicant.appApplicantIdExpiryPage.whenAnIssuerSuchAsA')}
               </EmptyState>
             ) : (
               <>

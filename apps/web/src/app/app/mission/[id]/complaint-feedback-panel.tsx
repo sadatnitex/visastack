@@ -64,12 +64,16 @@ export function ComplaintPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appMission.appMissionIdComplaintFeedbackPanel.oversight')}</p>
+      <p className="card-kicker">
+        {t.node('appMission.appMissionIdComplaintFeedbackPanel.oversight')}
+      </p>
       <h2 className="card-title">
-        {t('appMission.appMissionIdComplaintFeedbackPanel.caseComplaint')}
+        {t.node('appMission.appMissionIdComplaintFeedbackPanel.caseComplaint')}
       </h2>
       <p className="card-body u-mb-100">
-        {t('appMission.appMissionIdComplaintFeedbackPanel.reviewedOnlyByAuthorizedQualityStaff')}
+        {t.node(
+          'appMission.appMissionIdComplaintFeedbackPanel.reviewedOnlyByAuthorizedQualityStaff',
+        )}
       </p>
       {complaints.length > 0 ? (
         <div className="rows u-mb-125">
@@ -91,7 +95,7 @@ export function ComplaintPanel({
               </p>
               {c.resolution ? (
                 <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  {t('appMission.appMissionIdComplaintFeedbackPanel.resolutionResolution', {
+                  {t.node('appMission.appMissionIdComplaintFeedbackPanel.resolutionResolution', {
                     resolution: c.resolution,
                   })}
                 </p>
@@ -106,7 +110,7 @@ export function ComplaintPanel({
                     >
                       {e.fromStatus
                         ? `${e.fromStatus} → ${e.toStatus}`
-                        : t('appMission.appMissionIdComplaintFeedbackPanel.filedTostatus', {
+                        : t.node('appMission.appMissionIdComplaintFeedbackPanel.filedTostatus', {
                             toStatus: e.toStatus,
                           })}{' '}
                       · {formatTimestampDate(e.createdAt)}
@@ -137,7 +141,7 @@ export function ComplaintPanel({
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="complaint-description">
-            {t('appMission.appMissionIdComplaintFeedbackPanel.fileANewComplaint')}
+            {t.node('appMission.appMissionIdComplaintFeedbackPanel.fileANewComplaint')}
           </label>
           <textarea
             id="complaint-description"
@@ -190,12 +194,14 @@ export function FeedbackPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appMission.appMissionIdComplaintFeedbackPanel.oversight')}</p>
+      <p className="card-kicker">
+        {t.node('appMission.appMissionIdComplaintFeedbackPanel.oversight')}
+      </p>
       <h2 className="card-title">
-        {t('appMission.appMissionIdComplaintFeedbackPanel.privateFeedback')}
+        {t.node('appMission.appMissionIdComplaintFeedbackPanel.privateFeedback')}
       </h2>
       <p className="card-body u-mb-100">
-        {t('appMission.appMissionIdComplaintFeedbackPanel.onlyYouAndAuthorizedQualityStaff')}
+        {t.node('appMission.appMissionIdComplaintFeedbackPanel.onlyYouAndAuthorizedQualityStaff')}
       </p>
       {feedback.length > 0 ? (
         <div className="rows u-mb-125">
@@ -218,7 +224,7 @@ export function FeedbackPanel({
           <input type="hidden" name="missionId" value={missionId} />
           <div className="field-row">
             <label className="field-label" htmlFor="feedback-comments">
-              {t('appMission.appMissionIdComplaintFeedbackPanel.shareFeedbackOnHowThisCase')}
+              {t.node('appMission.appMissionIdComplaintFeedbackPanel.shareFeedbackOnHowThisCase')}
             </label>
             <textarea id="feedback-comments" name="comments" className="input" rows={3} />
           </div>
@@ -234,7 +240,9 @@ export function FeedbackPanel({
         </form>
       ) : (
         <p className="muted u-fs-085">
-          {t('appMission.appMissionIdComplaintFeedbackPanel.feedbackBecomesAvailableOnceThisCase')}
+          {t.node(
+            'appMission.appMissionIdComplaintFeedbackPanel.feedbackBecomesAvailableOnceThisCase',
+          )}
         </p>
       )}
     </article>

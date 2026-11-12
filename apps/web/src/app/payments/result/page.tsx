@@ -96,8 +96,8 @@ export default async function PaymentResultPage({
       {view ? (
         <p className="section-sub payment-result-body payment-result-amount">
           {person
-            ? t('payments.paymentsResultPage.purchase')
-            : t('payments.paymentsResultPage.invoice')}{' '}
+            ? t.node('payments.paymentsResultPage.purchase')
+            : t.node('payments.paymentsResultPage.invoice')}{' '}
           {view.invoiceRef}: {formatMoney(view.amountMinorUnits, view.currency)}
         </p>
       ) : null}
@@ -109,16 +109,16 @@ export default async function PaymentResultPage({
             className="btn btn-secondary"
             href={`/payments/result?${new URLSearchParams({ t: params.t, x: params.x, s: params.s }).toString()}`}
           >
-            {t('payments.paymentsResultPage.checkAgain')}
+            {t.node('payments.paymentsResultPage.checkAgain')}
           </a>
         ) : null}
         {person ? (
           <a className="btn btn-primary" href="/app/account/plan">
-            {t('payments.paymentsResultPage.goToPlanUsage')}
+            {t.node('payments.paymentsResultPage.goToPlanUsage')}
           </a>
         ) : (
           <a className="btn btn-primary" href="/app">
-            {t('payments.paymentsResultPage.goToWorkspace')}
+            {t.node('payments.paymentsResultPage.goToWorkspace')}
           </a>
         )}
       </div>

@@ -132,7 +132,7 @@ export default async function PrivacyPage({
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What this page holds is one tap away. */}
       <AboutDisclosure summary={t('appPrivacy.appPrivacyPage.aboutThis')}>
-        <p>{t('appPrivacy.appPrivacyPage.exportEverythingReviewYourConsentHistory')}</p>
+        <p>{t.node('appPrivacy.appPrivacyPage.exportEverythingReviewYourConsentHistory')}</p>
       </AboutDisclosure>
 
       <DepthScope family="privacy" depth={depth}>
@@ -146,21 +146,21 @@ export default async function PrivacyPage({
         {/* The three rights, each one tap from where it is used (the link opens its level). */}
         <nav className="card rows u-mb-150" aria-label={t('appPrivacy.appPrivacyPage.yourRights')}>
           <a className="row row-link" href="#export-data">
-            <span className="row-key">{t('appPrivacy.appPrivacyPage.exportYourData')}</span>
+            <span className="row-key">{t.node('appPrivacy.appPrivacyPage.exportYourData')}</span>
             <span className="muted" aria-hidden="true">
               →
             </span>
           </a>
           <a className="row row-link" href="#consent-history">
             <span className="row-key">
-              {t('appPrivacy.appPrivacyPage.reviewYourConsentHistory')}
+              {t.node('appPrivacy.appPrivacyPage.reviewYourConsentHistory')}
             </span>
             <span className="muted" aria-hidden="true">
               →
             </span>
           </a>
           <a className="row row-link" href="#delete-account">
-            <span className="row-key">{t('appPrivacy.appPrivacyPage.deleteYourAccount')}</span>
+            <span className="row-key">{t.node('appPrivacy.appPrivacyPage.deleteYourAccount')}</span>
             <span className="muted" aria-hidden="true">
               →
             </span>
@@ -169,17 +169,17 @@ export default async function PrivacyPage({
 
         <div className="grid">
           <article className="card" id="export-data">
-            <p className="card-kicker">{t('appPrivacy.appPrivacyPage.portability')}</p>
-            <h2 className="card-title">{t('appPrivacy.appPrivacyPage.exportYourData')}</h2>
+            <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.portability')}</p>
+            <h2 className="card-title">{t.node('appPrivacy.appPrivacyPage.exportYourData')}</h2>
             <p className="card-body u-mb-125" {...atLevel('browse')}>
-              {t('appPrivacy.appPrivacyPage.downloadACompleteStructuredSnapshotOf')}
+              {t.node('appPrivacy.appPrivacyPage.downloadACompleteStructuredSnapshotOf')}
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
               <a href="/app/privacy/export" className="btn btn-primary" download>
-                {t('appPrivacy.appPrivacyPage.downloadExportJson')}
+                {t.node('appPrivacy.appPrivacyPage.downloadExportJson')}
               </a>
               <a href="/app/privacy/export?format=csv" className="btn btn-secondary" download>
-                {t('appPrivacy.appPrivacyPage.downloadExportCsvZip')}
+                {t.node('appPrivacy.appPrivacyPage.downloadExportCsvZip')}
               </a>
             </div>
             {/* An export on its way or ready to download is never hidden; otherwise Everything. */}
@@ -194,14 +194,14 @@ export default async function PrivacyPage({
             id="delete-account"
             {...(data.scheduledFor ? {} : atLevel('everything'))}
           >
-            <p className="card-kicker">{t('appPrivacy.appPrivacyPage.erasure')}</p>
-            <h2 className="card-title">{t('appPrivacy.appPrivacyPage.deleteYourAccount')}</h2>
+            <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.erasure')}</p>
+            <h2 className="card-title">{t.node('appPrivacy.appPrivacyPage.deleteYourAccount')}</h2>
             <p className="card-body u-mb-125">
-              {t('appPrivacy.appPrivacyPage.deletionIsReversibleDuringA7')}
+              {t.node('appPrivacy.appPrivacyPage.deletionIsReversibleDuringA7')}
             </p>
             <details className="card-body u-mb-125">
-              <summary>{t('appPrivacy.appPrivacyPage.whatHappensToYourAuditTrail')}</summary>
-              <p>{t('appPrivacy.appPrivacyPage.yourAuditTrailIsKeptAs')}</p>
+              <summary>{t.node('appPrivacy.appPrivacyPage.whatHappensToYourAuditTrail')}</summary>
+              <p>{t.node('appPrivacy.appPrivacyPage.yourAuditTrailIsKeptAs')}</p>
             </details>
             <DeletionPanel
               scheduledFor={data.scheduledFor}
@@ -212,11 +212,11 @@ export default async function PrivacyPage({
         </div>
 
         <article className="card u-mt-150" id="consent-history" {...atLevel('browse')}>
-          <p className="card-kicker">{t('appPrivacy.appPrivacyPage.transparency')}</p>
-          <h2 className="card-title">{t('appPrivacy.appPrivacyPage.consentHistory')}</h2>
+          <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.transparency')}</p>
+          <h2 className="card-title">{t.node('appPrivacy.appPrivacyPage.consentHistory')}</h2>
           {data.history.length === 0 && !consentBefore ? (
             <EmptyState icon="activity" title={t('appPrivacy.appPrivacyPage.noChangesYet')}>
-              {t('appPrivacy.appPrivacyPage.eachTimeYouTurnAPermission')}
+              {t.node('appPrivacy.appPrivacyPage.eachTimeYouTurnAPermission')}
             </EmptyState>
           ) : (
             <div className="u-mt-050">
@@ -259,11 +259,11 @@ export default async function PrivacyPage({
             aria-labelledby="ai-use-today-title"
             {...atLevel('browse')}
           >
-            <p className="card-kicker">{t('appPrivacy.appPrivacyPage.transparency')}</p>
+            <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.transparency')}</p>
             <h2 className="card-title" id="ai-use-today-title">
-              {t('appPrivacy.appPrivacyPage.aiUseToday')}
+              {t.node('appPrivacy.appPrivacyPage.aiUseToday')}
             </h2>
-            <p className="card-body">{t('appPrivacy.appPrivacyPage.howMuchYouUsedEachAi')}</p>
+            <p className="card-body">{t.node('appPrivacy.appPrivacyPage.howMuchYouUsedEachAi')}</p>
             <div className="rows u-mt-050">
               {data.aiUsage.map((feature) => {
                 const badge = usageBadge(feature);

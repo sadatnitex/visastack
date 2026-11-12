@@ -77,7 +77,7 @@ export function CaseWelcome({
             }
           }}
         >
-          {t('appMission.appMissionIdCaseWelcome.gotIt')}
+          {t.node('appMission.appMissionIdCaseWelcome.gotIt')}
         </button>
       </div>
     </section>

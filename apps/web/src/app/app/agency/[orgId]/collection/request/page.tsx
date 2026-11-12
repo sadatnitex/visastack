@@ -76,7 +76,7 @@ function EmailStateCell({ email }: { readonly email: CollectionEmailState }) {
       {email.status === 'QUEUED' && email.retrying ? (
         <span className="muted u-fs-085">
           {' '}
-          {t('appAgency.appAgencyOrgidCollectionRequestPage.tryingAgain')}
+          {t.node('appAgency.appAgencyOrgidCollectionRequestPage.tryingAgain')}
         </span>
       ) : null}
       {email.status === 'NOT_SENT' && email.reason ? (
@@ -112,7 +112,7 @@ function ItemSummary({ item }: { readonly item: CollectionItem }) {
       </p>
       {item.note ? (
         <p className="u-fs-085">
-          {t('appAgency.appAgencyOrgidCollectionRequestPage.noteNote', { note: item.note })}
+          {t.node('appAgency.appAgencyOrgidCollectionRequestPage.noteNote', { note: item.note })}
         </p>
       ) : null}
     </div>
@@ -218,10 +218,10 @@ export default async function CollectionRequestPage({
     <div className="stack">
       <Link href={`/app/agency/${orgId}/collection`} className="page-back">
         <span aria-hidden="true">{'←'}</span>{' '}
-        {t('appAgency.appAgencyOrgidCollectionNewPage.documentRequests')}
+        {t.node('appAgency.appAgencyOrgidCollectionNewPage.documentRequests')}
       </Link>
       <h1 className="page-title">
-        {t('appAgency.appAgencyOrgidCollectionRequestPage.documentRequest')}{' '}
+        {t.node('appAgency.appAgencyOrgidCollectionRequestPage.documentRequest')}{' '}
         <DestinationLabel destination={destinationName(detail.destination)} size="md" />
       </h1>
       <p>
@@ -233,42 +233,45 @@ export default async function CollectionRequestPage({
       <section className="card" aria-labelledby="collection-about">
         <div className="card-body">
           <h2 id="collection-about">
-            {t('appAgency.appAgencyOrgidCollectionRequestPage.aboutThisRequest')}
+            {t.node('appAgency.appAgencyOrgidCollectionRequestPage.aboutThisRequest')}
           </h2>
           <dl className="collection-facts">
-            <dt>{t('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}</dt>
             <dd>
-              {detail.purpose ?? t('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
+              {detail.purpose ??
+                t.node('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
             </dd>
-            <dt>{t('appAgency.appAgencyOrgidCollectionRequestPage.specificRoute')}</dt>
-            <dd>{detail.route ?? t('appAgency.appAgencyOrgidCollectionRequestPage.notGiven')}</dd>
-            <dt>{t('appAgency.appAgencyOrgidCollectionRequestPage.travelDates')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidCollectionRequestPage.specificRoute')}</dt>
+            <dd>
+              {detail.route ?? t.node('appAgency.appAgencyOrgidCollectionRequestPage.notGiven')}
+            </dd>
+            <dt>{t.node('appAgency.appAgencyOrgidCollectionRequestPage.travelDates')}</dt>
             <dd>
               {detail.travelFrom
                 ? formatDateOnly(detail.travelFrom, locale)
-                : t('appAgency.appAgencyOrgidCollectionRequestPage.notGiven')}
+                : t.node('appAgency.appAgencyOrgidCollectionRequestPage.notGiven')}
               {detail.travelTo
-                ? t('appAgency.appAgencyOrgidCollectionRequestPage.toFormatdateonly', {
+                ? t.node('appAgency.appAgencyOrgidCollectionRequestPage.toFormatdateonly', {
                     formatDateOnly: formatDateOnly(detail.travelTo, locale),
                   })
                 : ''}
             </dd>
-            <dt>{t('appAgency.appAgencyOrgidCollectionRequestPage.due')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidCollectionRequestPage.due')}</dt>
             <dd>
               {detail.dueAt
                 ? dayLabel(detail.dueAt, locale)
-                : t('appAgency.appAgencyOrgidCollectionRequestPage.noDueDate')}
+                : t.node('appAgency.appAgencyOrgidCollectionRequestPage.noDueDate')}
             </dd>
-            <dt>{t('appAgency.appAgencyOrgidCollectionRequestPage.knownDetails')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidCollectionRequestPage.knownDetails')}</dt>
             <dd>
               {[detail.nationality, detail.residence, detail.applicationPlace]
                 .filter((value): value is string => value !== null)
-                .join(', ') || t('appAgency.appAgencyOrgidCollectionRequestPage.noneGiven')}
+                .join(', ') || t.node('appAgency.appAgencyOrgidCollectionRequestPage.noneGiven')}
             </dd>
-            <dt>{t('appAgency.appAgencyOrgidCollectionPage.for')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidCollectionPage.for')}</dt>
             <dd>
               {detail.recipientNameHint ??
-                t('appAgency.appAgencyOrgidCollectionRequestPage.notGiven')}
+                t.node('appAgency.appAgencyOrgidCollectionRequestPage.notGiven')}
             </dd>
           </dl>
         </div>
@@ -278,27 +281,27 @@ export default async function CollectionRequestPage({
         <section className="card" aria-labelledby="collection-checklist">
           <div className="card-body">
             <h2 id="collection-checklist">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.checklist')}
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.checklist')}
             </h2>
             {official && detail.draftPack ? (
               <p>
-                {t(
+                {t.node(
                   'appAgency.appAgencyOrgidCollectionRequestPage.followingThePublishedOfficialChecklistPackname',
                   { packName: detail.draftPack.packName, version: detail.draftPack.version },
                 )}
               </p>
             ) : (
               <p className="notice notice-warn">
-                {t('appAgency.appAgencyOrgidCollectionRequestPage.yourAgencySOwnChecklistIt')}
+                {t.node('appAgency.appAgencyOrgidCollectionRequestPage.yourAgencySOwnChecklistIt')}
               </p>
             )}
             {detail.draftItems === null ? (
               <p className="notice notice-warn">
-                {t('appAgency.appAgencyOrgidCollectionRequestPage.thisDraftCannotBeReadStart')}
+                {t.node('appAgency.appAgencyOrgidCollectionRequestPage.thisDraftCannotBeReadStart')}
               </p>
             ) : items.length === 0 ? (
               <p className="muted">
-                {t('appAgency.appAgencyOrgidCollectionRequestPage.noItemsYetAddWhatYour')}
+                {t.node('appAgency.appAgencyOrgidCollectionRequestPage.noItemsYetAddWhatYour')}
               </p>
             ) : (
               <ol className="collection-items">
@@ -326,16 +329,18 @@ export default async function CollectionRequestPage({
                 ))}
               </ol>
             )}
-            <h3>{t('appAgency.appAgencyOrgidCollectionRequestPage.addAnItem')}</h3>
+            <h3>{t.node('appAgency.appAgencyOrgidCollectionRequestPage.addAnItem')}</h3>
             <AddItemForm
               organizationId={orgId}
               requestId={detail.id}
               necessities={NECESSITY_OPTIONS}
             />
-            <h3>{t('appAgency.appAgencyOrgidCollectionRequestPage.officialChecklistsThatFit')}</h3>
+            <h3>
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.officialChecklistsThatFit')}
+            </h3>
             {choices.length === 0 ? (
               <p className="muted">
-                {t(
+                {t.node(
                   'appAgency.appAgencyOrgidCollectionRequestPage.noPublishedOfficialChecklistFitsThis',
                 )}
               </p>
@@ -352,11 +357,13 @@ export default async function CollectionRequestPage({
             )}
             <h3>
               {detail.revisions.length > 0
-                ? t('appAgency.appAgencyOrgidCollectionRequestPage.issueAgain')
-                : t('appAgency.appAgencyOrgidCollectionRequestPage.issue')}
+                ? t.node('appAgency.appAgencyOrgidCollectionRequestPage.issueAgain')
+                : t.node('appAgency.appAgencyOrgidCollectionRequestPage.issue')}
             </h3>
             <p className="muted">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.issuingFreezesThisChecklistAsA')}
+              {t.node(
+                'appAgency.appAgencyOrgidCollectionRequestPage.issuingFreezesThisChecklistAsA',
+              )}
             </p>
             <IssueRequestForm
               organizationId={orgId}
@@ -371,15 +378,15 @@ export default async function CollectionRequestPage({
         <section className="card" aria-labelledby="collection-share">
           <div className="card-body">
             <h2 id="collection-share">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.share')}
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.share')}
             </h2>
             <p className="muted">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.thePersonOpensTheLinkAnd', {
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.thePersonOpensTheLinkAnd', {
                 uploadLimitLabel: uploadLimitLabel(loadUploadQuotaConfig()),
               })}
             </p>
             <NewLinkForm organizationId={orgId} requestId={detail.id} />
-            <h3>{t('appAgency.appAgencyOrgidCollectionRequestPage.sendByEmail')}</h3>
+            <h3>{t.node('appAgency.appAgencyOrgidCollectionRequestPage.sendByEmail')}</h3>
             <EmailLinkForm
               organizationId={orgId}
               requestId={detail.id}
@@ -403,23 +410,33 @@ export default async function CollectionRequestPage({
         <section className="card" aria-labelledby="collection-links">
           <div className="card-body">
             <h2 id="collection-links">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.links')}
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.links')}
             </h2>
             <table className="data-table">
               <caption className="sr-only">
-                {t('appAgency.appAgencyOrgidCollectionRequestPage.linksMadeForThisRequestNewest')}
+                {t.node(
+                  'appAgency.appAgencyOrgidCollectionRequestPage.linksMadeForThisRequestNewest',
+                )}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">{t('appAgency.appAgencyOrgidCollectionRequestPage.revision')}</th>
-                  <th scope="col">{t('appAgency.appAgencyOrgidCollectionRequestPage.state')}</th>
-                  <th scope="col">{t('appAgency.appAgencyOrgidCollectionRequestPage.sentBy')}</th>
                   <th scope="col">
-                    {t('appAgency.appAgencyOrgidCollectionCollectionForms.email')}
+                    {t.node('appAgency.appAgencyOrgidCollectionRequestPage.revision')}
                   </th>
-                  <th scope="col">{t('appAgency.appAgencyOrgidCollectionRequestPage.expires')}</th>
                   <th scope="col">
-                    {t('appAgency.appAgencyOrgidCollectionRequestPage.lastOpened')}
+                    {t.node('appAgency.appAgencyOrgidCollectionRequestPage.state')}
+                  </th>
+                  <th scope="col">
+                    {t.node('appAgency.appAgencyOrgidCollectionRequestPage.sentBy')}
+                  </th>
+                  <th scope="col">
+                    {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.email')}
+                  </th>
+                  <th scope="col">
+                    {t.node('appAgency.appAgencyOrgidCollectionRequestPage.expires')}
+                  </th>
+                  <th scope="col">
+                    {t.node('appAgency.appAgencyOrgidCollectionRequestPage.lastOpened')}
                   </th>
                 </tr>
               </thead>
@@ -434,8 +451,8 @@ export default async function CollectionRequestPage({
                     </td>
                     <td data-label={t('appAgency.appAgencyOrgidCollectionRequestPage.sentBy')}>
                       {link.emailed
-                        ? t('appAgency.appAgencyOrgidCollectionCollectionForms.email')
-                        : t('appAgency.appAgencyOrgidCollectionRequestPage.copiedLink')}
+                        ? t.node('appAgency.appAgencyOrgidCollectionCollectionForms.email')
+                        : t.node('appAgency.appAgencyOrgidCollectionRequestPage.copiedLink')}
                     </td>
                     <td data-label={t('appAgency.appAgencyOrgidCollectionCollectionForms.email')}>
                       <EmailStateCell email={link.email} />
@@ -446,7 +463,7 @@ export default async function CollectionRequestPage({
                     <td data-label={t('appAgency.appAgencyOrgidCollectionRequestPage.lastOpened')}>
                       {link.lastOpenedAt
                         ? dayLabel(link.lastOpenedAt, locale)
-                        : t('appAgency.appAgencyOrgidCollectionRequestPage.notYet')}
+                        : t.node('appAgency.appAgencyOrgidCollectionRequestPage.notYet')}
                     </td>
                   </tr>
                 ))}
@@ -460,7 +477,7 @@ export default async function CollectionRequestPage({
         <section className="card" aria-labelledby="collection-revisions">
           <div className="card-body">
             <h2 id="collection-revisions">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.issuedRevisions')}
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.issuedRevisions')}
             </h2>
             {detail.revisions.map((revision) => (
               <details key={revision.id} className="collection-revision">
@@ -480,7 +497,7 @@ export default async function CollectionRequestPage({
                   </ol>
                 ) : (
                   <p className="notice notice-warn">
-                    {t(
+                    {t.node(
                       'appAgency.appAgencyOrgidCollectionRequestPage.thisRevisionNoLongerMatchesWhat',
                     )}
                   </p>
@@ -507,10 +524,10 @@ export default async function CollectionRequestPage({
         <section className="card" aria-labelledby="collection-end">
           <div className="card-body">
             <h2 id="collection-end">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.endThisRequest')}
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.endThisRequest')}
             </h2>
             <p className="muted">
-              {t('appAgency.appAgencyOrgidCollectionRequestPage.closeItWhenYouHaveWhat')}
+              {t.node('appAgency.appAgencyOrgidCollectionRequestPage.closeItWhenYouHaveWhat')}
             </p>
             <EndRequestForm organizationId={orgId} requestId={detail.id} />
           </div>

@@ -208,12 +208,12 @@ export function CaseSecondary({
       content: (
         <div className="grid" id="contributors">
           <article className="card">
-            <p className="card-kicker">{t('appMission.appMissionIdCaseSecondary.delegate')}</p>
+            <p className="card-kicker">{t.node('appMission.appMissionIdCaseSecondary.delegate')}</p>
             <h2 className="card-title">
-              {t('appMission.appMissionIdCaseSecondary.askAContributor')}
+              {t.node('appMission.appMissionIdCaseSecondary.askAContributor')}
             </h2>
             <p className="card-body u-mb-125">
-              {t('appMission.appMissionIdCaseSecondary.askASponsorOrFamilyMember')}
+              {t.node('appMission.appMissionIdCaseSecondary.askASponsorOrFamilyMember')}
             </p>
             <ContributorRequestsPanel missionId={missionId} requests={contributorRequests} />
           </article>
@@ -228,16 +228,18 @@ export function CaseSecondary({
       content: (
         <div className="grid" id="notes">
           <article className="card">
-            <p className="card-kicker">{t('appMission.appMissionIdCaseSecondary.collaboration')}</p>
+            <p className="card-kicker">
+              {t.node('appMission.appMissionIdCaseSecondary.collaboration')}
+            </p>
             <h2 className="card-title">
-              {t('appMission.appMissionIdCaseSecondary.notesFromYourAgency')}
+              {t.node('appMission.appMissionIdCaseSecondary.notesFromYourAgency')}
             </h2>
             <p className="card-body u-mb-125">
-              {t('appMission.appMissionIdCaseSecondary.notesAnAgencyWorkingThisCase')}
+              {t.node('appMission.appMissionIdCaseSecondary.notesAnAgencyWorkingThisCase')}
             </p>
             {notes.length === 0 ? (
               <p className="muted u-fs-085">
-                {t('appMission.appMissionIdCaseSecondary.noNotesSharedWithYouYet')}
+                {t.node('appMission.appMissionIdCaseSecondary.noNotesSharedWithYouYet')}
               </p>
             ) : (
               <div className="rows">
@@ -249,7 +251,7 @@ export function CaseSecondary({
                   >
                     <span className="u-fs-085">{n.body}</span>
                     <span className="muted lift-caption-mt-020">
-                      {n.authorEmail ?? t('appMission.appMissionIdCaseSecondary.unknown')},{' '}
+                      {n.authorEmail ?? t.node('appMission.appMissionIdCaseSecondary.unknown')},{' '}
                       {formatTimestampDate(n.createdAt)}
                     </span>
                   </div>

@@ -257,11 +257,11 @@ export function MissionCollaboration({
 
       <div id={`assigned-${missionId}`} style={{ marginTop: '0.6rem' }} {...atLevel('browse')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
-          {t('appAgency.appAgencyOrgidMissionCollaboration.assigned')}
+          {t.node('appAgency.appAgencyOrgidMissionCollaboration.assigned')}
         </p>
         {assignments.length === 0 ? (
           <p className="muted u-fs-085">
-            {t('appAgency.appAgencyOrgidMissionCollaboration.nobodyAssignedYet')}
+            {t.node('appAgency.appAgencyOrgidMissionCollaboration.nobodyAssignedYet')}
           </p>
         ) : (
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
@@ -299,7 +299,11 @@ export function MissionCollaboration({
               required
               defaultValue=""
             >
-              <option value="" disabled>
+              <option
+                {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.assignAMember')}
+                value=""
+                disabled
+              >
                 {t('appAgency.appAgencyOrgidMissionCollaboration.assignAMember')}
               </option>
               {assignableMembers.map((m) => (
@@ -321,11 +325,11 @@ export function MissionCollaboration({
 
       <div id={`tasks-${missionId}`} style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
-          {t('appAgency.appAgencyOrgidMissionCollaboration.tasks')}
+          {t.node('appAgency.appAgencyOrgidMissionCollaboration.tasks')}
         </p>
         {openTasks.length === 0 ? (
           <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-            {t('appAgency.appAgencyOrgidMissionCollaboration.noOpenTasks')}
+            {t.node('appAgency.appAgencyOrgidMissionCollaboration.noOpenTasks')}
           </p>
         ) : (
           <div
@@ -419,7 +423,7 @@ export function MissionCollaboration({
           <div className="form-grid">
             <div className="field-row field-wide">
               <label className="field-label" htmlFor={`${uid}-task-description`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.taskDescription')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.taskDescription')}
               </label>
               <input
                 id={`${uid}-task-description`}
@@ -433,7 +437,7 @@ export function MissionCollaboration({
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-task-assignee`}>
-                {t('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
+                {t.node('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
               </label>
               <select
                 id={`${uid}-task-assignee`}
@@ -442,7 +446,10 @@ export function MissionCollaboration({
                 defaultValue=""
                 aria-label={t('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
               >
-                <option value="">
+                <option
+                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.unassigned')}
+                  value=""
+                >
                   {t('appAgency.appAgencyOrgidMissionCollaboration.unassigned')}
                 </option>
                 {members.map((m) => (
@@ -454,7 +461,7 @@ export function MissionCollaboration({
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-task-priority`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.priority')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.priority')}
               </label>
               <select
                 id={`${uid}-task-priority`}
@@ -472,7 +479,7 @@ export function MissionCollaboration({
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-task-due`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.dueDateOptional')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.dueDateOptional')}
               </label>
               <input
                 id={`${uid}-task-due`}
@@ -501,11 +508,11 @@ export function MissionCollaboration({
         {...atLevel('everything')}
       >
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
-          {t('appAgency.appAgencyOrgidMissionCollaboration.appointments')}
+          {t.node('appAgency.appAgencyOrgidMissionCollaboration.appointments')}
         </p>
         {upcomingAppointments.length === 0 ? (
           <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-            {t('appAgency.appAgencyOrgidMissionCollaboration.noAppointmentsScheduled')}
+            {t.node('appAgency.appAgencyOrgidMissionCollaboration.noAppointmentsScheduled')}
           </p>
         ) : (
           <div
@@ -564,7 +571,7 @@ export function MissionCollaboration({
           <div className="form-grid">
             <div className="field-row field-wide">
               <label className="field-label" htmlFor={`${uid}-appt-title`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.appointmentTitle')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.appointmentTitle')}
               </label>
               <input
                 id={`${uid}-appt-title`}
@@ -582,7 +589,7 @@ export function MissionCollaboration({
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-appt-date`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.date')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.date')}
               </label>
               <input
                 id={`${uid}-appt-date`}
@@ -595,7 +602,7 @@ export function MissionCollaboration({
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-appt-time`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.time')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.time')}
               </label>
               <input
                 id={`${uid}-appt-time`}
@@ -610,13 +617,13 @@ export function MissionCollaboration({
               {/* The list carries its own name ("Time Zone") and its own id, so this caption is
                   only seen, not read out a second time. */}
               <label className="field-label" htmlFor={`${uid}-appt-timezone`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.timeZone')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.timeZone')}
               </label>
               <TimeZoneSelect id={`${uid}-appt-timezone`} name="timezone" />
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-appt-place`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.place')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.place')}
               </label>
               <input
                 id={`${uid}-appt-place`}
@@ -628,7 +635,7 @@ export function MissionCollaboration({
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-appt-channel`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.channel')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.channel')}
               </label>
               <input
                 id={`${uid}-appt-channel`}
@@ -653,11 +660,11 @@ export function MissionCollaboration({
 
       <div id={`notes-${missionId}`} style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
-          {t('appAgency.appAgencyOrgidMissionCollaboration.notes')}
+          {t.node('appAgency.appAgencyOrgidMissionCollaboration.notes')}
         </p>
         {notes.length === 0 ? (
           <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-            {t('appAgency.appAgencyOrgidMissionCollaboration.noNotesYet')}
+            {t.node('appAgency.appAgencyOrgidMissionCollaboration.noNotesYet')}
           </p>
         ) : (
           <div
@@ -675,8 +682,8 @@ export function MissionCollaboration({
                   style={{ fontSize: 'var(--text-caption)', marginRight: '0.35rem' }}
                 >
                   {n.visibility === 'AGENCY_INTERNAL'
-                    ? t('appAgency.appAgencyOrgidMissionCollaboration.internal')
-                    : t('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
+                    ? t.node('appAgency.appAgencyOrgidMissionCollaboration.internal')
+                    : t.node('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
                 </span>
                 <span>{n.body}</span>{' '}
                 <span className="muted u-fs-075">
@@ -693,7 +700,7 @@ export function MissionCollaboration({
           <div className="form-grid">
             <div className="field-row field-wide">
               <label className="field-label" htmlFor={`${uid}-note-body`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.caseNote')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.caseNote')}
               </label>
               <input
                 id={`${uid}-note-body`}
@@ -707,7 +714,7 @@ export function MissionCollaboration({
             </div>
             <div className="field-row">
               <label className="field-label" htmlFor={`${uid}-note-visibility`}>
-                {t('appAgency.appAgencyOrgidMissionCollaboration.visibility')}
+                {t.node('appAgency.appAgencyOrgidMissionCollaboration.visibility')}
               </label>
               <select
                 id={`${uid}-note-visibility`}
@@ -717,13 +724,23 @@ export function MissionCollaboration({
                 defaultValue=""
                 aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.noteVisibility')}
               >
-                <option value="" disabled>
+                <option
+                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.visibilityb5de1d')}
+                  value=""
+                  disabled
+                >
                   {t('appAgency.appAgencyOrgidMissionCollaboration.visibilityb5de1d')}
                 </option>
-                <option value="AGENCY_INTERNAL">
+                <option
+                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.internalThisOrgOnly')}
+                  value="AGENCY_INTERNAL"
+                >
                   {t('appAgency.appAgencyOrgidMissionCollaboration.internalThisOrgOnly')}
                 </option>
-                <option value="TRAVELLER_SHARED">
+                <option
+                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
+                  value="TRAVELLER_SHARED"
+                >
                   {t('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
                 </option>
               </select>
@@ -748,11 +765,11 @@ export function MissionCollaboration({
           {...atLevel('everything')}
         >
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
-            {t('appAgency.appAgencyOrgidMissionCollaboration.decisions')}
+            {t.node('appAgency.appAgencyOrgidMissionCollaboration.decisions')}
           </p>
           {decisions.length === 0 ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-              {t('appAgency.appAgencyOrgidMissionCollaboration.noDecisionsRecordedYet')}
+              {t.node('appAgency.appAgencyOrgidMissionCollaboration.noDecisionsRecordedYet')}
             </p>
           ) : (
             <div
@@ -786,7 +803,7 @@ export function MissionCollaboration({
               <div className="form-grid">
                 <div className="field-row">
                   <label className="field-label" htmlFor={`${uid}-decision-requirement`}>
-                    {t('appAgency.appAgencyOrgidMissionCollaboration.requirement')}
+                    {t.node('appAgency.appAgencyOrgidMissionCollaboration.requirement')}
                   </label>
                   <select
                     id={`${uid}-decision-requirement`}
@@ -796,7 +813,11 @@ export function MissionCollaboration({
                     required
                     defaultValue=""
                   >
-                    <option value="" disabled>
+                    <option
+                      {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.requirementf6daff')}
+                      value=""
+                      disabled
+                    >
                       {t('appAgency.appAgencyOrgidMissionCollaboration.requirementf6daff')}
                     </option>
                     {requirements.map((r) => (
@@ -808,7 +829,7 @@ export function MissionCollaboration({
                 </div>
                 <div className="field-row">
                   <label className="field-label" htmlFor={`${uid}-decision-outcome`}>
-                    {t('appAgency.appAgencyOrgidMissionCollaboration.decision')}
+                    {t.node('appAgency.appAgencyOrgidMissionCollaboration.decision')}
                   </label>
                   <select
                     id={`${uid}-decision-outcome`}
@@ -817,17 +838,23 @@ export function MissionCollaboration({
                     className="input"
                     defaultValue="ACCEPTED"
                   >
-                    <option value="ACCEPTED">
+                    <option
+                      {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.accept')}
+                      value="ACCEPTED"
+                    >
                       {t('appAgency.appAgencyOrgidMissionCollaboration.accept')}
                     </option>
-                    <option value="REJECTED">
+                    <option
+                      {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.reject')}
+                      value="REJECTED"
+                    >
                       {t('appAgency.appAgencyOrgidMissionCollaboration.reject')}
                     </option>
                   </select>
                 </div>
                 <div className="field-row">
                   <label className="field-label" htmlFor={`${uid}-decision-reason`}>
-                    {t('appAgency.appAgencyOrgidMissionCollaboration.reasonOptional')}
+                    {t.node('appAgency.appAgencyOrgidMissionCollaboration.reasonOptional')}
                   </label>
                   <input
                     id={`${uid}-decision-reason`}
@@ -849,7 +876,7 @@ export function MissionCollaboration({
             </form>
           ) : (
             <p className="muted" style={{ fontSize: 'var(--text-caption)' }}>
-              {t('appAgency.appAgencyOrgidMissionCollaboration.onlyAnAssignedMemberCanRecord')}
+              {t.node('appAgency.appAgencyOrgidMissionCollaboration.onlyAnAssignedMemberCanRecord')}
             </p>
           )}
           <FormMessage result={decisionState} />
@@ -863,11 +890,11 @@ export function MissionCollaboration({
           {...atLevel('everything')}
         >
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
-            {t('appAgency.appAgencyOrgidMissionCollaboration.issuerConfirmations')}
+            {t.node('appAgency.appAgencyOrgidMissionCollaboration.issuerConfirmations')}
           </p>
           {issuerVerifications.length === 0 ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-              {t('appAgency.appAgencyOrgidMissionCollaboration.noIssuerConfirmedYetLackOf')}
+              {t.node('appAgency.appAgencyOrgidMissionCollaboration.noIssuerConfirmedYetLackOf')}
             </p>
           ) : (
             <div
@@ -882,8 +909,8 @@ export function MissionCollaboration({
                 <div key={v.id} className="u-fs-085">
                   <span className={`badge ${v.expired ? 'badge-neutral' : 'badge-success'}`}>
                     {v.expired
-                      ? t('appAgency.appAgencyOrgidMissionCollaboration.expired')
-                      : t('appAgency.appAgencyOrgidMissionCollaboration.confirmed')}
+                      ? t.node('appAgency.appAgencyOrgidMissionCollaboration.expired')
+                      : t.node('appAgency.appAgencyOrgidMissionCollaboration.confirmed')}
                   </span>{' '}
                   <span className="muted u-fs-075">
                     {requirements.find((r) => r.id === v.packRequirementId)?.label ??
@@ -902,7 +929,7 @@ export function MissionCollaboration({
             <div className="form-grid">
               <div className="field-row">
                 <label className="field-label" htmlFor={`${uid}-issuer-requirement`}>
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.requirement')}
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.requirement')}
                 </label>
                 <select
                   id={`${uid}-issuer-requirement`}
@@ -914,7 +941,11 @@ export function MissionCollaboration({
                     'appAgency.appAgencyOrgidMissionCollaboration.requirementThisConfirmationCovers',
                   )}
                 >
-                  <option value="" disabled>
+                  <option
+                    {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.requirementf6daff')}
+                    value=""
+                    disabled
+                  >
                     {t('appAgency.appAgencyOrgidMissionCollaboration.requirementf6daff')}
                   </option>
                   {requirements.map((r) => (
@@ -926,7 +957,7 @@ export function MissionCollaboration({
               </div>
               <div className="field-row">
                 <label className="field-label" htmlFor={`${uid}-issuer-identity`}>
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.issuer')}
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.issuer')}
                 </label>
                 <input
                   id={`${uid}-issuer-identity`}
@@ -940,7 +971,7 @@ export function MissionCollaboration({
               </div>
               <div className="field-row">
                 <label className="field-label" htmlFor={`${uid}-issuer-contact`}>
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.contactMethod')}
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.contactMethod')}
                 </label>
                 <input
                   id={`${uid}-issuer-contact`}
@@ -954,7 +985,7 @@ export function MissionCollaboration({
               </div>
               <div className="field-row">
                 <label className="field-label" htmlFor={`${uid}-issuer-claim`}>
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.exactClaim')}
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.exactClaim')}
                 </label>
                 <input
                   id={`${uid}-issuer-claim`}
@@ -970,7 +1001,7 @@ export function MissionCollaboration({
               </div>
               <div className="field-row">
                 <label className="field-label" htmlFor={`${uid}-issuer-response`}>
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.issuerResponse')}
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.issuerResponse')}
                 </label>
                 <input
                   id={`${uid}-issuer-response`}
@@ -986,7 +1017,7 @@ export function MissionCollaboration({
               </div>
               <div className="field-row">
                 <label className="field-label" htmlFor={`${uid}-issuer-valid-until`}>
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.validUntil')}
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.validUntil')}
                 </label>
                 <input
                   id={`${uid}-issuer-valid-until`}
@@ -1008,7 +1039,7 @@ export function MissionCollaboration({
             </div>
           </form>
           <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '0.35rem' }}>
-            {t(
+            {t.node(
               'appAgency.appAgencyOrgidMissionCollaboration.requiresEvidenceAlreadySelectedForThat',
             )}
           </p>

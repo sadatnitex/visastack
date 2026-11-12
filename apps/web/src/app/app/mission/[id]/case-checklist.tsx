@@ -157,7 +157,7 @@ export function CaseChecklist({
         action={
           packName ? (
             <span className="lift-card-note">
-              {t('appMission.appMissionIdCaseChecklist.fromPackname', { packName })}
+              {t.node('appMission.appMissionIdCaseChecklist.fromPackname', { packName })}
             </span>
           ) : undefined
         }
@@ -251,7 +251,7 @@ export function CaseExpiringDocuments({
       aria-labelledby="case-expiring-heading"
     >
       <h3 id="case-expiring-heading" className="case-checklist-heading lift-card-title">
-        {t('appMission.appMissionIdCaseChecklist.documentsThatExpireBeforeYourTrip')}
+        {t.node('appMission.appMissionIdCaseChecklist.documentsThatExpireBeforeYourTrip')}
       </h3>
       <ul className="case-sources-list lift-expiring-list">
         {documents.map((doc) => (
@@ -277,7 +277,7 @@ export function CaseSources({ sources }: { readonly sources: readonly CaseSource
   return (
     <section className="case-sources" aria-labelledby="case-sources-heading">
       <h3 id="case-sources-heading" className="case-checklist-heading">
-        {t('appMission.appMissionIdCaseChecklist.sourcesForThisChecklist')}
+        {t.node('appMission.appMissionIdCaseChecklist.sourcesForThisChecklist')}
       </h3>
       <ul className="case-sources-list">
         {sources.map((source) => (
@@ -295,7 +295,7 @@ export function CaseSources({ sources }: { readonly sources: readonly CaseSource
         ))}
       </ul>
       <p className="muted u-fs-085">
-        {t('appMission.appMissionIdCaseChecklist.checkedIsWhenVisastackLastRead')}
+        {t.node('appMission.appMissionIdCaseChecklist.checkedIsWhenVisastackLastRead')}
       </p>
     </section>
   );

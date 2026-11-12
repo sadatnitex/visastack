@@ -38,10 +38,10 @@ export default async function PilotAccessDeniedPage() {
   return (
     <section className="section container center">
       <span className="eyebrow">
-        {t('pilotAccessDenied.pilotAccessDeniedPage.controlledPilot')}
+        {t.node('pilotAccessDenied.pilotAccessDeniedPage.controlledPilot')}
       </span>
       <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
-        {t('pilotAccessDenied.pilotAccessDeniedPage.thisPilotIsInviteOnly')}
+        {t.node('pilotAccessDenied.pilotAccessDeniedPage.thisPilotIsInviteOnly')}
       </h1>
       <p className="section-sub" style={{ margin: '0.75rem auto 1.5rem', maxWidth: '34rem' }}>
         {email
@@ -59,11 +59,11 @@ export default async function PilotAccessDeniedPage() {
           }}
         >
           <button type="submit" className="btn btn-primary">
-            {t('pilotAccessDenied.pilotAccessDeniedPage.signOut')}
+            {t.node('pilotAccessDenied.pilotAccessDeniedPage.signOut')}
           </button>
         </form>
         <Link className="btn btn-secondary" href="/">
-          {t('pilotAccessDenied.pilotAccessDeniedPage.backToHome')}
+          {t.node('pilotAccessDenied.pilotAccessDeniedPage.backToHome')}
         </Link>
       </div>
     </section>

@@ -262,6 +262,7 @@ export function ProfilePhotoControl({
             type="button"
             className="profile-photo-crop-area"
             aria-label={t('componentsProfilePhoto.profilePhotoProfilePhotoControl.photoPosition')}
+            {...t.lang('componentsProfilePhoto.profilePhotoProfilePhotoControl.photoPosition')}
             aria-describedby={helpId}
             onKeyDown={onKeyDown}
             onPointerDown={onPointerDown}

@@ -63,7 +63,7 @@ export default async function AgencyActivityPage({
       <article className="card">
         {data.caseLimitReached ? (
           <p className="card-body">
-            {t('appAgency.appAgencyOrgidActivityPage.showingNotesFromTheTenMost')}
+            {t.node('appAgency.appAgencyOrgidActivityPage.showingNotesFromTheTenMost')}
           </p>
         ) : null}
         {entries.length ? (
@@ -73,7 +73,7 @@ export default async function AgencyActivityPage({
               aria-label={t('appAgency.appAgencyOrgidActivityPage.casesInThisActivity')}
             >
               <span className="muted u-fs-085">
-                {t('appAgency.appAgencyOrgidActivityPage.openACase')}
+                {t.node('appAgency.appAgencyOrgidActivityPage.openACase')}
               </span>
               <ul>
                 {data.cases.map((c) => (
@@ -116,7 +116,7 @@ export default async function AgencyActivityPage({
             icon="activity"
             title={t('appAgency.appAgencyOrgidActivityPage.noCaseActivityRecorded')}
           >
-            {t('appAgency.appAgencyOrgidActivityPage.newCaseNotesAppearHereWhen')}
+            {t.node('appAgency.appAgencyOrgidActivityPage.newCaseNotesAppearHereWhen')}
           </EmptyState>
         )}
       </article>

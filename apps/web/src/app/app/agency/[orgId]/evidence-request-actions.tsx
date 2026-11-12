@@ -113,14 +113,14 @@ export function EvidenceRequestActions({
                 setReasonOutcome((v) => (v === 'NEEDS_REPLACEMENT' ? null : 'NEEDS_REPLACEMENT'))
               }
             >
-              {t('appAgency.appAgencyOrgidEvidenceRequestActions.needsReplacement')}
+              {t.node('appAgency.appAgencyOrgidEvidenceRequestActions.needsReplacement')}
             </button>
           </>
         ) : null}
         {canDecide ? (
           <details className="request-decision-more">
             <summary className="request-decision-more-toggle">
-              {t('appAgency.appAgencyOrgidEvidenceRequestActions.moreDecisions')}
+              {t.node('appAgency.appAgencyOrgidEvidenceRequestActions.moreDecisions')}
             </summary>
             <div className="request-decision-more-body">
               {status === 'RECEIVED' ? (
@@ -143,7 +143,7 @@ export function EvidenceRequestActions({
                   setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))
                 }
               >
-                {t('appAgency.appAgencyOrgidEvidenceRequestActions.contradiction')}
+                {t.node('appAgency.appAgencyOrgidEvidenceRequestActions.contradiction')}
               </button>
               <button
                 type="button"
@@ -155,7 +155,7 @@ export function EvidenceRequestActions({
                   )
                 }
               >
-                {t('appAgency.appAgencyOrgidEvidenceRequestActions.proposeCorrection')}
+                {t.node('appAgency.appAgencyOrgidEvidenceRequestActions.proposeCorrection')}
               </button>
               {cancelForm}
             </div>
@@ -194,7 +194,7 @@ export function EvidenceRequestActions({
       {stale ? (
         <p className="u-m-0">
           <a className="request-decision-refresh" href={refreshHref}>
-            {t('appAgency.appAgencyOrgidEvidenceRequestActions.refresh')}
+            {t.node('appAgency.appAgencyOrgidEvidenceRequestActions.refresh')}
           </a>
         </p>
       ) : null}

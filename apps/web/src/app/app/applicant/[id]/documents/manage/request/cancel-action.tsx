@@ -56,7 +56,7 @@ export function CancelRemovalRequestAction({
     return (
       <div ref={root} className="lc-request">
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-          {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.requestCancelled')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.requestCancelled')}
         </h3>
         <output className="lc-request-result">{result}</output>
         <div className="lc-request-actions">
@@ -68,7 +68,7 @@ export function CancelRemovalRequestAction({
               router.refresh();
             }}
           >
-            {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.done')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.done')}
           </button>
         </div>
       </div>
@@ -78,10 +78,10 @@ export function CancelRemovalRequestAction({
   return (
     <div ref={root} className="lc-request">
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-        {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.removalRequested')}
+        {t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.removalRequested')}
       </h3>
       <p className="lc-request-note">
-        {t(
+        {t.node(
           'appApplicant.appApplicantIdDocumentsManageRequestCancelAction.youAskedUsToRemoveDocumentname',
           { documentName },
         )}
@@ -99,11 +99,11 @@ export function CancelRemovalRequestAction({
           onClick={cancel}
         >
           {busy
-            ? t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.cancelling')
-            : t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.cancelRequest')}
+            ? t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.cancelling')
+            : t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.cancelRequest')}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.keepRequest')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.keepRequest')}
         </button>
       </div>
     </div>

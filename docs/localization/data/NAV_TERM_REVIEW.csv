@@ -13,23 +13,35 @@ SG-49b63a54,Document Saved,ডকুমেন্ট সংরক্ষণ কর
 SG-c05844cd,Documents Saved,ডকুমেন্ট সংরক্ষণ করা হয়েছে,documents_vault,jsx_attr_accessible
 SG-438c7dd8,Kind of Document (Optional),ডকুমেন্টের ধরন (ঐচ্ছিক),documents_vault,jsx_text
 SG-646e479f,Ask for a Document,ডকুমেন্ট চান,agency,property_text
+SG-0eadde82,Document,ডকুমেন্ট,agency,jsx_expr_literal
 SG-7c0b3e31,Documents,ডকুমেন্টস,agency,property_text
+SG-af3662b6,May Request Documents,ডকুমেন্ট চাইতে পারবেন,agency,jsx_text
 SG-df3949fb,Search Documents and Details,ডকুমেন্ট ও তথ্য খুঁজুন,agency,jsx_text
+SG-ac7f7d82,Choose from Your Documents,আপনার ডকুমেন্ট থেকে বেছে নিন,agency_collection,jsx_expr_literal
+SG-162403a1,New Document Request,নতুন ডকুমেন্টের অনুরোধ,agency_collection,jsx_text+property_text
+SG-3111e710,No Document Requests Yet,এখনো কোনো ডকুমেন্টের অনুরোধ নেই,agency_collection,jsx_attr_accessible
+SG-f7d936a6,no such document request,এমন কোনো ডকুমেন্টের অনুরোধ নেই,agency_collection,service_error_message
+SG-92e000ec,Choose a Document…,একটি ডকুমেন্ট বেছে নিন…,case_readiness,jsx_text
 SG-efa5afb1,Document Expires,ডকুমেন্টের মেয়াদ শেষ হবে,case_readiness,property_text
 SG-99c9d939,Document Kind Suggestions,ডকুমেন্টের ধরনের পরামর্শ,case_readiness,property_text
+SG-0aa76cae,Documents They Asked For,তাঁরা যে ডকুমেন্টগুলো চেয়েছেন,case_readiness,jsx_text
 SG-5024f0d5,Grounded Documents,যেসব ডকুমেন্টের ওপর ভিত্তি করা হয়েছে,case_readiness,jsx_text
+SG-59809f69,No Document,কোনো ডকুমেন্ট নেই,case_readiness,jsx_text
 SG-8d2eec13,Other Documents,অন্যান্য ডকুমেন্ট,case_readiness,property_text
 SG-3b427208,Travel Documents,ভ্রমণ ডকুমেন্ট,case_readiness,property_text
 SG-e5c6ba48,About Documents,ডকুমেন্ট সম্পর্কে,documents_vault,jsx_text
 SG-191f77f9,Add a Document,একটি ডকুমেন্ট যোগ করুন,documents_vault,jsx_text+property_text
 SG-a33bdd99,Add a First Document,প্রথম ডকুমেন্টটি যোগ করুন,documents_vault,property_text
 SG-3cb299a1,Add Documents,ডকুমেন্ট যোগ করুন,documents_vault,jsx_attr_accessible+jsx_text+property_text
+SG-91de438d,Add the Document,ডকুমেন্টটি যোগ করুন,documents_vault,jsx_expr_literal
 SG-4685ce8c,All Documents,সব ডকুমেন্ট,documents_vault,label_map_value
 SG-5cb2de29,Back to Documents,ডকুমেন্টে ফিরে যান,documents_vault,jsx_text
 SG-2fec005d,Backed by a Document,ডকুমেন্ট দিয়ে সমর্থিত,documents_vault,label_map_value
+SG-6e21d03b,Checking this document,এই ডকুমেন্ট পরীক্ষা করা হচ্ছে,documents_vault,jsx_text
 SG-abbf46d1,Choose a Document,একটি ডকুমেন্ট বেছে নিন,documents_vault,jsx_attr_accessible+jsx_text
 SG-a2b44f83,Document Date,ডকুমেন্টের তারিখ,documents_vault,jsx_text
 SG-788652aa,Document Files,আপলোড করা ডকুমেন্ট,documents_vault,jsx_attr_accessible
+SG-0d39a232,Document lists,ডকুমেন্টের তালিকা,documents_vault,jsx_attr_accessible
 SG-6bc20b25,Document metadata list,ডকুমেন্টের মেটাডেটা তালিকা,documents_vault,jsx_attr_accessible
 SG-cfe57059,Document Name,ডকুমেন্টের নাম,documents_vault,jsx_text
 SG-8c65b56e,Document Reference,ডকুমেন্ট রেফারেন্স,documents_vault,jsx_prop_display
@@ -37,13 +49,16 @@ SG-7325f836,Document state filters,ডকুমেন্টের অবস্�
 SG-9b83d475,Document Storage,ডকুমেন্ট সংরক্ষণ,documents_vault,jsx_prop_display+property_text
 SG-bec3e0f9,Documents,ডকুমেন্টস,documents_vault,jsx_attr_accessible+jsx_prop_display+jsx_text+property_text
 SG-577a7df5,Documents on File,রাখা ডকুমেন্ট,documents_vault,property_text
+SG-25989274,"Documents, details and dates","ডকুমেন্ট, তথ্য ও তারিখ",documents_vault,jsx_text
 SG-5cb77bfa,every document,প্রতিটি ডকুমেন্ট,documents_vault,jsx_text
 SG-9ace2809,Inheritance Document,উত্তরাধিকার-সংক্রান্ত ডকুমেন্ট,documents_vault,property_text
 SG-af31c234,Kind of Document,ডকুমেন্টের ধরন,documents_vault,jsx_text
 SG-cb9aca81,Legal Document,আইনি ডকুমেন্ট,documents_vault,property_text
+SG-b84cdacb,No Documents Match,কোনো ডকুমেন্ট মেলেনি,documents_vault,jsx_attr_accessible
 SG-e21854ed,No Documents Yet,এখনও কোনো ডকুমেন্ট নেই,documents_vault,jsx_attr_accessible
 SG-6b04f615,Notarized Document,নোটারি করা ডকুমেন্ট,documents_vault,property_text
 SG-afd7a3f5,Open My Documents,আমার ডকুমেন্ট খুলুন,documents_vault,jsx_text
+SG-3348f94d,Open Their Documents,তাঁদের ডকুমেন্ট খুলুন,documents_vault,jsx_text
 SG-4d6fc1f4,Other Document,অন্য ডকুমেন্ট,documents_vault,candidate_sentence+property_text
 SG-6f026cab,Other Financial Document,আর্থিক অন্যান্য ডকুমেন্ট,documents_vault,property_text
 SG-4a20f9d9,Other Medical Document,চিকিৎসা-সংক্রান্ত অন্যান্য ডকুমেন্ট,documents_vault,property_text
@@ -55,6 +70,7 @@ SG-93d0065e,See Document Details,ডকুমেন্টের বিস্ত�
 SG-46ea2330,See Document Insights,ডকুমেন্টের ইনসাইট দেখুন,documents_vault,jsx_text
 SG-f65d4154,Selected Document,নির্বাচিত ডকুমেন্ট,documents_vault,jsx_text
 SG-81e04e69,Selected document details,নির্বাচিত ডকুমেন্টের বিস্তারিত,documents_vault,jsx_attr_accessible
+SG-2bead576,Selected Document Is Unavailable,বেছে নেওয়া ডকুমেন্টটি পাওয়া যাচ্ছে না,documents_vault,jsx_attr_accessible
 SG-38dc2294,Show Full Document Numbers,পূর্ণ ডকুমেন্ট নম্বর দেখান,documents_vault,jsx_text
 SG-2302e673,Stateless Document,রাষ্ট্রহীনতার ডকুমেন্ট,documents_vault,property_text
 SG-f612de5c,Tidy Up Documents,ডকুমেন্ট গুছিয়ে নিন,documents_vault,jsx_attr_accessible
@@ -66,15 +82,22 @@ SG-cd835be7,Document Added,ডকুমেন্ট যোগ করা হয�
 SG-6a72d738,Document Expiry,ডকুমেন্টের মেয়াদ,profile_record,jsx_text
 SG-25d59a1e,Document Expiry Dates,ডকুমেন্টের মেয়াদ শেষের তারিখ,profile_record,label_map_value
 SG-921bbaac,Document Uploaded,ডকুমেন্ট আপলোড করা হয়েছে,profile_record,property_text
+SG-23e7c350,Documents Behind Your Details,আপনার তথ্যের পেছনের ডকুমেন্ট,profile_record,jsx_attr_accessible
 SG-b160e723,Documents in Your Wallet,আপনার ওয়ালেটের ডকুমেন্ট,profile_record,jsx_text
 SG-4fcbb5a7,Documents Needing Review,পর্যালোচনা দরকার এমন ডকুমেন্ট,profile_record,jsx_attr_accessible
+SG-a9b033fa,No Document Yet,এখনো কোনো ডকুমেন্ট নেই,profile_record,jsx_text
 SG-fcb1c51c,No Documents Yet,এখনো কোনো ডকুমেন্ট নেই,profile_record,jsx_attr_accessible
+SG-45a75bf8,Open Documents,ডকুমেন্টস খুলুন,profile_record,jsx_prop_display+jsx_text+property_text
 SG-82f80289,Other Documents,অন্যান্য ডকুমেন্ট,profile_record,named_const_text
 SG-5463c56c,Read This Document,এই ডকুমেন্ট পড়ুন,profile_record,candidate_sentence+jsx_prop_display
 SG-d063da5d,"Search profiles, cases, documents...","প্রোফাইল, ভিসা ফাইল, ডকুমেন্ট খুঁজুন...",profile_record,candidate_sentence+jsx_attr_accessible
+SG-61d19de5,Use This Document&rsquo;s Value,এই ডকুমেন্টের মান ব্যবহার করুন,profile_record,jsx_text
+SG-9b2d3025,What Your Documents Show,আপনার ডকুমেন্টে যা দেখা যায়,profile_record,jsx_attr_accessible
 SG-469d5680,Document Needs Updating,ডকুমেন্ট আপডেট করা দরকার,public_marketing,property_text
+SG-2bc12cec,Documents,ডকুমেন্টস,public_marketing,jsx_text
 SG-dc8dd5cf,Your documents,আপনার ডকুমেন্ট,public_marketing,jsx_text
 SG-456b2613,Document Vault,ডকুমেন্ট ভল্ট,sharing_grants,jsx_text
+SG-88d6fc66,Documents,ডকুমেন্টস,sharing_grants,jsx_text
 SG-8b21f490,Every document,প্রতিটি ডকুমেন্ট,sharing_grants,jsx_text
 SG-7f6342c7,No Documents Shared,কোনো ডকুমেন্ট শেয়ার করা হয়নি,sharing_grants,jsx_attr_accessible
 SG-86c356da,Review My Documents,আমার ডকুমেন্ট পর্যালোচনা করুন,sharing_grants,property_text

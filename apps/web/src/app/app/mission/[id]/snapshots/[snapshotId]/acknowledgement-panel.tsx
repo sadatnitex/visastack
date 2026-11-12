@@ -63,22 +63,24 @@ export function AcknowledgementPanel({
   return (
     <article className="card u-mb-150">
       <p className="card-kicker">
-        {t('appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.finalReview')}
+        {t.node('appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.finalReview')}
       </p>
       <h2 className="card-title">
-        {t(
+        {t.node(
           'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.confirmThisPreparedFile',
         )}
       </h2>
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
-        {t(
+        {t.node(
           'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.thisPageIsTheExactEvidence',
         )}
       </p>
 
       <div className="notice u-mb-100">
         <strong>
-          {t('appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.whatYouAreConfirming')}
+          {t.node(
+            'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.whatYouAreConfirming',
+          )}
         </strong>
         <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
           <li>
@@ -87,12 +89,12 @@ export function AcknowledgementPanel({
             page.
           </li>
           <li>
-            {t(
+            {t.node(
               'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.thatYouHaveReadItAcknowledging',
             )}
           </li>
           <li>
-            {t(
+            {t.node(
               'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.ifTheCaseChangesAfterwardsThis',
             )}
           </li>
@@ -101,7 +103,7 @@ export function AcknowledgementPanel({
 
       {changedSince ? (
         <p className="notice notice-warn u-mb-100">
-          {t(
+          {t.node(
             'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.theCaseChangedAfterYouLast',
           )}
         </p>
@@ -133,7 +135,7 @@ export function AcknowledgementPanel({
               ) : null}
               {entry.invalidatedAt ? (
                 <p className="muted u-fs-075-m0">
-                  {t(
+                  {t.node(
                     'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.historicalTheCaseChangedAfterThis',
                     { formatTimestamp: formatTimestamp(entry.invalidatedAt) },
                   )}
@@ -150,7 +152,7 @@ export function AcknowledgementPanel({
         <input type="hidden" name="expectedSnapshotChecksum" value={checksum} />
         <div className="field-row">
           <label className="field-label" htmlFor="reason">
-            {t(
+            {t.node(
               'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.reasonRequiredToRejectOrRequest',
             )}
           </label>

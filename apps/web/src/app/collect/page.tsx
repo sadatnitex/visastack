@@ -62,8 +62,8 @@ export default async function CollectPage({
   if (page.state === 'busy') {
     return (
       <Shell>
-        <h1 className="page-title">{t('collect.collectPage.pleaseTryAgainLater')}</h1>
-        <p>{t('collect.collectPage.tooManyLinksWereOpenedFrom')}</p>
+        <h1 className="page-title">{t.node('collect.collectPage.pleaseTryAgainLater')}</h1>
+        <p>{t.node('collect.collectPage.tooManyLinksWereOpenedFrom')}</p>
       </Shell>
     );
   }
@@ -72,13 +72,13 @@ export default async function CollectPage({
       <Shell>
         {params.left === '1' ? (
           <>
-            <h1 className="page-title">{t('collect.collectPage.youHaveLeftThisRequest')}</h1>
-            <p>{t('collect.collectPage.toComeBackOpenTheLink')}</p>
+            <h1 className="page-title">{t.node('collect.collectPage.youHaveLeftThisRequest')}</h1>
+            <p>{t.node('collect.collectPage.toComeBackOpenTheLink')}</p>
           </>
         ) : (
           <>
-            <h1 className="page-title">{t('collect.collectAccountPage.thisLinkIsNotOpen')}</h1>
-            <p>{t('collect.collectPage.theLinkMayHaveExpiredOr')}</p>
+            <h1 className="page-title">{t.node('collect.collectAccountPage.thisLinkIsNotOpen')}</h1>
+            <p>{t.node('collect.collectPage.theLinkMayHaveExpiredOr')}</p>
           </>
         )}
       </Shell>
@@ -168,7 +168,7 @@ export default async function CollectPage({
                 />
               ) : (
                 <p className="collect-notice" role="note">
-                  {t('collect.collectPage.thisChecklistCannotBeShownRight')}
+                  {t.node('collect.collectPage.thisChecklistCannotBeShownRight')}
                 </p>
               )}
               {uploads ? <GuestSentHistory desk={uploads} /> : null}
@@ -219,23 +219,23 @@ export default async function CollectPage({
       )}
       {!guestStep ? (
         <>
-          <p>{t('collect.collectPage.thisPrivateLinkComesFromAn')}</p>
+          <p>{t.node('collect.collectPage.thisPrivateLinkComesFromAn')}</p>
           <div className="collect-choices">
             <Link className="btn btn-primary" href={SIGN_IN_TO_RESPOND_HREF}>
-              {t('collect.collectPage.signInToRespond')}
+              {t.node('collect.collectPage.signInToRespond')}
             </Link>
             <Link className="btn btn-secondary" href="/collect?step=guest">
-              {t('collect.collectPage.continueWithoutAnAccount')}
+              {t.node('collect.collectPage.continueWithoutAnAccount')}
             </Link>
           </div>
           <p className="muted u-fs-085">
-            {t('collect.collectPage.withoutAnAccountNoVisastackProfile')}
+            {t.node('collect.collectPage.withoutAnAccountNoVisastackProfile')}
           </p>
         </>
       ) : !desk.guestAvailable || desk.guestSpent ? (
         <>
           <h2 className="collect-step-title">
-            {t('collect.collectPage.continueWithoutAnAccount')}
+            {t.node('collect.collectPage.continueWithoutAnAccount')}
           </h2>
           <p>
             {desk.guestSpent
@@ -243,35 +243,35 @@ export default async function CollectPage({
               : `This link was not sent to an email address, so it cannot be opened without an account. Ask ${agencyName ?? 'the agency'} to email the request to you, or sign in to respond.`}
           </p>
           <Link className="btn btn-secondary" href="/collect">
-            {t('collect.collectPage.back')}
+            {t.node('collect.collectPage.back')}
           </Link>
         </>
       ) : (
         <>
           <h2 className="collect-step-title">
-            {t('collect.collectPage.continueWithoutAnAccount')}
+            {t.node('collect.collectPage.continueWithoutAnAccount')}
           </h2>
           {desk.codePending ? (
             <>
               <output className="collect-notice">
                 {params.sent === '1'
-                  ? t('collect.collectPage.weSentASixDigitCode')
-                  : t('collect.collectPage.aCodeWasSentToThe')}
+                  ? t.node('collect.collectPage.weSentASixDigitCode')
+                  : t.node('collect.collectPage.aCodeWasSentToThe')}
               </output>
               <VerifyCodeForm />
               <p className="muted u-fs-085">
-                {t('collect.collectPage.noEmailCheckYourSpamFolder')}
+                {t.node('collect.collectPage.noEmailCheckYourSpamFolder')}
               </p>
               <SendCodeForm again />
             </>
           ) : (
             <>
-              <p>{t('collect.collectPage.toSeeTheChecklistConfirmIt')}</p>
+              <p>{t.node('collect.collectPage.toSeeTheChecklistConfirmIt')}</p>
               <SendCodeForm />
             </>
           )}
           <Link className="collect-back" href="/collect">
-            {t('collect.collectPage.back')}
+            {t.node('collect.collectPage.back')}
           </Link>
         </>
       )}
@@ -310,7 +310,7 @@ function Shell({
         <div className="card-body">
           {children}
           <p className="muted u-fs-085 collect-attribution">
-            {t('collect.collectPage.ifYouWereNotExpectingThis')}
+            {t.node('collect.collectPage.ifYouWereNotExpectingThis')}
           </p>
         </div>
       </article>

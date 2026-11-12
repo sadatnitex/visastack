@@ -28,13 +28,13 @@ export default async function NewCollectionRequestPage({
     <div className="stack">
       <Link href={`/app/agency/${orgId}/collection`} className="page-back">
         <span aria-hidden="true">{'←'}</span>{' '}
-        {t('appAgency.appAgencyOrgidCollectionNewPage.documentRequests')}
+        {t.node('appAgency.appAgencyOrgidCollectionNewPage.documentRequests')}
       </Link>
       <h1 className="page-title">
-        {t('appAgency.appAgencyOrgidCollectionNewPage.newDocumentRequest')}
+        {t.node('appAgency.appAgencyOrgidCollectionNewPage.newDocumentRequest')}
       </h1>
       <p className="page-description">
-        {t('appAgency.appAgencyOrgidCollectionNewPage.noAccountOrProfileIsNeeded')}
+        {t.node('appAgency.appAgencyOrgidCollectionNewPage.noAccountOrProfileIsNeeded')}
       </p>
       <NewRequestForm
         organizationId={orgId}

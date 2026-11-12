@@ -87,14 +87,14 @@ export function ResponseForm({
                 <p className="muted u-fs-085">{item.meta}</p>
                 {item.note ? (
                   <p className="u-fs-085">
-                    {t('collect.collectAccountResponseForm.noteFromTheAgencyNote', {
+                    {t.node('collect.collectAccountResponseForm.noteFromTheAgencyNote', {
                       note: item.note,
                     })}
                   </p>
                 ) : null}
                 {matches.length === 0 && others.length === 0 ? (
                   <p className="muted u-fs-085">
-                    {t('collect.collectAccountResponseForm.nothingInThisRecordMatchesYet')}
+                    {t.node('collect.collectAccountResponseForm.nothingInThisRecordMatchesYet')}
                   </p>
                 ) : null}
                 {matches.map((choice) => (
@@ -110,8 +110,8 @@ export function ResponseForm({
                   <details className="collect-response-more">
                     <summary>
                       {matches.length > 0
-                        ? t('collect.collectAccountResponseForm.chooseADifferentDocument')
-                        : t('collect.collectAccountResponseForm.chooseFromYourDocuments')}
+                        ? t.node('collect.collectAccountResponseForm.chooseADifferentDocument')
+                        : t.node('collect.collectAccountResponseForm.chooseFromYourDocuments')}
                     </summary>
                     {others.map((choice) => (
                       <ChoiceRow
@@ -127,13 +127,13 @@ export function ResponseForm({
                 <p id={`${groupId}-state`} className="collect-response-state u-fs-085">
                   {ticked.size === 0 ? (
                     <span className="collect-response-missing">
-                      {t('collect.collectAccountResponseForm.stillMissing')}
+                      {t.node('collect.collectAccountResponseForm.stillMissing')}
                     </span>
                   ) : (
                     <span>
                       {ticked.size === 1
-                        ? t('collect.collectAccountResponseForm.oneCopyChosen')
-                        : t('collect.collectAccountResponseForm.sizeCopiesChosen', {
+                        ? t.node('collect.collectAccountResponseForm.oneCopyChosen')
+                        : t.node('collect.collectAccountResponseForm.sizeCopiesChosen', {
                             size: ticked.size,
                           })}
                     </span>
@@ -148,14 +148,14 @@ export function ResponseForm({
       <section className="card" aria-labelledby="collect-response-review">
         <div className="card-body stack">
           <h2 id="collect-response-review">
-            {t('collect.collectAccountResponseForm.reviewAndSubmit')}
+            {t.node('collect.collectAccountResponseForm.reviewAndSubmit')}
           </h2>
           <output className="collect-response-summary">
             {missing === 0
-              ? t('collect.collectAccountResponseForm.everyItemHasSomethingChosen')
+              ? t.node('collect.collectAccountResponseForm.everyItemHasSomethingChosen')
               : missing === 1
-                ? t('collect.collectAccountResponseForm.oneItemIsStillMissingYou')
-                : t('collect.collectAccountResponseForm.missingItemsAreStillMissingYou', {
+                ? t.node('collect.collectAccountResponseForm.oneItemIsStillMissingYou')
+                : t.node('collect.collectAccountResponseForm.missingItemsAreStillMissingYou', {
                     missing: missing,
                   })}
           </output>

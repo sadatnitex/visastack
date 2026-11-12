@@ -36,7 +36,9 @@ export default async function AcceptContributorRequestPage({
       <section className="section container">
         <article className="card">
           <p className="card-body">
-            {t('appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsMissingItsToken')}
+            {t.node(
+              'appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsMissingItsToken',
+            )}
           </p>
         </article>
       </section>
@@ -59,17 +61,17 @@ export default async function AcceptContributorRequestPage({
     <section className="section container">
       <div className="u-mb-150">
         <span className="eyebrow">
-          {t('appContributorRequests.appContributorRequestsAcceptPage.contributorRequest')}
+          {t.node('appContributorRequests.appContributorRequestsAcceptPage.contributorRequest')}
         </span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          {t('appContributorRequests.appContributorRequestsAcceptPage.provideOneDocument')}
+          {t.node('appContributorRequests.appContributorRequestsAcceptPage.provideOneDocument')}
         </h1>
       </div>
       <article className="card">
         {!data.preview.ok ? (
           <p className="card-body">
             {data.preview.error.code === 'not_found'
-              ? t('appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsNotValid')
+              ? t.node('appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsNotValid')
               : data.preview.error.message}
           </p>
         ) : (
@@ -80,31 +82,31 @@ export default async function AcceptContributorRequestPage({
               <strong>{documentTypeLabel(data.preview.value.docType).toLowerCase()}</strong>.
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t('appContributorRequests.appContributorRequestsAcceptPage.why')}
+              {t.node('appContributorRequests.appContributorRequestsAcceptPage.why')}
             </p>
             <p className="card-body u-mb-100">{data.preview.value.purpose}</p>
             {data.preview.value.message ? (
               <>
                 <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-                  {t('appContributorRequests.appContributorRequestsAcceptPage.message')}
+                  {t.node('appContributorRequests.appContributorRequestsAcceptPage.message')}
                 </p>
                 <p className="card-body u-mb-100">{data.preview.value.message}</p>
               </>
             ) : null}
 
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t('appContributorRequests.appContributorRequestsAcceptPage.whoWillSeeThis')}
+              {t.node('appContributorRequests.appContributorRequestsAcceptPage.whoWillSeeThis')}
             </p>
             <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
               <li className="muted u-fs-085">
-                {t(
+                {t.node(
                   'appContributorRequests.appContributorRequestsAcceptPage.applicantnameTheTraveller',
                   { applicantName: data.preview.value.applicantName },
                 )}
               </li>
               {data.preview.value.recipientOrganizationNames.map((name) => (
                 <li className="muted u-fs-085" key={name}>
-                  {t(
+                  {t.node(
                     'appContributorRequests.appContributorRequestsAcceptPage.nameHelpingWithThisCase',
                     { name },
                   )}
@@ -113,28 +115,30 @@ export default async function AcceptContributorRequestPage({
             </ul>
 
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t('appContributorRequests.appContributorRequestsAcceptPage.howLongItSKept')}
+              {t.node('appContributorRequests.appContributorRequestsAcceptPage.howLongItSKept')}
             </p>
             <p className="card-body u-mb-100">
               {retentionDays !== null
-                ? t(
+                ? t.node(
                     'appContributorRequests.appContributorRequestsAcceptPage.retentiondaysDaysFromUploadUnderThis',
                     { retentionDays },
                   )
-                : t(
+                : t.node(
                     'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentTypeDoesnTHave',
                   )}
             </p>
 
             <div className="notice notice-warn u-mb-125">
-              {t(
+              {t.node(
                 'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentMayBeIncludedIn',
               )}
             </div>
 
             {!data.preview.value.emailMatches ? (
               <p className="card-body" style={{ color: 'var(--danger, #b42318)' }}>
-                {t('appContributorRequests.appContributorRequestsAcceptPage.thisRequestWasSentToA')}
+                {t.node(
+                  'appContributorRequests.appContributorRequestsAcceptPage.thisRequestWasSentToA',
+                )}
               </p>
             ) : (
               <SubmitEvidenceForm token={token} docType={data.preview.value.docType} />

@@ -71,7 +71,7 @@ export default async function AgencyConsoleLayout({
         </>
       ) : (
         <article className="card">
-          <p className="card-body">{t('appAgency.appAgencyOrgidLayout.youDonTHaveARole')}</p>
+          <p className="card-body">{t.node('appAgency.appAgencyOrgidLayout.youDonTHaveARole')}</p>
         </article>
       )}
     </section>

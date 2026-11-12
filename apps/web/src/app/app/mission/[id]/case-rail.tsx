@@ -139,7 +139,7 @@ function RailSources({ sources }: { readonly sources: readonly CaseSourceRow[] }
   return (
     <section className="case-sources lift-rail-sources" aria-labelledby="case-sources-heading">
       <h3 id="case-sources-heading" className="lift-rail-subhead">
-        {t('appMission.appMissionIdCaseChecklist.sourcesForThisChecklist')}
+        {t.node('appMission.appMissionIdCaseChecklist.sourcesForThisChecklist')}
       </h3>
       <ul className="case-sources-list lift-source-list">
         {sources.map((source) => (
@@ -156,7 +156,7 @@ function RailSources({ sources }: { readonly sources: readonly CaseSourceRow[] }
         ))}
       </ul>
       <p className="muted lift-rail-note">
-        {t('appMission.appMissionIdCaseChecklist.checkedIsWhenVisastackLastRead')}
+        {t.node('appMission.appMissionIdCaseChecklist.checkedIsWhenVisastackLastRead')}
       </p>
     </section>
   );
@@ -195,7 +195,8 @@ function CaseDetailsCard({
             <Icon name="briefcase" size={18} />
           </span>
           <span>
-            {mission.jurisdiction || t('appMission.appMissionIdCaseRail.embassyOrVisaCentreNotSet')}
+            {mission.jurisdiction ||
+              t.node('appMission.appMissionIdCaseRail.embassyOrVisaCentreNotSet')}
             {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
           </span>
         </p>
@@ -211,7 +212,7 @@ function CaseDetailsCard({
               <Icon name="clock" size={18} />
             </span>
             <span>
-              {t('appMission.appMissionIdCaseRail.targetDeadlineFormatdateonly', {
+              {t.node('appMission.appMissionIdCaseRail.targetDeadlineFormatdateonly', {
                 formatDateOnly: formatDateOnly(mission.targetDeadline, locale),
               })}
             </span>
@@ -223,7 +224,7 @@ function CaseDetailsCard({
           <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
         ) : (
           <details className="case-details-edit lift-rail-edit">
-            <summary>{t('appMission.appMissionIdCaseRail.editCaseDetails')}</summary>
+            <summary>{t.node('appMission.appMissionIdCaseRail.editCaseDetails')}</summary>
             <CaseDetailsForm
               missionId={mission.id}
               jurisdiction={mission.jurisdiction}
@@ -291,7 +292,7 @@ function PackCard({
             {packInfo.notice ? <p className="muted lift-rail-line">{packInfo.notice}</p> : null}
             {packInfo.effectiveDate ? (
               <p className="muted lift-rail-note">
-                {t('appMission.appMissionIdCaseRail.inEffectSinceFormatdateonly', {
+                {t.node('appMission.appMissionIdCaseRail.inEffectSinceFormatdateonly', {
                   formatDateOnly: formatDateOnly(packInfo.effectiveDate),
                 })}
               </p>
@@ -301,7 +302,7 @@ function PackCard({
           <>
             {isInactiveCaseState(mission.state) ? (
               <p className="lift-rail-line">
-                {t('appMission.appMissionIdCaseRail.noChecklistWasLinkedToThis')}
+                {t.node('appMission.appMissionIdCaseRail.noChecklistWasLinkedToThis')}
               </p>
             ) : packOptions.length === 0 ? (
               // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
@@ -327,7 +328,7 @@ function PackCard({
               </>
             ) : (
               <p className="lift-rail-line">
-                {t('appMission.appMissionIdCaseRail.pickAChecklistAttachAPublished')}
+                {t.node('appMission.appMissionIdCaseRail.pickAChecklistAttachAPublished')}
               </p>
             )}
             {isInactiveCaseState(mission.state) ? (
@@ -377,7 +378,7 @@ function SnapshotsCard({
         </p>
         {snapshots.length === 0 ? (
           <p className="lift-rail-line">
-            {t('appMission.appMissionIdCaseRail.noSnapshotsYetCaptureOneTo')}
+            {t.node('appMission.appMissionIdCaseRail.noSnapshotsYetCaptureOneTo')}
           </p>
         ) : (
           <div className="lift-snap-list">
@@ -397,7 +398,7 @@ function SnapshotsCard({
                       Version {snap.version}
                       {isPacket ? (
                         <span className="badge badge-success lift-ml-050">
-                          {t('appMission.appMissionIdCaseRail.applicationPacket')}
+                          {t.node('appMission.appMissionIdCaseRail.applicationPacket')}
                         </span>
                       ) : null}
                     </span>
@@ -416,7 +417,7 @@ function SnapshotsCard({
         {moreSnapshots ? (
           <p className="lift-rail-line">
             <Link href={`/app/mission/${mission.id}/snapshots`}>
-              {t('appMission.appMissionIdCaseRail.seeAllSnapshots')}
+              {t.node('appMission.appMissionIdCaseRail.seeAllSnapshots')}
             </Link>
           </p>
         ) : null}
@@ -443,10 +444,10 @@ function ItineraryCard({
         tone="violet"
       >
         <p className="lift-rail-line">
-          {t('appMission.appMissionIdCaseRail.anOptionalLabelLinkingThisCase')}
+          {t.node('appMission.appMissionIdCaseRail.anOptionalLabelLinkingThisCase')}
         </p>
         <details className="lift-help lift-rail-edit" open={Boolean(mission.itineraryRef)}>
-          <summary>{t('appMission.appMissionIdCaseRail.linkToAFamilyTrip')}</summary>
+          <summary>{t.node('appMission.appMissionIdCaseRail.linkToAFamilyTrip')}</summary>
           <div className="lift-help-body">
             <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
           </div>
@@ -526,8 +527,8 @@ export function CaseRail({
           {stageStates.length === 0 ? (
             <p className="lift-rail-line">
               {nextStates.length === 0
-                ? t('appMission.appMissionIdCaseRail.thisCaseIsInATerminal')
-                : t('appMission.appMissionIdCaseRail.thereIsNoFurtherStageFrom')}
+                ? t.node('appMission.appMissionIdCaseRail.thisCaseIsInATerminal')
+                : t.node('appMission.appMissionIdCaseRail.thereIsNoFurtherStageFrom')}
             </p>
           ) : (
             <TransitionButtons missionId={mission.id} nextStates={stageStates} />
