@@ -1,8 +1,11 @@
+import { type Locale, formatDate } from '@visastack/i18n';
 import Link from 'next/link';
 import { atLevel } from '../../../components/depth';
 import { ShowMore } from '../../../components/show-more';
+import { appNotificationsCatalog } from '../../../i18n/app-notifications';
 import type { DepthLevel } from '../../../lib/ccd/depth';
 import { formatTimestampDate } from '../../../lib/format-date';
+import { getServerT } from '../../../lib/i18n-server';
 import type { SearchParamsRecord } from '../../../lib/paging';
 
 export interface NotificationRow {
@@ -32,6 +35,7 @@ export function NotificationList({
   searchParams,
   markReadAction,
   markAllReadAction,
+  locale = 'en',
 }: {
   readonly notifications: readonly NotificationRow[];
   /** The `show` value for the next load; null when nothing more exists. */
@@ -41,20 +45,23 @@ export function NotificationList({
   readonly searchParams: SearchParamsRecord;
   readonly markReadAction: FormAction;
   readonly markAllReadAction: FormAction;
+  /** Bengali readers get Bengali digits and month names; English output is unchanged. */
+  readonly locale?: Locale;
 }) {
+  const t = getServerT(appNotificationsCatalog);
   const anyUnread = notifications.some((n) => !n.read);
   return (
     <>
       {anyUnread ? (
         <form className="notifications-mark-all" action={markAllReadAction}>
           <button type="submit" className="btn btn-secondary u-btn-sm">
-            Mark All Read
+            {t('appNotifications.appNotificationsNotificationList.markAllRead')}
           </button>
         </form>
       ) : null}
       <section
         className="activity-log-scroll notifications-scroll"
-        aria-label="Notification List"
+        aria-label={t('appNotifications.appNotificationsNotificationList.notificationList')}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
         tabIndex={0}
       >
@@ -70,21 +77,31 @@ export function NotificationList({
                 <span className="row-key">
                   {n.subject}
                   {!n.read ? (
-                    <span className="badge badge-warning notification-new">New</span>
+                    <span className="badge badge-warning notification-new">
+                      {t('appNotifications.appNotificationsNotificationList.new')}
+                    </span>
                   ) : null}
                 </span>
-                <span className="muted u-fs-075">{formatTimestampDate(n.createdAt)}</span>
+                <span className="muted u-fs-075">
+                  {locale === 'bn'
+                    ? formatDate(n.createdAt, 'bn', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })
+                    : formatTimestampDate(n.createdAt)}
+                </span>
               </div>
               <p className="muted notification-summary">{n.summary}</p>
               <div className="notification-actions">
                 <Link href={n.deepLinkPath} className="btn btn-secondary u-btn-sm">
-                  Open
+                  {t('appNotifications.appNotificationsNotificationList.open')}
                 </Link>
                 {!n.read ? (
                   <form action={markReadAction}>
                     <input type="hidden" name="notificationId" value={n.id} />
                     <button type="submit" className="btn btn-secondary u-btn-sm">
-                      Mark Read
+                      {t('appNotifications.appNotificationsNotificationList.markRead')}
                     </button>
                   </form>
                 ) : null}

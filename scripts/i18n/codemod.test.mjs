@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
+import ts from 'typescript';
 import { parseCatalog } from './catalog.mjs';
 import { runCodemod } from './codemod.mjs';
 import { FILES, loadFormatter, loadModule, makeRoot, readTree, render } from './fixtures.mjs';
 import { renderedJsxText } from './jsx-text.mjs';
 import { KeyAllocator, fileSlug, textSlug } from './keys.mjs';
 import { HOLDBACK, Register } from './register.mjs';
+import { defaultExportFn } from './transform.mjs';
 
 const SRC = Object.keys(FILES).filter((f) => f.endsWith('.tsx'));
 const CAT = 'apps/web/src/i18n/fixture.ts';
@@ -338,17 +340,21 @@ describe('holdback list', () => {
     }).lookup({ file: 'a.tsx', line: 1, censusText: 'Terms', english: 'Terms' });
 
   // The exact list, so deleting a held group (which would let its Bengali ship) turns this red.
-  // Adding a held group means adding it here too, in the same change. This is the union of waves A, B and C (applicant, part 1).
+  // Adding a held group means adding it here too, in the same change. This is the union of every merged wave.
   const EXPECTED_HELD = [
+    'SG-0006fab9',
     'SG-0016aa98',
     'SG-00706ded',
     'SG-03b8a6b0',
+    'SG-04e98a42',
     'SG-079d1f0e',
     'SG-094bebc7',
     'SG-0b6663fd',
+    'SG-0b90abd7',
     'SG-0c3f69ec',
     'SG-0f9d5b37',
     'SG-1065be84',
+    'SG-1167490a',
     'SG-1436ceee',
     'SG-153f9777',
     'SG-1549c176',
@@ -356,6 +362,7 @@ describe('holdback list', () => {
     'SG-192889ed',
     'SG-197fdeca',
     'SG-19b168cd',
+    'SG-1c102ea8',
     'SG-1fec77cc',
     'SG-226bab50',
     'SG-22bda9c8',
@@ -367,16 +374,21 @@ describe('holdback list', () => {
     'SG-338d92d1',
     'SG-361e0c20',
     'SG-37c14fc0',
+    'SG-39303114',
+    'SG-3a144529',
     'SG-3a222fbf',
     'SG-3d6b855e',
+    'SG-436b1b32',
     'SG-45ad6a0b',
     'SG-461caf20',
+    'SG-4bd5843b',
     'SG-4bfc56d4',
     'SG-4d48fa01',
     'SG-4e812a3e',
     'SG-4fbf3546',
     'SG-5018af46',
     'SG-50c83703',
+    'SG-529d695c',
     'SG-5463c56c',
     'SG-57b3157f',
     'SG-57e8fee4',
@@ -386,6 +398,7 @@ describe('holdback list', () => {
     'SG-59d94eb1',
     'SG-5a6c4e41',
     'SG-5efa8d43',
+    'SG-5f0ee722',
     'SG-61e87632',
     'SG-63dab094',
     'SG-658e1cac',
@@ -396,8 +409,11 @@ describe('holdback list', () => {
     'SG-6cdf21a6',
     'SG-6dc10a9f',
     'SG-72d9142d',
+    'SG-750b0e73',
+    'SG-7739b95f',
     'SG-7b432da4',
     'SG-7d8d7a57',
+    'SG-7f6342c7',
     'SG-81bf750c',
     'SG-826d2c99',
     'SG-84514c27',
@@ -406,17 +422,28 @@ describe('holdback list', () => {
     'SG-8829c695',
     'SG-882d2ab6',
     'SG-8881fc69',
+    'SG-88aeced1',
     'SG-8939253f',
     'SG-8987f99a',
+    'SG-89e5a96d',
+    'SG-8be28114',
     'SG-8d14d065',
+    'SG-8d730501',
     'SG-8e79eb73',
     'SG-8fd6641e',
+    'SG-93434b03',
+    'SG-938c310f',
     'SG-9574696f',
     'SG-98c55098',
     'SG-991b05ef',
+    'SG-9b86192c',
+    'SG-9c7d6ee0',
     'SG-9d878677',
+    'SG-9da51aed',
     'SG-9e771a8e',
+    'SG-a104e7e5',
     'SG-a17de272',
+    'SG-a23537b2',
     'SG-a59d20ba',
     'SG-a5b2278c',
     'SG-a5fa0621',
@@ -424,6 +451,7 @@ describe('holdback list', () => {
     'SG-a8684ed6',
     'SG-aa9771db',
     'SG-ac40a214',
+    'SG-aeff30b3',
     'SG-afe937a3',
     'SG-b08c4520',
     'SG-b41c58b1',
@@ -437,6 +465,7 @@ describe('holdback list', () => {
     'SG-c26f3e5b',
     'SG-c60ff807',
     'SG-c68a7790',
+    'SG-c983b88e',
     'SG-c9a7f414',
     'SG-cb6538b8',
     'SG-cda9a1ac',
@@ -445,13 +474,16 @@ describe('holdback list', () => {
     'SG-d3914f71',
     'SG-d39a9da3',
     'SG-d5319908',
+    'SG-d5eb6533',
     'SG-d7a62e22',
     'SG-d7bcf439',
     'SG-d9696fe7',
     'SG-dc081055',
     'SG-de969496',
     'SG-dedaa54b',
+    'SG-df4ae9fc',
     'SG-e004a268',
+    'SG-e2005eec',
     'SG-e3fdc097',
     'SG-e4498255',
     'SG-e4a97e33',
@@ -696,5 +728,23 @@ SG-ACTION,ORDINARY_UI,Open,\u0996\u09c1\u09b2\u09c1\u09a8,PASS
     assert.throws(() => run(r3), /i18n runtime is not on this branch.*i18n-server\.ts/);
     assert.deepEqual(readTree(r3, SRC), before);
     assert.equal(run(r3, SRC, { dryRun: true }).converted.length, 15);
+  });
+});
+
+describe('the default export of a page with overloads', () => {
+  const parse = (text) => ts.createSourceFile('page.tsx', text, ts.ScriptTarget.Latest, true);
+  test('overload signatures with no body are skipped; the implementation is found', () => {
+    const sf = parse(
+      'export default function Page(a: string): string;\nexport default function Page(a: number): number;\nexport default function Page(a: unknown) { return a; }\n',
+    );
+    const found = defaultExportFn(sf);
+    assert.ok(found?.body, 'the function with a body is returned');
+    assert.equal(found.parameters[0].type.getText(sf), 'unknown');
+  });
+  test('a lone signature with no body is not a page function', () => {
+    assert.equal(
+      defaultExportFn(parse('export default function Page(a: string): string;\n')),
+      null,
+    );
   });
 });

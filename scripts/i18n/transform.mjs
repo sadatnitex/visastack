@@ -809,6 +809,7 @@ export function defaultExportFn(sf) {
   for (const st of sf.statements) {
     if (
       ts.isFunctionDeclaration(st) &&
+      st.body &&
       hasMod(st, ts.SyntaxKind.ExportKeyword) &&
       hasMod(st, ts.SyntaxKind.DefaultKeyword)
     )

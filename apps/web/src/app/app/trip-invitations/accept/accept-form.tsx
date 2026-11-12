@@ -10,6 +10,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appTripInvitationsCatalog } from '../../../../i18n/app-trip-invitations';
 import { acceptTripInvitationAction, declineTripInvitationAction } from './actions';
 
 /** One level a person may share, with the one plain line that says what the organiser then sees. */
@@ -35,6 +37,7 @@ export function AcceptTripInvitationForm({
   readonly first: ShareChoice;
   readonly more: readonly ShareChoice[];
 }) {
+  const t = useT(appTripInvitationsCatalog);
   const [state, action, pending] = useActionState<FormResult, FormData>(
     acceptTripInvitationAction,
     NO_RESULT,
@@ -64,7 +67,7 @@ export function AcceptTripInvitationForm({
       <input type="hidden" name="token" value={token} />
       <div className="companion-field">
         <label className="label" htmlFor={`${id}-name`}>
-          Your Name
+          {t('appTripInvitations.appTripInvitationsAcceptAcceptForm.yourName')}
         </label>
         <input
           id={`${id}-name`}
@@ -77,20 +80,24 @@ export function AcceptTripInvitationForm({
           {...fieldProblem(state, 'displayName', messageId, hintId)}
         />
         <p id={hintId} className="muted u-fs-085 u-m-0">
-          This is the name others on the trip will see.
+          {t('appTripInvitations.appTripInvitationsAcceptAcceptForm.thisIsTheNameOthersOn')}
         </p>
         <FieldError result={state} field="displayName" />
       </div>
       <fieldset className="companion-share">
-        <legend className="label">What You Share with the Organiser</legend>
+        <legend className="label">
+          {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser')}
+        </legend>
         {choice(first, true)}
         <details className="companion-more">
-          <summary>Share More</summary>
+          <summary>{t('appTripInvitations.appTripInvitationsAcceptAcceptForm.shareMore')}</summary>
           {more.map((item) => choice(item, false))}
         </details>
         <FieldError result={state} field="shareLevel" />
       </fieldset>
-      <p className="muted u-fs-085 u-m-0">You can change this, or leave the trip, at any time.</p>
+      <p className="muted u-fs-085 u-m-0">
+        {t('appTripInvitations.appTripInvitationsAcceptAcceptForm.youCanChangeThisOrLeave')}
+      </p>
       <div className="companion-actions">
         <SubmitButton
           pending={pending}
