@@ -48,3 +48,13 @@ describe('serviceErrorMessage for sharing refusals', () => {
     );
   });
 });
+
+describe('the extend button matches the catalogue wording', () => {
+  it('the English it compares against is the catalogue value, so a wording change fails here', async () => {
+    const { GRANT_EXTEND_ENDED, GRANT_EXTEND_RESUME_FIRST } = await import('@visastack/services');
+    expect(keyedError('invalid', 'sharing.extendEnded').message).toBe(GRANT_EXTEND_ENDED);
+    expect(keyedError('invalid', 'sharing.extendResumeFirst').message).toBe(
+      GRANT_EXTEND_RESUME_FIRST,
+    );
+  });
+});
