@@ -1,41 +1,46 @@
 import Link from 'next/link';
+import { trustCatalog } from '../i18n/trust';
+import { getServerT } from '../lib/i18n-server';
 import { Icon } from './icons';
 
 /** Public explanation and a labelled illustration, never private sharing records. */
 export function PublicTrustStory() {
+  const t = getServerT(trustCatalog);
   return (
     <section className="trust-story land-wrap" aria-labelledby="trust-story-title">
       <div className="trust-hero">
         <div>
-          <div className="eyebrow">The Trust Model</div>
+          <div className="eyebrow">{t('trust.publicTrustStory.theTrustModel')}</div>
           <h1 id="trust-story-title">
             Your documents.
             <em>Your decisions.</em>
           </h1>
-          <p>
-            Your passport and personal records belong to you. Keep them organized, choose what you
-            share, and review the history of your changes.
-          </p>
+          <p>{t('trust.publicTrustStory.yourPassportAndPersonalRecordsBelong')}</p>
           <a href="/app" className="btn btn-primary">
             <Icon name="plus" size={17} />
-            Start with Your Own Profile
+            {t('trust.publicTrustStory.startWithYourOwnProfile')}
           </a>
         </div>
-        <aside className="trust-control" aria-label="Example of sharing permissions">
-          <p className="trust-example-label">Illustration with Made-Up Details</p>
+        <aside
+          className="trust-control"
+          aria-label={t('trust.publicTrustStory.exampleOfSharingPermissions')}
+        >
+          <p className="trust-example-label">
+            {t('trust.publicTrustStory.illustrationWithMadeUpDetails')}
+          </p>
           <div className="trust-window-head">
-            <h2>Sharing Permissions</h2>
-            <span className="trust-control-chip">You Choose</span>
+            <h2>{t('trust.publicTrustStory.sharingPermissions')}</h2>
+            <span className="trust-control-chip">{t('trust.publicTrustStory.youChoose')}</span>
           </div>
           <div className="trust-person">
             <span className="trust-avatar">
               <Icon name="user" size={20} />
             </span>
             <div>
-              <b>Example Traveller</b>
-              <small>Owner of this example file</small>
+              <b>{t('trust.publicTrustStory.exampleTraveller')}</b>
+              <small>{t('trust.publicTrustStory.ownerOfThisExampleFile')}</small>
             </div>
-            <span className="trust-control-chip">Your Records</span>
+            <span className="trust-control-chip">{t('trust.publicTrustStory.yourRecords')}</span>
           </div>
           <div className="trust-divider" />
           <div className="trust-person">
@@ -43,25 +48,25 @@ export function PublicTrustStory() {
               <Icon name="building" size={20} />
             </span>
             <div>
-              <b>Example Agency</b>
-              <small>Selected items for a limited time</small>
+              <b>{t('trust.publicTrustStory.exampleAgency')}</b>
+              <small>{t('trust.publicTrustStory.selectedItemsForALimitedTime')}</small>
             </div>
           </div>
           <div className="trust-selection">
             <span>
               <Icon name="check" size={15} />
-              Passport summary
+              {t('trust.publicTrustStory.passportSummary')}
             </span>
             <span>
               <Icon name="check" size={15} />
-              Confirmed itinerary
+              {t('trust.publicTrustStory.confirmedItinerary')}
             </span>
             <span>
               <Icon name="lock" size={15} />
-              Original files stay protected
+              {t('trust.publicTrustStory.originalFilesStayProtected')}
             </span>
           </div>
-          <p className="trust-revoke">Review, pause or end future access in your sharing page.</p>
+          <p className="trust-revoke">{t('trust.publicTrustStory.reviewPauseOrEndFutureAccess')}</p>
         </aside>
       </div>
       <div className="trust-principles">
@@ -69,47 +74,37 @@ export function PublicTrustStory() {
           <span className="trust-feature-icon">
             <Icon name="shield" size={24} />
           </span>
-          <h2 className="card-title">Private by Design</h2>
-          <p className="card-body">
-            Your records belong to you. Choose the recipient, purpose, items and time limit for each
-            sharing request.
-          </p>
+          <h2 className="card-title">{t('trust.publicTrustStory.privateByDesign')}</h2>
+          <p className="card-body">{t('trust.publicTrustStory.yourRecordsBelongToYouChoose')}</p>
         </article>
         <article className="card">
           <span className="trust-feature-icon">
             <Icon name="eye" size={24} />
           </span>
-          <h2 className="card-title">Know Who Can See What</h2>
+          <h2 className="card-title">{t('trust.publicTrustStory.knowWhoCanSeeWhat')}</h2>
           <p className="card-body">
-            Access starts after acceptance. You can stop future access, but cannot erase copies
-            already downloaded.
+            {t('trust.publicTrustStory.accessStartsAfterAcceptanceYouCan')}
           </p>
         </article>
         <article className="card">
           <span className="trust-feature-icon">
             <Icon name="clipboard" size={24} />
           </span>
-          <h2 className="card-title">A History You Can Review</h2>
-          <p className="card-body">
-            Changes are recorded as new versions. Review your history and request export or
-            deletion, subject to legal retention.
-          </p>
+          <h2 className="card-title">{t('trust.publicTrustStory.aHistoryYouCanReview')}</h2>
+          <p className="card-body">{t('trust.publicTrustStory.changesAreRecordedAsNewVersions')}</p>
         </article>
         <article className="card">
           <span className="trust-feature-icon">
             <Icon name="check" size={24} />
           </span>
-          <h2 className="card-title">AI suggests. You decide.</h2>
-          <p className="card-body">
-            A suggestion stays separate from a confirmed fact until you approve it. You can also
-            enter details by hand.
-          </p>
+          <h2 className="card-title">{t('trust.publicTrustStory.aiSuggestsYouDecide')}</h2>
+          <p className="card-body">{t('trust.publicTrustStory.aSuggestionStaysSeparateFromA')}</p>
         </article>
       </div>
       <div className="trust-bottom">
-        <span>Clear boundaries. Human control. No approval guarantees.</span>
+        <span>{t('trust.publicTrustStory.clearBoundariesHumanControlNoApproval')}</span>
         <Link href="/privacy">
-          View Privacy Details <Icon name="arrow" size={16} />
+          {t('trust.publicTrustStory.viewPrivacyDetails')} <Icon name="arrow" size={16} />
         </Link>
       </div>
     </section>

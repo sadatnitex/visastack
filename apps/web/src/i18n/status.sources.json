@@ -1,0 +1,15 @@
+{
+  "status.statusStatusView.aboutThisVersion": "SG-81955cdb",
+  "status.statusStatusView.checkNow": "SG-66ef3646",
+  "status.statusStatusView.checking": "SG-58cec423",
+  "status.statusStatusView.checkingWhichFeaturesAreWorking": "SG-66420a10",
+  "status.statusStatusView.features": "SG-53ccdc48",
+  "status.statusStatusView.featuresThatAreNotSwitchedOn": "SG-32c94c5f",
+  "status.statusStatusView.live": "SG-73be4ccc",
+  "status.statusStatusView.loading": "SG-c2dd568c",
+  "status.statusStatusView.notSwitchedOnYet": "SG-56fbf87a",
+  "status.statusStatusView.theListOfFeaturesIsNot": "SG-b974092a",
+  "status.statusStatusView.updatedUpdatedatThisPageChecksAgain": "SG-3e3de18d",
+  "status.statusStatusView.whatWorksToday": "SG-b8936294",
+  "status.statusStatusView.youCanUseNow": "SG-f28cc3e4"
+}

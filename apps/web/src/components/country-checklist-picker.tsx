@@ -1,9 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { useId, useState } from 'react';
+import { homeCatalog } from '../i18n/home';
 import type { StartCountry, StartData, StartRoute } from '../lib/country-start';
 import { startHrefForCountry } from '../lib/country-start-links';
 import { CountryFlag } from './country-flag';
+import { useT } from './i18n-provider';
 
 /**
  * "Pick a country, see the checklist at once" (Growth G2). A person types or chooses a country and
@@ -59,6 +61,7 @@ export function CountryChecklistPicker({
   signUpOpen = true,
   action,
 }: CountryChecklistPickerProps) {
+  const t = useT(homeCatalog);
   const ids = useId();
   const inputId = `${ids}-country`;
   const listId = `${ids}-names`;
@@ -102,7 +105,7 @@ export function CountryChecklistPicker({
     <div className={`country-pick country-pick-${variant}`}>
       <div className="country-pick-field">
         <label htmlFor={inputId} className="country-pick-label">
-          Which Country Do You Want to Visit?
+          {t('home.countryChecklistPicker.whichCountryDoYouWantTo')}
         </label>
         <input
           id={inputId}
@@ -121,7 +124,7 @@ export function CountryChecklistPicker({
           autoCapitalize="words"
           spellCheck={false}
           enterKeyHint="done"
-          placeholder="For example: Japan"
+          placeholder={t('home.countryChecklistPicker.forExampleJapan')}
           aria-describedby={`${hintId} ${statusId}`}
         />
         <datalist id={listId}>
@@ -130,8 +133,10 @@ export function CountryChecklistPicker({
           ))}
         </datalist>
         <p className="muted country-pick-hint" id={hintId}>
-          Type a name or open the list. Checklists are ready for {data.withChecklist} of{' '}
-          {data.countries.length} countries today. For the rest we point you to the official page.
+          {t('home.countryChecklistPicker.typeANameOrOpenThe', {
+            withChecklist: data.withChecklist,
+            length: data.countries.length,
+          })}
         </p>
         <output className="country-pick-status" id={statusId}>
           {status}
@@ -150,13 +155,11 @@ export function CountryChecklistPicker({
             </span>
           </div>
           <p className="muted">
-            For an ordinary Bangladeshi passport. This is a list of what is usually asked for. It is
-            not a decision and not a promise. Rules change, so confirm on the official page before
-            you apply.
+            {t('home.countryChecklistPicker.forAnOrdinaryBangladeshiPassportThis')}
           </p>
           {routeKeys.length > 1 ? (
             <div className="country-pick-route">
-              <label htmlFor={routeId}>Visa Type</label>
+              <label htmlFor={routeId}>{t('home.countryChecklistPicker.visaType')}</label>
               <select
                 id={routeId}
                 className="input"
@@ -191,9 +194,16 @@ export function CountryChecklistPicker({
                           <span className="country-pick-mark" aria-hidden="true" />
                           <span>
                             {item.text}
-                            {item.optional ? <span className="muted"> (optional)</span> : null}
+                            {item.optional ? (
+                              <span className="muted">
+                                {' '}
+                                {t('home.countryChecklistPicker.optional')}
+                              </span>
+                            ) : null}
                             {item.check ? (
-                              <span className="badge badge-warning">Needs Checking</span>
+                              <span className="badge badge-warning">
+                                {t('home.countryChecklistPicker.needsChecking')}
+                              </span>
                             ) : null}
                             {conditions.map((line) => (
                               <span key={line} className="muted country-pick-note">
@@ -208,10 +218,7 @@ export function CountryChecklistPicker({
                 </div>
               ))}
               {route.thin ? (
-                <p className="muted">
-                  This list may not be complete. Check the official page for everything you need to
-                  submit.
-                </p>
+                <p className="muted">{t('home.countryChecklistPicker.thisListMayNotBeComplete')}</p>
               ) : null}
             </div>
           ) : (
@@ -226,7 +233,7 @@ export function CountryChecklistPicker({
           {country.officialUrl ? (
             <p className="country-pick-official">
               <a href={country.officialUrl} target="_blank" rel="noopener noreferrer">
-                Open the Official Page
+                {t('home.countryChecklistPicker.openTheOfficialPage')}
               </a>
             </p>
           ) : null}
@@ -238,25 +245,25 @@ export function CountryChecklistPicker({
                 href={startHrefForCountry(country.iso2, signUpOpen)}
               >
                 {signUpOpen
-                  ? `Create Free Account for ${country.name}`
-                  : `Sign In to Start With ${country.name}`}
+                  ? t('home.countryChecklistPicker.createFreeAccountForName', {
+                      name: country.name,
+                    })
+                  : t('home.countryChecklistPicker.signInToStartWithName', { name: country.name })}
               </Link>
-              <p className="muted">
-                We keep your country for the next step, so your checklist is waiting.
-              </p>
+              <p className="muted">{t('home.countryChecklistPicker.weKeepYourCountryForThe')}</p>
             </div>
           ) : action ? (
             <form className="country-pick-action" action={action}>
               <input type="hidden" name="country" value={country.iso2} />
               <button type="submit" className="btn btn-primary">
-                Continue With {country.name}
+                {t('home.countryChecklistPicker.continueWithName', { name: country.name })}
               </button>
             </form>
           ) : null}
         </section>
       ) : (
         <p className="country-pick-empty">
-          Your checklist appears here as soon as you pick a country.
+          {t('home.countryChecklistPicker.yourChecklistAppearsHereAsSoon')}
         </p>
       )}
     </div>

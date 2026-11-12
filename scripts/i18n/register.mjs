@@ -35,6 +35,52 @@ export const HOLDBACK = new Map([
     'SG-361e0c20',
     'Terms: a legal document name, held English like Privacy until the owner signs off.',
   ],
+  [
+    'SG-57e8fee4',
+    'Free-at-your-own-risk notice (virus scanning not yet on): a risk notice, waits for the owner sign-off.',
+  ],
+  [
+    'SG-8939253f',
+    'Privacy heading (how information is treated): privacy wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-fe6d2f71',
+    'Sharing flow description that mentions agreeing to share: consent wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-cda9a1ac',
+    'Sharing starts with permission: a consent promise, waits for the owner sign-off.',
+  ],
+  [
+    'SG-461caf20',
+    'Trust page disclaimer (no approval guarantees): legal-style disclaimer, waits for the owner sign-off.',
+  ],
+  ['SG-b6f48122', 'Private by Design: a privacy claim, waits for the owner sign-off.'],
+  [
+    'SG-f92f9f0f',
+    'Not Currently Verified: status of official visa information, waits for the owner sign-off.',
+  ],
+  [
+    'SG-8e79eb73',
+    'Official Channel: points to official visa sources, waits for the owner sign-off.',
+  ],
+  [
+    'SG-7d8d7a57',
+    'Invitation terms of sharing (what happens if you accept): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-c26f3e5b',
+    'Invitation consent statement (nothing shared until you accept): owner sign-off.',
+  ],
+  [
+    'SG-1fec77cc',
+    'Invitation acceptance statement (opening the link accepts nothing): owner sign-off.',
+  ],
+  [
+    'SG-f5a73aec',
+    'Invitation consent withdrawal statement (stop sharing at any time): owner sign-off.',
+  ],
+  ['SG-f8a50812', 'Invitation expiry rule (7 days) and revocation: a stated rule, owner sign-off.'],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
