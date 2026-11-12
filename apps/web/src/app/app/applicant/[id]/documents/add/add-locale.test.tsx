@@ -71,7 +71,6 @@ vi.mock('./reading-switch', () => ({ ReadingSwitch: stub('ReadingSwitch') }));
 const { default: AddDocumentsPage } = await import('./page');
 
 const bn = appApplicantCatalog.bn as Record<string, string>;
-const en = appApplicantCatalog.en as Record<string, string>;
 const K = 'appApplicant.appApplicantIdDocumentsAddPage.';
 const BENGALI = /[ঀ-৿]/;
 

@@ -119,7 +119,12 @@ describe('signed-off wording on the applicant screens, under Bengali', () => {
       <NeedsDecision
         applicantId="a1"
         items={[
-          { kind: 'suggested_kind', documentId: 'd1', title: 'Scan', suggestedLabel: 'Bank Statement' },
+          {
+            kind: 'suggested_kind',
+            documentId: 'd1',
+            title: 'Scan',
+            suggestedLabel: 'Bank Statement',
+          },
         ]}
         linked={[]}
       />,

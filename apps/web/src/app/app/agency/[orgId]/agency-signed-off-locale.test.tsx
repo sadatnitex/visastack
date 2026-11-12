@@ -92,7 +92,9 @@ describe('signed-off wording on the agency screens, under Bengali', () => {
   });
 
   it('the evidence request form says when no traveller has granted access', async () => {
-    await show(<RequestEvidenceForm organizationId="org-1" picker={fixturePicker} applicants={[]} />);
+    await show(
+      <RequestEvidenceForm organizationId="org-1" picker={fixturePicker} applicants={[]} />,
+    );
     expectBengali(`${P}RequestEvidenceForm.noTravellerHasGrantedThisOrganization`);
   });
 

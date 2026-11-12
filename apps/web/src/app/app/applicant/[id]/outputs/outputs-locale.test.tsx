@@ -70,7 +70,6 @@ const { default: OutputsPage } = await import('./page');
 const { applicantOutputsCatalog } = await import('../../../../../i18n/applicant-outputs');
 
 const bn = applicantOutputsCatalog.bn as Record<string, string>;
-const en = applicantOutputsCatalog.en as Record<string, string>;
 const P = 'applicantOutputs.appApplicantIdOutputsPage.';
 const RAW_KEY = /applicantOutputs\.app[A-Z]/;
 const BENGALI = /[ঀ-৿]/;

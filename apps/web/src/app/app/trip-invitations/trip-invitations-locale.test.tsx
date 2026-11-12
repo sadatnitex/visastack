@@ -75,7 +75,6 @@ const { default: JoinedTripPage } = await import('./[id]/page');
 
 const BENGALI = /[ঀ-৿]/;
 const bn = appTripInvitationsCatalog.bn as Record<string, string>;
-const en = appTripInvitationsCatalog.en as Record<string, string>;
 const key = (page: string, name: string) => `appTripInvitations.appTripInvitations${page}.${name}`;
 
 let previousSwitch: string | undefined;

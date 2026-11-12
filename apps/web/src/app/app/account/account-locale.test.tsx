@@ -97,7 +97,6 @@ const { default: PlanPage } = await import('./plan/page');
 
 const BENGALI = /[ঀ-৿]/;
 const bn = appAccountCatalog.bn as Record<string, string>;
-const en = appAccountCatalog.en as Record<string, string>;
 
 async function html(locale: 'en' | 'bn', page: () => Promise<React.JSX.Element>) {
   state.locale = locale;

@@ -12,7 +12,11 @@ vi.mock('@visastack/i18n', async (original) =>
 );
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const answer = vi.hoisted(() => ({
-  next: { ok: true, message: 'Shared.' } as { ok: boolean; message: string; invitationUrl?: string },
+  next: { ok: true, message: 'Shared.' } as {
+    ok: boolean;
+    message: string;
+    invitationUrl?: string;
+  },
 }));
 vi.mock('./actions', () => ({ createGrantAction: async () => answer.next }));
 vi.mock('./grant-ai-actions', () => ({ setGrantAiAssistAction: vi.fn() }));
@@ -125,7 +129,9 @@ describe('the sharing form under Bengali', () => {
       await act(async () => {
         host.querySelector('form')?.requestSubmit();
       });
-      expect(host.querySelector('.receipt-card h3')?.textContent).toBe(bn[`${K}sharingRequestCreated`]);
+      expect(host.querySelector('.receipt-card h3')?.textContent).toBe(
+        bn[`${K}sharingRequestCreated`],
+      );
       act(() => root.unmount());
       root = createRoot(host);
       answer.next = {

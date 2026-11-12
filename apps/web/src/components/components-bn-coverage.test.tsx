@@ -62,13 +62,13 @@ import { I18nProvider } from './i18n-provider';
 import { ProfilePhotoControl } from './profile-photo/profile-photo-control';
 import { PurposeChoice } from './purpose-choice';
 import { InstallAppCard } from './pwa/install-app-card';
+import { PwaRuntime } from './pwa/pwa-runtime';
 import { ReceiptCard } from './receipt-card';
 import { ReferenceCode } from './reference-code';
 import { SiteNavigation } from './site-navigation';
 import { TimeZoneSelect } from './time-zone-select';
 import { VersionNotice } from './version-notice';
 import { VisaPhotoSizes } from './visa-photo-sizes';
-import { PwaRuntime } from './pwa/pwa-runtime';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

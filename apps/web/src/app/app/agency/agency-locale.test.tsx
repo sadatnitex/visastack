@@ -162,7 +162,9 @@ describe('the team page under Bengali', () => {
     );
     expect(text).toContain(bn[k('appAgencyOrgidTeamPage.team')]);
     expect(text).toContain(bn[k('appAgencyOrgidTeamPage.members')]);
-    expect(text).toContain(bn[k('appAgencyOrgidTeamPage.membershipIsOrganizationalBookkeepingItNever')]);
+    expect(text).toContain(
+      bn[k('appAgencyOrgidTeamPage.membershipIsOrganizationalBookkeepingItNever')],
+    );
     expect(text).not.toContain('it never grants access');
   });
 });

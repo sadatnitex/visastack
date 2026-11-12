@@ -129,7 +129,9 @@ describe('open invitation states under Bengali', () => {
     svc.getConsents.mockResolvedValue({ CORE_PROCESSING: false, SHARING: false });
     const bn = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
     const text = bn.body.textContent ?? '';
-    expect(text).toContain(bnByEn(appClientInvitationsCatalog, 'If you accept, they will be able to:'));
+    expect(text).toContain(
+      bnByEn(appClientInvitationsCatalog, 'If you accept, they will be able to:'),
+    );
     expect(text).toContain(
       bnByEn(appClientInvitationsCatalog, 'Turn these on before accepting (both are required):'),
     );

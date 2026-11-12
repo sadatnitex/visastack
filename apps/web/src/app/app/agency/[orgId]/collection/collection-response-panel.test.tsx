@@ -239,7 +239,8 @@ describe('the agency Answers panel under Bengali (wording signed off 2026-11-12)
       expect(html, key).toContain(bn[key]);
       expect(html, key).not.toContain(en[key]);
     }
-    const holdKey = 'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.aLegalHoldKeepsTheGuest';
+    const holdKey =
+      'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.aLegalHoldKeepsTheGuest';
     expect(html).toContain((bn[holdKey] ?? '').replace('{reason}', 'Court order'));
   });
 });

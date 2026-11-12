@@ -1,12 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { primeLocale } from '../../../../../lib/i18n-server';
-import {
-  renderServer,
-  stub,
-  stubProps,
-  textOf,
-} from '../../../../../lib/next-mocks.test-support';
+import { renderServer, stub, stubProps, textOf } from '../../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
   getApplicant: vi.fn(),

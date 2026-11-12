@@ -168,9 +168,7 @@ describe('privacy screens under Bengali (owner-approved legal wording, signed of
     service.listConsentHistory.mockResolvedValue({ items: consentItems, nextCursor: null });
     const shown = await page('bn');
     seen.push(shown);
-    for (const key of [
-      'appPrivacy.appPrivacyPage.consentHistory',
-    ])
+    for (const key of ['appPrivacy.appPrivacyPage.consentHistory'])
       expect(shown + (markups.at(-1) ?? ''), key).toContain(bn[key]);
     expect(markups.at(-1)).toContain(bn['appPrivacy.appPrivacyPage.consentHistoryEntries']);
     expect(await page('en')).not.toMatch(BENGALI);

@@ -111,9 +111,7 @@ describe('the trip checks panel under Bengali (wording signed off 2026-11-12)', 
     loc.locale = 'en';
     const bn = appMissionCatalog.bn as Record<string, string>;
     const en = appMissionCatalog.en as Record<string, string>;
-    for (const key of [
-      'appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates',
-    ]) {
+    for (const key of ['appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates']) {
       expect(html, key).toContain(bn[key]);
       expect(html, key).not.toContain(en[key]);
     }

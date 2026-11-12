@@ -53,7 +53,6 @@ const { default: SharedWorkspacePage } = await import('./page');
 
 const BENGALI = /[ঀ-৿]/;
 const bn = appSharedCatalog.bn as Record<string, string>;
-const en = appSharedCatalog.en as Record<string, string>;
 const key = (name: string) => `appShared.appSharedGrantidPage.${name}`;
 
 function workspace(over: { documents?: unknown[]; fields?: unknown[]; scope?: boolean }) {
