@@ -8,7 +8,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable, issueEvidenceSubmissionReadRef } from './documents';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import {
   evidenceSubmissionsPresent,
   newerUnlinkedDecision,
@@ -112,7 +112,7 @@ async function audienceOf(
   requestId: string,
 ): Promise<Result<Audience, ServiceError>> {
   const db = access.tx;
-  const notFound = err(serviceError('not_found', 'evidence request not found'));
+  const notFound = err(keyedError('not_found', 'evidence_submissions.evidence_request_not_found'));
   if (!isUuid(requestId)) return notFound;
   const request = first(
     await db
@@ -364,7 +364,7 @@ export async function downloadEvidenceSubmissionFile(
   input: EvidenceSubmissionDownloadInput,
 ): Promise<Result<AccessRef, ServiceError>> {
   const db = access.tx;
-  const notFound = err(serviceError('not_found', 'document not found'));
+  const notFound = err(keyedError('not_found', 'evidence_submissions.document_not_found'));
   if (!isUuid(input.submissionId)) return notFound;
   if (!(await evidenceSubmissionsPresent(db))) return notFound;
   const submission = first(
@@ -408,7 +408,7 @@ export async function downloadEvidenceSubmissionFile(
 
   if (!serving.serves) {
     await audit('DENIED', serving.reason);
-    return err(serviceError('forbidden', 'this copy is no longer available to download'));
+    return err(keyedError('forbidden', 'evidence_submissions.this_copy_is_no_longer_available'));
   }
   const stepUpSatisfied = StepUpProof.covers(input.stepUp, {
     accountId: agency.accountId,
@@ -417,7 +417,9 @@ export async function downloadEvidenceSubmissionFile(
   });
   if (!stepUpSatisfied) {
     await audit('DENIED', 'step_up_required');
-    return err(serviceError('step_up_required', 'confirm it is you to download this file'));
+    return err(
+      keyedError('step_up_required', 'evidence_submissions.confirm_it_is_you_to_download'),
+    );
   }
   const pinned = await pinnedCopyForServing(db, submission);
   await audit(pinned.ok ? 'ALLOWED' : 'DENIED', pinned.ok ? null : pinned.reason);

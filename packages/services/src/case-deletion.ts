@@ -3,7 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { missionBlockedByLegalHold } from './legal-hold';
 
 /**
@@ -91,7 +91,7 @@ export async function deleteCancelledMission(
     proof.actor.kind !== 'applicant_owner' ||
     proof.resource.kind !== 'mission'
   ) {
-    return err(serviceError('forbidden', 'Only the owner of this case can delete it.'));
+    return err(keyedError('forbidden', 'case_deletion.only_the_owner_of_this_case'));
   }
   const missionId = proof.resource.mission.id;
   const applicantId = proof.applicant.id;

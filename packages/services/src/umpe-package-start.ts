@@ -8,7 +8,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq, isNull, notInArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { createMission } from './missions';
 import { INACTIVE_CASE_STATES } from './umpe-package-tables';
 
@@ -69,15 +69,15 @@ export async function openOrStartTripCase(
     proof.actor.kind !== 'applicant_owner' ||
     proof.resource.kind !== 'applicant'
   ) {
-    return err(serviceError('forbidden', 'Only the owner of this traveller can start a case.'));
+    return err(keyedError('forbidden', 'umpe_package_start.only_the_owner_of_this_traveller'));
   }
   const destination = intention.destination.trim();
   const purpose = intention.purpose.trim();
   if (destination.length === 0 || destination.length > NAME_MAX) {
-    return err(serviceError('invalid', 'Choose where you are going.'));
+    return err(keyedError('invalid', 'umpe_package_start.choose_where_you_are_going'));
   }
   if (purpose.length === 0 || purpose.length > NAME_MAX) {
-    return err(serviceError('invalid', 'Choose why you are travelling.'));
+    return err(keyedError('invalid', 'umpe_package_start.choose_why_you_are_travelling'));
   }
   const title = (intention.title?.trim() || `${destination} - ${purpose}`).slice(0, TITLE_MAX);
   const existing = await activeCaseFor(proof.tx, proof.applicant.id, destination, purpose);

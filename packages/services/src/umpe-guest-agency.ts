@@ -10,7 +10,7 @@ import { guestUploadsPresent, liveGuestSubmission } from './access/guest-submiss
 import { StepUpProof } from './access/step-up-proof';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { isUuid } from './lifecycle/foundation/ids';
 import type { BlobStore } from './storage';
 import { type CollectionItem, parseItems } from './umpe-collection-request-items';
@@ -34,7 +34,7 @@ import {
  */
 
 function missing(): ServiceError {
-  return serviceError('not_found', 'no such submission');
+  return keyedError('not_found', 'umpe_guest_agency.no_such_submission');
 }
 
 export interface GuestSubmissionView {
@@ -331,7 +331,9 @@ export async function downloadGuestSubmissionFile(
   }
   if (!StepUpProof.covers(input.stepUp, guestFileStepUp({ ...scope, fileId: input.fileId }))) {
     await audit('DENIED', 'step_up_required');
-    return err(serviceError('step_up_required', 'confirm it is you to download this file'));
+    return err(
+      keyedError('step_up_required', 'evidence_submissions.confirm_it_is_you_to_download'),
+    );
   }
   const file = first(
     await db
@@ -352,7 +354,7 @@ export async function downloadGuestSubmissionFile(
   const hash = stored ? createHash('sha256').update(stored.bytes).digest('hex') : null;
   if (!file || !stored || hash !== line.fileSha256 || hash !== file.sha256) {
     await audit('DENIED', 'bytes_unavailable');
-    return err(serviceError('forbidden', 'this file is not available'));
+    return err(keyedError('forbidden', 'umpe_guest_agency.this_file_is_not_available'));
   }
   await audit('ALLOWED', null);
   return ok({
@@ -433,7 +435,7 @@ export async function placeGuestHold(
   if (!(await guestUploadsPresent(db))) return err(missing());
   const text = typeof reason === 'string' ? reason.trim() : '';
   if (text.length < 1 || text.length > 500) {
-    return err(serviceError('invalid', 'Give the reason for the hold, in up to 500 characters.'));
+    return err(keyedError('invalid', 'umpe_guest_agency.give_the_reason_for_the_hold'));
   }
   return db.transaction(async (tx) => {
     // The request row lock orders a hold against the purge, which takes the same lock.

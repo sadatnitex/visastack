@@ -53,7 +53,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { incrementMaterialRevision } from './material-revision';
 import {
@@ -102,8 +102,6 @@ const REASON_MAX = 500;
 const HANDOFF_LIST_LIMIT = 20;
 const CANDIDATE_SCAN_LIMIT = 200;
 export const PACKAGE_HANDOFF_FORMAT = 1;
-
-const NOT_AVAILABLE = 'That case is not available.';
 
 // --- Types ------------------------------------------------------------------------------------
 
@@ -234,7 +232,7 @@ function ownerMissionOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
   missionId: string,
 ): Result<Mission, ServiceError> {
   if (!AuthorizedApplicant.isGenuine(proof, action) || proof.actor.kind !== 'applicant_owner') {
-    return err(serviceError('forbidden', 'Only the traveller who owns this case can do this.'));
+    return err(keyedError('forbidden', 'case_flow.only_the_traveller_who_owns_this'));
   }
   const resource = proof.resource;
   if (
@@ -243,7 +241,7 @@ function ownerMissionOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
     resource.mission.id !== missionId ||
     resource.mission.applicantId !== proof.applicant.id
   ) {
-    return err(serviceError('not_found', NOT_AVAILABLE));
+    return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   }
   return ok(resource.mission);
 }
@@ -1176,7 +1174,7 @@ export async function getCasePackage(
   const owned = ownerMissionOf(proof, 'VIEW_METADATA', missionId);
   if (!owned.ok) return owned;
   const mission = await freshMission(proof.tx, proof.applicant.id, missionId);
-  if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   const built = await buildPackage(proof.tx, mission, proof.applicant.ownerAccountId, now);
   if (!built.ok) return built;
   if (!built.value.pkg.available || !built.value.pkg.active) return ok(built.value.pkg);
@@ -1233,23 +1231,23 @@ export async function recordPackageChoice(
   if (!owned.ok) return owned;
   const tx = proof.tx;
   if (!UUID.test(input.packRequirementId)) {
-    return err(serviceError('not_found', 'That item is not on this checklist.'));
+    return err(keyedError('not_found', 'case_flow.that_item_is_not_on_this'));
   }
   if (!(await packageTablesPresent(tx))) {
-    return err(serviceError('invalid', 'Choosing copies is not available yet. Try again later.'));
+    return err(keyedError('invalid', 'umpe_package_service.choosing_copies_is_not_available_yet'));
   }
   const mission = await freshMission(tx, proof.applicant.id, input.missionId);
-  if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   if (!isActive(mission)) {
-    return err(serviceError('invalid', 'This case is finished, so its package cannot change.'));
+    return err(keyedError('invalid', 'umpe_package_service.this_case_is_finished_so_its'));
   }
   if (!mission.packVersionId) {
-    return err(serviceError('invalid', 'This case has no checklist yet.'));
+    return err(keyedError('invalid', 'case_flow.this_case_has_no_checklist_yet'));
   }
   const requirement = (await listRequirements(tx, mission.packVersionId)).find(
     (r) => r.id === input.packRequirementId,
   );
-  if (!requirement) return err(serviceError('not_found', 'That item is not on this checklist.'));
+  if (!requirement) return err(keyedError('not_found', 'case_flow.that_item_is_not_on_this'));
   const necessity = requirementNecessity({
     optional: requirement.optional,
     necessity: requirement.necessity,
@@ -1257,7 +1255,7 @@ export async function recordPackageChoice(
 
   const reason = 'reason' in input && input.reason !== undefined ? input.reason.trim() : '';
   if (reason.length > REASON_MAX) {
-    return err(serviceError('invalid', `Keep the reason to ${REASON_MAX} characters or fewer.`));
+    return err(keyedError('invalid', 'umpe_package_service.reason_max', { max: REASON_MAX }));
   }
   let pin: {
     documentId: string | null;
@@ -1268,15 +1266,10 @@ export async function recordPackageChoice(
 
   if (input.choice === 'EXCLUDE') {
     if (necessityCanBlock(necessity)) {
-      return err(
-        serviceError(
-          'invalid',
-          'This item is required, so it cannot be left out. You can leave it missing for now.',
-        ),
-      );
+      return err(keyedError('invalid', 'umpe_package_service.this_item_is_required_so_it'));
     }
     if (reason.length === 0) {
-      return err(serviceError('invalid', 'Say in a few words why you are leaving this out.'));
+      return err(keyedError('invalid', 'umpe_package_service.say_in_a_few_words_why'));
     }
   }
   if (input.choice === 'USE_COPY') {
@@ -1299,7 +1292,7 @@ export async function recordPackageChoice(
           )
         : undefined;
     if ((doc === undefined) === (fact === undefined)) {
-      return err(serviceError('not_found', 'That copy is not available for this item.'));
+      return err(keyedError('not_found', 'umpe_package_service.that_copy_is_not_available_for'));
     }
     pin = doc
       ? {
@@ -1492,31 +1485,26 @@ export async function confirmPackageHandoff(
   if (!owned.ok) return owned;
   const tx = proof.tx;
   if (!input.outsideStepsSeen) {
-    return err(serviceError('invalid', 'Confirm that you have read the steps outside VisaStack.'));
+    return err(keyedError('invalid', 'umpe_package_service.confirm_that_you_have_read_the'));
   }
   if (!(await packageTablesPresent(tx))) {
-    return err(
-      serviceError('invalid', 'Preparing a handoff is not available yet. Try again later.'),
-    );
+    return err(keyedError('invalid', 'umpe_package_service.preparing_a_handoff_is_not_available'));
   }
   const mission = await freshMission(tx, proof.applicant.id, input.missionId);
-  if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   if (!isActive(mission)) {
-    return err(serviceError('invalid', 'This case is finished, so it cannot be prepared again.'));
+    return err(keyedError('invalid', 'umpe_package_service.this_case_is_finished_so_it'));
   }
   const ownerAccountId = proof.applicant.ownerAccountId;
   const built = await buildPackage(tx, mission, ownerAccountId, now);
   if (!built.ok) return built;
   const pkg = built.value.pkg;
   if (pkg.phrase === 'PREPARED_FOR_HANDOFF') {
-    return err(serviceError('invalid', 'This package is already prepared for handoff.'));
+    return err(keyedError('invalid', 'umpe_package_service.this_package_is_already_prepared_for'));
   }
   if (pkg.phrase !== 'READY_FOR_FINAL_REVIEW' || !mission.packVersionId) {
     return err(
-      serviceError(
-        'invalid',
-        'Some items still need attention before you can prepare the handoff.',
-      ),
+      keyedError('invalid', 'umpe_package_service.some_items_still_need_attention_before'),
     );
   }
   const packVersionId = mission.packVersionId;
@@ -1644,10 +1632,7 @@ export async function confirmPackageHandoff(
   } catch (error) {
     if (error instanceof HandoffMismatch) {
       return err(
-        serviceError(
-          'stale',
-          'Something changed while preparing the handoff. Review the package and try again.',
-        ),
+        keyedError('stale', 'umpe_package_service.something_changed_while_preparing_the_handoff'),
       );
     }
     throw error;
@@ -1662,7 +1647,7 @@ export async function listPackageHandoffs(
   const owned = ownerMissionOf(proof, 'VIEW_METADATA', missionId);
   if (!owned.ok) return owned;
   const mission = await freshMission(proof.tx, proof.applicant.id, missionId);
-  if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   if (!(await packageTablesPresent(proof.tx))) return ok([]);
   const rows = await proof.tx
     .select()
@@ -1694,7 +1679,7 @@ export async function markPackageChangeReviewed(
   if (!owned.ok) return owned;
   if (!(await packageTablesPresent(proof.tx))) return ok({ reviewed: false });
   const mission = await freshMission(proof.tx, proof.applicant.id, missionId);
-  if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   return proof.tx.transaction(async (tx) => {
     const now = new Date();
     const rows = await tx

@@ -32,7 +32,6 @@ import { and, asc, count, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
 import type { AuthorizedApplicant } from './access/require-access';
 import {
   COMPANION_LIST_LIMIT,
-  COMPANION_UNAVAILABLE,
   type TripCompanionAccess,
   companionsReady,
   invitedCompanionAccess,
@@ -43,7 +42,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, isUniqueViolation, schema } from './db';
 import { isEmailAddress } from './email-address';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
@@ -138,11 +137,7 @@ export interface CompanionTripView {
 
 /** What every companion writer says while the switch is off or the table is missing. */
 export const COMPANION_NOT_SWITCHED_ON = 'Travelling with someone else is not switched on yet.';
-const NOT_SWITCHED_ON = COMPANION_NOT_SWITCHED_ON;
-const PERSON_NOT_AVAILABLE = 'That person is not on this trip.';
-const TRIP_NOT_AVAILABLE = 'That trip is not available.';
-const INVITE_RATE_LIMITED = 'Too many invitations in a short time. Please try again later.';
-const ATTEMPT_RATE_LIMITED = 'Too many tries in a short time. Please try again later.';
+
 const ORGANISER_ORGANISER = 'The organiser';
 
 // --- Small helpers ----------------------------------------------------------------------------
@@ -151,7 +146,7 @@ const ORGANISER_ORGANISER = 'The organiser';
 async function consentProblem(db: Db, ownerAccountId: string): Promise<ServiceError | null> {
   return (await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))
     ? null
-    : serviceError('consent_required', 'Core processing consent is required');
+    : keyedError('consent_required', 'missions.core_processing_consent_is_required');
 }
 
 /** A person's name as shown: trimmed, one space between words, 1 to 120 characters, no controls. */
@@ -246,21 +241,24 @@ export async function addCompanion(
   const owner = ownerAccountOf(proof, 'MANAGE');
   if (!owner.ok) return owner;
   const db = proof.tx;
-  if (!(await companionsReady(db))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await companionsReady(db)))
+    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
   const consent = await consentProblem(db, owner.value);
   if (consent) return err(consent);
   const name = cleanName(input.name);
-  if (name === null) return err(serviceError('invalid', NAME_PROBLEM));
+  if (name === null)
+    return err(keyedError('invalid', 'umpe_trip_companions.enter_a_name_of_up_to'));
   const given = input.email?.trim() ?? '';
   const email = given === '' ? null : cleanEmail(given);
   if (given !== '' && email === null) {
-    return err(serviceError('invalid', 'Enter a valid email address, or leave it empty.'));
+    return err(keyedError('invalid', 'umpe_trip_companions.enter_a_valid_email_address_or'));
   }
   if ((await ownedTripId(db, owner.value, tripId)) === null) {
-    return err(serviceError('not_found', TRIP_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companions.that_trip_is_not_available'));
   }
   const limited = await inviteRateLimited(db, owner.value, email);
-  if (limited) return err(serviceError('rate_limited', INVITE_RATE_LIMITED));
+  if (limited)
+    return err(keyedError('rate_limited', 'umpe_trip_companions.too_many_invitations_in_a_short'));
   const issued = email === null ? null : newToken();
   try {
     return await db.transaction(async (tx) => {
@@ -278,9 +276,7 @@ export async function addCompanion(
           .limit(1),
       );
       if (email !== null && own?.email.trim().toLowerCase() === email) {
-        return err(
-          serviceError('invalid', 'That is your own email address. You are already on this trip.'),
-        );
+        return err(keyedError('invalid', 'umpe_trip_companions.that_is_your_own_email_address'));
       }
       const companions = schema.umpeTripCompanions;
       const live = first(
@@ -296,10 +292,9 @@ export async function addCompanion(
       );
       if (Number(live?.n ?? 0) >= TRIP_MAX_COMPANIONS) {
         return err(
-          serviceError(
-            'invalid',
-            `A trip can include up to ${TRIP_MAX_COMPANIONS} people travelling with you.`,
-          ),
+          keyedError('invalid', 'umpe_trip_companions.trip_companions_max', {
+            max: TRIP_MAX_COMPANIONS,
+          }),
         );
       }
       if (email !== null) {
@@ -316,7 +311,10 @@ export async function addCompanion(
             )
             .limit(1),
         );
-        if (twice) return err(serviceError('invalid', ALREADY_ADDED));
+        if (twice)
+          return err(
+            keyedError('invalid', 'umpe_trip_companions.you_have_already_added_someone_with'),
+          );
       }
       const expiresAt = issued ? new Date(Date.now() + COMPANION_INVITATION_DAYS * DAY_MS) : null;
       const row = first(
@@ -365,12 +363,11 @@ export async function addCompanion(
     });
   } catch (error) {
     // Another request added the same address first: the same plain answer as a visible duplicate.
-    if (isUniqueViolation(error)) return err(serviceError('invalid', ALREADY_ADDED));
+    if (isUniqueViolation(error))
+      return err(keyedError('invalid', 'umpe_trip_companions.you_have_already_added_someone_with'));
     throw error;
   }
 }
-
-const ALREADY_ADDED = 'You have already added someone with that email to this trip.';
 
 function newToken(): { readonly rawToken: string; readonly tokenHash: string } {
   const rawToken = generateInvitationToken();
@@ -414,7 +411,7 @@ export async function listCompanions(
   const db = proof.tx;
   if (!(await companionsReady(db))) return ok([]);
   if ((await ownedTripId(db, owner.value, tripId)) === null) {
-    return err(serviceError('not_found', TRIP_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companions.that_trip_is_not_available'));
   }
   const companions = schema.umpeTripCompanions;
   const rows = await db
@@ -546,9 +543,10 @@ export async function removeCompanion(
   const owner = ownerAccountOf(proof, 'MANAGE');
   if (!owner.ok) return owner;
   const db = proof.tx;
-  if (!(await companionsReady(db))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await companionsReady(db)))
+    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
   if (!UUID.test(companionId) || (await ownedTripId(db, owner.value, tripId)) === null) {
-    return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
   }
   return db.transaction(async (tx) => {
     const companions = schema.umpeTripCompanions;
@@ -569,7 +567,8 @@ export async function removeCompanion(
         ),
       )
       .returning({ id: companions.id });
-    if (changed.length === 0) return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
+    if (changed.length === 0)
+      return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
     await withdrawPapers(tx, companionId);
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_REMOVED',
@@ -599,11 +598,12 @@ export async function resendInvitation(
   const owner = ownerAccountOf(proof, 'MANAGE');
   if (!owner.ok) return owner;
   const db = proof.tx;
-  if (!(await companionsReady(db))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await companionsReady(db)))
+    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
   const consent = await consentProblem(db, owner.value);
   if (consent) return err(consent);
   if (!UUID.test(companionId) || (await ownedTripId(db, owner.value, tripId)) === null) {
-    return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
   }
   const companions = schema.umpeTripCompanions;
   const row = first(
@@ -614,22 +614,21 @@ export async function resendInvitation(
       .limit(1),
   );
   if (!row || row.state === 'REMOVED' || row.state === 'LEFT') {
-    return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
   }
   if (row.state === 'JOINED') {
-    return err(serviceError('invalid', 'This person has already joined the trip.'));
+    return err(keyedError('invalid', 'umpe_trip_companions.this_person_has_already_joined_the'));
   }
   if (row.state === 'NAME_ONLY' || row.email === null) {
-    return err(
-      serviceError('invalid', 'This person has no email address to send an invitation to.'),
-    );
+    return err(keyedError('invalid', 'umpe_trip_companions.this_person_has_no_email_address'));
   }
   const trip = await checkRateLimit(
     db,
     { subjectId: tripId, action: 'trip_companion.resend', label: 'invitation' },
     RATE_LIMITS.COMPANION_RESEND_TRIP,
   );
-  if (!trip.allowed) return err(serviceError('rate_limited', INVITE_RATE_LIMITED));
+  if (!trip.allowed)
+    return err(keyedError('rate_limited', 'umpe_trip_companions.too_many_invitations_in_a_short'));
   const address = await checkRateLimit(
     db,
     {
@@ -639,7 +638,8 @@ export async function resendInvitation(
     },
     RATE_LIMITS.COMPANION_INVITE_EMAIL_DAY,
   );
-  if (!address.allowed) return err(serviceError('rate_limited', INVITE_RATE_LIMITED));
+  if (!address.allowed)
+    return err(keyedError('rate_limited', 'umpe_trip_companions.too_many_invitations_in_a_short'));
   const recipient = row.email;
   if (row.state === 'DECLINED') return ok({ invitation: null });
   const issued = newToken();
@@ -669,7 +669,8 @@ export async function resendInvitation(
           ),
         );
     }
-    if (changed.length === 0) return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
+    if (changed.length === 0)
+      return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_RESENT',
       actorAccountId: owner.value,
@@ -720,12 +721,17 @@ export async function openCompanionInvitation(
   db: Db,
   input: { readonly accountId: string; readonly rawToken: string },
 ): Promise<Result<TripCompanionAccess, ServiceError>> {
-  if (!(await companionsReady(db))) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+  if (!(await companionsReady(db)))
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   if (await attemptLimited(db, input.accountId)) {
-    return err(serviceError('rate_limited', ATTEMPT_RATE_LIMITED));
+    return err(keyedError('rate_limited', 'umpe_trip_companions.too_many_tries_in_a_short'));
   }
   const access = await invitedCompanionAccess(db, input.accountId, input.rawToken);
-  return access ? ok(access) : err(serviceError('not_found', COMPANION_UNAVAILABLE));
+  return access
+    ? ok(access)
+    : err(keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'));
 }
 
 /**
@@ -742,7 +748,9 @@ export async function previewCompanionInvitation(
   const summary = await readCompanionTripSummary(db, access.value);
   if (!summary.ok) return summary;
   if (summary.value.expiresAt === null)
-    return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   return ok({
     title: summary.value.title,
     destination: summary.value.destination,
@@ -774,20 +782,26 @@ export async function acceptCompanionInvitation(
   if (problem) return err(problem);
   const level = input.shareLevel ?? 'NAME_ONLY';
   if (!isShareLevel(level)) {
-    return err(serviceError('invalid', 'Choose how much you want to share.'));
+    return err(keyedError('invalid', 'umpe_trip_companions.choose_how_much_you_want_to'));
   }
   const name = input.displayName === undefined ? undefined : cleanName(input.displayName);
-  if (name === null) return err(serviceError('invalid', NAME_PROBLEM));
+  if (name === null)
+    return err(keyedError('invalid', 'umpe_trip_companions.enter_a_name_of_up_to'));
   try {
     return await db.transaction(async (tx) => {
       // The proof is made again inside the transaction: the link must still be this account's.
       const fresh = await invitedCompanionAccess(tx, access.accountId, input.rawToken);
       if (!fresh || fresh.companionId !== access.companionId) {
-        return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+        return err(
+          keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+        );
       }
       if (!(await hasConsent(tx, access.accountId, 'CORE_PROCESSING'))) {
         return err(
-          serviceError('consent_required', 'Confirm account consent before joining a trip.'),
+          keyedError(
+            'consent_required',
+            'umpe_trip_companions.confirm_account_consent_before_joining_a',
+          ),
         );
       }
       const companions = schema.umpeTripCompanions;
@@ -804,7 +818,10 @@ export async function acceptCompanionInvitation(
           )
           .limit(1),
       );
-      if (already) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+      if (already)
+        return err(
+          keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+        );
       const claimed = await tx
         .update(companions)
         .set({
@@ -826,7 +843,10 @@ export async function acceptCompanionInvitation(
           ),
         )
         .returning({ id: companions.id });
-      if (claimed.length === 0) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+      if (claimed.length === 0)
+        return err(
+          keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+        );
       await appendAuditEvent(tx, {
         eventType: 'UMPE_TRIP_COMPANION_ACCEPTED',
         actorAccountId: access.accountId,
@@ -840,7 +860,10 @@ export async function acceptCompanionInvitation(
     });
   } catch (error) {
     // Joined the same trip through another invitation at the same moment.
-    if (isUniqueViolation(error)) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    if (isUniqueViolation(error))
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
     throw error;
   }
 }
@@ -859,7 +882,9 @@ export async function declineCompanionInvitation(
   return db.transaction(async (tx) => {
     const fresh = await invitedCompanionAccess(tx, access.accountId, input.rawToken);
     if (!fresh || fresh.companionId !== access.companionId) {
-      return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
     }
     const companions = schema.umpeTripCompanions;
     const changed = await tx
@@ -874,7 +899,10 @@ export async function declineCompanionInvitation(
         ),
       )
       .returning({ id: companions.id });
-    if (changed.length === 0) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    if (changed.length === 0)
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_DECLINED',
       actorAccountId: access.accountId,
@@ -904,7 +932,9 @@ export async function readCompanionTripSummary(
   const asJoined = tripCompanionAccessProblem(access, 'JOINED');
   if (asJoined && tripCompanionAccessProblem(access, 'INVITED')) return err(asJoined);
   if (!(await tripCompanionsTablePresent(db)))
-    return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   const companions = schema.umpeTripCompanions;
   const live =
     access.standing === 'JOINED'
@@ -925,7 +955,10 @@ export async function readCompanionTripSummary(
       .where(and(eq(companions.id, access.companionId), eq(companions.tripId, access.tripId), live))
       .limit(1),
   );
-  if (!row) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+  if (!row)
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   return ok({
     tripId: access.tripId,
     standing: access.standing,
@@ -1033,7 +1066,10 @@ export async function leaveTrip(
         ),
       )
       .returning({ id: companions.id });
-    if (changed.length === 0) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    if (changed.length === 0)
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
     await withdrawPapers(tx, access.companionId);
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_LEFT',
@@ -1061,7 +1097,7 @@ export async function setCompanionShareLevel(
   const problem = tripCompanionAccessProblem(access, 'JOINED');
   if (problem) return err(problem);
   if (!isShareLevel(level)) {
-    return err(serviceError('invalid', 'Choose how much you want to share.'));
+    return err(keyedError('invalid', 'umpe_trip_companions.choose_how_much_you_want_to'));
   }
   return db.transaction(async (tx) => {
     const companions = schema.umpeTripCompanions;
@@ -1078,7 +1114,10 @@ export async function setCompanionShareLevel(
       )
       .for('update');
     const current = first(now);
-    if (!current) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    if (!current)
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
     if (current.shareLevel === level) return ok({ shareLevel: level });
     await tx
       .update(companions)

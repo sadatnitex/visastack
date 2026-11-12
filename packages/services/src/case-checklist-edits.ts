@@ -5,7 +5,7 @@ import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { caseChecklistEditsTablePresent } from './case-checklist-edit-tables';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { listRequirements } from './packs';
 import { INACTIVE_CASE_STATES } from './umpe-package-tables';
 
@@ -23,9 +23,6 @@ import { INACTIVE_CASE_STATES } from './umpe-package-tables';
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NOT_AVAILABLE = 'That case is not available.';
-const NOT_ON_LIST = 'That item is not on this checklist.';
-const NOT_SWITCHED_ON = 'Editing your list is not switched on yet. Try again later.';
 
 /** The longest sentence a traveller may write for one item. */
 export const CHECKLIST_WORDING_MAX = 400;
@@ -50,10 +47,10 @@ function missionOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
   missionId: string,
 ): Result<{ readonly id: string; readonly applicantId: string }, ServiceError> {
   if (!AuthorizedApplicant.isGenuine(proof, action)) {
-    return err(serviceError('forbidden', 'You cannot change this list.'));
+    return err(keyedError('forbidden', 'checklist_wording.you_cannot_change_this_list'));
   }
   if (proof.actor.kind !== 'applicant_owner') {
-    return err(serviceError('forbidden', 'Only the traveller who owns this case can do this.'));
+    return err(keyedError('forbidden', 'case_flow.only_the_traveller_who_owns_this'));
   }
   const resource = proof.resource;
   if (
@@ -62,7 +59,7 @@ function missionOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
     resource.mission.id !== missionId ||
     resource.mission.applicantId !== proof.applicant.id
   ) {
-    return err(serviceError('not_found', NOT_AVAILABLE));
+    return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   }
   return ok({ id: resource.mission.id, applicantId: proof.applicant.id });
 }
@@ -119,7 +116,7 @@ export async function listCaseChecklistEdits(
       )
       .limit(1),
   );
-  if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   const rows = await tx
     .select({
       packRequirementId: schema.caseChecklistEdits.packRequirementId,
@@ -169,13 +166,16 @@ export async function setChecklistWording(
   const owned = missionOf(proof, 'MANAGE', input.missionId);
   if (!owned.ok) return owned;
   const tx = proof.tx;
-  if (!UUID.test(input.packRequirementId)) return err(serviceError('not_found', NOT_ON_LIST));
+  if (!UUID.test(input.packRequirementId))
+    return err(keyedError('not_found', 'case_flow.that_item_is_not_on_this'));
   const wording = tidyWording(input.wording);
   if (wording.length > CHECKLIST_WORDING_MAX) {
-    return err(serviceError('invalid', `Keep it to ${CHECKLIST_WORDING_MAX} characters or fewer.`));
+    return err(
+      keyedError('invalid', 'checklist_wording.wording_max', { max: CHECKLIST_WORDING_MAX }),
+    );
   }
   if (!(await caseChecklistEditsTablePresent(tx))) {
-    return err(serviceError('invalid', NOT_SWITCHED_ON));
+    return err(keyedError('invalid', 'checklist_wording.editing_your_list_is_not_switched'));
   }
   return tx.transaction(async (inner: Db) => {
     // The case is read again here and locked, so two edits at once cannot both pass the row cap.
@@ -192,20 +192,20 @@ export async function setChecklistWording(
         .limit(1)
         .for('update'),
     );
-    if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
+    if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
     if (
       mission.purgedAt !== null ||
       (INACTIVE_CASE_STATES as readonly string[]).includes(mission.state)
     ) {
-      return err(serviceError('invalid', 'This case is finished, so its list cannot change.'));
+      return err(keyedError('invalid', 'checklist_wording.this_case_is_finished_so_its'));
     }
     if (!openWithChecklist(mission) || !mission.packVersionId) {
-      return err(serviceError('invalid', 'This case has no checklist yet.'));
+      return err(keyedError('invalid', 'case_flow.this_case_has_no_checklist_yet'));
     }
     const requirement = (await listRequirements(inner, mission.packVersionId)).find(
       (r) => r.id === input.packRequirementId,
     );
-    if (!requirement) return err(serviceError('not_found', NOT_ON_LIST));
+    if (!requirement) return err(keyedError('not_found', 'case_flow.that_item_is_not_on_this'));
 
     const existing = first(
       await inner
@@ -240,7 +240,7 @@ export async function setChecklistWording(
         .from(schema.caseChecklistEdits)
         .where(eq(schema.caseChecklistEdits.missionId, mission.id));
       if (held.length >= CHECKLIST_EDITS_MAX) {
-        return err(serviceError('invalid', 'This list has as many changes as it can hold.'));
+        return err(keyedError('invalid', 'checklist_wording.this_list_has_as_many_changes'));
       }
       await inner.insert(schema.caseChecklistEdits).values({
         missionId: mission.id,
