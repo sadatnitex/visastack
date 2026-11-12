@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../../components/i18n-provider';
 import { StatusClient } from './status-client';
 
 const NOTICE = {
@@ -64,5 +65,29 @@ describe('a link to a place on the status page (footer "About This Version")', (
     window.history.replaceState(null, '', '/status');
     await mountAndLoad();
     expect(scrolled).toEqual([]);
+  });
+});
+
+describe('the "Updated" time under Bengali', () => {
+  it('shows Bengali digits for the time, and the browser format for English', async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="bn" pageLang="en">
+          <StatusClient versionNotice={NOTICE} />
+        </I18nProvider>,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const line = container.querySelector('.toolbar .muted')?.textContent ?? '';
+    expect(line).toMatch(/[০-৯]{1,2}:[০-৯]{2}:[০-৯]{2}/);
+    expect(line).not.toMatch(/[0-9]/);
+  });
+
+  it('keeps Latin digits for English', async () => {
+    await mountAndLoad();
+    const line = container.querySelector('.toolbar .muted')?.textContent ?? '';
+    expect(line).toMatch(/\d{1,2}:\d{2}:\d{2}/);
   });
 });

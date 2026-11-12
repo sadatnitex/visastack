@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { trustCatalog } from '../i18n/trust';
+import { getServerT } from '../lib/i18n-server';
 
 /**
  * Shown on the public route information pages when the stored information cannot be read
@@ -7,25 +9,22 @@ import Link from 'next/link';
  * left on a bare error screen.
  */
 export function TrustUnavailable({ withinPage = false }: { readonly withinPage?: boolean } = {}) {
+  const t = getServerT(trustCatalog);
   const Heading = withinPage ? 'h2' : 'h1';
   return (
     <section className="section container">
       <article className="card" aria-labelledby="trust-unavailable-title">
-        <p className="card-kicker">Route Information</p>
+        <p className="card-kicker">{t('trust.trustUnavailable.routeInformation')}</p>
         <Heading className="card-title" id="trust-unavailable-title">
-          Route Information Is Not Available Right Now
+          {t('trust.trustUnavailable.routeInformationIsNotAvailableRight')}
         </Heading>
-        <p className="card-body">
-          We could not load this page. This is on our side, and nothing you entered anywhere is
-          affected. Please try again in a few minutes. For an urgent question about a visa, use the
-          official website of the country you are applying to.
-        </p>
+        <p className="card-body">{t('trust.trustUnavailable.weCouldNotLoadThisPage')}</p>
         <div className="cta-row u-mt-100">
           <Link className="btn btn-primary" href="/trust">
-            Try Again
+            {t('trust.trustUnavailable.tryAgain')}
           </Link>
           <Link className="btn btn-secondary" href="/">
-            Back to Home
+            {t('trust.trustUnavailable.backToHome')}
           </Link>
         </div>
       </article>

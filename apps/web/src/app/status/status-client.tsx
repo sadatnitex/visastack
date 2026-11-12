@@ -1,6 +1,8 @@
 'use client';
 
+import { formatDate } from '@visastack/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocale } from '../../components/i18n-provider';
 import type { VersionNoticeCopy } from '../../components/version-notice';
 import { type ProbeResult, StatusView } from './status-view';
 
@@ -33,6 +35,7 @@ export function StatusClient({
 } = {}) {
   const [live, setLive] = useState<ProbeResult | null>(null);
   const [ready, setReady] = useState<ProbeResult | null>(null);
+  const locale = useLocale();
   const [updatedAt, setUpdatedAt] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
@@ -41,9 +44,15 @@ export function StatusClient({
     const [l, r] = await Promise.all([probe('/api/health/live'), probe('/api/health/ready')]);
     setLive(l);
     setReady(r);
-    setUpdatedAt(new Date().toLocaleTimeString());
+    // English keeps the browser's own time format; Bengali gets Bengali digits.
+    const now = new Date();
+    setUpdatedAt(
+      locale === 'bn'
+        ? formatDate(now, locale, { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+        : now.toLocaleTimeString(),
+    );
     setLoading(false);
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     void refresh();

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { invitationCatalog } from '../../i18n/invitation';
 import { clientInvitationTerms } from '../../lib/client-invitation-terms';
+import { getServerT, primeLocale } from '../../lib/i18n-server';
 import { loadClientInvitationPage } from '../../lib/invitation-preview';
 import { INVITATION_TOKEN_PATTERN } from '../../lib/invitation-token';
 import { isSignedIn } from '../../lib/signed-in';
@@ -66,15 +68,17 @@ export default async function InvitationPage({
 }: {
   readonly searchParams: Promise<{ readonly kind?: string; readonly token?: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(invitationCatalog);
   const { kind, token } = await searchParams;
   if (!isInvitationKind(kind) || !token || !INVITATION_TOKEN_PATTERN.test(token)) {
     return (
       <InvitationMessage
-        title="Incomplete Invitation Link"
+        title={t('invitation.invitationPage.incompleteInvitationLink')}
         sentence="Ask the person who invited you for a new link."
         action={
           <Link className="btn btn-secondary" href="/">
-            Go to the Home Page
+            {t('invitation.invitationPage.goToTheHomePage')}
           </Link>
         }
       />
@@ -105,7 +109,9 @@ export default async function InvitationPage({
   return (
     <section className="section container invitation-page">
       <div className="invitation-hero">
-        <span className="eyebrow">VisaStack Invitation</span>
+        <span className="eyebrow">
+          {t('invitation.invitationClientInvitationOffer.visastackInvitation')}
+        </span>
         <h1 className="section-title invitation-title">{copy.title}</h1>
         <p className="invitation-promise">{copy.promise}</p>
         <InvitationActions kind={kind} token={token} signedIn={signedIn} />
@@ -115,7 +121,7 @@ export default async function InvitationPage({
       <div className="invitation-details">
         <section className="invitation-control" aria-labelledby="invitation-expect-title">
           <h2 className="card-title" id="invitation-expect-title">
-            What to Expect
+            {t('invitation.invitationPage.whatToExpect')}
           </h2>
           <ul className="invitation-list">
             {copy.expect.map((line) => (
@@ -125,8 +131,7 @@ export default async function InvitationPage({
         </section>
         <InvitationHelp kind={kind} token={token} signedIn={signedIn} />
         <p className="invitation-legal">
-          Invitations expire after 7 days. If this one has expired or was revoked, ask the sender
-          for a new invitation.
+          {t('invitation.invitationPage.invitationsExpireAfter7DaysIf')}
         </p>
       </div>
     </section>

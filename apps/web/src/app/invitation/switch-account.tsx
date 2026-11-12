@@ -2,6 +2,8 @@
 
 import { useFormStatus } from 'react-dom';
 import { SubmitButton } from '../../components/form-feedback';
+import { useT } from '../../components/i18n-provider';
+import { invitationCatalog } from '../../i18n/invitation';
 import type { InvitationKind } from './accept-paths';
 import { switchInvitationAccountAction } from './actions';
 
@@ -28,11 +30,12 @@ export function SwitchInvitationAccount({
   readonly kind: InvitationKind;
   readonly token: string;
 }) {
+  const t = useT(invitationCatalog);
   return (
     <form action={switchInvitationAccountAction} className="invitation-switch">
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="token" value={token} />
-      <span>Not you?</span> <SwitchButton />
+      <span>{t('invitation.invitationSwitchAccount.notYou')}</span> <SwitchButton />
     </form>
   );
 }

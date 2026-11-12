@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogTranslator, defineCatalog } from './catalog';
+import { catalogResolve, catalogTranslator, defineCatalog } from './catalog';
 import { formatDate, formatMoney, formatNumber, localeTag } from './format';
 import { formatMessage } from './icu';
 import { BN, EN } from './messages';
@@ -126,5 +126,62 @@ describe('plural number marker', () => {
 
   it('keeps # literal outside a plural', () => {
     expect(formatMessage('Case #{id}', { id: 7 }, 'en-GB')).toBe('Case #7');
+  });
+});
+
+describe('catalogResolve', () => {
+  const c = defineCatalog({
+    en: { 'x.both': 'Both', 'x.only': 'Only English' },
+    bn: { 'x.both': 'দুটোই' },
+  });
+  it('reports the language actually used', () => {
+    expect(catalogResolve(c, 'bn', 'x.both')).toEqual({ text: 'দুটোই', lang: 'bn' });
+    expect(catalogResolve(c, 'bn', 'x.only')).toEqual({ text: 'Only English', lang: 'en' });
+    expect(catalogResolve(c, 'en', 'x.both')).toEqual({ text: 'Both', lang: 'en' });
+  });
+  it('formats an English fallback with Latin digits under bn', () => {
+    const n = defineCatalog({
+      en: { 'x.files': '{n, plural, one {# file} other {# files}}' },
+      bn: {},
+    });
+    expect(catalogResolve(n, 'bn', 'x.files', { n: 1234 })).toEqual({
+      text: '1,234 files',
+      lang: 'en',
+    });
+    expect(catalogTranslator(n, 'bn')('x.files', { n: 1234 })).toBe('1,234 files');
+  });
+});
+
+describe('numeric {token} follows the message language', () => {
+  const c = defineCatalog({
+    en: {
+      'x.of': '{a} of {b}',
+      'x.only': '{a} of {b} left',
+      'x.plural': '{n, plural, one {# file} other {# files}}',
+    },
+    bn: { 'x.of': '{b} এর মধ্যে {a}', 'x.plural': '{n, plural, one {# ফাইল} other {# ফাইল}}' },
+  });
+  it('English prints exactly String(value), with no grouping', () => {
+    expect(catalogResolve(c, 'en', 'x.of', { a: 6, b: 12 }).text).toBe('6 of 12');
+    expect(catalogResolve(c, 'en', 'x.of', { a: 1000, b: 1234567 }).text).toBe('1000 of 1234567');
+    expect(formatMessage('{a}', { a: 1000 }, 'en-GB')).toBe('1000');
+  });
+  it('Bengali with a Bengali value uses Bengali digits and locale grouping', () => {
+    expect(catalogResolve(c, 'bn', 'x.of', { a: 6, b: 12 })).toEqual({
+      text: '১২ এর মধ্যে ৬',
+      lang: 'bn',
+    });
+    expect(catalogResolve(c, 'bn', 'x.of', { a: 1, b: 1234567 }).text).toBe('১২,৩৪,৫৬৭ এর মধ্যে ১');
+  });
+  it('Bengali with an English fallback keeps Latin digits', () => {
+    expect(catalogResolve(c, 'bn', 'x.only', { a: 6, b: 12 })).toEqual({
+      text: '6 of 12 left',
+      lang: 'en',
+    });
+  });
+  it('strings pass through and plural # is unchanged', () => {
+    expect(formatMessage('{a}', { a: '12' }, 'bn-BD')).toBe('12');
+    expect(catalogResolve(c, 'en', 'x.plural', { n: 1234 }).text).toBe('1,234 files');
+    expect(catalogResolve(c, 'bn', 'x.plural', { n: 1234 }).text).toBe('১,২৩৪ ফাইল');
   });
 });
