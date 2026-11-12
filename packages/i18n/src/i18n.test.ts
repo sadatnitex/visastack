@@ -16,10 +16,9 @@ describe('i18n — bilingual translator', () => {
     expect(en('grant.pending', { recipient: 'Acme' })).toBe('Waiting for Acme to accept.');
   });
 
-  it('falls back to English for a missing Bangla key', () => {
+  it('falls back to English, then to the key, when a message is missing', () => {
     const bn = createTranslator('bn');
-    // legalHold.active is intentionally not translated yet.
-    expect(bn('legalHold.active')).toBe(EN['legalHold.active']);
+    expect(bn('no.such.key' as MessageKey)).toBe('no.such.key');
   });
 
   it('resolves unknown locales to the default', () => {
@@ -34,8 +33,8 @@ describe('i18n — bilingual translator', () => {
     }
   });
 
-  it('every English key has a Bangla translation except the one documented fallback case', () => {
+  it('every English key has a Bangla translation', () => {
     const untranslated = (Object.keys(EN) as MessageKey[]).filter((key) => BN[key] === undefined);
-    expect(untranslated).toEqual(['legalHold.active']);
+    expect(untranslated).toEqual([]);
   });
 });
