@@ -79,6 +79,10 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   '/app/applicant/[id]/missions': nav,
   '/app/applicant/[id]/sharing': nav,
   '/app/applicant/[id]/evidence': nav,
+  '/app/applicant/[id]/evidence/answer': link(
+    'app/app/applicant/[id]/evidence/answer-from-records-card.tsx',
+    '/evidence/answer',
+  ),
   '/app/applicant/[id]/calendar': link('app/app/(home)/page.tsx', '/calendar`'),
   '/app/applicant/[id]/insights': link(
     'app/app/applicant/[id]/documents/page.tsx',

@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { Locale } from '@visastack/i18n';
 import {
   type DocumentSummary,
   type EvidenceRequest,
@@ -14,6 +15,7 @@ import { RequestThread } from '../../../../../components/request-thread/request-
 import { buildThread } from '../../../../../components/request-thread/thread-model';
 import { StatusPill } from '../../../../../components/ui-lift';
 import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
+import { evidenceAnswerCatalog } from '../../../../../i18n/evidence-answer';
 import { formatDateOnly } from '../../../../../lib/format-date';
 import { getServerT } from '../../../../../lib/i18n-server';
 import { formatMoment } from '../../../../../lib/save-status';
@@ -52,6 +54,13 @@ export interface RequestPanesProps {
   readonly histories: ReadonlyMap<string, RequestHistory>;
   /** The request just answered, named by the address (`done=answered`); its panel shows the receipt. */
   readonly answeredId?: string;
+  /**
+   * The name of each agency that asks, by organization id, so a request can say who asked. Left out
+   * when the names are not known: the panel then shows no such line.
+   */
+  readonly askingAgencies?: ReadonlyMap<string, string>;
+  /** The page's language, for dates in the copy notes; English when left out. */
+  readonly locale?: Locale;
 }
 
 /** How long after an answer its receipt may be drawn: it is for the visit that sent it, not for a bookmark. */
@@ -84,6 +93,7 @@ export function answerReceiptFor(
 
 function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & RequestPanesProps) {
   const t = getServerT(applicantEvidenceCatalog);
+  const answerT = getServerT(evidenceAnswerCatalog);
   const { req, item } = entry;
   const { applicantId: id, timeZone, choiceBasis } = data;
   const awaitingReply = AWAITING_SUBMISSION.has(req.status);
@@ -104,6 +114,11 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           scan: choiceBasis.scan,
           timeZone,
           sentBackDocumentId: req.status === 'NEEDS_REPLACEMENT' ? req.respondingDocumentId : null,
+          locale: data.locale ?? 'en',
+          words: {
+            expires: (date) => answerT('evidenceAnswer.choices.expires', { date }),
+            expired: (date) => answerT('evidenceAnswer.choices.expired', { date }),
+          },
         })
       : [];
   const sentBackCopy =
@@ -111,6 +126,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
   const otherCopyUsable = documentChoices.some((choice) => choice.usable && !choice.sentBack);
   const due = req.dueDate ? dueLabel(req.dueDate, req.status, timeZone) : null;
   const code = data.referenceCodes.get(req.id);
+  const askedBy = data.askingAgencies?.get(req.organizationId);
   const receipt = answerReceiptFor(req, data.answeredId);
   const questions = data.extras.questions.get(req.id) ?? [];
   const canAsk = Boolean(req.missionId && code && item.group !== null);
@@ -132,6 +148,11 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
   return (
     <div className="lp-pane-content rt-pane">
       <h3 className="lp-pane-title">{itemName}</h3>
+      {askedBy ? (
+        <p className="case-row-meta">
+          {answerT.node('evidenceAnswer.panes.askedBy', { agency: askedBy })}
+        </p>
+      ) : null}
       <p className="lp-pane-line">
         {due ? <StatusPill tone={due.tone}>{due.label}</StatusPill> : null}
         <StatusPill tone={chip.tone}>{chip.word}</StatusPill>

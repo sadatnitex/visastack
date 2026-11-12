@@ -232,6 +232,17 @@ export function SubmitResponseForm({
                       },
                     )}
                   </span>
+                  {choice.dateNote ? (
+                    <span
+                      className={
+                        choice.expired
+                          ? 'evidence-pick-meta evidence-pick-tag evidence-pick-tag-warn'
+                          : 'evidence-pick-meta'
+                      }
+                    >
+                      {choice.dateNote}
+                    </span>
+                  ) : null}
                   {choice.sentBack ? (
                     <span className="evidence-pick-tag evidence-pick-tag-warn">
                       {t.node(

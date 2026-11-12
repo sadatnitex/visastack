@@ -1,5 +1,7 @@
+import type { Locale } from '@visastack/i18n';
 import type { DocumentSummary, VersionScanEvidence } from '@visastack/services';
 import { humanizeCode } from '../../../../../lib/format-code';
+import { formatDateOnly } from '../../../../../lib/format-date';
 import { formatMoment } from '../../../../../lib/save-status';
 import { presentScanState } from '../../../../../lib/scan-state';
 
@@ -36,6 +38,10 @@ export interface DocumentChoice {
   readonly sentBack: boolean;
   /** The most recently added of the choices (only marked when there is more than one). */
   readonly newest: boolean;
+  /** "Expires 12 Mar 2031" or "Expired on 12 Mar 2025"; null when no expiry date is saved. */
+  readonly dateNote?: string | null;
+  /** The expiry day is today or earlier (UTC): the note is shown in the warning tone. */
+  readonly expired?: boolean;
 }
 
 export interface ChoiceInputs {
@@ -47,6 +53,13 @@ export interface ChoiceInputs {
   readonly timeZone: string | null;
   /** The document the agency sent back, when the request was sent back. */
   readonly sentBackDocumentId: string | null;
+  /** The page's language, for the date inside the note; English when left out. */
+  readonly locale?: Locale;
+  /** The words of the date note, from the catalogue. Without them there is no note. */
+  readonly words?: {
+    readonly expires: (date: string) => string;
+    readonly expired: (date: string) => string;
+  };
 }
 
 /** A file can be sent once it passed its checks and did not fail processing. */
@@ -54,8 +67,35 @@ function usableDocument(doc: DocumentSummary): boolean {
   return doc.safetyStatus === 'CLEAN' && doc.processingStatus !== 'FAILED';
 }
 
+/**
+ * Whether an expiry day (`YYYY-MM-DD`) counts as expired on `now`: the day is today or earlier in
+ * UTC. The same rule as `expiryDayCountsAsExpired` in the services package, which the web package
+ * does not export; the two strings compare in calendar order, so a plain comparison is enough.
+ */
+export function expiryDayIsExpired(day: string, now: Date = new Date()): boolean {
+  return day <= now.toISOString().slice(0, 10);
+}
+
+/** The expiry note for one copy, and whether it is the warning kind. Nothing when no expiry is saved. */
+function dateNoteFor(
+  expiresAt: string | null | undefined,
+  words: ChoiceInputs['words'],
+  locale: Locale,
+  now: Date,
+): { readonly dateNote: string | null; readonly expired: boolean } {
+  if (!expiresAt) return { dateNote: null, expired: false };
+  const day = new Date(expiresAt).toISOString().slice(0, 10);
+  const expired = expiryDayIsExpired(day, now);
+  if (!words) return { dateNote: null, expired };
+  const date = formatDateOnly(expiresAt, locale);
+  return { dateNote: expired ? words.expired(date) : words.expires(date), expired };
+}
+
 /** The choices for one document request, newest first. */
-export function buildDocumentChoices(input: ChoiceInputs): DocumentChoice[] {
+export function buildDocumentChoices(
+  input: ChoiceInputs,
+  now: Date = new Date(),
+): DocumentChoice[] {
   if (input.docType === null) return [];
   const candidates = input.documents
     .filter(
@@ -82,6 +122,7 @@ export function buildDocumentChoices(input: ChoiceInputs): DocumentChoice[] {
         input.sentBackDocumentId !== null &&
         doc.id.toLowerCase() === input.sentBackDocumentId.toLowerCase(),
       newest: index === 0 && candidates.length > 1,
+      ...dateNoteFor(doc.expiresAt, input.words, input.locale ?? 'en', now),
     };
   });
 }
