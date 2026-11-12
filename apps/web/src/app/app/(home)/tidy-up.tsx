@@ -74,7 +74,7 @@ export function TidyUpCard({
         <Icon name="folder" size={20} />
       </span>
       <h2 className="sr-only" id="home-tidy-up-heading">
-        {t('appHome.appTidyUp.tidyUp')}
+        {t.node('appHome.appTidyUp.tidyUp')}
       </h2>
       <p className="home-tidy-line">{short ?? line}</p>
       {/* The whole sentence, with its promise that nothing changes until the person chooses, for a screen reader. */}
@@ -84,7 +84,7 @@ export function TidyUpCard({
         href={href}
         aria-label={t('appHome.appTidyUp.tidyUpDocuments')}
       >
-        {t('appHome.appTidyUp.tidyUp')}
+        {t.node('appHome.appTidyUp.tidyUp')}
       </Link>
     </section>
   );

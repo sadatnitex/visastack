@@ -107,6 +107,7 @@ function fixtureBundle(name: string, standIns: boolean): Promise<string> {
   if (cached) return cached;
   const entry = fixturePath(name);
   const shared = (file: string) => resolve(__dirname, '..', 'fixtures', file);
+  const languageParts = resolve(__dirname, '..', '..', 'src', 'lib', 'language-parts.ts');
   const built = (async () => {
     const require = createRequire(__filename);
     const vitePath = createRequire(require.resolve('vitest/package.json')).resolve('vite');
@@ -124,7 +125,8 @@ function fixtureBundle(name: string, standIns: boolean): Promise<string> {
         {
           // The server translator reads the request's cookies, which a fixture in the browser
           // cannot do. It is replaced by an English-only stand-in, so the screens measured here
-          // are the English ones, exactly as before.
+          // are the English ones, exactly as before. It is the real language-aware translator
+          // (English text on an English page), so `t.node` and `t.lang` exist and add no markup.
           name: 'scroll-budget-english-translator',
           enforce: 'pre',
           resolveId(id: string) {
@@ -133,9 +135,12 @@ function fixtureBundle(name: string, standIns: boolean): Promise<string> {
           load(id: string) {
             if (id !== '\0english-i18n-server') return null;
             return [
-              `import { catalogTranslator } from '@visastack/i18n';`,
-              `export const getServerT = (catalog) => catalogTranslator(catalog, 'en');`,
+              `import { partsTranslator } from ${JSON.stringify(languageParts)};`,
+              `export const getServerT = (catalog) => partsTranslator(catalog, 'en', 'en');`,
+              `export const getT = async (catalog) => partsTranslator(catalog, 'en', 'en');`,
               `export const primeLocale = async () => 'en';`,
+              `export const primePage = async () => ({ locale: 'en', pageLang: 'en' });`,
+              `export const getPageLanguage = () => 'en';`,
             ].join('\n');
           },
         },

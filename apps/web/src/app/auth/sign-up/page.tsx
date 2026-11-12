@@ -31,7 +31,7 @@ export default async function SignUpPage({
   const signupForm = createSignupForm();
   return (
     <AuthShell
-      title={t('auth.authSignUpPage.createYourAccount')}
+      title={t.node('auth.authSignUpPage.createYourAccount')}
       variant="signup"
       eyebrow={
         isPublicBetaOpen()
@@ -51,19 +51,19 @@ export default async function SignUpPage({
           agency choice that used to sit here was guidance only (the server never read it), so it is
           gone; one account serves both, and agencies start from the account menu after sign-in. */}
       <p className="card-body signup-introduction">
-        {t('auth.authSignUpPage.oneProfileYouCanUseAgain')}
+        {t.node('auth.authSignUpPage.oneProfileYouCanUseAgain')}
       </p>
       {!isPublicBetaOpen() ? (
         <p className="card-body signup-invite-note">
-          {t('auth.authSignUpPage.accessIsByInvitation')}
+          {t.node('auth.authSignUpPage.accessIsByInvitation')}
         </p>
       ) : null}
       <ol className="auth-steps" aria-label={t('auth.authSignUpPage.theThreeSteps')}>
-        <li aria-current="step">{t('auth.authSignUpPage.1CreateYourAccount')}</li>
-        <li>{t('auth.authSignUpPage.2ConfirmYourEmail')}</li>
-        <li>{t('auth.authSignUpPage.3SignIn')}</li>
+        <li aria-current="step">{t.node('auth.authSignUpPage.1CreateYourAccount')}</li>
+        <li>{t.node('auth.authSignUpPage.2ConfirmYourEmail')}</li>
+        <li>{t.node('auth.authSignUpPage.3SignIn')}</li>
       </ol>
-      <p className="notice u-mb-100">{t('auth.authSignUpPage.visastackIsAFreePublicBeta')}</p>
+      <p className="notice u-mb-100">{t.node('auth.authSignUpPage.visastackIsAFreePublicBeta')}</p>
       <ErrorLine id="signup-error" message={error} />
       {e === 'exists' && (
         <p className="card-body">
@@ -78,7 +78,9 @@ export default async function SignUpPage({
           <input type="hidden" name="next" value={safeReturnPath(next)} />
           <input type="hidden" name="signupForm" value={signupForm} />
           <div hidden aria-hidden="true">
-            <label htmlFor="signup-website">{t('auth.authSignUpPage.leaveThisFieldEmpty')}</label>
+            <label htmlFor="signup-website">
+              {t.node('auth.authSignUpPage.leaveThisFieldEmpty')}
+            </label>
             <input id="signup-website" name="website" autoComplete="off" tabIndex={-1} />
           </div>
           <TextField
@@ -114,15 +116,15 @@ export default async function SignUpPage({
             <Link href="/privacy">privacy notice</Link>.
           </label>
           <p className="card-body signup-notice-note">
-            {t('auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing')}
+            {t.node('auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing')}
           </p>
           <button type="submit" className="btn btn-primary">
-            {t('auth.authSignUpPage.createFreeAccount')}
+            {t.node('auth.authSignUpPage.createFreeAccount')}
           </button>
         </form>
       </div>
       <p className="card-body signup-confirmation-note">
-        {t('auth.authSignUpPage.weWillEmailYouALink')}
+        {t.node('auth.authSignUpPage.weWillEmailYouALink')}
       </p>
     </AuthShell>
   );

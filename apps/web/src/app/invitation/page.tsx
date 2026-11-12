@@ -74,11 +74,11 @@ export default async function InvitationPage({
   if (!isInvitationKind(kind) || !token || !INVITATION_TOKEN_PATTERN.test(token)) {
     return (
       <InvitationMessage
-        title={t('invitation.invitationPage.incompleteInvitationLink')}
+        title={t.node('invitation.invitationPage.incompleteInvitationLink')}
         sentence="Ask the person who invited you for a new link."
         action={
           <Link className="btn btn-secondary" href="/">
-            {t('invitation.invitationPage.goToTheHomePage')}
+            {t.node('invitation.invitationPage.goToTheHomePage')}
           </Link>
         }
       />
@@ -110,7 +110,7 @@ export default async function InvitationPage({
     <section className="section container invitation-page">
       <div className="invitation-hero">
         <span className="eyebrow">
-          {t('invitation.invitationClientInvitationOffer.visastackInvitation')}
+          {t.node('invitation.invitationClientInvitationOffer.visastackInvitation')}
         </span>
         <h1 className="section-title invitation-title">{copy.title}</h1>
         <p className="invitation-promise">{copy.promise}</p>
@@ -121,7 +121,7 @@ export default async function InvitationPage({
       <div className="invitation-details">
         <section className="invitation-control" aria-labelledby="invitation-expect-title">
           <h2 className="card-title" id="invitation-expect-title">
-            {t('invitation.invitationPage.whatToExpect')}
+            {t.node('invitation.invitationPage.whatToExpect')}
           </h2>
           <ul className="invitation-list">
             {copy.expect.map((line) => (
@@ -131,7 +131,7 @@ export default async function InvitationPage({
         </section>
         <InvitationHelp kind={kind} token={token} signedIn={signedIn} />
         <p className="invitation-legal">
-          {t('invitation.invitationPage.invitationsExpireAfter7DaysIf')}
+          {t.node('invitation.invitationPage.invitationsExpireAfter7DaysIf')}
         </p>
       </div>
     </section>

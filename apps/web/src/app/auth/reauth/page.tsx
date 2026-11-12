@@ -22,8 +22,8 @@ export default async function ReauthPage({
   const { e, returnTo } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title={t('auth.authReauthPage.confirmItIsYou')}>
-      <p className="card-body">{t('auth.authReauthPage.forYourSafetyPleaseTypeYour')}</p>
+    <AuthShell title={t.node('auth.authReauthPage.confirmItIsYou')}>
+      <p className="card-body">{t.node('auth.authReauthPage.forYourSafetyPleaseTypeYour')}</p>
       <ErrorLine id="reauth-error" message={error} />
       <div className="card u-mb-100">
         <form action={reauthAction} className="field-list">
@@ -40,7 +40,7 @@ export default async function ReauthPage({
             errorId={error ? 'reauth-error' : undefined}
           />
           <button type="submit" className="btn btn-primary">
-            {t('auth.authReauthPage.continue')}
+            {t.node('auth.authReauthPage.continue')}
           </button>
         </form>
       </div>

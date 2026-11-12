@@ -42,7 +42,7 @@ export default async function SignInPage({
       ? decodePendingConfirmation((await cookies()).get(PENDING_CONFIRMATION_COOKIE)?.value)
       : null;
   return (
-    <AuthShell title={t('auth.authSignInPage.signIn')}>
+    <AuthShell title={t.node('auth.authSignInPage.signIn')}>
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorLine id="signin-error" message={error} />
       <div className="card u-mb-100">
@@ -70,12 +70,12 @@ export default async function SignInPage({
             maxLength={128}
           />
           <button type="submit" className="btn btn-primary">
-            {t('auth.authSignInPage.signIn')}
+            {t.node('auth.authSignInPage.signIn')}
           </button>
         </form>
       </div>
       <p className="card-body">
-        <Link href="/auth/forgot-password">{t('auth.authSignInPage.forgotYourPassword')}</Link>
+        <Link href="/auth/forgot-password">{t.node('auth.authSignInPage.forgotYourPassword')}</Link>
       </p>
       <p className="card-body">
         New here?{' '}

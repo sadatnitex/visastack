@@ -298,7 +298,7 @@ export function AppNav({
       <div className="app-sidebar-heading">
         <Link className="brand" href="/">
           <BrandMark />
-          {t('appHome.appAppNav.visastack')}
+          {t.node('appHome.appAppNav.visastack')}
         </Link>
         {onToggleSidebar ? (
           // Laptop and larger only (the stylesheet hides it on a phone). One button in both states,
@@ -323,16 +323,16 @@ export function AppNav({
           <span>
             <b>
               {pathname.startsWith('/app/admin')
-                ? t('appHome.appAppNav.platformWorkspace')
+                ? t.node('appHome.appAppNav.platformWorkspace')
                 : pathname.startsWith('/app/agency')
-                  ? t('appHome.appAppNav.agencyWorkspace')
-                  : t('appHome.appAppNav.personalWorkspace')}
+                  ? t.node('appHome.appAppNav.agencyWorkspace')
+                  : t.node('appHome.appAppNav.personalWorkspace')}
             </b>
-            <small>{accountLabel ?? t('appHome.appAppNav.accountDetails')}</small>
+            <small>{accountLabel ?? t.node('appHome.appAppNav.accountDetails')}</small>
           </span>
         </Link>
       )}
-      <p className="app-sidebar-context">{t('appHome.appAppNav.workspace')}</p>
+      <p className="app-sidebar-context">{t.node('appHome.appAppNav.workspace')}</p>
       <div
         className="app-bar"
         style={
@@ -351,16 +351,17 @@ export function AppNav({
           onClick={() => setOpen((value) => !value)}
         >
           <Icon name={open ? 'close' : 'more'} size={20} />
-          <span className="app-link-label">{t('appHome.appAppNav.more')}</span>
+          <span className="app-link-label">{t.node('appHome.appAppNav.more')}</span>
         </button>
       </div>
       <div className="app-more" id={panelId} ref={panelRef}>
         <div className="app-more-heading">
-          <strong>{t('appHome.appAppNav.workspaceNavigation')}</strong>
+          <strong>{t.node('appHome.appAppNav.workspaceNavigation')}</strong>
           <button
             type="button"
             className="btn btn-secondary"
             aria-label={t('appHome.appAppNav.closeNavigation')}
+            {...t.lang('appHome.appAppNav.closeNavigation')}
             onClick={() => {
               setOpen(false);
               toggleRef.current?.focus();
@@ -444,12 +445,12 @@ export function WorkspaceToolbar({
     <header className="workspace-toolbar">
       <Link href="/" className="brand workspace-brand">
         <BrandMark />
-        {t('appHome.appAppNav.visastack')}
+        {t.node('appHome.appAppNav.visastack')}
       </Link>
       <div className="workspace-finder">
         <Icon name="search" size={19} />
         <label className="sr-only" htmlFor={finderId}>
-          {t('appHome.appAppNav.findAPage')}
+          {t.node('appHome.appAppNav.findAPage')}
         </label>
         <input
           id={finderId}
@@ -475,17 +476,25 @@ export function WorkspaceToolbar({
                 </Link>
               ))
             ) : (
-              <p>{t('appHome.appAppNav.noPagesMatchTryAnotherName')}</p>
+              <p>{t.node('appHome.appAppNav.noPagesMatchTryAnotherName')}</p>
             )}
           </nav>
         ) : null}
       </div>
       <p className="workspace-context">{context}</p>
       <nav aria-label={t('appHome.appAppNav.workspaceShortcuts')} className="workspace-shortcuts">
-        <Link href="/status" aria-label={t('appHome.appAppNav.helpAndServiceStatus')}>
+        <Link
+          href="/status"
+          aria-label={t('appHome.appAppNav.helpAndServiceStatus')}
+          {...t.lang('appHome.appAppNav.helpAndServiceStatus')}
+        >
           <Icon name="alert" size={20} />
         </Link>
-        <Link href="/app/notifications" aria-label={t('appHome.appAppNav.notifications')}>
+        <Link
+          href="/app/notifications"
+          aria-label={t('appHome.appAppNav.notifications')}
+          {...t.lang('appHome.appAppNav.notifications')}
+        >
           <Icon name="bell" size={20} />
         </Link>
         <Link href="/app/account" aria-label={t('appHome.appAppNav.yourAccount')}>

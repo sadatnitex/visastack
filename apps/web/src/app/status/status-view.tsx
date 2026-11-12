@@ -84,36 +84,36 @@ export function StatusView({
   return (
     <section className="section container">
       <div className="section-head status-head">
-        <span className="eyebrow">{t('status.statusStatusView.live')}</span>
-        <h1 className="section-title u-m-0">{t('status.statusStatusView.whatWorksToday')}</h1>
+        <span className="eyebrow">{t.node('status.statusStatusView.live')}</span>
+        <h1 className="section-title u-m-0">{t.node('status.statusStatusView.whatWorksToday')}</h1>
         {/* The answer comes first. <output> is what a screen reader announces when it changes. */}
         <output className={`${badgeClass(verdict.tone)} status-verdict`}>{verdict.label}</output>
         <p className="section-sub u-m-0">
-          {t('status.statusStatusView.featuresThatAreNotSwitchedOn')}
+          {t.node('status.statusStatusView.featuresThatAreNotSwitchedOn')}
         </p>
       </div>
 
       {rows.length === 0 ? (
         <article className="card">
-          <h2 className="card-title">{t('status.statusStatusView.features')}</h2>
+          <h2 className="card-title">{t.node('status.statusStatusView.features')}</h2>
           <p className="muted u-m-0">
             {ready === null
-              ? t('status.statusStatusView.checkingWhichFeaturesAreWorking')
-              : t('status.statusStatusView.theListOfFeaturesIsNot')}
+              ? t.node('status.statusStatusView.checkingWhichFeaturesAreWorking')
+              : t.node('status.statusStatusView.theListOfFeaturesIsNot')}
           </p>
         </article>
       ) : (
         <>
           {usable.length > 0 ? (
             <article className="card u-mb-125">
-              <h2 className="card-title">{t('status.statusStatusView.youCanUseNow')}</h2>
+              <h2 className="card-title">{t.node('status.statusStatusView.youCanUseNow')}</h2>
               {featureList(usable)}
               {showPaymentsNote ? <p className="muted u-fs-085 u-mt-050">{paymentsNote}</p> : null}
             </article>
           ) : null}
           {notYet.length > 0 ? (
             <article className="card u-mb-125">
-              <h2 className="card-title">{t('status.statusStatusView.notSwitchedOnYet')}</h2>
+              <h2 className="card-title">{t.node('status.statusStatusView.notSwitchedOnYet')}</h2>
               {featureList(notYet)}
             </article>
           ) : null}
@@ -127,7 +127,7 @@ export function StatusView({
           aria-labelledby="about-this-version-title"
         >
           <h2 className="card-title" id="about-this-version-title">
-            {t('status.statusStatusView.aboutThisVersion')}
+            {t.node('status.statusStatusView.aboutThisVersion')}
           </h2>
           <p className="u-m-0">
             <b>{versionNotice.label}.</b> {versionNotice.detail}
@@ -138,8 +138,8 @@ export function StatusView({
       <div className="toolbar">
         <span className="muted u-fs-085">
           {updatedAt
-            ? t('status.statusStatusView.updatedUpdatedatThisPageChecksAgain', { updatedAt })
-            : t('status.statusStatusView.loading')}
+            ? t.node('status.statusStatusView.updatedUpdatedatThisPageChecksAgain', { updatedAt })
+            : t.node('status.statusStatusView.loading')}
         </span>
         {/* Not `disabled`: this page re-checks by itself every 15 seconds, and a button that
             disables itself drops keyboard focus whenever that happens. */}
@@ -151,7 +151,9 @@ export function StatusView({
             if (!loading) onRefresh();
           }}
         >
-          {loading ? t('status.statusStatusView.checking') : t('status.statusStatusView.checkNow')}
+          {loading
+            ? t.node('status.statusStatusView.checking')
+            : t.node('status.statusStatusView.checkNow')}
         </button>
       </div>
     </section>

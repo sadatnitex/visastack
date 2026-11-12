@@ -15,7 +15,7 @@ export function AuthShell({
   utility,
   variant,
 }: {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   eyebrow?: string;
   utility?: ReactNode;
@@ -27,20 +27,20 @@ export function AuthShell({
       <aside className="auth-introduction" aria-label={t('auth.authAuthUi.yourVisastackAccount')}>
         <Link href="/" className="brand auth-brand">
           <BrandMark />
-          {t('auth.authAuthUi.visastack')}
+          {t.node('auth.authAuthUi.visastack')}
         </Link>
         <div className="auth-message">
-          <p className="auth-kicker">{t('auth.authAuthUi.yourRecordYourTerms')}</p>
+          <p className="auth-kicker">{t.node('auth.authAuthUi.yourRecordYourTerms')}</p>
           <h2>
             A better way <br />
             to prepare for <br />
             <em>what's next.</em>
           </h2>
-          <p>{t('auth.authAuthUi.keepYourDetailsTogetherReuseWhat')}</p>
+          <p>{t.node('auth.authAuthUi.keepYourDetailsTogetherReuseWhat')}</p>
         </div>
         <p className="auth-footnote">
           <Icon name="shield" size={24} />
-          {t('auth.authAuthUi.youStayInControlOfYour')}
+          {t.node('auth.authAuthUi.youStayInControlOfYour')}
         </p>
       </aside>
       <div className="auth-form-panel">
@@ -49,9 +49,9 @@ export function AuthShell({
         <h1 className="page-title">{title}</h1>
         {children}
         <nav className="auth-legal-links" aria-label={t('auth.authAuthUi.accountInformation')}>
-          <Link href="/">{t('auth.authAuthUi.home')}</Link>
-          <Link href="/privacy">{t('auth.authAuthUi.privacy')}</Link>
-          <Link href="/terms">{t('auth.authAuthUi.terms')}</Link>
+          <Link href="/">{t.node('auth.authAuthUi.home')}</Link>
+          <Link href="/privacy">{t.node('auth.authAuthUi.privacy')}</Link>
+          <Link href="/terms">{t.node('auth.authAuthUi.terms')}</Link>
         </nav>
       </div>
     </section>

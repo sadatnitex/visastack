@@ -64,7 +64,7 @@ export async function WorkspaceFrame({
         >
           <button type="submit" className="btn btn-secondary nav-cta">
             <Icon name="logout" size={18} />
-            {t('appHome.appWorkspaceFrame.signOut')}
+            {t.node('appHome.appWorkspaceFrame.signOut')}
           </button>
         </form>
       }
