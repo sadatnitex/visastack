@@ -148,6 +148,14 @@ test.describe('language choice', () => {
     await page.locator('.lang-switch').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   });
+
+  test('a saved Bangla choice is followed on the next page', async ({ page, context, baseURL }) => {
+    await context.addCookies([
+      { name: 'visastack_locale', value: 'bn', url: baseURL ?? page.url() },
+    ]);
+    await page.goto('/status');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+  });
 });
 
 test.describe('error and not-found states', () => {
