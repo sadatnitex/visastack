@@ -23,7 +23,11 @@ export function ReleaseHoldButton({ holdId }: { readonly holdId: string }) {
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (!window.confirm('Release this legal hold? Deletion/purge become possible again.')) {
+        if (
+          !window.confirm(
+            'Release this legal hold? Documents that people asked to remove, and that were kept only because of this hold, are queued for removal at once, and deletion and purge become possible again.',
+          )
+        ) {
           e.preventDefault();
         }
       }}
