@@ -155,5 +155,5 @@ export function titleOf(block) {
  * letter (so a host such as www.example.com, a version or "e.g." stays text).
  */
 export function isMessageKey(text) {
-  return /^(?=[a-z.]*[A-Z])[a-z]{3,}(?:\.[a-z][A-Za-z0-9]*){2,}$/.test(text);
+  return /^(?=.*[A-Z])[a-z]{3,}(?:\.[a-z][A-Za-z0-9]*){2,}$/.test(text);
 }

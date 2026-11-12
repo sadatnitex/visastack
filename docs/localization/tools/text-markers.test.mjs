@@ -56,6 +56,7 @@ test('isMessageKey accepts real message keys and leaves ordinary text alone', as
     'consent.issuerContact.title',
     'grant.status.awaitingYourAcceptance',
     'grant.status.pendingAcceptance',
+    'form.step2Title.label',
   ])
     assert.equal(isMessageKey(key), true, key);
   for (const text of [
