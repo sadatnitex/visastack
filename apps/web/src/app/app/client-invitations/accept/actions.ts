@@ -8,6 +8,7 @@ import {
   setGrantAiAssist,
 } from '@visastack/services';
 import { redirect } from 'next/navigation';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { establishStepUpProof } from '../../../../lib/step-up';
 
@@ -45,7 +46,8 @@ export async function acceptClientInvitationAction(
       rawToken,
       applicantChoice,
     });
-    if (!accepted.ok) return { applicantId: null, message: accepted.error.message, next: null };
+    if (!accepted.ok)
+      return { applicantId: null, message: await serviceErrorMessage(accepted.error), next: null };
     const { applicantId, grantId } = accepted.value;
     if (!allowAgencyAi) return { applicantId, message: '', next: null };
     const sharing = `/app/applicant/${applicantId}/sharing`;

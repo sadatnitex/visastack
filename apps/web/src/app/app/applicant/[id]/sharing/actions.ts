@@ -22,6 +22,7 @@ import { resolveBaseUrl } from '../../../../../lib/base-url';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { sendEmailNow } from '../../../../../lib/send-now';
+import { serviceErrorMessage } from '../../../../../lib/service-error-message';
 import { withSession } from '../../../../../lib/session';
 import {
   STEP_UP_NOT_CONFIGURED_MESSAGE,
@@ -124,7 +125,8 @@ export async function createGrantAction(
         ...(documentIds.length ? { documentIds } : {}),
         ...(expiryAt ? { expiryAt } : {}),
       });
-      if (!invitation.ok) return { ok: false, message: invitation.error.message };
+      if (!invitation.ok)
+        return { ok: false, message: await serviceErrorMessage(invitation.error) };
       return {
         ok: true,
         message: shareInvitedLine('pending'),
@@ -144,7 +146,8 @@ export async function createGrantAction(
       ...(documentIds.length > 0 ? { documentIds } : {}),
       ...(expiryAt ? { expiryAt } : {}),
     });
-    if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
+    if (!created.ok)
+      return { ok: false, message: await serviceErrorMessage(created.error) } satisfies ActionState;
     return {
       ok: true,
       message: SHARE_CREATED_LINE,
@@ -182,7 +185,7 @@ export async function updateGrantAction(
     return { ok: false, error: { message: 'Unknown operation.' } } as const;
   });
 
-  if (!result.ok) return { ok: false, message: result.error.message };
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
   // A full page request refreshes the dynamic grant list after the result reaches
   // the client. Never derive that destination from the hidden route identifier. The
   // address names what finished, so the reloaded page can say so (CCD quiet closure).
@@ -222,7 +225,11 @@ export async function expandGrantScopeAction(
       grantId,
       documentIds,
     });
-    if (!expanded.ok) return { ok: false, message: expanded.error.message } satisfies ActionState;
+    if (!expanded.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(expanded.error),
+      } satisfies ActionState;
     return {
       ok: true,
       message: `${documentIds.length} document${documentIds.length === 1 ? '' : 's'} added to this grant.`,
@@ -291,7 +298,8 @@ export async function allowCaseAction(
       if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
       removed = await removeCaseException(access.value, { grantId, stepUp: stepUp.proof });
     }
-    if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
+    if (!removed.ok)
+      return { ok: false, message: await serviceErrorMessage(removed.error) } satisfies ActionState;
     return {
       ok: true,
       message: 'This case is shared again.',
