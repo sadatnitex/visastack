@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../../../../components/i18n-provider';
 import { ListFilterBar } from '../../../../components/list-pattern';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 
 /**
  * Search above a long checklist, drawn only once the page's script runs and the list is long
@@ -18,6 +20,7 @@ export function ChecklistSearch({
   readonly scopeId: string;
   readonly rows: number;
 }) {
+  const t = useT(appMissionCatalog);
   const [query, setQuery] = useState('');
   const [drawn, setDrawn] = useState(false);
   const [matches, setMatches] = useState(rows);
@@ -81,12 +84,17 @@ export function ChecklistSearch({
         query={query}
         onQuery={setQuery}
         searchLabel="Search the Checklist"
-        placeholder="Search the Checklist"
+        placeholder={t('appMission.appMissionIdChecklistSearch.searchTheChecklist')}
       />
       <output className="sr-only">
-        {matches} of {rows} items match.
+        {t('appMission.appMissionIdChecklistSearch.matchesOfRowsItemsMatch', {
+          matches: matches,
+          rows: rows,
+        })}
       </output>
-      {matches === 0 ? <p className="muted u-fs-085">No Items Match</p> : null}
+      {matches === 0 ? (
+        <p className="muted u-fs-085">{t('appMission.appMissionIdChecklistSearch.noItemsMatch')}</p>
+      ) : null}
     </div>
   );
 }

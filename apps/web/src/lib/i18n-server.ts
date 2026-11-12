@@ -50,6 +50,14 @@ export function getServerT<K extends string>(catalog: Catalog<K>): CatalogTransl
   return catalogTranslator(catalog, locale);
 }
 
+/**
+ * The request's locale for formatting numbers and dates inside a server component. Same rule as
+ * getServerT: needs `primeLocale()` to have run earlier in the request, English otherwise.
+ */
+export function getServerLocale(): Locale {
+  return localeHolder().locale ?? DEFAULT_LOCALE;
+}
+
 /** Async translator: primes the locale, then translates. */
 export async function getT<K extends string>(catalog: Catalog<K>): Promise<CatalogTranslator<K>> {
   return catalogTranslator(catalog, await primeLocale());

@@ -2,8 +2,10 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useLocale, useT } from '../../../../components/i18n-provider';
 import { useShareMessage } from '../../../../components/share/use-share-message';
 import { WhatsAppShare } from '../../../../components/share/whatsapp-share';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import {
@@ -37,6 +39,8 @@ export function ContributorRequestsPanel({
   readonly missionId: string;
   readonly requests: readonly ContributorRequestRow[];
 }) {
+  const t = useT(appMissionCatalog);
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState(createContributorRequestAction, INITIAL);
 
   return (
@@ -59,7 +63,12 @@ export function ContributorRequestsPanel({
                 </div>
                 <span className="muted u-fs-085">
                   {r.purpose}
-                  {r.status === 'PENDING' ? ` · expires ${formatTimestampDate(r.expiresAt)}` : ''}
+                  {r.status === 'PENDING'
+                    ? t(
+                        'appMission.appMissionIdContributorRequestsPanel.expiresFormattimestampdate',
+                        { formatTimestampDate: formatTimestampDate(r.expiresAt, locale) },
+                      )
+                    : ''}
                 </span>
                 {r.status === 'PENDING' ? (
                   <RevokeButton missionId={missionId} requestId={r.id} />
@@ -73,7 +82,7 @@ export function ContributorRequestsPanel({
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="contributorEmail">
-            Contributor Email
+            {t('appMission.appMissionIdContributorRequestsPanel.contributorEmail')}
           </label>
           <input
             id="contributorEmail"
@@ -81,12 +90,12 @@ export function ContributorRequestsPanel({
             type="email"
             required
             className="input"
-            placeholder="sponsor@example.com"
+            placeholder={t('appMission.appMissionIdContributorRequestsPanel.sponsorExampleCom')}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="docType">
-            What's Needed (Exactly One Document)
+            {t('appMission.appMissionIdContributorRequestsPanel.whatSNeededExactlyOneDocument')}
           </label>
           <input
             id="docType"
@@ -94,12 +103,14 @@ export function ContributorRequestsPanel({
             type="text"
             required
             className="input"
-            placeholder="e.g. Sponsor bank statement"
+            placeholder={t(
+              'appMission.appMissionIdContributorRequestsPanel.eGSponsorBankStatement',
+            )}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="purpose">
-            Why (the contributor will see this)
+            {t('appMission.appMissionIdContributorRequestsPanel.whyTheContributorWillSeeThis')}
           </label>
           <input
             id="purpose"
@@ -107,12 +118,14 @@ export function ContributorRequestsPanel({
             type="text"
             required
             className="input"
-            placeholder="e.g. To support the financial sponsorship section of this case"
+            placeholder={t(
+              'appMission.appMissionIdContributorRequestsPanel.eGToSupportTheFinancial',
+            )}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="message">
-            Message (Optional)
+            {t('appMission.appMissionIdContributorRequestsPanel.messageOptional')}
           </label>
           <input id="message" name="message" type="text" className="input" />
         </div>
@@ -158,12 +171,18 @@ function ContributorLinkShare({
   readonly url: string;
   readonly askedFor?: string;
 }) {
+  const t = useT(appMissionCatalog);
   const message = useShareMessage({
     template: 'contributor-request',
     link: url,
     ...(askedFor ? { documentKind: askedFor } : {}),
   });
-  return message ? <WhatsAppShare message={message} title="VisaStack Request" /> : null;
+  return message ? (
+    <WhatsAppShare
+      message={message}
+      title={t('appMission.appMissionIdContributorRequestsPanel.visastackRequest')}
+    />
+  ) : null;
 }
 
 function RevokeButton({

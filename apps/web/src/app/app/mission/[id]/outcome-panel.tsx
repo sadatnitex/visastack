@@ -2,6 +2,8 @@
 
 import { type ReactNode, useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { formatDateOnly } from '../../../../lib/format-date';
 import { type ActionState, recordOutcomeAction } from './actions';
 
@@ -53,16 +55,15 @@ export function OutcomePanel({
   /** WP-SB2: the Show More control under the list, when the page capped it. */
   readonly more?: ReactNode;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(recordOutcomeAction, INITIAL);
 
   return (
     <article className="card">
-      <p className="card-kicker">Decision</p>
-      <h2 className="card-title">Case Outcome</h2>
+      <p className="card-kicker">{t('appMission.appMissionIdAttemptForms.decision')}</p>
+      <h2 className="card-title">{t('appMission.appMissionIdOutcomePanel.caseOutcome')}</h2>
       <p className="card-body u-mb-100">
-        The official wording and your own reading of a decision are kept separate - this is never
-        blended into a single summary, and recording an outcome never changes this case's workflow
-        state on its own.
+        {t('appMission.appMissionIdOutcomePanel.theOfficialWordingAndYourOwn')}
       </p>
       {outcomes.length > 0 ? (
         <div className="rows u-mb-125">
@@ -81,12 +82,16 @@ export function OutcomePanel({
               </div>
               {o.officialWording ? (
                 <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  Official: {o.officialWording}
+                  {t('appMission.appMissionIdOutcomePanel.officialOfficialwording', {
+                    officialWording: o.officialWording,
+                  })}
                 </p>
               ) : null}
               {o.agencyInterpretation ? (
                 <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  Interpretation: {o.agencyInterpretation}
+                  {t('appMission.appMissionIdOutcomePanel.interpretationAgencyinterpretation', {
+                    agencyInterpretation: o.agencyInterpretation,
+                  })}
                 </p>
               ) : null}
             </div>
@@ -94,17 +99,19 @@ export function OutcomePanel({
           {more}
         </div>
       ) : (
-        <p className="card-body u-mb-125">No outcome recorded yet.</p>
+        <p className="card-body u-mb-125">
+          {t('appMission.appMissionIdOutcomePanel.noOutcomeRecordedYet')}
+        </p>
       )}
       <form action={formAction} className="field-list">
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="decision">
-            Decision
+            {t('appMission.appMissionIdAttemptForms.decision')}
           </label>
           <select id="decision" name="decision" className="input" defaultValue="">
             <option value="" disabled>
-              Choose…
+              {t('appMission.appMissionIdAttemptForms.choose')}
             </option>
             {Object.entries(DECISION_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -115,38 +122,38 @@ export function OutcomePanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="decisionDate">
-            Decision Date
+            {t('appMission.appMissionIdOutcomePanel.decisionDate')}
           </label>
           <input id="decisionDate" name="decisionDate" type="date" className="input" required />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="officialWording">
-            Official Wording (Optional)
+            {t('appMission.appMissionIdOutcomePanel.officialWordingOptional')}
           </label>
           <textarea
             id="officialWording"
             name="officialWording"
             className="input"
             rows={2}
-            placeholder="Exact wording from the decision letter, unedited"
+            placeholder={t('appMission.appMissionIdOutcomePanel.exactWordingFromTheDecisionLetter')}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="agencyInterpretation">
-            Your Interpretation (Optional)
+            {t('appMission.appMissionIdOutcomePanel.yourInterpretationOptional')}
           </label>
           <textarea
             id="agencyInterpretation"
             name="agencyInterpretation"
             className="input"
             rows={2}
-            placeholder="Kept separate from the wording above"
+            placeholder={t('appMission.appMissionIdOutcomePanel.keptSeparateFromTheWordingAbove')}
           />
         </div>
         {evidenceOptions.length > 0 ? (
           <div className="field-row">
             <label className="field-label" htmlFor="evidenceDocumentId">
-              Evidence (Optional)
+              {t('appMission.appMissionIdOutcomePanel.evidenceOptional')}
             </label>
             <select
               id="evidenceDocumentId"
@@ -154,7 +161,7 @@ export function OutcomePanel({
               className="input"
               defaultValue=""
             >
-              <option value="">None</option>
+              <option value="">{t('appMission.appMissionIdOutcomePanel.none')}</option>
               {evidenceOptions.map((d) => (
                 <option key={d.documentId} value={d.documentId}>
                   {d.displayName}

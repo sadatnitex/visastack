@@ -1,3 +1,5 @@
+import { useT } from '../../components/i18n-provider';
+import { collectCatalog } from '../../i18n/collect';
 /**
  * How long, after the request closes, the agency may keep the guest's files (UMPE P8, owner 2 Nov).
  * One of the offered periods, with nothing preselected: the guest chooses. A legal hold overrides
@@ -26,6 +28,7 @@ export function RetentionChoice({
   readonly describedBy?: string;
   readonly invalid?: boolean;
 }) {
+  const t = useT(collectCatalog);
   const who = agencyName ?? 'The agency';
   const hintId = `${idPrefix}-hint`;
   return (
@@ -34,10 +37,9 @@ export function RetentionChoice({
       aria-describedby={describedBy ? `${hintId} ${describedBy}` : hintId}
       aria-invalid={invalid || undefined}
     >
-      <legend>How Long {who} May Keep Your Files</legend>
+      <legend>{t('collect.collectRetentionChoice.howLongWhoMayKeepYour', { who })}</legend>
       <p id={hintId} className="muted u-fs-085">
-        Choose how many days after this request closes {who} may keep the files you send. After that
-        they are deleted, unless the law requires them to be kept longer.
+        {t('collect.collectRetentionChoice.chooseHowManyDaysAfterThis', { who })}
       </p>
       <div className="collect-retention-options">
         {periods.map((days) => (
@@ -52,7 +54,9 @@ export function RetentionChoice({
             />
             <span className="collect-retention-days">
               <span className="collect-retention-number">{days}</span>{' '}
-              <span className="collect-retention-unit">Days</span>
+              <span className="collect-retention-unit">
+                {t('collect.collectRetentionChoice.days')}
+              </span>
             </span>
           </label>
         ))}

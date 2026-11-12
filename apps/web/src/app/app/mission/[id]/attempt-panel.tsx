@@ -3,7 +3,9 @@ import {
   MAX_REQUESTED_DOC_TYPES,
   type OutcomeAttemptsView,
 } from '@visastack/services';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { getServerLocale, getServerT } from '../../../../lib/i18n-server';
 import {
   type AttemptChoice,
   AttemptEventForm,
@@ -56,6 +58,8 @@ export function AttemptPanel({
   readonly today: string;
   readonly documentKinds: readonly AttemptChoice[];
 }) {
+  const t = getServerT(appMissionCatalog);
+  const locale = getServerLocale();
   const evidenceChoices: AttemptChoice[] = view.evidenceChoices.map((c) => ({
     value: c.versionId,
     label: c.label,
@@ -63,17 +67,17 @@ export function AttemptPanel({
   const canAdd = view.attempts.length > 0 || view.untrackedReports.length > 0;
   return (
     <article className="card attempt-panel" aria-labelledby="attempts-title">
-      <p className="card-kicker">After Submission</p>
+      <p className="card-kicker">{t('appMission.appMissionIdAttemptPanel.afterSubmission')}</p>
       <h2 className="card-title" id="attempts-title">
-        Application Attempts
+        {t('appMission.appMissionIdAttemptPanel.applicationAttempts')}
       </h2>
       <p className="card-body u-mb-100">
-        Each time this application goes to an embassy, consulate or visa centre is its own attempt,
-        with the package that was ready then. What you record stays your own report unless you
-        attach a document. VisaStack does not see or check what an authority does.
+        {t('appMission.appMissionIdAttemptPanel.eachTimeThisApplicationGoesTo')}
       </p>
       {!view.available ? (
-        <p className="card-body">Attempts can be recorded here soon.</p>
+        <p className="card-body">
+          {t('appMission.appMissionIdAttemptPanel.attemptsCanBeRecordedHereSoon')}
+        </p>
       ) : (
         <>
           {view.untrackedReports.length > 0 ? (
@@ -95,22 +99,29 @@ export function AttemptPanel({
           ) : null}
           {view.attempts.length === 0 && view.untrackedReports.length === 0 ? (
             <p className="card-body">
-              Nothing recorded yet. Report the submission of this case first; it becomes Attempt 1.
+              {t('appMission.appMissionIdAttemptPanel.nothingRecordedYetReportTheSubmission')}
             </p>
           ) : null}
           <ol className="attempt-list">
             {view.attempts.map((attempt) => (
               <li className="attempt-item" key={attempt.id}>
                 <div className="attempt-head">
-                  <h3 className="attempt-title">Attempt {attempt.attemptNo}</h3>
+                  <h3 className="attempt-title">
+                    {t('appMission.appMissionIdAttemptPanel.attemptAttemptno', {
+                      attemptNo: attempt.attemptNo,
+                    })}
+                  </h3>
                   {attempt.standing.kind === 'DECIDED' ? (
                     <span
                       className={`badge ${ATTEMPT_DECISION_TONES[attempt.standing.decision] ?? 'badge-neutral'}`}
                     >
-                      {ATTEMPT_DECISION_LABELS[attempt.standing.decision] ?? 'Other Decision'}
+                      {ATTEMPT_DECISION_LABELS[attempt.standing.decision] ??
+                        t('appMission.appMissionIdAttemptPanel.otherDecision')}
                     </span>
                   ) : (
-                    <span className="badge badge-neutral">No Decision Recorded</span>
+                    <span className="badge badge-neutral">
+                      {t('appMission.appMissionIdAttemptPanel.noDecisionRecorded')}
+                    </span>
                   )}
                 </div>
                 <p className="muted attempt-meta">
@@ -122,8 +133,10 @@ export function AttemptPanel({
                 <p className="muted attempt-meta">{receiptLine(attempt)}</p>
                 {attempt.standing.kind === 'DECIDED' ? (
                   <p className="muted attempt-meta">
-                    Decision on {formatDateOnly(attempt.standing.occurredOn)}:{' '}
-                    {basisLabel(attempt.standing.documentSupplied)}.
+                    {t('appMission.appMissionIdAttemptPanel.decisionOnFormatdateonlyBasislabel', {
+                      formatDateOnly: formatDateOnly(attempt.standing.occurredOn, locale),
+                      basisLabel: basisLabel(attempt.standing.documentSupplied),
+                    })}
                   </p>
                 ) : null}
                 {attempt.events.length > 0 ? (
@@ -132,14 +145,15 @@ export function AttemptPanel({
                       <li key={event.id}>
                         <span className="row-key">{formatDateOnly(event.occurredOn)}</span>{' '}
                         {event.kind === 'DECISION'
-                          ? (ATTEMPT_DECISION_LABELS[event.decision ?? ''] ?? 'Decision')
+                          ? (ATTEMPT_DECISION_LABELS[event.decision ?? ''] ??
+                            t('appMission.appMissionIdAttemptForms.decision'))
                           : ATTEMPT_EVENT_LABELS[event.kind]}
                         {event.kind === 'AUTHORITY_REQUEST' ? (
                           <>
                             {' '}
                             (
                             {AUTHORITY_SOURCE_LABELS[event.requestSource ?? ''] ??
-                              'Official Office'}
+                              t('appMission.appMissionIdAttemptPanel.officialOffice')}
                             ):{' '}
                             {event.requestedDocTypes
                               .map((k) => documentKinds.find((d) => d.value === k)?.label ?? k)
@@ -152,7 +166,7 @@ export function AttemptPanel({
                   </ul>
                 ) : null}
                 <details className="attempt-details">
-                  <summary>Add What Happened</summary>
+                  <summary>{t('appMission.appMissionIdAttemptPanel.addWhatHappened')}</summary>
                   <AttemptEventForm
                     missionId={missionId}
                     attemptId={attempt.id}
@@ -168,10 +182,9 @@ export function AttemptPanel({
           </ol>
           {canAdd ? (
             <details className="attempt-details u-mt-100">
-              <summary>Record Another Attempt</summary>
+              <summary>{t('appMission.appMissionIdAttemptPanel.recordAnotherAttempt')}</summary>
               <p className="card-body">
-                For a resubmission, a new application after a refusal, or the same package sent to a
-                second office.
+                {t('appMission.appMissionIdAttemptPanel.forAResubmissionANewApplication')}
               </p>
               <RecordAttemptForm
                 missionId={missionId}

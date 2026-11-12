@@ -4,8 +4,10 @@ import type {
   GuestFileView,
   GuestUploadDesk,
 } from '@visastack/services';
+import { collectCatalog } from '../../i18n/collect';
 import { formatTimestampDate } from '../../lib/format-date';
 import { formatFileSize } from '../../lib/format-size';
+import { getServerT } from '../../lib/i18n-server';
 import { Fold } from './fold';
 import { PlaceFileForm, RemoveFileForm } from './guest-files';
 
@@ -41,6 +43,7 @@ export function GuestFileList({
   readonly desk: GuestUploadDesk;
   readonly items: readonly GuestChecklistItem[];
 }) {
+  const t = getServerT(collectCatalog);
   const labels = new Map(items.map((item) => [item.id, item.label] as const));
   const options = items.map((item) => ({ id: item.id, label: item.label }));
   if (desk.files.length === 0) return null;
@@ -63,7 +66,7 @@ export function GuestFileList({
             {file.itemId && file.status === 'ready'
               ? ` For: ${labels.get(file.itemId) ?? 'An Earlier Item'}.`
               : ''}
-            {file.sent ? ' Already sent.' : ''}
+            {file.sent ? t('collect.collectGuestDeskFiles.alreadySent') : ''}
           </p>
           <div className="collect-file-actions">
             {file.status === 'ready' ? (
@@ -78,7 +81,7 @@ export function GuestFileList({
                 </div>
               ) : (
                 <details className="collect-file-change">
-                  <summary>Change Item</summary>
+                  <summary>{t('collect.collectGuestDeskFiles.changeItem')}</summary>
                   <PlaceFileForm
                     fileId={file.id}
                     fileName={file.name}
@@ -101,7 +104,7 @@ export function GuestFileList({
     return (
       <section className="collect-files" aria-labelledby="collect-files-title">
         <Fold
-          title="Your Files"
+          title={t('collect.collectGuestDeskFiles.yourFiles')}
           headingId="collect-files-title"
           status={`${settled.length} ${settled.length === 1 ? 'file' : 'files'}, all placed`}
           open={false}
@@ -114,12 +117,12 @@ export function GuestFileList({
   return (
     <section className="collect-files" aria-labelledby="collect-files-title">
       <h2 id="collect-files-title" className="collect-step-title">
-        Your Files
+        {t('collect.collectGuestDeskFiles.yourFiles')}
       </h2>
       {fileList(attention)}
       {settled.length > 0 ? (
         <Fold
-          title="Files Already Placed"
+          title={t('collect.collectGuestDeskFiles.filesAlreadyPlaced')}
           status={`${settled.length} ${settled.length === 1 ? 'file' : 'files'}`}
           open={false}
         >
@@ -132,11 +135,12 @@ export function GuestFileList({
 
 /** Everything the guest sent before, with the agency's decision and notes (never "Reviewed"). */
 export function GuestSentHistory({ desk }: { readonly desk: GuestUploadDesk }) {
+  const t = getServerT(collectCatalog);
   if (desk.submissions.length === 0) return null;
   return (
     <section className="collect-sent" aria-labelledby="collect-sent-title">
       <h2 id="collect-sent-title" className="collect-step-title">
-        What You Sent
+        {t('collect.collectGuestDeskFiles.whatYouSent')}
       </h2>
       <ol className="collect-sent-list">
         {desk.submissions.map((submission) => (
@@ -155,10 +159,14 @@ export function GuestSentHistory({ desk }: { readonly desk: GuestUploadDesk }) {
                 <li key={line.itemId} className="collect-item">
                   <span className="collect-item-label">{line.label}</span>
                   <span className="muted u-fs-085">
-                    {line.missing ? 'Still Missing' : line.files.join(', ')}
+                    {line.missing
+                      ? t('collect.collectAccountResponseForm.stillMissing')
+                      : line.files.join(', ')}
                   </span>
                   {line.note ? (
-                    <span className="collect-item-note u-fs-085">Agency note: {line.note}</span>
+                    <span className="collect-item-note u-fs-085">
+                      {t('collect.collectGuestDeskFiles.agencyNoteNote', { note: line.note })}
+                    </span>
                   ) : null}
                 </li>
               ))}

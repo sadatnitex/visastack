@@ -2,6 +2,8 @@ import type { TripCheck, TripCheckLevel } from '@visastack/core';
 import { Icon, type IconName } from '../../../../components/icons';
 import { SectionCard, StatusPill } from '../../../../components/ui-lift';
 import type { LiftTone } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
+import { getServerT } from '../../../../lib/i18n-server';
 
 /**
  * How the dates of a case line up with the passport and travel insurance on the profile. The
@@ -44,16 +46,26 @@ export function tripChecksSummary(checks: readonly TripCheck[] | null): {
 }
 
 export function TripChecksPanel({ checks }: { readonly checks: readonly TripCheck[] | null }) {
+  const t = getServerT(appMissionCatalog);
   return (
-    <SectionCard kicker="Dates" heading="Trip Date Checks" tone="teal">
+    <SectionCard
+      kicker={t('appMission.appMissionIdTripChecksPanel.dates')}
+      heading={t('appMission.appMissionIdCaseRail.tripDateChecks')}
+      tone="teal"
+    >
       {checks === null ? (
         <p className="muted lift-rail-line">
-          We could not check your dates just now. Reload the page to try again.
+          {t('appMission.appMissionIdTripChecksPanel.weCouldNotCheckYourDates')}
         </p>
       ) : checks.length === 0 ? (
-        <p className="muted lift-rail-line">No date checks apply yet.</p>
+        <p className="muted lift-rail-line">
+          {t('appMission.appMissionIdTripChecksPanel.noDateChecksApplyYet')}
+        </p>
       ) : (
-        <ul className="lift-trip-list" aria-label="Trip date checks">
+        <ul
+          className="lift-trip-list"
+          aria-label={t('appMission.appMissionIdTripChecksPanel.tripDateChecks')}
+        >
           {checks.map((check) => {
             const level = LEVELS[check.level];
             return (
@@ -70,11 +82,10 @@ export function TripChecksPanel({ checks }: { readonly checks: readonly TripChec
         </ul>
       )}
       <details className="lift-help">
-        <summary>About These Checks</summary>
+        <summary>{t('appMission.appMissionIdTripChecksPanel.aboutTheseChecks')}</summary>
         <div className="lift-help-body">
           <p className="muted">
-            Common checks of your trip dates against your passport and travel insurance. They are
-            not a country's rules, so read the rules for your destination too.
+            {t('appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates')}
           </p>
         </div>
       </details>

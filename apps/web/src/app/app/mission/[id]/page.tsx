@@ -82,6 +82,7 @@ import { CASE_STATE_LABELS, stageButtonStates } from '../../../../lib/case-stage
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { primeLocale } from '../../../../lib/i18n-server';
 import { getLocale } from '../../../../lib/locale';
 import {
   CHECKLISTS_NOT_LOADED,
@@ -163,6 +164,7 @@ export default async function MissionPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
   const { id } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   // Named apart from the lists read below, which use the same words.
