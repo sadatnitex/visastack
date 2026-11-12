@@ -1,16 +1,16 @@
 {
- "evidence_rows": 278,
- "attested_rows": 265,
- "attested_exact_intent": 79,
- "firefox_rows": 248,
- "google_rows": 17,
- "firefox_bn": 156,
- "firefox_bn_BD": 92,
- "glossary": {
-  "OBSERVED_EXACT_FORM": 18,
-  "LLM_RECOMMENDATION": 90,
-  "OBSERVED_RELATED_ONLY": 17,
-  "OBSERVED_DIFFERENT_FORM": 2
- },
- "direct_or_bilingual_bangladeshi": 0
+  "evidence_rows": 278,
+  "attested_rows": 265,
+  "attested_exact_intent": 79,
+  "firefox_rows": 248,
+  "google_rows": 17,
+  "firefox_bn": 156,
+  "firefox_bn_BD": 92,
+  "glossary": {
+    "OBSERVED_EXACT_FORM": 18,
+    "LLM_RECOMMENDATION": 90,
+    "OBSERVED_RELATED_ONLY": 17,
+    "OBSERVED_DIFFERENT_FORM": 2
+  },
+  "direct_or_bilingual_bangladeshi": 0
 }

@@ -577,8 +577,7 @@ add(
       ],
       [
         'Drafts using দলিল (allowed only for deeds)',
-        draftedRows.filter((r) => /দলিল/.test(r.bn_BD_draft)).length +
-          ' (Property Deed, Sale Deed)',
+        `${draftedRows.filter((r) => /দলিল/.test(r.bn_BD_draft)).length} (Property Deed, Sale Deed)`,
       ],
       [
         'English label "Documents" written as ডকুমেন্টস',
@@ -606,7 +605,7 @@ add('### Review queues (assigned to the owner; none reviewed)', '');
 add(
   table(
     ['Queue', 'Drafted, awaiting review', 'Not drafted yet', 'File'],
-    queueCounts.map(([k, v]) => [k, v.drafted, v.notDraftedYet, `\`data/review-queues/\``]),
+    queueCounts.map(([k, v]) => [k, v.drafted, v.notDraftedYet, '`data/review-queues/`']),
   ),
   '',
 );

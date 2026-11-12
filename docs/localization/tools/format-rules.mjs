@@ -142,7 +142,8 @@ for (const r of reg) {
       r.bn_BD_draft,
     ]);
 }
-const q = (v) => `"${String(v).replace(/—/g, '[U+2014]').replace(/"/g, '""')}"`;
+const EM_DASH = String.fromCharCode(0x2014); // built from its code point: the repo bans the literal character
+const q = (v) => `"${String(v).split(EM_DASH).join('[U+2014]').replace(/"/g, '""')}"`;
 fs.writeFileSync(
   path.join(LOC, 'data/NUMBER_DATE_AUDIT.csv'),
   `${['semantic_group,issue,detail,english,bn_BD_draft', ...exceptions.map((e) => e.map(q).join(','))].join('\n')}\n`,

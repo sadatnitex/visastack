@@ -23,3 +23,4 @@ node $T/guardrails-doc.mjs            # VISASTACK_SEMANTIC_GUARDRAILS.md
 node $T/coverage-report.mjs           # VISASTACK_COVERAGE_REPORT.md
 node $T/sample-checks.mjs            # anchors re-checked against the real files
 node $T/guardrail-check.mjs --self-test
+./node_modules/.bin/biome check --write docs/localization   # keep generated JSON and scripts in the repo's format
