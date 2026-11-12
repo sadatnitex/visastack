@@ -22,10 +22,9 @@ function stateWithTitle(source: string, title: string): string {
     .map(([key]) => key);
   const found = parts.find((part) => {
     const head = part.slice(0, part.indexOf('</EmptyState>'));
-    return (
-      head.includes(title) ||
-      keys.some((key) => new RegExp(`t\\(\\s*'${key.replace(/\./g, '\\.')}'`).test(head))
-    );
+    // The formatter may wrap a long call onto several lines, so compare without whitespace.
+    const squeezed = head.replace(/\s+/g, '');
+    return head.includes(title) || keys.some((key) => squeezed.includes(`t('${key}'`));
   });
   if (!found) throw new Error(`no empty state titled "${title}"`);
   return found.slice(0, found.indexOf('</EmptyState>'));
