@@ -136,7 +136,7 @@ describe('when the plan cannot be read', () => {
     async (_name, setup) => {
       setup();
       const text = textOf(await render());
-      expect(text).toContain('Your requests could not be loaded, so nothing was sent.');
+      expect(text).toContain('Your requests could not be loaded. Nothing was sent.');
       expect(text).not.toMatch(/Nothing Is Waiting|no agency is waiting/i);
       expect(text).not.toContain('Who Is Asking');
     },

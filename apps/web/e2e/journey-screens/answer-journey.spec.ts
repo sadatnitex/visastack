@@ -1,7 +1,12 @@
 import { type Locator, type Page, type TestInfo, expect, test } from '@playwright/test';
 import type { AnswerJourneyProps } from '../fixtures/answer-journey.fixture';
 import { renderFixture } from '../scroll-budget/support';
-import { expectNoAxeViolations, expectNoSidewaysScroll, tabStops } from './support';
+import {
+  expectNoAxeViolations,
+  expectNoSidewaysScroll,
+  expectTouchTargets,
+  tabStops,
+} from './support';
 
 /**
  * Tier 1a measurement of one journey (docs/operations/staging-journeys.md): "send the three answers
@@ -175,9 +180,12 @@ for (const view of ['before', 'after'] as const) {
 
 for (const size of SIZES) {
   test.describe(`the review at ${size.width}px (${size.name})`, () => {
-    test('has no WCAG 2.2 AA violation and no sideways scroll', async ({ page }) => {
+    test('has no WCAG 2.2 AA violation, no sideways scroll and full-size touch targets', async ({
+      page,
+    }) => {
       await open(page, 'after', size);
       await expectNoSidewaysScroll(page);
+      await expectTouchTargets(page);
       await expectNoAxeViolations(page);
     });
 

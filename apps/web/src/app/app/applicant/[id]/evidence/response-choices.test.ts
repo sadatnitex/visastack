@@ -1,3 +1,4 @@
+import { expiryDay, expiryDayCountsAsExpired } from '@visastack/services';
 import type { DocumentSummary } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import { formatDateOnly } from '../../../../../lib/format-date';
@@ -125,6 +126,7 @@ describe('the expiry note on each copy (new)', () => {
         scan: new Map(),
         timeZone: 'Asia/Dhaka',
         sentBackDocumentId: null,
+        words: { expires: (date) => `Expires ${date}`, expired: (date) => `Expired on ${date}` },
       },
       NOW,
     )[0];
@@ -146,6 +148,21 @@ describe('the expiry note on each copy (new)', () => {
   it('counts the day itself as expired, as the readiness rule does, and tomorrow as not yet', () => {
     expect(noted('2026-11-12T00:00:00.000Z')?.expired).toBe(true);
     expect(noted('2026-11-13T00:00:00.000Z')?.expired).toBe(false);
+  });
+
+  it('writes no note without words, but still says whether the copy is expired', () => {
+    const [choice] = buildDocumentChoices(
+      {
+        documents: [doc('a', { expiresAt: '2025-03-12T00:00:00.000Z' })],
+        docType: 'BANK_STATEMENT',
+        everyday: new Set(['a']),
+        scan: new Map(),
+        timeZone: null,
+        sentBackDocumentId: null,
+      },
+      NOW,
+    );
+    expect(choice).toMatchObject({ dateNote: null, expired: true });
   });
 
   it('keeps no note when no expiry date is saved', () => {
@@ -182,6 +199,30 @@ describe('the expiry note on each copy (new)', () => {
       NOW,
     );
     expect(initialChoice(only)).toBe('a');
+  });
+});
+
+describe('the expired rule matches the services rule', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  it.each([
+    ['yesterday', -DAY],
+    ['today', 0],
+    ['tomorrow', DAY],
+  ])('for a document expiring %s', (_label, offset) => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + offset).toISOString();
+    const [choice] = buildDocumentChoices(
+      {
+        documents: [doc('a', { expiresAt })],
+        docType: 'BANK_STATEMENT',
+        everyday: new Set(['a']),
+        scan: new Map(),
+        timeZone: null,
+        sentBackDocumentId: null,
+      },
+      now,
+    );
+    expect(choice?.expired).toBe(expiryDayCountsAsExpired(expiryDay(new Date(expiresAt)), now));
   });
 });
 

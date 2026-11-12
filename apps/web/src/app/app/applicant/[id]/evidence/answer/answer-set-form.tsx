@@ -3,7 +3,7 @@
 import type { CatalogKey } from '@visastack/i18n';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useActionState, useId, useState } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../../components/form-feedback';
 import { useT } from '../../../../../../components/i18n-provider';
 import { Icon } from '../../../../../../components/icons';
@@ -120,6 +120,47 @@ function ItemMeta({ item, t }: { readonly item: AnswerItemView; readonly t: Tran
   );
 }
 
+/** One request with one copy that fits: a tick box over the request's name and the copy's facts. */
+function SingleCopyChoice({
+  item,
+  copy,
+  baseId,
+  checked,
+  onToggle,
+  t,
+}: {
+  readonly item: AnswerItemView;
+  readonly copy: AnswerCopyView;
+  readonly baseId: string;
+  readonly checked: boolean;
+  readonly onToggle: (requestId: string, on: boolean) => void;
+  readonly t: Translate;
+}) {
+  const nameId = `${baseId}-n-${item.requestId}`;
+  const detailId = `${baseId}-d-${item.requestId}`;
+  return (
+    <label className="request-choice evidence-pick lc-choice">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onToggle(item.requestId, event.target.checked)}
+        aria-labelledby={nameId}
+        aria-describedby={detailId}
+      />
+      <span className="lc-pick-icon" aria-hidden="true">
+        <Icon name="file" size={20} />
+      </span>
+      <span className="evidence-pick-text">
+        <span className="evidence-pick-name" id={nameId}>
+          {item.name}
+        </span>
+        <CopyDetails copy={copy} id={detailId} t={t} withName />
+        <ItemMeta item={item} t={t} />
+      </span>
+    </label>
+  );
+}
+
 /**
  * The review step for one agency: everything it waits for that can be answered from saved records,
  * grouped by how sure the plan is, and one button that sends exactly what is ticked.
@@ -181,6 +222,13 @@ export function AnswerSetForm({
   );
   // A success here can only be about the send that just happened: it is shown once, with its time.
   const result = saveResult(state, timeZone);
+  // After an answer comes back the list below may be rebuilt, which removes the button that was
+  // pressed and would drop keyboard focus to the top of the page. Focus goes to the result
+  // instead, so a keyboard or screen reader user stays where the outcome is said.
+  const resultRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (state !== INITIAL) resultRef.current?.focus();
+  }, [state]);
 
   return (
     <form action={formAction} className="request-response answer-set-form">
@@ -194,11 +242,13 @@ export function AnswerSetForm({
         waitingTotal={waitingTotal}
         pending={pending}
       />
-      <FormMessage
-        result={state.ok && !state.savedAt ? NO_RESULT : result}
-        pending={pending}
-        pendingText={SAVING_TEXT}
-      />
+      <div ref={resultRef} tabIndex={-1} className="answer-result">
+        <FormMessage
+          result={state.ok && !state.savedAt ? NO_RESULT : result}
+          pending={pending}
+          pendingText={SAVING_TEXT}
+        />
+      </div>
       <p className="muted u-fs-085 u-m-0">
         {t.node('evidenceAnswer.form.consentShort', { agency: agencyName })}
       </p>
@@ -239,19 +289,16 @@ function AnswerChoices({
 
   const answers: { readonly requestId: string; readonly value: string }[] = [];
   for (const item of [...review.ready, ...review.choose]) {
-    const only = item.copies[0];
-    if (item.readiness === 'CHOOSE') {
-      const copy = item.copies.find((candidate) => candidate.versionId === picked[item.requestId]);
-      if (copy) {
-        answers.push({
-          requestId: item.requestId,
-          value: `${item.requestId}|${copy.documentId}|${copy.versionId}`,
-        });
-      }
-    } else if (only && ticked.has(item.requestId)) {
+    const copy =
+      item.readiness === 'CHOOSE'
+        ? item.copies.find((candidate) => candidate.versionId === picked[item.requestId])
+        : ticked.has(item.requestId)
+          ? item.copies[0]
+          : undefined;
+    if (copy) {
       answers.push({
         requestId: item.requestId,
-        value: `${item.requestId}|${only.documentId}|${only.versionId}`,
+        value: `${item.requestId}|${copy.documentId}|${copy.versionId}`,
       });
     }
   }
@@ -290,28 +337,16 @@ function AnswerChoices({
             {review.ready.map((item) => {
               const copy = item.copies[0];
               if (!copy) return null;
-              const nameId = `${baseId}-n-${item.requestId}`;
-              const detailId = `${baseId}-d-${item.requestId}`;
               return (
-                <label key={item.requestId} className="request-choice evidence-pick lc-choice">
-                  <input
-                    type="checkbox"
-                    checked={ticked.has(item.requestId)}
-                    onChange={(event) => toggle(item.requestId, event.target.checked)}
-                    aria-labelledby={nameId}
-                    aria-describedby={detailId}
-                  />
-                  <span className="lc-pick-icon" aria-hidden="true">
-                    <Icon name="file" size={20} />
-                  </span>
-                  <span className="evidence-pick-text">
-                    <span className="evidence-pick-name" id={nameId}>
-                      {item.name}
-                    </span>
-                    <CopyDetails copy={copy} id={detailId} t={t} withName />
-                    <ItemMeta item={item} t={t} />
-                  </span>
-                </label>
+                <SingleCopyChoice
+                  key={item.requestId}
+                  item={item}
+                  copy={copy}
+                  baseId={baseId}
+                  checked={ticked.has(item.requestId)}
+                  onToggle={toggle}
+                  t={t}
+                />
               );
             })}
           </div>
@@ -327,29 +362,16 @@ function AnswerChoices({
             if (item.readiness === 'CHECK_DATE') {
               const copy = item.copies[0];
               if (!copy) return null;
-              const nameId = `${baseId}-n-${item.requestId}`;
-              const detailId = `${baseId}-d-${item.requestId}`;
               return (
                 <div key={item.requestId} className="request-choices">
-                  <label className="request-choice evidence-pick lc-choice">
-                    <input
-                      type="checkbox"
-                      checked={ticked.has(item.requestId)}
-                      onChange={(event) => toggle(item.requestId, event.target.checked)}
-                      aria-labelledby={nameId}
-                      aria-describedby={detailId}
-                    />
-                    <span className="lc-pick-icon" aria-hidden="true">
-                      <Icon name="file" size={20} />
-                    </span>
-                    <span className="evidence-pick-text">
-                      <span className="evidence-pick-name" id={nameId}>
-                        {item.name}
-                      </span>
-                      <CopyDetails copy={copy} id={detailId} t={t} withName />
-                      <ItemMeta item={item} t={t} />
-                    </span>
-                  </label>
+                  <SingleCopyChoice
+                    item={item}
+                    copy={copy}
+                    baseId={baseId}
+                    checked={ticked.has(item.requestId)}
+                    onToggle={toggle}
+                    t={t}
+                  />
                 </div>
               );
             }
@@ -374,6 +396,7 @@ function AnswerChoices({
                 </label>
                 {item.copies.map((copy) => {
                   const detailId = `${baseId}-d-${item.requestId}-${copy.versionId}`;
+                  const copyNameId = `${baseId}-c-${item.requestId}-${copy.versionId}`;
                   return (
                     <label key={copy.versionId} className="request-choice evidence-pick lc-choice">
                       <input
@@ -383,13 +406,17 @@ function AnswerChoices({
                         onChange={() =>
                           setPicked((current) => ({ ...current, [item.requestId]: copy.versionId }))
                         }
+                        // The file name is the name; its facts are the description, said once.
+                        aria-labelledby={copyNameId}
                         aria-describedby={detailId}
                       />
                       <span className="lc-pick-icon" aria-hidden="true">
                         <Icon name="file" size={20} />
                       </span>
                       <span className="evidence-pick-text">
-                        <span className="evidence-pick-name">{copy.name}</span>
+                        <span className="evidence-pick-name" id={copyNameId}>
+                          {copy.name}
+                        </span>
                         <CopyDetails copy={copy} id={detailId} t={t} withName={false} />
                       </span>
                     </label>
@@ -459,6 +486,11 @@ function AnswerChoices({
       {overLimit ? (
         <output className="muted u-fs-085 u-m-0">
           {t.node('evidenceAnswer.form.overLimit', { limit: ANSWER_LIMIT })}
+        </output>
+      ) : count === 0 ? (
+        // Why the button is not available yet, in words and not only by its look.
+        <output className="muted u-fs-085 u-m-0">
+          {t.node('evidenceAnswer.form.sendNoneHint')}
         </output>
       ) : null}
     </>

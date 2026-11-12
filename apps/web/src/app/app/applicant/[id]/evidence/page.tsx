@@ -84,7 +84,7 @@ export default async function EvidencePage({
   /** `show`: how many requests to list (WP-SB3: 10, then 10 more with each Show More). */
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(applicantEvidenceCatalog);
   const { id } = await params;
   const search = (await searchParams) ?? {};
@@ -111,6 +111,8 @@ export default async function EvidencePage({
       applicantId: id,
       requests: requestList,
     });
+    // Who is asking runs beside the reads below too; it never throws.
+    const askingRead = readAskingAgencies(db, accountId, id);
     // Visible request codes (ADR 0018), so the traveller and the agency can name the same request.
     const referenceCodes = await referenceCodesFor(
       db,
@@ -150,7 +152,7 @@ export default async function EvidencePage({
     // Who is waiting, for the card above the list and the "Asked by" line in each request. It needs
     // the owner's full proof; if that cannot be had, or the read fails, the page simply shows
     // neither: a card that cannot be drawn must never take the requests down with it.
-    const askingAgencies = await readAskingAgencies(db, accountId, id);
+    const askingAgencies = await askingRead;
     const histories = await historiesRead;
     return {
       askingAgencies,
@@ -239,6 +241,7 @@ export default async function EvidencePage({
     extras: data.extras,
     choiceBasis: data.choiceBasis,
     histories: data.histories,
+    locale,
     askingAgencies: new Map(
       data.askingAgencies.map(
         (agency) => [agency.organizationId, agency.organizationName] as const,

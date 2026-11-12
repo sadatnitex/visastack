@@ -153,7 +153,7 @@ describe('what is chosen at first', () => {
     expect(bill.checked).toBe(false);
     const text = bill.closest('label')?.textContent ?? '';
     expect(text).toContain(
-      'The checklist asks for something dated within the last 90 days, and no date is saved for this copy.',
+      'The checklist asks for a document from the last 90 days. No date is saved for this copy, so check it before you send.',
     );
     expect(text).toContain('Optional on the checklist');
   });
@@ -164,7 +164,9 @@ describe('what is chosen at first', () => {
       choose: [item('Visa', 'CHECK_DATE', [copy('visa', { uncertainty: { kind: 'disagree' } })])],
       other: [],
     });
-    expect(container.textContent).toContain('Two saved dates for this copy disagree.');
+    expect(container.textContent).toContain(
+      'Two saved expiry dates for this copy disagree. Check it before you send.',
+    );
   });
 });
 
@@ -453,5 +455,29 @@ describe('the 30-word rule (Owner, 5 Nov 2026)', () => {
     expect(folded.join(' ')).toContain(
       'The saved copy is expired, or older than the checklist allows.',
     );
+  });
+});
+
+describe('what a keyboard or screen reader user is told', () => {
+  it('says in words why the button is not available when nothing is chosen', () => {
+    show({ ready: [], choose: [], other: [] });
+    expect(container.textContent).toContain('Tick at least one answer to send.');
+  });
+
+  it('moves focus to the result after an answer comes back, so it is not lost with the old list', async () => {
+    mocks.confirmAnswersAction.mockResolvedValue({
+      ok: false,
+      message: 'Nothing was sent. Your records changed after you opened this page.',
+      sent: 0,
+      changed: 1,
+    });
+    show();
+    const form = container.querySelector('form');
+    await act(async () => {
+      form?.requestSubmit();
+    });
+    const result = container.querySelector('.answer-result');
+    expect(result?.textContent).toContain('Nothing was sent.');
+    expect(document.activeElement).toBe(result);
   });
 });

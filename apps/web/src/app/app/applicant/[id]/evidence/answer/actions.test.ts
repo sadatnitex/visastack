@@ -164,7 +164,9 @@ describe('confirmAnswersAction: what it says', () => {
     });
     const result = await confirmAnswersAction(PREV, form([A1]));
     expect(result.ok).toBe(false);
-    expect(result.message).toBe('Nothing was sent. Something went wrong on our side.');
+    expect(result.message).toBe(
+      'Nothing was sent. Something went wrong on our side. Try again in a moment.',
+    );
   });
 });
 

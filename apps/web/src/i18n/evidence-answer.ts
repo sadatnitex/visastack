@@ -13,7 +13,7 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.page.back': 'Requests from Agencies',
     'evidenceAnswer.page.allAgencies': 'All Agencies',
     'evidenceAnswer.page.unreadable':
-      'Your requests could not be loaded, so nothing was sent. Refresh to try again.',
+      'Your requests could not be loaded. Nothing was sent. Refresh to try again.',
     'evidenceAnswer.page.unavailable':
       'Answering in one step is not available yet. You can still answer each request on its own page.',
     'evidenceAnswer.page.emptyTitle': 'Nothing Is Waiting for You',
@@ -24,8 +24,7 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.page.reviewAnswers': 'Review Answers',
     'evidenceAnswer.page.agencyHeading':
       '{agency}: {count, plural, one {# request waiting} other {# requests waiting}}',
-    'evidenceAnswer.page.more':
-      'More requests are waiting than are listed here. The rest are on the requests page.',
+    'evidenceAnswer.page.more': 'More requests are waiting than are listed here. See them all in:',
     'evidenceAnswer.page.requestsLink': 'Requests from Agencies',
 
     // The receipt after a send (server).
@@ -54,13 +53,15 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.form.optional': 'Optional on the checklist',
     'evidenceAnswer.form.reference': 'Reference {code}',
     'evidenceAnswer.form.uncertainAge':
-      'The checklist asks for something dated within the last {days, plural, one {# day} other {# days}}, and no date is saved for this copy.',
-    'evidenceAnswer.form.uncertainDisagree': 'Two saved dates for this copy disagree.',
+      'The checklist asks for a document from the last {days, plural, one {# day} other {# days}}. No date is saved for this copy, so check it before you send.',
+    'evidenceAnswer.form.uncertainDisagree':
+      'Two saved expiry dates for this copy disagree. Check it before you send.',
     'evidenceAnswer.form.acceptedBefore':
       'Accepted before by {agency}. Each agency decides for itself.',
     'evidenceAnswer.form.acceptedBeforeUnknown':
       'Accepted before by an agency. Each agency decides for itself.',
     'evidenceAnswer.form.sendNone': 'Send Answers to {agency}',
+    'evidenceAnswer.form.sendNoneHint': 'Tick at least one answer to send.',
     'evidenceAnswer.form.send':
       '{count, plural, one {Send # Answer to {agency}} other {Send # Answers to {agency}}}',
     'evidenceAnswer.form.sending': 'Sending…',
@@ -104,7 +105,8 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.actions.overLimit':
       'One step sends up to {limit} answers. Untick some, send, then send the rest.',
     'evidenceAnswer.actions.chooseOne': 'Choose at least one answer to send.',
-    'evidenceAnswer.actions.failed': 'Nothing was sent. Something went wrong on our side.',
+    'evidenceAnswer.actions.failed':
+      'Nothing was sent. Something went wrong on our side. Try again in a moment.',
     'evidenceAnswer.actions.theAgency': 'the agency',
 
     // The card on the Requests page, and the line in a request's panel.

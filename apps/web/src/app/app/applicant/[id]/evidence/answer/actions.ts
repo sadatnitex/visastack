@@ -2,6 +2,7 @@
 
 import {
   type EvidenceAnswer,
+  MAX_ANSWERS_PER_CONFIRMATION,
   accountPrincipal,
   confirmEvidenceAnswers,
   getApplicant,
@@ -13,7 +14,6 @@ import { evidenceAnswerCatalog } from '../../../../../../i18n/evidence-answer';
 import { getT } from '../../../../../../lib/i18n-server';
 import { triggerNotificationWorker } from '../../../../../../lib/jobs';
 import { withSession } from '../../../../../../lib/session';
-import { ANSWER_LIMIT } from './answer-view';
 
 /**
  * What the review form is told. `savedAt` is set only when the server sent at least one answer,
@@ -90,8 +90,8 @@ export async function confirmAnswersAction(
   const answers = parseAnswers(formData.getAll('answer'));
   if (answers.length === 0) return refused(t('evidenceAnswer.actions.chooseOne'));
   // Never drop the rest without saying so: one confirmation sends at most this many.
-  if (answers.length > ANSWER_LIMIT) {
-    return refused(t('evidenceAnswer.actions.overLimit', { limit: ANSWER_LIMIT }));
+  if (answers.length > MAX_ANSWERS_PER_CONFIRMATION) {
+    return refused(t('evidenceAnswer.actions.overLimit', { limit: MAX_ANSWERS_PER_CONFIRMATION }));
   }
 
   const result = await withSession(async ({ db, accountId }): Promise<AnswerActionState> => {

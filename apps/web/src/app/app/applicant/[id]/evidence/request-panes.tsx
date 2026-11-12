@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { Locale } from '@visastack/i18n';
 import {
   type DocumentSummary,
   type EvidenceRequest,
@@ -58,6 +59,8 @@ export interface RequestPanesProps {
    * when the names are not known: the panel then shows no such line.
    */
   readonly askingAgencies?: ReadonlyMap<string, string>;
+  /** The page's language, for dates in the copy notes; English when left out. */
+  readonly locale?: Locale;
 }
 
 /** How long after an answer its receipt may be drawn: it is for the visit that sent it, not for a bookmark. */
@@ -111,6 +114,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           scan: choiceBasis.scan,
           timeZone,
           sentBackDocumentId: req.status === 'NEEDS_REPLACEMENT' ? req.respondingDocumentId : null,
+          locale: data.locale ?? 'en',
           words: {
             expires: (date) => answerT('evidenceAnswer.choices.expires', { date }),
             expired: (date) => answerT('evidenceAnswer.choices.expired', { date }),

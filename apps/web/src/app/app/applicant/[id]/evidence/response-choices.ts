@@ -1,3 +1,4 @@
+import type { Locale } from '@visastack/i18n';
 import type { DocumentSummary, VersionScanEvidence } from '@visastack/services';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly } from '../../../../../lib/format-date';
@@ -52,7 +53,9 @@ export interface ChoiceInputs {
   readonly timeZone: string | null;
   /** The document the agency sent back, when the request was sent back. */
   readonly sentBackDocumentId: string | null;
-  /** The words of the date note, when the caller words them from a catalogue; English otherwise. */
+  /** The page's language, for the date inside the note; English when left out. */
+  readonly locale?: Locale;
+  /** The words of the date note, from the catalogue. Without them there is no note. */
   readonly words?: {
     readonly expires: (date: string) => string;
     readonly expired: (date: string) => string;
@@ -76,21 +79,17 @@ export function expiryDayIsExpired(day: string, now: Date = new Date()): boolean
 /** The expiry note for one copy, and whether it is the warning kind. Nothing when no expiry is saved. */
 function dateNoteFor(
   expiresAt: string | null | undefined,
-  words: NonNullable<ChoiceInputs['words']>,
+  words: ChoiceInputs['words'],
+  locale: Locale,
   now: Date,
 ): { readonly dateNote: string | null; readonly expired: boolean } {
   if (!expiresAt) return { dateNote: null, expired: false };
   const day = new Date(expiresAt).toISOString().slice(0, 10);
   const expired = expiryDayIsExpired(day, now);
-  const date = formatDateOnly(expiresAt);
+  if (!words) return { dateNote: null, expired };
+  const date = formatDateOnly(expiresAt, locale);
   return { dateNote: expired ? words.expired(date) : words.expires(date), expired };
 }
-
-/** English wording, for a caller that has no catalogue to word the note from. */
-const ENGLISH_DATE_WORDS: NonNullable<ChoiceInputs['words']> = {
-  expires: (date) => `Expires ${date}`,
-  expired: (date) => `Expired on ${date}`,
-};
 
 /** The choices for one document request, newest first. */
 export function buildDocumentChoices(
@@ -123,7 +122,7 @@ export function buildDocumentChoices(
         input.sentBackDocumentId !== null &&
         doc.id.toLowerCase() === input.sentBackDocumentId.toLowerCase(),
       newest: index === 0 && candidates.length > 1,
-      ...dateNoteFor(doc.expiresAt, input.words ?? ENGLISH_DATE_WORDS, now),
+      ...dateNoteFor(doc.expiresAt, input.words, input.locale ?? 'en', now),
     };
   });
 }
