@@ -1,3 +1,4 @@
+import { formatDate } from '@visastack/i18n';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DestinationLabel } from '../../../../components/destination-label';
@@ -5,7 +6,6 @@ import { SearchableList } from '../../../../components/list-pattern';
 import { PageHeader } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift';
 import { appTripsCatalog } from '../../../../i18n/app-trips';
-import { formatTimestampDate } from '../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { loadJoinedTrips, loadTripList } from '../trip-data';
@@ -37,7 +37,7 @@ function TripItem({
 
 /** UMPE P5: the account holder's group trips. */
 export default async function TripsPage() {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appTripsCatalog);
   const { list, joined } = await withSession(async ({ db, accountId }) => ({
     list: await loadTripList(db, accountId),
@@ -105,7 +105,11 @@ export default async function TripsPage() {
                   {trip.joined
                     ? ''
                     : t('appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink', {
-                        formatTimestampDate: formatTimestampDate(trip.endsAt),
+                        formatTimestampDate: formatDate(new Date(trip.endsAt), locale, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        }),
                       })}
                 </span>
               </li>

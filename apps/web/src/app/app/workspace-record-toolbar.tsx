@@ -283,7 +283,7 @@ export function WorkspaceRecordToolbar({
           <Icon name="bell" size={20} />
           {state && state.unread > 0 ? (
             <span className="record-unread" aria-hidden="true">
-              {countLabel(state.unread, 99)}
+              {countLabel(state.unread, 99, locale)}
             </span>
           ) : null}
         </Link>

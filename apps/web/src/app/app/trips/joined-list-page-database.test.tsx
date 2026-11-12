@@ -27,6 +27,17 @@ import {
  */
 
 const state = vi.hoisted(() => ({ db: undefined as unknown, accountId: '' }));
+const language = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn' }));
+vi.mock('../../../lib/locale', () => ({ getLocale: async () => language.locale }));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+const request = vi.hoisted(() => ({ holder: null as unknown }));
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    request.holder ??= build();
+    return request.holder;
+  },
+}));
 
 vi.mock('../../../lib/session', () => ({
   withSession: async (fn: (ctx: { db: unknown; accountId: string }) => unknown) =>
@@ -37,7 +48,10 @@ const { default: TripsPage } = await import('./(list)/page');
 
 let w: JoinedWorld;
 let previousSwitch: string | undefined;
-const page = () => renderServer(TripsPage());
+const page = () => {
+  request.holder = null;
+  return renderServer(TripsPage());
+};
 
 beforeEach(async () => {
   previousSwitch = process.env[TRIP_COMPANIONS_SWITCH];
@@ -80,6 +94,27 @@ describe('Trips You Joined', () => {
     expect(html).not.toContain(waiting.value.invitation.rawToken);
     expect(html).not.toContain('token=');
     expect(html).not.toContain('waiting@example.com');
+  });
+
+  it('writes the invitation end date for the chosen language, not in English inside Bengali', async () => {
+    const waiting = await addCompanion(await w.organiserProof(), w.tripId, {
+      name: 'Someone Else',
+      email: 'waiting2@example.com',
+    });
+    if (!waiting.ok) throw new Error('invite');
+    state.accountId = await newAccount(w.db, 'waiting2@example.com');
+    const english = textOf(await page());
+    expect(english).toMatch(/Invitation ends \d{1,2} \p{L}{3,4} \d{4}\./u);
+    language.locale = 'bn';
+    try {
+      const bangla = textOf(await page());
+      expect(bangla).toMatch(
+        /আমন্ত্রণ শেষ হবে [\u09E6-\u09EF]{1,2} \p{Script=Bengali}+,? [\u09E6-\u09EF]{4}/u,
+      );
+      expect(bangla).not.toMatch(/\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/);
+    } finally {
+      language.locale = 'en';
+    }
   });
 
   it('is not there for someone with nothing to show, for one who left, or for one who declined', async () => {

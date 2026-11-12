@@ -94,3 +94,14 @@ describe('the count on a tab', () => {
     expect(await axeViolations(container.innerHTML)).toEqual([]);
   });
 });
+
+describe('badgeFor digits follow the language', () => {
+  it('writes the visible and spoken count in Bengali digits under bn', () => {
+    expect(badgeFor(3, 'bn')).toEqual({ shown: '৩', spoken: '৩' });
+    expect(badgeFor(42, 'bn')).toEqual({ shown: '৯+', spoken: '৪২' });
+    expect(badgeFor(100, 'bn')).toEqual({ shown: '৯+', spoken: '৯৯+' });
+  });
+  it('keeps Latin digits under en', () => {
+    expect(badgeFor(3, 'en')).toEqual({ shown: '3', spoken: '3' });
+  });
+});

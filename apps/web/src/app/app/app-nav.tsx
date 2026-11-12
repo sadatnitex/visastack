@@ -1,6 +1,6 @@
 'use client';
 
-import { formatNumber } from '@visastack/i18n';
+import type { Locale } from '@visastack/i18n';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
@@ -109,9 +109,10 @@ function compactLabel(label: string): string {
  */
 export function badgeFor(
   count: number | undefined,
+  locale: Locale = 'en',
 ): { readonly shown: string; readonly spoken: string } | null {
   if (count === undefined || !Number.isFinite(count) || count < 1) return null;
-  return { shown: countLabel(count, 9), spoken: countLabel(count, 99) };
+  return { shown: countLabel(count, 9, locale), spoken: countLabel(count, 99, locale) };
 }
 
 /**
@@ -250,7 +251,7 @@ export function AppNav({
   };
   const actions = links.flatMap((item) => (item.action ? [item.action] : []));
   const link = (item: NavLink) => {
-    const badge = badgeFor(badges[item.href]);
+    const badge = badgeFor(badges[item.href], locale);
     return (
       <Link
         key={item.href}
@@ -259,7 +260,7 @@ export function AppNav({
           badge
             ? t('appHome.appAppNav.labelSpokenNew', {
                 label: item.label,
-                spoken: badge.spoken.replace(/\d+/, (n) => formatNumber(Number(n), locale)),
+                spoken: badge.spoken,
               })
             : item.label
         }
