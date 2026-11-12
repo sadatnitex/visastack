@@ -866,6 +866,8 @@ const DOCS: readonly Case[] = [
         organizationId="org-1"
         agencyName="TEST Agency Unrelated"
         confirmationKey="a11y-confirm-key-000001"
+        planKey="a11y-confirm-key-000001-plan"
+        waitingTotal={3}
         timeZone="Asia/Dhaka"
         review={{
           ready: [
@@ -973,6 +975,8 @@ const DOCS: readonly Case[] = [
         organizationId="org-1"
         agencyName="TEST Agency Unrelated"
         confirmationKey="a11y-confirm-key-000002"
+        planKey="a11y-confirm-key-000002-plan"
+        waitingTotal={3}
         review={{
           ready: [],
           choose: [],

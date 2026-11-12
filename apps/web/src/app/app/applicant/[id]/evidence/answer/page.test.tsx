@@ -225,9 +225,14 @@ describe('with several agencies waiting', () => {
       organizationId: string;
       agencyName: string;
       confirmationKey: string;
+      planKey: string;
+      waitingTotal: number;
       review: { choose: unknown[]; ready: unknown[] };
     }>(html, 'AnswerSetForm');
     expect(form).toMatchObject({ organizationId: ORG_B, agencyName: 'TEST Agency North' });
+    expect(form?.planKey).toBeTruthy();
+    // Counted over the whole plan (every agency), not only the one on screen.
+    expect(form?.waitingTotal).toBe(4);
     expect(form?.review.choose).toHaveLength(1);
     expect(textOf(html)).toContain('TEST Agency North: 1 request waiting');
     expect(textOf(html)).toContain('All Agencies');

@@ -223,13 +223,14 @@ export default async function AnswerFromRecordsPage({
           })}
         </h2>
         <AnswerSetForm
-          // A changed plan starts the form afresh, with a new confirmation key.
-          key={answerPlanKey(selected)}
           applicantId={id}
           organizationId={selected.organizationId}
           agencyName={selected.organizationName}
           confirmationKey={randomBytes(18).toString('base64url')}
+          // A changed plan starts the choices afresh, with a new confirmation key.
+          planKey={answerPlanKey(selected)}
           review={review}
+          waitingTotal={plan.agencies.reduce((total, group) => total + group.items.length, 0)}
           timeZone={data.applicant.timezone}
         />
       </article>

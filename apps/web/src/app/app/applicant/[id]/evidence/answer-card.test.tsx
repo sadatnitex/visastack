@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   getDocumentLifecycles: vi.fn(),
   loadVersionScanEvidence: vi.fn(),
   evidenceSubmissionsPresent: vi.fn(),
-  listWaitingAgencies: vi.fn(),
+  listAskingAgencies: vi.fn(),
 }));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
@@ -34,7 +34,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getDocumentLifecycles: mocks.getDocumentLifecycles,
   loadVersionScanEvidence: mocks.loadVersionScanEvidence,
   evidenceSubmissionsPresent: mocks.evidenceSubmissionsPresent,
-  listWaitingAgencies: mocks.listWaitingAgencies,
+  listAskingAgencies: mocks.listAskingAgencies,
 }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
@@ -67,7 +67,7 @@ const waiting = (over: Record<string, unknown> = {}) => ({
   organizationId: ORG_A,
   organizationName: 'TEST Agency Unrelated',
   waiting: 6,
-  documents: 5,
+  waitingDocuments: 5,
   ...over,
 });
 
@@ -121,7 +121,7 @@ beforeEach(() => {
       ),
     }),
   );
-  mocks.listWaitingAgencies.mockResolvedValue({ ok: true, value: [waiting()] });
+  mocks.listAskingAgencies.mockResolvedValue({ ok: true, value: [waiting()] });
 });
 
 describe('the Answer from Your Records card on the Requests page', () => {
@@ -141,11 +141,11 @@ describe('the Answer from Your Records card on the Requests page', () => {
       { applicantId: 'a1' },
       { purpose: 'self' },
     );
-    expect(mocks.listWaitingAgencies).toHaveBeenCalledWith({ gate: 'proof' });
+    expect(mocks.listAskingAgencies).toHaveBeenCalledWith({ gate: 'proof' });
   });
 
   it('names up to three agencies and links to the list of who is asking', async () => {
-    mocks.listWaitingAgencies.mockResolvedValue({
+    mocks.listAskingAgencies.mockResolvedValue({
       ok: true,
       value: [
         waiting(),
@@ -166,16 +166,19 @@ describe('the Answer from Your Records card on the Requests page', () => {
   });
 
   it('shows no card when no agency waits for a document, only for a detail', async () => {
-    mocks.listWaitingAgencies.mockResolvedValue({ ok: true, value: [waiting({ documents: 0 })] });
+    mocks.listAskingAgencies.mockResolvedValue({
+      ok: true,
+      value: [waiting({ waitingDocuments: 0 })],
+    });
     const html = await render();
     expect(html).not.toContain('evidence/answer');
     expect(textOf(html)).not.toContain('is waiting for 6 answers');
   });
 
   it('shows no card, and the page still loads, when the proof cannot be had or the read fails', async () => {
-    mocks.listWaitingAgencies.mockResolvedValue({ ok: false, error: { code: 'not_found' } });
+    mocks.listAskingAgencies.mockResolvedValue({ ok: false, error: { code: 'not_found' } });
     expect(await render()).not.toContain('evidence/answer');
-    mocks.listWaitingAgencies.mockRejectedValue(new Error('down'));
+    mocks.listAskingAgencies.mockRejectedValue(new Error('down'));
     const html = await render();
     expect(html).not.toContain('evidence/answer');
     expect(textOf(html)).toContain('Requests from Agencies');
@@ -188,9 +191,9 @@ describe('the Answer from Your Records card on the Requests page', () => {
   });
 
   it('adds no running prose to the page, and nothing else on it moves', async () => {
-    mocks.listWaitingAgencies.mockResolvedValue({ ok: true, value: [] });
+    mocks.listAskingAgencies.mockResolvedValue({ ok: true, value: [] });
     const without = await render();
-    mocks.listWaitingAgencies.mockResolvedValue({ ok: true, value: [waiting()] });
+    mocks.listAskingAgencies.mockResolvedValue({ ok: true, value: [waiting()] });
     const withCard = await render();
     const before = countProse(`<main>${without}</main>`, { viewport: 'phone' }).words;
     const after = countProse(`<main>${withCard}</main>`, { viewport: 'phone' }).words;
@@ -210,7 +213,7 @@ describe('the Answer from Your Records card on the Requests page', () => {
 describe('the "Asked by" line in a request panel', () => {
   it('names the agency that asked, under the title', async () => {
     requests(request('r1', ORG_A), request('r2', ORG_B, { docType: 'PASSPORT' }));
-    mocks.listWaitingAgencies.mockResolvedValue({
+    mocks.listAskingAgencies.mockResolvedValue({
       ok: true,
       value: [waiting(), waiting({ organizationId: ORG_B, organizationName: 'TEST Agency North' })],
     });
@@ -219,11 +222,23 @@ describe('the "Asked by" line in a request panel', () => {
     expect(text).toContain('Asked by TEST Agency North');
   });
 
-  it('shows no such line when the agency is not known, or the request no longer waits', async () => {
-    requests(request('r1', ORG_B), request('r2', ORG_A, { status: 'ACCEPTED' }));
+  it('names the agency for a request that no longer waits, as long as the agency has asked', async () => {
+    requests(request('r2', ORG_A, { status: 'ACCEPTED' }));
+    mocks.listAskingAgencies.mockResolvedValue({
+      ok: true,
+      value: [waiting({ waiting: 0, waitingDocuments: 0 })],
+    });
+    const html = await render();
+    expect(textOf(html)).toContain('Asked by TEST Agency Unrelated');
+    // Nothing waits, so no card is drawn.
+    expect(html).not.toContain('evidence/answer');
+  });
+
+  it('shows no such line when the agency is not known', async () => {
+    requests(request('r1', ORG_B));
     const text = textOf(await render());
     expect(text).not.toContain('Asked by TEST Agency North');
-    mocks.listWaitingAgencies.mockResolvedValue({ ok: true, value: [] });
+    mocks.listAskingAgencies.mockResolvedValue({ ok: true, value: [] });
     expect(textOf(await render())).not.toContain('Asked by');
   });
 });

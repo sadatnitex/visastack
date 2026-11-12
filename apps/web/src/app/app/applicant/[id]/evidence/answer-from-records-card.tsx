@@ -1,4 +1,4 @@
-import type { WaitingAgency } from '@visastack/services';
+import type { AskingAgency } from '@visastack/services';
 import Link from 'next/link';
 import { evidenceAnswerCatalog } from '../../../../../i18n/evidence-answer';
 import { getServerT } from '../../../../../lib/i18n-server';
@@ -17,8 +17,8 @@ export function AnswerFromRecordsCard({
   agencies,
 }: {
   readonly applicantId: string;
-  /** Agencies with at least one document request waiting on the person. */
-  readonly agencies: readonly WaitingAgency[];
+  /** Agencies with at least one document request waiting on the person (`waitingDocuments >= 1`). */
+  readonly agencies: readonly AskingAgency[];
 }) {
   const t = getServerT(evidenceAnswerCatalog);
   const [only] = agencies;

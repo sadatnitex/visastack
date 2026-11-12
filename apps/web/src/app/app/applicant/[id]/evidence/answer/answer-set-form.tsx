@@ -10,9 +10,15 @@ import { Icon } from '../../../../../../components/icons';
 import { AboutDisclosure } from '../../../../../../components/ui-lift';
 import { evidenceAnswerCatalog } from '../../../../../../i18n/evidence-answer';
 import type { PartsTranslator } from '../../../../../../lib/language-parts';
+import { TRAVELLER_LIST_STEP } from '../../../../../../lib/paging';
 import { SAVING_TEXT, saveResult } from '../../../../../../lib/save-status';
 import { type AnswerActionState, confirmAnswersAction } from './actions';
-import type { AnswerCopyView, AnswerItemView, AnswerReviewView } from './answer-view';
+import {
+  ANSWER_LIMIT,
+  type AnswerCopyView,
+  type AnswerItemView,
+  type AnswerReviewView,
+} from './answer-view';
 
 const INITIAL: AnswerActionState = { ok: true, message: '', sent: 0, changed: 0 };
 
@@ -33,6 +39,23 @@ const OTHER_WORDS = {
   OWN_STEP: ['evidenceAnswer.form.otherOwnStepShort', 'evidenceAnswer.form.otherOwnStepLong'],
   NO_ACCESS: ['evidenceAnswer.form.otherNoAccessShort', 'evidenceAnswer.form.otherNoAccessLong'],
 } as const;
+
+/** The kinds of request the person can fix by adding a document, so they get the link. */
+const ADD_DOCUMENTS_KINDS: ReadonlySet<AnswerItemView['readiness']> = new Set([
+  'MISSING',
+  'NEEDS_NEW_COPY',
+  'NOT_CHECKED',
+]);
+
+/**
+ * The Requests page lists waiting requests first, ten at a time. `show` asks for enough to include
+ * every waiting request, so the one opened from here is on the page; ten or fewer need no `show`.
+ */
+function showPart(waitingTotal: number): string {
+  if (waitingTotal <= TRAVELLER_LIST_STEP) return '';
+  const shown = Math.ceil(waitingTotal / TRAVELLER_LIST_STEP) * TRAVELLER_LIST_STEP;
+  return `show=${shown}&`;
+}
 
 /** What one copy says about itself: its facts, then anything the person should weigh. */
 function CopyDetails({
@@ -106,16 +129,20 @@ function ItemMeta({ item, t }: { readonly item: AnswerItemView; readonly t: Tran
  * out starts unticked. Nothing leaves without the one button. The agency is named on the button
  * itself, and the exact versions the person saw are the ones posted.
  *
- * The confirmation key is made on the server and kept for the life of this form, so pressing Send
- * twice answers with the first send instead of making a second. A page whose plan changed
- * is given a new `key` by its parent, which starts this form afresh with a new confirmation key.
+ * This outer part owns the result of a send, so a message ("Nothing was sent...") survives the
+ * list being rebuilt. The choices below it are keyed by `planKey`: a changed plan starts them
+ * afresh (ticks, picks and a new confirmation key), while the message stays. The confirmation key
+ * is kept for the life of one set of choices, so pressing Send twice answers with the first send
+ * instead of making a second.
  */
 export function AnswerSetForm({
   applicantId,
   organizationId,
   agencyName,
   confirmationKey,
+  planKey,
   review,
+  waitingTotal,
   timeZone = null,
 }: {
   readonly applicantId: string;
@@ -123,13 +150,16 @@ export function AnswerSetForm({
   readonly agencyName: string;
   /** Made on the server for this render (24 random characters); never made in the browser. */
   readonly confirmationKey: string;
+  /** Changes whenever the plan changes (see `answerPlanKey`); the choices start afresh with it. */
+  readonly planKey: string;
   readonly review: AnswerReviewView;
+  /** Every request waiting in the whole plan, so "Open This Request" lands on the Requests page with it listed. */
+  readonly waitingTotal: number;
   /** The traveller's own time zone, for the "Saved at" time. */
   readonly timeZone?: string | null;
 }) {
   const t = useT(evidenceAnswerCatalog);
   const router = useRouter();
-  const [key] = useState(confirmationKey);
   const [state, formAction, pending] = useActionState(
     async (previous: AnswerActionState, formData: FormData): Promise<AnswerActionState> => {
       const next = await confirmAnswersAction(previous, formData);
@@ -138,8 +168,8 @@ export function AnswerSetForm({
         // turn that into an error on screen. The page then reads the receipt for this key.
         try {
           const url = new URL(window.location.href);
-          url.searchParams.set('agency', organizationId);
-          url.searchParams.set('done', key);
+          url.searchParams.set('agency', String(formData.get('organizationId') ?? organizationId));
+          url.searchParams.set('done', String(formData.get('confirmationKey') ?? ''));
           router.replace(`${url.pathname}${url.search}`, { scroll: false });
         } catch {
           // The page still refreshes and shows what is left.
@@ -149,7 +179,56 @@ export function AnswerSetForm({
     },
     INITIAL,
   );
+  // A success here can only be about the send that just happened: it is shown once, with its time.
+  const result = saveResult(state, timeZone);
 
+  return (
+    <form action={formAction} className="request-response answer-set-form">
+      <AnswerChoices
+        key={planKey}
+        applicantId={applicantId}
+        organizationId={organizationId}
+        agencyName={agencyName}
+        confirmationKey={confirmationKey}
+        review={review}
+        waitingTotal={waitingTotal}
+        pending={pending}
+      />
+      <FormMessage
+        result={state.ok && !state.savedAt ? NO_RESULT : result}
+        pending={pending}
+        pendingText={SAVING_TEXT}
+      />
+      <p className="muted u-fs-085 u-m-0">
+        {t.node('evidenceAnswer.form.consentShort', { agency: agencyName })}
+      </p>
+      <AboutDisclosure summary={t('evidenceAnswer.form.aboutSending')}>
+        <p className="muted u-fs-085 u-m-0">{t.node('evidenceAnswer.form.aboutSendingBody')}</p>
+      </AboutDisclosure>
+    </form>
+  );
+}
+
+/** What starts afresh whenever the plan changes: the kept key, the ticks and picks, and the groups. */
+function AnswerChoices({
+  applicantId,
+  organizationId,
+  agencyName,
+  confirmationKey,
+  review,
+  waitingTotal,
+  pending,
+}: {
+  readonly applicantId: string;
+  readonly organizationId: string;
+  readonly agencyName: string;
+  readonly confirmationKey: string;
+  readonly review: AnswerReviewView;
+  readonly waitingTotal: number;
+  readonly pending: boolean;
+}) {
+  const t = useT(evidenceAnswerCatalog);
+  const [key] = useState(confirmationKey);
   // Ticks for the copies that are the only fit (ready, or date to check); a pick per request where
   // several copies fit. The ready ones start ticked; nothing else starts chosen.
   const [ticked, setTicked] = useState<ReadonlySet<string>>(
@@ -177,8 +256,7 @@ export function AnswerSetForm({
     }
   }
   const count = answers.length;
-  const result = saveResult(state, timeZone);
-  // A success here can only be about the send that just happened: it is shown once, with its time.
+  const overLimit = count > ANSWER_LIMIT;
   const sendLabel =
     count === 0
       ? t('evidenceAnswer.form.sendNone', { agency: agencyName })
@@ -191,11 +269,11 @@ export function AnswerSetForm({
       return next;
     });
   const requestHref = (requestId: string) =>
-    `/app/applicant/${applicantId}/evidence?item=${requestId}#request-${requestId}`;
+    `/app/applicant/${applicantId}/evidence?${showPart(waitingTotal)}item=${requestId}#request-${requestId}`;
   const otherKinds = [...new Set(review.other.map((item) => item.readiness))];
 
   return (
-    <form action={formAction} className="request-response answer-set-form">
+    <>
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="confirmationKey" value={key} />
@@ -295,7 +373,7 @@ export function AnswerSetForm({
                   </span>
                 </label>
                 {item.copies.map((copy) => {
-                  const detailId = `${baseId}-d-${copy.versionId}`;
+                  const detailId = `${baseId}-d-${item.requestId}-${copy.versionId}`;
                   return (
                     <label key={copy.versionId} className="request-choice evidence-pick lc-choice">
                       <input
@@ -330,7 +408,7 @@ export function AnswerSetForm({
           </h3>
           <div className="rows">
             {review.other.map((item) => {
-              const [short] = OTHER_WORDS[otherReadiness(item)];
+              const [short] = OTHER_WORDS[kindOf(item.readiness)];
               return (
                 <div key={item.requestId} className="row">
                   <div className="answer-other-text">
@@ -338,7 +416,7 @@ export function AnswerSetForm({
                     <p className="muted u-fs-085 u-m-0">{t.node(short)}</p>
                   </div>
                   <div className="request-response-actions">
-                    {item.readiness === 'MISSING' ? (
+                    {ADD_DOCUMENTS_KINDS.has(item.readiness) ? (
                       <Link
                         className="btn btn-secondary"
                         href={`/app/applicant/${applicantId}/documents/add`}
@@ -372,32 +450,22 @@ export function AnswerSetForm({
       <div className="request-response-actions answer-send">
         <SubmitButton
           pending={pending}
-          unavailable={count === 0}
-          idle={state.ok ? sendLabel : t('evidenceAnswer.form.tryAgain')}
+          unavailable={count === 0 || overLimit}
+          idle={sendLabel}
           busy={t('evidenceAnswer.form.sending')}
           className="btn btn-primary"
         />
-        <FormMessage
-          result={state.ok && !state.savedAt ? NO_RESULT : result}
-          pending={pending}
-          pendingText={SAVING_TEXT}
-        />
       </div>
-      <p className="muted u-fs-085 u-m-0">
-        {t.node('evidenceAnswer.form.consentShort', { agency: agencyName })}
-      </p>
-      <AboutDisclosure summary={t('evidenceAnswer.form.aboutSending')}>
-        <p className="muted u-fs-085 u-m-0">{t.node('evidenceAnswer.form.aboutSendingBody')}</p>
-      </AboutDisclosure>
-    </form>
+      {overLimit ? (
+        <output className="muted u-fs-085 u-m-0">
+          {t.node('evidenceAnswer.form.overLimit', { limit: ANSWER_LIMIT })}
+        </output>
+      ) : null}
+    </>
   );
 }
 
 /** A request outside this step is one of the six kinds the plan can name for it. */
 function kindOf(readiness: AnswerItemView['readiness']): keyof typeof OTHER_WORDS {
   return readiness in OTHER_WORDS ? (readiness as keyof typeof OTHER_WORDS) : 'OWN_STEP';
-}
-
-function otherReadiness(item: AnswerItemView): keyof typeof OTHER_WORDS {
-  return kindOf(item.readiness);
 }

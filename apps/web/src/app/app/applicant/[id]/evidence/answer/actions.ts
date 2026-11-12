@@ -2,7 +2,6 @@
 
 import {
   type EvidenceAnswer,
-  MAX_ANSWERS_PER_CONFIRMATION,
   accountPrincipal,
   confirmEvidenceAnswers,
   getApplicant,
@@ -14,6 +13,7 @@ import { evidenceAnswerCatalog } from '../../../../../../i18n/evidence-answer';
 import { getT } from '../../../../../../lib/i18n-server';
 import { triggerNotificationWorker } from '../../../../../../lib/jobs';
 import { withSession } from '../../../../../../lib/session';
+import { ANSWER_LIMIT } from './answer-view';
 
 /**
  * What the review form is told. `savedAt` is set only when the server sent at least one answer,
@@ -45,11 +45,11 @@ function parseAnswer(raw: FormDataEntryValue): EvidenceAnswer | null {
   return { requestId, documentId, documentVersionId };
 }
 
-/** At most one answer per request and at most one send's worth in all; malformed values are ignored. */
+/** At most one answer per request; malformed values are ignored. The caller refuses too many. */
 function parseAnswers(values: readonly FormDataEntryValue[]): EvidenceAnswer[] {
   const answers: EvidenceAnswer[] = [];
   const seen = new Set<string>();
-  for (const raw of values.slice(0, MAX_ANSWERS_PER_CONFIRMATION)) {
+  for (const raw of values) {
     const answer = parseAnswer(raw);
     if (!answer) continue;
     const key = answer.requestId.toLowerCase();
@@ -89,6 +89,10 @@ export async function confirmAnswersAction(
   }
   const answers = parseAnswers(formData.getAll('answer'));
   if (answers.length === 0) return refused(t('evidenceAnswer.actions.chooseOne'));
+  // Never drop the rest without saying so: one confirmation sends at most this many.
+  if (answers.length > ANSWER_LIMIT) {
+    return refused(t('evidenceAnswer.actions.overLimit', { limit: ANSWER_LIMIT }));
+  }
 
   const result = await withSession(async ({ db, accountId }): Promise<AnswerActionState> => {
     const applicant = await getApplicant(db, applicantId);

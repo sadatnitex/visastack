@@ -64,7 +64,8 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.form.send':
       '{count, plural, one {Send # Answer to {agency}} other {Send # Answers to {agency}}}',
     'evidenceAnswer.form.sending': 'Sending…',
-    'evidenceAnswer.form.tryAgain': 'Try Again',
+    'evidenceAnswer.form.overLimit':
+      'One step sends up to {limit} answers. Untick some, send, then send the rest.',
     'evidenceAnswer.form.consentShort':
       '{agency} can download these exact copies while it has access.',
     'evidenceAnswer.form.aboutSending': 'About Sending',
@@ -76,12 +77,12 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.form.otherOutdatedShort': 'Saved copy is out of date.',
     'evidenceAnswer.form.otherOutdatedLong':
       'The saved copy is expired, or older than the checklist allows. You can still choose it on the request itself.',
-    'evidenceAnswer.form.otherNeedsNewCopyShort': 'Sent back. Upload a clearer copy.',
+    'evidenceAnswer.form.otherNeedsNewCopyShort': 'Sent back. Add a clearer copy.',
     'evidenceAnswer.form.otherNeedsNewCopyLong':
-      'The agency sent this copy back. Upload a clearer copy on the request itself.',
-    'evidenceAnswer.form.otherNotCheckedShort': 'Safety checks are not finished.',
+      'The agency sent every saved copy of this back. Add a clearer copy to your documents; it then appears here.',
+    'evidenceAnswer.form.otherNotCheckedShort': 'This file cannot be sent yet.',
     'evidenceAnswer.form.otherNotCheckedLong':
-      'The saved file has not finished its safety checks. Try again in a moment.',
+      'The saved file is still being checked, did not pass its checks, or is no longer stored. Add another copy, or open the request to see more.',
     'evidenceAnswer.form.otherMissingShort': 'Nothing of this kind is saved.',
     'evidenceAnswer.form.otherMissingLong':
       'Nothing of this kind is saved yet. Add it to your documents, then answer this request.',
@@ -100,6 +101,8 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.actions.noneSent':
       'Nothing was sent. Your records changed after you opened this page. Check the list and try again.',
     'evidenceAnswer.actions.outOfDate': 'This page is out of date. Refresh it and choose again.',
+    'evidenceAnswer.actions.overLimit':
+      'One step sends up to {limit} answers. Untick some, send, then send the rest.',
     'evidenceAnswer.actions.chooseOne': 'Choose at least one answer to send.',
     'evidenceAnswer.actions.failed': 'Nothing was sent. Something went wrong on our side.',
     'evidenceAnswer.actions.theAgency': 'the agency',

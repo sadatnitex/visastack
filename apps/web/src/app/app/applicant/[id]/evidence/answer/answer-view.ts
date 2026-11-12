@@ -60,6 +60,9 @@ export interface AnswerReviewView {
   readonly other: readonly AnswerItemView[];
 }
 
+/** The most answers one confirmation can send; the same number the service enforces. */
+export const ANSWER_LIMIT = 25;
+
 function copyView(
   copy: AnswerCopy,
   item: AnswerItem,

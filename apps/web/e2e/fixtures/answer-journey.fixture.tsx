@@ -326,6 +326,8 @@ function After() {
           organizationId={ORG}
           agencyName={AGENCY}
           confirmationKey="fixtureConfirmationKey0"
+          planKey="fixture-plan"
+          waitingTotal={GROUP.items.length}
           review={buildAnswerReview(GROUP, { timeZone: TIME_ZONE, locale: 'en' })}
           timeZone={TIME_ZONE}
         />

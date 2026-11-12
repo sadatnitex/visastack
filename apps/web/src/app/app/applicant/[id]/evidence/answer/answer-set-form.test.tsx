@@ -85,19 +85,27 @@ afterEach(() => {
   container.remove();
 });
 
-function mount(review: AnswerReviewView = REVIEW) {
+function show(
+  review: AnswerReviewView = REVIEW,
+  over: { planKey?: string; confirmationKey?: string; waitingTotal?: number } = {},
+) {
   act(() =>
     root.render(
       <AnswerSetForm
         applicantId="a1"
         organizationId="org-1"
         agencyName={AGENCY}
-        confirmationKey={KEY}
+        confirmationKey={over.confirmationKey ?? KEY}
+        planKey={over.planKey ?? 'plan-1'}
         review={review}
+        waitingTotal={over.waitingTotal ?? 3}
         timeZone="Asia/Dhaka"
       />,
     ),
   );
+}
+function mount(review: AnswerReviewView = REVIEW, waitingTotal?: number) {
+  show(review, waitingTotal === undefined ? {} : { waitingTotal });
 }
 const form = () => container.querySelector('form') as HTMLFormElement;
 const button = () => container.querySelector('button[type="submit"]') as HTMLButtonElement;
@@ -202,20 +210,9 @@ describe('the one button follows the ticks', () => {
     expect(data.get('confirmationKey')).toBe(KEY);
   });
 
-  it('keeps the confirmation key it was given, even if the page hands it a new one later', () => {
+  it('keeps the confirmation key while the plan is the same, even if the page hands it a new one', () => {
     mount();
-    act(() =>
-      root.render(
-        <AnswerSetForm
-          applicantId="a1"
-          organizationId="org-1"
-          agencyName={AGENCY}
-          confirmationKey="zzzzzzzzzzzzzzzzzzzzzzzz"
-          review={REVIEW}
-          timeZone="Asia/Dhaka"
-        />,
-      ),
-    );
+    show(REVIEW, { confirmationKey: 'zzzzzzzzzzzzzzzzzzzzzzzz' });
     expect(container.querySelector<HTMLInputElement>('input[name="confirmationKey"]')?.value).toBe(
       KEY,
     );
@@ -256,7 +253,108 @@ describe('after the server answers', () => {
     });
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Not saved. Nothing was sent.');
-    expect(button().textContent).toBe('Try Again');
+    expect(button().textContent).toBe(`Send 2 Answers to ${AGENCY}`);
+    expect(button().textContent).not.toContain('Try Again');
+  });
+});
+
+describe('a result survives the list being rebuilt', () => {
+  it('keeps the message, resets the ticks and takes the new confirmation key when the plan changes', async () => {
+    mocks.confirmAnswersAction.mockResolvedValue({
+      ok: false,
+      message: 'Nothing was sent. Your records changed after you opened this page.',
+      sent: 0,
+      changed: 2,
+    });
+    mount();
+    click(boxFor('Document: Bank Statement'));
+    await act(async () => {
+      form().requestSubmit();
+    });
+    expect(container.textContent).toContain('Not saved. Nothing was sent.');
+
+    const NEW_KEY = 'n3wKeyAAAAAAAAAAAAAAAAAA';
+    const NEW_REVIEW: AnswerReviewView = {
+      ready: [item('Passport', 'READY', [copy('passport')])],
+      choose: [],
+      other: [],
+    };
+    show(NEW_REVIEW, { planKey: 'plan-2', confirmationKey: NEW_KEY });
+    expect(container.textContent).toContain('Not saved. Nothing was sent.');
+    expect(boxes()).toHaveLength(1);
+    expect(boxFor('Document: Passport').checked).toBe(true);
+    expect(button().textContent).toBe(`Send 1 Answer to ${AGENCY}`);
+    expect(container.querySelector<HTMLInputElement>('input[name="confirmationKey"]')?.value).toBe(
+      NEW_KEY,
+    );
+    expect(posted()).toEqual(['req-Passport|doc-passport|ver-passport']);
+  });
+});
+
+describe('Open This Request lands on the request even when it is far down the list', () => {
+  const hrefOf = () =>
+    [...container.querySelectorAll('a')]
+      .map((a) => a.getAttribute('href') ?? '')
+      .find((href) => href.includes('item=req-National-Id')) as string;
+
+  it('leaves out show when ten or fewer requests wait', () => {
+    mount(REVIEW, 10);
+    expect(hrefOf()).toBe(
+      '/app/applicant/a1/evidence?item=req-National-Id#request-req-National-Id',
+    );
+  });
+
+  it('asks for enough of the list, in steps of ten, when more wait', () => {
+    mount(REVIEW, 11);
+    expect(hrefOf()).toBe(
+      '/app/applicant/a1/evidence?show=20&item=req-National-Id#request-req-National-Id',
+    );
+    mount(REVIEW, 30);
+    expect(hrefOf()).toContain('?show=30&item=');
+  });
+});
+
+describe('one step sends at most 25 answers', () => {
+  const many = (n: number): AnswerReviewView => ({
+    ready: Array.from({ length: n }, (_unused, i) => item(`Doc ${i}`, 'READY', [copy(`c${i}`)])),
+    choose: [],
+    other: [],
+  });
+
+  it('allows exactly 25', () => {
+    mount(many(25));
+    expect(button().disabled).toBe(false);
+    expect(container.textContent).not.toContain('One step sends up to');
+  });
+
+  it('makes the button unavailable and says why when more than 25 are chosen, until some are unticked', () => {
+    mount(many(26));
+    expect(button().disabled).toBe(true);
+    expect(container.textContent).toContain(
+      'One step sends up to 25 answers. Untick some, send, then send the rest.',
+    );
+    click(boxFor('Document: Doc 0'));
+    expect(button().disabled).toBe(false);
+    expect(container.textContent).not.toContain('One step sends up to');
+  });
+});
+
+describe('ids stay unique when two requests offer the same copies', () => {
+  it('builds each detail id from the request and the version', () => {
+    const same = () => [copy('x'), copy('y')];
+    mount({
+      ready: [],
+      choose: [item('Photo One', 'CHOOSE', same()), item('Photo Two', 'CHOOSE', same())],
+      other: [],
+    });
+    const ids = [...container.querySelectorAll('[id]')].map((el) => el.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const fieldset of container.querySelectorAll('fieldset')) {
+      for (const radio of fieldset.querySelectorAll<HTMLInputElement>('input[aria-describedby]')) {
+        const target = radio.getAttribute('aria-describedby') as string;
+        expect(fieldset.querySelector(`[id="${target}"]`)).not.toBeNull();
+      }
+    }
   });
 });
 
@@ -277,6 +375,25 @@ describe('the requests that are not part of this step', () => {
     expect(hrefs).toContain('/app/applicant/a1/documents/add');
     expect(hrefs.filter((href) => href?.includes('/evidence?item='))).toHaveLength(3);
     expect(hrefs.filter((href) => href === '/app/applicant/a1/documents/add')).toHaveLength(1);
+  });
+
+  it('offers Add Documents for a missing document, a sent-back copy and an unchecked file', () => {
+    mount({
+      ready: [],
+      choose: [],
+      other: [
+        item('Letter', 'MISSING'),
+        item('Photo', 'NEEDS_NEW_COPY'),
+        item('Bank', 'NOT_CHECKED'),
+        item('Old Id', 'OUTDATED'),
+      ],
+    });
+    const adds = [...container.querySelectorAll('a')].filter(
+      (a) => a.getAttribute('href') === '/app/applicant/a1/documents/add',
+    );
+    expect(adds).toHaveLength(3);
+    expect(container.textContent).toContain('This file cannot be sent yet.');
+    expect(container.textContent).toContain('Sent back. Add a clearer copy.');
   });
 
   it('leaves a group out when it has nothing in it', () => {

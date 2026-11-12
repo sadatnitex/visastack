@@ -244,12 +244,32 @@ describe('confirmAnswersAction: the input is bounded', () => {
     expect(input.answers.map((answer) => answer.requestId)).toEqual(['r1', 'r2']);
   });
 
-  it('reads at most 25 answers, however many are posted', async () => {
+  it('sends exactly 25 answers when 25 are posted', async () => {
     mocks.confirmEvidenceAnswers.mockResolvedValue(confirmation({ sent: 25 }));
-    const many = Array.from({ length: 40 }, (_unused, n) => `r${n}|d${n}|v${n}`);
+    const many = Array.from({ length: 25 }, (_unused, n) => `r${n}|d${n}|v${n}`);
     await confirmAnswersAction(PREV, form(many));
     const input = mocks.confirmEvidenceAnswers.mock.calls[0]?.[1] as { answers: unknown[] };
     expect(input.answers).toHaveLength(25);
+  });
+
+  it('refuses, in plain words and sending nothing, when more than 25 answers are posted', async () => {
+    const many = Array.from({ length: 26 }, (_unused, n) => `r${n}|d${n}|v${n}`);
+    const result = await confirmAnswersAction(PREV, form(many));
+    expect(result).toEqual({
+      ok: false,
+      message: 'One step sends up to 25 answers. Untick some, send, then send the rest.',
+      sent: 0,
+      changed: 0,
+    });
+    expect(mocks.getApplicant).not.toHaveBeenCalled();
+    expect(mocks.confirmEvidenceAnswers).not.toHaveBeenCalled();
+  });
+
+  it('uses the same limit as the service', async () => {
+    const { ANSWER_LIMIT } = await import('./answer-view');
+    const actual =
+      await vi.importActual<typeof import('@visastack/services')>('@visastack/services');
+    expect(ANSWER_LIMIT).toBe(actual.MAX_ANSWERS_PER_CONFIRMATION);
   });
 
   it('says the page is out of date when the agency, key or traveller is missing', async () => {
