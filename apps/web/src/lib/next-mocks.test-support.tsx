@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReactElement, ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { prerender } from 'react-dom/static';
 import { expect, vi } from 'vitest';
 
 /**
@@ -84,12 +84,31 @@ export function stubProps<T extends object = Record<string, unknown>>(
   return found;
 }
 
+/** Prerender awaits async server components; the stream is read into one string. */
+async function prerenderToString(element: ReactElement): Promise<string> {
+  const { prelude } = await prerender(element);
+  const reader = prelude.getReader();
+  const decoder = new TextDecoder();
+  let out = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    out += decoder.decode(value, { stream: true });
+  }
+  // Prerender adds comment markers (text separators, Suspense edges) and a doctype; static markup has none.
+  return (out + decoder.decode())
+    .replace(/^<!DOCTYPE html>/, '')
+    .replaceAll('<!-- -->', '')
+    .replaceAll('<!--$-->', '')
+    .replaceAll('<!--/$-->', '');
+}
+
 /** Renders what a (possibly async) server page or layout returns; `null` renders as nothing. */
 export async function renderServer(
   element: Promise<ReactElement | null> | ReactElement | null,
 ): Promise<string> {
   const resolved = await element;
-  const html = resolved === null ? '' : renderToStaticMarkup(resolved);
+  const html = resolved === null ? '' : await prerenderToString(resolved);
   const captureVariable = 'UI_VISUAL_CAPTURE_DIR';
   const captureDirectory = process.env[captureVariable];
   if (captureDirectory && html) {

@@ -1,6 +1,10 @@
 import type { Readiness } from '@visastack/services';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { renderServer } from '../lib/next-mocks.test-support';
+
+vi.mock('server-only', () => ({}));
+vi.mock('../lib/locale', () => ({ getLocale: async () => 'en' }));
+
 import {
   CasePreparationSummary,
   CaseStageTracker,
@@ -30,8 +34,8 @@ const readiness: Readiness = {
   })),
 };
 describe('case progress represents preparation and actual workflow state', () => {
-  it('uses required-item completeness and distinguishes recorded evidence states', () => {
-    const html = renderToStaticMarkup(<CasePreparationSummary readiness={readiness} />);
+  it('uses required-item completeness and distinguishes recorded evidence states', async () => {
+    const html = await renderServer(<CasePreparationSummary readiness={readiness} />);
     // One big number and a bar named in words; the number is the count, never a score.
     expect(html).toContain('1 of 4');
     expect(html).toContain('aria-label="1 of 4 required items on file"');
@@ -67,7 +71,7 @@ describe('case progress represents preparation and actual workflow state', () =>
     // What the Next Step calls "to fix" is the missing and the out-of-date or two-valued items.
     expect(counts.missing + counts.review).toBe(3);
   });
-  it('UMPE P1: counts a group of alternatives once, and never a covered alternative', () => {
+  it('UMPE P1: counts a group of alternatives once, and never a covered alternative', async () => {
     const row = (
       id: string,
       state: Readiness['requirementResults'][number]['state'],
@@ -80,7 +84,7 @@ describe('case progress represents preparation and actual workflow state', () =>
       state,
       ...extra,
     });
-    const html = renderToStaticMarkup(
+    const html = await renderServer(
       <CasePreparationSummary
         readiness={{
           ...readiness,
@@ -103,8 +107,8 @@ describe('case progress represents preparation and actual workflow state', () =>
     expect(html).toContain('<dt>To Confirm</dt><dd>0</dd>');
     expect(html).toContain('<dt>Optional Not Provided</dt><dd>0</dd>');
   });
-  it('does not claim 100 percent when no required items exist', () => {
-    const html = renderToStaticMarkup(
+  it('does not claim 100 percent when no required items exist', async () => {
+    const html = await renderServer(
       <CasePreparationSummary
         readiness={{ ...readiness, requiredCount: 0, satisfiedRequired: 0 }}
       />,
@@ -114,8 +118,8 @@ describe('case progress represents preparation and actual workflow state', () =>
     expect(html).not.toContain('100%');
     expect(html).not.toContain('0 of 0');
   });
-  it('marks only the actual legacy state and retains the real permitted-next description', () => {
-    const html = renderToStaticMarkup(
+  it('marks only the actual legacy state and retains the real permitted-next description', async () => {
+    const html = await renderServer(
       <CaseStageTracker
         state="UNDER_REVIEW"
         labels={{
@@ -140,8 +144,8 @@ describe('case progress represents preparation and actual workflow state', () =>
     expect(html).not.toContain('<button');
   });
 
-  it('lists only the stage buttons as next steps and points to More for cancelling', () => {
-    const html = renderToStaticMarkup(
+  it('lists only the stage buttons as next steps and points to More for cancelling', async () => {
+    const html = await renderServer(
       <CaseStageTracker
         state="UNDER_REVIEW"
         labels={{ READY_TO_EXPORT: 'Ready to Export', CANCELLED: 'Cancelled' }}
@@ -153,7 +157,7 @@ describe('case progress represents preparation and actual workflow state', () =>
     expect(line).toContain('allows Ready to Export next;');
     expect(line).not.toContain('Cancelled');
     expect(html).toContain('To stop the case, use More at the top of the page.');
-    const last = renderToStaticMarkup(
+    const last = await renderServer(
       <CaseStageTracker state="SUBMITTED" labels={{}} nextStates={[]} cancelInMore />,
     );
     expect(last).toContain('There is no further stage from here.');

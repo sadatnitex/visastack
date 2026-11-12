@@ -1,6 +1,8 @@
-import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { renderServer } from '../../lib/next-mocks.test-support';
 
+vi.mock('server-only', () => ({}));
+vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('./extend-grant-action', () => ({
   extendGrantAction: async () => ({ ok: true, message: '' }),
 }));
@@ -36,8 +38,8 @@ describe('canOfferExtension', () => {
 });
 
 describe('ExtendGrantButton', () => {
-  it('is one Title Case button carrying the end date the person saw', () => {
-    const html = renderToStaticMarkup(
+  it('is one Title Case button carrying the end date the person saw', async () => {
+    const html = await renderServer(
       <ExtendGrantButton applicantId="a1" grantId="g1" expiresAt="2026-12-01T00:00:00.000Z" />,
     );
     expect(html).toContain('Keep Sharing for 30 More Days');
@@ -50,24 +52,24 @@ describe('ExtendGrantButton', () => {
 });
 
 describe('AccessEndsNote', () => {
-  it('tells the agency the end date and that only the traveller can extend, with no button', () => {
-    const html = renderToStaticMarkup(<AccessEndsNote endsAt="2026-12-01T00:00:00.000Z" />);
+  it('tells the agency the end date and that only the traveller can extend, with no button', async () => {
+    const html = await renderServer(<AccessEndsNote endsAt="2026-12-01T00:00:00.000Z" />);
     expect(html).toContain('Access ends on 1 Dec 2026. The traveller can extend it.');
     expect(html).not.toContain('<button');
   });
 
-  it("names the traveller's own calendar day, not the server's", () => {
+  it("names the traveller's own calendar day, not the server's", async () => {
     // 20:00 UTC on 2 Dec is already 3 Dec in Dhaka, the day the reminder names.
     const at = '2026-12-02T20:00:00.000Z';
-    expect(renderToStaticMarkup(<AccessEndsNote endsAt={at} timeZone="Asia/Dhaka" />)).toContain(
+    expect(await renderServer(<AccessEndsNote endsAt={at} timeZone="Asia/Dhaka" />)).toContain(
       'Access ends on 3 Dec 2026.',
     );
-    expect(renderToStaticMarkup(<AccessEndsNote endsAt={at} />)).toContain(
+    expect(await renderServer(<AccessEndsNote endsAt={at} />)).toContain(
       'Access ends on 2 Dec 2026.',
     );
   });
 
-  it('says nothing when there is no end date', () => {
-    expect(renderToStaticMarkup(<AccessEndsNote endsAt={null} />)).toBe('');
+  it('says nothing when there is no end date', async () => {
+    expect(await renderServer(<AccessEndsNote endsAt={null} />)).toBe('');
   });
 });

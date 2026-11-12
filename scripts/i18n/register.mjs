@@ -24,6 +24,26 @@ import { readIfExists } from './catalog.mjs';
  */
 export const HOLDBACK = new Map([
   [
+    'SG-c67c0fbc',
+    "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
+  ],
+  [
+    'SG-5e7adbab',
+    "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
+  ],
+  [
+    'SG-f3c3a277',
+    "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
+  ],
+  [
+    'SG-1d11e900',
+    'Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.',
+  ],
+  [
+    'SG-acdb0e90',
+    'Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.',
+  ],
+  [
     'SG-22bda9c8',
     'Public beta risk notice (real details, virus scanning): wording waits for the owner sign-off.',
   ],

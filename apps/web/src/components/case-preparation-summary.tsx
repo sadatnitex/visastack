@@ -5,6 +5,8 @@ import {
 } from '@visastack/core';
 import type { Readiness } from '@visastack/services';
 import type { ReactNode } from 'react';
+import { componentsMoreCatalog } from '../i18n/components-more';
+import { getT } from '../lib/i18n-server';
 import { progressRingPercent } from '../lib/readiness-words';
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE } from './progress-ring';
 import { ProgressMeter, StepBar } from './ui-lift';
@@ -15,7 +17,7 @@ import { ProgressMeter, StepBar } from './ui-lift';
  * below says so rather than listing it as a next stage. Only the current stage is marked: the page
  * keeps no history of finished stages, so an earlier stage is never ticked.
  */
-export function CaseStageTracker({
+export async function CaseStageTracker({
   state,
   labels,
   nextStates,
@@ -26,6 +28,7 @@ export function CaseStageTracker({
   readonly nextStates: readonly MissionState[];
   readonly cancelInMore?: boolean;
 }) {
+  const t = await getT(componentsMoreCatalog);
   const cancelLine = cancelInMore ? ' To stop the case, use More at the top of the page.' : '';
   const legacy = (LEGACY_ONLY_MISSION_STATES as readonly string[]).includes(state);
   const stages: readonly MissionState[] = legacy
@@ -48,7 +51,7 @@ export function CaseStageTracker({
   const at = path.indexOf(state);
   return (
     <StepBar
-      ariaLabel="Actual case workflow state"
+      ariaLabel={t('componentsMore.casePreparationSummary.actualCaseWorkflowState')}
       steps={path.map(named)}
       apart={apart.map(named)}
       position={at >= 0 ? `Stage ${at + 1} of ${path.length}` : 'This case was cancelled'}
@@ -125,7 +128,7 @@ export function countRequirementItems(
  * Evidence Progress: how many required items are on file as one big number and a bar, what that
  * means in a word and a sentence (`children`), the six counts and how it is counted. Exact computed requirement states; no score or probability is invented.
  */
-export function CasePreparationSummary({
+export async function CasePreparationSummary({
   readiness,
   children,
   explain,
@@ -136,18 +139,27 @@ export function CasePreparationSummary({
   /** The sentence and the confirmation line, folded with the counts under "How This Is Counted". */
   readonly explain?: ReactNode;
 }) {
+  const t = await getT(componentsMoreCatalog);
   const counts = countRequirementItems(readiness.requirementResults);
   const { requiredCount, satisfiedRequired } = readiness;
   const unit = 'required items on file';
   const shortUnit = 'required on file';
   return (
-    <section className="lift-progress" aria-label="Evidence preparation completeness">
-      <h2 className="lift-progress-kicker">Evidence Progress</h2>
+    <section
+      className="lift-progress"
+      aria-label={t('componentsMore.casePreparationSummary.evidencePreparationCompleteness')}
+    >
+      <h2 className="lift-progress-kicker">
+        {t.node('componentsMore.casePreparationSummary.evidenceProgress')}
+      </h2>
       {requiredCount > 0 ? (
         <>
           <p className="lift-progress-figure">
             <span className="lift-progress-numeral">
-              {satisfiedRequired} of {requiredCount}
+              {t.node('componentsMore.casePreparationSummary.satisfiedrequiredOfRequiredcount', {
+                satisfiedRequired,
+                requiredCount,
+              })}
             </span>
             <span className="lift-progress-unit">{shortUnit}</span>
           </p>
@@ -168,7 +180,7 @@ export function CasePreparationSummary({
       )}
       {children}
       <details className="lift-help">
-        <summary>How This Is Counted</summary>
+        <summary>{t.node('componentsMore.casePreparationSummary.howThisIsCounted')}</summary>
         <div className="lift-help-body">
           {explain}
           <dl className="lift-counts">
@@ -191,12 +203,13 @@ export function CasePreparationSummary({
               </div>
             ))}
           </dl>
+          <p>{t.node('componentsMore.casePreparationSummary.theBarCountsRequiredItemsThat')}</p>
           <p>
-            The bar counts required items that are on file. Optional and non-applicable items are
-            counted separately.
+            {t.node('componentsMore.casePreparationSummary.completenessIsNotAnApprovalProbability')}
           </p>
-          <p>Completeness is not an approval probability. Review each requirement below.</p>
-          <p>Readiness is completeness only - never an approval likelihood.</p>
+          <p>
+            {t.node('componentsMore.casePreparationSummary.readinessIsCompletenessOnlyNeverAn')}
+          </p>
         </div>
       </details>
     </section>
