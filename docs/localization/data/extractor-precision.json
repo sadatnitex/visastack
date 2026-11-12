@@ -1,0 +1,31 @@
+{
+  "method": "A seeded random sample (seed 11) of 145 extracted rows from the census as it stood before the false-positive fixes was read by hand and judged: is this a string a person can be shown, worth translating? The model that wrote the extractor made these judgments, so they are not independent. An independent re-check of a fresh sample is in `data/INDEPENDENT_REVIEW.md`.",
+  "tiers": [
+    {
+      "tier": "Syntax-derived (text between tags, expressions, accessible attributes)",
+      "n": 35,
+      "ok": 35
+    },
+    {
+      "tier": "Property-name heuristic (label, message, title, label maps)",
+      "n": 40,
+      "ok": 36
+    },
+    {
+      "tier": "Component prop heuristic",
+      "n": 30,
+      "ok": 27
+    },
+    {
+      "tier": "Candidate sentences (no display evidence)",
+      "n": 40,
+      "ok": 38
+    }
+  ],
+  "notes": [
+    "Misses found: text written for AI assistant tools, IANA time zone ids, SQL text, file names used as source references, and lowercase single-word props (name, kind, icon). Each class was fixed in the extractor after the audit.",
+    "Doubtful but counted correct: purpose tags such as `Tourist (base)` in starter checklist seed rows, which are probably shown but were not seen on a screen.",
+    "Precision after the fixes was not re-measured by the same judge.",
+    "Independent re-check (a separate session, seed 29, 16 rows per class, 80 rows): 74 of 80 correct, 92.5 percent. Text between tags 16 of 16, accessible attributes 16 of 16, candidate sentences 16 of 16, component props 14 of 16, property-name heuristic 12 of 16. The misses (icon and field names, starter checklist keys matched by code, a machine reason) were fixed afterwards; precision after the second round of fixes was not re-sampled."
+  ]
+}

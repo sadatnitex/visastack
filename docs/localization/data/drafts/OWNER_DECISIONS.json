@@ -1,0 +1,35 @@
+{
+  "decided_on": "2026-11-12",
+  "decided_by": "owner",
+  "decisions": {
+    "case_term": {
+      "english": "case",
+      "bn": "ফাইল",
+      "replaces": "কেস",
+      "note": "Uploaded files are also called ফাইল. Strings that contain both ideas are listed in data/CASE_FILE_COLLISION_REVIEW.csv for the editor."
+    },
+    "digits_in_prose": "bengali",
+    "digits_note": "Prose numbers use Bengali digits. Identifiers the person types or reads back (passport number, document number, codes, email addresses) keep their original characters. Runtime counts, dates, times and amounts use the bn-BD locale formatter, which gives Bengali digits and lakh grouping by default.",
+    "editor": "owner",
+    "legal_reviewer": "owner",
+    "legal_reviewer_note": "Recorded as the owner's own decision. The brief says an owner as editor is not a substitute for a qualified legal reviewer where one is needed; the owner has chosen to act as both. Nothing has been reviewed yet.",
+    "first_language": "bn-BD",
+    "first_language_note": "Bengali ships first. ar, fr, de, es and zh-Hans remain not started and are not justified until the owner names another launch locale."
+  },
+  "follow_up_2026-11-12": {
+    "case_written_as": "ভিসা ফাইল (head word ফাইल per owner decision; the qualifier is added wherever the bare word could be read as an uploaded file)",
+    "uploaded_evidence": "ডকুমেন্ট, or আপলোড করা ডকুমেন্ট where the upload must be named",
+    "bare_file_rule": "Bare ফাইল is not used for either object in the register; the checker rejects it (CASE_UPLOAD_AMBIGUITY)",
+    "navigation_documents": "The English navigation label Documents is ডকুমেন্টস",
+    "format_wording": "File format checked is ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে (not ফাইলের ধরন, which now reads as the visa file)",
+    "legal_quotations": "দলিল is kept only for real deeds (Property Deed, Sale Deed)"
+  },
+  "review_of_pr_511_2026-11-12": {
+    "reply": "all good, and keep iso currency code beside",
+    "currency": "Amounts keep the ISO currency code beside the amount (for example USD 150.00 or BDT 25,000.00). No currency symbol is used and no currency is converted. Digits follow the Bengali-digit rule; the code stays in Latin letters.",
+    "landing_page_file": "Accepted as drafted: the landing-page word file stays ভিসা ফাইল.",
+    "document_navigation_labels": "Accepted as drafted: ডকুমেন্টস for the label Documents; other document-label strings stay as listed in data/NAV_TERM_REVIEW.csv.",
+    "generic_error_wording": "Accepted as drafted: কিছু একটা সমস্যা হয়েছে.",
+    "note": "The reply was read as accepting the drafted answers to the four open items and deciding the currency display. Nothing has been reviewed."
+  }
+}

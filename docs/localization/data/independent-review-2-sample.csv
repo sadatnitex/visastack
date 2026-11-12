@@ -1,0 +1,276 @@
+task,id_or_key,verdict,reason,suggested_fix
+T1,SG-a1197ad5,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-12ffe6ee,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-4c01c938,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-4685ce8c,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-3de02e21,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-5c94bba0,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-fcc8d6b3,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-5e838d3e,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-7194c4e9,MINOR,Missing genitive: ভিসা ফাইল ইতিহাস,ভিসা ফাইলের ইতিহাস খুলুন
+T1,SG-01ee78a8,MINOR,"""PNG ডকুমেন্ট"" is unnatural for an image file","""ছবি"" হিসেবে সংরক্ষিত একটি JPEG বা PNG ছবি ব্যবহার করুন ..."
+T1,SG-4d33f713,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-d6ab04e2,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-b6c2f783,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-78f2569d,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-a67179f3,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-6f026cab,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-507d84d5,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-d7467d5c,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-469d5680,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-81ea1b3d,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-f625d104,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-099dc03e,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-fb46562d,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-849521ec,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-4ac01dc9,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-8ee1a9d7,ERROR,"""creates their file"" means their own record; ডকুমেন্ট তৈরি করেন says they create a document","প্রত্যেকে একটি লিংক পান, নিজের প্রোফাইল তৈরি করেন এবং আপনার সঙ্গে কী শেয়ার করবেন তা বেছে নেন।"
+T1,SG-ecae4bf6,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-4252c828,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-fd3b8956,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-10b075ed,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-e5c6ba48,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-e9200d08,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-22bda9c8,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-2f494eee,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-2aacfe40,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-fc6c1bac,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-5bd3403d,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-ea15d99e,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-320edc52,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-3d291c6f,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-9ace2809,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-532379a8,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-6344adc3,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-7c0b3e31,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-b7490762,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-5a314b2e,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-9d57b633,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-86a60227,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-8c95db0e,OK,Visa file and uploaded document distinguishable; natural,
+T1,SG-a12f834f,OK,Visa file and uploaded document distinguishable; natural,
+T1-Documents,SG-7c0b3e31,OK,"English ""Documents"" is ডকুমেন্টস",
+T1-Documents,SG-bec3e0f9,OK,"English ""Documents"" is ডকুমেন্টস",
+T1-Documents,SG-dbef4398,OK,"English ""Documents"" is ডকুমেন্টস",
+T1,SG-8dc7be44,ERROR,"{choice} (file is / files are) dropped with no Bengali noun, so the sentence says only ""{held} are waiting""",ঘণ্টাপ্রতি আপলোডের সীমায় পৌঁছে যাওয়ায় {held}টি ডকুমেন্ট অপেক্ষায় আছে। আপনি আবার চেষ্টা না করা পর্যন্ত আর কিছু পাঠানো হবে না।
+T1,SG-b52c081d,MINOR,"Same English as SG-245a2ce7 (""required items on file"") but different Bengali (সংরক্ষিত আছে vs রাখা আছে); সংরক্ষিত echoes the Saved state word","Use one form for ""on file"" everywhere, for example আবশ্যক আইটেম রাখা আছে"
+T1,SG-e60ff7d8,EDITOR_DECISION,"Landing ""One private file for your passport and papers"" means the personal record, not one visa case; ভিসা ফাইল narrows it to a case (same for SG-8da7faca and SG-c89d1fc2)",আপনার পাসপোর্ট ও কাগজপত্রের জন্য একটি ব্যক্তিগত রেকর্ড ... (owner to decide)
+T2-legalhold,SG-f1fbea6a,OK,Uses আইনি হোল্ড,
+T2-legalhold,SG-3a0802f1,ERROR,Legal hold still written আইনি কারণে সংরক্ষণ (the Saved word); never caught because the checker tests forbidden stems only when the English is 40 characters or less,আইনি হোল্ডের কারণে এই অনুরোধের অতিথিদের ডকুমেন্ট তাঁদের বেছে নেওয়া সময়ের পরেও রাখা হচ্ছে। কারণ: {reason}
+T2-legalhold,SG-51785b82,ERROR,Legal hold still written আইনি কারণে সংরক্ষণ (the Saved word); never caught because the checker tests forbidden stems only when the English is 40 characters or less,... আইনি হোল্ড থাকলে আপনি তা তুলে না নেওয়া পর্যন্ত ডকুমেন্টগুলো রাখা হয়।
+T2-legalhold,SG-8510dfb6,OK,Uses আইনি হোল্ড,
+T2-legalhold,SG-7a88f715,OK,Uses আইনি হোল্ড,
+T2-legalhold,SG-45dfd82e,OK,Uses আইনি হোল্ড,
+T2-legalhold,SG-b59f4053,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-8b5d1ded,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-0a1efaac,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-a9386af5,OK,Uses আইনি হোল্ড,
+T2-legalhold,SG-bef1ff49,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-f23c5e1a,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-ac643c77,ERROR,Legal hold still written আইনি কারণে সংরক্ষণ (the Saved word); never caught because the checker tests forbidden stems only when the English is 40 characters or less,"এই ভিসা ফাইলে আইনি হোল্ড আছে, তাই আপাতত মুছে ফেলা যাবে না।"
+T2-legalhold,SG-3b5872c4,ERROR,Legal hold still written আইনি কারণে সংরক্ষণ (the Saved word); never caught because the checker tests forbidden stems only when the English is 40 characters or less,"এই রেকর্ডে আইনি হোল্ড আছে, তাই এটি মুছে ফেলা যাবে না।"
+T2-legalhold,SG-db11732d,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-c3018512,ERROR,Legal hold still written আইনি কারণে সংরক্ষণ (the Saved word); never caught because the checker tests forbidden stems only when the English is 40 characters or less,... আইনি হোল্ড চালু থাকলে তা তুলে না নেওয়া পর্যন্ত মুছে ফেলা যায় না।
+T2-legalhold,SG-3d2a95ab,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-f18084ab,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-06f8fd1e,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-890690f6,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-7f69a3f5,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-94ed246d,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-001287db,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-384138fe,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-5fef521c,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-99e565fd,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-175bd1b6,OK,Uses আইনি হোল্ড,
+T2-legalhold,SG-ab2d4c94,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-00c793d5,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-4c712b71,NOT_DRAFTED,No Bengali draft exists,
+T2-legalhold,SG-b74bd8e8,NOT_DRAFTED,No Bengali draft exists,
+T2-virus,SG-65a98d6a,OK,"ভাইরাসের জন্য পরীক্ষা করা হয়েছে: no স্ক্যান, no stronger claim",
+T2-virus,SG-7732e69e,OK,"ভাইরাসের জন্য পরীক্ষা করা হয়েছে: no স্ক্যান, no stronger claim",
+T2-version,SG-4df4a534,OK,Product release rendered নতুন আপডেট; natural and not a copy,
+T2-version,SG-7d4e9899,OK,Version word used or dropped per rule,
+T2-version,SG-31614ae0,OK,Version word used or dropped per rule,
+T2-version,SG-8939cffc,OK,Version word used or dropped per rule,
+T2-version,SG-1e7fb770,OK,Version word used or dropped per rule,
+T2-version,SG-7223211d,OK,Version word used or dropped per rule,
+T2-version,SG-c172189f,ERROR,"Pack version half fixed: ""This request follows Version {pinnedVersion}"" is still কপি {pinnedVersion}",এই অনুরোধ সংস্করণ {pinnedVersion} অনুসরণ করছে।
+T2-version,SG-baba6deb,OK,Version word used or dropped per rule,
+T2-version,SG-ab18c220,OK,Version word used or dropped per rule,
+T2-version,SG-1fbade6c,ERROR,Grammar: সংস্করণর (genitive is সংস্করণের),"এই পুরোনো স্ন্যাপশটে হুবহু সংস্করণের তথ্য রাখা হয়নি, ..."
+T2-version,SG-f9d71065,OK,Version word used or dropped per rule,
+T2-version,SG-2d6f5e53,OK,Version word used or dropped per rule,
+T2-version,SG-b1873bf1,OK,Version word used or dropped per rule,
+T2-version,SG-785cde04,OK,Version word used or dropped per rule,
+T2-version,SG-afed0db1,OK,Version word used or dropped per rule,
+T2-version,SG-c5d6f692,ERROR,Newer checklist version written নতুন কপিটি,{choice} নতুন সংস্করণটি ব্যবহার করতে ...
+T2-version,SG-f467e767,OK,Version word used or dropped per rule,
+T2-version,SG-c0e964ae,OK,Version word used or dropped per rule,
+T2-version,SG-e0c712d5,OK,Version word used or dropped per rule,
+T2-version,SG-5901df1f,OK,Version word used or dropped per rule,
+T2-version,SG-e8f268c0,OK,Version word used or dropped per rule,
+T2-version,SG-76d5a28d,ERROR,"""the version in use today"" of a profile detail still কপি",... আজ ব্যবহৃত সংস্করণের পাশে।
+T2-version,SG-d4dd78cb,OK,Version word used or dropped per rule,
+T2-version,SG-ed5e9e58,OK,Version word used or dropped per rule,
+T2-version,SG-175e0c07,MINOR,"""legal retention"" written আইনি সংরক্ষণ, which collides with Saved",আইন অনুযায়ী রেখে দেওয়ার নিয়ম প্রযোজ্য।
+T2-version-fullscan,SG-afc89023,ERROR,Grammar: সংস্করণর,সংস্করণের দিক থেকে কোনো পার্থক্য নেই: ...
+T2-version-fullscan,SG-9d556125,ERROR,"""never changes a snapshot"" became আগের কপি কখনো বদলায় না (an earlier copy never changes)","... একটি নতুন সংস্করণ যোগ হয়, কোনো স্ন্যাপশট কখনো বদলায় না।"
+T2-version-fullscan,SG-8296a0aa,ERROR,"""About This Version"" is the product release notice (version-notice.tsx, layout), not a document copy; এই কপি সম্পর্কে is wrong. Same for SG-81955cdb (status page)",এই সংস্করণ সম্পর্কে
+T2-version-fullscan,SG-81955cdb,ERROR,Product release version written কপি (status page heading),এই সংস্করণ সম্পর্কে
+T2-version-fullscan,SG-7e0dba4b,ERROR,"""numbered revision"" of an issued checklist written নম্বরযুক্ত কপি / নতুন কপির",... একটি নম্বরযুক্ত সংস্করণ হিসেবে স্থির হয়ে যায় ... নতুন সংস্করণের জন্য একটি লিংক ...
+T2-version-fullscan,SG-b494ca72,ERROR,"""Revision {revisionNo} issued. Copy the link"" uses কপি twice with two meanings in one sentence",সংস্করণ {revisionNo} ইস্যু করা হয়েছে। এখনই লিংকটি কপি করুন: এটি শুধু একবারই দেখানো হয়।
+T2-version-fullscan,SG-1d4b17e8,ERROR,"Numbered request revision written {revisionNo} নম্বর কপি, while SG-b1873bf1 uses অনুরোধের সংস্করণ (also SG-53e68a7b)",সংস্করণ {revisionNo}
+T2-version-fullscan,SG-53e68a7b,ERROR,Numbered request revision written নম্বর কপি,সংস্করণ {revisionNo}
+T2-version-fullscan,SG-97ea1f95,MINOR,"""the shared one"" is the shared country list, written শেয়ার করা কপি",আর শেয়ার করা তালিকাটি যেমন আছে তেমনই থাকবে।
+T2-version-fullscan,SG-63dab094,MINOR,"""versioned"" generated letter written প্রতিটি কপি; letters keep সংস্করণ",... এবং প্রতিটি সংস্করণ আলাদাভাবে রাখা হয়।
+T2-version-fullscan,SG-60e4285a,MINOR,"""this exact file"" lost হুবহু",এই হুবহু ডকুমেন্টটির ওপর একটি ভাইরাস স্ক্যান শেষ হয়েছে এবং কিছু পাওয়া যায়নি।
+T2-corrections,SG-70972319,OK,স্ন্যাপশট kept,
+T2-corrections,SG-8f13d48c,OK,Case change is not a copy; হালনাগাদ অবস্থা acceptable (built from কেস to ভিসা ফাইল by the builder),
+T2-corrections,SG-01bcc005,OK,Published pack version uses সংস্করণ; it has two CORRECTED_AFTER_INDEPENDENT_REVIEW lines and the later one wins,
+T2-corrections,SG-8c4aa9ee,MINOR,"""Open Privacy"" adds কার্যক্রম (operations); draft marked LOW for editor",গোপনীয়তা খুলুন
+T3,SG-1e4e1e47,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-3ecdd5d3,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-c5d6f692,WRONG_DISPOSITION,Filed only as SOURCE_ISSUE_OPEN; the version error (নতুন কপিটি) is a separate translation error that the source fix will not cure,নতুন সংস্করণটি
+T3,SG-ba78c384,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-4aca6e62,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-1dc8de38,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-7df46e12,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-e6c4bf76,OK,OPEN_EDITOR_DECISION correct,
+T3,SG-457b3844,OK,OPEN_EDITOR_DECISION correct,
+T3,SG-fc7986da,OK,OPEN_EDITOR_DECISION correct,
+T3,SG-02cb02aa,OK,OPEN_EDITOR_DECISION correct,
+T3,SG-4bc2240b,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-7254cc9e,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-82450ec1,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-2314b378,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-fe3b77df,OK,OPEN_EDITOR_DECISION correct,
+T3,SG-ccdb3d10,OK,SOURCE_ISSUE_OPEN correct,
+T3,SG-c4bf005d,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-4d2014b4,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-e0c712d5,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-1fbade6c,WRONG_DISPOSITION,"Marked fixed, but the fix introduced the grammar error সংস্করণর",সংস্করণের
+T3,SG-76d5a28d,WRONG_DISPOSITION,"Marked fixed, but the second ""version"" is still কপি",আজ ব্যবহৃত সংস্করণের পাশে
+T3,SG-f9d71065,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-e2add6ef,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-34c5470f,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-f183b8dd,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-7c7e10f8,OK,SEMANTIC_ERROR_FIXED correct,
+T3,SG-038580bf,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-318099d7,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-f866eb2a,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-a17de272,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-0f8dd641,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-faf4d82d,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-a59d20ba,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-fcc8d6b3,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-de9a6e94,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-bea1aae2,OK,CHECKER_FALSE_POSITIVE_REMOVED correct,
+T3,SG-391eb019,OK,ACCEPTED_BY_DESIGN correct,
+T3,SG-6b5582fe,OK,ACCEPTED_BY_DESIGN correct,
+T3,SG-98550bda,WRONG_DISPOSITION,"ACCEPTED_BY_DESIGN, but {plural} is plural(needsYou, ""item"") in agency/[orgId]/page.tsx:810 and renders English ""3 items"" inside Bengali; same class as SOURCE_ISSUE_OPEN",Reclassify SOURCE_ISSUE_OPEN; source to ICU
+T3,SG-d2f944c3,OK,ACCEPTED_BY_DESIGN correct,
+T3,SG-9d5ff733,OK,ACCEPTED_BY_DESIGN correct,
+T3,SG-12692a59,OK,ACCEPTED_BY_DESIGN correct,
+T3,SG-7e6ee797,OK,ACCEPTED_BY_DESIGN correct,
+T3,SG-e4847ccc,MINOR,"ACCEPTED_BY_DESIGN: ""Send {roundNo}"" rendered দফা (round); acceptable but loses the send idea",{roundNo} নম্বর পাঠানো: {title} (editor)
+T3,SG-20f3aa34,OK,ACCEPTED_BY_DESIGN correct,
+T3,SG-a499719a,OK,ACCEPTED_BY_DESIGN correct,
+T3-extra,SG-c172189f,WRONG_DISPOSITION,"Marked SEMANTIC_ERROR_FIXED and still_flagged=no, but draft_now still has কপি {pinnedVersion}",Fix draft; reclassify until fixed
+T3-extra,SG-d5319908,WRONG_DISPOSITION,{plural} renders English words at run time; not acceptable by design,Reclassify SOURCE_ISSUE_OPEN
+T3-extra,SG-8296a0aa,WRONG_DISPOSITION,"ACCEPTED_DOCUMENT_HISTORY_WORDING, but the string is the product version notice, not document history",এই সংস্করণ সম্পর্কে
+T4,SG-ff9cbf34,OK,Accepted: correct state word,
+T4,SG-853e215f,OK,Reviewed: correct state word,
+T4,SG-ca2ed1e2,OK,Reviewed: correct state word,
+T4,SG-0091060e,OK,Accepted: correct state word,
+T4,SG-334e83a5,OK,Approved: correct state word,
+T4,SG-210cd1ff,OK,Sent: correct state word,
+T4,SG-e226f63f,OK,Ready: correct state word,
+T4,SG-8829c695,OK,Saved: correct state word,
+T4,SG-d85008af,OK,Confirmed: correct state word,
+T4,SG-245bc9ba,OK,Sent: correct state word,
+T4,SG-89f17c03,OK,Ready: correct state word,
+T4,SG-679b4901,OK,Reviewed: correct state word,
+T4,SG-eea5ea06,OK,Saved: correct state word,
+T4,SG-2314b378,OK,Saved: correct state word,
+T4,SG-8939cffc,OK,Sent: correct state word,
+T4,SG-c68a7790,OK,Saved: correct state word,
+T4,SG-2b63c11b,OK,Accepted: correct state word,
+T4,SG-bbbeb5e1,OK,Saved: correct state word,
+T4,SG-fd6686bb,OK,Saved: correct state word,
+T4,SG-678c621d,OK,Confirmed: correct state word,
+T4,SG-c60962fb,OK,Sent: correct state word,
+T4,SG-a4c82286,OK,Saved: correct state word,
+T4,SG-eea5ea06,OK,Confirmed: correct state word,
+T4,SG-becf4da0,OK,Sent: correct state word,
+T4,SG-3f511479,OK,Reviewed: correct state word,
+T4,SG-ad0a11bb,OK,Saved: correct state word,
+T4,SG-e6123c0d,OK,Saved: correct state word,
+T4,SG-b27984cc,OK,Sent: correct state word,
+T4,SG-fba62551,OK,Reviewed: correct state word,
+T4,SG-e4e2db0f,OK,Submitted: correct state word,
+T4,SG-be982be6,OK,Saved: correct state word,
+T4,SG-baba6deb,OK,Saved: correct state word,
+T4,SG-88c0146e,OK,Saved: correct state word,
+T4,SG-0707775d,OK,Confirmed: correct state word,
+T4,SG-6c622d85,OK,Confirmed: correct state word,
+T4,SG-f6430216,OK,Ready: correct state word,
+T4,SG-7a31fae9,OK,Saved: correct state word,
+T4,SG-58a128da,OK,Submitted: correct state word,
+T4,SG-331971ba,OK,Sent: correct state word,
+T4,SG-ebf21d49,OK,Saved: correct state word,
+T4,SG-e85f3d3e,OK,Sent: correct state word,
+T4,SG-3a3fd00f,OK,Confirmed: correct state word,
+T4,SG-56b9d383,OK,Ready: correct state word,
+T4,SG-86c42d40,OK,Sent: correct state word,
+T4,SG-44b51b7f,OK,Accepted: correct state word,
+T4,SG-5a0259b5,ERROR,Both {choice} dropped: they carry the document type prefix and file size suffix (evidence-copies.tsx:82); checker passes it,{choice}{roundNo} নম্বর পাঠানো · পাঠানো হয়েছে {formatMoment} {choice}
+T4,SG-82035732,OK,Ready: correct state word,
+T4,SG-6dfacdd0,OK,Sent: correct state word,
+T4,SG-2b432aef,OK,Submitted: correct state word,
+T4,SG-c5f7d6ac,OK,Ready: correct state word,
+T4,SG-48345a76,OK,Received: correct state word,
+T4,SG-277744cf,OK,Saved: correct state word,
+T4,SG-54517255,OK,Confirmed: correct state word,
+T4,SG-11495a1f,OK,Ready: correct state word,
+T4,SG-a7a1f608,OK,Sent: correct state word,
+T4,SG-fba62551,OK,Received: correct state word,
+T4,SG-c9fa1fdd,OK,Saved: correct state word,
+T4,SG-7fed393b,OK,Sent: correct state word,
+T4,SG-ecbf18e3,OK,Ready: correct state word,
+T4,SG-758a3b41,OK,Submitted: correct state word,
+T4-extra,SG-5f2daee2,ERROR,"""A verified format is not recorded in this metadata view"" became garbled: এই মেটাডেটা দেখায় (this metadata shows) and যাচাই করা ডকুমেন্টের ফরম্যাট (format of a verified document)",যাচাই করা ফরম্যাটের তথ্য এই মেটাডেটা অংশে রেকর্ড করা হয় না।
+T4-extra,SG-ad36e94f,MINOR,"""The scan on file"" became ডকুমেন্টে রাখা ডিজিটাল কপি (copy kept inside the document)",সংরক্ষিত স্ক্যান কপিটি আপনার আবেদন প্রস্তুত রাখে
+T4-extra,SG-92cd6d79,ERROR,"{choice} dropped: document type and ""Decided <time>"" lost (evidence-copies.tsx:214)",Keep {choice} placeholders
+T4-extra,SG-d2f7880a,ERROR,"Three {choice} dropped: ""starter list, not official"", ""your agency's list"", ""review due"" vanish; the not-official hedge is a claim-strength rule",Keep {choice}{choice}{choice} and translate the source pieces
+T4-extra,SG-8564a22b,MINOR,{choice} (hint in the accessible name) dropped,{label}{choice} সরান
+T5,SG-be638afc,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-4d861687,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-7223211d,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-44111f4f,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-88c795ef,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-263c4153,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-3741b4ab,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-becf4da0,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-7cce9feb,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-fd04746d,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-7f1a0de4,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-dc5c2084,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-e635f477,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-237176e8,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5,SG-3cdc353a,OK,"Prose digits Bengali; placeholders, emails, codes untouched",
+T5-extra,SG-5e451d92,RISK,"Example of a typed amount shown as ২,৫০০.০০; rules section 5.3 says inputs validate on the Latin form, so a person may type Bengali digits the form rejects","Keep the example in the form the field accepts, or make the field accept Bengali digits"
+T6,"attestation-report.py:21,61",ERROR,"open() without close (py/file-not-always-closed), still present","with open(..., encoding=""utf-8"") as fh: json.dump(S, fh, indent=1) / fh.write(...)"
+T6,attestation-report.py:12,MINOR,Unused variable loc,Delete the line
+T6,glossary-join.py:6,MINOR,Unused import re,Drop re from the import
+T6,coverage-report.mjs:55,MINOR,Shell command built by string interpolation from census data (git ls-files '${g}' | wc -l); CodeQL indirect command injection pattern,"execFileSync(""git"", [""ls-files"", g]) and count lines in JS"
+T6,format-rules.mjs:95,MINOR,One-pass regex tag strip <[^>]*> (incomplete multi-character sanitization pattern); not used for HTML output,Use stripMarkers from text-markers.mjs
+T6,text-markers.mjs removeBlocks,ERROR,"End-tag search lower.indexOf(""</""+tag) also matches </scripture or </styles: removeBlocks(""<script>x</scripture>y</script>z"",""script"") returns "" y</script>z""","After finding </tag, require the next char to be >, / or whitespace (as isOpenAt does), else keep searching"
+T6,text-markers.mjs stripMarkers,MINOR,"Only strips attribute-free markers; <a href=""u"">t</a> leaves <a href=""u"">t. Fine for census markers, wrong if reused on HTML",Document the limit or handle attributes
+T6,text-markers.test.mjs,MINOR,4/4 pass; no test for a prefix-named end tag (</scripture>) or attribute markers,Add both cases
+T6,rendered-check.mjs:158,MINOR,tagRe <...[^>]*> mis-splits when a quoted attribute contains >,Scan quoted attribute values
+T6,rendered-check.mjs:46,MINOR,decode: String.fromCodePoint throws on an out-of-range numeric entity; &#1a; parsed as 1,Range-check and validate digits
+T6,journey-packet.mjs:108,MINOR,"nodeValue.replace(t, hit) uses the Bengali draft as a replacement string, so $& or $1 in a draft would be expanded","Use a function replacer: replace(t, () => hit)"
+T6,guardrail-check.mjs:144,ERROR,Forbidden-stem check runs only when English is 40 characters or less; this is why 5 legal-hold sentences still say সংরক্ষণ,"Run forbidden-stem checks on all lengths for T106 and other high-risk terms; review the few false positives (Ready/জমা, Accepted/পাওয়া)"
+T6,guardrail-check.mjs:113,ERROR,"{choice} may always be dropped, and a kept {choice} is flagged as PLACEHOLDER_MISMATCH. 14 drafts dropped {choice}; at least 4 lost real content, including ""starter list, not official""",Compare as multisets; allow dropping only when the census marks {choice} as an English plural switch
+T6,guardrail-check.mjs:167,MINOR,"Bare-file test skips any Bengali letter before ফাইল, so a glued word like আপলোডফাইল passes",Whitelist প্রোফাইল explicitly instead
+T6,data/drafts/OWNER_DECISIONS.json,MINOR,follow_up case_written_as contains ফাইल with Devanagari ল (U+0932),ফাইল

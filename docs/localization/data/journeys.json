@@ -1,0 +1,257 @@
+[
+  {
+    "id": "J01",
+    "role": "visitor",
+    "title": "Visitor reads the home page and the trust information",
+    "slugs": [
+      "public__home",
+      "public__trust",
+      "public__trust__packKey_",
+      "public__status",
+      "public__terms",
+      "public__privacy"
+    ],
+    "states": "populated, public, no sign-in",
+    "checks": [
+      "G9 claim strength: no stronger promise than English",
+      "official-source wording on trust pages"
+    ]
+  },
+  {
+    "id": "J02",
+    "role": "visitor",
+    "title": "Visitor creates an account and confirms the email address",
+    "slugs": ["public__auth_sign-up", "public__auth_verify-email", "public__auth_sign-in"],
+    "states": "form, validation, pending verification",
+    "checks": ["Verified applies to the email address only"]
+  },
+  {
+    "id": "J03",
+    "role": "visitor",
+    "title": "Forgotten password and sign-in recovery",
+    "slugs": [
+      "public__auth_forgot-password",
+      "public__auth_reset-password",
+      "public__auth_account-recovery",
+      "public__auth_reauth"
+    ],
+    "states": "form, sent, expired link, re-authentication",
+    "checks": ["expired link wording", "Sent is not Received"]
+  },
+  {
+    "id": "J04",
+    "role": "traveller",
+    "title": "First day: nothing yet, and consent not yet given",
+    "slugs": [
+      "imran__app__home___no-consent-yet",
+      "imran__app_applicants__no-consent-yet",
+      "shirin__app__home___new-traveller",
+      "shirin__app_applicants__new-traveller"
+    ],
+    "states": "empty, consent required",
+    "checks": ["consent wording needs qualified legal review", "empty-state tone"]
+  },
+  {
+    "id": "J05",
+    "role": "traveller",
+    "title": "Traveller home and profile review",
+    "slugs": [
+      "rahim__app__home_",
+      "rahim__app_applicant__id_",
+      "rahim__app_applicant__id__profile",
+      "rahim__app_applicant__id__record"
+    ],
+    "states": "populated, saved, long name, Bengali name",
+    "checks": ["Saved is not Submitted", "bidi names and numbers"]
+  },
+  {
+    "id": "J06",
+    "role": "traveller",
+    "title": "Traveller uploads and manages documents",
+    "slugs": [
+      "rahim__app_applicant__id__documents",
+      "rahim__app_applicant__id__documents_add",
+      "rahim__app_applicant__id__documents__empty"
+    ],
+    "states": "populated, empty, format checked, held for safety",
+    "checks": ["Format checked is not virus scanned", "Held for safety is not deleted"]
+  },
+  {
+    "id": "J07",
+    "role": "traveller",
+    "title": "A person approves or rejects AI suggestions from a document",
+    "slugs": [
+      "rahim__app_applicant__id__review",
+      "rahim__app_applicant__id__evidence",
+      "rahim__app_applicant__id__memory"
+    ],
+    "states": "awaiting review, approved, rejected",
+    "checks": [
+      "Approved is a person's approval of a suggestion, not a visa decision",
+      "AI never changes the profile alone"
+    ]
+  },
+  {
+    "id": "J08",
+    "role": "traveller",
+    "title": "Start a case and read readiness with unknown requirements",
+    "slugs": [
+      "rahim__app_mission_start",
+      "rahim__app_mission__id_",
+      "rahim__app_mission__id___manual-mode",
+      "rahim__app_mission__id___germany"
+    ],
+    "states": "ready, needs more, manual only",
+    "checks": ["Mandatory vs optional vs unknown", "Ready is not Submitted"]
+  },
+  {
+    "id": "J09",
+    "role": "traveller",
+    "title": "Country guide: what each country asks for",
+    "slugs": [
+      "rahim__app_countries__list_",
+      "rahim__app_countries__iso2_",
+      "agencyOwner__app_agency__orgId__countries__iso2_"
+    ],
+    "states": "populated, unknown rules",
+    "checks": [
+      "no invented official requirement",
+      "nationality vs residence vs destination vs place of application"
+    ]
+  },
+  {
+    "id": "J10",
+    "role": "traveller",
+    "title": "Share a record with an agency and choose what they can see",
+    "slugs": ["rahim__app_applicant__id__sharing", "rahim__app_applicant__id__outputs"],
+    "states": "pending acceptance, active, scope",
+    "checks": ["Link opened is not grant accepted", "scope wording"]
+  },
+  {
+    "id": "J11",
+    "role": "traveller",
+    "title": "Revoke access and understand the copy already kept",
+    "slugs": [
+      "rahim__app_applicant__id__sharing",
+      "rahim__app_shared__list_",
+      "rahim__app_applicant__id__history"
+    ],
+    "states": "revoked, expired, history",
+    "checks": ["Revoked does not claim a downloaded copy was taken back"]
+  },
+  {
+    "id": "J12",
+    "role": "invitee",
+    "title": "Someone receives an invitation or a shared record",
+    "slugs": [
+      "rahim__app_shared__list_",
+      "rahim__app_shared__grantId_",
+      "rahim__app_invitations_accept",
+      "rahim__app_client-invitations_accept",
+      "rahim__app_contributor-requests_accept"
+    ],
+    "states": "awaiting acceptance, accepted",
+    "checks": ["Accepted is not Approved"]
+  },
+  {
+    "id": "J13",
+    "role": "agency",
+    "title": "New agency sets up the team and invites clients",
+    "slugs": [
+      "agencyNew__app_agency__new-agency",
+      "agencyNew__app_agency__orgId___new-agency",
+      "agencyNew__app_agency__orgId__team__new-agency",
+      "agencyNew__app_agency__orgId__clients__new-agency"
+    ],
+    "states": "empty, first run",
+    "checks": ["agency request vs grant vs government application"]
+  },
+  {
+    "id": "J14",
+    "role": "agency",
+    "title": "Agency works its cases and reviews evidence",
+    "slugs": [
+      "agencyOwner__app_agency__orgId_",
+      "agencyOwner__app_agency__orgId__cases",
+      "agencyOwner__app_agency__orgId__clients",
+      "agencyOwner__app_agency__orgId__activity",
+      "agencyMember__app_agency__orgId___case-manager",
+      "agencyMember__app_agency__orgId___member-view"
+    ],
+    "states": "populated, owner vs member",
+    "checks": ["Reviewed is not Approved or Verified"]
+  },
+  {
+    "id": "J15",
+    "role": "traveller",
+    "title": "Exact-copy receipt: what was sent, frozen at that moment",
+    "slugs": ["rahim__app_mission__id__snapshots", "rahim__app_applicant__id__outputs"],
+    "states": "populated",
+    "checks": ["Current copy vs earlier document vs exact copy; no Version 2 wording"]
+  },
+  {
+    "id": "J16",
+    "role": "guest",
+    "title": "Guest request: an agency asks a person for documents; the guest uploads without an account",
+    "slugs": [],
+    "sourceFiles": [
+      "apps/web/src/app/collect/",
+      "apps/web/src/app/app/agency/[orgId]/collection/",
+      "apps/web/src/app/app/agency/[orgId]/request-evidence-form.tsx"
+    ],
+    "states": "link opened, identity proof, upload, done, expired",
+    "checks": ["Link opened is not access granted", "guest has no wallet"],
+    "note": "Not rendered in the preview world: these screens need a one-time link and stored requests. Source rows only."
+  },
+  {
+    "id": "J17",
+    "role": "family_guardian",
+    "title": "Family member or guardian manages a minor or spouse",
+    "slugs": [
+      "rahim__app_applicants",
+      "rahim__app_applicant__id__documents__spouse",
+      "rahim__app_applicant__id___long-name",
+      "rahim__app_applicant__id___bangla-name"
+    ],
+    "states": "populated, empty, long and Bengali names",
+    "checks": ["gender-neutral wording", "relationship labels"]
+  },
+  {
+    "id": "J18",
+    "role": "traveller",
+    "title": "Privacy: export, remove and delete",
+    "slugs": [
+      "rahim__app_privacy",
+      "rahim__app_applicant__id__removal-records",
+      "rahim__app_account"
+    ],
+    "states": "populated",
+    "checks": ["export vs share vs delete vs permanent erasure", "legal hold"]
+  },
+  {
+    "id": "J19",
+    "role": "traveller",
+    "title": "Reminders, expiry dates and notifications",
+    "slugs": [
+      "rahim__app_notifications",
+      "rahim__app_applicant__id__expiry",
+      "rahim__app_applicant__id__calendar",
+      "shirin__app_notifications__new-traveller"
+    ],
+    "states": "populated, empty",
+    "checks": ["date and number formats", "email and notification wording"]
+  },
+  {
+    "id": "J20",
+    "role": "visitor",
+    "title": "Error, access-denied and plan screens",
+    "slugs": [
+      "public__pilot-access-denied",
+      "rahim__app_account_plan",
+      "public__payments_result",
+      "rahim__app_account_plan_billing"
+    ],
+    "states": "denied, not found, payment result",
+    "checks": ["blame-free error wording", "no stronger payment claim than English"]
+  }
+]

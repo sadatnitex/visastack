@@ -1,0 +1,47 @@
+key,english_now,existing_bn,verdict,severity,issue_class,why,proposed_bn,status
+consent.core.title,Core Processing Consent,মূল প্রক্রিয়াকরণ সম্মতি,KEEP,,,,,
+consent.ai.title,AI Extraction Consent,এআই নিষ্কাশন সম্মতি,CHANGE,MEDIUM,TERMINOLOGY,"""নিষ্কাশন"" is a technical Sanskritised word with a drainage sense. Plain wording: AI reading information from a document.",ডকুমেন্ট থেকে এআই-এর তথ্য পড়ার সম্মতি,PROPOSED_NOT_APPLIED
+consent.ocr.title,AI OCR Consent,এআই ওসিআর সম্মতি,CHANGE,LOW,TERMINOLOGY,"""ওসিআর"" is jargon. Keep only if the English keeps OCR.",এআই দিয়ে লেখা পড়ার সম্মতি (ওসিআর),PROPOSED_NOT_APPLIED
+consent.sharing.title,Sharing Consent,শেয়ারিং সম্মতি,KEEP,,,,,
+consent.marketing.title,Marketing Consent,মার্কেটিং সম্মতি,KEEP,,,,,
+consent.issuerContact.title,Issuer Contact Consent,ইস্যুকারী যোগাযোগ সম্মতি,CHANGE,LOW,TERMINOLOGY,Reads as a contact between issuers. Clearer: consent to contact the issuing body.,ইস্যুকারী প্রতিষ্ঠানের সঙ্গে যোগাযোগের সম্মতি,PROPOSED_NOT_APPLIED
+consent.required,Consent is required before we can continue.,চালিয়ে যাওয়ার আগে সম্মতি প্রয়োজন।,KEEP,,,,,
+consent.action.grant,Grant,প্রদান করুন,CHANGE,MEDIUM,TERMINOLOGY,"""প্রদান করুন"" is stiff as a stand-alone button.",সম্মতি দিন,PROPOSED_NOT_APPLIED
+consent.action.revoke,Revoke,প্রত্যাহার করুন,KEEP_WITH_NOTE,LOW,OK_WITH_NOTE,Correct. Making the object explicit helps a stand-alone button.,সম্মতি প্রত্যাহার করুন,PROPOSED_NOT_APPLIED
+mission.readiness.missing,{count} requirement(s) still needed,{count}টি প্রয়োজনীয় নথি এখনও বাকি,CHANGE,HIGH,MEANING_CHANGE,"English counts requirements. Bengali says required documents, which narrows the meaning.",{count}টি প্রয়োজনীয়তা এখনও বাকি,PROPOSED_NOT_APPLIED
+mission.readiness.ready,All required items are provided.,সমস্ত প্রয়োজনীয় নথি প্রদান করা হয়েছে।,CHANGE,HIGH,MEANING_CHANGE,"English ""required items""; Bengali says required documents.",প্রয়োজনীয় সব আইটেম দেওয়া হয়েছে।,PROPOSED_NOT_APPLIED
+mission.readiness.needsReview,{count} requirement(s) need more information to confirm.,{count}টি বিষয় নিশ্চিত করতে আরও তথ্য প্রয়োজন।,CHANGE,MEDIUM,MEANING_CHANGE,"""বিষয়"" (matters) replaces requirements.",{count}টি প্রয়োজনীয়তা নিশ্চিত করতে আরও তথ্য লাগবে।,PROPOSED_NOT_APPLIED
+mission.readiness.manualOnly,This case is not automatically assessed.,এই কেসটি স্বয়ংক্রিয়ভাবে মূল্যায়ন করা হয় না।,CHANGE,LOW,OWNER_DECISION_TERM,"Correct meaning. The owner chose ফাইল for ""case"" on 2026-11-12; it is written ভিসা ফাইল so it cannot be read as an uploaded file.",এই ভিসা ফাইলটি স্বয়ংক্রিয়ভাবে মূল্যায়ন করা হয় না।,PROPOSED_NOT_APPLIED
+document.scanning,This document is being checked.,নিরাপত্তার জন্য এই নথিটি স্ক্যান করা হচ্ছে।,CHANGE,CRITICAL,STRONGER_CLAIM,"English says ""being checked"". Bengali says ""scanned for safety"", which claims a security scan.",এই ডকুমেন্ট পরীক্ষা করা হচ্ছে।,PROPOSED_NOT_APPLIED
+document.quarantined,This document was flagged and needs attention.,এই নথিটি চিহ্নিত করা হয়েছে এবং মনোযোগ প্রয়োজন।,CHANGE,LOW,TERMINOLOGY_INCONSISTENT,"Uses ""নথি"" while the glossary and neighbouring corrected rows use ডকুমেন্ট; one screen would show both words.",এই ডকুমেন্ট চিহ্নিত করা হয়েছে এবং আপনার মনোযোগ দরকার।,PROPOSED_NOT_APPLIED
+document.status.clean,Format Checked,পরিষ্কার,CHANGE,CRITICAL,STRONGER_CLAIM,"English says only that the file type and structure were checked. ""পরিষ্কার"" means clean and reads as virus-free.",ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে,PROPOSED_NOT_APPLIED
+document.status.pending,Waiting to Be Checked,মুলতুবি,CHANGE,HIGH,WRONG_TERM,"""মুলতুবি"" means adjourned or postponed; English says waiting to be checked.",পরীক্ষার অপেক্ষায়,PROPOSED_NOT_APPLIED
+document.status.scanning,Being Checked,স্ক্যান করা হচ্ছে,CHANGE,CRITICAL,STRONGER_CLAIM,"English ""Being Checked"" became ""স্ক্যান করা হচ্ছে"" (being scanned).",পরীক্ষা করা হচ্ছে,PROPOSED_NOT_APPLIED
+document.status.quarantined,Held for Safety,চিহ্নিত,CHANGE,HIGH,WEAKER_CLAIM,"English ""Held for Safety""; ""চিহ্নিত"" only means marked. The hold is lost.",নিরাপত্তার জন্য আটকে রাখা হয়েছে,PROPOSED_NOT_APPLIED
+document.processing.uploading,Uploading,আপলোড হচ্ছে,KEEP,,,,,
+document.processing.quarantined,Checking the File,কোয়ারেন্টাইনে,CHANGE,CRITICAL,MEANING_CHANGE,"English ""Checking the File"" became ""কোয়ারেন্টাইনে"" (in quarantine), a held-back state.",ডকুমেন্ট পরীক্ষা করা হচ্ছে,PROPOSED_NOT_APPLIED
+document.processing.scanning,Checking the File,স্ক্যান করা হচ্ছে,CHANGE,CRITICAL,STRONGER_CLAIM,"English ""Checking the File"" became ""স্ক্যান করা হচ্ছে"" (being scanned).",ডকুমেন্ট পরীক্ষা করা হচ্ছে,PROPOSED_NOT_APPLIED
+document.processing.normalizing,Checking the File,কাঠামোগত যাচাই,CHANGE,HIGH,WRONG_TERM,"""যাচাই"" is the word for verify. English is a file check, which uses ""পরীক্ষা"".",ডকুমেন্ট পরীক্ষা করা হচ্ছে,PROPOSED_NOT_APPLIED
+document.processing.extracting,Reading the File,প্রক্রিয়াকরণ হচ্ছে,CHANGE,MEDIUM,MEANING_CHANGE,"English ""Reading the File""; ""প্রক্রিয়াকরণ"" says processing, which is vaguer.",ডকুমেন্ট পড়া হচ্ছে,PROPOSED_NOT_APPLIED
+document.processing.awaitingReview,Needs Review,পর্যালোচনা প্রয়োজন,KEEP,,,,,
+document.processing.ready,Reviewed and Approved,প্রস্তুত,CHANGE,CRITICAL,MEANING_CHANGE,"English ""Reviewed and Approved"" became ""প্রস্তুত"" (Ready). Ready is not approved.",পর্যালোচনা ও অনুমোদন করা হয়েছে,PROPOSED_NOT_APPLIED
+document.processing.needsAttention,Needs Attention,মনোযোগ প্রয়োজন,KEEP,,,,,
+document.processing.failed,Failed,ব্যর্থ হয়েছে,KEEP,,,,,
+document.processing.rejected,Rejected,প্রত্যাখ্যাত,KEEP,,,,,
+grant.pending,Waiting for {recipient} to accept.,{recipient} গ্রহণ করার অপেক্ষায়।,CHANGE,HIGH,AMBIGUOUS,"Reads as ""{recipient} is waiting to receive"". English: waiting for {recipient} to accept.",{recipient}-এর গ্রহণের অপেক্ষায়।,PROPOSED_NOT_APPLIED
+grant.revoked,Access has been revoked.,অ্যাক্সেস প্রত্যাহার করা হয়েছে।,KEEP,,,,,
+grant.status.pendingAcceptance,Pending Acceptance,গ্রহণের অপেক্ষায়,KEEP,,,,,
+grant.status.awaitingYourAcceptance,Awaiting Your Acceptance,আপনার গ্রহণের অপেক্ষায়,KEEP,,,,,
+grant.status.active,Active,সক্রিয়,KEEP,,,,,
+grant.status.paused,Paused,বিরত,CHANGE,HIGH,WRONG_TERM,"""বিরত"" means abstained or refrained, not paused.",স্থগিত,PROPOSED_NOT_APPLIED
+grant.status.revoked,Revoked,প্রত্যাহৃত,CHANGE,LOW,TERMINOLOGY_INCONSISTENT,"""প্রত্যাহৃত"" is correct but formal; buttons use ""প্রত্যাহার করুন"".",প্রত্যাহার করা হয়েছে,PROPOSED_NOT_APPLIED
+grant.status.expired,Expired,মেয়াদ উত্তীর্ণ,KEEP_WITH_NOTE,LOW,OK_WITH_NOTE,"""মেয়াদ উত্তীর্ণ"" is used in official Bengali. Either is acceptable; pick one and keep it.",মেয়াদ শেষ হয়েছে,PROPOSED_NOT_APPLIED
+legalHold.active,This record is under legal hold and cannot be deleted.,,CHANGE,HIGH,MISSING,No Bengali string; English shows. Legal review required before any wording.,"এই রেকর্ডে আইনি হোল্ড আছে, তাই এটি মুছে ফেলা যাবে না।",PROPOSED_NOT_APPLIED
+applicant.relationship.self,Myself,নিজে,CHANGE,LOW,TERMINOLOGY,"""নিজে"" alone is incomplete as a label.",আমি নিজে,PROPOSED_NOT_APPLIED
+applicant.relationship.familyMember,Family Member,পরিবারের সদস্য,KEEP,,,,,
+applicant.relationship.minorGuardian,Minor (Guardian),নাবালক (অভিভাবক),CHANGE,MEDIUM,GENDERED,"""নাবালক"" is the male form in everyday use. Neutral: ""অপ্রাপ্তবয়স্ক"".",অপ্রাপ্তবয়স্ক (অভিভাবক),PROPOSED_NOT_APPLIED
+nav.signIn,Sign In,সাইন ইন,KEEP,,,,,
+nav.workspace,Workspace,ওয়ার্কস্পেস,KEEP,,,,,
+error.generic.title,Something went wrong,কিছু ভুল হয়েছে,KEEP_WITH_NOTE,LOW,OK_WITH_NOTE,"Google Bengali uses ""কিছু ভুল হয়েছে"" (attested). ""ভুল"" can still read as the person's mistake; ""সমস্যা"" is the blame-free alternative. Editor decides.",কিছু একটা সমস্যা হয়েছে,PROPOSED_NOT_APPLIED
+error.generic.body,"This wasn't caused by anything you did, and your data was not affected.","এটি আপনার কারণে ঘটেনি, এবং আপনার তথ্য প্রভাবিত হয়নি।",KEEP,,,,,
+error.notFound.title,Page not found,পৃষ্ঠা পাওয়া যায়নি,KEEP,,,,,

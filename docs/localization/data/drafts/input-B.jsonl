@@ -1,0 +1,830 @@
+{"sg":"SG-cc7fae09","en":"Book any appointment the embassy or visa centre asks for.","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-5bd3403d","en":"Bring the original documents if you are asked to show them.","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-5bb6ea29","en":"Browse: everything to do, the case pipeline, the case list and your case work.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":[],"j":"J14","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-04a982c2","en":"Browse: the stages, what needs attention, case details, the requirement pack, tasks, appointments, letters and notes.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-4252c828","en":"Browse: where each case stands and who is assigned.","dom":"case_readiness","k":"label_map_value","g":[],"j":"J14","icu":"","rc":"","out":""}
+{"sg":"SG-bad77d1c","en":"Browse: your counts, your case, what needs a decision and your dates.","dom":"case_readiness","k":"label_map_value","g":[],"j":"J05,J17","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-58a2cd82","en":"Business Visit","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-26450cb9","en":"Canada","dom":"case_readiness","k":"prop","g":[],"j":"J14","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-ddd8d7b3","en":"Cancel Case","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-060f2513","en":"Case Complaint","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-be638afc","en":"Case data scheduled for deletion in 30 days","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-5e3e0367","en":"Case Details","dom":"case_readiness","k":"attr_accessible+prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-13b7fc06","en":"Case History lists the {length} most recently active cases. Every case is on <Link>Cases</Link>.","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"ICU_PLURAL_OR_NUMBER","rc":"","out":""}
+{"sg":"SG-f8e29528","en":"Case Manager","dom":"case_readiness","k":"label_map_value","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-19106986","en":"Case Outcome","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-736a515b","en":"Case Reference","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-4606e40c","en":"Cases","dom":"case_readiness","k":"text+prop+attr_accessible+prop_display","g":[],"j":"J01,J04,J05,J07,J09,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-d03ed490","en":"Cases are not open to this AI app. The person can change this in VisaStack under Sharing, AI Connections.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-b47f6ce7","en":"Category","dom":"case_readiness","k":"text","g":[],"j":"J05,J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-c3188e23","en":"Changed Since You Confirmed It","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-429aff4e","en":"Channel","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-92b946f1","en":"Channel, e.g. video call (optional)","dom":"case_readiness","k":"attr_accessible","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-2aed01b8","en":"Character Certificate","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-33bbc5f0","en":"Check Now","dom":"case_readiness","k":"prop_display","g":[],"j":"J01","icu":"","rc":"","out":""}
+{"sg":"SG-f948edf8","en":"Check the Newer Checklist","dom":"case_readiness","k":"label_map_value","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-a5fa0621","en":"Checked is when VisaStack last read the page. Always confirm the final requirements with the official authority or your agency.","dom":"case_readiness","k":"text","g":["G2_safety_check","G4_who_is_asking","G9_claim_strength"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-ae0820d4","en":"Checked: {choice} · In Effect Since: {choice}","dom":"case_readiness","k":"composed","g":["G2_safety_check"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-77c4a96c","en":"Checking…","dom":"case_readiness","k":"prop_display","g":[],"j":"J01","icu":"","rc":"","out":""}
+{"sg":"SG-d8804711","en":"Checklist","dom":"case_readiness","k":"text","g":[],"j":"J08,J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-5dbd8d89","en":"Choice saved. Your package is up to date.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-05ef8a4a","en":"Choose a requirement pack…","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9f3203d7","en":"Choose how it was sent.","dom":"case_readiness","k":"prop+candidate_sentence","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-fdf9de2f","en":"Choose One","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-8d311e98","en":"Choose…","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-36a62355","en":"Client Access Ends Soon","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-630b4323","en":"Client ID, unique client identifier and permanent residence confirmation.","dom":"case_readiness","k":"prop","g":["G7_country_role","G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-04c9c622","en":"Collaboration","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-84514c27","en":"Common checks of your trip dates against your passport and travel insurance. They are not a country's rules, so read the rules for your destination too.","dom":"case_readiness","k":"text","g":["G7_country_role"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-4b56efbe","en":"Company, invitation, trade licence","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5fea0674","en":"Compares a file with the details the person already confirmed and points out anything that looks different, for the person to check.","dom":"case_readiness","k":"prop","g":["G1_state_word","G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-8e9d31bd","en":"Completeness is not an approval probability. Review each requirement below.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-91c5620e","en":"Confirm that you want to delete this case, then try again.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-8d5be455","en":"Consent is required before we can continue.","dom":"case_readiness","k":"catalogue_en","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-32099ee2","en":"Consent wording and settings were reviewed and are not placeholders.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ac3d58ae","en":"Consistency Checks","dom":"case_readiness","k":"prop","g":[],"j":"J18,J20","icu":"","rc":"","out":""}
+{"sg":"SG-3ec3628b","en":"Continuous residence days, absences, tests","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-af46aa6b","en":"Contract-work records are shared with a recruiting agency and the government, not with every visa adviser.","dom":"case_readiness","k":"prop","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-c10dff53","en":"Contributors","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f7e2d06d","en":"Could not be checked just now","dom":"case_readiness","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-d1d70b3f","en":"Country Identifiers","dom":"case_readiness","k":"prop","g":[],"j":"J11,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-e8a4d4b7","en":"Country of Residence","dom":"case_readiness","k":"candidate_sentence+prop","g":["G7_country_role"],"j":"J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-8fe88923","en":"Country Packs","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-4fe66be7","en":"Cover Letters","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-17d4863d","en":"Current snapshot confirmed","dom":"case_readiness","k":"prop_display","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-fd04746d","en":"Daily limits start again at 6 AM Bangladesh time.","dom":"case_readiness","k":"named_const_text","g":[],"j":"J18","icu":"","rc":"","out":""}
+{"sg":"SG-7ca83210","en":"Date","dom":"case_readiness","k":"attr_accessible+prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-4fe35747","en":"Date of Birth","dom":"case_readiness","k":"candidate_sentence+prop","g":[],"j":"J05,J08","icu":"","rc":"","out":""}
+{"sg":"SG-6f67955a","en":"Dates","dom":"case_readiness","k":"text+prop_display","g":[],"j":"J05,J06,J08,J11,J17,J19","icu":"","rc":"","out":""}
+{"sg":"SG-090bc95b","en":"Day It Was Sent","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-19255e62","en":"decision","dom":"case_readiness","k":"prop_display+text+label_map_value+expr_literal","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9aff1ba4","en":"Decision Date","dom":"case_readiness","k":"text+candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-08205528","en":"Declarations and History","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J11,J13,J14,J15","icu":"","rc":"","out":""}
+{"sg":"SG-4e303be2","en":"Deferral Not Accepted","dom":"case_readiness","k":"named_const_text","g":["G1_state_word","G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-06b4dffa","en":"Delegate","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-db5f5b38","en":"Delete Case","dom":"case_readiness","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-00b4a730","en":"Delete this case?","dom":"case_readiness","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-3d291c6f","en":"Describe the issue with how this case was handled","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-bfd06df1","en":"Details that only some purposes need: study, work, business, family, official.","dom":"case_readiness","k":"prop","g":["G9_claim_strength"],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-bf823720","en":"Do not include names, passport numbers or other personal details.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b1cb23cc","en":"Document","dom":"case_readiness","k":"expr_literal+text","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-efa5afb1","en":"Document Expires","dom":"case_readiness","k":"prop","g":[],"j":"J19","icu":"","rc":"","out":"calendar_file"}
+{"sg":"SG-99c9d939","en":"Document Kind Suggestions","dom":"case_readiness","k":"prop","g":[],"j":"J18,J20","icu":"","rc":"","out":""}
+{"sg":"SG-a19f694c","en":"Documents That Expire Before Your Trip Ends","dom":"case_readiness","k":"text","g":["G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-ebc3f4df","en":"Documents that expire soon","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"chat_message"}
+{"sg":"SG-e2bb7550","en":"Draft","dom":"case_readiness","k":"label_map_value","g":[],"j":"J05,J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-e0048be3","en":"Driving Licence","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-0f34e063","en":"Dual Nationality or Renunciation","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6deb6de1","en":"due {formatDateOnly}","dom":"case_readiness","k":"composed","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-536e6263","en":"Due Date (Optional)","dom":"case_readiness","k":"attr_accessible","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-16fa9ac0","en":"Due Time Zone (Optional)","dom":"case_readiness","k":"prop_display","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-dc5c2084","en":"e.g. Smith Family Europe 2026","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-76c31a72","en":"e.g. Tourist, Student, Work","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9a536db0","en":"e.g. US Embassy Dhaka","dom":"case_readiness","k":"attr_accessible","g":["G4_who_is_asking"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-924932f5","en":"e.g. Visa interview prep call","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9d020bf2","en":"Each snapshot keeps exactly what it held. <Link>Open Case History</Link> to see every case for this person and compare what you confirmed with today.","dom":"case_readiness","k":"composed","g":["G1_state_word","G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-0d5a01a8","en":"Each traveller gets their own case. We ask for dates or other details only when the checklist needs them.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-edd8aea2","en":"Edit Case Details","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-bb0e29e7","en":"Education and Qualifications","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-47a2d67e","en":"Education, language tests, skills, memberships and achievements.","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-fd5b51d7","en":"Embassy / consulate portal","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4cdd3c7e","en":"Embassy or Consular Staff and Dependants","dom":"case_readiness","k":"prop","g":["G4_who_is_asking","G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-83c13b8a","en":"Embassy or Consulate","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-de933893","en":"Embassy or Consulate Website","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ce11d7f4","en":"Embassy or Visa Centre","dom":"case_readiness","k":"text","g":["G4_who_is_asking"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9db8fab7","en":"Embassy or Visa Centre (Optional)","dom":"case_readiness","k":"candidate_sentence","g":["G3_requirement_level","G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-a4993e5a","en":"Embassy or visa centre not set","dom":"case_readiness","k":"expr_literal","g":["G4_who_is_asking"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-711a7fd1","en":"Employer-Sponsored Skilled Job","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-2476ae11","en":"Employment","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-b4f68a28","en":"Employment and Business","dom":"case_readiness","k":"prop","g":[],"j":"J05,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-d1270212","en":"Enter the day it was sent.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4a482574","en":"Entry denied, removal, overstay, breaches and travel bans.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-320edc52","en":"Erasure was checked against the live storage provider and removed the stored files.","dom":"case_readiness","k":"prop","g":["G2_safety_check","G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6b3788c1","en":"Event invitation, registration receipt","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-8e33c34f","en":"Every nationality you have held and how you got it.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-ebf6b912","en":"Everything: large exports, deleting your account and your permissions.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":[],"j":"J18","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-849521ec","en":"Everything: search, case activity and attention details.","dom":"case_readiness","k":"label_map_value","g":[],"j":"J14","icu":"","rc":"","out":""}
+{"sg":"SG-62258afa","en":"Everything: tasks, appointments and notes, with decisions and issuer confirmations when a case has a checklist.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":[],"j":"J14","icu":"","rc":"","out":""}
+{"sg":"SG-bdd4754d","en":"Everything: your next journey and the permissions you control.","dom":"case_readiness","k":"label_map_value","g":[],"j":"J04,J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-27ca6855","en":"Evidence","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-82450c35","en":"Evidence (Optional)","dom":"case_readiness","k":"text","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-c04f80f7","en":"Evidence arrived for one of your requests","dom":"case_readiness","k":"label_map_value","g":["G3_requirement_level"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-71d49059","en":"Evidence Checklist","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b328c157","en":"Evidence preparation completeness","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-4b85fb7f","en":"Evidence Progress","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6031569c","en":"Evidence requested, received and reworked","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-0287fdfa","en":"Exact wording from the decision letter, unedited","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e867db43","en":"Expiry Date","dom":"case_readiness","k":"candidate_sentence+prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-89f17c03","en":"Explanation ready below.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-157cb96b","en":"Family and Relationship","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-af91a748","en":"Family and Settle","dom":"case_readiness","k":"prop","g":[],"j":"J11,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-b20235d5","en":"Family Name","dom":"case_readiness","k":"candidate_sentence+prop","g":[],"j":"J05,J08,J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-11b6b86e","en":"Family or Friends Visit","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-cbb81324","en":"Family Trip","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-65e39ac6","en":"Family Trip Label (Optional)","dom":"case_readiness","k":"candidate_sentence","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-bc9ffc6a","en":"Family trip label, embassy, dates and deadline","dom":"case_readiness","k":"prop_display","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-794546c0","en":"Family, hosts, inviters, referees and guardians.","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-c98ccb7a","en":"Feedback becomes available once this case is closed or cancelled.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-df9cd3b4","en":"Feedback submitted. Thank you.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-5bf5ee77","en":"File a New Complaint","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-afee8fa9","en":"File Complaint","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-bd0c372f","en":"Filing","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-909dffb1","en":"Fill in and send the official application form yourself.","dom":"case_readiness","k":"label_map_value","g":["G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b2be88e2","en":"Financial","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-c84cbd6e","en":"First to fix: {firstItem}.","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-97c0d35d","en":"For a resubmission, a new application after a refusal, or the same package sent to a second office.","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-16ad226a","en":"For example: Japan","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J01,J04,J08,J09","icu":"","rc":"","out":""}
+{"sg":"SG-94438270","en":"For travel to {trim}","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-52677420","en":"For your privacy, VisaStack does not take documents in WhatsApp. Add them in VisaStack, where they are checked and kept private.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G2_safety_check"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"chat_message"}
+{"sg":"SG-71ee619a","en":"Format Checked","dom":"case_readiness","k":"catalogue_en","g":["G2_safety_check"],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-a34ba2c1","en":"From {packName}","dom":"case_readiness","k":"composed","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-337c5dbe","en":"Gap Explanations","dom":"case_readiness","k":"prop","g":[],"j":"J18,J20","icu":"","rc":"","out":""}
+{"sg":"SG-e936ade6","en":"General guidance, the same for every route - not specific to this one, and never an accusation against any named person or agency.","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-ddc524e7","en":"Generate New Version","dom":"case_readiness","k":"prop_display","g":["G6_copy_version"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-63dab094","en":"Generated strictly from confirmed, eligible evidence - nothing is invented. Not AI-written; deterministic and versioned.","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-10c78357","en":"Germany","dom":"case_readiness","k":"prop","g":[],"j":"J05,J07,J08,J10,J14,J15","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-36c38030","en":"Get any translation the authority asks for.","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-41fd518a","en":"Given Name","dom":"case_readiness","k":"candidate_sentence+prop","g":[],"j":"J05,J08,J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-7a757efb","en":"Glance: every case, with what needs you.","dom":"case_readiness","k":"label_map_value","g":[],"j":"J14","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-0906c3eb","en":"Glance: the next step, your progress, the checklist and the reminder.","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-3b3e3e7c","en":"Glance: the one thing that needs you now and the case you are on.","dom":"case_readiness","k":"label_map_value","g":[],"j":"J05,J17","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-2f36f562","en":"Go to Home","dom":"case_readiness","k":"text","g":[],"j":"J19","icu":"","rc":"","out":""}
+{"sg":"SG-1b382d3d","en":"Good news: what you sent was accepted","dom":"case_readiness","k":"label_map_value","g":["G1_state_word","G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-c3ebde04","en":"Government order details, delegation and operator or group details.","dom":"case_readiness","k":"prop","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-865b6772","en":"Government order, ministry and delegation details.","dom":"case_readiness","k":"prop","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-675a3c6d","en":"Grant","dom":"case_readiness","k":"catalogue_en","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5024f0d5","en":"Grounded Documents","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-cbc32b27","en":"Health","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-a4ef1ecd","en":"Held for Safety","dom":"case_readiness","k":"catalogue_en","g":["G2_safety_check"],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-40fcf641","en":"High","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-87355977","en":"History","dom":"case_readiness","k":"text+prop_display","g":[],"j":"J05,J06,J08,J11,J17,J19","icu":"","rc":"","out":""}
+{"sg":"SG-5b22ddab","en":"Host details, invitation, relationship proof","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6a028f43","en":"Host institution invitation","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-c2c30e5f","en":"How It Was Sent","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-22d76562","en":"How This Is Counted","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-d91a745c","en":"How was it submitted?","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-61b6e856","en":"https://","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-2b9dd5cb","en":"I Have Reviewed This","dom":"case_readiness","k":"prop_display","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-622fb2d7","en":"Identifiers and records that belong to one country or region.","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-3c5f71db","en":"Identity and Civil","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-8fe45ea7","en":"Identity and Civil Status","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-2157aa1e","en":"Identity Basics","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-dcc29820","en":"If you suspect fraud, report it to the official immigration authority for the destination country and to your own country's consumer-protection or cybercrime authority. {choice}","dom":"case_readiness","k":"composed","g":["G4_who_is_asking","G7_country_role","G9_claim_strength"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-c9a1c5f1","en":"In Review","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-baecf014","en":"Income and Funding","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-33eac3f9","en":"Intake","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-0ff7176c","en":"Intake to ready","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2110fe6b","en":"Invalid submitted date.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6c4c0ce5","en":"Invitation","dom":"case_readiness","k":"label_map_value","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-c093cefa","en":"It expires on {say}, {days} {choice} after {when}. Many countries ask for at least six months, so check the rule for your destination.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"ICU_PLURAL_OR_NUMBER|MULTI_PLACEHOLDER_ORDER|SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-ca852063","en":"It expires on {say}. Some countries ask for more, so still check your destination's rule.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-21586689","en":"Item Details","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0cbbbc13","en":"Items can only change while the version is a draft.","dom":"case_readiness","k":"named_const_text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e558487a","en":"Itinerary Reference","dom":"case_readiness","k":"attr_accessible+prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-c36e368d","en":"Japan","dom":"case_readiness","k":"prop","g":[],"j":"J05,J07,J08,J14","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-2ad38d07","en":"Keep Sharing for 30 More Days","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-e8824231","en":"Kept separate from the wording above","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-c9520c76","en":"Labour Migration","dom":"case_readiness","k":"prop","g":[],"j":"J11,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-cc4d5fb4","en":"Large Deposit Explanation","dom":"case_readiness","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-0e523aa3","en":"Leave Missing for Now","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-59215e27","en":"Leave Out of This Package","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-dff941da","en":"Legal and Clearances","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-5f0c6783","en":"Legal and security history must never ride along with a general profile grant. Its own category means nobody receives it unless the person grants it by name.","dom":"case_readiness","k":"prop","g":["G4_who_is_asking","G9_claim_strength"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-a9386af5","en":"Legal hold review overdue","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-f548c589","en":"Lets a person ask for a file to be read with AI, as a scan or as text, and suggests the details it finds for the person to check.","dom":"case_readiness","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ec86723e","en":"Lets the AI apps people connect read the parts of their record each person chose to share.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-c109c10c","en":"Lets the AI apps people connect receive the files a person ticked, as a Safe Copy or the original, never passports, identity, money or health documents.","dom":"case_readiness","k":"prop","g":["G8_data_action","G9_claim_strength"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ba27bf6c","en":"Letter version {version} generated.","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-9e15ad34","en":"Letters and Statements","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-600aaecf","en":"Link","dom":"case_readiness","k":"prop_display","g":["G5_share_lifecycle"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-faf4d82d","en":"LINK {code}","dom":"case_readiness","k":"named_const_text","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"chat_message"}
+{"sg":"SG-b07aa9d6","en":"Link to a Family Trip","dom":"case_readiness","k":"text","g":["G5_share_lifecycle"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e00a5e61","en":"Linked: {itineraryRef}","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9618aa07","en":"Live","dom":"case_readiness","k":"expr_literal","g":[],"j":"J01","icu":"","rc":"","out":""}
+{"sg":"SG-ceae9cfc","en":"Locked","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-d5421339","en":"Low","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-23462d85","en":"Malware scan ({scannerName})","dom":"case_readiness","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-cc6c15e7","en":"Manage Sharing","dom":"case_readiness","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-701cd70c","en":"Mandatory","dom":"case_readiness","k":"label_map_value","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-0213cdf2","en":"Mandatory If It Applies","dom":"case_readiness","k":"label_map_value","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-bb2b2522","en":"Manual assessment: this route has no automated requirement pack","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-77e9dbb9","en":"Marked as reviewed.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5dc8058f","en":"Medical","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-ee709860","en":"Medical Attendant","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-96e84bc3","en":"Medical Treatment","dom":"case_readiness","k":"prop","g":[],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-c4c357b0","en":"Meetings","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-31f9f90c","en":"Menu","dom":"case_readiness","k":"label_map_value","g":[],"j":"J01,J02,J03,J04,J05,J06,J07,J08,J09,J10,J11,J12,J13,J14,J15,J17,J18,J19,J20","icu":"","rc":"","out":"chat_message"}
+{"sg":"SG-0b948704","en":"Missing","dom":"case_readiness","k":"prop","g":[],"j":"J07,J08","icu":"","rc":"","out":""}
+{"sg":"SG-9a445f31","en":"Money","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-b5090230","en":"More for This Case","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0897fff1","en":"More than one instance is on file for these requirements - pick exactly which one backs each. Until you select, any eligible instance may count.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-f5d1fcc4","en":"Myself","dom":"case_readiness","k":"catalogue_en","g":[],"j":"J04,J17","icu":"","rc":"","out":""}
+{"sg":"SG-009ef8c9","en":"Name","dom":"case_readiness","k":"text+prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-fc96017c","en":"Names, birth, civil records, national identifiers and personal details.","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-6d65ac08","en":"Nationality","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-fed4a73f","en":"Nationality History","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-1f1581c8","en":"Nationality Record","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-497de89f","en":"Needed only when you leave this item out. It stays with this case.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-a06b0982","en":"Needs Action","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-d3102845","en":"Needs Checking","dom":"case_readiness","k":"text","g":[],"j":"J09","icu":"","rc":"","out":""}
+{"sg":"SG-ab2e3ffb","en":"Needs Review","dom":"case_readiness","k":"prop+catalogue_en","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-536e4cf5","en":"Needs You","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-93996def","en":"New","dom":"case_readiness","k":"text+label_map_value+list_item_text","g":[],"j":"J04,J13,J17,J19","icu":"","rc":"","out":""}
+{"sg":"SG-50f53289","en":"Next reviewed {formatDateOnly}","dom":"case_readiness","k":"composed","g":["G1_state_word"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-a464476d","en":"Next Step","dom":"case_readiness","k":"prop_display","g":[],"j":"J04,J05,J08,J17","icu":"","rc":"","out":""}
+{"sg":"SG-c08c7130","en":"Next: {CASE_STATE_LABELS}","dom":"case_readiness","k":"prop_display+candidate_sentence+composed","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f03ccaf5","en":"No appointments scheduled.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f0255c87","en":"No case is being worked on right now. <Link>{startLabel}</Link>","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2ba45a8d","en":"No checklist yet","dom":"case_readiness","k":"prop_display+candidate_sentence+attr_accessible+named_const_text+label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6c54bed2","en":"No checklist yet. Pick one.","dom":"case_readiness","k":"prop_display+candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-cb9e3d32","en":"No Items Yet","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-23d45e92","en":"No letters generated yet.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-d7a9cda1","en":"No notes shared with you yet.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-4d2b40c4","en":"No Notes Yet","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-eea51ce4","en":"No Open Tasks","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-da285115","en":"No open tasks.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-7b98f518","en":"No outcome recorded yet.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-bc7d2d11","en":"No Outcome Yet","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-aebe5bf4","en":"No Requests","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-39b43860","en":"No saved copy from when it finished.","dom":"case_readiness","k":"named_const_text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-84b758ee","en":"No snapshots yet. Capture one to freeze this case's evidence and checksum.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-313c142d","en":"No submission reported yet.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-aa325160","en":"No. It counts satisfied requirements for the attached rules. Unknown applicability, missing evidence and your confirmation remain separate. The destination authority decides your application.","dom":"case_readiness","k":"text","g":["G3_requirement_level","G4_who_is_asking","G7_country_role"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-850931cb","en":"Nobody has reviewed this checklist yet. Check it against the official guidance before relying on it.","dom":"case_readiness","k":"candidate_sentence","g":["G1_state_word","G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-10629f25","en":"None Raised","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-d528d6fb","en":"None yet","dom":"case_readiness","k":"prop_display+candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e5222793","en":"Normal","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9e9fb032","en":"Not Applicable","dom":"case_readiness","k":"candidate_sentence","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-ec03d936","en":"Not Checked Yet","dom":"case_readiness","k":"expr_literal","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-f92f9f0f","en":"Not Currently Verified","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-2fe3e0c6","en":"Not linked","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a80cff15","en":"Not offered in version one. An adviser decides.","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-bae95a53","en":"Not Reviewed","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a5caf2bb","en":"Not shared with {join} , who can see your other cases. <Link>Manage Sharing</Link>","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle","G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-69275eab","en":"Not shared with this AI app. You can change this in VisaStack under Sharing, AI Connections.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-c35d9c07","en":"Not sure where yet? <Link>Start a Case by Name</Link>","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-bb784f1f","en":"Notes","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-991b05ef","en":"Notes an agency working this case has chosen to share with you. An agency's own internal notes are never shown here.","dom":"case_readiness","k":"text","g":["G8_data_action","G9_claim_strength"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-cd48090d","en":"Notes from Your Agency","dom":"case_readiness","k":"prop+text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-cb0a858b","en":"Nothing eligible to ground a letter in yet.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b96c44a9","en":"Nothing has been prepared for this case yet.","dom":"case_readiness","k":"text","g":[],"j":"J07","icu":"","rc":"","out":""}
+{"sg":"SG-20023712","en":"Nothing in your trip was changed, shared or sent to anyone.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-96a0082d","en":"Nothing is checked yet: this case has no checklist","dom":"case_readiness","k":"text","g":["G2_safety_check"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b8c89b84","en":"Nothing on file matches yet.","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-7279b878","en":"Nothing was shared or sent to anyone. Your earlier choices stay as they were.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word","G6_copy_version"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-7b162fd3","en":"Official and Religious Travel","dom":"case_readiness","k":"prop","g":["G9_claim_strength"],"j":"J11,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-8e79eb73","en":"Official Channel","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-a818802f","en":"Official Fee","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J01","icu":"","rc":"","out":""}
+{"sg":"SG-a3cf3b32","en":"Official Page","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J09","icu":"","rc":"","out":""}
+{"sg":"SG-6d0dddb9","en":"Official Page (Optional)","dom":"case_readiness","k":"text","g":["G3_requirement_level","G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-8838b4f0","en":"Official page for {destination}, opens in a new tab","dom":"case_readiness","k":"attr_accessible","g":["G7_country_role","G9_claim_strength"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-cec8e480","en":"Official pages have not been checked for this checklist yet.","dom":"case_readiness","k":"label_map_value","g":["G2_safety_check","G9_claim_strength"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-987ce0b0","en":"Official Requirement Pack","dom":"case_readiness","k":"prop","g":["G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f0689eed","en":"Official Source","dom":"case_readiness","k":"text+expr_literal","g":["G9_claim_strength"],"j":"J01","icu":"","rc":"","out":""}
+{"sg":"SG-43f73da0","en":"Official Wording (Optional)","dom":"case_readiness","k":"text","g":["G3_requirement_level","G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e9d3c00d","en":"Older than this route allows. Add a newer one.","dom":"case_readiness","k":"label_map_value","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2536cbbc","en":"on file","dom":"case_readiness","k":"text+prop+named_const_text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-ec612f22","en":"Once a checklist is attached, you see how many items are ready and what is still missing.","dom":"case_readiness","k":"prop_display","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-42d31888","en":"Once it runs out, the document stays in your record but is no longer shown as confirmed.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-2562d697","en":"One of these travellers is not available to you.","dom":"case_readiness","k":"prop","g":["G3_requirement_level"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-d332a410","en":"one specific case (nothing from it is shown to them yet)","dom":"case_readiness","k":"text","g":[],"j":"J10,J11","icu":"","rc":"","out":""}
+{"sg":"SG-e4a97e33","en":"Only you and authorized quality staff ever see this - never the agency, and never published as a public review or ranking.","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-ad31bc88","en":"Onward ticket, destination visa","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-19c695c2","en":"Open Case","dom":"case_readiness","k":"label_map_value","g":[],"j":"J05,J14","icu":"","rc":"","out":""}
+{"sg":"SG-7194c4e9","en":"Open Case History","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6ebd748c","en":"Open Tasks","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-56a4f91d","en":"Open the request to see exactly what was shared. Submitted means it arrived, not that anyone has reviewed it.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-03cf74e1","en":"Open the request to see the exact copy that was sent. Received is not accepted until a reviewer accepts it.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word","G5_share_lifecycle","G6_copy_version"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-24392ac4","en":"Open Your Invitation","dom":"case_readiness","k":"label_map_value","g":["G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-d1fb96fc","en":"Optional","dom":"case_readiness","k":"expr_literal+text+prop+label_map_value","g":["G3_requirement_level"],"j":"J04,J05,J08","icu":"","rc":"","out":""}
+{"sg":"SG-6a8f0462","en":"Optional for this case.","dom":"case_readiness","k":"prop","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-f42a4382","en":"Optional Not Provided","dom":"case_readiness","k":"candidate_sentence","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0a95bf8d","en":"Original wording is back.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-9460b5fe","en":"Original: {officialName}","dom":"case_readiness","k":"composed","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-7f7d1d83","en":"Originals, issuing office, destination rule","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2d84f5d1","en":"Other","dom":"case_readiness","k":"label_map_value+list_item_text+named_const_text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-8d2eec13","en":"Other Documents","dom":"case_readiness","k":"prop","g":[],"j":"J05,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-095d7f45","en":"Out of Date or Two Values","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b1487a8c","en":"Outside VisaStack","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-3f33a1ee","en":"Overseas Labour Contract","dom":"case_readiness","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-89b8314f","en":"Oversight","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-c4bf005d","en":"pack version not found","dom":"case_readiness","k":"named_const_text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-c0ff54ec","en":"Passport Expiry","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-9440f6b2","en":"Passport Issue Date","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-ef818fae","en":"Passport Issuing Country","dom":"case_readiness","k":"prop","g":[],"j":"J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-346b30ff","en":"Passports, identity cards, permits and visas held.","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-76e5623e","en":"Pay the official fee where the authority says.","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking","G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a5de8edc","en":"PDF has no embedded text layer (likely a scanned image; OCR is not implemented)","dom":"case_readiness","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2a407aa5","en":"Pending Acceptance","dom":"case_readiness","k":"catalogue_en","g":[],"j":"J10,J11","icu":"","rc":"","out":""}
+{"sg":"SG-bc424a9f","en":"People","dom":"case_readiness","k":"prop","g":[],"j":"J04,J05,J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-a9de17c7","en":"People or organisations who invite you, and what they provide.","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-07d094bd","en":"Permanent Residency by Investment","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-397d3075","en":"Permanent Residency by Long Residence","dom":"case_readiness","k":"prop","g":["G7_country_role","G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-f5911291","en":"Permanent Residency by Points","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e10510f6","en":"Permanent Residency Through an Employer","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-eceb1f1d","en":"Permanent Residency Through Family","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4252c26e","en":"Permissions You Control","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J04,J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-8fb5ea9a","en":"Phone","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-3ceca81a","en":"Photos and Biometrics","dom":"case_readiness","k":"prop","g":[],"j":"J05,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-1e6cd7b9","en":"Pick a Checklist","dom":"case_readiness","k":"prop+candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a83a4983","en":"Pick a checklist to see what is ready","dom":"case_readiness","k":"named_const_text","g":["G1_state_word"],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-1b44a4d3","en":"Pick a checklist: attach a published requirement pack to see how many items are ready.","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0f58a88a","en":"Place","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-ab66d42d","en":"Place (optional)","dom":"case_readiness","k":"attr_accessible","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-054857c5","en":"Place of Birth","dom":"case_readiness","k":"candidate_sentence+prop","g":[],"j":"J05,J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-a4a35a2c","en":"Police and good conduct certificates, court orders, government orders.","dom":"case_readiness","k":"prop","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-23fe2834","en":"Police Clearance","dom":"case_readiness","k":"candidate_sentence+prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-d062c9b9","en":"Postal code, district, type of residence and landlord.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-fcd0956b","en":"Precision","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e0195b37","en":"Prepared for Handoff. Nothing has been sent to anyone.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-9b6cc763","en":"Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-4ff2abf8","en":"Pressure to pay an upfront \"processing fee\" before any real application has started.","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-ca80e108","en":"Previous Name","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-7e01e3a6","en":"Previous Names","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-7fff27a2","en":"Priority","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6c4f4847","en":"Private Feedback","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b9fb1761","en":"Problems and Feedback","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-7fa512c1","en":"Provide Evidence","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0711b5f5","en":"Provider offer, employer link","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-28bc5a54","en":"Public Trust","dom":"case_readiness","k":"prop","g":[],"j":"J01,J02,J03,J04,J05,J06,J07,J08,J09,J10,J11,J12,J13,J14,J15,J17,J18,J19,J20","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-f9d71065","en":"Public Trust · v{version}","dom":"case_readiness","k":"prop_display","g":["G6_copy_version"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-392e3872","en":"Purpose Packs","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-6f16be9c","en":"Qualifications","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-194f94e1","en":"Read with AI","dom":"case_readiness","k":"prop","g":[],"j":"J18,J20","icu":"","rc":"","out":""}
+{"sg":"SG-325f3938","en":"Readiness","dom":"case_readiness","k":"text","g":[],"j":"J08,J14","icu":"","rc":"","out":""}
+{"sg":"SG-af6e7d3f","en":"Readiness is completeness only - never an approval likelihood.","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-fd6686bb","en":"Reads each new file by itself after it is uploaded and suggests the details it finds, which the person checks before anything is saved.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5a935cbb","en":"Ready for Final Review","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e300b571","en":"Ready for Review","dom":"case_readiness","k":"prop+label_map_value","g":["G1_state_word"],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-1ffbd52c","en":"Ready to Export","dom":"case_readiness","k":"label_map_value","g":["G1_state_word","G8_data_action"],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-a111a162","en":"Reason for Leaving Out","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6213532d","en":"RECEIVED","dom":"case_readiness","k":"prop_display+list_item_text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e459540b","en":"Recommended","dom":"case_readiness","k":"text+label_map_value","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-535703e8","en":"Record Outcome","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-2f2c2f89","en":"Reference Number (Optional)","dom":"case_readiness","k":"text","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-94f0fbd4","en":"Refused","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-183d286a","en":"Relationship and residence evidence is personal and used only for family and settlement routes.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-72192101","en":"Religious Travel (Hajj, Umrah, Pilgrimage)","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e280aeb0","en":"Remove","dom":"case_readiness","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-a4321725","en":"Remove {value}","dom":"case_readiness","k":"attr_accessible","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4c3879ca","en":"Renewing in good time keeps every application you prepare ready to go.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-9e6ca75c","en":"Reported payment confirmed","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-3741b4ab","en":"Request created, but the email could not be sent. Share this link with {contributorEmail} yourself (expires in 7 days): {acceptUrl}","dom":"case_readiness","k":"prop+candidate_sentence","g":["G1_state_word","G5_share_lifecycle","G8_data_action"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-5b350c30","en":"Request created. Share this link with {contributorEmail} (expires in 7 days): {acceptUrl}","dom":"case_readiness","k":"prop","g":["G5_share_lifecycle","G8_data_action"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-9d5ff733","en":"Request created. The email has not gone out yet and VisaStack keeps trying, so you can also share this link with {contributorEmail} (expires in 7 days): {acceptUrl}","dom":"case_readiness","k":"prop+candidate_sentence","g":["G5_share_lifecycle","G8_data_action"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER|SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-73adf09e","en":"Request Due","dom":"case_readiness","k":"prop","g":[],"j":"J19","icu":"","rc":"","out":"calendar_file"}
+{"sg":"SG-cca328e2","en":"Request emailed to {contributorEmail}. If it does not arrive in a few minutes, ask them to check Spam or Promotions. This link works too (expires in 7 days): {acceptUrl}","dom":"case_readiness","k":"prop+candidate_sentence","g":["G5_share_lifecycle"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-17bad23d","en":"Requested by the Authority","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-95d75e23","en":"Requested by Your Agency","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-245a2ce7","en":"required items on file","dom":"case_readiness","k":"prop_display","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-56e3ee33","en":"Requirement Pack","dom":"case_readiness","k":"attr_accessible+prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-3764b55a","en":"Requirements","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-8f4e32bc","en":"Residence days, tests, good character","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-9357f4a7","en":"Residence permit held elsewhere","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5d14c015","en":"Residence permit, Blue Card and travel authorisation numbers.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e4583d6f","en":"Retirement or Long-Stay Residence","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-edf38762","en":"Returning Resident or Re-Entry Permit","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-f93219ec","en":"Reviewed","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"J07,J08","icu":"","rc":"","out":""}
+{"sg":"SG-bb58c35a","en":"Reviewed and Approved","dom":"case_readiness","k":"catalogue_en","g":["G1_state_word"],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-98c55098","en":"Reviewed only by authorized quality staff - the agency working this case never sees a complaint filed against it.","dom":"case_readiness","k":"text","g":["G1_state_word","G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f9f892ef","en":"Route","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"","rc":"","out":""}
+{"sg":"SG-93b5af9b","en":"Save Case Details","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-4adf0576","en":"Save Choice","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-8ecccb12","en":"Save Wording","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e98435dd","en":"Saved to this attempt.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2a2be5dc","en":"Scam Awareness","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-6467cabf","en":"Schedule","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-2526fb85","en":"Sections of This Case","dom":"case_readiness","k":"prop_display+attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0d26df9e","en":"See Removal Records","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-8f1b70fb","en":"See What Needs Fixing","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-68519112","en":"Select","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-cb6538b8","en":"Select {name}","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-ae7ab663","en":"Select Evidence","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-732dc9eb","en":"Select or Update Evidence","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0878ad82","en":"Selected - Remove","dom":"case_readiness","k":"prop_display","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-260ff35f","en":"Selected - Remove {name}","dom":"case_readiness","k":"prop_display","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-3f511479","en":"Self-reviewed","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ee73d85c","en":"Send Suggestion","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-4884a8e6","en":"Sent {formatDateOnly} by {value}. {basisLabel}.","dom":"case_readiness","k":"composed","g":["G1_state_word"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-eda9fe4a","en":"Sent before exact versions were kept","dom":"case_readiness","k":"named_const_text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-7d60a653","en":"Service Category","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a23bfb01","en":"Service Category (Optional)","dom":"case_readiness","k":"candidate_sentence","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ce1b768f","en":"Several are on file. Until you pick one, any eligible one may count toward readiness.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-c34413bd","en":"Sex","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-91a90de9","en":"SHARE","dom":"case_readiness","k":"list_item_text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ee685677","en":"Share feedback on how this case was handled","dom":"case_readiness","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-572dfff8","en":"Share the Package When You Are Ready","dom":"case_readiness","k":"label_map_value","g":["G1_state_word","G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-d375cc56","en":"SHARING","dom":"case_readiness","k":"list_item_text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-f6deaf53","en":"Sharing Consent","dom":"case_readiness","k":"catalogue_en","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e1c1af95","en":"Should Be Required or Optional","dom":"case_readiness","k":"label_map_value","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0c25a85a","en":"Singapore","dom":"case_readiness","k":"prop","g":[],"j":"J05,J07,J08,J09,J14","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-c7e34bcb","en":"Snapshot version {version} captured.","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-74a4f972","en":"Snapshots","dom":"case_readiness","k":"attr_accessible+prop_display+text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-972cf49e","en":"Some required items are missing, out of date or do not match.","dom":"case_readiness","k":"label_map_value","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f625d104","en":"Something changed after you confirmed this case.","dom":"case_readiness","k":"attr_accessible","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-d4cb5f52","en":"Something changed for one of your trips","dom":"case_readiness","k":"label_map_value+prop","g":["G3_requirement_level"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-13b947ce","en":"Something Is Missing","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9c3ce7ac","en":"Something on this case changed after you confirmed it. Check what changed and confirm again.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-8339b6d5","en":"Source: {citation}","dom":"case_readiness","k":"composed","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6a3e6874","en":"Sponsor or Host","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-cb603922","en":"Start","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-2bdf4496","en":"Start a Case","dom":"case_readiness","k":"prop+candidate_sentence","g":[],"j":"J04,J05,J17","icu":"","rc":"","out":""}
+{"sg":"SG-fb928a07","en":"Start a Group Trip","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-8bf2309a","en":"Start a New Case from This One","dom":"case_readiness","k":"prop+attr_accessible+text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-d0d5e75c","en":"Start a new case from this one. Your current records are reused by reference. Nothing from the old case's work, notes, approvals, sign-off or sharing is copied.","dom":"case_readiness","k":"prop_display","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-2de4768a","en":"Start a Trip","dom":"case_readiness","k":"candidate_sentence+text+prop+attr_accessible","g":[],"j":"J04,J05,J06,J07,J08,J09,J10,J11,J12,J15,J17,J18,J19,J20","icu":"","rc":"","out":""}
+{"sg":"SG-50539e38","en":"Start the Trip","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f3b8cf8c","en":"Start Trip","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-d8f134c1","en":"Still being checked, or cannot be used. Check it in Documents.","dom":"case_readiness","k":"label_map_value","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-67072bb9","en":"Study","dom":"case_readiness","k":"label_map_value+prop","g":[],"j":"J11,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-4e1a6f7b","en":"Submission and Outcome","dom":"case_readiness","k":"prop+text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-09b28f6c","en":"Submission Ready","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-a92ebf93","en":"Submission Report","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-f34275b6","en":"Submitted","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-8856c473","en":"Submitted on (Optional - Defaults to Now)","dom":"case_readiness","k":"text","g":["G1_state_word","G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ae4f8de3","en":"Suggested: {copyName}.","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-8d8e7523","en":"Suggestions are not available in VisaStack yet. Nothing was saved.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4eb7c923","en":"SUPERSEDED","dom":"case_readiness","k":"list_item_text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-519d222a","en":"Target Deadline","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0a0ee02f","en":"Target Deadline (Optional)","dom":"case_readiness","k":"candidate_sentence+text","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-c918ee06","en":"Target deadline: {formatDateOnly}","dom":"case_readiness","k":"composed","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6238fb0c","en":"Task description","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-c834720c","en":"Task Due","dom":"case_readiness","k":"prop","g":[],"j":"J19","icu":"","rc":"","out":"calendar_file"}
+{"sg":"SG-cad27838","en":"Tasks","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-06331679","en":"Tasks and Letters","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-daaf4a08","en":"Tasks, Appointments and Letters","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0d304074","en":"Tax numbers, residence days, returns","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-917b42d5","en":"Tax Residency Certificate","dom":"case_readiness","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-97ef7ea6","en":"Tax Return","dom":"case_readiness","k":"prop","g":[],"j":"J05,J06,J10,J15,J17","icu":"","rc":"","out":""}
+{"sg":"SG-e942ef73","en":"Tell us if this item looks wrong. Pack editors check it against the official source; your checklist does not change until a corrected version is published.","dom":"case_readiness","k":"text","g":["G6_copy_version","G9_claim_strength"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-67a4ad18","en":"Tell us where you are going, why, and who is travelling. We set up a case for each traveller and show what their visa usually needs.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-34c5470f","en":"Thank you. Pack editors will check this against the official source. Your checklist stays as it is until a corrected version is published.","dom":"case_readiness","k":"named_const_text+candidate_sentence","g":["G6_copy_version","G9_claim_strength"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-e0ecbf04","en":"That case is closed, so a reminder cannot be added to it. Nothing was saved.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-dbbe625d","en":"That case is not open to this agency’s AI tools. Use list_cases to see the cases you can read. Each traveller decides whether the agency’s AI tools may read what they share.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-a8f98da4","en":"That case is not shared with this AI app. Use list_cases to see the cases you can read, or change this in VisaStack under Sharing, AI Connections.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-52f274f8","en":"That could not be saved. Check the text is not empty and within the limits, and give a due date as YYYY-MM-DD from today onward.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6666c23e","en":"That version is not available.","dom":"case_readiness","k":"named_const_text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6ac6dea1","en":"The agency added a note to what you sent. Open the request to see what to change, then send it again.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-ea15b213","en":"The agency looked at what you sent and asked for a new one.","dom":"case_readiness","k":"prop+candidate_sentence","g":["G1_state_word"],"j":"J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-5431e93a","en":"The bar counts required items that are on file. Optional and non-applicable items are counted separately.","dom":"case_readiness","k":"text","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-9574696f","en":"The case is removed for good, with its checklist, notes, tasks and what was sent for it.","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-25127f18","en":"The checklist for this trip is for another embassy or other travel dates, or needs them. Check which checklist applies before you share anything.","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking","G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-376c59be","en":"The checklist for this trip was withdrawn. Check what is needed before you share anything.","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-fcbbcf65","en":"The checklist version used here was withdrawn.","dom":"case_readiness","k":"label_map_value","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-874e1f8d","en":"The Embassy Asked for More","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-102d4685","en":"The evidence on file is too old for this route. Add a current version.","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-72bdc900","en":"The file is hidden at once and its stored copies are erased and checked. A removal cannot be undone. Backup copies expire within 90 days and are never brought back.","dom":"case_readiness","k":"label_map_value","g":["G2_safety_check","G5_share_lifecycle","G8_data_action","G9_claim_strength"],"j":"","icu":"","rc":"","out":"email_or_notification"}
+{"sg":"SG-b5f28b5d","en":"The government, embassy or official application page that shows it.","dom":"case_readiness","k":"text","g":["G4_who_is_asking","G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-6df14628","en":"The newer value says it took effect earlier than the old one.","dom":"case_readiness","k":"label_map_value","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-586bb2f7","en":"The newer value took effect later.","dom":"case_readiness","k":"label_map_value","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-95b07104","en":"The official government fee only. Any agency you choose to work with charges its own service fee separately - never included here.","dom":"case_readiness","k":"text","g":["G4_who_is_asking","G9_claim_strength"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-aa68b2ef","en":"The Official Page Says Otherwise","dom":"case_readiness","k":"label_map_value","g":["G9_claim_strength"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-2b4e1855","en":"The official wording and your own reading of a decision are kept separate - this is never blended into a single summary, and recording an outcome never changes this case's workflow state on its own.","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-95ec9f5a","en":"The only channel that actually decides your case. VisaStack and any agency you work with only help you prepare for it.","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"SECOND_PERSON_FORMALITY","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-0551c9f9","en":"The person has not turned on processing in VisaStack yet, so nothing can be saved for them. Nothing was saved.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-576fe5a5","en":"The published terms and privacy notice were reviewed for commercial use.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-a6c67e11","en":"The role, resource and action matrix was reviewed against the deployed commit.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-31c0f362","en":"The Safe Copy limit for this hour has been reached. Try again later.","dom":"case_readiness","k":"label_map_value","g":["G8_data_action","G9_claim_strength"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-33a7f541","en":"The Safe Copy of this document is not ready. The original is not shared instead. The person can prepare a Safe Copy on the document’s page in VisaStack.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G1_state_word","G8_data_action","G9_claim_strength"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-41136ef5","en":"The workflow allows {join} next; permissions and traveller confirmation are checked by the existing actions.{cancelLine}","dom":"case_readiness","k":"expr_literal","g":["G2_safety_check"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-f29ee3fa","en":"There is no shared text for that document. It may not have been read yet, or it is not part of what was shared with this AI app. You can change this in VisaStack under Sharing, AI Connections.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-a1062162","en":"They Received It","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4679b16c","en":"This AI app cannot receive files. The person can turn on List of My Documents and tick documents under Original Files in VisaStack under Sharing, AI Connections.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5c26f437","en":"This AI app cannot suggest changes. The person can turn on Suggest Changes for it in VisaStack under Sharing, AI Connections.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ace91cae","en":"This AI feature is turned off right now. Everything else works as usual. Nothing was saved.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-0315fbdb","en":"This app has reached its limit of suggestions for today. Nothing was saved. The person can still make changes themselves in VisaStack.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-aec9d67c","en":"This case has been closed for {months} months. Its case records will be permanently deleted in 30 days. Export anything you still need before then.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"ICU_PLURAL_OR_NUMBER|SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-e0c712d5","en":"This case has no attached pack version.","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-cfe30235","en":"This case is still shared or has open requests. Stop sharing it and let its requests close first, then delete it.","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ac643c77","en":"This case is under a legal hold, so it cannot be deleted for now.","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-fbd1005e","en":"This case must reach \"Submission Ready\" (with a live acknowledgement) before a submission can be reported.","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-cadfae83","en":"This checklist has no required items to count.","dom":"case_readiness","k":"named_const_text","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-57b1f742","en":"This checklist has not been reviewed yet, so it cannot be attached.","dom":"case_readiness","k":"named_const_text+candidate_sentence","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-80ec931b","en":"this document answered an agency request","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ae055552","en":"This document expires soon. Check whether it needs renewing.","dom":"case_readiness","k":"prop+candidate_sentence","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-b0558335","en":"This document has expired. Add the new one when you have it.","dom":"case_readiness","k":"prop+candidate_sentence","g":[],"j":"J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-38e0cc32","en":"This document is being checked.","dom":"case_readiness","k":"catalogue_en","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-b28eb5cd","en":"This file cannot be given yet. It may still be being checked for safety. Try again later.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-cf5247fb","en":"This invitation is not available.","dom":"case_readiness","k":"named_const_text","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-97ad720e","en":"This list may not be complete. Check the official page for everything you need to submit.","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J09","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-d4dd78cb","en":"This older snapshot did not record exact versions, so the changes cannot be listed. Open the snapshots to compare them.","dom":"case_readiness","k":"text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-808f7230","en":"This page describes the official process only. It is not an embassy or government service, does not guarantee approval, and does not endorse any particular agency. Anyone may use this route directly, with no agency at all.","dom":"case_readiness","k":"text","g":["G4_who_is_asking","G9_claim_strength"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-3b5872c4","en":"This record is under legal hold and cannot be deleted.","dom":"case_readiness","k":"catalogue_en","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-f0bd6092","en":"This shows what you have ready. It is not a submission and nothing is sent until you share it yourself.","dom":"case_readiness","k":"text","g":["G1_state_word","G8_data_action"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-d94e21a6","en":"This trip is checked by hand. Confirm every item with the official source.","dom":"case_readiness","k":"label_map_value","g":["G2_safety_check","G9_claim_strength"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ec79b4ff","en":"Time","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-d1eeabb3","en":"Timelines","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-bbb55d70","en":"Title, date, time, and timezone are required.","dom":"case_readiness","k":"prop","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5d2f748d","en":"To choose which file an item uses, open the item in the Evidence Checklist.","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-541193f1","en":"To Confirm","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-0926bf14","en":"To turn on a calendar link, first turn on \"Let Me Share with Others\" in your privacy settings.","dom":"case_readiness","k":"named_const_text+candidate_sentence","g":["G5_share_lifecycle","G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"calendar_file"}
+{"sg":"SG-1d9ab246","en":"Tourism","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-22491b28","en":"Transit or Airside Transit","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-fbf476bb","en":"Translations and Legalisations","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-aedef08e","en":"Travel and Immigration","dom":"case_readiness","k":"prop","g":[],"j":"J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-9219aadf","en":"Travel Dates","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-ca6b5600","en":"Travel Dates (Optional)","dom":"case_readiness","k":"text","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2d1ba724","en":"Travel dates not set","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-3b427208","en":"Travel Documents","dom":"case_readiness","k":"prop","g":[],"j":"J05,J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-accad329","en":"Travel End Date","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-81fd14b5","en":"Travel Insurance","dom":"case_readiness","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-17976720","en":"Travel Start Date","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-20571e06","en":"Travelling Together?","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-e14fc469","en":"Travelling together? <Link>Start a Group Trip</Link> to keep everyone&apos;s cases together on one page.","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-1009138d","en":"Travelling with others? <Link>Start a Trip</Link> gives each traveller their own case.","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6ac6653b","en":"Trip Date Checks","dom":"case_readiness","k":"attr_accessible+prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a7928632","en":"Trip Package","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b1e12dd0","en":"Turn on <strong>Let VisaStack Process My Details</strong> on <Link>Home</Link> to create cases.","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-02cf83b3","en":"Type a name or open the list.","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-ee6d4d29","en":"Type a name or open the list. Checklists are ready for {withChecklist} of {length} countries today. For the rest we point you to the official page.","dom":"case_readiness","k":"composed","g":["G1_state_word","G9_claim_strength"],"j":"","icu":"ICU_PLURAL_OR_NUMBER|MULTI_PLACEHOLDER_ORDER|SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-5a85469d","en":"Under Review","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-b99d7369","en":"Union parishad, upazila, district and permanent address.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-c8624933","en":"United Kingdom","dom":"case_readiness","k":"prop","g":[],"j":"J14","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-973ce02b","en":"Universal","dom":"case_readiness","k":"prop","g":[],"j":"J06,J11,J13,J14,J17","icu":"","rc":"","out":""}
+{"sg":"SG-c7f8cfe4","en":"Unknown","dom":"case_readiness","k":"expr_literal","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-86e643c6","en":"Unsolicited contact through WhatsApp, social media, or a messaging app offering visa help.","dom":"case_readiness","k":"candidate_sentence","g":[],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-178f9b92","en":"Update","dom":"case_readiness","k":"prop_display+label_map_value","g":[],"j":"J01,J08","icu":"","rc":"","out":""}
+{"sg":"SG-e1c00370","en":"Urgent","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-7dd7eeac","en":"Use {copyName}","dom":"case_readiness","k":"prop","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-1231be20","en":"Use the request link the agency sent you if the button asks for it. Nothing you sent before was changed.","dom":"case_readiness","k":"label_map_value+candidate_sentence","g":["G1_state_word","G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-dea6bf83","en":"VERIFIED","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e2add6ef","en":"Version {version}","dom":"case_readiness","k":"composed","g":["G6_copy_version"],"j":"J01,J05","icu":"","rc":"","out":""}
+{"sg":"SG-f183b8dd","en":"Version {version} · {formatTimestampDate}","dom":"case_readiness","k":"composed","g":["G6_copy_version"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-260d7b5e","en":"Version {version} {choice}","dom":"case_readiness","k":"composed","g":["G6_copy_version"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-ae658e74","en":"Visa Application Centre","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-da6a1fcd","en":"Visa grant, ImmiAccount, Medicare, tax and enrolment numbers.","dom":"case_readiness","k":"prop","g":["G4_who_is_asking"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2f1acfc8","en":"Visa Refusals","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-843e7266","en":"Visas You Have Held","dom":"case_readiness","k":"prop","g":[],"j":"J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-180389e1","en":"VisaStack does not do these for you. Check the official source for this trip.","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-8e427d23","en":"visit","dom":"case_readiness","k":"attr_accessible+label_map_value+prop","g":[],"j":"J09","icu":"","rc":"","out":""}
+{"sg":"SG-5615a174","en":"Visit as a Resident of a Third Country","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-583e8545","en":"Waiting for {recipient} to accept.","dom":"case_readiness","k":"catalogue_en","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-d7bb34fa","en":"Waiting to Be Checked","dom":"case_readiness","k":"catalogue_en","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-687a2735","en":"Warning Signs to Watch For","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-e31596b4","en":"We could not delete this case, and nothing was changed. Try again in a moment.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-0e9f785b","en":"We do not show a fee amount here unless it is currently verified. Confirm the exact, current fee at the official channel below before paying anyone.","dom":"case_readiness","k":"text","g":["G1_state_word","G9_claim_strength"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-22fb4787","en":"What changed since you confirmed snapshot {version} on {formatTimestampDate}","dom":"case_readiness","k":"named_const_text","g":["G1_state_word","G6_copy_version"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER|SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-c6362aa1","en":"What Is a Checklist?","dom":"case_readiness","k":"prop_display+candidate_sentence","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-ab8b2d21","en":"What needs attention on this case","dom":"case_readiness","k":"attr_accessible","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-bba2f7f3","en":"What Should It Say (Optional)","dom":"case_readiness","k":"text","g":["G3_requirement_level"],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-197d5656","en":"What the Government Charges","dom":"case_readiness","k":"text","g":["G4_who_is_asking"],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-e9ca32fd","en":"What This Route Is","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-d9cf5b27","en":"Where are you going?","dom":"case_readiness","k":"candidate_sentence+text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-65cd9fb1","en":"Where This Information Comes From","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-6d42f1ee","en":"Where to Actually Apply","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"","rc":"OFFICIAL_RULE_CONTENT","out":""}
+{"sg":"SG-27502209","en":"where you apply (the embassy, consulate or visa centre)","dom":"case_readiness","k":"label_map_value","g":["G4_who_is_asking","G7_country_role"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-01243704","en":"Where you apply, not the country you travel to. Some checklists differ by embassy or visa centre.","dom":"case_readiness","k":"text","g":["G4_who_is_asking","G7_country_role"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-48e3a54f","en":"Where you live now and where you have lived.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-11433e2e","en":"Where you lived, worked, studied and travelled, with dates.","dom":"case_readiness","k":"prop","g":[],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-c19b0c00","en":"Whether these apply depends on case details that are not confirmed yet.","dom":"case_readiness","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2536a007","en":"Whether this applies depends on case details that are not confirmed yet.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-3e06aed0","en":"Which Country Do You Want to Visit?","dom":"case_readiness","k":"text","g":[],"j":"J01,J04","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-a8afce00","en":"Which File Counts","dom":"case_readiness","k":"attr_accessible+text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-133fec1c","en":"Which File Goes in the Handoff","dom":"case_readiness","k":"attr_accessible+text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a3207c19","en":"Who It Is For","dom":"case_readiness","k":"text","g":[],"j":"J01","icu":"","rc":"","out":""}
+{"sg":"SG-8fa1d2ca","en":"Withdrawn","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-99b69fcb","en":"Without it you can still browse countries and read help. <Link>See all permissions</Link>","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-738b7ddf","en":"Wording saved.","dom":"case_readiness","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-a342d7ee","en":"Workflow","dom":"case_readiness","k":"prop_display","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-a50352ad","en":"Wrong or Does Not Apply","dom":"case_readiness","k":"label_map_value","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-35496c1b","en":"Yes, Delete This Case","dom":"case_readiness","k":"prop_display","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-7b55ed90","en":"You already sent this suggestion. Pack editors will check it against the official source.","dom":"case_readiness","k":"named_const_text+candidate_sentence","g":["G1_state_word","G9_claim_strength"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-c6f60733","en":"You are responsible for confirming what this case needs. Completeness is not an official readiness assessment, on this page or in an exported snapshot.","dom":"case_readiness","k":"text","g":["G9_claim_strength"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-ecae4bf6","en":"You choose whether to join and what to share. Nobody gets access to your documents.","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-ad48445a","en":"You confirmed this case on {formatTimestampDate}","dom":"case_readiness","k":"composed","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-d85008af","en":"You have not confirmed this case yet","dom":"case_readiness","k":"text","g":["G1_state_word"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-7a90d41e","en":"Your case: <Link>{title}</Link> · {word}","dom":"case_readiness","k":"composed","g":["G5_share_lifecycle"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER|SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-31d603ad","en":"Your checklist appears here as soon as you pick a country.","dom":"case_readiness","k":"text","g":[],"j":"J01,J04","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-6bef7c7a","en":"Your confirmation:","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-a62c895b","en":"Your current job, salary and earlier jobs.","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-1b774fbd","en":"Your current passport and any earlier or additional passports.","dom":"case_readiness","k":"prop","g":["G6_copy_version"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-25b7dcbb","en":"Your Interpretation (Optional)","dom":"case_readiness","k":"text","g":["G3_requirement_level"],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-f4f12b4b","en":"Your name, date of birth, nationality, marital status and how to reach you.","dom":"case_readiness","k":"prop","g":["G7_country_role"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-b6efc4d7","en":"Your Sharing","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-b33c2322","en":"Your Sharing Ends Soon","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-76cbceb6","en":"Your sharing is about to end","dom":"case_readiness","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-4a78fbd8","en":"Your sharing with {recipientLabel} ends on {day}. You can keep it going for 30 more days.","dom":"case_readiness","k":"prop","g":["G8_data_action"],"j":"","icu":"ICU_PLURAL_OR_NUMBER|MULTI_PLACEHOLDER_ORDER|SECOND_PERSON_FORMALITY","rc":"","out":"email_or_notification"}
+{"sg":"SG-0f7bf28c","en":"Your Wording","dom":"case_readiness","k":"text","g":[],"j":"J08","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-badccd42","en":"Browse: what an export holds, and your consent history.","dom":"consent","k":"label_map_value","g":["G8_data_action"],"j":"J18","icu":"SECOND_PERSON_FORMALITY","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-a7c71a66","en":"Education and Qualifications","dom":"consent","k":"label_map_value","g":[],"j":"J13,J14","icu":"","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-8311d1f1","en":"Export your data, review consent history, or delete your account.","dom":"consent","k":"text","g":["G8_data_action"],"j":"J18","icu":"SECOND_PERSON_FORMALITY","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-8a96d973","en":"Health","dom":"consent","k":"label_map_value","g":[],"j":"J10,J15","icu":"","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-a3226135","en":"Money","dom":"consent","k":"label_map_value","g":[],"j":"J05,J10,J15","icu":"","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-621fc37f","en":"Privacy & Consent","dom":"consent","k":"prop","g":[],"j":"J04,J05,J06,J07,J08,J09,J10,J11,J12,J13,J14,J15,J17,J18,J19,J20","icu":"","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-d313473c","en":"Privacy and Consent","dom":"consent","k":"text","g":[],"j":"J06","icu":"","rc":"LEGAL_POLICY_TEXT","out":"chat_message"}
+{"sg":"SG-aaf8d305","en":"Safe Copy","dom":"consent","k":"named_const_text+candidate_sentence","g":["G8_data_action","G9_claim_strength"],"j":"J06,J17","icu":"","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-02122e22","en":"Turn On: {label}","dom":"consent","k":"prop_display","g":[],"j":"J04,J05","icu":"","rc":"LEGAL_POLICY_TEXT","out":""}
+{"sg":"SG-8fba7ca3","en":", {waiting} suggested not accepted yet","dom":"documents_vault","k":"expr_literal","g":["G1_state_word","G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-e747ba0c","en":". Still being checked","dom":"documents_vault","k":"label_map_value","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4fbf3546","en":"· optional","dom":"documents_vault","k":"expr_literal","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-717799b6","en":"{addedCount} files are saved.","dom":"documents_vault","k":"expr_literal","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-20e2532f","en":"{choice} . How each detail was checked is shown beside it.","dom":"documents_vault","k":"composed","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-b59bc29b","en":"{description} Sensitive: include it only if the reader needs it.","dom":"documents_vault","k":"expr_literal","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-bbc71a8c","en":"{documentName} is an exact copy. The identical copy that stays is <strong>{survivorName}</strong>.","dom":"documents_vault","k":"composed","g":["G6_copy_version"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-8103f949","en":"{name} (This Person)","dom":"documents_vault","k":"expr_literal","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-748a7955","en":"{name}, version {version}","dom":"documents_vault","k":"prop","g":["G6_copy_version"],"j":"J10,J15","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":"download_or_export"}
+{"sg":"SG-1abdccff","en":"{notSorted} {agree} a Kind","dom":"documents_vault","k":"composed","g":[],"j":"J06","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-9fa701af","en":"{notSorted} document{choice} no kind set yet, so {choice} in no category and left out when you share by category. Open a document and choose its kind.","dom":"documents_vault","k":"composed","g":["G8_data_action"],"j":"J06","icu":"MULTI_PLACEHOLDER_ORDER|SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-9c1249c3","en":"{PDF_NEEDS_SCAN_TEXT} Add a photo or scan of each page as a JPG or PNG instead.","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-d9696fe7","en":"{savedLabel}, read from the document.","dom":"documents_vault","k":"expr_literal","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-0b6663fd","en":"{uploadCheckNotice} iPhone photos (HEIC) are saved as JPG copies so they open anywhere.","dom":"documents_vault","k":"composed","g":["G1_state_word"],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-76b85b2b","en":"{value} · Profile created {formatTimestampDate}","dom":"documents_vault","k":"composed","g":[],"j":"J05","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-fdbd360c","en":"<Icon/> Original files stay protected","dom":"documents_vault","k":"composed","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-2caf7a7c","en":"<strong>Reading scans:</strong> the picture of a scan is sent to an AI service to read it. This shares more than text alone.","dom":"documents_vault","k":"composed","g":["G1_state_word","G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5c94bba0","en":"<strong>Reading text:</strong> the text of a document is sent to an AI service to suggest values. You approve each one.","dom":"documents_vault","k":"composed","g":["G1_state_word"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-bea5a5ac","en":"✓ Entered by the traveller.","dom":"documents_vault","k":"expr_literal","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-6559a1d8","en":"✗ No supporting document supplied.","dom":"documents_vault","k":"expr_literal","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-01336c39","en":"1 file is saved.","dom":"documents_vault","k":"expr_literal","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-a86a616e","en":"35 x 45 mm is the smallest frame allowed. The background rule was not part of what was checked. {SEEN_THROUGH_SEARCH}","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-c89d1fc2","en":"A clean file you can stand behind. Keep your passport and documents in one private profile and share only the part you choose.","dom":"documents_vault","k":"prop","g":["G8_data_action"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-81c638bd","en":"A copy is kept for {displayName}. It is checked for safety first, like any new file.","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-4df4a534","en":"A new version of VisaStack is ready. Finish anything you are typing or uploading, then reload.","dom":"documents_vault","k":"text","g":["G1_state_word","G6_copy_version"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-0a28cd6b","en":"A printable summary of the documents and details you need for one trip.","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"download_or_export"}
+{"sg":"SG-0aa03d99","en":"A reason is required to reject or request a correction.","dom":"documents_vault","k":"prop","g":["G3_requirement_level"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-24e6815a","en":"A safe copy is a new picture of each page with the parts you choose covered in black. It is what people you share safe copies with can download, never the original.","dom":"documents_vault","k":"text","g":["G8_data_action","G9_claim_strength"],"j":"J06,J17","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"download_or_export"}
+{"sg":"SG-fb46562d","en":"A short message you can send yourself. It holds no document, number or name, only a link to sign in to VisaStack. VisaStack never sends it for you.","dom":"documents_vault","k":"text","g":["G5_share_lifecycle","G9_claim_strength"],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-9ea2de43","en":"A short summary of one case for an agency you are asking for help.","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"download_or_export"}
+{"sg":"SG-5d439010","en":"A short summary of this case, with only what the traveller chose to include.","dom":"documents_vault","k":"candidate_sentence","g":[],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-8829c695","en":"A suggestion is only a guess. Nothing is saved until you accept it.","dom":"documents_vault","k":"text","g":["G1_state_word","G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-2ebd55a3","en":"A summary is a one-time copy. It does not update when your record changes, and VisaStack cannot take it back once you have shared it. Sharing it with an agency or an AI app is your choice each time.","dom":"documents_vault","k":"text","g":["G8_data_action"],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-24b2e836","en":"A summary to paste into an AI app, so it knows only what you chose.","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"download_or_export"}
+{"sg":"SG-97925851","en":"A traveller is one person whose passport details and documents you keep here and reuse for each visa application.","dom":"documents_vault","k":"text","g":["G4_who_is_asking"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-60e4285a","en":"A virus scan finished on this exact file and found nothing.","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e5c6ba48","en":"About Documents","dom":"documents_vault","k":"text","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-861912b4","en":"About Essentials","dom":"documents_vault","k":"prop_display","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-f14df8f6","en":"About Suggestions","dom":"documents_vault","k":"prop_display","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-d0899e6c","en":"About the Case","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-88ec561b","en":"About the Traveller","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-722b287f","en":"About This File","dom":"documents_vault","k":"text","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-5e6e54d0","en":"About This Profile","dom":"documents_vault","k":"prop_display","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-c67c0fbc","en":"Accept","dom":"documents_vault","k":"prop_display+text","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-2e386e07","en":"Accept Box","dom":"documents_vault","k":"text","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-6cb590ca","en":"Accept box {value}","dom":"documents_vault","k":"attr_accessible","g":["G5_share_lifecycle"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-de9a6e94","en":"Accept or remove every suggested box first.","dom":"documents_vault","k":"prop","g":["G5_share_lifecycle","G8_data_action"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-553e9e07","en":"Accept what is right and skip what is not. Nothing reaches your profile until you do.","dom":"documents_vault","k":"prop_display","g":["G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-3481f346","en":"Accept: {value}, {proposedName}","dom":"documents_vault","k":"prop_display","g":["G5_share_lifecycle"],"j":"","icu":"MULTI_PLACEHOLDER_ORDER","rc":"","out":""}
+{"sg":"SG-e534432f","en":"Accommodation","dom":"documents_vault","k":"prop","g":[],"j":"J05,J06,J08","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-ac2cdb8a","en":"Add","dom":"documents_vault","k":"text","g":[],"j":"J06,J08,J17","icu":"","rc":"","out":""}
+{"sg":"SG-39ed55c6","en":"Add {label}","dom":"documents_vault","k":"composed","g":[],"j":"J05,J08","icu":"","rc":"","out":""}
+{"sg":"SG-191f77f9","en":"Add a Document","dom":"documents_vault","k":"text+prop","g":[],"j":"J04,J05,J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-a33bdd99","en":"Add a First Document","dom":"documents_vault","k":"prop","g":[],"j":"J04","icu":"","rc":"","out":""}
+{"sg":"SG-2e6c158c","en":"Add a Folder","dom":"documents_vault","k":"text","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-7a529aa4","en":"Add a newer copy if you have one, or keep this one as it is.","dom":"documents_vault","k":"expr_literal","g":["G6_copy_version"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-3cb299a1","en":"Add Documents","dom":"documents_vault","k":"prop+attr_accessible+text","g":[],"j":"J04,J05,J06,J07,J09,J10,J11,J12,J15,J17,J18,J19,J20","icu":"","rc":"","out":""}
+{"sg":"SG-25287ce3","en":"Add each paper once.","dom":"documents_vault","k":"expr_literal","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-3a046921","en":"Add Information","dom":"documents_vault","k":"text","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-1505d181","en":"Add Photo","dom":"documents_vault","k":"expr_literal","g":[],"j":"J05,J18","icu":"","rc":"","out":""}
+{"sg":"SG-38f0fa0a","en":"Add the Date This Became True","dom":"documents_vault","k":"text","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-384c5894","en":"Add the Newer Document","dom":"documents_vault","k":"text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-483ba2ae","en":"Added","dom":"documents_vault","k":"prop","g":[],"j":"J01,J05","icu":"","rc":"","out":""}
+{"sg":"SG-1bb22d53","en":"Address","dom":"documents_vault","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-fdd8c17a","en":"Admission Letter","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-7e8038ee","en":"Adoption Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-907494c3","en":"Affidavit","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-b40266f3","en":"Affidavit of Support","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-ad2661af","en":"After you accept, this file will open without the extra sign-in check.","dom":"documents_vault","k":"named_const_text+candidate_sentence","g":["G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-dcf3d5c8","en":"Agency Brief","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-659d8281","en":"Agency reviewed: {choice}","dom":"documents_vault","k":"composed","g":["G1_state_word"],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-296ec35f","en":"Agricultural Income Proof","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-b6101466","en":"AI Context","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-a59d20ba","en":"AI suggestions do not change your profile until you approve them. Your confirming a detail is not the same as the issuer confirming it.","dom":"documents_vault","k":"text","g":[],"j":"J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-882d2ab6","en":"AI suggestions wait for your approval.","dom":"documents_vault","k":"text","g":[],"j":"J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-96deaaa3","en":"All Categories","dom":"documents_vault","k":"text","g":[],"j":"J05,J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-4685ce8c","en":"All Documents","dom":"documents_vault","k":"label_map_value","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-6e110571","en":"All Profile History →","dom":"documents_vault","k":"text","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-7aa507b0","en":"All Snapshots","dom":"documents_vault","k":"attr_accessible","g":[],"j":"J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-9530f9a8","en":"Allergy Card","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-87311061","en":"Already added in an earlier import, so it was not sent again.","dom":"documents_vault","k":"named_const_text","g":["G1_state_word","G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-aaff9f85","en":"Alternate / Transliterated Name","dom":"documents_vault","k":"prop","g":[],"j":"J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-d69a3240","en":"An agency you choose","dom":"documents_vault","k":"candidate_sentence","g":[],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":"download_or_export"}
+{"sg":"SG-b165588e","en":"Ancestor Civil Record","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-d580c8b9","en":"Annual Income","dom":"documents_vault","k":"prop","g":[],"j":"J05,J11","icu":"","rc":"","out":""}
+{"sg":"SG-799d23a9","en":"Annual Income Currency","dom":"documents_vault","k":"prop","g":[],"j":"J05,J11","icu":"","rc":"","out":""}
+{"sg":"SG-86a60227","en":"Another reading is queued. Keep this page open or return later. Confirm any suggested information against the original.","dom":"documents_vault","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-7b18b9c7","en":"Appeal Decision","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-27946a1f","en":"Application Receipt","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-226bab50","en":"Applies to the files you add next: it files them under the right sharing category and names them, for example Passport and your first name. You can change both later.","dom":"documents_vault","k":"text","g":["G8_data_action"],"j":"J06","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-50da076f","en":"Apply","dom":"documents_vault","k":"text","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-a16f6189","en":"Appointment Letter","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-b0ddc410","en":"Approved Medical Centre Result","dom":"documents_vault","k":"prop","g":["G1_state_word"],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-7e756ed6","en":"ARCHIVE","dom":"documents_vault","k":"label_map_value+prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-acde8915","en":"Archive This Document","dom":"documents_vault","k":"label_map_value","g":["G8_data_action"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-f86206d8","en":"As on passport","dom":"documents_vault","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-5aefaf35","en":"As printed on your passport.","dom":"documents_vault","k":"prop","g":[],"j":"J05","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-76d191fa","en":"As Standard, plus suggestions that are not confirmed yet, labelled as such.","dom":"documents_vault","k":"candidate_sentence","g":["G1_state_word"],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-b2f50961","en":"Ask Us to Remove This File","dom":"documents_vault","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-b4dfacd9","en":"Asset Valuation Report","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-030bdefa","en":"Attestation Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-7004992b","en":"Audit Report","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-dbb1ab9d","en":"Australia Form 80","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-d2f944c3","en":"Automatic checks: {choice}","dom":"documents_vault","k":"composed","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-f9f4ab77","en":"Automatic Reading is turned off right now, so only the file itself was checked.","dom":"documents_vault","k":"label_map_value","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-61e87632","en":"Automatic Reading: {STATE_WORD}","dom":"documents_vault","k":"expr_literal","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-5cb2de29","en":"Back to Documents","dom":"documents_vault","k":"text","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-2fec005d","en":"Backed by a Document","dom":"documents_vault","k":"label_map_value","g":[],"j":"J05,J11","icu":"","rc":"","out":""}
+{"sg":"SG-ca8637da","en":"Bank Reference Letter","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-67ec8bef","en":"Bank Solvency Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-4d412103","en":"Being Checked","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-bcf33383","en":"Being reviewed","dom":"documents_vault","k":"label_map_value","g":["G1_state_word"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-ebccf8fd","en":"Biometric Appointment Receipt","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-17481ed9","en":"Birth Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-41e410f7","en":"Blood Group Card","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-9c1fd40d","en":"Board Resolution","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-bb57a17d","en":"Browse: each document's own expiry, route rules and issuer confirmations.","dom":"documents_vault","k":"label_map_value+candidate_sentence","g":[],"j":"J19","icu":"","rc":"","out":""}
+{"sg":"SG-a4e8f0ef","en":"Business / investment","dom":"documents_vault","k":"label_map_value","g":[],"j":"J11,J13,J14","icu":"","rc":"","out":""}
+{"sg":"SG-f7229aea","en":"Business Bank Statement","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-62a97b01","en":"Business Card","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-025a4ace","en":"Business Registration","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-1979b1e8","en":"Camera Photo","dom":"documents_vault","k":"attr_accessible","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-68eb5024","en":"Canada IMM Application Form","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-b25fc21e","en":"Cancel","dom":"documents_vault","k":"text","g":[],"j":"J08","icu":"","rc":"","out":""}
+{"sg":"SG-b4714992","en":"Cancel Removal Request","dom":"documents_vault","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-019ebc33","en":"Cannot be checked yet","dom":"documents_vault","k":"label_map_value","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-942d7af3","en":"Car Rental Booking","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-b61acbe3","en":"CAS Statement","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-c5ba7a4e","en":"Case Handover","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-43c72007","en":"Category","dom":"documents_vault","k":"text","g":[],"j":"J05,J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-4ed328c5","en":"Certified Translation","dom":"documents_vault","k":"prop","g":["G9_claim_strength"],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-e1dbb43c","en":"Change Safe Copy","dom":"documents_vault","k":"expr_literal","g":["G8_data_action","G9_claim_strength"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-a43ab44f","en":"Character Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-3f781cc6","en":"Check and Copy","dom":"documents_vault","k":"candidate_sentence","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-b93e4edd","en":"Check each one below. Nothing is saved to your profile until you accept it.","dom":"documents_vault","k":"label_map_value","g":["G1_state_word","G5_share_lifecycle"],"j":"","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-14753bf0","en":"Check the File Again","dom":"documents_vault","k":"text","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-fc7aba51","en":"Check your documents against one visa route.","dom":"documents_vault","k":"prop","g":[],"j":"J04","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-7732e69e","en":"Checked for Viruses","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-130464e6","en":"Checking your files. This page updates itself.","dom":"documents_vault","k":"text","g":[],"j":"J06","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-b2c4eeea","en":"Child Birth Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-abbf46d1","en":"Choose a Document","dom":"documents_vault","k":"text+attr_accessible","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-136bdd19","en":"Choose a Summary","dom":"documents_vault","k":"candidate_sentence+attr_accessible","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-3aa80224","en":"Choose Files","dom":"documents_vault","k":"text","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-c42ba28f","en":"Choose the Newer Document","dom":"documents_vault","k":"text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-5f596105","en":"Choose what goes in, check the preview, then copy, print or download one summary. Everything you do not select stays out.","dom":"documents_vault","k":"prop_display","g":[],"j":"J10,J15","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-c06e7983","en":"Choose What to Include","dom":"documents_vault","k":"candidate_sentence+text","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-c1874de8","en":"Citizenship Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-cbbbd2f5","en":"Citizenship Test Result","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-28c7b46f","en":"clamav: scan error ({body})","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-b5eff63b","en":"Communication Record","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-cbe53ad4","en":"Company Accounts","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-5ffc13a5","en":"Company Memorandum","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-490dc678","en":"Completeness only. It says nothing about whether an application will be accepted","dom":"documents_vault","k":"prop","g":["G1_state_word","G5_share_lifecycle"],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-6d126a23","en":"Confirmation of Enrolment","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-182c29cc","en":"Confirmed by the traveller","dom":"documents_vault","k":"text+label_map_value","g":["G1_state_word"],"j":"J05","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-2835836d","en":"Confirmed Information Sheet","dom":"documents_vault","k":"prop","g":["G1_state_word"],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-5a314b2e","en":"Confirmed. Both files are kept, and Linked Copies shows how they belong together.","dom":"documents_vault","k":"prop","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-609042c1","en":"Confirmed. The newer file is now the Current Copy; the older one is kept.","dom":"documents_vault","k":"prop","g":["G1_state_word","G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-8167e3f8","en":"Continue","dom":"documents_vault","k":"text","g":[],"j":"J03,J04","icu":"","rc":"","out":""}
+{"sg":"SG-8e608a8d","en":"Copy All","dom":"documents_vault","k":"candidate_sentence+prop_display","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-6847913e","en":"Could Not Be Checked","dom":"documents_vault","k":"prop","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-18b42660","en":"Country of Residence","dom":"documents_vault","k":"prop","g":["G7_country_role"],"j":"J10,J11,J15","icu":"","rc":"","out":""}
+{"sg":"SG-596a1031","en":"Courier Tracking Slip","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-eb11b8a1","en":"Course Completion","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-8a9a35d4","en":"Court Order","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-1d0bd06b","en":"Cover Letter","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-ff4d8c6b","en":"COVID-19 Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-509eb856","en":"Credit Card Statement","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-40fb2126","en":"Credit Report","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-47882a88","en":"Cruise Booking","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-91c9a36c","en":"Cryptocurrency Proof","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-59cae6f9","en":"Current","dom":"documents_vault","k":"label_map_value","g":[],"j":"J01,J10,J11,J15,J17","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-bf8902e3","en":"Curriculum Vitae","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-3d7ec70b","en":"Custody Order","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-764a52f1","en":"Date of Birth","dom":"documents_vault","k":"prop","g":[],"j":"J05,J08","icu":"","rc":"","out":""}
+{"sg":"SG-c0da450f","en":"Death Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-792fd278","en":"Degree Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-5ee5edf8","en":"Delete {documentName} Now?","dom":"documents_vault","k":"composed","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-8545ac5f","en":"Delete Duplicate","dom":"documents_vault","k":"expr_literal+prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-e7dc404c","en":"Delete Duplicate?","dom":"documents_vault","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-d44cd842","en":"Delete File Now","dom":"documents_vault","k":"expr_literal","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-04de55e1","en":"Delete My File","dom":"documents_vault","k":"prop","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-ceef282e","en":"Dependent Proof","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-e98a65f4","en":"Deputation Order","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-e7beedcf","en":"Destination","dom":"documents_vault","k":"prop","g":["G7_country_role"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-88ad041a","en":"Disability Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-e0498b96","en":"Dividend Statement","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-19d1ac96","en":"Divorce Certificate","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-80f8718c","en":"Do not predict whether a visa will be approved. Ask the person when something is missing or unclear.","dom":"documents_vault","k":"list_item_text","g":["G1_state_word"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-9166b2a5","en":"Document Added","dom":"documents_vault","k":"candidate_sentence","g":[],"j":"J05","icu":"","rc":"","out":""}
+{"sg":"SG-a2b44f83","en":"Document Date","dom":"documents_vault","k":"text","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-788652aa","en":"Document Files","dom":"documents_vault","k":"attr_accessible","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-6bc20b25","en":"Document metadata list","dom":"documents_vault","k":"attr_accessible","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-cfe57059","en":"Document Name","dom":"documents_vault","k":"text","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-8c65b56e","en":"Document Reference","dom":"documents_vault","k":"prop_display","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-ad9e2280","en":"Document Replaced","dom":"documents_vault","k":"text","g":["G6_copy_version"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-49b63a54","en":"Document Saved","dom":"documents_vault","k":"attr_accessible","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-7325f836","en":"Document state filters","dom":"documents_vault","k":"attr_accessible","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-9b83d475","en":"Document Storage","dom":"documents_vault","k":"prop_display+prop","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-bec3e0f9","en":"Documents","dom":"documents_vault","k":"prop+attr_accessible+text+prop_display","g":[],"j":"J01,J04,J05,J06,J07,J09,J10,J11,J12,J13,J14,J15,J17,J18,J19,J20","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-8f1ee02a","en":"Documents are added in VisaStack, not in chat, so they stay private and checked.","dom":"documents_vault","k":"text","g":["G2_safety_check"],"j":"","icu":"","rc":"","out":"chat_message"}
+{"sg":"SG-577a7df5","en":"Documents on File","dom":"documents_vault","k":"prop","g":[],"j":"J10,J15","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-c05844cd","en":"Documents Saved","dom":"documents_vault","k":"attr_accessible","g":["G1_state_word"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-6bfef43e","en":"Documents: the list only. No document file is included.","dom":"documents_vault","k":"text","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-51ca84af","en":"Download Original","dom":"documents_vault","k":"text","g":["G8_data_action"],"j":"","icu":"","rc":"","out":""}
+{"sg":"SG-3dc228e9","en":"Download Safe Copy","dom":"documents_vault","k":"text","g":["G8_data_action","G9_claim_strength"],"j":"","icu":"","rc":"","out":"download_or_export"}
+{"sg":"SG-b4e252d0","en":"Download Text File","dom":"documents_vault","k":"expr_literal","g":[],"j":"J10,J15","icu":"","rc":"","out":""}
+{"sg":"SG-7ea9a268","en":"Drag one or more files into this box, or use a button.","dom":"documents_vault","k":"text","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-5a7262c4","en":"Driving Licence","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-5105740d","en":"Drop Files Here","dom":"documents_vault","k":"text","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-8328578b","en":"Drop Files or a Folder Here","dom":"documents_vault","k":"text","g":[],"j":"J06","icu":"","rc":"","out":""}
+{"sg":"SG-67266d24","en":"Drop your files or a whole folder here. We check each one, read what we can, and you approve every detail.","dom":"documents_vault","k":"prop_display+candidate_sentence","g":[],"j":"J06","icu":"SECOND_PERSON_FORMALITY","rc":"","out":""}
+{"sg":"SG-fc7d0599","en":"DS-160 Confirmation","dom":"documents_vault","k":"prop","g":[],"j":"J06,J17","icu":"","rc":"","out":""}
+{"sg":"SG-509f3c2f","en":"e.g. Bangladeshi","dom":"documents_vault","k":"prop","g":[],"j":"J05","icu":"","rc":"","out":""}
