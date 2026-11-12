@@ -96,7 +96,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
                 <Link href="/#how-it-works">How It Works</Link>
               </div>
               <div className="site-nav-actions">
-                {/* Hidden until translation work starts (see LANGUAGE_CHOICE_ENABLED). */}
+                {/* Shown while language choice is on (see LANGUAGE_CHOICE_ENABLED). */}
                 {LANGUAGE_CHOICE_ENABLED ? (
                   <form action={setLocaleAction} aria-label="Language">
                     <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />

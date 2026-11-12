@@ -50,7 +50,7 @@ describe('the notice is shown in full once per visitor (owner list item 17)', ()
 });
 describe('the language switch', () => {
   const BANGLA = 'বাংলা';
-  it('is hidden while translation has not started (owner decision: Bangla is deferred)', async () => {
+  it('is hidden when language choice is switched off (rollback state)', async () => {
     state.languageChoice = false;
     const html = await renderServer(RootLayout({ children: <p>Page</p> }));
     expect(html).not.toContain('lang-switch');
