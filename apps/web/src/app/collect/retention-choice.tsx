@@ -1,3 +1,5 @@
+'use client';
+
 import { useT } from '../../components/i18n-provider';
 import { collectCatalog } from '../../i18n/collect';
 /**
