@@ -1119,7 +1119,6 @@ function SuggestionBar({
   readonly view: MasterProfileView;
 }) {
   const t = useT(appApplicantCatalog);
-  const locale = useLocale();
   const [state, formAction, pending] = useActionState(openSuggestedSectionsAction, INITIAL);
   const messageId = useId();
   return (
