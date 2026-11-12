@@ -28,10 +28,6 @@ export const HOLDBACK = new Map([
     'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',
   ],
   [
-    'SG-3b06ca66',
-    'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',
-  ],
-  [
     'SG-02a56416',
     'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',
   ],
