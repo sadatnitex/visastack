@@ -342,6 +342,85 @@ export const HOLDBACK = new Map([
   [
     'SG-dcadd581',
     'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
+  // Wave E: case screens and the document collection flow.
+  ['SG-094bebc7', 'Case answer status "Submitted to Agency": a sharing outcome, owner sign-off.'],
+  [
+    'SG-45ad6a0b',
+    'What the agency can open of a submitted answer: access control wording, owner sign-off.',
+  ],
+  ['SG-2b1514c9', 'Agency not yet reviewed: a trust status about an agency, owner sign-off.'],
+  [
+    'SG-d39a9da3',
+    'Nothing can be shared until the agency is reviewed: sharing and access wording, owner sign-off.',
+  ],
+  ['SG-dc081055', 'Private link opened has shared nothing: a sharing promise, owner sign-off.'],
+  ['SG-d7bcf439', 'Confirm it is you, no account is made: a privacy promise, owner sign-off.'],
+  [
+    'SG-a5fa0621',
+    'Checked date and confirm final requirements with the authority: official visa requirement wording, owner sign-off.',
+  ],
+  [
+    'SG-9574696f',
+    'Case removed for good with its contents: a data deletion promise, owner sign-off.',
+  ],
+  [
+    'SG-8987f99a',
+    'What a sponsor or family member sees of your record: sharing wording, owner sign-off.',
+  ],
+  [
+    'SG-991b05ef',
+    'Which agency notes are shared and which never are: sharing and access wording, owner sign-off.',
+  ],
+  ['SG-079d1f0e', 'What the contributor will see: sharing wording, owner sign-off.'],
+  ['SG-e4a97e33', 'Who sees a complaint: access control and privacy promise, owner sign-off.'],
+  ['SG-98c55098', 'Who reviews a complaint: access control and privacy promise, owner sign-off.'],
+  [
+    'SG-f0bd6092',
+    'Nothing is sent until you share it yourself: a sharing promise, owner sign-off.',
+  ],
+  [
+    'SG-63dab094',
+    'Generated from confirmed evidence, not AI-written: a claim about AI behaviour, owner sign-off.',
+  ],
+  [
+    'SG-d3914f71',
+    'Reason to reject or request a correction of an agency snapshot: approval action wording, owner sign-off.',
+  ],
+  [
+    'SG-5efa8d43',
+    'Access and permissions stay separate per case: access control wording, owner sign-off.',
+  ],
+  [
+    'SG-84514c27',
+    'Trip date checks are not country rules: official visa rule wording, owner sign-off.',
+  ],
+  [
+    'SG-c0b36ea9',
+    'Done or cancelled task count: the number word comes from an English helper, so the sentence would mix scripts; waits for a proper plural message.',
+  ],
+  [
+    'SG-4fbf3546',
+    'Optional marker with a leading separator: the Bengali drops the space that joins it to the label.',
+  ],
+  [
+    'SG-c60ff807',
+    'Already sent note that follows other text: the Bengali drops the leading space.',
+  ],
+  [
+    'SG-cb6538b8',
+    'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
+  [
+    'SG-260ff35f',
+    'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
+  [
+    'SG-e004a268',
+    'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
+  [
+    'SG-86f84a55',
+    'Button name read by screen readers while the visible text is still English (label in name).',
   ],
 ]);
 

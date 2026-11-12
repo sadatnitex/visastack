@@ -10,8 +10,10 @@ import type { ComponentProps, ReactNode } from 'react';
 import { atLevel } from '../../../../components/depth';
 import { type SwitcherSection, SwitcherTabs } from '../../../../components/list-pattern';
 import { SectionCard, StatusPill } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import type { DepthLevel } from '../../../../lib/ccd/depth';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT } from '../../../../lib/i18n-server';
 import { AttemptPanel } from './attempt-panel';
 import { candidateViews } from './case-evidence-view';
 import { ATTEMPT_DOCUMENT_KINDS, CAPPED_LISTS, type CappedList, type OkValue } from './case-model';
@@ -136,6 +138,7 @@ export function CaseSecondary({
   evidenceEditable = true,
   views: given,
 }: CaseSecondaryProps) {
+  const t = getServerT(appMissionCatalog);
   const openTasks =
     totals?.openTasks ??
     tasks.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length;
@@ -205,11 +208,12 @@ export function CaseSecondary({
       content: (
         <div className="grid" id="contributors">
           <article className="card">
-            <p className="card-kicker">Delegate</p>
-            <h2 className="card-title">Ask a Contributor</h2>
+            <p className="card-kicker">{t('appMission.appMissionIdCaseSecondary.delegate')}</p>
+            <h2 className="card-title">
+              {t('appMission.appMissionIdCaseSecondary.askAContributor')}
+            </h2>
             <p className="card-body u-mb-125">
-              Ask a sponsor or family member for one named document. They see only the message you
-              type here, nothing else from your record.
+              {t('appMission.appMissionIdCaseSecondary.askASponsorOrFamilyMember')}
             </p>
             <ContributorRequestsPanel missionId={missionId} requests={contributorRequests} />
           </article>
@@ -224,14 +228,17 @@ export function CaseSecondary({
       content: (
         <div className="grid" id="notes">
           <article className="card">
-            <p className="card-kicker">Collaboration</p>
-            <h2 className="card-title">Notes from Your Agency</h2>
+            <p className="card-kicker">{t('appMission.appMissionIdCaseSecondary.collaboration')}</p>
+            <h2 className="card-title">
+              {t('appMission.appMissionIdCaseSecondary.notesFromYourAgency')}
+            </h2>
             <p className="card-body u-mb-125">
-              Notes an agency working this case has chosen to share with you. An agency's own
-              internal notes are never shown here.
+              {t('appMission.appMissionIdCaseSecondary.notesAnAgencyWorkingThisCase')}
             </p>
             {notes.length === 0 ? (
-              <p className="muted u-fs-085">No notes shared with you yet.</p>
+              <p className="muted u-fs-085">
+                {t('appMission.appMissionIdCaseSecondary.noNotesSharedWithYouYet')}
+              </p>
             ) : (
               <div className="rows">
                 {notes.map((n, index) => (
@@ -242,7 +249,8 @@ export function CaseSecondary({
                   >
                     <span className="u-fs-085">{n.body}</span>
                     <span className="muted lift-caption-mt-020">
-                      {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
+                      {n.authorEmail ?? t('appMission.appMissionIdCaseSecondary.unknown')},{' '}
+                      {formatTimestampDate(n.createdAt)}
                     </span>
                   </div>
                 ))}
@@ -319,8 +327,12 @@ export function CaseSecondary({
           : undefined;
   return (
     <div className="lift-more-slot" {...atLevel('browse')}>
-      <SectionCard heading="More for This Case">
-        <SwitcherTabs label="Sections of This Case" sections={sections} initial={initial} />
+      <SectionCard heading={t('appMission.appMissionIdCaseSecondary.moreForThisCase')}>
+        <SwitcherTabs
+          label={t('appMission.appMissionIdCaseSecondary.sectionsOfThisCase')}
+          sections={sections}
+          initial={initial}
+        />
       </SectionCard>
     </div>
   );
