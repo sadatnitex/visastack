@@ -1,12 +1,30 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
-const state = vi.hoisted(() => ({ signedIn: false, languageChoice: false, noticeSeen: false }));
+const state = vi.hoisted(() => ({
+  signedIn: false,
+  languageChoice: false,
+  noticeSeen: false,
+  locale: 'en',
+  pathname: null as string | null,
+}));
+vi.mock('../lib/page-language', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/page-language')>();
+  // The real list plus one extra route is marked ready for this test file, so the Bangla result is exercised through the real layout.
+  return {
+    ...actual,
+    pageLanguage: (locale: string, pathname: string | null) =>
+      actual.pageLanguage(locale, pathname, [...actual.BN_READY_ROUTES, '/trust']),
+  };
+});
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
+}));
 vi.mock('../lib/version-notice-state', () => ({
   hasSeenVersionNotice: async () => state.noticeSeen,
 }));
 vi.mock('next/font/local', () => ({ default: () => ({ variable: 'synthetic-font' }) }));
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
-vi.mock('../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('../lib/locale', () => ({ getLocale: async () => state.locale }));
 vi.mock('../lib/language-choice', () => ({
   get LANGUAGE_CHOICE_ENABLED() {
     return state.languageChoice;
@@ -63,5 +81,54 @@ describe('the language switch', () => {
     expect(html).toContain('class="lang-switch"');
     expect(html).toContain(`lang="bn">${BANGLA}</button>`);
     state.languageChoice = false;
+  });
+});
+describe('the page language (WCAG 3.1.2)', () => {
+  afterEach(() => {
+    state.locale = 'en';
+    state.pathname = null;
+  });
+  const htmlLang = (html: string) => /<html[^>]*\blang="([^"]*)"/.exec(html)?.[1];
+  it('stays English for a Bangla visitor on a page that is not translated yet', async () => {
+    state.locale = 'bn';
+    state.pathname = '/status';
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(htmlLang(html)).toBe('en');
+  });
+  it('is English when the page address is missing', async () => {
+    state.locale = 'bn';
+    state.pathname = null;
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+  });
+  it('is English for an English visitor', async () => {
+    state.pathname = '/status';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+  });
+  it('follows the real list: the sign-in screen is Bangla for a Bangla visitor and English for an English one', async () => {
+    state.pathname = '/auth/sign-in';
+    state.locale = 'bn';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('bn');
+    state.locale = 'en';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+  });
+  it('records the chosen language for typography even when the page is marked English', async () => {
+    state.locale = 'bn';
+    state.pathname = '/status';
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(htmlLang(html)).toBe('en');
+    expect(/<html[^>]*\bdata-locale="bn"/.test(html)).toBe(true);
+    state.locale = 'en';
+    expect(
+      /<html[^>]*\bdata-locale="en"/.test(
+        await renderServer(RootLayout({ children: <p>Page</p> })),
+      ),
+    ).toBe(true);
+  });
+  it('is Bangla for a Bangla visitor on a route marked ready, and only there', async () => {
+    state.locale = 'bn';
+    state.pathname = '/trust/uk';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('bn');
+    state.pathname = '/status';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
   });
 });

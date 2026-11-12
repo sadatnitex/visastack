@@ -143,9 +143,14 @@ test.describe('language choice', () => {
   test('the header switch changes the page language to Bangla and back', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    // The switch label is Bangla, so it says so (WCAG 3.1.2).
+    await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'bn');
     await page.locator('.lang-switch').click();
-    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    // No route is fully in Bangla yet, so the page stays marked English; the switch now offers English.
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
     await page.locator('.lang-switch').click();
+    await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'bn');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   });
 
@@ -154,7 +159,9 @@ test.describe('language choice', () => {
       { name: 'visastack_locale', value: 'bn', url: baseURL ?? page.url() },
     ]);
     await page.goto('/status');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    // The choice is kept (the switch offers English) but the page is marked English until /status is translated.
+    await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   });
 });
 
