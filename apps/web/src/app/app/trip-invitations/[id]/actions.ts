@@ -19,7 +19,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { reportServerError } from '../../../../lib/server-error';
-import { refusalText } from '../../../../lib/service-error-message';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { linkTripChecklist } from '../../trips/trip-checklist';
 import { JOINED_TRIP_UNAVAILABLE } from './words';
@@ -173,7 +173,7 @@ export async function choosePaperAction(
     if (chosen.ok) return { ok: true, message: 'Added.' };
     // The service's words are fixed sentences about the paper or the level, never about anyone else.
     return chosen.error.code === 'invalid'
-      ? { ok: false, message: await refusalText(chosen.error), field: 'documentId' }
+      ? { ok: false, message: await serviceErrorMessage(chosen.error), field: 'documentId' }
       : { ok: false, message: 'That paper is not available.', field: 'documentId' };
   });
 }

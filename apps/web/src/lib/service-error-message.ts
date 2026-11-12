@@ -1,19 +1,26 @@
-import type { Locale } from '@visastack/i18n';
+import { DEFAULT_LOCALE, type Locale } from '@visastack/i18n';
+import { unstable_rethrow } from 'next/navigation';
 import { getLocale } from './locale';
-import { serviceErrorText, serviceErrorTranslator } from './service-error-text';
-import type { WordableServiceError } from './service-error-text';
+import {
+  type WordableServiceError,
+  serviceErrorText,
+  serviceErrorTranslator,
+} from './service-error-text';
 
 /**
- * The words for a service refusal in the visitor's language, for server actions and pages. A
- * refusal with no key, or a key with no Bengali yet, reads exactly as `error.message` always did.
+ * The words for a service refusal in the visitor's language, for server actions (which have no
+ * primed page translator). Server code only: it reads the request's language preference. A
+ * refusal with no key is the English the service sent, so no language is read for it.
  */
-export async function refusalText(error: WordableServiceError): Promise<string> {
+export async function serviceErrorMessage(error: WordableServiceError): Promise<string> {
   if (error.messageKey === undefined) return error.message;
-  let locale: Locale = 'en';
+  let locale: Locale;
   try {
     locale = await getLocale();
-  } catch {
-    // No request to read a language from (a job, a test): the English the service sent.
+  } catch (failure) {
+    // Next's own signals must keep travelling; anything else (no request to read) is English.
+    unstable_rethrow(failure);
+    locale = DEFAULT_LOCALE;
   }
   return serviceErrorText(error, serviceErrorTranslator(locale));
 }

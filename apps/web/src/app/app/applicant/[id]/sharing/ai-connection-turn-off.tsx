@@ -2,6 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { type AiConnectionActionState, turnOffAiConnectionAction } from './ai-connection-actions';
 
 /**
@@ -17,6 +19,7 @@ export function AiConnectionTurnOff({
   readonly connectionId: string;
   readonly appName: string;
 }) {
+  const t = useT(applicantSharingCatalog);
   const [state, formAction, pending] = useActionState<AiConnectionActionState, FormData>(
     turnOffAiConnectionAction,
     NO_RESULT,
@@ -45,8 +48,10 @@ export function AiConnectionTurnOff({
       {confirming ? (
         <div className="notice" role="alert" ref={question} tabIndex={-1}>
           <p className="u-m-0">
-            Turn off {appName}? From its next request it can no longer read this record. To use it
-            again, connect it again from the app.
+            {t.node(
+              'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppnameFromItsNext',
+              { appName },
+            )}
           </p>
           <div className="page-actions">
             <SubmitButton
@@ -56,7 +61,7 @@ export function AiConnectionTurnOff({
               className="btn btn-danger"
             />
             <button type="button" className="btn btn-secondary" onClick={() => ask(false)}>
-              Keep It On
+              {t.node('applicantSharing.appApplicantIdSharingAiConnectionTurnOff.keepItOn')}
             </button>
           </div>
         </div>
@@ -65,10 +70,13 @@ export function AiConnectionTurnOff({
           type="button"
           ref={opener}
           className="btn btn-danger"
-          aria-label={`Turn Off ${appName}`}
+          aria-label={t(
+            'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppname',
+            { appName },
+          )}
           onClick={() => ask(true)}
         >
-          Turn Off
+          {t.node('applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOff')}
         </button>
       )}
       <FormMessage result={state} pending={pending} pendingText="Turning off…" />

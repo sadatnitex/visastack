@@ -67,7 +67,7 @@ export function DocumentSuggestionCard({
 
   return (
     <div className="document-findings document-suggestion">
-      <h3>{t('appApplicant.appApplicantIdDocumentSuggestionCard.checkTheKindAndName')}</h3>
+      <h3>{t.node('appApplicant.appApplicantIdDocumentSuggestionCard.checkTheKindAndName')}</h3>
       <article
         className="finding-card"
         data-clarity={suggestion.clear ? 'clear' : 'check'}
@@ -77,28 +77,31 @@ export function DocumentSuggestionCard({
           <h4 id={headingId}>{heading}</h4>
           <StatusBadge tone={suggestion.clear ? 'success' : 'warning'}>
             {suggestion.clear
-              ? t('appApplicant.appApplicantIdDocumentSuggestionCard.clear')
-              : t('appApplicant.appApplicantIdDocumentSuggestionCard.pleaseCheck')}
+              ? t.node('appApplicant.appApplicantIdDocumentSuggestionCard.clear')
+              : t.node('appApplicant.appApplicantIdDocumentSuggestionCard.pleaseCheck')}
           </StatusBadge>
           {suggestion.source === 'ai' ? (
             <StatusBadge tone="neutral">
-              {t('appApplicant.appApplicantIdDocumentSuggestionCard.readByAi')}
+              {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.readByAi')}
             </StatusBadge>
           ) : null}
         </header>
         {editing ? null : (
           <dl className="document-suggestion-facts">
             <div>
-              <dt>{t('appApplicant.appApplicantIdDocumentSuggestionCard.name')}</dt>
+              <dt>{t.node('appApplicant.appApplicantIdDocumentSuggestionCard.name')}</dt>
               <dd>{suggestion.proposedName}</dd>
             </div>
             {suggestion.recordGroup ? (
               <div>
-                <dt>{t('appApplicant.appApplicantIdDocumentSuggestionCard.listedUnder')}</dt>
+                <dt>{t.node('appApplicant.appApplicantIdDocumentSuggestionCard.listedUnder')}</dt>
                 <dd>
-                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.recordgroupOnYourRecord', {
-                    recordGroup: suggestion.recordGroup,
-                  })}
+                  {t.node(
+                    'appApplicant.appApplicantIdDocumentSuggestionCard.recordgroupOnYourRecord',
+                    {
+                      recordGroup: suggestion.recordGroup,
+                    },
+                  )}
                 </dd>
               </div>
             ) : null}
@@ -112,7 +115,7 @@ export function DocumentSuggestionCard({
           <p className="notice notice-warn u-fs-085">{REMOVES_FRESH_SIGN_IN}</p>
         ) : null}
         <p className="muted u-fs-085">
-          {t('appApplicant.appApplicantIdDocumentSuggestionCard.nothingIsSavedUntilYouAccept')}
+          {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.nothingIsSavedUntilYouAccept')}
         </p>
         <form ref={formRef} action={formAction} className="finding-form">
           <input type="hidden" name="applicantId" value={applicantId} />
@@ -123,7 +126,7 @@ export function DocumentSuggestionCard({
             <>
               <div className="finding-value">
                 <label className="field-label" htmlFor={kindId}>
-                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument')}
+                  {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument')}
                 </label>
                 <select
                   id={kindId}
@@ -139,7 +142,10 @@ export function DocumentSuggestionCard({
                   }}
                   {...fieldProblem(state, 'docType', messageId)}
                 >
-                  <option value="">
+                  <option
+                    {...t.lang('appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind')}
+                    value=""
+                  >
                     {t('appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind')}
                   </option>
                   {groups.map((group) => (
@@ -156,7 +162,7 @@ export function DocumentSuggestionCard({
               {isOtherDocumentType(kind) ? (
                 <div className="finding-value">
                   <label className="field-label" htmlFor={subjectId}>
-                    {t('appApplicant.appApplicantIdDocumentSuggestionCard.whatIsIt')}
+                    {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.whatIsIt')}
                   </label>
                   <input
                     id={subjectId}
@@ -169,7 +175,7 @@ export function DocumentSuggestionCard({
               ) : null}
               <div className="finding-value">
                 <label className="field-label" htmlFor={nameId}>
-                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.name')}
+                  {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.name')}
                 </label>
                 <input
                   id={nameId}
@@ -205,7 +211,7 @@ export function DocumentSuggestionCard({
                       setEditing(false);
                     }}
                   >
-                    {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
+                    {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
                   </button>
                 ) : null}
               </div>
@@ -229,7 +235,7 @@ export function DocumentSuggestionCard({
                   className="btn btn-secondary"
                   onClick={() => setEditing(true)}
                 >
-                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.edit')}
+                  {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.edit')}
                 </button>
               </div>
             </>

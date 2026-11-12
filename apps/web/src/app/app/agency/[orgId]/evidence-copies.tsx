@@ -93,7 +93,7 @@ function Fingerprint({ copy }: { readonly copy: EvidenceSubmissionView }) {
   const t = getServerT(appAgencyCatalog);
   return copy.checksumFingerprint ? (
     <p className="evidence-copy-meta u-m-0">
-      {t('appAgency.appAgencyOrgidEvidenceCopies.fingerprint')}{' '}
+      {t.node('appAgency.appAgencyOrgidEvidenceCopies.fingerprint')}{' '}
       <code className="evidence-copy-code lc-copy-code">{copy.checksumFingerprint}</code>
     </p>
   ) : null;
@@ -122,8 +122,8 @@ function CurrentCopy({
       <div className="evidence-copy-head">
         <p className="evidence-copy-title u-m-0">
           {waiting
-            ? t('appAgency.appAgencyOrgidEvidenceCopies.copyWaitingForYourDecision')
-            : t('appAgency.appAgencyOrgidEvidenceCopies.acceptedCopy')}
+            ? t.node('appAgency.appAgencyOrgidEvidenceCopies.copyWaitingForYourDecision')
+            : t.node('appAgency.appAgencyOrgidEvidenceCopies.acceptedCopy')}
         </p>
         {copyPill === requestWords?.label ? null : (
           <StatusPill tone={waiting ? 'info' : 'success'}>{copyPill}</StatusPill>
@@ -151,7 +151,7 @@ function CurrentCopy({
       ) : null}
       {waiting ? (
         <p className="evidence-copy-meta u-m-0">
-          {t('appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted')}
+          {t.node('appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted')}
         </p>
       ) : null}
       {copy.fileAvailable ? (
@@ -160,23 +160,23 @@ function CurrentCopy({
           <input type="hidden" name="requestId" value={requestId} />
           <input type="hidden" name="submissionId" value={copy.id} />
           <button type="submit" className="btn btn-secondary evidence-copy-button">
-            {t('appAgency.appAgencyOrgidEvidenceCopies.downloadSentFile')}
+            {t.node('appAgency.appAgencyOrgidEvidenceCopies.downloadSentFile')}
             <span className="sr-only">: {copy.title}</span>
           </button>
           <AboutDisclosure summary={t('appAgency.appAgencyOrgidEvidenceCopies.aboutDownloading')}>
             <p className="evidence-copy-meta u-m-0">
-              {t('appAgency.appAgencyOrgidEvidenceCopies.downloadsTheOriginalYouConfirmIt')}
+              {t.node('appAgency.appAgencyOrgidEvidenceCopies.downloadsTheOriginalYouConfirmIt')}
             </p>
           </AboutDisclosure>
         </form>
       ) : (
         <>
           <p className="evidence-copy-meta u-m-0">
-            {t('appAgency.appAgencyOrgidEvidenceCopies.cannotBeOpenedRightNow')}
+            {t.node('appAgency.appAgencyOrgidEvidenceCopies.cannotBeOpenedRightNow')}
           </p>
           <AboutDisclosure summary={t('appAgency.appAgencyOrgidEvidenceCopies.whyNot')}>
             <p className="evidence-copy-meta u-m-0">
-              {t('appAgency.appAgencyOrgidEvidenceCopies.thisCopyCannotBeOpenedFrom')}
+              {t.node('appAgency.appAgencyOrgidEvidenceCopies.thisCopyCannotBeOpenedFrom')}
             </p>
           </AboutDisclosure>
         </>
@@ -192,7 +192,7 @@ function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
     <div className="evidence-copy lc-copy" data-copy-state="LEGACY_WAITING">
       <div className="evidence-copy-head">
         <p className="evidence-copy-title u-m-0">
-          {t('appAgency.appAgencyOrgidEvidenceCopies.copyWaitingForYourDecision')}
+          {t.node('appAgency.appAgencyOrgidEvidenceCopies.copyWaitingForYourDecision')}
         </p>
         <StatusPill tone="info">
           {t('appAgency.appAgencyOrgidEvidenceCopies.waitingForADecision')}
@@ -206,17 +206,17 @@ function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
       </div>
       <p className="evidence-copy-meta u-m-0">
         {send.sentAt
-          ? t('appAgency.appAgencyOrgidEvidenceCopies.sentFormatmoment', {
+          ? t.node('appAgency.appAgencyOrgidEvidenceCopies.sentFormatmoment', {
               formatMoment: formatMoment(send.sentAt, MOMENT_ZONE),
             })
-          : t('appAgency.appAgencyOrgidEvidenceCopies.sendTimeNotKept')}
+          : t.node('appAgency.appAgencyOrgidEvidenceCopies.sendTimeNotKept')}
       </p>
       <p className="evidence-copy-meta u-m-0">
-        {t('appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted')}
+        {t.node('appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted')}
       </p>
       <AboutDisclosure summary={t('appAgency.appAgencyOrgidEvidenceCopies.aboutThisSend')}>
         <p className="evidence-copy-meta u-m-0">
-          {t('appAgency.appAgencyOrgidEvidenceCopies.thisSendHasNoExactCopy')}
+          {t.node('appAgency.appAgencyOrgidEvidenceCopies.thisSendHasNoExactCopy')}
         </p>
       </AboutDisclosure>
     </div>
@@ -230,7 +230,7 @@ function EarlierSend({ copy }: { readonly copy: EvidenceSubmissionView }) {
     <li className="evidence-earlier-item">
       <div className="evidence-copy-head">
         <span className="evidence-copy-name">
-          {t('appAgency.appAgencyOrgidEvidenceCopies.sendRoundnoTitle', {
+          {t.node('appAgency.appAgencyOrgidEvidenceCopies.sendRoundnoTitle', {
             roundNo: copy.roundNo,
             title: copy.title,
           })}
@@ -244,7 +244,7 @@ function EarlierSend({ copy }: { readonly copy: EvidenceSubmissionView }) {
       </p>
       {copy.reason ? (
         <p className="evidence-copy-meta u-m-0">
-          {t('appAgency.appAgencyOrgidEvidenceCopies.yourReasonShownToTheTraveller', {
+          {t.node('appAgency.appAgencyOrgidEvidenceCopies.yourReasonShownToTheTraveller', {
             reason: copy.reason,
           })}
         </p>
@@ -264,12 +264,12 @@ function LegacySend({ send }: { readonly send: LegacyEvidenceSend }) {
       </div>
       <p className="evidence-copy-meta u-m-0">
         {send.sentAt
-          ? t('appAgency.appAgencyOrgidEvidenceCopies.sentFormatmoment', {
+          ? t.node('appAgency.appAgencyOrgidEvidenceCopies.sentFormatmoment', {
               formatMoment: formatMoment(send.sentAt, MOMENT_ZONE),
             })
-          : t('appAgency.appAgencyOrgidEvidenceCopies.sendTimeNotKept')}
+          : t.node('appAgency.appAgencyOrgidEvidenceCopies.sendTimeNotKept')}
         {send.decidedAt
-          ? t('appAgency.appAgencyOrgidEvidenceCopies.decidedFormatmoment', {
+          ? t.node('appAgency.appAgencyOrgidEvidenceCopies.decidedFormatmoment', {
               formatMoment: formatMoment(send.decidedAt, MOMENT_ZONE),
             })
           : ''}
@@ -340,7 +340,9 @@ export function EvidenceCopies({
       {earlierCount > 0 ? (
         <details className="evidence-earlier">
           <summary className="evidence-earlier-toggle lc-earlier-toggle">
-            {t('appAgency.appAgencyOrgidEvidenceCopies.earlierSendsEarliercount', { earlierCount })}
+            {t.node('appAgency.appAgencyOrgidEvidenceCopies.earlierSendsEarliercount', {
+              earlierCount,
+            })}
           </summary>
           <ol className="evidence-earlier-list">
             {earlier.map((copy) => (

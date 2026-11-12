@@ -40,9 +40,12 @@ export function ReadingSwitch({
       <summary className="reading-control-summary">
         <span className="reading-dot" data-status={view.status} aria-hidden="true" />
         <span>
-          {t('appApplicant.appApplicantIdDocumentsAddReadingSwitch.automaticReadingStateWord', {
-            STATE_WORD: STATE_WORD[view.status],
-          })}
+          {t.node(
+            'appApplicant.appApplicantIdDocumentsAddReadingSwitch.automaticReadingStateWord',
+            {
+              STATE_WORD: STATE_WORD[view.status],
+            },
+          )}
         </span>
         <span className="reading-control-caret" aria-hidden="true" />
       </summary>

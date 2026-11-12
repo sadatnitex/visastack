@@ -36,7 +36,7 @@ export default async function AcceptInvitationPage({
       <section className="section container">
         <article className="card">
           <p className="card-body">
-            {t('appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsMissingIts')}
+            {t.node('appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsMissingIts')}
           </p>
         </article>
       </section>
@@ -50,16 +50,18 @@ export default async function AcceptInvitationPage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <span className="eyebrow">{t('appInvitations.appInvitationsAcceptPage.invitation')}</span>
+        <span className="eyebrow">
+          {t.node('appInvitations.appInvitationsAcceptPage.invitation')}
+        </span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          {t('appInvitations.appInvitationsAcceptPage.joinAnOrganization')}
+          {t.node('appInvitations.appInvitationsAcceptPage.joinAnOrganization')}
         </h1>
       </div>
       <article className="card">
         {!preview.ok ? (
           <p className="card-body">
             {preview.error.code === 'not_found'
-              ? t('appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsNotValid')
+              ? t.node('appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsNotValid')
               : preview.error.message}
           </p>
         ) : (

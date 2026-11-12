@@ -75,7 +75,7 @@ export default async function RemovalRecordsPage({
       />
       <section className="card lc-records-page" aria-labelledby="removal-records-heading">
         <h2 id="removal-records-heading" className="sr-only">
-          {t('appApplicant.appApplicantIdRemovalRecordsPage.records')}
+          {t.node('appApplicant.appApplicantIdRemovalRecordsPage.records')}
         </h2>
         <RemovalRecordList records={rows} />
         {rows.length > 0 ? (

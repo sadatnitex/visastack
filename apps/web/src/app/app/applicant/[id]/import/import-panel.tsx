@@ -238,7 +238,7 @@ const ImportRow = memo(function ImportRow({
       </div>
       {folder ? (
         <p className="import-item-path">
-          {t('appApplicant.appApplicantIdImportImportPanel.inFolder', { folder })}
+          {t.node('appApplicant.appApplicantIdImportImportPanel.inFolder', { folder })}
         </p>
       ) : null}
       {item.state === 'uploading' ? (
@@ -249,6 +249,7 @@ const ImportRow = memo(function ImportRow({
           aria-label={t('appApplicant.appApplicantIdDocumentUploader.uploadOfName', {
             name: item.name,
           })}
+          {...t.lang('appApplicant.appApplicantIdDocumentUploader.uploadOfName')}
         />
       ) : null}
       {item.shrunkTo !== null && item.size !== null ? (
@@ -256,7 +257,9 @@ const ImportRow = memo(function ImportRow({
       ) : null}
       {(item.state === 'added' || item.state === 'duplicate') && item.title ? (
         <p className="upload-item-title">
-          {t('appApplicant.appApplicantIdDocumentUploader.addedAsTitle', { title: item.title })}
+          {t.node('appApplicant.appApplicantIdDocumentUploader.addedAsTitle', {
+            title: item.title,
+          })}
         </p>
       ) : null}
       <p ref={status} tabIndex={-1} className={`upload-item-status${flag ? ' field-msg-err' : ''}`}>
@@ -279,7 +282,7 @@ const ImportRow = memo(function ImportRow({
         ) : (
           <div className="lc-new-copy">
             <p className="lc-new-copy-line">
-              {t('appApplicant.appApplicantIdDocumentUploader.youAlreadyKeepAnIdenticalCopy')}
+              {t.node('appApplicant.appApplicantIdDocumentUploader.youAlreadyKeepAnIdenticalCopy')}
             </p>
             <button
               type="button"
@@ -291,8 +294,8 @@ const ImportRow = memo(function ImportRow({
               onClick={removal === 'busy' ? undefined : keepFocusThen(() => actions.onRemove(item))}
             >
               {removal === 'busy'
-                ? t('appApplicant.appApplicantIdDocumentUploader.removing')
-                : t('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy')}
+                ? t.node('appApplicant.appApplicantIdDocumentUploader.removing')
+                : t.node('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy')}
             </button>
             {removal && typeof removal === 'object' && 'problem' in removal ? (
               <p className="field-msg-err" role="alert">
@@ -311,7 +314,7 @@ const ImportRow = memo(function ImportRow({
           })}
           onClick={keepFocusThen(() => actions.onRetry(item.id))}
         >
-          {t('appApplicant.appApplicantIdDocumentUploader.tryAgain')}
+          {t.node('appApplicant.appApplicantIdDocumentUploader.tryAgain')}
         </button>
       ) : null}
       {canSendAgain(item) ? (
@@ -323,7 +326,7 @@ const ImportRow = memo(function ImportRow({
           })}
           onClick={keepFocusThen(() => actions.onSendAgain(item.id))}
         >
-          {t('appApplicant.appApplicantIdImportImportPanel.sendAgain')}
+          {t.node('appApplicant.appApplicantIdImportImportPanel.sendAgain')}
         </button>
       ) : null}
     </li>
@@ -641,7 +644,7 @@ export function ImportPanel({
   return (
     <div className="uploader import-panel">
       <p className="uploader-limits" id={limitsId}>
-        {t('appApplicant.appApplicantIdImportImportPanel.uploadlimitstextUpToMaxImportFiles', {
+        {t.node('appApplicant.appApplicantIdImportImportPanel.uploadlimitstextUpToMaxImportFiles', {
           uploadLimitsText: uploadLimitsText(limitLabel, pdfAccepted, true),
           MAX_IMPORT_FILES: MAX_IMPORT_FILES,
         })}
@@ -649,7 +652,7 @@ export function ImportPanel({
       {remembered > 0 ? (
         <div className="import-earlier">
           <p className="field-hint">
-            {t(
+            {t.node(
               'appApplicant.appApplicantIdImportImportPanel.thisBrowserRemembersWhichFilesEarlier',
             )}
           </p>
@@ -663,7 +666,7 @@ export function ImportPanel({
               setRemembered(0);
             })}
           >
-            {t('appApplicant.appApplicantIdImportImportPanel.forgetEarlierImports')}
+            {t.node('appApplicant.appApplicantIdImportImportPanel.forgetEarlierImports')}
           </button>
         </div>
       ) : null}
@@ -671,7 +674,7 @@ export function ImportPanel({
       {choosePerson ? (
         <div className="field-stack umpe-g1-import-for">
           <label className="field-label" htmlFor={`${forId}-person`}>
-            {t('appApplicant.appApplicantIdImportImportPanel.whoAreTheseFilesFor')}
+            {t.node('appApplicant.appApplicantIdImportImportPanel.whoAreTheseFilesFor')}
           </label>
           <select
             id={`${forId}-person`}
@@ -693,15 +696,18 @@ export function ImportPanel({
               </option>
             ))}
             {familyBatch ? (
-              <option value={NOT_SURE}>
+              <option
+                {...t.lang('appApplicant.appApplicantIdImportImportPanel.notSureHelpMeDecide')}
+                value={NOT_SURE}
+              >
                 {t('appApplicant.appApplicantIdImportImportPanel.notSureHelpMeDecide')}
               </option>
             ) : null}
           </select>
           <p className="field-hint" id={`${forId}-person-hint`}>
             {target === NOT_SURE
-              ? t('appApplicant.appApplicantIdImportImportPanel.eachFileWaitsInNeedsOne')
-              : t('appApplicant.appApplicantIdImportImportPanel.everyFileYouAddNowIs')}
+              ? t.node('appApplicant.appApplicantIdImportImportPanel.eachFileWaitsInNeedsOne')
+              : t.node('appApplicant.appApplicantIdImportImportPanel.everyFileYouAddNowIs')}
           </p>
         </div>
       ) : null}
@@ -717,10 +723,10 @@ export function ImportPanel({
           <Icon name="upload" size={44} />
         </span>
         <p className="upload-drop-title" id={dropTitleId}>
-          {t('appApplicant.appApplicantIdImportImportPanel.dropFilesOrAFolderHere')}
+          {t.node('appApplicant.appApplicantIdImportImportPanel.dropFilesOrAFolderHere')}
         </p>
         <p className="upload-drop-hint" id={dropHintId}>
-          {t('appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou')}
+          {t.node('appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou')}
         </p>
         <div className="upload-drop-actions">
           <button
@@ -729,7 +735,7 @@ export function ImportPanel({
             aria-describedby={limitsId}
             onClick={() => filesRef.current?.click()}
           >
-            {t('appApplicant.appApplicantIdDocumentUploader.chooseFiles')}
+            {t.node('appApplicant.appApplicantIdDocumentUploader.chooseFiles')}
           </button>
           <button
             type="button"
@@ -737,7 +743,7 @@ export function ImportPanel({
             aria-describedby={limitsId}
             onClick={chooseFolder}
           >
-            {t('appApplicant.appApplicantIdImportImportPanel.addAFolder')}
+            {t.node('appApplicant.appApplicantIdImportImportPanel.addAFolder')}
           </button>
         </div>
       </section>
@@ -771,16 +777,19 @@ export function ImportPanel({
       />
 
       <h3 className="import-summary-title" ref={headingRef} tabIndex={-1}>
-        {t('appApplicant.appApplicantIdImportImportPanel.yourFiles')}
+        {t.node('appApplicant.appApplicantIdImportImportPanel.yourFiles')}
       </h3>
       <p className="upload-summary import-counts">{importCountsText(counts, snapshot.paused)}</p>
       <output className="sr-only import-announce">{announcement}</output>
       {truncated ? (
         <p className="field-hint">
-          {t('appApplicant.appApplicantIdImportImportPanel.thisFolderHoldsMoreThanTolocalestring', {
-            toLocaleString: MAX_ENTRIES_LOOKED_AT.toLocaleString('en-GB'),
-            MAX_IMPORT_FILES: MAX_IMPORT_FILES,
-          })}
+          {t.node(
+            'appApplicant.appApplicantIdImportImportPanel.thisFolderHoldsMoreThanTolocalestring',
+            {
+              toLocaleString: MAX_ENTRIES_LOOKED_AT.toLocaleString('en-GB'),
+              MAX_IMPORT_FILES: MAX_IMPORT_FILES,
+            },
+          )}
         </p>
       ) : null}
 
@@ -800,8 +809,8 @@ export function ImportPanel({
             }}
           >
             {snapshot.paused
-              ? t('appApplicant.appApplicantIdImportImportPanel.resume')
-              : t('appApplicant.appApplicantIdImportImportPanel.pause')}
+              ? t.node('appApplicant.appApplicantIdImportImportPanel.resume')
+              : t.node('appApplicant.appApplicantIdImportImportPanel.pause')}
           </button>
           <button
             type="button"
@@ -811,14 +820,14 @@ export function ImportPanel({
               queue.stop();
             })}
           >
-            {t('appApplicant.appApplicantIdImportImportPanel.stop')}
+            {t.node('appApplicant.appApplicantIdImportImportPanel.stop')}
           </button>
         </div>
       ) : null}
       {counts.held > 0 ? (
         <div className="import-controls">
           <p className="field-hint">
-            {t('appApplicant.appApplicantIdImportImportPanel.theHourlyUploadLimitWasReached', {
+            {t.node('appApplicant.appApplicantIdImportImportPanel.theHourlyUploadLimitWasReached', {
               held: counts.held,
             })}
           </p>
@@ -827,7 +836,7 @@ export function ImportPanel({
             className="btn btn-secondary"
             onClick={fromHeading(() => queue.retryHeld())}
           >
-            {t('appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles')}
+            {t.node('appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles')}
           </button>
         </div>
       ) : null}
@@ -857,8 +866,8 @@ export function ImportPanel({
           onClick={() => setShowAll((current) => !current)}
         >
           {showAll
-            ? t('appApplicant.appApplicantIdImportImportPanel.showFewer')
-            : t('appApplicant.appApplicantIdImportImportPanel.showAllLength', {
+            ? t.node('appApplicant.appApplicantIdImportImportPanel.showFewer')
+            : t.node('appApplicant.appApplicantIdImportImportPanel.showAllLength', {
                 length: items.length,
               })}
         </button>
@@ -875,7 +884,7 @@ export function ImportPanel({
             setRemovals(new Map());
           })}
         >
-          {t('appApplicant.appApplicantIdDocumentUploader.clearTheList')}
+          {t.node('appApplicant.appApplicantIdDocumentUploader.clearTheList')}
         </button>
       ) : null}
       {counts.total > 0 && !pending ? (
@@ -901,10 +910,12 @@ export function ImportPanel({
           ))}
           <p className="field-hint">
             {sentToFamily.current
-              ? t('appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn')
+              ? t.node('appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn')
               : readingOn
-                ? t('appApplicant.appApplicantIdImportImportPanel.mostFilesAreSortedOnTheir')
-                : t('appApplicant.appApplicantIdImportImportPanel.yourFilesAreSavedAndChecked')}
+                ? t.node('appApplicant.appApplicantIdImportImportPanel.mostFilesAreSortedOnTheir')
+                : t.node(
+                    'appApplicant.appApplicantIdImportImportPanel.yourFilesAreSavedAndChecked',
+                  )}
           </p>
           {addedCount > 0 || showNext || sentToFamily.current ? (
             <div className="upload-drop-actions">
@@ -916,10 +927,13 @@ export function ImportPanel({
                 return (
                   <a key={person} className="btn btn-primary" href={batchHref(person, ids)}>
                     {name
-                      ? t('appApplicant.appApplicantIdImportImportPanel.seeWhatWeFoundForName', {
-                          name,
-                        })
-                      : t('appApplicant.appApplicantIdImportImportPanel.seeWhatWeFound')}
+                      ? t.node(
+                          'appApplicant.appApplicantIdImportImportPanel.seeWhatWeFoundForName',
+                          {
+                            name,
+                          },
+                        )
+                      : t.node('appApplicant.appApplicantIdImportImportPanel.seeWhatWeFound')}
                   </a>
                 );
               })}
@@ -928,12 +942,12 @@ export function ImportPanel({
                 href={`/app/applicant/${applicantId}/documents#needs-decision`}
               >
                 {sentToFamily.current
-                  ? t('appApplicant.appApplicantIdImportImportPanel.chooseWhichPerson')
-                  : t('appApplicant.appApplicantIdImportImportPanel.openNeedsOneDecision')}
+                  ? t.node('appApplicant.appApplicantIdImportImportPanel.chooseWhichPerson')
+                  : t.node('appApplicant.appApplicantIdImportImportPanel.openNeedsOneDecision')}
               </a>
               {showNext ? (
                 <a className="btn btn-secondary" href={`/app/applicant/${applicantId}`}>
-                  {t('appApplicant.appApplicantIdImportImportPanel.reviewSuggestedDetails')}
+                  {t.node('appApplicant.appApplicantIdImportImportPanel.reviewSuggestedDetails')}
                 </a>
               ) : null}
             </div>
@@ -941,7 +955,7 @@ export function ImportPanel({
         </nav>
       ) : null}
       <p className="muted uploader-note">
-        {t('appApplicant.appApplicantIdImportImportPanel.eachFileIsStoredPrivatelyAnd')}
+        {t.node('appApplicant.appApplicantIdImportImportPanel.eachFileIsStoredPrivatelyAnd')}
       </p>
     </div>
   );

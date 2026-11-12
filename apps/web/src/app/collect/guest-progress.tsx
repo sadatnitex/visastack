@@ -138,18 +138,18 @@ export function GuestProgress({
       )}
       <p className="collect-progress-line">
         {none
-          ? t('collect.collectGuestProgress.nothingOnThisListIsMarked', { who })
+          ? t.node('collect.collectGuestProgress.nothingOnThisListIsMarked', { who })
           : complete
             ? blocker === 'checking'
-              ? t('collect.collectGuestProgress.yourFilesAreStillBeingChecked')
+              ? t.node('collect.collectGuestProgress.yourFilesAreStillBeingChecked')
               : blocker === 'retention'
-                ? t('collect.collectGuestProgress.chooseHowLongWhoMayKeep', { who })
+                ? t.node('collect.collectGuestProgress.chooseHowLongWhoMayKeep', { who })
                 : `You can send now, or add more first. ${who === 'the agency' ? 'The agency' : who} receives only what you choose to send.`
             : `Next: ${standing.next ?? ''}.`}
       </p>
       {standing.hasConditional ? (
         <p className="muted u-fs-085">
-          {t('collect.collectGuestProgress.itemsMarkedMandatoryIfItApplies')}
+          {t.node('collect.collectGuestProgress.itemsMarkedMandatoryIfItApplies')}
         </p>
       ) : null}
     </section>
@@ -175,26 +175,26 @@ export function GuestBar({
     <section className="collect-bar" aria-label={t('collect.collectGuestProgress.yourSubmission')}>
       <p className="collect-bar-text">
         <strong>
-          {t('collect.collectGuestProgress.placedFilesPlaced', {
+          {t.node('collect.collectGuestProgress.placedFilesPlaced', {
             placed,
           })}
         </strong>
         <span>
           {needsLook > 0
-            ? t('collect.collectGuestProgress.needslookFilesNeedALook', {
+            ? t.node('collect.collectGuestProgress.needslookFilesNeedALook', {
                 needsLook,
               })
             : total === 0
-              ? t('collect.collectGuestProgress.nothingMandatory')
+              ? t.node('collect.collectGuestProgress.nothingMandatory')
               : left === 0
-                ? t('collect.collectGuestProgress.allMandatoryPlaced')
-                : t('collect.collectGuestProgress.leftMandatoryOpen', {
+                ? t.node('collect.collectGuestProgress.allMandatoryPlaced')
+                : t.node('collect.collectGuestProgress.leftMandatoryOpen', {
                     left: left,
                   })}
         </span>
       </p>
       <a className="btn btn-primary" href="#guest-submit">
-        {t('collect.collectAccountResponseForm.reviewAndSubmit')}
+        {t.node('collect.collectAccountResponseForm.reviewAndSubmit')}
       </a>
     </section>
   );

@@ -41,7 +41,7 @@ export function CaseDetailsForm({
       <input type="hidden" name="missionId" value={missionId} />
       <div className="field-row">
         <label className="field-label" htmlFor="jurisdiction">
-          {t('appMission.appMissionIdMissionButtons.embassyOrVisaCentre')}
+          {t.node('appMission.appMissionIdMissionButtons.embassyOrVisaCentre')}
         </label>
         <input
           id="jurisdiction"
@@ -53,12 +53,12 @@ export function CaseDetailsForm({
           aria-describedby="jurisdiction-help"
         />
         <p id="jurisdiction-help" className="muted u-fs-085">
-          {t('appMission.appMissionIdMissionButtons.whereYouApplyNotTheCountry')}
+          {t.node('appMission.appMissionIdMissionButtons.whereYouApplyNotTheCountry')}
         </p>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="serviceCategory">
-          {t('appMission.appMissionIdMissionButtons.serviceCategory')}
+          {t.node('appMission.appMissionIdMissionButtons.serviceCategory')}
         </label>
         <input
           id="serviceCategory"
@@ -71,7 +71,7 @@ export function CaseDetailsForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="travelStartDate">
-          {t('appMission.appMissionIdMissionButtons.travelDates')}
+          {t.node('appMission.appMissionIdMissionButtons.travelDates')}
         </label>
         <div className="lift-date-pair">
           <input
@@ -94,7 +94,7 @@ export function CaseDetailsForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="targetDeadline">
-          {t('appMission.appMissionIdMissionButtons.targetDeadline')}
+          {t.node('appMission.appMissionIdMissionButtons.targetDeadline')}
         </label>
         <input
           id="targetDeadline"
@@ -106,7 +106,7 @@ export function CaseDetailsForm({
       </div>
       <label className="lift-form-check">
         <input type="checkbox" name="manualMode" value="true" defaultChecked={manualMode} />
-        {t('appMission.appMissionIdMissionButtons.noAutomatedRequirementPackCoversThis')}
+        {t.node('appMission.appMissionIdMissionButtons.noAutomatedRequirementPackCoversThis')}
       </label>
       <div>
         <SubmitButton

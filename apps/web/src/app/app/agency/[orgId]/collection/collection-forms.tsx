@@ -60,11 +60,11 @@ export function NewRequestForm({
     <form ref={form} action={formAction} className="field-list form-narrow">
       <Hidden organizationId={organizationId} />
       <fieldset className="form-section">
-        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionForms.whereAndWhy')}</legend>
+        <legend>{t.node('appAgency.appAgencyOrgidCollectionCollectionForms.whereAndWhy')}</legend>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="collection-destination">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.destination')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.destination')}
             </label>
             <select
               id="collection-destination"
@@ -74,7 +74,11 @@ export function NewRequestForm({
               defaultValue=""
               {...fieldProblem(state, 'destination', messageId)}
             >
-              <option value="" disabled>
+              <option
+                {...t.lang('appAgency.appAgencyOrgidCollectionCollectionForms.chooseACountry')}
+                value=""
+                disabled
+              >
                 {t('appAgency.appAgencyOrgidCollectionCollectionForms.chooseACountry')}
               </option>
               {countries.map((country) => (
@@ -87,7 +91,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-purpose">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}
             </label>
             <select
               id="collection-purpose"
@@ -96,7 +100,10 @@ export function NewRequestForm({
               defaultValue=""
               {...fieldProblem(state, 'purpose', messageId, 'collection-purpose-hint')}
             >
-              <option value="">
+              <option
+                {...t.lang('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
+                value=""
+              >
                 {t('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
               </option>
               {purposeGroups.map((group) => (
@@ -110,7 +117,7 @@ export function NewRequestForm({
               ))}
             </select>
             <p id="collection-purpose-hint" className="muted u-fs-085">
-              {t(
+              {t.node(
                 'appAgency.appAgencyOrgidCollectionCollectionForms.withAPurposeThePublishedOfficial',
               )}
             </p>
@@ -118,7 +125,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor="collection-route">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.specificRouteOptional')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.specificRouteOptional')}
             </label>
             <input
               id="collection-route"
@@ -130,13 +137,13 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-from">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.travelFromOptional')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.travelFromOptional')}
             </label>
             <input id="collection-from" name="travelFrom" type="date" className="input" />
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-to">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.travelToOptional')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.travelToOptional')}
             </label>
             <input id="collection-to" name="travelTo" type="date" className="input" />
           </div>
@@ -144,12 +151,12 @@ export function NewRequestForm({
       </fieldset>
       <fieldset className="form-section">
         <legend>
-          {t('appAgency.appAgencyOrgidCollectionCollectionForms.whatYouAlreadyKnowOptional')}
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.whatYouAlreadyKnowOptional')}
         </legend>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="collection-nationality">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.nationality')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.nationality')}
             </label>
             <input
               id="collection-nationality"
@@ -161,7 +168,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-residence">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.countryOfResidence')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.countryOfResidence')}
             </label>
             <input
               id="collection-residence"
@@ -173,7 +180,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-place">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.whereTheyApply')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.whereTheyApply')}
             </label>
             <input
               id="collection-place"
@@ -185,7 +192,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-due">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.dueDate')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.dueDate')}
             </label>
             <input
               id="collection-due"
@@ -199,14 +206,18 @@ export function NewRequestForm({
         </div>
       </fieldset>
       <fieldset className="form-section">
-        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionForms.whoItIsForOptional')}</legend>
+        <legend>
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.whoItIsForOptional')}
+        </legend>
         <p className="muted u-fs-085">
-          {t('appAgency.appAgencyOrgidCollectionCollectionForms.forYourOwnReferenceOnlyNothing')}
+          {t.node(
+            'appAgency.appAgencyOrgidCollectionCollectionForms.forYourOwnReferenceOnlyNothing',
+          )}
         </p>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="collection-name">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.name')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.name')}
             </label>
             <input
               id="collection-name"
@@ -218,7 +229,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-email">
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.email')}
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.email')}
             </label>
             <input
               id="collection-email"
@@ -257,7 +268,7 @@ export function AddItemForm({
       <div className="form-grid">
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={`add-item-label-${requestId}`}>
-            {t('appAgency.appAgencyOrgidCollectionCollectionForms.itemYourAgencyNeeds')}
+            {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.itemYourAgencyNeeds')}
           </label>
           <input
             id={`add-item-label-${requestId}`}
@@ -272,7 +283,7 @@ export function AddItemForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor={`add-item-necessity-${requestId}`}>
-            {t('appAgency.appAgencyOrgidCollectionCollectionForms.howNecessary')}
+            {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.howNecessary')}
           </label>
           <select
             id={`add-item-necessity-${requestId}`}
@@ -289,7 +300,7 @@ export function AddItemForm({
         </div>
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={`add-item-note-${requestId}`}>
-            {t('appAgency.appAgencyOrgidCollectionCollectionForms.noteToThePersonOptional')}
+            {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.noteToThePersonOptional')}
           </label>
           <input
             id={`add-item-note-${requestId}`}
@@ -346,7 +357,7 @@ export function ItemEditForm({
       <div className="form-grid">
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={noteId}>
-            {t('appAgency.appAgencyOrgidCollectionCollectionForms.noteLabel', {
+            {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.noteLabel', {
               label: item.label,
             })}
           </label>
@@ -362,7 +373,7 @@ export function ItemEditForm({
         {item.agency ? (
           <div className="field-row">
             <label className="field-label" htmlFor={necessityId}>
-              {t('appAgency.appAgencyOrgidCollectionCollectionForms.howNecessaryLabel', {
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.howNecessaryLabel', {
                 label: item.label,
               })}
             </label>
@@ -471,7 +482,9 @@ export function PackChoiceForm({
     <form action={formAction} className="field-list">
       <Hidden organizationId={organizationId} requestId={requestId} />
       <fieldset className="form-section">
-        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionForms.checklistToFollow')}</legend>
+        <legend>
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.checklistToFollow')}
+        </legend>
         {choices.map((choice) => (
           <label key={choice.packVersionId} className="check">
             <input
@@ -492,7 +505,7 @@ export function PackChoiceForm({
             value=""
             defaultChecked={current === null}
           />{' '}
-          {t('appAgency.appAgencyOrgidCollectionCollectionForms.yourAgencySOwnChecklist')}
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.yourAgencySOwnChecklist')}
         </label>
       </fieldset>
       <SubmitButton
@@ -578,7 +591,7 @@ export function EmailLinkForm({
       <Hidden organizationId={organizationId} requestId={requestId} />
       <div className="field-row">
         <label className="field-label" htmlFor={inputId}>
-          {t('appAgency.appAgencyOrgidCollectionCollectionForms.emailAddress')}
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.emailAddress')}
         </label>
         <input
           id={inputId}
@@ -591,7 +604,7 @@ export function EmailLinkForm({
           {...fieldProblem(state, 'email', messageId, `${inputId}-hint`)}
         />
         <p id={`${inputId}-hint`} className="muted u-fs-085">
-          {t('appAgency.appAgencyOrgidCollectionCollectionForms.theEmailNamesYourAgencyOnly')}
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.theEmailNamesYourAgencyOnly')}
         </p>
         <FieldError result={state} field="email" />
       </div>

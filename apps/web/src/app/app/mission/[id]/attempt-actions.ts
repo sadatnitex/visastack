@@ -11,7 +11,7 @@ import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { reportServerError } from '../../../../lib/server-error';
-import { refusalText } from '../../../../lib/service-error-message';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 /**
@@ -65,7 +65,7 @@ export async function trackReportAsAttemptAction(
   const missionSubmissionId = text(formData, 'missionSubmissionId');
   return withCaseProof(missionId, async (proof) => {
     const tracked = await trackSubmissionAsAttempt(proof, { missionId, missionSubmissionId });
-    if (!tracked.ok) return { ok: false, message: await refusalText(tracked.error) };
+    if (!tracked.ok) return { ok: false, message: await serviceErrorMessage(tracked.error) };
     return { ok: true, message: `Added as Attempt ${tracked.value.attemptNo}.` };
   });
 }
@@ -90,7 +90,7 @@ export async function recordAttemptAction(
       submittedOn,
       ...(evidence.length > 0 ? { evidenceDocumentVersionId: evidence } : {}),
     });
-    if (!recorded.ok) return { ok: false, message: await refusalText(recorded.error) };
+    if (!recorded.ok) return { ok: false, message: await serviceErrorMessage(recorded.error) };
     return { ok: true, message: `Attempt ${recorded.value.attemptNo} recorded.` };
   });
 }
@@ -130,7 +130,7 @@ export async function recordAttemptEventAction(
       ...(kind === 'AUTHORITY_REQUEST' ? { requestSource, requestedDocTypes } : {}),
       ...(evidence.length > 0 ? { evidenceDocumentVersionId: evidence } : {}),
     });
-    if (!recorded.ok) return { ok: false, message: await refusalText(recorded.error) };
+    if (!recorded.ok) return { ok: false, message: await serviceErrorMessage(recorded.error) };
     return { ok: true, message: 'Saved to this attempt.' };
   });
 }

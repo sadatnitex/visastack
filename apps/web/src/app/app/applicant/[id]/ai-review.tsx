@@ -103,7 +103,7 @@ export function OcrResultView({
             className="badge badge-neutral"
             title={t('appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr')}
           >
-            {t('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
+            {t.node('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
           </span>
         </p>
       ) : null}
@@ -130,7 +130,7 @@ export function OcrResultView({
         </p>
       ) : (
         <p className="muted u-fs-085">
-          {t('appApplicant.appApplicantIdAiReview.noLegibleTextWasFound')}
+          {t.node('appApplicant.appApplicantIdAiReview.noLegibleTextWasFound')}
         </p>
       )}
     </div>
@@ -250,28 +250,28 @@ export function AiProposalReview({
         {headingLevel === 'h3' ? <h3 id={headingId}>{label}</h3> : <h4 id={headingId}>{label}</h4>}
         <StatusBadge tone={clear ? 'success' : 'warning'}>
           {clear
-            ? t('appApplicant.appApplicantIdAiReview.clear')
-            : t('appApplicant.appApplicantIdAiReview.pleaseCheck')}
+            ? t.node('appApplicant.appApplicantIdAiReview.clear')
+            : t.node('appApplicant.appApplicantIdAiReview.pleaseCheck')}
         </StatusBadge>
         {proposal.sensitive ? (
           <StatusBadge tone="neutral">
-            {t('appApplicant.appApplicantIdAiReview.sensitive')}
+            {t.node('appApplicant.appApplicantIdAiReview.sensitive')}
           </StatusBadge>
         ) : null}
       </header>
       {quote ? (
         <p className="finding-source">
-          {t('appApplicant.appApplicantIdAiReview.foundAs')} <q>{quote.snippet}</q>
+          {t.node('appApplicant.appApplicantIdAiReview.foundAs')} <q>{quote.snippet}</q>
         </p>
       ) : null}
       {proposal.app ? (
         <p className="finding-origin">
           <StatusBadge tone="neutral">
-            {t('appApplicant.appApplicantIdAiReview.suggestedByApp', { app: proposal.app })}
+            {t.node('appApplicant.appApplicantIdAiReview.suggestedByApp', { app: proposal.app })}
           </StatusBadge>
           {proposal.rationale ? (
             <small className="muted">
-              {t('appApplicant.appApplicantIdAiReview.theAppSReasonInIts')}{' '}
+              {t.node('appApplicant.appApplicantIdAiReview.theAppSReasonInIts')}{' '}
               <q>{proposal.rationale}</q>
             </small>
           ) : null}
@@ -284,7 +284,7 @@ export function AiProposalReview({
       ) : null}
       {unverified ? (
         <p className="muted u-fs-085">
-          {t('appApplicant.appApplicantIdAiReview.weCouldNotFindTheseExact')}
+          {t.node('appApplicant.appApplicantIdAiReview.weCouldNotFindTheseExact')}
         </p>
       ) : null}
       {!mappable ? (
@@ -306,7 +306,7 @@ export function AiProposalReview({
         {mappable && canApprove ? (
           <div className="finding-value">
             <label className="field-label" htmlFor={valueId}>
-              {t('appApplicant.appApplicantIdAiReview.valueToSave')}
+              {t.node('appApplicant.appApplicantIdAiReview.valueToSave')}
             </label>
             {proposal.editor?.kind === 'choice' ? (
               <select
@@ -340,10 +340,10 @@ export function AiProposalReview({
             )}
             <small className="muted">
               {readAsWritten
-                ? t('appApplicant.appApplicantIdAiReview.weReadReadaswrittenPickTheDate', {
+                ? t.node('appApplicant.appApplicantIdAiReview.weReadReadaswrittenPickTheDate', {
                     readAsWritten,
                   })
-                : t('appApplicant.appApplicantIdAiReview.changeItIfItIsNot')}
+                : t.node('appApplicant.appApplicantIdAiReview.changeItIfItIsNot')}
             </small>
           </div>
         ) : null}
@@ -351,7 +351,7 @@ export function AiProposalReview({
           <fieldset className="finding-difference">
             <legend>
               {difference.current === null ? (
-                t('appApplicant.appApplicantIdAiReview.yourProfileAlreadyHasADifferent')
+                t.node('appApplicant.appApplicantIdAiReview.yourProfileAlreadyHasADifferent')
               ) : (
                 <>
                   Your profile has <q>{difference.current}</q>. Which is right?
@@ -368,9 +368,9 @@ export function AiProposalReview({
                 onChange={() => setChoice('use_document')}
               />
               {proposal.app ? (
-                t('appApplicant.appApplicantIdAiReview.useTheSuggestedValue')
+                t.node('appApplicant.appApplicantIdAiReview.useTheSuggestedValue')
               ) : (
-                <>{t('appApplicant.appApplicantIdAiReview.useThisDocumentSValue')}</>
+                <>{t.node('appApplicant.appApplicantIdAiReview.useThisDocumentSValue')}</>
               )}
             </label>
             {proposal.fixed ? null : (
@@ -382,13 +382,13 @@ export function AiProposalReview({
                   checked={choice === 'changed'}
                   onChange={() => setChoice('changed')}
                 />
-                {t('appApplicant.appApplicantIdAiReview.bothAreRightItChanged')}
+                {t.node('appApplicant.appApplicantIdAiReview.bothAreRightItChanged')}
               </label>
             )}
             {choice === 'changed' && !proposal.fixed ? (
               <div className="finding-value">
                 <label className="field-label" htmlFor={dateId}>
-                  {t('appApplicant.appApplicantIdAiReview.dateItChanged')}
+                  {t.node('appApplicant.appApplicantIdAiReview.dateItChanged')}
                 </label>
                 <input
                   id={dateId}
@@ -408,7 +408,7 @@ export function AiProposalReview({
                 checked={choice === 'keep'}
                 onChange={() => setChoice('keep')}
               />
-              {t('appApplicant.appApplicantIdAiReview.keepMyCurrentValue')}
+              {t.node('appApplicant.appApplicantIdAiReview.keepMyCurrentValue')}
             </label>
           </fieldset>
         ) : null}
@@ -501,7 +501,7 @@ export function DocumentFindings({
   return (
     // Not a landmark: several documents on one page each have one, all with this heading.
     <div className="document-findings">
-      <h3>{t('appApplicant.appApplicantIdAiReview.checkWhatWeFound')}</h3>
+      <h3>{t.node('appApplicant.appApplicantIdAiReview.checkWhatWeFound')}</h3>
       <p className="muted">
         We read this document and found {count === 1 ? 'one detail' : `${count} details`}. Nothing
         is saved to your profile until you accept it.
@@ -519,7 +519,7 @@ export function DocumentFindings({
             className="btn btn-primary"
           />
           <small className="muted">
-            {t('appApplicant.appApplicantIdAiReview.sensitiveDetailsAnythingYouChangedAnd')}
+            {t.node('appApplicant.appApplicantIdAiReview.sensitiveDetailsAnythingYouChangedAnd')}
           </small>
         </form>
       ) : null}
@@ -633,7 +633,7 @@ export function InconsistencyFlagReview({
     >
       <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         <span className="badge badge-warning">
-          {t('appApplicant.appApplicantIdAiReview.possibleInconsistencyConfidenceConfidence', {
+          {t.node('appApplicant.appApplicantIdAiReview.possibleInconsistencyConfidenceConfidence', {
             confidence: flag.confidence,
           })}
         </span>{' '}
@@ -710,7 +710,7 @@ export function DocumentTypeProposalReview({
     >
       <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         <span className="badge badge-neutral">
-          {t('appApplicant.appApplicantIdAiReview.aiThinksThisIsATolowercase', {
+          {t.node('appApplicant.appApplicantIdAiReview.aiThinksThisIsATolowercase', {
             toLowerCase: documentTypeLabel(proposal.suggestedType).toLowerCase(),
             confidence: proposal.confidence,
           })}

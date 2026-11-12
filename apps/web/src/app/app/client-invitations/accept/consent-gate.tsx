@@ -46,7 +46,7 @@ function ConsentToggle({
       <span className="row-key">{label}</span>
       {granted ? (
         <span className="badge badge-success">
-          {t('appClientInvitations.appClientInvitationsAcceptConsentGate.on')}
+          {t.node('appClientInvitations.appClientInvitationsAcceptConsentGate.on')}
         </span>
       ) : (
         <form action={formAction}>

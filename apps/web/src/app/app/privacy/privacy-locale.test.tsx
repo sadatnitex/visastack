@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../../lib/bengali-marked.test-support';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -152,5 +153,22 @@ describe('privacy screens under Bengali (owner-approved legal wording, PR #518)'
     expect(shown).toBe(render('en'));
     expect(shown).toContain('Request Account Deletion');
     expect(shown).not.toMatch(BENGALI);
+  });
+});
+
+describe('privacy screens, language of parts', () => {
+  it('has no Bengali to mark, and the English activity log carries no language mark', async () => {
+    state.locale = 'bn';
+    state.generation += 1;
+    const element = await PrivacyPage({ searchParams: Promise.resolve({}) });
+    const html = await renderServer(
+      <I18nProvider locale="bn" pageLang="en">
+        {element}
+      </I18nProvider>,
+    );
+    const r = bengaliMarking(html);
+    expect(r.unmarked).toEqual([]);
+    expect(r.marked).toBe(0);
+    expect(html).not.toContain('lang="');
   });
 });

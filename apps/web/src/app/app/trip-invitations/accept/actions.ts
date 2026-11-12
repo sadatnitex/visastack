@@ -13,7 +13,7 @@ import {
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { reportServerError } from '../../../../lib/server-error';
-import { refusalText } from '../../../../lib/service-error-message';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { networkLimited } from './network-limit';
 import {
@@ -82,7 +82,7 @@ export async function acceptTripInvitationAction(
         case 'rate_limited':
           return busy();
         case 'invalid':
-          return { ok: false, message: await refusalText(accepted.error) };
+          return { ok: false, message: await serviceErrorMessage(accepted.error) };
         default:
           return unavailable();
       }

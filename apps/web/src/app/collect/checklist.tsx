@@ -213,7 +213,7 @@ function ItemLine({
             <span key={file.id} className="collect-item-file">
               {file.name}
               {file.mapping === 'proposed'
-                ? t('collect.collectChecklist.suggestedFromItsNameCheckIt')
+                ? t.node('collect.collectChecklist.suggestedFromItsNameCheckIt')
                 : ''}
             </span>
           ))}

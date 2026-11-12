@@ -131,7 +131,9 @@ export function TimeZoneSelect({
       value={value}
       onChange={(event) => setValue(event.target.value)}
     >
-      <option value="">{t('components.timeZoneSelect.chooseATimeZone')}</option>
+      <option {...t.lang('components.timeZoneSelect.chooseATimeZone')} value="">
+        {t('components.timeZoneSelect.chooseATimeZone')}
+      </option>
       {full ? (
         <>
           <optgroup label={t('components.timeZoneSelect.common')}>

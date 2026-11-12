@@ -98,7 +98,7 @@ export function DeleteDuplicateAction({
     return (
       <div ref={root} className="lc-delete" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-          {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.duplicateDeleted')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.duplicateDeleted')}
         </h3>
         <UndoStatus
           message={deletedLine(deletedDays)}
@@ -118,7 +118,7 @@ export function DeleteDuplicateAction({
               router.refresh();
             }}
           >
-            {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
           </button>
         </div>
       </div>
@@ -128,18 +128,18 @@ export function DeleteDuplicateAction({
   return (
     <div ref={root} className="lc-delete" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-        {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate')}
+        {t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate')}
       </h3>
       {problemLine}
       {!preview && !problem ? (
         <output>
-          {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.checkingThisCopy')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.checkingThisCopy')}
         </output>
       ) : null}
       {preview ? (
         <>
           <p>
-            {t(
+            {t.node(
               'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.documentnameIsAnExactCopyThe',
               { documentName },
             )}{' '}
@@ -154,7 +154,7 @@ export function DeleteDuplicateAction({
             </ul>
           ) : null}
           <p className="lc-delete-note">
-            {t(
+            {t.node(
               'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.itWaitsInRecentlyDeletedUntil',
               { formatTimestampDate: formatTimestampDate(preview.purgeAfter, locale) },
             )}
@@ -167,8 +167,8 @@ export function DeleteDuplicateAction({
               onClick={remove}
             >
               {busy
-                ? t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleting')
-                : t(
+                ? t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleting')
+                : t.node(
                     'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate484f53',
                   )}
             </button>
@@ -180,7 +180,7 @@ export function DeleteDuplicateAction({
                 if (!busy) onClose();
               }}
             >
-              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
+              {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </>
@@ -188,7 +188,7 @@ export function DeleteDuplicateAction({
       {problem && !preview ? (
         <div className="lc-delete-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       ) : null}

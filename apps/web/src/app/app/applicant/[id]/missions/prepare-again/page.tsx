@@ -11,7 +11,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../../components/ui';
+import { applicantMissionsCatalog } from '../../../../../../i18n/applicant-missions';
 import { humanizeCode } from '../../../../../../lib/format-code';
+import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { fieldLabel } from '../../../../../../lib/master-profile';
 import { withSession } from '../../../../../../lib/session';
 import {
@@ -116,6 +118,8 @@ export default async function PrepareAgainPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<{ readonly from?: string | string[] }>;
 }) {
+  await primeLocale();
+  const t = getServerT(applicantMissionsCatalog);
   const { id } = await params;
   const { from } = (await searchParams) ?? {};
   const fromMissionId = typeof from === 'string' ? from : '';
@@ -141,9 +145,11 @@ export default async function PrepareAgainPage({
     <>
       <PageHeader
         back={{ href: `/app/mission/${plan.source.id}`, label: plan.source.title }}
-        eyebrow="Cases"
-        title="Start a New Case from This One"
-        description="Start a new case from this one. Your current records are reused by reference. Nothing from the old case's work, notes, approvals, sign-off or sharing is copied."
+        eyebrow={t('applicantMissions.appApplicantIdMissionsPage.cases')}
+        title={t('applicantMissions.appApplicantIdMissionsPrepareAgainPage.startANewCaseFromThis')}
+        description={t(
+          'applicantMissions.appApplicantIdMissionsPrepareAgainPage.startANewCaseFromThisad706c',
+        )}
         as="h2"
       />
       {data.coreGranted ? (

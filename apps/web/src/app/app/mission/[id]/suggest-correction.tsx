@@ -29,7 +29,7 @@ export function SuggestCorrection({
         Suggest a Correction<span className="sr-only"> for {itemName}</span>
       </summary>
       <p className="muted u-fs-085 u-m-0">
-        {t('appMission.appMissionIdSuggestCorrection.tellUsIfThisItemLooks')}
+        {t.node('appMission.appMissionIdSuggestCorrection.tellUsIfThisItemLooks')}
       </p>
       <ChecklistCorrectionForm
         action={suggestCaseCorrectionAction}

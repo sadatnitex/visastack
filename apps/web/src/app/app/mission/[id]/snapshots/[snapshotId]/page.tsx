@@ -122,13 +122,13 @@ function RowsWithMore<T>({
         <details className="snapshot-rows-more">
           <summary className="btn btn-secondary u-btn-sm">
             <span className="snapshot-rows-more-closed">
-              {t('appMission.appMissionIdSnapshotsSnapshotidPage.showAllLengthLabel', {
+              {t.node('appMission.appMissionIdSnapshotsSnapshotidPage.showAllLengthLabel', {
                 length: items.length,
                 label,
               })}
             </span>
             <span className="snapshot-rows-more-open">
-              {t('appMission.appMissionIdSnapshotsSnapshotidPage.showFewerLabel', { label })}
+              {t.node('appMission.appMissionIdSnapshotsSnapshotidPage.showFewerLabel', { label })}
             </span>
           </summary>
           <div className="rows">{rest.map(draw)}</div>
@@ -196,7 +196,7 @@ export default async function MissionSnapshotPage({
             className="btn btn-secondary"
             href={`/app/mission/${mission.id}/snapshots/${snapshot.id}/download`}
           >
-            {t('appMission.appMissionIdSnapshotsSnapshotidPage.downloadJson')}
+            {t.node('appMission.appMissionIdSnapshotsSnapshotidPage.downloadJson')}
           </a>
         }
       />
@@ -233,7 +233,7 @@ export default async function MissionSnapshotPage({
                           className="muted"
                           style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
                         >
-                          {t(
+                          {t.node(
                             'appMission.appMissionIdSnapshotsSnapshotidPage.eachPackRequirementResolvedToThe',
                           )}
                         </p>
@@ -262,7 +262,9 @@ export default async function MissionSnapshotPage({
                                   <span className="row-key">
                                     {label}
                                     {m.optional
-                                      ? t('appMission.appMissionIdSnapshotsSnapshotidPage.optional')
+                                      ? t.node(
+                                          'appMission.appMissionIdSnapshotsSnapshotidPage.optional',
+                                        )
                                       : ''}
                                   </span>
                                   {m.resultState ? (
@@ -276,10 +278,10 @@ export default async function MissionSnapshotPage({
                                       className={`badge ${m.satisfied ? 'badge-success' : 'badge-warning'}`}
                                     >
                                       {m.satisfied
-                                        ? t(
+                                        ? t.node(
                                             'appMission.appMissionIdSnapshotsSnapshotidPage.satisfied',
                                           )
-                                        : t(
+                                        : t.node(
                                             'appMission.appMissionIdSnapshotsSnapshotidPage.notSatisfied',
                                           )}
                                     </span>
@@ -292,7 +294,7 @@ export default async function MissionSnapshotPage({
                                       .filter((f) => f.eligible)
                                       .map((f) => f.value)
                                       .join(', ') ||
-                                      t(
+                                      t.node(
                                         'appMission.appMissionIdSnapshotsSnapshotidPage.noEligibleValue',
                                       )}
                                   </p>
@@ -303,7 +305,7 @@ export default async function MissionSnapshotPage({
                                       .filter((d) => d.eligible)
                                       .map((d) => d.displayName)
                                       .join(', ') ||
-                                      t(
+                                      t.node(
                                         'appMission.appMissionIdSnapshotsSnapshotidPage.noEligibleDocument',
                                       )}
                                   </p>
@@ -325,7 +327,7 @@ export default async function MissionSnapshotPage({
                 <>
                   {facts.length === 0 ? (
                     <p className="card-body">
-                      {t('appMission.appMissionIdSnapshotsSnapshotidPage.noFactsRecorded')}
+                      {t.node('appMission.appMissionIdSnapshotsSnapshotidPage.noFactsRecorded')}
                     </p>
                   ) : (
                     <RowsWithMore
@@ -353,7 +355,7 @@ export default async function MissionSnapshotPage({
                 <>
                   {content.documents.length === 0 ? (
                     <p className="card-body">
-                      {t('appMission.appMissionIdSnapshotsSnapshotidPage.noDocumentsRecorded')}
+                      {t.node('appMission.appMissionIdSnapshotsSnapshotidPage.noDocumentsRecorded')}
                     </p>
                   ) : (
                     <RowsWithMore

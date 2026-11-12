@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 /**
- * Language of parts (WCAG 3.1.2) in a real browser, for the home page and the sign-in page. The
+ * Language of parts (WCAG 3.1.2) in a real browser, for the home page, the sign-in page, and two public pages of the second marking pass. The
  * visitor asks for Bengali with the language cookie. The server only honours it when it runs with
  * LOCALE_PREVIEW=1 and DEPLOYMENT_MODE=development (a local check, never CI), so in the ordinary
  * no-secret run both pages are English and the same accessibility checks run on them. Under the
@@ -10,7 +10,7 @@ import { expect, test } from '@playwright/test';
  * text are each marked.
  */
 
-for (const path of ['/', '/auth/sign-in']) {
+for (const path of ['/', '/auth/sign-in', '/pilot-access-denied', '/payments/result']) {
   test(`${path} with the Bengali cookie has no serious accessibility violations and valid languages`, async ({
     page,
   }) => {

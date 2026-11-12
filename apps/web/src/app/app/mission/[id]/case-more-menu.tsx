@@ -100,7 +100,7 @@ export function CaseMoreMenu({
         }}
       >
         <summary className="btn btn-secondary" aria-controls={panelId}>
-          {t('appMission.appMissionIdCaseMoreMenu.more')}
+          {t.node('appMission.appMissionIdCaseMoreMenu.more')}
           <Icon name="chevronDown" size={14} />
         </summary>
         <div className="case-more-panel" id={panelId}>
@@ -111,12 +111,14 @@ export function CaseMoreMenu({
               aria-describedby={consequencesId}
             >
               <h2 className="case-cancel-question" id={questionId} ref={question} tabIndex={-1}>
-                {t('appMission.appMissionIdCaseMoreMenu.deleteThisCase')}
+                {t.node('appMission.appMissionIdCaseMoreMenu.deleteThisCase')}
               </h2>
               <ul className="case-cancel-consequences" id={consequencesId}>
-                <li>{t('appMission.appMissionIdCaseMoreMenu.theCaseIsRemovedForGood')}</li>
-                <li>{t('appMission.appMissionIdCaseMoreMenu.yourProfileAndDocumentsAreNot')}</li>
-                <li>{t('appMission.appMissionIdCaseMoreMenu.thisCannotBeUndone')}</li>
+                <li>{t.node('appMission.appMissionIdCaseMoreMenu.theCaseIsRemovedForGood')}</li>
+                <li>
+                  {t.node('appMission.appMissionIdCaseMoreMenu.yourProfileAndDocumentsAreNot')}
+                </li>
+                <li>{t.node('appMission.appMissionIdCaseMoreMenu.thisCannotBeUndone')}</li>
               </ul>
               <form
                 action={deleteAction}
@@ -141,7 +143,7 @@ export function CaseMoreMenu({
                     setConfirming(null);
                   }}
                 >
-                  {t('appMission.appMissionIdCaseMoreMenu.keepTheCase')}
+                  {t.node('appMission.appMissionIdCaseMoreMenu.keepTheCase')}
                 </button>
               </form>
               {deleteAttempted ? <FormMessage result={deleteState} /> : null}
@@ -153,12 +155,14 @@ export function CaseMoreMenu({
               aria-describedby={consequencesId}
             >
               <h2 className="case-cancel-question" id={questionId} ref={question} tabIndex={-1}>
-                {t('appMission.appMissionIdCaseMoreMenu.cancelThisCase')}
+                {t.node('appMission.appMissionIdCaseMoreMenu.cancelThisCase')}
               </h2>
               <ul className="case-cancel-consequences" id={consequencesId}>
-                <li>{t('appMission.appMissionIdCaseMoreMenu.theCaseStopsForGoodIt')}</li>
-                <li>{t('appMission.appMissionIdCaseMoreMenu.nothingIsDeletedNowItsSnapshots')}</li>
-                <li>{t('appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe')}</li>
+                <li>{t.node('appMission.appMissionIdCaseMoreMenu.theCaseStopsForGoodIt')}</li>
+                <li>
+                  {t.node('appMission.appMissionIdCaseMoreMenu.nothingIsDeletedNowItsSnapshots')}
+                </li>
+                <li>{t.node('appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe')}</li>
               </ul>
               <form action={formAction} className="case-cancel-actions">
                 <input type="hidden" name="missionId" value={missionId} />
@@ -178,7 +182,7 @@ export function CaseMoreMenu({
                     setConfirming(null);
                   }}
                 >
-                  {t('appMission.appMissionIdCaseMoreMenu.keepTheCase')}
+                  {t.node('appMission.appMissionIdCaseMoreMenu.keepTheCase')}
                 </button>
               </form>
             </section>
@@ -192,12 +196,12 @@ export function CaseMoreMenu({
                       href={headerActions.addEvidenceHref}
                       onClick={() => close()}
                     >
-                      {t('appMission.appMissionIdCaseMoreMenu.addEvidence')}
+                      {t.node('appMission.appMissionIdCaseMoreMenu.addEvidence')}
                     </a>
                   </li>
                   <li className="case-more-phone">
                     <Link className="case-more-item" href={headerActions.newCaseHref}>
-                      {t('appMission.appMissionIdCaseMoreMenu.startANewCaseFromThis')}
+                      {t.node('appMission.appMissionIdCaseMoreMenu.startANewCaseFromThis')}
                     </Link>
                   </li>
                   {headerActions.snapshot === false ? null : (
@@ -209,7 +213,7 @@ export function CaseMoreMenu({
               ) : null}
               <li>
                 <Link className="case-more-item" href={`/app/applicant/${applicantId}/memory`}>
-                  {t('appMission.appMissionIdCaseMoreMenu.openCaseHistory')}
+                  {t.node('appMission.appMissionIdCaseMoreMenu.openCaseHistory')}
                 </Link>
               </li>
               {canCancel ? (
@@ -220,7 +224,7 @@ export function CaseMoreMenu({
                     className="case-more-item case-more-danger"
                     onClick={() => setConfirming('cancel')}
                   >
-                    {t('appMission.appMissionIdCaseMoreMenu.cancelCase')}
+                    {t.node('appMission.appMissionIdCaseMoreMenu.cancelCase')}
                   </button>
                 </li>
               ) : null}
@@ -232,7 +236,7 @@ export function CaseMoreMenu({
                     className="case-more-item case-more-danger"
                     onClick={() => setConfirming('delete')}
                   >
-                    {t('appMission.appMissionIdCaseMoreMenu.deleteCase')}
+                    {t.node('appMission.appMissionIdCaseMoreMenu.deleteCase')}
                   </button>
                 </li>
               ) : null}

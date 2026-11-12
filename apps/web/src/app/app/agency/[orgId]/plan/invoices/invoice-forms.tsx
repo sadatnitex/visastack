@@ -59,7 +59,7 @@ export function RecentPaymentChoices({
   return (
     <div className="invoice-recent">
       <p className="invoice-note">
-        {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aPaymentForThisInvoiceWas', {
+        {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aPaymentForThisInvoiceWas', {
           startedAt,
         })}
       </p>
@@ -158,18 +158,18 @@ export function ClaimForm({
   return (
     <details className="invoice-claim" open={state.values !== undefined ? true : undefined}>
       <summary className="invoice-claim-summary">
-        {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.iPaidAnotherWay')}
+        {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.iPaidAnotherWay')}
       </summary>
       <form ref={formRef} action={formAction} className="field-list invoice-claim-form">
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="invoiceId" value={invoiceId} />
         <p className="invoice-note">
-          {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.tellUsAboutAPaymentYou')}
+          {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.tellUsAboutAPaymentYou')}
         </p>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-method`}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.howYouPaid')}
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.howYouPaid')}
             </label>
             {/* The key makes the list start again from what was kept: a list does not take a new default by itself. */}
             <select
@@ -191,7 +191,7 @@ export function ClaimForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-reference`}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.paymentReference')}
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.paymentReference')}
             </label>
             <input
               id={`${base}-reference`}
@@ -206,12 +206,14 @@ export function ClaimForm({
             />
             <FieldError result={shown} field="reference" className="invoice-field-error" />
             <p className="invoice-hint" id={referenceHintId}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aTransferIdBkashTransactionId')}
+              {t.node(
+                'appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aTransferIdBkashTransactionId',
+              )}
             </p>
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-amount`}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.amountPaidCurrency', {
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.amountPaidCurrency', {
                 currency,
               })}
             </label>
@@ -230,7 +232,7 @@ export function ClaimForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-paid-on`}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.datePaid')}
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.datePaid')}
             </label>
             <input
               id={`${base}-paid-on`}
@@ -246,7 +248,7 @@ export function ClaimForm({
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-note`}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.noteOptional')}
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.noteOptional')}
             </label>
             <textarea
               id={`${base}-note`}
@@ -261,7 +263,7 @@ export function ClaimForm({
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-proof`}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.proofOfPaymentOptional')}
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.proofOfPaymentOptional')}
             </label>
             <input
               id={`${base}-proof`}
@@ -273,7 +275,7 @@ export function ClaimForm({
             />
             <FieldError result={shown} field="proof" className="invoice-field-error" />
             <p className="invoice-hint" id={proofHintId}>
-              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aPhotoOrScreenshotJpegOr')}
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aPhotoOrScreenshotJpegOr')}
             </p>
           </div>
         </div>

@@ -52,7 +52,7 @@ export function AgencyAiTurnOff({
         </form>
       ) : null}
       <output ref={status} tabIndex={-1} className="field-msg field-msg-ok">
-        {done ? state.message : live ? '' : t('appAgency.appAgencyOrgidAgencyAiTurnOff.ended')}
+        {done ? state.message : live ? '' : t.node('appAgency.appAgencyOrgidAgencyAiTurnOff.ended')}
       </output>
       <FormMessage
         result={isFailure(state) ? state : NO_RESULT}

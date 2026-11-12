@@ -63,7 +63,7 @@ export function ContributorRequestsPanel({
                 <span className="muted u-fs-085">
                   {r.purpose}
                   {r.status === 'PENDING'
-                    ? t(
+                    ? t.node(
                         'appMission.appMissionIdContributorRequestsPanel.expiresFormattimestampdate',
                         { formatTimestampDate: formatTimestampDate(r.expiresAt) },
                       )
@@ -81,7 +81,7 @@ export function ContributorRequestsPanel({
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="contributorEmail">
-            {t('appMission.appMissionIdContributorRequestsPanel.contributorEmail')}
+            {t.node('appMission.appMissionIdContributorRequestsPanel.contributorEmail')}
           </label>
           <input
             id="contributorEmail"
@@ -94,7 +94,9 @@ export function ContributorRequestsPanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="docType">
-            {t('appMission.appMissionIdContributorRequestsPanel.whatSNeededExactlyOneDocument')}
+            {t.node(
+              'appMission.appMissionIdContributorRequestsPanel.whatSNeededExactlyOneDocument',
+            )}
           </label>
           <input
             id="docType"
@@ -109,7 +111,7 @@ export function ContributorRequestsPanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="purpose">
-            {t('appMission.appMissionIdContributorRequestsPanel.whyTheContributorWillSeeThis')}
+            {t.node('appMission.appMissionIdContributorRequestsPanel.whyTheContributorWillSeeThis')}
           </label>
           <input
             id="purpose"
@@ -124,7 +126,7 @@ export function ContributorRequestsPanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="message">
-            {t('appMission.appMissionIdContributorRequestsPanel.messageOptional')}
+            {t.node('appMission.appMissionIdContributorRequestsPanel.messageOptional')}
           </label>
           <input id="message" name="message" type="text" className="input" />
         </div>

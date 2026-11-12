@@ -42,7 +42,7 @@ import { CHECKLISTS_NOT_LOADED } from '../../../../lib/pack-labels';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { reportServerError } from '../../../../lib/server-error';
-import { refusalText } from '../../../../lib/service-error-message';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { checklistAttachedLine, evidenceChosenLine } from '../../../../lib/success-lines';
@@ -76,7 +76,7 @@ export async function attachPackAction(
     // server, so a hand-made request cannot attach a reviewed checklist written for another route.
     const owned = await getMissionForOwner(db, accountId, missionId);
     if (!owned.ok)
-      return { ok: false, message: await refusalText(owned.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(owned.error) } satisfies ActionState;
     const choices = await selectableChecklists(db, { accountId, mission: owned.value });
     if (choices.lookupFailed) {
       return { ok: false, message: CHECKLISTS_NOT_LOADED } satisfies ActionState;
@@ -89,7 +89,7 @@ export async function attachPackAction(
     }
     const attached = await attachChecklistFor(db, accountId, missionId, packVersionId);
     if (!attached.ok)
-      return { ok: false, message: await refusalText(attached.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(attached.error) } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {
       ok: true,
@@ -118,7 +118,7 @@ export async function transitionMissionAction(
   const result = await withSession(async ({ db, accountId }) => {
     const transitioned = await transitionMission(db, { actorAccountId: accountId, missionId, to });
     if (!transitioned.ok) {
-      return { ok: false, message: await refusalText(transitioned.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(transitioned.error) } satisfies ActionState;
     }
     return {
       ok: true,
@@ -163,7 +163,7 @@ export async function deleteCancelledCaseAction(
     try {
       const deleted = await deleteCancelledMission(access.value);
       if (!deleted.ok)
-        return { ok: false, message: await refusalText(deleted.error) } satisfies ActionState;
+        return { ok: false, message: await serviceErrorMessage(deleted.error) } satisfies ActionState;
     } catch (error) {
       // The deletion is all or nothing: a fault leaves the case exactly as it was.
       reportServerError('deleteCancelledCaseAction', error);
@@ -189,7 +189,7 @@ export async function snapshotMissionAction(
   const result = await withSession(async ({ db, accountId }) => {
     const snapshot = await snapshotMission(db, { actorAccountId: accountId, missionId });
     if (!snapshot.ok)
-      return { ok: false, message: await refusalText(snapshot.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(snapshot.error) } satisfies ActionState;
     return {
       ok: true,
       message: `Snapshot version ${snapshot.value.version} captured.`,
@@ -220,7 +220,7 @@ export async function selectEvidenceAction(
       ...(documentId ? { documentId } : {}),
     });
     if (!selected.ok)
-      return { ok: false, message: await refusalText(selected.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(selected.error) } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {
       ok: true,
@@ -248,7 +248,7 @@ export async function unselectEvidenceAction(
       selectionId,
     });
     if (!removed.ok)
-      return { ok: false, message: await refusalText(removed.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(removed.error) } satisfies ActionState;
     return { ok: true, message: 'Selection removed.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -288,7 +288,7 @@ export async function createTaskAction(
       ...(dueTimezone ? { dueTimezone } : {}),
     });
     if (!task.ok)
-      return { ok: false, message: await refusalText(task.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(task.error) } satisfies ActionState;
     return { ok: true, message: 'Task added.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -309,7 +309,7 @@ export async function decideTaskAction(
   const result = await withSession(async ({ db, accountId }) => {
     const decided = await decideTask(db, { actorAccountId: accountId, missionId, taskId, status });
     if (!decided.ok)
-      return { ok: false, message: await refusalText(decided.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     const messages: Record<typeof status, string> = {
       IN_PROGRESS: 'Task started.',
       DONE: 'Task completed.',
@@ -356,7 +356,7 @@ export async function createAppointmentAction(
       ...(channel ? { channel } : {}),
     });
     if (!appointment.ok) {
-      return { ok: false, message: await refusalText(appointment.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(appointment.error) } satisfies ActionState;
     }
     return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
   });
@@ -383,7 +383,7 @@ export async function decideAppointmentAction(
       status,
     });
     if (!decided.ok)
-      return { ok: false, message: await refusalText(decided.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     return {
       ok: true,
       message: status === 'DONE' ? 'Appointment completed.' : 'Appointment cancelled.',
@@ -408,7 +408,7 @@ export async function setItineraryRefAction(
       itineraryRef,
     });
     if (!updated.ok)
-      return { ok: false, message: await refusalText(updated.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     return {
       ok: true,
       message: updated.value.itineraryRef ? 'Linked.' : 'Unlinked.',
@@ -451,7 +451,7 @@ export async function updateCaseDetailsAction(
       manualMode,
     });
     if (!updated.ok)
-      return { ok: false, message: await refusalText(updated.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     // UMPE G2: a new post or travel date may mean the linked checklist no longer fits. Rebuilding
     // the trip package records that once as a "something changed" item (handoffs are never
     // touched). Best effort: the details are saved whatever this finds.
@@ -503,7 +503,7 @@ export async function createContributorRequestAction(
       ...(encryption ? { encryption } : {}),
     });
     if (!created.ok)
-      return { ok: false, message: await refusalText(created.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(created.error) } satisfies ActionState;
     const acceptUrl = `${resolveBaseUrl()}/app/contributor-requests/accept?token=${created.value.rawToken}`;
     return {
       ok: true,
@@ -557,7 +557,7 @@ export async function revokeContributorRequestAction(
       requestId,
     });
     if (!revoked.ok)
-      return { ok: false, message: await refusalText(revoked.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(revoked.error) } satisfies ActionState;
     return { ok: true, message: 'Request revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -610,7 +610,7 @@ export async function recordOutcomeAction(
       stepUpSatisfied: true,
     });
     if (!recorded.ok)
-      return { ok: false, message: await refusalText(recorded.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(recorded.error) } satisfies ActionState;
     return { ok: true, message: 'Outcome recorded.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -677,7 +677,7 @@ export async function recordSubmissionAction(
       stepUpSatisfied: true,
     });
     if (!recorded.ok)
-      return { ok: false, message: await refusalText(recorded.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(recorded.error) } satisfies ActionState;
     // UMPE P12: the report becomes Attempt 1 with the package that was ready then. Best effort:
     // the report stands either way, and the Application Attempts card offers Track as Attempt.
     try {
@@ -717,7 +717,7 @@ export async function fileComplaintAction(
   const result = await withSession(async ({ db, accountId }) => {
     const filed = await fileComplaint(db, { actorAccountId: accountId, missionId, description });
     if (!filed.ok)
-      return { ok: false, message: await refusalText(filed.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(filed.error) } satisfies ActionState;
     return { ok: true, message: 'Complaint filed.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -737,7 +737,7 @@ export async function withdrawComplaintAction(
   const result = await withSession(async ({ db, accountId }) => {
     const withdrawn = await withdrawOwnComplaint(db, { actorAccountId: accountId, complaintId });
     if (!withdrawn.ok)
-      return { ok: false, message: await refusalText(withdrawn.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(withdrawn.error) } satisfies ActionState;
     return { ok: true, message: 'Complaint withdrawn.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -757,7 +757,7 @@ export async function submitFeedbackAction(
   const result = await withSession(async ({ db, accountId }) => {
     const submitted = await submitFeedback(db, { actorAccountId: accountId, missionId, comments });
     if (!submitted.ok)
-      return { ok: false, message: await refusalText(submitted.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(submitted.error) } satisfies ActionState;
     return { ok: true, message: 'Feedback submitted. Thank you.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -774,7 +774,7 @@ export async function generateLetterAction(
   const result = await withSession(async ({ db, accountId }) => {
     const output = await generateCoverLetter(db, { actorAccountId: accountId, missionId });
     if (!output.ok)
-      return { ok: false, message: await refusalText(output.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(output.error) } satisfies ActionState;
     return {
       ok: true,
       message: `Letter version ${output.value.version} generated.`,
@@ -807,7 +807,7 @@ export async function explainReadinessGapAction(
   const result = await withSession(async ({ db, accountId, self }) => {
     const mission = await getMissionForOwner(db, accountId, missionId);
     if (!mission.ok)
-      return { ok: false, message: await refusalText(mission.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(mission.error) } satisfies ActionState;
     if (!mission.value.packVersionId) {
       return {
         ok: false,
@@ -820,7 +820,7 @@ export async function explainReadinessGapAction(
       listRequirements(db, mission.value.packVersionId),
     ]);
     if (!readiness.ok)
-      return { ok: false, message: await refusalText(readiness.error) } satisfies ActionState;
+      return { ok: false, message: await serviceErrorMessage(readiness.error) } satisfies ActionState;
 
     const current = readiness.value.requirementResults.find(
       (r) => r.packRequirementId === packRequirementId,
@@ -858,7 +858,7 @@ export async function explainReadinessGapAction(
       // The case's owner, for themselves (checked above): the line when a paid plan would help.
       return {
         ok: false,
-        message: await refusalText(explained.error),
+        message: await serviceErrorMessage(explained.error),
         ...(await upgradeLineForRefusal(db, self, explained.error, 'ai_explanations')),
       } satisfies ActionState;
     }

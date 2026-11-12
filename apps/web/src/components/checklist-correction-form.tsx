@@ -67,7 +67,10 @@ export function ChecklistCorrectionForm({
             defaultValue=""
             {...fieldProblem(state, 'packRequirementId', messageId)}
           >
-            <option value="">
+            <option
+              {...t.lang('components.checklistCorrectionForm.somethingMissingFromTheChecklist')}
+              value=""
+            >
               {t('components.checklistCorrectionForm.somethingMissingFromTheChecklist')}
             </option>
             {items.map((item) => (
@@ -91,7 +94,7 @@ export function ChecklistCorrectionForm({
           defaultValue=""
           {...fieldProblem(state, 'category', messageId)}
         >
-          <option value="" disabled>
+          <option {...t.lang('components.checklistCorrectionForm.chooseOne')} value="" disabled>
             {t('components.checklistCorrectionForm.chooseOne')}
           </option>
           {categories.map((category) => (

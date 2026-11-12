@@ -37,76 +37,86 @@ export default async function WhatsAppPage() {
       <div className="grid">
         {showConnected ? (
           <article className="card">
-            <p className="card-kicker">{t('appAccount.appAccountWhatsappPage.connected')}</p>
+            <p className="card-kicker">{t.node('appAccount.appAccountWhatsappPage.connected')}</p>
             <h2 className="card-title">
-              {t('appAccount.appAccountWhatsappPage.yourWhatsappIsConnected')}
+              {t.node('appAccount.appAccountWhatsappPage.yourWhatsappIsConnected')}
             </h2>
             <div className="rows rows-grid u-mt-050">
               {connection.maskedNumber ? (
                 <p className="row">
-                  <span className="row-key">{t('appAccount.appAccountWhatsappPage.number')}</span>
+                  <span className="row-key">
+                    {t.node('appAccount.appAccountWhatsappPage.number')}
+                  </span>
                   <span className="row-val">{connection.maskedNumber}</span>
                 </p>
               ) : null}
               {connection.connectedAt ? (
                 <p className="row">
                   <span className="row-key">
-                    {t('appAccount.appAccountWhatsappPage.connectedOn')}
+                    {t.node('appAccount.appAccountWhatsappPage.connectedOn')}
                   </span>
                   <span className="row-val">{formatDateOnly(connection.connectedAt, locale)}</span>
                 </p>
               ) : null}
               <p className="row">
-                <span className="row-key">{t('appAccount.appAccountWhatsappPage.messages')}</span>
+                <span className="row-key">
+                  {t.node('appAccount.appAccountWhatsappPage.messages')}
+                </span>
                 <span className="row-val">
                   {connection.messagesOff
-                    ? t('appAccount.appAccountWhatsappPage.offSendStartToTurnThem')
-                    : t('appAccount.appAccountWhatsappPage.on')}
+                    ? t.node('appAccount.appAccountWhatsappPage.offSendStartToTurnThem')
+                    : t.node('appAccount.appAccountWhatsappPage.on')}
                 </span>
               </p>
             </div>
             <p className="card-body u-mt-050">
-              {t('appAccount.appAccountWhatsappPage.sendMenuInWhatsappToSee')}
+              {t.node('appAccount.appAccountWhatsappPage.sendMenuInWhatsappToSee')}
             </p>
             <form action={disconnectWhatsAppAction}>
               <button type="submit" className="btn btn-secondary">
-                {t('appAccount.appAccountWhatsappPage.disconnectWhatsapp')}
+                {t.node('appAccount.appAccountWhatsappPage.disconnectWhatsapp')}
               </button>
             </form>
           </article>
         ) : !ready ? (
           <article className="card">
             <h2 className="card-title">
-              {t('appAccount.appAccountWhatsappPage.whatsappIsNotAvailableYet')}
+              {t.node('appAccount.appAccountWhatsappPage.whatsappIsNotAvailableYet')}
             </h2>
             <p className="card-body">
-              {t('appAccount.appAccountWhatsappPage.youCanUseEverythingInVisastack')}
+              {t.node('appAccount.appAccountWhatsappPage.youCanUseEverythingInVisastack')}
             </p>
           </article>
         ) : (
           <article className="card">
-            <p className="card-kicker">{t('appAccount.appAccountWhatsappPage.notConnected')}</p>
-            <h2 className="card-title">{t('appAccount.appAccountWhatsappPage.connectWhatsapp')}</h2>
+            <p className="card-kicker">
+              {t.node('appAccount.appAccountWhatsappPage.notConnected')}
+            </p>
+            <h2 className="card-title">
+              {t.node('appAccount.appAccountWhatsappPage.connectWhatsapp')}
+            </h2>
             <p className="card-body u-mb-125">
-              {t('appAccount.appAccountWhatsappPage.getAOneTimeCodeHere')}
+              {t.node('appAccount.appAccountWhatsappPage.getAOneTimeCodeHere')}
             </p>
             <ConnectWhatsAppForm />
           </article>
         )}
 
         <article className="card">
-          <p className="card-kicker">{t('appAccount.appAccountPage.privacy')}</p>
+          <p className="card-kicker">{t.node('appAccount.appAccountPage.privacy')}</p>
           <h2 className="card-title">
-            {t('appAccount.appAccountWhatsappPage.whatHappensInWhatsapp')}
+            {t.node('appAccount.appAccountWhatsappPage.whatHappensInWhatsapp')}
           </h2>
           <ul className="card-body">
-            <li>{t('appAccount.appAccountWhatsappPage.youCanAskWhereYourCases')}</li>
-            <li>{t('appAccount.appAccountWhatsappPage.visastackNeverAsksForPassportId')}</li>
-            <li>{t('appAccount.appAccountWhatsappPage.documentsAreAddedInVisastackNot')}</li>
-            <li>{t('appAccount.appAccountWhatsappPage.messagesPassThroughWhatsappWhichIs')}</li>
+            <li>{t.node('appAccount.appAccountWhatsappPage.youCanAskWhereYourCases')}</li>
+            <li>{t.node('appAccount.appAccountWhatsappPage.visastackNeverAsksForPassportId')}</li>
+            <li>{t.node('appAccount.appAccountWhatsappPage.documentsAreAddedInVisastackNot')}</li>
+            <li>
+              {t.node('appAccount.appAccountWhatsappPage.messagesPassThroughWhatsappWhichIs')}
+            </li>
           </ul>
           <Link href="/app/privacy">
-            {t('appAccount.appAccountWhatsappPage.privacyAndConsent')}
+            {t.node('appAccount.appAccountWhatsappPage.privacyAndConsent')}
           </Link>
         </article>
       </div>

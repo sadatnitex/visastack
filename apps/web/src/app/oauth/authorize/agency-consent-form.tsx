@@ -52,7 +52,7 @@ export function AgencyConsentForm({ request, agency, defaultDuration }: AgencyCo
       <p className="card-body">{agencyAiConsentSentence(agency.name)}</p>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-duration`}>
-          {t('oauth.oauthAuthorizeAgencyConsentForm.howLong')}
+          {t.node('oauth.oauthAuthorizeAgencyConsentForm.howLong')}
         </label>
         <select
           id={`${id}-duration`}

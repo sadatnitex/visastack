@@ -4,7 +4,7 @@ import { accountPrincipal, prepareCaseAgain, requireAccess } from '@visastack/se
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { readCaseDates } from '../../../../../../lib/form-dates';
-import { refusalText } from '../../../../../../lib/service-error-message';
+import { serviceErrorMessage } from '../../../../../../lib/service-error-message';
 import { withSession } from '../../../../../../lib/session';
 import type { ActionState } from '../actions';
 import { CASE_FORM_FIELDS, type CaseFormField, TITLE_MAX } from '../case-form-fields';
@@ -85,7 +85,7 @@ export async function prepareCaseAgainAction(
     });
     if (!created.ok) {
       return {
-        state: { ok: false, message: await refusalText(created.error) } as ActionState,
+        state: { ok: false, message: await serviceErrorMessage(created.error) } as ActionState,
         id: null,
       };
     }

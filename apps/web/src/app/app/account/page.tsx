@@ -78,10 +78,10 @@ export default async function AccountPage() {
 
         <div className="grid">
           <article className="card">
-            <p className="card-kicker">{t('appAccount.appAccountPage.session')}</p>
-            <h2 className="card-title">{t('appAccount.appAccountPage.signedIn')}</h2>
+            <p className="card-kicker">{t.node('appAccount.appAccountPage.session')}</p>
+            <h2 className="card-title">{t.node('appAccount.appAccountPage.signedIn')}</h2>
             <p className="card-body u-mb-125">
-              {t('appAccount.appAccountPage.signOutOfThisDevice')}
+              {t.node('appAccount.appAccountPage.signOutOfThisDevice')}
             </p>
             <form
               action={async () => {
@@ -90,7 +90,7 @@ export default async function AccountPage() {
               }}
             >
               <button type="submit" className="btn btn-secondary">
-                {t('appAccount.appAccountPage.signOut')}
+                {t.node('appAccount.appAccountPage.signOut')}
               </button>
             </form>
           </article>
@@ -120,50 +120,52 @@ export default async function AccountPage() {
           ) : null}
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">{t('appAccount.appAccountPage.plan')}</p>
-            <h2 className="card-title">{t('appAccount.appAccountPage.planUsage')}</h2>
+            <p className="card-kicker">{t.node('appAccount.appAccountPage.plan')}</p>
+            <h2 className="card-title">{t.node('appAccount.appAccountPage.planUsage')}</h2>
             <p className="card-body u-mb-125">
-              {t('appAccount.appAccountPage.yourPlanWhatItIncludesAnd')}
+              {t.node('appAccount.appAccountPage.yourPlanWhatItIncludesAnd')}
             </p>
             <Link href="/app/account/plan" className="btn btn-secondary">
-              {t('appAccount.appAccountPage.openPlanUsage')}
+              {t.node('appAccount.appAccountPage.openPlanUsage')}
             </Link>
           </article>
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">{t('appAccount.appAccountPage.dataRights')}</p>
-            <h2 className="card-title">{t('appAccount.appAccountPage.privacy')}</h2>
+            <p className="card-kicker">{t.node('appAccount.appAccountPage.dataRights')}</p>
+            <h2 className="card-title">{t.node('appAccount.appAccountPage.privacy')}</h2>
             <p className="card-body u-mb-125">
-              {t('appAccount.appAccountPage.exportYourDataReviewConsentHistory')}
+              {t.node('appAccount.appAccountPage.exportYourDataReviewConsentHistory')}
             </p>
             <Link href="/app/privacy" className="btn btn-secondary">
-              {t('appAccount.appAccountPage.openPrivacy')}
+              {t.node('appAccount.appAccountPage.openPrivacy')}
             </Link>
           </article>
 
           {showWhatsApp ? (
             <article className="card" {...atLevel('everything')}>
-              <p className="card-kicker">{t('appAccount.appAccountPage.optional')}</p>
-              <h2 className="card-title">{t('appAccount.appAccountPage.whatsapp')}</h2>
+              <p className="card-kicker">{t.node('appAccount.appAccountPage.optional')}</p>
+              <h2 className="card-title">{t.node('appAccount.appAccountPage.whatsapp')}</h2>
               <p className="card-body u-mb-125">
-                {t('appAccount.appAccountPage.askAboutYourCasesFromWhatsapp')}
+                {t.node('appAccount.appAccountPage.askAboutYourCasesFromWhatsapp')}
               </p>
               <Link href="/app/account/whatsapp" className="btn btn-secondary">
-                {t('appAccount.appAccountPage.openWhatsappSettings')}
+                {t.node('appAccount.appAccountPage.openWhatsappSettings')}
               </Link>
             </article>
           ) : null}
 
           {showRoles ? (
             <article className="card" {...atLevel('everything')}>
-              <p className="card-kicker">{t('appAccount.appAccountPage.roles')}</p>
+              <p className="card-kicker">{t.node('appAccount.appAccountPage.roles')}</p>
               <h2 className="card-title">
-                {t('appAccount.appAccountPage.otherAreasYouCanAccess')}
+                {t.node('appAccount.appAccountPage.otherAreasYouCanAccess')}
               </h2>
               <div className="rows u-mt-050">
                 {data.hasAgencyAccess ? (
                   <Link className="row row-link" href="/app/agency">
-                    <span className="row-key">{t('appAccount.appAccountPage.agencyDesk')}</span>
+                    <span className="row-key">
+                      {t.node('appAccount.appAccountPage.agencyDesk')}
+                    </span>
                     <span className="muted" aria-hidden="true">
                       →
                     </span>
@@ -172,7 +174,7 @@ export default async function AccountPage() {
                 {data.isAdmin ? (
                   <Link className="row row-link" href="/app/admin">
                     <span className="row-key">
-                      {t('appAccount.appAccountPage.platformAdministration')}
+                      {t.node('appAccount.appAccountPage.platformAdministration')}
                     </span>
                     <span className="muted" aria-hidden="true">
                       →

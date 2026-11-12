@@ -288,7 +288,9 @@ function WhichPersonForm({
     <>
       <fieldset className="umpe-g1-person-choices" aria-describedby={`${groupId}-basis`}>
         <legend>
-          {t('appApplicant.appApplicantIdDocumentsNeedsDecision.whichPersonIsLabelFor', { label })}
+          {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.whichPersonIsLabelFor', {
+            label,
+          })}
         </legend>
         {suggested ? null : (
           <p className="muted" id={`${groupId}-basis`}>
@@ -376,7 +378,7 @@ function WhichPersonForm({
       </form>
       <details className="add-more">
         <summary className="add-more-summary">
-          {t('appApplicant.appApplicantIdDocumentsNeedsDecision.chooseSomeoneElse')}
+          {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.chooseSomeoneElse')}
         </summary>
         <form action={action} className="umpe-g1-person-form">
           <input type="hidden" name="applicantId" value={applicantId} />
@@ -439,7 +441,7 @@ export function NeedsDecision({
       {deciding ? (
         <section className="card u-mb-150 umpe-p3-needs-decision" aria-labelledby="needs-decision">
           <h2 className="card-title" id="needs-decision">
-            {t('appApplicant.appApplicantIdDocumentsNeedsDecision.needsOneDecision')}
+            {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.needsOneDecision')}
           </h2>
           <div ref={statusRef} tabIndex={-1} className="umpe-p3-decision-status">
             <FormMessage result={state} />
@@ -447,7 +449,7 @@ export function NeedsDecision({
           {held.length > 0 ? (
             <>
               <h3 className="umpe-p3-linked-title">
-                {t('appApplicant.appApplicantIdDocumentsNeedsDecision.whichPerson')}
+                {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.whichPerson')}
               </h3>
               <ul className="umpe-p3-decision-list">
                 {held.map((file) => (
@@ -490,7 +492,7 @@ export function NeedsDecision({
                     <p>{relationLine(item)}</p>
                     <details className="docs-more">
                       <summary>
-                        {t('appApplicant.appApplicantIdDocumentsAddPage.whatHappensNext')}
+                        {t.node('appApplicant.appApplicantIdDocumentsAddPage.whatHappensNext')}
                       </summary>
                       <p className="muted">{confirmLine(item)}</p>
                     </details>
@@ -506,25 +508,25 @@ export function NeedsDecision({
                   <li key={item.exceptionId} className="umpe-p3-decision-item">
                     <p>
                       {item.kind === 'expired_on_arrival'
-                        ? t(
+                        ? t.node(
                             'appApplicant.appApplicantIdDocumentsNeedsDecision.titleHadAlreadyExpiredOnThe',
                             { title: item.title },
                           )
-                        : t(
+                        : t.node(
                             'appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable',
                             { title: item.title },
                           )}
                     </p>
                     <details className="docs-more">
                       <summary>
-                        {t('appApplicant.appApplicantIdDocumentsNeedsDecision.whatYouCanDo')}
+                        {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.whatYouCanDo')}
                       </summary>
                       <p className="muted">
                         {item.kind === 'expired_on_arrival'
-                          ? t(
+                          ? t.node(
                               'appApplicant.appApplicantIdDocumentsNeedsDecision.addANewerCopyIfYou',
                             )
-                          : t(
+                          : t.node(
                               'appApplicant.appApplicantIdDocumentsNeedsDecision.addAClearerCopyIfYou',
                             )}
                       </p>
@@ -538,7 +540,7 @@ export function NeedsDecision({
                           { title: item.title },
                         )}
                       >
-                        {t('appApplicant.appApplicantIdDocumentsNeedsDecision.openDocument')}
+                        {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.openDocument')}
                       </a>
                     </div>
                     <KeepForm
@@ -556,21 +558,25 @@ export function NeedsDecision({
           {items.length > 0 || held.length > 0 ? (
             <details className="docs-more docs-decision-about">
               <summary>
-                {t('appApplicant.appApplicantIdDocumentsNeedsDecision.aboutTheseChoices')}
+                {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.aboutTheseChoices')}
               </summary>
               {items.length > 0 ? (
                 <p className="card-body">
-                  {t('appApplicant.appApplicantIdDocumentsNeedsDecision.mostFilesAreSortedOnTheir')}
+                  {t.node(
+                    'appApplicant.appApplicantIdDocumentsNeedsDecision.mostFilesAreSortedOnTheir',
+                  )}
                 </p>
               ) : null}
               {grouped.suggested.length > 0 ? (
                 <p className="card-body">
-                  {t('appApplicant.appApplicantIdDocumentsNeedsDecision.aSuggestionIsOnlyAGuess')}
+                  {t.node(
+                    'appApplicant.appApplicantIdDocumentsNeedsDecision.aSuggestionIsOnlyAGuess',
+                  )}
                 </p>
               ) : null}
               {held.length > 0 ? (
                 <p className="card-body">
-                  {t(
+                  {t.node(
                     'appApplicant.appApplicantIdDocumentsNeedsDecision.theseFilesWereAddedForSeveral',
                   )}
                 </p>
@@ -583,12 +589,12 @@ export function NeedsDecision({
         <details className="card u-mb-150 docs-sorted">
           <summary className="docs-sorted-summary">
             <h2 className="docs-sorted-title">
-              {t('appApplicant.appApplicantIdDocumentsNeedsDecision.sortedForYou')}{' '}
+              {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.sortedForYou')}{' '}
               <span className="docs-count">({automatic.length})</span>
             </h2>
           </summary>
           <p className="card-body">
-            {t('appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf')}
+            {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf')}
           </p>
           <ul className="umpe-p3-decision-list">
             {automatic.map((item) => (
@@ -596,10 +602,10 @@ export function NeedsDecision({
                 <p className="umpe-p3-decision-badges">
                   <span className="badge badge-neutral">
                     {item.placement === 'KIND'
-                      ? t(
+                      ? t.node(
                           'appApplicant.appApplicantIdDocumentsNeedsDecision.recognisedAutomatically',
                         )
-                      : t(
+                      : t.node(
                           'appApplicant.appApplicantIdDocumentsNeedsDecision.filedUnderPersonname',
                           { personName },
                         )}
@@ -620,7 +626,7 @@ export function NeedsDecision({
       {linked.length > 0 ? (
         <section className="card u-mb-150" aria-labelledby="linked-copies">
           <h2 className="docs-sorted-title" id="linked-copies">
-            {t('appApplicant.appApplicantIdDocumentsNeedsDecision.linkedCopies')}
+            {t.node('appApplicant.appApplicantIdDocumentsNeedsDecision.linkedCopies')}
           </h2>
           <ul className="umpe-p3-linked-list">
             {linked.map((link) => (
@@ -677,9 +683,12 @@ function ChooseGroup({
               </span>
               {item.kind === 'suggested_kind' ? (
                 <span className="docs-choose-kind" data-value="kind">
-                  {t('appApplicant.appApplicantIdDocumentsNeedsDecision.looksLikeWitharticle', {
-                    withArticle: withArticle(item.suggestedLabel),
-                  })}
+                  {t.node(
+                    'appApplicant.appApplicantIdDocumentsNeedsDecision.looksLikeWitharticle',
+                    {
+                      withArticle: withArticle(item.suggestedLabel),
+                    },
+                  )}
                 </span>
               ) : null}
               <a
