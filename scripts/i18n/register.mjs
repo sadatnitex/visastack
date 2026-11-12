@@ -6,7 +6,15 @@
  * Bengali is used only when the row's automated_checks starts with PASS, its placeholders are
  * the message's placeholders, and it holds no em dash or unresolved marker. Anything else is
  * left to English fallback with a reason.
+ *
+ * Owner rule (the language switch goes live): Bengali comes only from register rows in the
+ * ordinary-screen review queue. Rows in the commercial, privacy/consent/legal and official visa
+ * requirement queues (and any row with no queue) keep English until the owner signs them off,
+ * whatever their automated checks say. Add a queue to RELEASED_QUEUES only on that sign-off.
  */
+
+/** Review queues whose Bengali must not ship yet. Anything not ORDINARY_UI is held back. */
+export const RELEASED_QUEUES = new Set(['ORDINARY_UI']);
 import { readIfExists } from './catalog.mjs';
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
@@ -115,6 +123,9 @@ export class Register {
     }
     if (!row) return { group: null, bn: null, reason: 'no_register_match' };
     const group = row.semantic_group;
+    const queue = row.review_queue ?? '';
+    if (!RELEASED_QUEUES.has(queue))
+      return { group, bn: null, reason: `review_queue_not_signed_off:${queue || 'none'}` };
     const checks = row.automated_checks ?? '';
     if (!checks.startsWith('PASS'))
       return { group, bn: null, reason: `checks_not_pass:${checks.split(/[;|:]/)[0] || 'empty'}` };

@@ -68,7 +68,9 @@ describe('words about file checks', () => {
 
   it('the public pages keep saying plainly that virus scanning of uploads is not switched on yet', () => {
     for (const name of ['pilotBanner', 'signUp', 'terms', 'privacy'] as const) {
-      const flat = read(SURFACES[name]).replace(/\s+/g, ' ');
+      // The sign-up wording now lives in the auth message catalogue beside the page.
+      const text = read(SURFACES[name]) + (name === 'signUp' ? read('../i18n/auth.ts') : '');
+      const flat = text.replace(/\s+/g, ' ');
       expect(flat, name).toContain('virus scanning of uploads');
       expect(flat, name).toContain('not switched on yet');
     }

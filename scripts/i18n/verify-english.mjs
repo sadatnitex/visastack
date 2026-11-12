@@ -38,10 +38,26 @@ function renderAll() {
     throw new Error(`render failed (exit ${r.status}):\n${`${r.stdout}${r.stderr}`.slice(-3000)}`);
 }
 
+const nullable = (text) => (text === null ? null : normaliseRandom(text));
+
 const englishOf = (manifestPath) => {
   const list = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   return new Map(list.filter((s) => (s.locale ?? 'en') === 'en').map((s) => [s.slug, s]));
 };
+
+/**
+ * Values that legitimately change on every render and say nothing about the English: record ids,
+ * signed form values (a base64url header "eyJ..." then a signature) and security-policy nonces.
+ * The render harness already draws ids and keys from a fixed seed, so these normally match; this
+ * keeps the comparison honest if a new random value appears. Deliberately narrow: only values of
+ * these exact shapes, so a changed word is never hidden.
+ */
+export function normaliseRandom(html) {
+  return html
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<uuid>')
+    .replace(/(value|content)="eyJ[A-Za-z0-9_.-]{20,}"/g, '$1="<signed>"')
+    .replace(/\bnonce="[A-Za-z0-9+/_=-]{8,}"/g, 'nonce="<nonce>"');
+}
 
 /** First point where two strings differ, with a little context on each side. */
 function firstDifference(a, b) {
@@ -70,8 +86,8 @@ export function compareRenders(before, after) {
       diffs.push({ slug, route: s.route, problem: `outcome ${s.outcome} -> ${t.outcome}` });
     const fa = path.join(before.html, `${slug}.html`);
     const fb = path.join(after.html, `${slug}.html`);
-    const ha = readIfExists(fa);
-    const hb = readIfExists(fb);
+    const ha = nullable(readIfExists(fa));
+    const hb = nullable(readIfExists(fb));
     if (ha !== hb)
       diffs.push({
         slug,

@@ -144,11 +144,11 @@ export default function ClientPage() {
 `,
   'apps/web/src/components/greeting-card.test.tsx': `export const x = <p>Test text only</p>;
 `,
-  'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv': `semantic_group,english,bn_BD_draft,automated_checks
-SG-1,Welcome back,\u09ab\u09bf\u09b0\u09c7 \u0986\u09b8\u09be\u09df \u09b8\u09cd\u09ac\u09be\u0997\u09a4\u09ae,PASS
-SG-2,Hide,\u09b2\u09c1\u0995\u09be\u09a8,GLOSSARY_TERM_MISSING
-SG-3,Photo of {name},\u099b\u09ac\u09bf,PASS
-SG-4,Last checked {when}.,\u09b6\u09c7\u09b7 \u09af\u09be\u099a\u09be\u0987 {when}\u0964,PASS (WARN_LENGTH)
+  'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv': `semantic_group,review_queue,english,bn_BD_draft,automated_checks
+SG-1,ORDINARY_UI,Welcome back,\u09ab\u09bf\u09b0\u09c7 \u0986\u09b8\u09be\u09df \u09b8\u09cd\u09ac\u09be\u0997\u09a4\u09ae,PASS
+SG-2,ORDINARY_UI,Hide,\u09b2\u09c1\u0995\u09be\u09a8,GLOSSARY_TERM_MISSING
+SG-3,ORDINARY_UI,Photo of {name},\u099b\u09ac\u09bf,PASS
+SG-4,ORDINARY_UI,Last checked {when}.,\u09b6\u09c7\u09b7 \u09af\u09be\u099a\u09be\u0987 {when}\u0964,PASS (WARN_LENGTH)
 `,
 };
 
@@ -183,70 +183,23 @@ export const readTree = (root, rels) =>
 
 // ---------------------------------------------------------------- message formatting
 /**
- * The runtime's message formatter (packages/i18n/src/icu.ts) when it is on this branch; otherwise
- * a reference copy of its documented contract: {token}, and {n, plural, =N {...} one {...}
- * other {...}} with # as the locale-formatted number.
+ * The runtime's own message formatter (packages/i18n/src/icu.ts). There is deliberately no
+ * stand-in copy: a second implementation could drift from the runtime and quietly decide what
+ * the "English is unchanged" tests accept. If the runtime is missing the tests fail loudly.
  */
 let formatter = null;
 export async function loadFormatter() {
   if (formatter) return formatter;
   const real = path.join(REPO, 'packages/i18n/src/icu.ts');
-  if (fs.existsSync(real)) {
-    const mod = await import(real);
-    if (typeof mod.formatMessage === 'function') {
-      formatter = {
-        name: 'runtime',
-        format: (tpl, params) => mod.formatMessage(tpl, params, 'en-GB'),
-      };
-      return formatter;
-    }
-  }
-  formatter = { name: 'reference', format: referenceFormat };
+  if (!fs.existsSync(real)) throw new Error(`the i18n runtime formatter is missing: ${real}`);
+  const mod = await import(real);
+  if (typeof mod.formatMessage !== 'function')
+    throw new Error('packages/i18n/src/icu.ts no longer exports formatMessage');
+  formatter = {
+    name: 'runtime',
+    format: (tpl, params) => mod.formatMessage(tpl, params, 'en-GB'),
+  };
   return formatter;
-}
-
-function closing(text, open) {
-  let depth = 0;
-  for (let i = open; i < text.length; i++) {
-    if (text[i] === '{') depth++;
-    else if (text[i] === '}' && --depth === 0) return i;
-  }
-  return -1;
-}
-function referenceFormat(tpl, params) {
-  let out = '';
-  for (let i = 0; i < tpl.length; ) {
-    if (tpl[i] !== '{') {
-      out += tpl[i++];
-      continue;
-    }
-    const close = closing(tpl, i);
-    const inner = tpl.slice(i + 1, close);
-    const plural = /^\s*(\w+)\s*,\s*plural\s*,([\s\S]*)$/.exec(inner);
-    if (plural) {
-      const value = params?.[plural[1]];
-      const branches = new Map();
-      const src = plural[2];
-      for (let j = 0; j < src.length; ) {
-        while (/\s/.test(src[j] ?? '')) j++;
-        if (j >= src.length) break;
-        const o = src.indexOf('{', j);
-        const c = closing(src, o);
-        branches.set(src.slice(j, o).trim(), src.slice(o + 1, c));
-        j = c + 1;
-      }
-      const body =
-        branches.get(`=${value}`) ??
-        branches.get(new Intl.PluralRules('en-GB').select(value)) ??
-        branches.get('other');
-      out += referenceFormat(body, params).replaceAll(
-        '#',
-        new Intl.NumberFormat('en-GB').format(value),
-      );
-    } else out += params?.[inner] === undefined ? `{${inner}}` : String(params[inner]);
-    i = close + 1;
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------- rendering
