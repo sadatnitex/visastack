@@ -1,6 +1,6 @@
 # Bengali Runtime: How It Works
 
-The language switch (`LANGUAGE_CHOICE_ENABLED` in `apps/web/src/lib/language-choice.ts`) is off, so every visitor sees English. Everything below is built and tested but shows no Bengali until the switch is turned on.
+Bengali localization is in progress by owner decision (2026-11-12); see docs/localization/ and docs/localization/data/drafts/OWNER_DECISIONS.json. The language switch (`LANGUAGE_CHOICE_ENABLED` in `apps/web/src/lib/language-choice.ts`) is on since PR #516: a visitor who picks Bengali sees every converted screen in Bengali, and anything not converted yet, or held back, stays English.
 
 ## Adding a catalogue for a surface
 
