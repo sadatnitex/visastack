@@ -362,7 +362,7 @@ export default async function ApplicantOverviewPage({
         actions={
           data.manage?.lifecycle.state === 'RECENTLY_DELETED' ? undefined : (
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/missions#start-case`}>
-              {t('appApplicant.appApplicantIdPage.startACase')}
+              {t.node('appApplicant.appApplicantIdPage.startACase')}
             </Link>
           )
         }
@@ -377,7 +377,7 @@ export default async function ApplicantOverviewPage({
         <DepthSwitch family="traveller-home" initial={depth} copy={depthWords} notesBehindInfo />
         {partial ? (
           <output className="notice notice-warn">
-            {t('appApplicant.appApplicantIdPage.someSectionsAreUnavailableUnavailableTotals')}
+            {t.node('appApplicant.appApplicantIdPage.someSectionsAreUnavailableUnavailableTotals')}
           </output>
         ) : null}
         <NextStepCard {...next} />
@@ -397,14 +397,14 @@ export default async function ApplicantOverviewPage({
             href={`/app/applicant/${id}/missions`}
           >
             <span className="lift-tile-label">
-              {t('appApplicant.appApplicantIdPage.activeCases')}
+              {t.node('appApplicant.appApplicantIdPage.activeCases')}
             </span>
             <strong
               className={`lift-tile-numeral${data.missions.ok ? '' : ' traveller-metric-off'}`}
             >
               {data.missions.ok
                 ? numberText(data.active.length, locale)
-                : t('appApplicant.appApplicantIdPage.unavailable')}
+                : t.node('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
           <Link
@@ -413,14 +413,14 @@ export default async function ApplicantOverviewPage({
             href={`/app/applicant/${id}/documents`}
           >
             <span className="lift-tile-label">
-              {t('appApplicant.appApplicantIdPage.documentsInYourWallet')}
+              {t.node('appApplicant.appApplicantIdPage.documentsInYourWallet')}
             </span>
             <strong
               className={`lift-tile-numeral${data.documents.ok ? '' : ' traveller-metric-off'}`}
             >
               {data.documents.ok
                 ? numberText(documents.length, locale)
-                : t('appApplicant.appApplicantIdPage.unavailable')}
+                : t.node('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
           <Link
@@ -429,7 +429,7 @@ export default async function ApplicantOverviewPage({
             href={`/app/applicant/${id}/evidence`}
           >
             <span className="lift-tile-label">
-              {t('appApplicant.appApplicantIdPage.itemsNeedingAttention')}
+              {t.node('appApplicant.appApplicantIdPage.itemsNeedingAttention')}
             </span>
             <strong
               className={`lift-tile-numeral${
@@ -438,15 +438,17 @@ export default async function ApplicantOverviewPage({
             >
               {data.documents.ok && data.requests.ok
                 ? numberText(attention, locale)
-                : t('appApplicant.appApplicantIdPage.unavailable')}
+                : t.node('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
         </div>
         {/* Owner, 5 Nov 2026: no page should have more than 30 words. What each total counts is one tap away. */}
         <AboutDisclosure summary={t('appApplicant.appApplicantIdPage.aboutTheseTotals')}>
-          <p>{t('appApplicant.appApplicantIdPage.closedAndCancelledCasesAreExcluded')}</p>
-          <p>{t('appApplicant.appApplicantIdPage.openDocumentsToReviewProcessingAnd')}</p>
-          <p>{t('appApplicant.appApplicantIdPage.requestsSuggestedDetailsAndFlaggedDocuments')}</p>
+          <p>{t.node('appApplicant.appApplicantIdPage.closedAndCancelledCasesAreExcluded')}</p>
+          <p>{t.node('appApplicant.appApplicantIdPage.openDocumentsToReviewProcessingAnd')}</p>
+          <p>
+            {t.node('appApplicant.appApplicantIdPage.requestsSuggestedDetailsAndFlaggedDocuments')}
+          </p>
         </AboutDisclosure>
         <div className="split traveller-working-area">
           <div className="split-main">
@@ -455,8 +457,8 @@ export default async function ApplicantOverviewPage({
                 <article className="card home-path" aria-labelledby="home-path-title">
                   <h3 id="home-path-title">
                     {pathDone === 0
-                      ? t('appApplicant.appApplicantIdPage.threeStepsToGetReady')
-                      : t('appApplicant.appApplicantIdPage.pathdoneOfLengthStepsDoneKeep', {
+                      ? t.node('appApplicant.appApplicantIdPage.threeStepsToGetReady')
+                      : t.node('appApplicant.appApplicantIdPage.pathdoneOfLengthStepsDoneKeep', {
                           pathDone: pathDone,
                           length: pathSteps.length,
                         })}
@@ -483,11 +485,11 @@ export default async function ApplicantOverviewPage({
                           </span>
                           {step.done ? (
                             <span className="home-path-state">
-                              {t('appApplicant.appApplicantIdPage.done')}
+                              {t.node('appApplicant.appApplicantIdPage.done')}
                             </span>
                           ) : step.key === pathNext ? (
                             <span className="home-path-state home-path-next">
-                              {t('appApplicant.appApplicantIdPage.next')}
+                              {t.node('appApplicant.appApplicantIdPage.next')}
                             </span>
                           ) : null}
                         </Link>
@@ -499,9 +501,9 @@ export default async function ApplicantOverviewPage({
             ) : null}
             <div className="depth-item" {...atLevel('browse')}>
               <div className="traveller-section-heading">
-                <h3>{t('appApplicant.appApplicantIdPage.continueWhereYouLeftOff')}</h3>
+                <h3>{t.node('appApplicant.appApplicantIdPage.continueWhereYouLeftOff')}</h3>
                 <Link href={`/app/applicant/${id}/missions`}>
-                  {t('appApplicant.appApplicantIdPage.allCases')}
+                  {t.node('appApplicant.appApplicantIdPage.allCases')}
                 </Link>
               </div>
               <article className="card traveller-featured-case">
@@ -510,7 +512,7 @@ export default async function ApplicantOverviewPage({
                     icon="alert"
                     title={t('appApplicant.appApplicantIdPage.casesAreUnavailable')}
                   >
-                    {t('appApplicant.appApplicantIdPage.refreshToTryAgain')}
+                    {t.node('appApplicant.appApplicantIdPage.refreshToTryAgain')}
                   </EmptyState>
                 ) : data.featured ? (
                   <>
@@ -518,17 +520,18 @@ export default async function ApplicantOverviewPage({
                       <h4>{data.featured.title}</h4>
                       <StatusBadge tone="neutral">
                         {STAGE_LABELS[data.featured.state] ??
-                          t('appApplicant.appApplicantIdPage.inProgress')}
+                          t.node('appApplicant.appApplicantIdPage.inProgress')}
                       </StatusBadge>
                     </div>
                     <p className="muted">
-                      {data.featured.jurisdiction ?? t('appApplicant.appApplicantIdPage.visaCase')}{' '}
+                      {data.featured.jurisdiction ??
+                        t.node('appApplicant.appApplicantIdPage.visaCase')}{' '}
                       ·{' '}
                       {data.featured.serviceCategory ??
-                        t('appApplicant.appApplicantIdPage.personalApplication')}
+                        t.node('appApplicant.appApplicantIdPage.personalApplication')}
                     </p>
                     <div className="traveller-checklist">
-                      <strong>{t('appApplicant.appApplicantIdPage.checklistProgress')}</strong>
+                      <strong>{t.node('appApplicant.appApplicantIdPage.checklistProgress')}</strong>
                       {data.readiness?.ok && data.readiness.value.requiredCount > 0 ? (
                         <ProgressMeter
                           size={6}
@@ -551,18 +554,18 @@ export default async function ApplicantOverviewPage({
                       )}
                       <p className="muted">
                         {!data.featured.packVersionId
-                          ? t('appApplicant.appApplicantIdPage.untilAChecklistIsAttachedYou')
-                          : t(
+                          ? t.node('appApplicant.appApplicantIdPage.untilAChecklistIsAttachedYou')
+                          : t.node(
                               'appApplicant.appApplicantIdPage.requirementCompletenessIsNotAnApproval',
                             )}
                       </p>
                     </div>
                     <div className="traveller-section-heading">
                       <Link className="btn btn-secondary" href={`/app/mission/${data.featured.id}`}>
-                        {t('appApplicant.appApplicantIdPage.continueCase')}
+                        {t.node('appApplicant.appApplicantIdPage.continueCase')}
                       </Link>
                       <span className="muted">
-                        {t('appApplicant.appApplicantIdPage.updatedFormattimestampdate', {
+                        {t.node('appApplicant.appApplicantIdPage.updatedFormattimestampdate', {
                           formatTimestampDate: formatTimestampDate(data.featured.updatedAt, locale),
                         })}
                       </span>
@@ -578,7 +581,7 @@ export default async function ApplicantOverviewPage({
                       label: 'Start a Case',
                     }}
                   >
-                    {t('appApplicant.appApplicantIdPage.aCaseIsWhereOneVisa')}
+                    {t.node('appApplicant.appApplicantIdPage.aCaseIsWhereOneVisa')}
                   </EmptyState>
                 )}
               </article>
@@ -593,7 +596,8 @@ export default async function ApplicantOverviewPage({
                       {...(m.packVersionId ? {} : { meta: NO_CHECKLIST_LINE })}
                       pill={
                         <StatusBadge tone="neutral">
-                          {STAGE_LABELS[m.state] ?? t('appApplicant.appApplicantIdPage.inProgress')}
+                          {STAGE_LABELS[m.state] ??
+                            t.node('appApplicant.appApplicantIdPage.inProgress')}
                         </StatusBadge>
                       }
                     />
@@ -602,13 +606,13 @@ export default async function ApplicantOverviewPage({
               ) : null}
             </div>
             <div className="depth-item" {...atLevel('browse')}>
-              <h3>{t('appApplicant.appApplicantIdPage.needsYourAttention')}</h3>
+              <h3>{t.node('appApplicant.appApplicantIdPage.needsYourAttention')}</h3>
               {attention === 0 ? (
                 <p className="home-clear">
                   <span aria-hidden="true" className="home-clear-mark">
                     {'\u2713'}
                   </span>
-                  {t('appApplicant.appApplicantIdPage.nothingNeedsADecisionRightNow')}
+                  {t.node('appApplicant.appApplicantIdPage.nothingNeedsADecisionRightNow')}
                 </p>
               ) : null}
               {attention > 0 ? (
@@ -685,7 +689,7 @@ export default async function ApplicantOverviewPage({
               />
             </div>
             <div className="depth-item" {...atLevel('everything')}>
-              <h3>{t('appApplicant.appApplicantIdPage.upcoming')}</h3>
+              <h3>{t.node('appApplicant.appApplicantIdPage.upcoming')}</h3>
               <article className="card">
                 {agenda.length ? (
                   <ol className="traveller-agenda">
@@ -709,14 +713,14 @@ export default async function ApplicantOverviewPage({
                         : t('appApplicant.appApplicantIdPage.datesAreUnavailable')
                     }
                   >
-                    {t('appApplicant.appApplicantIdPage.setATargetDeadlineOrTravel')}
+                    {t.node('appApplicant.appApplicantIdPage.setATargetDeadlineOrTravel')}
                   </EmptyState>
                 )}
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/expiry`}>
-                  {t('appApplicant.appApplicantIdPage.datesExpiry')}
+                  {t.node('appApplicant.appApplicantIdPage.datesExpiry')}
                 </Link>
               </article>
-              <h3>{t('appApplicant.appApplicantIdPage.recentActivity')}</h3>
+              <h3>{t.node('appApplicant.appApplicantIdPage.recentActivity')}</h3>
               <article className="card">
                 {activity.length ? (
                   <ol className="traveller-activity">
@@ -735,20 +739,20 @@ export default async function ApplicantOverviewPage({
                     icon="activity"
                     title={t('appApplicant.appApplicantIdPage.noRecordedActivityYet')}
                   >
-                    {t('appApplicant.appApplicantIdPage.profileChangesUploadsAndCaseUpdates')}
+                    {t.node('appApplicant.appApplicantIdPage.profileChangesUploadsAndCaseUpdates')}
                   </EmptyState>
                 )}
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/history`}>
-                  {t('appApplicant.appApplicantIdPage.profileHistory')}
+                  {t.node('appApplicant.appApplicantIdPage.profileHistory')}
                 </Link>
               </article>
               <article className="card home-profile">
-                <h3>{t('appApplicant.appApplicantIdPage.profileSharing')}</h3>
+                <h3>{t.node('appApplicant.appApplicantIdPage.profileSharing')}</h3>
                 {essentialsDone ? (
                   <>
                     <div className="meter-label">
                       <span>
-                        {t('appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections')}
+                        {t.node('appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections')}
                       </span>
                       <span>
                         {completed} / {completion.total}
@@ -767,7 +771,7 @@ export default async function ApplicantOverviewPage({
                 ) : (
                   <>
                     <div className="meter-label">
-                      <span>{t('appApplicant.appApplicantIdPage.essentialsAdded')}</span>
+                      <span>{t.node('appApplicant.appApplicantIdPage.essentialsAdded')}</span>
                       <span>
                         {numberText(essentials.answered, locale)} /{' '}
                         {numberText(essentials.total, locale)}
@@ -783,10 +787,10 @@ export default async function ApplicantOverviewPage({
                   </>
                 )}
                 <p className="muted">
-                  {t('appApplicant.appApplicantIdPage.completenessDoesNotVerifyIdentity')}
+                  {t.node('appApplicant.appApplicantIdPage.completenessDoesNotVerifyIdentity')}
                 </p>
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/profile`}>
-                  {t('appApplicant.appApplicantIdPage.continueProfile')}
+                  {t.node('appApplicant.appApplicantIdPage.continueProfile')}
                 </Link>
                 <p className="muted">
                   Active sharing grants:{' '}
@@ -795,7 +799,7 @@ export default async function ApplicantOverviewPage({
                     : 'Unavailable'}
                 </p>
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/sharing`}>
-                  {t('appApplicant.appApplicantIdPage.manageSharing')}
+                  {t.node('appApplicant.appApplicantIdPage.manageSharing')}
                 </Link>
               </article>
             </div>

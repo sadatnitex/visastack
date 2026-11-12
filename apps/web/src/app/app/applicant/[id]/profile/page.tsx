@@ -261,18 +261,18 @@ export default async function ApplicantProfilePage({
         actions={
           data.coreGranted ? (
             <a href="#profile-editor" className="btn btn-primary">
-              {t('appApplicant.appApplicantIdProfilePage.addInformation')}
+              {t.node('appApplicant.appApplicantIdProfilePage.addInformation')}
             </a>
           ) : (
             <Link className="btn btn-secondary" href="/app#permissions">
-              {t('appApplicant.appApplicantIdProfilePage.reviewPermissions')}
+              {t.node('appApplicant.appApplicantIdProfilePage.reviewPermissions')}
             </Link>
           )
         }
       />
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What the profile is, one tap away. */}
       <AboutDisclosure summary={t('appApplicant.appApplicantIdProfilePage.aboutThisProfile')}>
-        <p>{t('appApplicant.appApplicantIdProfilePage.oneReusableSetOfDetailsEvery')}</p>
+        <p>{t.node('appApplicant.appApplicantIdProfilePage.oneReusableSetOfDetailsEvery')}</p>
         <p className="muted">
           {data.applicant.relationship === 'SELF'
             ? 'Personal profile'
@@ -312,9 +312,9 @@ export default async function ApplicantProfilePage({
             profile. The full count follows once the essentials are added (and is always shown
             under Show All Sections). */}
           <div className="profile-completeness">
-            <span>{t('appApplicant.appApplicantIdProfilePage.essentialsAdded')}</span>
+            <span>{t.node('appApplicant.appApplicantIdProfilePage.essentialsAdded')}</span>
             <strong>
-              {t('appApplicant.appApplicantIdProfilePage.answeredOfTotal', {
+              {t.node('appApplicant.appApplicantIdProfilePage.answeredOfTotal', {
                 answered: essentials.answered,
                 total: essentials.total,
               })}
@@ -329,14 +329,14 @@ export default async function ApplicantProfilePage({
             <AboutDisclosure summary={t('appApplicant.appApplicantIdProfilePage.aboutEssentials')}>
               <p className="muted">
                 {essentialsDone
-                  ? t(
+                  ? t.node(
                       'appApplicant.appApplicantIdProfilePage.fullProfileCompletenessOfTheDetails',
                       {
                         completeness: completeness,
                         plural: plural(view.openSections, 'open section'),
                       },
                     )
-                  : t('appApplicant.appApplicantIdProfilePage.theDetailsMostVisaFormsAsk')}
+                  : t.node('appApplicant.appApplicantIdProfilePage.theDetailsMostVisaFormsAsk')}
               </p>
             </AboutDisclosure>
           </div>
@@ -369,7 +369,7 @@ export default async function ApplicantProfilePage({
                 title={t('appApplicant.appApplicantIdProfilePage.chooseWhetherToSaveYourProfile')}
                 action={{ href: '/app#permissions', label: 'Review Permissions' }}
               >
-                {t('appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy')}
+                {t.node('appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy')}
               </EmptyState>
             )}
             <p className="muted profile-version-note">
@@ -382,28 +382,34 @@ export default async function ApplicantProfilePage({
             aria-label={t('appApplicant.appApplicantIdProfilePage.profileHealthAndLatestChanges')}
           >
             <div className="depth-item" {...atLevel('everything')}>
-              <h2>{t('appApplicant.appApplicantIdProfilePage.profileHealth')}</h2>
+              <h2>{t.node('appApplicant.appApplicantIdProfilePage.profileHealth')}</h2>
               <article className="card rows">
                 <div className="row">
-                  <span>{t('appApplicant.appApplicantIdProfilePage.confirmedByTheTraveller')}</span>
+                  <span>
+                    {t.node('appApplicant.appApplicantIdProfilePage.confirmedByTheTraveller')}
+                  </span>
                   <strong>{numberText(confirmed, locale)}</strong>
                 </div>
                 <div className="row">
-                  <span>{t('appApplicant.appApplicantIdProfilePage.fieldsBackedByADocument')}</span>
+                  <span>
+                    {t.node('appApplicant.appApplicantIdProfilePage.fieldsBackedByADocument')}
+                  </span>
                   <strong>{numberText(supported, locale)}</strong>
                 </div>
                 <div className="row">
-                  <span>{t('appApplicant.appApplicantIdProfilePage.fieldsThatDoNotMatch')}</span>
+                  <span>
+                    {t.node('appApplicant.appApplicantIdProfilePage.fieldsThatDoNotMatch')}
+                  </span>
                   <strong>{numberText(conflictedCount, locale)}</strong>
                 </div>
                 <p className="muted">
-                  {t('appApplicant.appApplicantIdProfilePage.theseCountsAreSeparateTheyAre')}
+                  {t.node('appApplicant.appApplicantIdProfilePage.theseCountsAreSeparateTheyAre')}
                 </p>
                 <Link href={`/app/applicant/${id}/expiry`}>
-                  {t('appApplicant.appApplicantIdProfilePage.datesExpiry')}
+                  {t.node('appApplicant.appApplicantIdProfilePage.datesExpiry')}
                 </Link>
               </article>
-              <h2>{t('appApplicant.appApplicantIdProfilePage.latestChanges')}</h2>
+              <h2>{t.node('appApplicant.appApplicantIdProfilePage.latestChanges')}</h2>
               <article className="card">
                 {changes.length ? (
                   <ol className="traveller-activity">
@@ -412,11 +418,11 @@ export default async function ApplicantProfilePage({
                         <Link href={`/app/applicant/${id}/history`}>
                           <strong>
                             {fieldLabel(entry.fieldKey) ??
-                              t('appApplicant.appApplicantIdProfilePage.profileDetail')}
+                              t.node('appApplicant.appApplicantIdProfilePage.profileDetail')}
                           </strong>
                           <span>
                             {fieldMethodWords(entry.method) ??
-                              t('appApplicant.appApplicantIdProfilePage.recordedUpdate')}
+                              t.node('appApplicant.appApplicantIdProfilePage.recordedUpdate')}
                           </span>
                         </Link>
                         <time dateTime={entry.updatedAt as string}>
@@ -430,26 +436,32 @@ export default async function ApplicantProfilePage({
                     icon="activity"
                     title={t('appApplicant.appApplicantIdProfilePage.noSavedChangesYet')}
                   >
-                    {t('appApplicant.appApplicantIdProfilePage.yourSavedFieldVersionsWillAppear')}
+                    {t.node(
+                      'appApplicant.appApplicantIdProfilePage.yourSavedFieldVersionsWillAppear',
+                    )}
                   </EmptyState>
                 )}
                 <Link href={`/app/applicant/${id}/history`}>
-                  {t('appApplicant.appApplicantIdProfilePage.allProfileHistory')}
+                  {t.node('appApplicant.appApplicantIdProfilePage.allProfileHistory')}
                 </Link>
               </article>
             </div>
             <div className="profile-review-note">
               <strong className="profile-review-label">
-                {t('appApplicant.appApplicantIdProfilePage.youDecideWhatBecomesAFact')}
+                {t.node('appApplicant.appApplicantIdProfilePage.youDecideWhatBecomesAFact')}
               </strong>
-              <p>{t('appApplicant.appApplicantIdProfilePage.aiSuggestionsWaitForYourApproval')}</p>
+              <p>
+                {t.node('appApplicant.appApplicantIdProfilePage.aiSuggestionsWaitForYourApproval')}
+              </p>
               <AboutDisclosure
                 summary={t('appApplicant.appApplicantIdProfilePage.aboutSuggestions')}
               >
-                <p>{t('appApplicant.appApplicantIdProfilePage.aiSuggestionsDoNotChangeYour')}</p>
+                <p>
+                  {t.node('appApplicant.appApplicantIdProfilePage.aiSuggestionsDoNotChangeYour')}
+                </p>
               </AboutDisclosure>
               <Link href={`/app/applicant/${id}/documents`}>
-                {t('appApplicant.appApplicantIdProfilePage.reviewDocumentSuggestions')}
+                {t.node('appApplicant.appApplicantIdProfilePage.reviewDocumentSuggestions')}
               </Link>
             </div>
           </aside>

@@ -30,13 +30,13 @@ export function CaseTriageSummary({
     <section className="case-triage" aria-labelledby={headingId}>
       <div className="case-triage-head">
         <h3 className="case-triage-title" id={headingId}>
-          {t('appAgency.appAgencyOrgidCaseTriageSummary.whereThingsStand')}
+          {t.node('appAgency.appAgencyOrgidCaseTriageSummary.whereThingsStand')}
         </h3>
         <StatusBadge tone={STATE_TONE[view.state]}>{view.stateLabel}</StatusBadge>
       </div>
       {view.groups.length === 0 ? (
         <p className="muted case-triage-empty">
-          {t('appAgency.appAgencyOrgidCaseTriageSummary.nothingHasBeenAskedForOr')}
+          {t.node('appAgency.appAgencyOrgidCaseTriageSummary.nothingHasBeenAskedForOr')}
         </p>
       ) : (
         <ul className="case-triage-groups">
@@ -57,7 +57,9 @@ export function CaseTriageSummary({
                     ) : null}
                     {item.due ? (
                       <span className="case-triage-notes">
-                        {t('appAgency.appAgencyOrgidCaseTriageSummary.dueDue', { due: item.due })}
+                        {t.node('appAgency.appAgencyOrgidCaseTriageSummary.dueDue', {
+                          due: item.due,
+                        })}
                       </span>
                     ) : null}
                   </li>
@@ -69,7 +71,7 @@ export function CaseTriageSummary({
       )}
       {view.requestsLeftOut ? (
         <p className="muted case-triage-empty">
-          {t('appAgency.appAgencyOrgidCaseTriageSummary.itemsAskedOfTheTravellerAre')}
+          {t.node('appAgency.appAgencyOrgidCaseTriageSummary.itemsAskedOfTheTravellerAre')}
         </p>
       ) : null}
     </section>

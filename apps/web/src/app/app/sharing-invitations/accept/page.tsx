@@ -41,18 +41,22 @@ export default async function SharingInvitationPage({
       return (
         <section className="section container">
           <h1 className="section-title">
-            {t('appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable')}
+            {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable')}
           </h1>
           <p>{result.error.message}</p>
-          <p>{t('appSharingInvitations.appSharingInvitationsAcceptPage.askTheSenderForANew')}</p>
+          <p>
+            {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.askTheSenderForANew')}
+          </p>
           <Link
             className="btn btn-secondary"
             href={`/auth/sign-in?next=${encodeURIComponent(`/app/sharing-invitations/accept?token=${token}`)}`}
           >
-            {t('appSharingInvitations.appSharingInvitationsAcceptPage.signInWithTheInvitedEmail')}
+            {t.node(
+              'appSharingInvitations.appSharingInvitationsAcceptPage.signInWithTheInvitedEmail',
+            )}
           </Link>
           <Link href="/app">
-            {t('appSharingInvitations.appSharingInvitationsAcceptPage.returnToYourWorkspace')}
+            {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.returnToYourWorkspace')}
           </Link>
         </section>
       );
@@ -66,27 +70,27 @@ export default async function SharingInvitationPage({
     return (
       <section className="section container">
         <h1 className="section-title">
-          {t('appSharingInvitations.appSharingInvitationsAcceptPage.reviewSharedAccess')}
+          {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.reviewSharedAccess')}
         </h1>
         <article className="card">
           <p>
-            {t(
+            {t.node(
               'appSharingInvitations.appSharingInvitationsAcceptPage.openingThisInvitationGrantsNoAccess',
             )}
           </p>
           <dl className="rows">
             {sender ? (
               <div className="row">
-                <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.sharedBy')}</dt>
+                <dt>{t.node('appSharingInvitations.appSharingInvitationsAcceptPage.sharedBy')}</dt>
                 <dd>{sender.email}</dd>
               </div>
             ) : null}
             <div className="row">
-              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.purpose')}</dt>
+              <dt>{t.node('appSharingInvitations.appSharingInvitationsAcceptPage.purpose')}</dt>
               <dd>{invite.purpose}</dd>
             </div>
             <div className="row">
-              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.permissions')}</dt>
+              <dt>{t.node('appSharingInvitations.appSharingInvitationsAcceptPage.permissions')}</dt>
               <dd>
                 <ul className="u-m-0">
                   {invite.actions.map((action) => (
@@ -97,35 +101,37 @@ export default async function SharingInvitationPage({
             </div>
             <div className="row">
               <dt>
-                {t('appSharingInvitations.appSharingInvitationsAcceptPage.profileCategories')}
+                {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.profileCategories')}
               </dt>
               <dd>
                 {invite.categories?.map(categoryLabel).join(', ') ||
-                  t('appSharingInvitations.appSharingInvitationsAcceptPage.allProfileCategories')}
+                  t.node(
+                    'appSharingInvitations.appSharingInvitationsAcceptPage.allProfileCategories',
+                  )}
               </dd>
             </div>
             <div className="row">
-              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.documents')}</dt>
+              <dt>{t.node('appSharingInvitations.appSharingInvitationsAcceptPage.documents')}</dt>
               <dd>
                 {invite.documentIds
                   ? plural(invite.documentIds.length, 'selected document')
                   : invite.documentScopeSnapshot
-                    ? t(
+                    ? t.node(
                         'appSharingInvitations.appSharingInvitationsAcceptPage.pluralCapturedWhenInvited',
                         { plural: plural(invite.documentScopeSnapshot.length, 'document') },
                       )
-                    : t(
+                    : t.node(
                         'appSharingInvitations.appSharingInvitationsAcceptPage.allDocumentsInThisProfile',
                       )}
               </dd>
             </div>
             <div className="row">
-              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds')}</dt>
+              <dt>{t.node('appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds')}</dt>
               <dd>{formatTimestampDate(invite.grantExpiryAt)}</dd>
             </div>
             <div className="row">
               <dt>
-                {t('appSharingInvitations.appSharingInvitationsAcceptPage.invitationExpires')}
+                {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.invitationExpires')}
               </dt>
               <dd>{formatTimestampDate(invite.expiresAt)}</dd>
             </div>
@@ -140,7 +146,7 @@ export default async function SharingInvitationPage({
             </p>
           )}
           <Link href="/app">
-            {t('appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting')}
+            {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting')}
           </Link>
         </article>
       </section>

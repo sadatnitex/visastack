@@ -30,7 +30,7 @@ export function ClientInvitationForm({
   if (activeMembers.length === 0) {
     return (
       <p className="card-body">
-        {t('appAgency.appAgencyOrgidClientInvitationForm.addAtLeastOneActiveTeam')}
+        {t.node('appAgency.appAgencyOrgidClientInvitationForm.addAtLeastOneActiveTeam')}
       </p>
     );
   }
@@ -41,7 +41,7 @@ export function ClientInvitationForm({
       <div className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor="displayName">
-            {t('appAgency.appAgencyOrgidClientInvitationForm.travellerName')}
+            {t.node('appAgency.appAgencyOrgidClientInvitationForm.travellerName')}
           </label>
           <input
             id="displayName"
@@ -54,7 +54,7 @@ export function ClientInvitationForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="contactDestination">
-            {t('appAgency.appAgencyOrgidClientInvitationForm.clientEmailAddress')}
+            {t.node('appAgency.appAgencyOrgidClientInvitationForm.clientEmailAddress')}
           </label>
           <input
             id="contactDestination"
@@ -67,12 +67,12 @@ export function ClientInvitationForm({
             placeholder={t('appAgency.appAgencyOrgidClientInvitationForm.janeExampleCom')}
           />
           <p id="contactDestination-hint" className="disclosure-hint">
-            {t('appAgency.appAgencyOrgidClientInvitationForm.onlyThatEmailAddressCanAccept')}
+            {t.node('appAgency.appAgencyOrgidClientInvitationForm.onlyThatEmailAddressCanAccept')}
           </p>
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="requestedRoute">
-            {t('appAgency.appAgencyOrgidClientInvitationForm.requestedRouteOptional')}
+            {t.node('appAgency.appAgencyOrgidClientInvitationForm.requestedRouteOptional')}
           </label>
           <input
             id="requestedRoute"
@@ -84,7 +84,7 @@ export function ClientInvitationForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="caseOwnerAccountId">
-            {t('appAgency.appAgencyOrgidClientInvitationForm.caseOwner')}
+            {t.node('appAgency.appAgencyOrgidClientInvitationForm.caseOwner')}
           </label>
           <select id="caseOwnerAccountId" name="caseOwnerAccountId" className="input" required>
             {activeMembers.map((m) => (

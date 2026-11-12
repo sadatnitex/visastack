@@ -72,7 +72,7 @@ export default async function MissionSnapshotsPage({
       <article className="card">
         {snapshots.length === 0 ? (
           <p className="card-body">
-            {t('appMission.appMissionIdSnapshotsPage.noSnapshotsYetTakeOneFrom')}
+            {t.node('appMission.appMissionIdSnapshotsPage.noSnapshotsYetTakeOneFrom')}
           </p>
         ) : (
           <div className="rows" id="snapshots-list">
@@ -87,7 +87,7 @@ export default async function MissionSnapshotsPage({
                   Version {snap.version}
                   {snap.isPacket ? (
                     <span className="badge badge-success case-snapshot-packet">
-                      {t('appMission.appMissionIdSnapshotsSnapshotidPage.applicationPacket')}
+                      {t.node('appMission.appMissionIdSnapshotsSnapshotidPage.applicationPacket')}
                     </span>
                   ) : null}
                 </span>
@@ -108,16 +108,16 @@ export default async function MissionSnapshotsPage({
                 className="btn btn-secondary u-btn-sm show-more-link"
                 href={pagingHref(pathname, query, { before: nextCursor }, 'snapshots-list')}
               >
-                {t('appMission.appMissionIdSnapshotsPage.showOlderSnapshots')}
+                {t.node('appMission.appMissionIdSnapshotsPage.showOlderSnapshots')}
               </Link>
             ) : (
               <p className="muted u-fs-085 u-m-0">
-                {t('appMission.appMissionIdSnapshotsPage.theseAreTheOldestSnapshotsOf')}
+                {t.node('appMission.appMissionIdSnapshotsPage.theseAreTheOldestSnapshotsOf')}
               </p>
             )}
             {before ? (
               <Link href={pathname}>
-                {t('appMission.appMissionIdSnapshotsPage.backToTheNewestSnapshots')}
+                {t.node('appMission.appMissionIdSnapshotsPage.backToTheNewestSnapshots')}
               </Link>
             ) : null}
           </nav>

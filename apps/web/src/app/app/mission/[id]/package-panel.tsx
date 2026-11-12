@@ -83,18 +83,18 @@ export function PackagePanel({
   const caveats = pkg.freshness?.caveats ?? [];
   return (
     <div className="package-panel">
-      <h2 className="card-title">{t('appMission.appMissionIdPackagePanel.tripPackage')}</h2>
+      <h2 className="card-title">{t.node('appMission.appMissionIdPackagePanel.tripPackage')}</h2>
       <p>
         <span className={`badge ${PHRASE_TONE[pkg.phrase]}`}>
           {PACKAGE_PHRASE_LABELS[pkg.phrase]}
         </span>
       </p>
       <p className="muted u-fs-085">
-        {t('appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady')}
+        {t.node('appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady')}
       </p>
       {editable && listedIds.size > 0 ? (
         <p className="muted u-fs-085">
-          {t('appMission.appMissionIdPackagePanel.toChooseWhichFileAnItem')}
+          {t.node('appMission.appMissionIdPackagePanel.toChooseWhichFileAnItem')}
         </p>
       ) : null}
       {pkg.reasons.length > 0 ? (
@@ -115,17 +115,17 @@ export function PackagePanel({
       {pkg.questions.length > 0 ? (
         <section aria-labelledby="package-questions-heading">
           <h3 id="package-questions-heading" className="package-subheading">
-            {t('appMission.appMissionIdPackagePanel.questionsForThisChecklist')}
+            {t.node('appMission.appMissionIdPackagePanel.questionsForThisChecklist')}
           </h3>
           <ul>
             {pkg.questions.map((q) =>
               q.kind === 'TRAVEL_DATES' ? (
                 <li key="dates">
-                  {t('appMission.appMissionIdPackagePanel.addYourTravelDatesUnderEdit')}
+                  {t.node('appMission.appMissionIdPackagePanel.addYourTravelDatesUnderEdit')}
                 </li>
               ) : (
                 <li key={q.fieldKey ?? ''}>
-                  {t('appMission.appMissionIdPackagePanel.addAndConfirmYourItemnameIn', {
+                  {t.node('appMission.appMissionIdPackagePanel.addAndConfirmYourItemnameIn', {
                     itemName: itemName({ kind: 'FIELD', key: q.fieldKey ?? '' }),
                   })}
                 </li>
@@ -138,7 +138,7 @@ export function PackagePanel({
       {items.length > 0 ? (
         <section aria-labelledby="package-items-heading">
           <h3 id="package-items-heading" className="package-subheading">
-            {t('appMission.appMissionIdPackagePanel.otherItemsInThisPackage')}
+            {t.node('appMission.appMissionIdPackagePanel.otherItemsInThisPackage')}
           </h3>
           <ul className="package-items">
             {items.map((item) => {
@@ -171,7 +171,7 @@ export function PackagePanel({
       {caveats.length > 0 ? (
         <section aria-labelledby="package-freshness-heading">
           <h3 id="package-freshness-heading" className="package-subheading">
-            {t('appMission.appMissionIdPackagePanel.freshnessCheck')}
+            {t.node('appMission.appMissionIdPackagePanel.freshnessCheck')}
           </h3>
           <ul>
             {caveats.map((caveat) => (
@@ -183,10 +183,10 @@ export function PackagePanel({
 
       <section aria-labelledby="package-outside-heading">
         <h3 id="package-outside-heading" className="package-subheading">
-          {t('appMission.appMissionIdPackagePanel.outsideVisastack')}
+          {t.node('appMission.appMissionIdPackagePanel.outsideVisastack')}
         </h3>
         <p className="muted u-fs-085">
-          {t('appMission.appMissionIdPackagePanel.visastackDoesNotDoTheseFor')}
+          {t.node('appMission.appMissionIdPackagePanel.visastackDoesNotDoTheseFor')}
         </p>
         <ul>
           {pkg.outsideSteps.map((step) => (
@@ -198,10 +198,13 @@ export function PackagePanel({
       {pkg.latestHandoff ? (
         <p className="muted u-fs-085">
           {pkg.latestHandoff.current
-            ? t('appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdate', {
-                formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt),
-              })
-            : t(
+            ? t.node(
+                'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdate',
+                {
+                  formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt),
+                },
+              )
+            : t.node(
                 'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdateBefore',
                 { formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt) },
               )}

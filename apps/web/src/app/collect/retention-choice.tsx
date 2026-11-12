@@ -39,9 +39,9 @@ export function RetentionChoice({
       aria-describedby={describedBy ? `${hintId} ${describedBy}` : hintId}
       aria-invalid={invalid || undefined}
     >
-      <legend>{t('collect.collectRetentionChoice.howLongWhoMayKeepYour', { who })}</legend>
+      <legend>{t.node('collect.collectRetentionChoice.howLongWhoMayKeepYour', { who })}</legend>
       <p id={hintId} className="muted u-fs-085">
-        {t('collect.collectRetentionChoice.chooseHowManyDaysAfterThis', { who })}
+        {t.node('collect.collectRetentionChoice.chooseHowManyDaysAfterThis', { who })}
       </p>
       <div className="collect-retention-options">
         {periods.map((days) => (
@@ -57,7 +57,7 @@ export function RetentionChoice({
             <span className="collect-retention-days">
               <span className="collect-retention-number">{days}</span>{' '}
               <span className="collect-retention-unit">
-                {t('collect.collectRetentionChoice.days')}
+                {t.node('collect.collectRetentionChoice.days')}
               </span>
             </span>
           </label>

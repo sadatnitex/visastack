@@ -166,20 +166,20 @@ export default async function AgencyCasesPage({
       <OpenCaseFromLink />
       <DepthSwitch family="agency-cases" initial={depth} copy={depthWords} notesBehindInfo />
       <article className="card">
-        <p className="card-kicker">{t('appAgency.appAgencyOrgidCasesPage.collaborate')}</p>
-        <h2 className="card-title">{t('appAgency.appAgencyOrgidCasesPage.cases')}</h2>
+        <p className="card-kicker">{t.node('appAgency.appAgencyOrgidCasesPage.collaborate')}</p>
+        <h2 className="card-title">{t.node('appAgency.appAgencyOrgidCasesPage.cases')}</h2>
         <AboutDisclosure
           summary={t('appAgency.appAgencyOrgidCasesPage.aboutCases')}
           className="u-mb-125"
         >
           <p className="card-body">
             {data.admin
-              ? t('appAgency.appAgencyOrgidCasesPage.assignATeamMemberAndLeave')
-              : t('appAgency.appAgencyOrgidCasesPage.leaveCaseNotesAndRecordDecisions')}
+              ? t.node('appAgency.appAgencyOrgidCasesPage.assignATeamMemberAndLeave')
+              : t.node('appAgency.appAgencyOrgidCasesPage.leaveCaseNotesAndRecordDecisions')}
           </p>
           {!empty && !openId && !open ? (
             <p className="card-body">
-              {t('appAgency.appAgencyOrgidCasesPage.chooseACaseToOpenIts')}
+              {t.node('appAgency.appAgencyOrgidCasesPage.chooseACaseToOpenIts')}
             </p>
           ) : null}
         </AboutDisclosure>
@@ -194,8 +194,8 @@ export default async function AgencyCasesPage({
               : {})}
           >
             {data.admin
-              ? t('appAgency.appAgencyOrgidCasesPage.noCasesAreReachableYetA')
-              : t('appAgency.appAgencyOrgidCasesPage.youArenTAssignedToAny')}
+              ? t.node('appAgency.appAgencyOrgidCasesPage.noCasesAreReachableYetA')
+              : t.node('appAgency.appAgencyOrgidCasesPage.youArenTAssignedToAny')}
           </EmptyState>
         ) : (
           <>
@@ -238,8 +238,8 @@ export default async function AgencyCasesPage({
                       </span>
                       <span className="agency-case-list-action">
                         {isOpen
-                          ? t('appAgency.appAgencyOrgidCasesPage.openNow')
-                          : t('appAgency.appAgencyOrgidCasesPage.openCase')}
+                          ? t.node('appAgency.appAgencyOrgidCasesPage.openNow')
+                          : t.node('appAgency.appAgencyOrgidCasesPage.openCase')}
                       </span>
                     </Link>
                     {data.accessEnds.get(row.missionId) ? (
@@ -274,7 +274,9 @@ export default async function AgencyCasesPage({
 
       {openId && !open ? (
         <article className="card u-mt-150" id="agency-open-case">
-          <p className="card-body">{t('appAgency.appAgencyOrgidCasesPage.thatCaseIsNotOpenTo')}</p>
+          <p className="card-body">
+            {t.node('appAgency.appAgencyOrgidCasesPage.thatCaseIsNotOpenTo')}
+          </p>
         </article>
       ) : null}
 

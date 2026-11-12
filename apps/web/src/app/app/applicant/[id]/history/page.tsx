@@ -174,7 +174,7 @@ export default async function HistoryPage({
             title={t('appApplicant.appApplicantIdHistoryPage.nothingSavedToThisProfileYet')}
             action={{ href: `/app/applicant/${id}/profile`, label: 'Add Your Essentials' }}
           >
-            {t('appApplicant.appApplicantIdHistoryPage.historyListsEverySavedVersionOf')}
+            {t.node('appApplicant.appApplicantIdHistoryPage.historyListsEverySavedVersionOf')}
           </EmptyState>
         </article>
       ) : (

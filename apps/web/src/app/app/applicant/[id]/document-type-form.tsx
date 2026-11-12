@@ -29,10 +29,12 @@ export function DocumentTypeForm({
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="documentId" value={documentId} />
       <label className="field-label" htmlFor={selectId}>
-        {t('appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument')}
+        {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument')}
       </label>
       <select id={selectId} name="docType" className="input" defaultValue={docType ?? ''}>
-        <option value="">{t('appApplicant.appApplicantIdDocumentTypeForm.notSetYet')}</option>
+        <option {...t.lang('appApplicant.appApplicantIdDocumentTypeForm.notSetYet')} value="">
+          {t('appApplicant.appApplicantIdDocumentTypeForm.notSetYet')}
+        </option>
         {groups.map((group) => (
           <optgroup key={group.key} label={group.label}>
             {group.choices.map((choice) => (
@@ -44,7 +46,7 @@ export function DocumentTypeForm({
         ))}
       </select>
       <label className="field-label" htmlFor={nameId}>
-        {t('appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType')}
+        {t.node('appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType')}
       </label>
       <div className="field-inline">
         <input
@@ -59,7 +61,7 @@ export function DocumentTypeForm({
           )}
         />
         <button type="submit" className="btn btn-secondary">
-          {t('appApplicant.appApplicantIdDocumentTypeForm.save')}
+          {t.node('appApplicant.appApplicantIdDocumentTypeForm.save')}
         </button>
       </div>
     </form>

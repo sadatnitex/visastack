@@ -156,7 +156,7 @@ export default async function AgencyClientsPage({
     return (
       <article className="card">
         <p className="card-body">
-          {t('appAgency.appAgencyOrgidClientsPage.invitingClientsAndRequestingEvidenceAre')}
+          {t.node('appAgency.appAgencyOrgidClientsPage.invitingClientsAndRequestingEvidenceAre')}
         </p>
       </article>
     );
@@ -184,13 +184,13 @@ export default async function AgencyClientsPage({
       <div className="agency-add-card lc-empty-host">
         <SectionCard heading={t('appAgency.appAgencyOrgidClientsPage.addPeopleAndRequests')}>
           <section className="agency-add-part" aria-labelledby="agency-add-clients">
-            <p className="card-kicker">{t('appAgency.appAgencyOrgidClientsPage.intake')}</p>
+            <p className="card-kicker">{t.node('appAgency.appAgencyOrgidClientsPage.intake')}</p>
             <h3 className="agency-add-title" id="agency-add-clients">
-              {t('appAgency.appAgencyOrgidClientsPage.clients')}
+              {t.node('appAgency.appAgencyOrgidClientsPage.clients')}
             </h3>
             <AboutDisclosure summary={t('appAgency.appAgencyOrgidClientsPage.aboutInvitations')}>
               <p className="card-body">
-                {t('appAgency.appAgencyOrgidClientsPage.inviteATravellerAsANew')}
+                {t.node('appAgency.appAgencyOrgidClientsPage.inviteATravellerAsANew')}
               </p>
             </AboutDisclosure>
             {invitations.total > 0 ? (
@@ -218,20 +218,20 @@ export default async function AgencyClientsPage({
                           // Saved without a valid email address before invitations became email-only:
                           // nobody can accept it.
                           <span className="badge badge-danger">
-                            {t(
+                            {t.node(
                               'appAgency.appAgencyOrgidClientsPage.cannotBeAcceptedRevokeAndInvite',
                             )}
                           </span>
                         ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
                           <span className="badge badge-neutral">
-                            {t(
+                            {t.node(
                               'appAgency.appAgencyOrgidClientsPage.expiredFormattimestampdateInviteAgain',
                               { formatTimestampDate: formatTimestampDate(invitation.expiresAt) },
                             )}
                           </span>
                         ) : (
                           <span className="badge badge-warning">
-                            {t(
+                            {t.node(
                               'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
                               { formatTimestampDate: formatTimestampDate(invitation.expiresAt) },
                             )}
@@ -269,7 +269,7 @@ export default async function AgencyClientsPage({
                   why="You see each client's progress here once they accept."
                   action={{ href: '#invite-client', label: 'Invite a Client' }}
                 >
-                  {t('appAgency.appAgencyOrgidClientsPage.thisIsWhereYouInviteThe')}
+                  {t.node('appAgency.appAgencyOrgidClientsPage.thisIsWhereYouInviteThe')}
                 </EmptyState>
               </div>
             )}
@@ -293,16 +293,16 @@ export default async function AgencyClientsPage({
           </section>
 
           <section className="agency-add-part" aria-labelledby="agency-add-evidence">
-            <p className="card-kicker">{t('appAgency.appAgencyOrgidClientsPage.collect')}</p>
+            <p className="card-kicker">{t.node('appAgency.appAgencyOrgidClientsPage.collect')}</p>
             <h3 className="agency-add-title" id="agency-add-evidence">
-              {t('appAgency.appAgencyOrgidClientsPage.requestEvidence')}
+              {t.node('appAgency.appAgencyOrgidClientsPage.requestEvidence')}
             </h3>
             <p className="muted u-fs-085">
-              {t('appAgency.appAgencyOrgidClientsPage.forPeopleWhoAreAlreadyYour')}
+              {t.node('appAgency.appAgencyOrgidClientsPage.forPeopleWhoAreAlreadyYour')}
             </p>
             <AboutDisclosure summary={t('appAgency.appAgencyOrgidClientsPage.aboutRequests')}>
               <p className="card-body">
-                {t('appAgency.appAgencyOrgidClientsPage.askATravellerForASpecific')}
+                {t.node('appAgency.appAgencyOrgidClientsPage.askATravellerForASpecific')}
               </p>
             </AboutDisclosure>
             {/* Opens on its own while no request exists yet, and for a link to #ask-for-evidence. */}
@@ -328,9 +328,9 @@ export default async function AgencyClientsPage({
       </div>
 
       <article className="card lc-empty-host">
-        <p className="card-kicker">{t('appAgency.appAgencyOrgidClientsPage.activity')}</p>
+        <p className="card-kicker">{t.node('appAgency.appAgencyOrgidClientsPage.activity')}</p>
         <h2 className="card-title" id="agency-evidence-requests">
-          {t('appAgency.appAgencyOrgidClientsPage.evidenceRequests')}
+          {t.node('appAgency.appAgencyOrgidClientsPage.evidenceRequests')}
         </h2>
         {requests.viewCounts.all === 0 ? (
           <EmptyState
@@ -340,7 +340,7 @@ export default async function AgencyClientsPage({
             why="Clients reply from their own documents, so you get the right paper without chasing."
             action={{ href: '#ask-for-evidence', label: 'Request Evidence' }}
           >
-            {t('appAgency.appAgencyOrgidClientsPage.thisIsWhereYouAskA')}
+            {t.node('appAgency.appAgencyOrgidClientsPage.thisIsWhereYouAskA')}
           </EmptyState>
         ) : (
           <>
@@ -353,7 +353,7 @@ export default async function AgencyClientsPage({
                 className={`quick-view${view ? '' : ' quick-view-on'}`}
                 aria-current={view ? undefined : 'true'}
               >
-                {t('appAgency.appAgencyOrgidClientsPage.all')}{' '}
+                {t.node('appAgency.appAgencyOrgidClientsPage.all')}{' '}
                 <span className="muted">{requests.viewCounts.all}</span>
               </Link>
               {REQUEST_VIEWS.map((option) => (
@@ -382,7 +382,7 @@ export default async function AgencyClientsPage({
             ) : null}
             {requests.items.length === 0 ? (
               <p className="card-body u-mt-100">
-                {t('appAgency.appAgencyOrgidClientsPage.noRequestsInThisView')}
+                {t.node('appAgency.appAgencyOrgidClientsPage.noRequestsInThisView')}
               </p>
             ) : (
               <>
@@ -455,8 +455,8 @@ function RequestRow({
       <div className="request-row-head">
         <span className="row-key">
           {req.kind === 'FIELD'
-            ? t('appAgency.appAgencyOrgidClientsPage.field')
-            : t('appAgency.appAgencyOrgidClientsPage.document')}
+            ? t.node('appAgency.appAgencyOrgidClientsPage.field')
+            : t.node('appAgency.appAgencyOrgidClientsPage.document')}
           : {target}
         </span>
         <span className={`badge ${rb.tone}${req.status === 'RECEIVED' ? ' lift-pill-info' : ''}`}>
@@ -466,7 +466,7 @@ function RequestRow({
       <span className="muted u-fs-085">
         {req.applicantName}
         {req.dueDate
-          ? t('appAgency.appAgencyOrgidClientsPage.dueFormatdateonly', {
+          ? t.node('appAgency.appAgencyOrgidClientsPage.dueFormatdateonly', {
               formatDateOnly: formatDateOnly(req.dueDate),
             })
           : ''}

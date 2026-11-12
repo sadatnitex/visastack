@@ -3,6 +3,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../lib/bengali-marked.test-support';
 
 vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
@@ -164,5 +165,15 @@ describe('held wording is never Bengali', () => {
 
   it('every oauth sentence is held: the oauth catalogue carries no Bengali at all', () => {
     expect(Object.keys(oauthCatalog.bn)).toEqual([]);
+  });
+});
+
+describe('rest surfaces, language of parts', () => {
+  it('pilot-access-denied marks its Bengali lang="bn" on an English page', async () => {
+    current.locale = 'bn';
+    const doc = await html(() => PilotAccessDeniedPage());
+    const r = bengaliMarking(doc.body.innerHTML);
+    expect(r.unmarked).toEqual([]);
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

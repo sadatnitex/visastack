@@ -84,22 +84,22 @@ export function BrandingForm({
         aria-label={t('appAgency.appAgencyOrgidBrandingForm.howYourAgencyWillLook')}
       >
         <p className="brand-preview-label">
-          {t('appAgency.appAgencyOrgidBrandingForm.howItLooks')}
+          {t.node('appAgency.appAgencyOrgidBrandingForm.howItLooks')}
         </p>
         <AgencyBrandScope brand={brand} className="agency-hero agency-hero-preview">
           <AgencyMark brand={brand} size="lg" />
           <div className="agency-hero-text">
             <span className="eyebrow">
-              {t('appAgency.appAgencyOrgidBrandingForm.agencyWorkspace')}
+              {t.node('appAgency.appAgencyOrgidBrandingForm.agencyWorkspace')}
             </span>
             <p className="page-title agency-preview-name">{brand.name}</p>
             <p className="agency-hero-attribution">
-              {t('appAgency.appAgencyOrgidBrandingForm.poweredByVisastack')}
+              {t.node('appAgency.appAgencyOrgidBrandingForm.poweredByVisastack')}
             </p>
           </div>
         </AgencyBrandScope>
         <p className="muted brand-preview-note">
-          {t('appAgency.appAgencyOrgidBrandingForm.travellersSeeThisOnInvitationsFrom')}
+          {t.node('appAgency.appAgencyOrgidBrandingForm.travellersSeeThisOnInvitationsFrom')}
         </p>
       </section>
 
@@ -108,7 +108,7 @@ export function BrandingForm({
           <input type="hidden" name="organizationId" value={organizationId} />
           <div className="field-row">
             <label className="field-label" htmlFor="brand-name">
-              {t('appAgency.appAgencyOrgidBrandingForm.agencyName')}
+              {t.node('appAgency.appAgencyOrgidBrandingForm.agencyName')}
             </label>
             <input
               id="brand-name"
@@ -124,10 +124,10 @@ export function BrandingForm({
 
           <fieldset className="brand-accent">
             <legend className="field-label">
-              {t('appAgency.appAgencyOrgidBrandingForm.accentColour')}
+              {t.node('appAgency.appAgencyOrgidBrandingForm.accentColour')}
             </legend>
             <p className="muted brand-hint">
-              {t('appAgency.appAgencyOrgidBrandingForm.usedForYourMarkAndHighlights')}
+              {t.node('appAgency.appAgencyOrgidBrandingForm.usedForYourMarkAndHighlights')}
             </p>
             <div className="brand-swatches">
               {ACCENT_PRESETS.map((preset) => (
@@ -185,16 +185,18 @@ export function BrandingForm({
         </form>
 
         <section className="brand-logo" aria-label={t('appAgency.appAgencyOrgidBrandingForm.logo')}>
-          <h3 className="brand-logo-title">{t('appAgency.appAgencyOrgidBrandingForm.logo')}</h3>
+          <h3 className="brand-logo-title">
+            {t.node('appAgency.appAgencyOrgidBrandingForm.logo')}
+          </h3>
           <p className="muted brand-hint">
-            {t('appAgency.appAgencyOrgidBrandingForm.pngOrJpegUpTo2')}
+            {t.node('appAgency.appAgencyOrgidBrandingForm.pngOrJpegUpTo2')}
           </p>
           <div className="brand-logo-current">
             <AgencyMark brand={brand} size="lg" />
             <span className="muted">
               {logoUrl
-                ? t('appAgency.appAgencyOrgidBrandingForm.yourLogoAsItAppears')
-                : t('appAgency.appAgencyOrgidBrandingForm.noLogoYetYourInitialsShow')}
+                ? t.node('appAgency.appAgencyOrgidBrandingForm.yourLogoAsItAppears')
+                : t.node('appAgency.appAgencyOrgidBrandingForm.noLogoYetYourInitialsShow')}
             </span>
           </div>
           <form

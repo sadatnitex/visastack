@@ -93,7 +93,9 @@ export function SelfDeleteAction({
     return (
       <div ref={root} className="lc-selfdelete" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-selfdelete-heading">
-          {t('appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.fileDeleted')}
+          {t.node(
+            'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.fileDeleted',
+          )}
         </h3>
         <output className="lc-selfdelete-result">{result}</output>
         <div className="lc-selfdelete-actions">
@@ -105,7 +107,7 @@ export function SelfDeleteAction({
               router.refresh();
             }}
           >
-            {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
           </button>
         </div>
       </div>
@@ -116,7 +118,7 @@ export function SelfDeleteAction({
   return (
     <div ref={root} className="lc-selfdelete" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-selfdelete-heading">
-        {t(
+        {t.node(
           'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.deleteDocumentnameNow',
           { documentName },
         )}
@@ -128,7 +130,7 @@ export function SelfDeleteAction({
       ) : null}
       {!preview && !problem ? (
         <output>
-          {t(
+          {t.node(
             'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.checkingThisFile',
           )}
         </output>
@@ -147,7 +149,7 @@ export function SelfDeleteAction({
           <p className="lc-selfdelete-note">{BACKUP_NOTE}</p>
           <div className="lc-selfdelete-field">
             <label htmlFor={fieldId}>
-              {t(
+              {t.node(
                 'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.typeDeleteToConfirm',
               )}
             </label>
@@ -174,8 +176,8 @@ export function SelfDeleteAction({
               onClick={remove}
             >
               {busy
-                ? t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleting')
-                : t(
+                ? t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleting')
+                : t.node(
                     'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.deleteFileNow',
                   )}
             </button>
@@ -187,7 +189,7 @@ export function SelfDeleteAction({
                 if (!busy) onClose();
               }}
             >
-              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
+              {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </>
@@ -195,7 +197,7 @@ export function SelfDeleteAction({
       {problem && !preview ? (
         <div className="lc-selfdelete-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       ) : null}

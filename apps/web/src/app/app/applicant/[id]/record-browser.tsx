@@ -61,7 +61,7 @@ export function RecordBrowser({
     <div className="record-hub">
       <fieldset className="record-hub-filter-set">
         <legend className="sr-only">
-          {t('appApplicant.appApplicantIdRecordBrowser.recordFilters')}
+          {t.node('appApplicant.appApplicantIdRecordBrowser.recordFilters')}
         </legend>
         <div className="record-hub-filters">
           {RECORD_FILTERS.map(({ key, label }) => (
@@ -78,7 +78,7 @@ export function RecordBrowser({
               <span>{label}</span>
               {unavailable(key) ? (
                 <span className="record-hub-filter-unavailable">
-                  {t('appApplicant.appApplicantIdRecordBrowser.notAvailableRightNow')}
+                  {t.node('appApplicant.appApplicantIdRecordBrowser.notAvailableRightNow')}
                 </span>
               ) : (
                 <strong>{counts[key]}</strong>
@@ -108,7 +108,7 @@ export function RecordBrowser({
           </select>
         </label>
         <label htmlFor={searchId}>
-          {t('appApplicant.appApplicantIdRecordBrowser.searchYourRecord')}
+          {t.node('appApplicant.appApplicantIdRecordBrowser.searchYourRecord')}
           <input
             id={searchId}
             className="input"
@@ -124,8 +124,8 @@ export function RecordBrowser({
       </div>
       <output className="muted record-hub-count" aria-live="polite">
         {rowCount === 1
-          ? t('appApplicant.appApplicantIdRecordBrowser.1ItemMatches')
-          : t('appApplicant.appApplicantIdRecordBrowser.rowcountItemsMatch', {
+          ? t.node('appApplicant.appApplicantIdRecordBrowser.1ItemMatches')
+          : t.node('appApplicant.appApplicantIdRecordBrowser.rowcountItemsMatch', {
               rowCount: rowCount,
             })}
         {pageCount > 1 ? ` Page ${activePage + 1} of ${pageCount}.` : null}
@@ -134,7 +134,7 @@ export function RecordBrowser({
         // When documents did not load, the alert above already explains the short list.
         documentsLoaded ? (
           <p className="notice record-hub-empty">
-            {t('appApplicant.appApplicantIdRecordBrowser.nothingMatchesClearTheSearchOr')}
+            {t.node('appApplicant.appApplicantIdRecordBrowser.nothingMatchesClearTheSearchOr')}
           </p>
         ) : null
       ) : (
@@ -201,7 +201,7 @@ export function RecordBrowser({
             disabled={activePage === 0}
             onClick={() => setPage(activePage - 1)}
           >
-            {t('appApplicant.appApplicantIdRecordBrowser.previous')}
+            {t.node('appApplicant.appApplicantIdRecordBrowser.previous')}
           </button>
           <button
             type="button"
@@ -209,7 +209,7 @@ export function RecordBrowser({
             disabled={activePage + 1 === pageCount}
             onClick={() => setPage(activePage + 1)}
           >
-            {t('appApplicant.appApplicantIdPage.next')}
+            {t.node('appApplicant.appApplicantIdPage.next')}
           </button>
         </div>
       ) : null}

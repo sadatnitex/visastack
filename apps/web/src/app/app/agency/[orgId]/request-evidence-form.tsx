@@ -238,7 +238,7 @@ export function RequestEvidenceForm({
             <input type="hidden" name="applicantId" value={fixed.applicantId} />
             <input type="hidden" name="missionId" value={fixed.missionId} />
             <p className="muted u-fs-085">
-              {t('appAgency.appAgencyOrgidRequestEvidenceForm.forApplicantnameCasetitle', {
+              {t.node('appAgency.appAgencyOrgidRequestEvidenceForm.forApplicantnameCasetitle', {
                 applicantName: fixed.applicantName,
                 caseTitle: fixed.caseTitle,
               })}
@@ -248,11 +248,11 @@ export function RequestEvidenceForm({
           <>
             <div className="field-row">
               <label className="field-label" htmlFor={ids.applicant}>
-                {t('appAgency.appAgencyOrgidRequestEvidenceForm.traveller')}
+                {t.node('appAgency.appAgencyOrgidRequestEvidenceForm.traveller')}
               </label>
               {applicants.length === 0 ? (
                 <p className="muted u-fs-085">
-                  {t(
+                  {t.node(
                     'appAgency.appAgencyOrgidRequestEvidenceForm.noTravellerHasGrantedThisOrganization',
                   )}
                 </p>
@@ -270,7 +270,11 @@ export function RequestEvidenceForm({
                     setMissionId('');
                   }}
                 >
-                  <option value="" disabled>
+                  <option
+                    {...t.lang('appAgency.appAgencyOrgidRequestEvidenceForm.chooseATraveller')}
+                    value=""
+                    disabled
+                  >
                     {t('appAgency.appAgencyOrgidRequestEvidenceForm.chooseATraveller')}
                   </option>
                   {applicants.map((a) => (
@@ -284,7 +288,7 @@ export function RequestEvidenceForm({
             {missions.length > 0 ? (
               <div className="field-row">
                 <label className="field-label" htmlFor={ids.mission}>
-                  {t('appAgency.appAgencyOrgidRequestEvidenceForm.case')}
+                  {t.node('appAgency.appAgencyOrgidRequestEvidenceForm.case')}
                 </label>
                 <select
                   id={ids.mission}
@@ -294,7 +298,12 @@ export function RequestEvidenceForm({
                   aria-describedby={ids.missionHint}
                   onChange={(event) => setMissionId(event.target.value)}
                 >
-                  <option value="">
+                  <option
+                    {...t.lang(
+                      'appAgency.appAgencyOrgidRequestEvidenceForm.wholeTravellerRecordDefault',
+                    )}
+                    value=""
+                  >
                     {t('appAgency.appAgencyOrgidRequestEvidenceForm.wholeTravellerRecordDefault')}
                   </option>
                   {missions.map((m) => (
@@ -304,7 +313,7 @@ export function RequestEvidenceForm({
                   ))}
                 </select>
                 <small className="muted" id={ids.missionHint}>
-                  {t('appAgency.appAgencyOrgidRequestEvidenceForm.onlyIfAccessIsLimitedTo')}
+                  {t.node('appAgency.appAgencyOrgidRequestEvidenceForm.onlyIfAccessIsLimitedTo')}
                 </small>
               </div>
             ) : null}
@@ -341,7 +350,7 @@ export function RequestEvidenceForm({
 
         <div className="field-row">
           <label className="field-label" htmlFor={ids.message}>
-            {t('appAgency.appAgencyOrgidRequestEvidenceForm.messageOptional')}
+            {t.node('appAgency.appAgencyOrgidRequestEvidenceForm.messageOptional')}
           </label>
           <input
             id={ids.message}
@@ -356,12 +365,12 @@ export function RequestEvidenceForm({
             onChange={(event) => setMessage(event.target.value)}
           />
           <small className="muted" id={ids.messageHint}>
-            {t('appAgency.appAgencyOrgidRequestEvidenceForm.theMessageAndTheDueDate')}
+            {t.node('appAgency.appAgencyOrgidRequestEvidenceForm.theMessageAndTheDueDate')}
           </small>
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor={ids.due}>
-            {t('appAgency.appAgencyOrgidRequestEvidenceForm.dueDateOptional')}
+            {t.node('appAgency.appAgencyOrgidRequestEvidenceForm.dueDateOptional')}
           </label>
           <input
             id={ids.due}

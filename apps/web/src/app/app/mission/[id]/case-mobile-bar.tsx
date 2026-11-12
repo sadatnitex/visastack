@@ -46,7 +46,7 @@ export function CaseMobileBar({ nextStep, progress }: CaseMobileBarProps) {
                 />
                 {/* The bar's own name already says these numbers, so they are for the eyes only. */}
                 <span className="lift-bar-count" aria-hidden="true">
-                  {t('appMission.appMissionIdCaseMobileBar.doneOfTotal', {
+                  {t.node('appMission.appMissionIdCaseMobileBar.doneOfTotal', {
                     done: progress.done,
                     total: progress.total,
                   })}

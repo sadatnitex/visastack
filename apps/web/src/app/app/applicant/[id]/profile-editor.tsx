@@ -103,7 +103,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
   return (
     <details style={{ marginTop: '0.3rem' }}>
       <summary className="muted" style={{ fontSize: 'var(--text-caption)', cursor: 'pointer' }}>
-        {t('appApplicant.appApplicantIdProfileEditor.howThisWasChecked')}
+        {t.node('appApplicant.appApplicantIdProfileEditor.howThisWasChecked')}
       </summary>
       <div
         style={{
@@ -117,13 +117,13 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
       >
         <p className="muted u-fs-075-m0">
           {assurance.applicantDeclared
-            ? t('appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller')
-            : t('appApplicant.appApplicantIdProfileEditor.notYetEntered')}
+            ? t.node('appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller')
+            : t.node('appApplicant.appApplicantIdProfileEditor.notYetEntered')}
         </p>
         <p className="muted u-fs-075-m0">
           {assurance.documentSupplied
-            ? t('appApplicant.appApplicantIdProfileEditor.backedByASuppliedDocument')
-            : t('appApplicant.appApplicantIdProfileEditor.noSupportingDocumentSupplied')}
+            ? t.node('appApplicant.appApplicantIdProfileEditor.backedByASuppliedDocument')
+            : t.node('appApplicant.appApplicantIdProfileEditor.noSupportingDocumentSupplied')}
         </p>
         <div>
           <p className="muted u-fs-075-m0">
@@ -252,7 +252,9 @@ function FieldRow({
             onChange={(event) => onChoice?.(event.target.value)}
             {...fieldProblem(state, 'value', messageId)}
           >
-            <option value="">{t('appApplicant.appApplicantIdProfileEditor.select')}</option>
+            <option {...t.lang('appApplicant.appApplicantIdProfileEditor.select')} value="">
+              {t('appApplicant.appApplicantIdProfileEditor.select')}
+            </option>
             {field.options.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
@@ -274,7 +276,7 @@ function FieldRow({
       </div>
       <details className="field-backdate">
         <summary className="muted">
-          {t('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
+          {t.node('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
         </summary>
         <div className="field-control">
           <input
@@ -291,14 +293,14 @@ function FieldRow({
       </details>
       {effectiveFrom && updatedAt && !sameDay(effectiveFrom, updatedAt) ? (
         <p className="muted u-fs-075-m0">
-          {t('appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly', {
+          {t.node('appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly', {
             formatDateOnly: formatDateOnly(effectiveFrom, locale),
           })}
         </p>
       ) : null}
       {updatedAt ? (
         <p className="muted u-fs-075-m0">
-          {t('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
+          {t.node('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
             formatDate: formatDate(updatedAt, locale),
           })}
         </p>
@@ -311,7 +313,7 @@ function FieldRow({
               label: field.label,
             })}
           >
-            {t('appApplicant.appApplicantIdProfileEditor.whereThisCameFrom')}
+            {t.node('appApplicant.appApplicantIdProfileEditor.whereThisCameFrom')}
           </Link>
         </p>
       ) : null}
@@ -418,7 +420,7 @@ function ExemptionToggle({
       </label>
       <noscript>
         <button type="submit" className="btn btn-secondary">
-          {t('appApplicant.appApplicantIdProfileEditor.apply')}
+          {t.node('appApplicant.appApplicantIdProfileEditor.apply')}
         </button>
       </noscript>
       {state.ok ? null : <FormMessage id={messageId} result={state} />}
@@ -468,7 +470,7 @@ function NotCurrentControl({
     <div className="profile-lifecycle-mark">
       {marked ? (
         <p className="muted u-fs-075-m0">
-          {t('appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent')}
+          {t.node('appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent')}
         </p>
       ) : (
         <form action={formAction}>
@@ -525,18 +527,21 @@ function RecordEndState({
       {endedOn ? (
         <div ref={noteRef} tabIndex={-1} className="profile-record-ended">
           <span className="badge badge-neutral">
-            {t('appApplicant.appApplicantIdProfileEditor.ended')}
+            {t.node('appApplicant.appApplicantIdProfileEditor.ended')}
           </span>
           <p className="muted u-fs-075-m0">
-            {t('appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay', {
-              formatDateOnly: formatDateOnly(endedOn, locale),
-            })}
+            {t.node(
+              'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay',
+              {
+                formatDateOnly: formatDateOnly(endedOn, locale),
+              },
+            )}
           </p>
         </div>
       ) : (
         <details className="profile-record-end">
           <summary className="muted">
-            {t('appApplicant.appApplicantIdProfileEditor.thisLabelEndedPosition', {
+            {t.node('appApplicant.appApplicantIdProfileEditor.thisLabelEndedPosition', {
               label: group.label,
               position,
             })}
@@ -546,7 +551,7 @@ function RecordEndState({
             <input type="hidden" name="recordGroupKey" value={group.key} />
             <input type="hidden" name="repeatingRecordKey" value={recordKey} />
             <label className="field-label" htmlFor={dateId}>
-              {t('appApplicant.appApplicantIdProfileEditor.dateItEnded')}
+              {t.node('appApplicant.appApplicantIdProfileEditor.dateItEnded')}
             </label>
             <input
               id={dateId}
@@ -603,15 +608,15 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
             className="btn btn-secondary btn-compact"
             onClick={() => setNewRecordKeys((keys) => [...keys, crypto.randomUUID()])}
           >
-            {t('appApplicant.appApplicantIdProfileEditor.addLabel', { label: group.label })}
+            {t.node('appApplicant.appApplicantIdProfileEditor.addLabel', { label: group.label })}
           </button>
         )}
       </div>
       {recordKeys.length === 0 ? (
         <p className="muted u-fs-085">
           {group.noneDeclared
-            ? t('appApplicant.appApplicantIdProfileEditor.youSaidYouHaveNone')
-            : t('appApplicant.appApplicantIdProfileEditor.noneRecordedYet')}
+            ? t.node('appApplicant.appApplicantIdProfileEditor.youSaidYouHaveNone')
+            : t.node('appApplicant.appApplicantIdProfileEditor.noneRecordedYet')}
         </p>
       ) : (
         <div className="profile-group-records">
@@ -703,11 +708,13 @@ function OtherItems({
   return (
     <div className="profile-other-items">
       <h5>
-        {t('appApplicant.appApplicantIdProfileEditor.somethingElseInLabel', {
+        {t.node('appApplicant.appApplicantIdProfileEditor.somethingElseInLabel', {
           label: section.label,
         })}
       </h5>
-      <p className="muted">{t('appApplicant.appApplicantIdProfileEditor.notOnTheListAddIt')}</p>
+      <p className="muted">
+        {t.node('appApplicant.appApplicantIdProfileEditor.notOnTheListAddIt')}
+      </p>
       {recordKeys.map((recordKey) => (
         <div key={recordKey} className="field-list profile-group-record">
           {fields.map((field) => (
@@ -723,7 +730,7 @@ function OtherItems({
         </div>
       ))}
       <details className="profile-edit-section">
-        <summary>{t('appApplicant.appApplicantIdProfileEditor.addSomethingElse')}</summary>
+        <summary>{t.node('appApplicant.appApplicantIdProfileEditor.addSomethingElse')}</summary>
         <form ref={formRef} action={formAction} className="field-list">
           <input type="hidden" name="applicantId" value={applicantId} />
           <input type="hidden" name="sectionKey" value={section.key} />
@@ -780,7 +787,7 @@ function SectionDocuments({
   return (
     <section className="section-documents" aria-labelledby={headingId}>
       <h5 id={headingId}>
-        {t('appApplicant.appApplicantIdProfileEditor.documentsForThisSection')}
+        {t.node('appApplicant.appApplicantIdProfileEditor.documentsForThisSection')}
       </h5>
       <ul>
         {shown.map((document) => (
@@ -789,7 +796,7 @@ function SectionDocuments({
               <b>{document.label}</b>
               {document.original ? (
                 <small className="muted">
-                  {t('appApplicant.appApplicantIdProfileEditor.usuallyHandedInAsTheOriginal')}
+                  {t.node('appApplicant.appApplicantIdProfileEditor.usuallyHandedInAsTheOriginal')}
                 </small>
               ) : null}
             </div>
@@ -798,8 +805,8 @@ function SectionDocuments({
                 className={`badge ${document.uploaded > 0 ? 'badge-success' : 'badge-neutral'}`}
               >
                 {document.uploaded > 0
-                  ? t('appApplicant.appApplicantIdProfileEditor.uploaded')
-                  : t('appApplicant.appApplicantIdProfileEditor.notUploadedYet')}
+                  ? t.node('appApplicant.appApplicantIdProfileEditor.uploaded')
+                  : t.node('appApplicant.appApplicantIdProfileEditor.notUploadedYet')}
               </span>
             )}
             <Link
@@ -807,8 +814,8 @@ function SectionDocuments({
               href={`/app/applicant/${applicantId}/documents/add?type=${document.key}`}
             >
               {document.uploaded
-                ? t('appApplicant.appApplicantIdProfileEditor.addAnother')
-                : t('appApplicant.appApplicantIdProfileEditor.upload')}
+                ? t.node('appApplicant.appApplicantIdProfileEditor.addAnother')
+                : t.node('appApplicant.appApplicantIdProfileEditor.upload')}
               <span className="sr-only"> {document.label}</span>
             </Link>
           </li>
@@ -849,7 +856,7 @@ function SingleField({
         />
       ) : (
         <p className="muted">
-          {t('appApplicant.appApplicantIdProfileEditor.labelMarkedAsNotApplyingTo', {
+          {t.node('appApplicant.appApplicantIdProfileEditor.labelMarkedAsNotApplyingTo', {
             label: field.label,
           })}
         </p>
@@ -905,14 +912,16 @@ function SectionFields({
                 <dt>{field.label}</dt>
                 <dd>
                   {notApplicable.has(field.key)
-                    ? t('appApplicant.appApplicantIdProfileEditor.doesNotApply')
+                    ? t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply')
                     : current?.value === OTHER_CHOICE && otherText
-                      ? t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText })
+                      ? t.node('appApplicant.appApplicantIdProfileEditor.otherOthertext', {
+                          otherText,
+                        })
                       : displayValue(field, current)}
                 </dd>
                 {current?.status === 'CONFLICTED' ? (
                   <span className="badge badge-warning">
-                    {t('appApplicant.appApplicantIdProfileEditor.needsReview')}
+                    {t.node('appApplicant.appApplicantIdProfileEditor.needsReview')}
                   </span>
                 ) : null}
               </div>
@@ -922,7 +931,7 @@ function SectionFields({
       ) : null}
       {singles.length > 0 ? (
         <details className="profile-edit-section" open={search.trim() ? true : undefined}>
-          <summary>{t('appApplicant.appApplicantIdProfileEditor.editTheseDetails')}</summary>
+          <summary>{t.node('appApplicant.appApplicantIdProfileEditor.editTheseDetails')}</summary>
           <div className="field-list">
             {singles.map((field) => (
               <SingleField
@@ -970,13 +979,15 @@ function SectionToggle({
   const messageId = useId();
   if (section.reason === 'default') {
     return (
-      <span className="muted">{t('appApplicant.appApplicantIdProfileEditor.openForEveryone')}</span>
+      <span className="muted">
+        {t.node('appApplicant.appApplicantIdProfileEditor.openForEveryone')}
+      </span>
     );
   }
   if (section.open && !section.canClose) {
     return (
       <span className="muted">
-        {t('appApplicant.appApplicantIdProfileEditor.openBecauseItHoldsYourDetails')}
+        {t.node('appApplicant.appApplicantIdProfileEditor.openBecauseItHoldsYourDetails')}
       </span>
     );
   }
@@ -994,11 +1005,11 @@ function SectionToggle({
             if (!pending) formRef.current?.requestSubmit();
           }}
         />
-        {t('appApplicant.appApplicantIdProfileEditor.useThisSection')}
+        {t.node('appApplicant.appApplicantIdProfileEditor.useThisSection')}
       </label>
       <noscript>
         <button type="submit" className="btn btn-secondary">
-          {t('appApplicant.appApplicantIdProfileEditor.apply')}
+          {t.node('appApplicant.appApplicantIdProfileEditor.apply')}
         </button>
       </noscript>
       <FormMessage id={messageId} result={state} />
@@ -1039,12 +1050,12 @@ function SectionCard({
         <div className="profile-section-state">
           <span className={`badge ${section.open ? 'badge-success' : 'badge-neutral'}`}>
             {section.open
-              ? t('appApplicant.appApplicantIdProfileEditor.open')
-              : t('appApplicant.appApplicantIdProfileEditor.locked')}
+              ? t.node('appApplicant.appApplicantIdProfileEditor.open')
+              : t.node('appApplicant.appApplicantIdProfileEditor.locked')}
           </span>
           {section.suggested ? (
             <span className="badge badge-warning">
-              {t('appApplicant.appApplicantIdProfileEditor.suggested')}
+              {t.node('appApplicant.appApplicantIdProfileEditor.suggested')}
             </span>
           ) : null}
           <SectionToggle applicantId={applicantId} section={section} />
@@ -1053,7 +1064,7 @@ function SectionCard({
       {section.open ? (
         <>
           <p className="muted profile-section-progress">
-            {t('appApplicant.appApplicantIdProfileEditor.answeredOfTotalDetailsCounted', {
+            {t.node('appApplicant.appApplicantIdProfileEditor.answeredOfTotalDetailsCounted', {
               answered: section.answered,
               total: section.total,
             })}
@@ -1075,7 +1086,7 @@ function SectionCard({
       ) : (
         <details className="profile-section-preview" open={searching || undefined}>
           <summary>
-            {t('appApplicant.appApplicantIdProfileEditor.seeThePluralInside', {
+            {t.node('appApplicant.appApplicantIdProfileEditor.seeThePluralInside', {
               plural: plural(section.detailCount, 'detail'),
             })}
           </summary>
@@ -1087,7 +1098,7 @@ function SectionCard({
               ))}
           </ul>
           <p className="muted">
-            {t('appApplicant.appApplicantIdProfileEditor.lockedAndNotCountedTickUse')}
+            {t.node('appApplicant.appApplicantIdProfileEditor.lockedAndNotCountedTickUse')}
           </p>
         </details>
       )}
@@ -1124,7 +1135,7 @@ function SuggestionBar({
     <div className="profile-suggest">
       <form method="get" action="#profile-editor" className="profile-suggest-pick">
         <label className="field-label" htmlFor="profile-purpose">
-          {t('appApplicant.appApplicantIdProfileEditor.whatIsThisProfileFor')}
+          {t.node('appApplicant.appApplicantIdProfileEditor.whatIsThisProfileFor')}
         </label>
         <select
           id="profile-purpose"
@@ -1132,7 +1143,9 @@ function SuggestionBar({
           className="input"
           defaultValue={view.suggestedFamily ?? ''}
         >
-          <option value="">{t('appApplicant.appApplicantIdProfileEditor.chooseAPurpose')}</option>
+          <option {...t.lang('appApplicant.appApplicantIdProfileEditor.chooseAPurpose')} value="">
+            {t('appApplicant.appApplicantIdProfileEditor.chooseAPurpose')}
+          </option>
           {view.families.map((family) => (
             <option key={family.key} value={family.key}>
               {family.label}
@@ -1140,7 +1153,7 @@ function SuggestionBar({
           ))}
         </select>
         <button type="submit" className="btn btn-secondary">
-          {t('appApplicant.appApplicantIdProfileEditor.showSuggestions')}
+          {t.node('appApplicant.appApplicantIdProfileEditor.showSuggestions')}
         </button>
       </form>
       {view.suggestedFamily ? (
@@ -1149,7 +1162,7 @@ function SuggestionBar({
             <input type="hidden" name="applicantId" value={applicantId} />
             <input type="hidden" name="family" value={view.suggestedFamily} />
             <p>
-              {t(
+              {t.node(
                 'appApplicant.appApplicantIdProfileEditor.suggestedlockedcountSuggestedSectionsAreStillLoc',
                 { suggestedLockedCount: view.suggestedLockedCount },
               )}
@@ -1164,7 +1177,7 @@ function SuggestionBar({
           </form>
         ) : (
           <p className="muted">
-            {t('appApplicant.appApplicantIdProfileEditor.everySectionSuggestedForThisPurpose')}
+            {t.node('appApplicant.appApplicantIdProfileEditor.everySectionSuggestedForThisPurpose')}
           </p>
         )
       ) : null}
@@ -1192,7 +1205,7 @@ function AreaCount({ layer }: { readonly layer: EditorLayer }) {
       {progress.answered}/{progress.total}
       <span className="sr-only">
         {' '}
-        {t('appApplicant.appApplicantIdProfileEditor.detailsFilled')}
+        {t.node('appApplicant.appApplicantIdProfileEditor.detailsFilled')}
       </span>
     </span>
   );
@@ -1237,17 +1250,19 @@ function EssentialsFirst({
     <section className="profile-essentials" aria-labelledby={headingId}>
       <div className="profile-essentials-head">
         <div>
-          <h3 id={headingId}>{t('appApplicant.appApplicantIdProfileEditor.essentialsFirst')}</h3>
+          <h3 id={headingId}>
+            {t.node('appApplicant.appApplicantIdProfileEditor.essentialsFirst')}
+          </h3>
           <p className="muted">
             {complete
-              ? t('appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore')
-              : t('appApplicant.appApplicantIdProfileEditor.startWithTheDetailsMostVisa')}
+              ? t.node('appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore')
+              : t.node('appApplicant.appApplicantIdProfileEditor.startWithTheDetailsMostVisa')}
           </p>
         </div>
       </div>
       {showAll ? (
         <p className="muted">
-          {t('appApplicant.appApplicantIdProfileEditor.fullProfileAnsweredOfTotalDetails', {
+          {t.node('appApplicant.appApplicantIdProfileEditor.fullProfileAnsweredOfTotalDetails', {
             answered: view.answered,
             total: view.total,
             plural: plural(view.openSections, 'open section'),
@@ -1292,12 +1307,12 @@ function EssentialsFirst({
       <div className="profile-essentials-actions">
         <button type="button" className="btn btn-secondary" onClick={onToggle}>
           {showAll
-            ? t('appApplicant.appApplicantIdProfileEditor.showEssentialsOnly')
-            : t('appApplicant.appApplicantIdProfileEditor.showAllSections')}
+            ? t.node('appApplicant.appApplicantIdProfileEditor.showEssentialsOnly')
+            : t.node('appApplicant.appApplicantIdProfileEditor.showAllSections')}
         </button>
         {showAll ? null : (
           <span className="muted">
-            {t('appApplicant.appApplicantIdProfileEditor.everySectionWithEveryDetailYou')}
+            {t.node('appApplicant.appApplicantIdProfileEditor.everySectionWithEveryDetailYou')}
           </span>
         )}
       </div>
@@ -1517,7 +1532,7 @@ export function ProfileEditor({
                 >
                   <summary>
                     <span className="profile-area-picker-label">
-                      {t('appApplicant.appApplicantIdProfileEditor.area')}
+                      {t.node('appApplicant.appApplicantIdProfileEditor.area')}
                     </span>
                     <span className="profile-area-name">{current?.label}</span>
                     {current ? <AreaCount layer={current} /> : null}
@@ -1542,11 +1557,11 @@ export function ProfileEditor({
                   href={`/app/applicant/${applicantId}/history`}
                   className="profile-history-link"
                 >
-                  {t('appApplicant.appApplicantIdProfileEditor.history')}
+                  {t.node('appApplicant.appApplicantIdProfileEditor.history')}
                 </Link>
                 <div className="profile-field-search">
                   <label className="field-label" htmlFor="profile-search">
-                    {t('appApplicant.appApplicantIdProfileEditor.searchAllProfileFields')}
+                    {t.node('appApplicant.appApplicantIdProfileEditor.searchAllProfileFields')}
                   </label>
                   <input
                     id="profile-search"
@@ -1561,7 +1576,9 @@ export function ProfileEditor({
                 </div>
                 {searching && visibleLayers.length === 0 ? (
                   <output className="muted">
-                    {t('appApplicant.appApplicantIdProfileEditor.noFieldsMatchTryAnotherField')}
+                    {t.node(
+                      'appApplicant.appApplicantIdProfileEditor.noFieldsMatchTryAnotherField',
+                    )}
                   </output>
                 ) : null}
                 {view.layers.map((layer) => {
@@ -1576,7 +1593,7 @@ export function ProfileEditor({
                     >
                       <h3>{layer.label}</h3>
                       <p className="muted">
-                        {t(
+                        {t.node(
                           'appApplicant.appApplicantIdProfileEditor.descriptionOpencountOfLengthSectionsOpen',
                           {
                             description: layer.description,

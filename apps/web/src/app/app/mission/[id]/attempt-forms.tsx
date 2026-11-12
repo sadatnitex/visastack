@@ -75,7 +75,7 @@ function EvidenceSelect({
   return (
     <div className="field-row">
       <label className="field-label" htmlFor={id}>
-        {t('appMission.appMissionIdAttemptForms.attachADocumentOptional')}
+        {t.node('appMission.appMissionIdAttemptForms.attachADocumentOptional')}
       </label>
       <select
         id={id}
@@ -84,7 +84,9 @@ function EvidenceSelect({
         defaultValue=""
         aria-describedby={`${id}-hint`}
       >
-        <option value="">{t('appMission.appMissionIdAttemptForms.noDocument')}</option>
+        <option {...t.lang('appMission.appMissionIdAttemptForms.noDocument')} value="">
+          {t('appMission.appMissionIdAttemptForms.noDocument')}
+        </option>
         {choices.map((c) => (
           <option key={c.value} value={c.value}>
             {c.label}
@@ -123,7 +125,7 @@ export function RecordAttemptForm({
       <input type="hidden" name="missionId" value={missionId} />
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-channel`}>
-          {t('appMission.appMissionIdAttemptForms.howItWasSent')}
+          {t.node('appMission.appMissionIdAttemptForms.howItWasSent')}
         </label>
         <select
           id={`${id}-channel`}
@@ -132,7 +134,7 @@ export function RecordAttemptForm({
           defaultValue=""
           {...fieldProblem(state, 'channel', messageId)}
         >
-          <option value="" disabled>
+          <option {...t.lang('appMission.appMissionIdAttemptForms.choose')} value="" disabled>
             {t('appMission.appMissionIdAttemptForms.choose')}
           </option>
           {Object.entries(ATTEMPT_CHANNEL_LABELS).map(([value, label]) => (
@@ -144,7 +146,7 @@ export function RecordAttemptForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-date`}>
-          {t('appMission.appMissionIdAttemptForms.dayItWasSent')}
+          {t.node('appMission.appMissionIdAttemptForms.dayItWasSent')}
         </label>
         <input
           id={`${id}-date`}
@@ -212,7 +214,7 @@ export function AttemptEventForm({
       <input type="hidden" name="attemptId" value={attemptId} />
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-kind`}>
-          {t('appMission.appMissionIdAttemptForms.whatHappenedAfterAttemptAttemptno', {
+          {t.node('appMission.appMissionIdAttemptForms.whatHappenedAfterAttemptAttemptno', {
             attemptNo: attemptNo,
           })}
         </label>
@@ -224,7 +226,7 @@ export function AttemptEventForm({
           onChange={(e) => setKind(e.target.value)}
           {...fieldProblem(state, 'kind', messageId)}
         >
-          <option value="" disabled>
+          <option {...t.lang('appMission.appMissionIdAttemptForms.choose')} value="" disabled>
             {t('appMission.appMissionIdAttemptForms.choose')}
           </option>
           {Object.entries(ATTEMPT_EVENT_LABELS).map(([value, label]) => (
@@ -237,7 +239,7 @@ export function AttemptEventForm({
       {kind === 'DECISION' ? (
         <div className="field-row">
           <label className="field-label" htmlFor={`${id}-decision`}>
-            {t('appMission.appMissionIdAttemptForms.decision')}
+            {t.node('appMission.appMissionIdAttemptForms.decision')}
           </label>
           <select
             id={`${id}-decision`}
@@ -246,7 +248,7 @@ export function AttemptEventForm({
             defaultValue=""
             {...fieldProblem(state, 'decision', messageId)}
           >
-            <option value="" disabled>
+            <option {...t.lang('appMission.appMissionIdAttemptForms.choose')} value="" disabled>
               {t('appMission.appMissionIdAttemptForms.choose')}
             </option>
             {Object.entries(ATTEMPT_DECISION_LABELS).map(([value, label]) => (
@@ -261,7 +263,7 @@ export function AttemptEventForm({
         <>
           <div className="field-row">
             <label className="field-label" htmlFor={`${id}-source`}>
-              {t('appMission.appMissionIdAttemptForms.whoAsked')}
+              {t.node('appMission.appMissionIdAttemptForms.whoAsked')}
             </label>
             <select
               id={`${id}-source`}
@@ -270,7 +272,7 @@ export function AttemptEventForm({
               defaultValue=""
               {...fieldProblem(state, 'requestSource', messageId)}
             >
-              <option value="" disabled>
+              <option {...t.lang('appMission.appMissionIdAttemptForms.choose')} value="" disabled>
                 {t('appMission.appMissionIdAttemptForms.choose')}
               </option>
               {Object.entries(AUTHORITY_SOURCE_LABELS).map(([value, label]) => (
@@ -282,7 +284,7 @@ export function AttemptEventForm({
           </div>
           <fieldset className="field-row attempt-kinds">
             <legend className="field-label">
-              {t('appMission.appMissionIdAttemptForms.documentsTheyAskedFor')}
+              {t.node('appMission.appMissionIdAttemptForms.documentsTheyAskedFor')}
             </legend>
             {picked.map((value) => (
               <span className="attempt-kind-chip" key={value}>
@@ -294,12 +296,12 @@ export function AttemptEventForm({
                   aria-label={`Remove ${kindName.get(value) ?? value}`}
                   onClick={() => setPicked(picked.filter((p) => p !== value))}
                 >
-                  {t('appMission.appMissionIdAttemptForms.remove')}
+                  {t.node('appMission.appMissionIdAttemptForms.remove')}
                 </button>
               </span>
             ))}
             <label className="sr-only" htmlFor={`${id}-next-kind`}>
-              {t('appMission.appMissionIdAttemptForms.documentToAdd')}
+              {t.node('appMission.appMissionIdAttemptForms.documentToAdd')}
             </label>
             <select
               id={`${id}-next-kind`}
@@ -307,7 +309,9 @@ export function AttemptEventForm({
               value={nextKind}
               onChange={(e) => setNextKind(e.target.value)}
             >
-              <option value="">{t('appMission.appMissionIdAttemptForms.chooseADocument')}</option>
+              <option {...t.lang('appMission.appMissionIdAttemptForms.chooseADocument')} value="">
+                {t('appMission.appMissionIdAttemptForms.chooseADocument')}
+              </option>
               {documentKinds
                 .filter((k) => !picked.includes(k.value))
                 .map((k) => (
@@ -326,14 +330,14 @@ export function AttemptEventForm({
                 setNextKind('');
               }}
             >
-              {t('appMission.appMissionIdAttemptForms.addDocument')}
+              {t.node('appMission.appMissionIdAttemptForms.addDocument')}
             </button>
           </fieldset>
         </>
       ) : null}
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-date`}>
-          {t('appMission.appMissionIdAttemptForms.dayItHappened')}
+          {t.node('appMission.appMissionIdAttemptForms.dayItHappened')}
         </label>
         <input
           id={`${id}-date`}

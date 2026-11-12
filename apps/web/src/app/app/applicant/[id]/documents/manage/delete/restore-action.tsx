@@ -73,10 +73,10 @@ export function RestoreDeletedAction({
     return (
       <div ref={root} className="lc-delete" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-          {t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.documentRestored')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.documentRestored')}
         </h3>
         <output className="lc-delete-result">
-          {t(
+          {t.node(
             'appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.documentnameIsBackInYourDocuments',
             { documentName },
           )}
@@ -90,7 +90,7 @@ export function RestoreDeletedAction({
               router.refresh();
             }}
           >
-            {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
           </button>
         </div>
       </div>
@@ -100,9 +100,12 @@ export function RestoreDeletedAction({
   return (
     <div ref={root} className="lc-delete" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-        {t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restoreDocumentname', {
-          documentName,
-        })}
+        {t.node(
+          'appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restoreDocumentname',
+          {
+            documentName,
+          },
+        )}
       </h3>
       {problem ? (
         <p className="lc-delete-problem" role="alert">
@@ -111,13 +114,15 @@ export function RestoreDeletedAction({
       ) : null}
       {days === null && !problem ? (
         <output>
-          {t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.checkingThisDocument')}
+          {t.node(
+            'appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.checkingThisDocument',
+          )}
         </output>
       ) : null}
       {days !== null ? (
         <>
           <p>
-            {t(
+            {t.node(
               'appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.removedinlineRestoreItToBringIt',
               { removedInLine: removedInLine(days) },
             )}
@@ -130,8 +135,8 @@ export function RestoreDeletedAction({
               onClick={restore}
             >
               {busy
-                ? t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restoring')
-                : t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restore')}
+                ? t.node('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restoring')
+                : t.node('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restore')}
             </button>
             <button
               type="button"
@@ -141,14 +146,14 @@ export function RestoreDeletedAction({
                 if (!busy) onClose();
               }}
             >
-              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
+              {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </>
       ) : (
         <div className="lc-delete-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       )}

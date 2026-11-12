@@ -168,7 +168,10 @@ describe('the agency overview under Bengali', () => {
   it('draws the phone column names in the same language as the headings', async () => {
     const { html } = await draw('bn');
     const labels = [...html.matchAll(/data-label="([^"]*)"/g)].map((match) => match[1]);
-    const headings = [...html.matchAll(/<th scope="col">([^<]*)<\/th>/g)].map((match) => match[1]);
+    // The marked headings hold a span now (a lang attribute on Bengali words), so read the text inside.
+    const headings = [...html.matchAll(/<th scope="col">(.*?)<\/th>/g)].map((match) =>
+      (match[1] ?? '').replace(/<[^>]*>/g, ''),
+    );
     expect(labels.length).toBeGreaterThan(0);
     // Every phone label is the very heading of its column, so the two never differ in language.
     for (const label of labels) expect(headings).toContain(label);

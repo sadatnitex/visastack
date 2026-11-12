@@ -29,13 +29,13 @@ export function CollectionLinkPanel({ url }: { readonly url: string }) {
   }
   const copyLink = (
     <button type="button" className="btn btn-secondary" onClick={copy}>
-      {t('appAgency.appAgencyOrgidCollectionCollectionLinkPanel.copyLink')}
+      {t.node('appAgency.appAgencyOrgidCollectionCollectionLinkPanel.copyLink')}
     </button>
   );
   return (
     <div className="field-list u-mt-100 collection-link-panel">
       <label htmlFor={id} className="field-label">
-        {t('appAgency.appAgencyOrgidCollectionCollectionLinkPanel.privateRequestLink')}
+        {t.node('appAgency.appAgencyOrgidCollectionCollectionLinkPanel.privateRequestLink')}
       </label>
       <input ref={input} id={id} className="input" value={url} readOnly />
       {shareMessage ? (
@@ -49,7 +49,7 @@ export function CollectionLinkPanel({ url }: { readonly url: string }) {
         <div className="action-row">{copyLink}</div>
       )}
       <p className="muted">
-        {t('appAgency.appAgencyOrgidCollectionCollectionLinkPanel.thisLinkIsShownOnlyOnce')}
+        {t.node('appAgency.appAgencyOrgidCollectionCollectionLinkPanel.thisLinkIsShownOnlyOnce')}
       </p>
       <output aria-live="polite">{status}</output>
     </div>

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../../../../lib/bengali-marked.test-support';
 
 vi.mock('server-only', () => ({}));
 // The language switch is off in the product, so the locale is set here directly.
@@ -130,5 +131,13 @@ describe('the Record hub page under Bengali', () => {
     expect(text).not.toMatch(BENGALI);
     expect(text).toContain('All Records');
     expect(text).toContain('Add a Document');
+  });
+});
+
+describe('the Record hub page, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', async () => {
+    const r = bengaliMarking(await render('bn'));
+    // Text handed to a component prop stays unmarked for now (skipped item component_prop).
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

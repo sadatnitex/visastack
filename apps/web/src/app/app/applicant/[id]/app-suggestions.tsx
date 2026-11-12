@@ -39,19 +39,19 @@ export function AppSuggestionsSection({
       id="ai-app-suggestions"
       aria-labelledby="ai-app-suggestions-title"
     >
-      <p className="card-kicker">{t('appApplicant.appApplicantIdAppSuggestions.aiApps')}</p>
+      <p className="card-kicker">{t.node('appApplicant.appApplicantIdAppSuggestions.aiApps')}</p>
       <h2 className="card-title" id="ai-app-suggestions-title" ref={heading} tabIndex={-1}>
-        {t('appApplicant.appApplicantIdAppSuggestions.suggestionsFromAiApps')}
+        {t.node('appApplicant.appApplicantIdAppSuggestions.suggestionsFromAiApps')}
       </h2>
       {waiting.length > 0 ? (
         <p className="card-body">
-          {t('appApplicant.appApplicantIdAppSuggestions.pluralYourAiAppsSuggestedFor', {
+          {t.node('appApplicant.appApplicantIdAppSuggestions.pluralYourAiAppsSuggestedFor', {
             plural: plural(waiting.length, 'change', 'changes'),
           })}
         </p>
       ) : (
         <p className="card-body muted">
-          {t('appApplicant.appApplicantIdAppSuggestions.nothingWaiting')}
+          {t.node('appApplicant.appApplicantIdAppSuggestions.nothingWaiting')}
         </p>
       )}
       <FormMessage result={lastResult} />

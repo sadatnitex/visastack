@@ -61,7 +61,9 @@ export function ShareLevelForm({
       <input type="hidden" name="tripId" value={tripId} />
       <fieldset className="companion-share">
         <legend className="label">
-          {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser')}
+          {t.node(
+            'appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser',
+          )}
         </legend>
         {choices.map((item) => (
           <label key={item.value} className="companion-choice">
@@ -116,7 +118,7 @@ export function LeaveTripForm({ tripId }: { readonly tripId: string }) {
       {asking ? (
         <>
           <span className="muted u-fs-085">
-            {t(
+            {t.node(
               'appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTripTheOrganiserWill',
             )}
           </span>
@@ -127,12 +129,12 @@ export function LeaveTripForm({ tripId }: { readonly tripId: string }) {
             className="btn btn-secondary"
           />
           <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
-            {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.stay')}
+            {t.node('appTripInvitations.appTripInvitationsIdJoinedTripForms.stay')}
           </button>
         </>
       ) : (
         <button type="button" className="btn btn-secondary" onClick={() => setAsking(true)}>
-          {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTrip')}
+          {t.node('appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTrip')}
         </button>
       )}
       <FormMessage id={`${id}-msg`} result={state} />
@@ -193,7 +195,7 @@ export function ChoosePaperForm({
     <form ref={form} action={action} className="trip-add-form">
       <input type="hidden" name="tripId" value={tripId} />
       <label className="label" htmlFor={`${id}-paper`}>
-        {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.paperToShow')}
+        {t.node('appTripInvitations.appTripInvitationsIdJoinedTripForms.paperToShow')}
       </label>
       <select
         id={`${id}-paper`}
@@ -203,7 +205,11 @@ export function ChoosePaperForm({
         defaultValue=""
         {...fieldProblem(state, 'documentId', messageId)}
       >
-        <option value="" disabled>
+        <option
+          {...t.lang('appTripInvitations.appTripInvitationsIdJoinedTripForms.chooseAPaper')}
+          value=""
+          disabled
+        >
           {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.chooseAPaper')}
         </option>
         {options.map((paper) => (

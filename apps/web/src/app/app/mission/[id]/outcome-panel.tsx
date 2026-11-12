@@ -60,10 +60,10 @@ export function OutcomePanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appMission.appMissionIdAttemptForms.decision')}</p>
-      <h2 className="card-title">{t('appMission.appMissionIdOutcomePanel.caseOutcome')}</h2>
+      <p className="card-kicker">{t.node('appMission.appMissionIdAttemptForms.decision')}</p>
+      <h2 className="card-title">{t.node('appMission.appMissionIdOutcomePanel.caseOutcome')}</h2>
       <p className="card-body u-mb-100">
-        {t('appMission.appMissionIdOutcomePanel.theOfficialWordingAndYourOwn')}
+        {t.node('appMission.appMissionIdOutcomePanel.theOfficialWordingAndYourOwn')}
       </p>
       {outcomes.length > 0 ? (
         <div className="rows u-mb-125">
@@ -82,16 +82,19 @@ export function OutcomePanel({
               </div>
               {o.officialWording ? (
                 <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  {t('appMission.appMissionIdOutcomePanel.officialOfficialwording', {
+                  {t.node('appMission.appMissionIdOutcomePanel.officialOfficialwording', {
                     officialWording: o.officialWording,
                   })}
                 </p>
               ) : null}
               {o.agencyInterpretation ? (
                 <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  {t('appMission.appMissionIdOutcomePanel.interpretationAgencyinterpretation', {
-                    agencyInterpretation: o.agencyInterpretation,
-                  })}
+                  {t.node(
+                    'appMission.appMissionIdOutcomePanel.interpretationAgencyinterpretation',
+                    {
+                      agencyInterpretation: o.agencyInterpretation,
+                    },
+                  )}
                 </p>
               ) : null}
             </div>
@@ -100,17 +103,17 @@ export function OutcomePanel({
         </div>
       ) : (
         <p className="card-body u-mb-125">
-          {t('appMission.appMissionIdOutcomePanel.noOutcomeRecordedYet')}
+          {t.node('appMission.appMissionIdOutcomePanel.noOutcomeRecordedYet')}
         </p>
       )}
       <form action={formAction} className="field-list">
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="decision">
-            {t('appMission.appMissionIdAttemptForms.decision')}
+            {t.node('appMission.appMissionIdAttemptForms.decision')}
           </label>
           <select id="decision" name="decision" className="input" defaultValue="">
-            <option value="" disabled>
+            <option {...t.lang('appMission.appMissionIdAttemptForms.choose')} value="" disabled>
               {t('appMission.appMissionIdAttemptForms.choose')}
             </option>
             {Object.entries(DECISION_LABELS).map(([value, label]) => (
@@ -122,13 +125,13 @@ export function OutcomePanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="decisionDate">
-            {t('appMission.appMissionIdOutcomePanel.decisionDate')}
+            {t.node('appMission.appMissionIdOutcomePanel.decisionDate')}
           </label>
           <input id="decisionDate" name="decisionDate" type="date" className="input" required />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="officialWording">
-            {t('appMission.appMissionIdOutcomePanel.officialWordingOptional')}
+            {t.node('appMission.appMissionIdOutcomePanel.officialWordingOptional')}
           </label>
           <textarea
             id="officialWording"
@@ -140,7 +143,7 @@ export function OutcomePanel({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="agencyInterpretation">
-            {t('appMission.appMissionIdOutcomePanel.yourInterpretationOptional')}
+            {t.node('appMission.appMissionIdOutcomePanel.yourInterpretationOptional')}
           </label>
           <textarea
             id="agencyInterpretation"
@@ -153,7 +156,7 @@ export function OutcomePanel({
         {evidenceOptions.length > 0 ? (
           <div className="field-row">
             <label className="field-label" htmlFor="evidenceDocumentId">
-              {t('appMission.appMissionIdOutcomePanel.evidenceOptional')}
+              {t.node('appMission.appMissionIdOutcomePanel.evidenceOptional')}
             </label>
             <select
               id="evidenceDocumentId"
@@ -161,7 +164,9 @@ export function OutcomePanel({
               className="input"
               defaultValue=""
             >
-              <option value="">{t('appMission.appMissionIdOutcomePanel.none')}</option>
+              <option {...t.lang('appMission.appMissionIdOutcomePanel.none')} value="">
+                {t('appMission.appMissionIdOutcomePanel.none')}
+              </option>
               {evidenceOptions.map((d) => (
                 <option key={d.documentId} value={d.documentId}>
                   {d.displayName}
