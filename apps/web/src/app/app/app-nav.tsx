@@ -339,11 +339,7 @@ export function AppNav({
           { '--mobile-nav-count': Math.max(1, Math.min(links.length, BAR_LINKS)) } as CSSProperties
         }
       >
-        <nav
-          className="app-shell-links"
-          aria-label={t('appHome.appAppNav.workspace')}
-          {...t.lang('appHome.appAppNav.workspace')}
-        >
+        <nav className="app-shell-links" aria-label={t('appHome.appAppNav.workspace')}>
           {links.slice(0, BAR_LINKS).map(entry)}
         </nav>
         <button
@@ -381,7 +377,6 @@ export function AppNav({
           <nav
             className="app-shell-links app-nav-actions"
             aria-label={t('appHome.appAppNav.quickActions')}
-            {...t.lang('appHome.appAppNav.quickActions')}
           >
             {actions.map((action) => actionLink(action, 'row'))}
           </nav>
@@ -389,7 +384,6 @@ export function AppNav({
         <nav
           className="app-shell-links app-shell-links-more"
           aria-label={t('appHome.appAppNav.moreWorkspaceDestinations')}
-          {...t.lang('appHome.appAppNav.moreWorkspaceDestinations')}
         >
           {links.slice(BAR_LINKS).map(entry)}
         </nav>
@@ -398,7 +392,6 @@ export function AppNav({
           <nav
             className="app-shell-links workspace-bottom-links"
             aria-label={t('appHome.appAppNav.settingsAndSupport')}
-            {...t.lang('appHome.appAppNav.settingsAndSupport')}
           >
             {secondaryLinks.map(link)}
           </nav>
@@ -464,7 +457,6 @@ export function WorkspaceToolbar({
           ref={finder}
           type="search"
           placeholder={t('appHome.appAppNav.findAPage6ae3fa')}
-          {...t.lang('appHome.appAppNav.findAPage6ae3fa')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
@@ -505,11 +497,7 @@ export function WorkspaceToolbar({
         >
           <Icon name="bell" size={20} />
         </Link>
-        <Link
-          href="/app/account"
-          aria-label={t('appHome.appAppNav.yourAccount')}
-          {...t.lang('appHome.appAppNav.yourAccount')}
-        >
+        <Link href="/app/account" aria-label={t('appHome.appAppNav.yourAccount')}>
           <Icon name="user" size={20} />
           {accountLabel ? <span className="workspace-identity">{accountLabel}</span> : null}
         </Link>

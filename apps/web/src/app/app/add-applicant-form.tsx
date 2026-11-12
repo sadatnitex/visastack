@@ -186,7 +186,6 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
           id="displayName"
           name="displayName"
           placeholder={t('appHome.appAddApplicantForm.fullName')}
-          {...t.lang('appHome.appAddApplicantForm.fullName')}
           required
           className="input"
           {...fieldProblem(state, 'displayName', messageId)}
@@ -207,9 +206,10 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
           aria-describedby={secondSelf ? selfNoteId : undefined}
         >
           <option
-            {...t.lang('appHome.appAddApplicantForm.myself')}
-            {...t.lang('appHome.appAddApplicantForm.myselfAlreadyAdded')}
             value="SELF"
+            {...(selfAdded
+              ? t.lang('appHome.appAddApplicantForm.myselfAlreadyAdded')
+              : t.lang('appHome.appAddApplicantForm.myself'))}
           >
             {selfAdded
               ? t('appHome.appAddApplicantForm.myselfAlreadyAdded')

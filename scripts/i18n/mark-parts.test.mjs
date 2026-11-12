@@ -56,13 +56,21 @@ describe('text children', () => {
 });
 
 describe('attributes', () => {
-  test('aria-label, title, placeholder and alt on a host element get a lang spread', () => {
+  test('aria-label, title and alt on a host element with no words of its own get a lang spread', () => {
     const r = mark(
-      `export function A() {\n  const t = getServerT(c);\n  return <><nav aria-label={t('a.nav')}><a href="/x" /></nav><input placeholder={t('a.ph')} /><img alt={t('a.alt')} src="/i.png" /><div title={t('a.title')} /></>;\n}\n`,
+      'export function A() {\n  const t = getServerT(c);\n  return <><nav aria-label={t(\'a.nav\')}><a href="/x" /><Icon name="x" /></nav><img alt={t(\'a.alt\')} src="/i.png" /><div title={t(\'a.title\')} /><Link href="/" aria-label={t(\'a.link\')} /></>;\n}\n',
     );
-    for (const k of ['a.nav', 'a.ph', 'a.alt', 'a.title'])
+    for (const k of ['a.nav', 'a.alt', 'a.title', 'a.link'])
       assert.ok(r.code.includes(`{...t.lang('${k}')}`), k);
     assert.equal(r.tally.langAttrs, 4);
+  });
+
+  test('a form control is skipped: its lang would also name what the person types', () => {
+    const r = mark(
+      "export function A() {\n  const t = getServerT(c);\n  return <><input placeholder={t('a.ph')} /><select aria-label={t('a.s')} /></>;\n}\n",
+    );
+    assert.equal(r.changed, false);
+    assert.equal(r.tally.skipped.form_control, 2);
   });
 
   test('two attributes with the same key share one spread', () => {
@@ -88,13 +96,13 @@ describe('attributes', () => {
     assert.equal(r.tally.skipped.attribute_lang_mixed, 5);
   });
 
-  test('the same key in a child is fine; user data in a child is fine', () => {
+  test('the same key in a child is fine; variables, map output and unknown components are not', () => {
     const r = mark(
-      `export function A({ name }) {\n  const t = getServerT(c);\n  return <><a aria-label={t('a.k')}>{t('a.k')}</a><b title={t('a.m')}>{name}</b></>;\n}\n`,
+      "export function A({ name, rows }) {\n  const t = getServerT(c);\n  return <><a aria-label={t('a.k')}>{t('a.k')}</a><b title={t('a.m')}>{name}</b><ul aria-label={t('a.l')}>{rows.map((x) => x)}</ul><p title={t('a.c')}><Card /></p></>;\n}\n",
     );
     assert.ok(r.code.includes(`{...t.lang('a.k')}`));
-    assert.ok(r.code.includes(`{...t.lang('a.m')}`));
-    assert.ok(r.code.includes(`{t.node('a.k')}`));
+    assert.equal(r.tally.langAttrs, 1);
+    assert.equal(r.tally.skipped.attribute_lang_mixed, 3);
   });
 
   test('a component prop named title is not an element attribute', () => {
@@ -124,6 +132,14 @@ describe('elements that cannot hold a span', () => {
     );
     assert.equal(r.tally.optionLangs, 1);
     assert.equal(r.tally.nodes, 0);
+  });
+
+  test('an option whose text switches between two messages is reported, not given two langs', () => {
+    const r = mark(
+      "export function A({ x }) {\n  const t = getServerT(c);\n  return <option>{x ? t('a.one') : t('a.two')}</option>;\n}\n",
+    );
+    assert.equal(r.changed, false);
+    assert.equal(r.tally.skipped.string_only_parent, 1);
   });
 
   test('an option with more than the message is reported, not guessed', () => {

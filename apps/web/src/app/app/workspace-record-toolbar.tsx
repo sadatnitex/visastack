@@ -1,6 +1,5 @@
 'use client';
 
-import { formatNumber } from '@visastack/i18n';
 import type {
   WorkspaceSearchResult,
   WorkspaceSearchScope,
@@ -241,10 +240,7 @@ export function WorkspaceRecordToolbar({
                 </output>
               ) : null}
               {result.status === 'ready' && result.rows.length ? (
-                <nav
-                  aria-label={t('appHome.appWorkspaceRecordToolbar.searchResults')}
-                  {...t.lang('appHome.appWorkspaceRecordToolbar.searchResults')}
-                >
+                <nav aria-label={t('appHome.appWorkspaceRecordToolbar.searchResults')}>
                   <ul>
                     {result.rows.map((item) => (
                       <li key={`${item.category}:${item.id}`}>
@@ -283,7 +279,7 @@ export function WorkspaceRecordToolbar({
           aria-label={
             state
               ? t('appHome.appWorkspaceRecordToolbar.notificationsUnreadUnread', {
-                  unread: formatNumber(state.unread, locale),
+                  unread: state.unread,
                 })
               : t('appHome.appWorkspaceRecordToolbar.notifications')
           }

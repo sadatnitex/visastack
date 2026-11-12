@@ -147,47 +147,54 @@ function hasLangMarker(opening) {
   });
 }
 
-/** Does anything inside `element` (not its attributes) carry text that may be in another language? */
+/** Components whose output holds no words of their own. */
+const WORDLESS = new Set(['Icon', 'BrandMark']);
+
+/**
+ * Could anything inside `element` be in a language other than the one `key` is in? Only content
+ * that is provably the same message, or provably wordless (an icon, an empty tag), is safe; a
+ * variable, a `.map()`, another message, written words or an unknown component all count as
+ * "maybe", because one `lang` on the element would then be wrong for them.
+ */
 function otherTextInside(element, key) {
   let found = false;
   const visit = (n) => {
     if (found) return;
-    if (ts.isJsxText(n) && /\p{L}/u.test(n.text)) {
-      found = true;
+    if (ts.isJsxText(n)) {
+      if (/\p{L}/u.test(n.text)) found = true;
+      return;
+    }
+    if (
+      ts.isJsxExpression(n) &&
+      n.expression &&
+      (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent))
+    ) {
+      // A child expression: only `t('same.key')` or `t.node('same.key')` is known.
+      const e = unwrap(n.expression);
+      const callee = e && ts.isCallExpression(e) ? e.expression : null;
+      const base = callee && ts.isPropertyAccessExpression(callee) ? callee.expression : callee;
+      const same = base && ts.isIdentifier(base) && isTranslatorUse(base) && literalKey(e) === key;
+      if (!same) found = true;
       return;
     }
     if (ts.isCallExpression(n)) {
       const callee = n.expression;
       const base = ts.isPropertyAccessExpression(callee) ? callee.expression : callee;
-      const isNodeCall =
-        ts.isPropertyAccessExpression(callee) && ['node', 'lang'].includes(callee.name.text);
-      if (
-        ts.isIdentifier(base) &&
-        (isNodeCall || ts.isIdentifier(callee)) &&
-        isTranslatorUse(base)
-      ) {
-        if (literalKey(n) !== key) found = true;
+      if (ts.isIdentifier(base) && isTranslatorUse(base) && literalKey(n) !== key) {
+        found = true;
+        return;
+      }
+    }
+    if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) {
+      const name = n.tagName.getText();
+      if (/^[A-Z]/.test(name) && !WORDLESS.has(name) && !HOST_LIKE.has(name)) {
+        found = true;
         return;
       }
     }
     ts.forEachChild(n, visit);
   };
   for (const child of element.children) visit(child);
-  // Attributes of nested elements that read from the catalogue also sit under this lang.
-  const nested = (n) => {
-    if (found) return;
-    if (ts.isJsxAttribute(n) && n.initializer && ts.isJsxExpression(n.initializer)) {
-      const inner = n.initializer.expression;
-      const call = inner && ts.isCallExpression(inner) ? inner : null;
-      const c = call && (translatorCall(call) ?? null);
-      if (c && literalKey(c) !== key && LANG_ATTRS.has(n.name.getText())) {
-        found = true;
-        return;
-      }
-    }
-    ts.forEachChild(n, nested);
-  };
-  for (const child of element.children) nested(child);
   return found;
 }
 
@@ -228,27 +235,38 @@ export function markSource(code, fileName = 'file.tsx', { nodeProps = new Set() 
       (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent))
     ) {
       const parentElement = ts.isJsxElement(n.parent) ? n.parent : null;
-      for (const call of nodePositionCalls(n.expression)) {
-        const tc = translatorCall(call);
-        if (!tc) continue;
-        handled.add(tc);
-        const open = parentElement?.openingElement;
-        if (open && isHostTag(open) && STRING_ONLY.has(tagName(open))) {
+      const calls = nodePositionCalls(n.expression);
+      const openEl = parentElement?.openingElement;
+      if (openEl && isHostTag(openEl) && STRING_ONLY.has(tagName(openEl))) {
+        const translated = calls.map(translatorCall).filter(Boolean);
+        for (const tc of translated) handled.add(tc);
+        if (translated.length) {
           const meaningful = parentElement.children.filter(
             (c) => !(ts.isJsxText(c) && c.text.trim() === ''),
           );
-          const arg = tc.arguments[0];
-          if (meaningful.length === 1 && arg && literalKey(tc) !== null) {
-            if (hasLangMarker(open)) continue;
-            edits.push({
-              pos: open.tagName.getEnd(),
-              end: open.tagName.getEnd(),
-              text: spreadFor(tc, { raw: arg.getText() }),
-            });
-            tally.optionLangs++;
+          const tc = translated[0];
+          if (
+            translated.length === 1 &&
+            meaningful.length === 1 &&
+            n.expression === tc &&
+            literalKey(tc) !== null
+          ) {
+            if (!hasLangMarker(openEl)) {
+              edits.push({
+                pos: openEl.tagName.getEnd(),
+                end: openEl.tagName.getEnd(),
+                text: spreadFor(tc, { raw: tc.arguments[0].getText() }),
+              });
+              tally.optionLangs++;
+            }
           } else addTo('skipped', 'string_only_parent', tc);
-          continue;
         }
+        calls.length = 0;
+      }
+      for (const call of calls) {
+        const tc = translatorCall(call);
+        if (!tc) continue;
+        handled.add(tc);
         edits.push({ pos: tc.expression.getEnd(), end: tc.expression.getEnd(), text: '.node' });
         tally.nodes++;
       }
@@ -286,6 +304,11 @@ export function markSource(code, fileName = 'file.tsx', { nodeProps = new Set() 
     const keys = new Set(list.map((x) => literalKey(x.call)));
     const key = [...keys][0];
     if (hasLangMarker(opening)) continue;
+    // A lang on a form control also names the language of what the person types into it.
+    if (['input', 'textarea', 'select'].includes(tagName(opening))) {
+      for (const x of list) addTo('skipped', 'form_control', x.attr);
+      continue;
+    }
     const reason =
       keys.has(null) || keys.size > 1 || (element && otherTextInside(element, key))
         ? 'attribute_lang_mixed'
