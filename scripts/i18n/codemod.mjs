@@ -5,11 +5,13 @@
  *
  *   node scripts/i18n/codemod.mjs --surface documents --files apps/web/src/app/(app)/documents/page.tsx ...
  *   node scripts/i18n/codemod.mjs --surface documents --dry-run --files ...
- *   node scripts/i18n/codemod.mjs --all --dry-run          # counts per default surface, writes nothing
+ *   node scripts/i18n/codemod.mjs --all --dry-run          # counts per default surface (reports only)
  *
  * Writes the edited files, apps/web/src/i18n/<surface>.ts, apps/web/src/i18n/<surface>.sources.json
  * and a report of everything not converted and why (default
- * apps/web/.preview/l10n/codemod/<surface>.report.json, git-ignored). A second run changes nothing.
+ * apps/web/.preview/l10n/codemod/<surface>.report.json, git-ignored). A dry run writes only the
+ * reports. A second run changes nothing. A real run needs the i18n runtime (defineCatalog, useT,
+ * getServerT, primeLocale) to be present and stops before touching anything if it is not.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -94,6 +96,28 @@ function createProgram(root, absFiles) {
   return ts.createProgram({ rootNames: absFiles, options });
 }
 
+/** The files a converted surface imports. A real run refuses to start without them. */
+export const RUNTIME_FILES = [
+  ['packages/i18n/src/index.ts', [/\bdefineCatalog\b/]],
+  ['apps/web/src/components/i18n-provider.tsx', [/export function useT\b/]],
+  [
+    'apps/web/src/lib/i18n-server.ts',
+    [/export function getServerT\b/, /export async function primeLocale\b/],
+  ],
+];
+export function assertRuntime(root) {
+  const missing = RUNTIME_FILES.filter(([rel, needs]) => {
+    const p = path.join(root, rel);
+    if (!fs.existsSync(p)) return true;
+    const code = fs.readFileSync(p, 'utf8');
+    return !needs.every((re) => re.test(code));
+  }).map(([rel]) => rel);
+  if (missing.length)
+    throw new Error(
+      `the i18n runtime is not on this branch (${missing.join(', ')}): only --dry-run works until it is`,
+    );
+}
+
 /**
  * Format files in place with the repository's Biome (format, import order, safe fixes). File mode
  * on purpose: Biome 1.9.4 drops combining marks (Bengali vowel signs) when it reads from stdin.
@@ -126,14 +150,19 @@ export function runCodemod({
   for (const g of groups)
     if (!/^[a-z][a-z0-9-]*$/.test(g.surface))
       throw new Error(`surface must be lower case letters, digits and hyphens: ${g.surface}`);
+  if (!dryRun) assertRuntime(root);
   const reg = register ?? Register.load(root);
   const boundary = buildBoundary(root);
   const prepared = groups.map((g) => {
     const files = [
-      ...new Set(g.files.map((f) => path.posix.normalize(f.split(path.sep).join('/')))),
-    ]
-      .map((f) => (path.isAbsolute(f) ? path.relative(root, f).split(path.sep).join('/') : f))
-      .sort();
+      ...new Set(
+        g.files.map((f) =>
+          path.posix.normalize(
+            (path.isAbsolute(f) ? path.relative(root, f) : f).split(path.sep).join('/'),
+          ),
+        ),
+      ),
+    ].sort();
     for (const f of files)
       if (!fs.existsSync(path.join(root, f))) throw new Error(`no such file: ${f}`);
     return {
@@ -201,9 +230,28 @@ export function runCodemod({
     }
 
     // keys, in file then position order
-    const alloc = new KeyAllocator(camel(g.surface), catalog.en);
+    // Register rows first: English with two meanings (a homograph the census keeps apart) gets
+    // one key per meaning, so each keeps its own Bengali.
+    const lookups = new Map(
+      accepted.map((u) => [
+        u,
+        reg.lookup({ file: u.file, line: u.line, censusText: u.censusText, english: u.english }),
+      ]),
+    );
+    const meanings = new Map();
+    for (const [u, r] of lookups)
+      if (r.group && !r.group.includes('|'))
+        meanings.set(u.english, new Set([...(meanings.get(u.english) ?? []), r.group]));
+    const homograph = (english) => (meanings.get(english)?.size ?? 0) > 1;
+    const alloc = new KeyAllocator(camel(g.surface), catalog.en, (k, english) =>
+      homograph(english) && typeof sources[k] === 'string' ? sources[k] : '',
+    );
     const keyOfUnit = new Map();
-    for (const u of accepted) keyOfUnit.set(u, alloc.keyFor(u.file, u.english, u.slugSource));
+    for (const u of accepted) {
+      const r = lookups.get(u);
+      const variant = homograph(u.english) ? (r.group ?? '') : '';
+      keyOfUnit.set(u, alloc.keyFor(u.file, u.english, u.slugSource, variant));
+    }
     const en = { ...catalog.en };
     const bn = { ...catalog.bn };
     const src = { ...sources };
@@ -211,15 +259,17 @@ export function runCodemod({
     for (const u of accepted) {
       const key = keyOfUnit.get(u);
       en[key] = u.english;
-      report.converted.push({ key, file: u.file, line: u.line, kind: u.kind, english: u.english });
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const r = reg.lookup({
+      report.converted.push({
+        key,
         file: u.file,
         line: u.line,
-        censusText: u.censusText,
+        kind: u.kind,
         english: u.english,
+        ...(homograph(u.english) ? { homograph: true } : {}),
       });
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const r = lookups.get(u);
       if (!(key in src) || src[key] === null) src[key] = r.group;
       if (bn[key] === undefined) {
         if (r.bn) bn[key] = r.bn;
@@ -255,11 +305,21 @@ export function runCodemod({
       fs.mkdirSync(path.dirname(abs), { recursive: true });
       fs.writeFileSync(abs, text);
     }
-    if (format)
-      biomeFormat(
-        root,
-        writes.map(([rel]) => rel),
-      );
+    if (format) {
+      try {
+        biomeFormat(
+          root,
+          writes.map(([rel]) => rel),
+        );
+      } catch (error) {
+        // Put every file back as it was, so a failed run leaves nothing half-converted.
+        for (const [rel, text] of before) {
+          if (text === null) fs.rmSync(path.join(root, rel), { force: true });
+          else fs.writeFileSync(path.join(root, rel), text);
+        }
+        throw error;
+      }
+    }
     const changed = [];
     for (const [rel] of writes) {
       const abs = path.join(root, rel);

@@ -152,10 +152,20 @@ SG-4,Last checked {when}.,\u09b6\u09c7\u09b7 \u09af\u09be\u099a\u09be\u0987 {whe
 `,
 };
 
-/** A fresh repository-shaped folder with the fixtures (plus `extra` files). */
+/** Stand-ins for the i18n runtime: a real run refuses to start without these files. */
+export const RUNTIME_STUBS = {
+  'packages/i18n/src/index.ts': 'export const defineCatalog = <C>(catalog: C): C => catalog;\n',
+  'apps/web/src/components/i18n-provider.tsx':
+    "'use client';\nexport function useT(_catalog: unknown) {\n  return (key: string) => key;\n}\n",
+  'apps/web/src/lib/i18n-server.ts':
+    'export function getServerT(_catalog: unknown) {\n  return (key: string) => key;\n}\nexport async function primeLocale() {\n  return "en";\n}\n',
+};
+
+/** A fresh repository-shaped folder with the fixtures (plus `extra` files; null removes one). */
 export function makeRoot(extra = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'i18n-codemod-'));
-  const all = { 'apps/web/tsconfig.json': TSCONFIG, ...FILES, ...extra };
+  const all = { 'apps/web/tsconfig.json': TSCONFIG, ...RUNTIME_STUBS, ...FILES, ...extra };
+  for (const [rel, text] of Object.entries(all)) if (text === null) delete all[rel];
   for (const [rel, text] of Object.entries(all)) {
     fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
     fs.writeFileSync(path.join(root, rel), text);

@@ -696,8 +696,16 @@ function declaredT(host, sf, catalogIdent) {
     else if (ts.isVariableDeclaration(n) && named(n.name)) {
       const o = own(n);
       const list = n.parent;
-      const isVar = !(list.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const));
-      const scope = isVar ? fnOf(n) : scopeOf(list.parent);
+      let scope;
+      if (ts.isCatchClause(list)) scope = list;
+      else if (!(list.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const))) scope = fnOf(n);
+      else if (
+        ts.isForStatement(list.parent) ||
+        ts.isForOfStatement(list.parent) ||
+        ts.isForInStatement(list.parent)
+      )
+        scope = list.parent;
+      else scope = scopeOf(list.parent);
       if (o && scope === body) {
         if (o.catalog === catalogIdent) existing = o.fn;
         else conflict = conflict ?? 'other_catalog_in_scope';
@@ -707,7 +715,75 @@ function declaredT(host, sf, catalogIdent) {
   };
   for (const p of host.parameters) visit(p);
   if (body) visit(body);
+  if (!conflict && outerT(host, sf, catalogIdent)) conflict = 'name_conflict_t_outer';
   return { existing, conflict, shadows };
+}
+
+/**
+ * Is a `t` visible to the host from an enclosing function (other than our own translator for the
+ * same catalogue)? A new `const t` in the host would hide it from code the host already has.
+ */
+function outerT(host, sf, catalogIdent) {
+  const named = (b) => !!b && ts.isIdentifier(b) && b.text === 't';
+  const hostPos = host.getStart(sf);
+  for (let a = host.parent; a && !ts.isSourceFile(a); a = a.parent) {
+    if (!isFnLike(a)) continue;
+    if (a.parameters.some((p) => named(p.name))) return true;
+    let found = false;
+    const visit = (n) => {
+      if (found || n === host) return;
+      if (n !== a && isFnLike(n) && !(n.pos <= hostPos && hostPos < n.end)) return;
+      if (ts.isVariableDeclaration(n) && named(n.name)) {
+        let init = n.initializer;
+        if (init && ts.isAwaitExpression(init)) init = init.expression;
+        const ours =
+          init &&
+          ts.isCallExpression(init) &&
+          /^(useT|getServerT|getT)$/.test(init.expression.getText(sf)) &&
+          init.arguments[0]?.getText(sf) === catalogIdent;
+        const block = n.parent.parent?.parent;
+        const encloses = block && block.pos <= hostPos && hostPos < block.end;
+        if (!ours && encloses) found = true;
+      } else if (
+        (ts.isFunctionDeclaration(n) || ts.isBindingElement(n) || ts.isParameter(n)) &&
+        named(n.name)
+      )
+        found = true;
+      ts.forEachChild(n, visit);
+    };
+    if (a.body) visit(a.body);
+    if (found) return true;
+  }
+  return false;
+}
+
+/** Client components called as plain functions (`rows.map(Cell)`, `{Cell(x)}`) cannot hold a hook. */
+function calledAsFunction(host, sf) {
+  const name = componentName(host);
+  if (!name || name === 'default') return false;
+  let called = false;
+  const visit = (n) => {
+    if (called) return;
+    if (ts.isIdentifier(n) && n.text === name) {
+      const p = n.parent;
+      const fine =
+        ((ts.isJsxOpeningElement(p) ||
+          ts.isJsxSelfClosingElement(p) ||
+          ts.isJsxClosingElement(p)) &&
+          p.tagName === n) ||
+        (ts.isVariableDeclaration(p) && p.name === n) ||
+        (ts.isFunctionDeclaration(p) && p.name === n) ||
+        (ts.isFunctionExpression(p) && p.name === n) ||
+        ts.isExportSpecifier(p) ||
+        ts.isExportAssignment(p) ||
+        ts.isPropertyAccessExpression(p) ||
+        ts.isTypeQueryNode(p);
+      if (!fine) called = true;
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return called;
 }
 
 function moduleNames(sf) {
@@ -756,6 +832,13 @@ export function defaultExportFn(sf) {
   return null;
 }
 
+/** Repository path an import specifier points at ('@/x' is apps/web/src/x). */
+export const resolveSpec = (fromRel, spec) =>
+  spec.startsWith('@/')
+    ? `apps/web/src/${spec.slice(2)}`
+    : spec.startsWith('.')
+      ? path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), spec))
+      : spec;
 const relSpec = (fromRel, toRel) => {
   let r = path.posix.relative(path.posix.dirname(fromRel), toRel);
   if (!r.startsWith('.')) r = `./${r}`;
@@ -779,8 +862,7 @@ export function planFile({ rel, sf, mode, units, catalogIdent }) {
     const spec = names.get(n);
     if (spec === undefined) continue;
     const want = n === catalogIdent ? 'apps/web/src/i18n/' : RUNTIME[mode];
-    const resolved =
-      spec === '' ? '' : path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
+    const resolved = spec === '' ? '' : resolveSpec(rel, spec);
     if (!resolved.startsWith(want)) return { fileSkip: 'name_conflict_import' };
   }
   let primeFn = null;
@@ -798,6 +880,8 @@ export function planFile({ rel, sf, mode, units, catalogIdent }) {
       const d = declaredT(u.host, sf, catalogIdent);
       let reason = d.conflict;
       if (!reason && mode === 'client' && isAsync(u.host)) reason = 'async_client_component';
+      if (!reason && mode === 'client' && calledAsFunction(u.host, sf))
+        reason = 'component_called_as_function';
       if (!reason && u.host.asteriskToken) reason = 'generator_component';
       if (!reason && d.existing && (mode === 'client') !== (d.existing === 'useT'))
         reason = 'other_catalog_in_scope';
@@ -887,9 +971,10 @@ export function rewriteFile({ rel, sf, mode, plan, catalogIdent, surface, keyOf 
   const newLines = [];
   for (const [spec, wanted] of modules) {
     if (!wanted.length) continue;
+    const target = resolveSpec(rel, spec);
     const decl = imports.find(
       (d) =>
-        d.moduleSpecifier.text === spec &&
+        resolveSpec(rel, d.moduleSpecifier.text) === target &&
         !d.importClause?.isTypeOnly &&
         d.importClause?.namedBindings &&
         ts.isNamedImports(d.importClause.namedBindings),

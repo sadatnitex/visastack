@@ -319,3 +319,142 @@ describe('JSX text rules', () => {
     assert.deepEqual(renderedJsxText('a\n  &nbsp;b'), { error: 'nbsp_at_line_edge' });
   });
 });
+
+describe('review cases', () => {
+  const EDGE = {
+    'apps/web/src/components/outer-t.tsx': `'use client';
+export function Outer() {
+  const t = (k: string) => k.toUpperCase();
+  const Row = () => (
+    <div>
+      <span>{t('legacy.key')}</span>
+      <p>Hello there</p>
+    </div>
+  );
+  return <Row />;
+}
+`,
+    'apps/web/src/components/cells.tsx': `'use client';
+const Cell = (x: string) => <td>Cell label {x}</td>;
+
+export function Table({ rows }: { rows: string[] }) {
+  return (
+    <table>
+      <tbody>
+        <tr>{rows.map(Cell)}</tr>
+        <tr>
+          <td>Table caption here</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+`,
+    'apps/web/src/components/loop-t.tsx': `'use client';
+export function Loop({ items }: { items: string[] }) {
+  return (
+    <ul>
+      {items.map((x) => {
+        for (const t of [1]) void t;
+        try {
+          void x;
+        } catch (t) {
+          void t;
+        }
+        return <li key={x}>Item name</li>;
+      })}
+    </ul>
+  );
+}
+`,
+    'apps/web/src/components/aliased.tsx': `'use client';
+import { useT } from '@/components/i18n-provider';
+
+export function Aliased() {
+  void useT;
+  return <p>Aliased text here</p>;
+}
+`,
+    'apps/web/src/components/open-a.tsx': `'use client';
+export function OpenA() {
+  return <span>Open</span>;
+}
+`,
+    'apps/web/src/components/open-b.tsx': `'use client';
+export function OpenB() {
+  return <button type="button">Open</button>;
+}
+`,
+    'docs/localization/VISASTACK_UI_SOURCE_CENSUS.csv': `file,line_start,english,semantic_group
+apps/web/src/components/open-a.tsx,3,Open,SG-STATUS
+apps/web/src/components/open-b.tsx,3,Open,SG-ACTION
+`,
+    'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv': `semantic_group,english,bn_BD_draft,automated_checks
+SG-STATUS,Open,\u0996\u09cb\u09b2\u09be,PASS
+SG-ACTION,Open,\u0996\u09c1\u09b2\u09c1\u09a8,PASS
+`,
+  };
+  const files = Object.keys(EDGE).filter((f) => f.endsWith('.tsx'));
+  let root;
+  let report;
+  before(() => {
+    root = fresh(EDGE);
+    report = run(root, files);
+  });
+
+  test('a t from an enclosing function is never hidden', () => {
+    assert.equal(reasonOf(report, 'Hello there'), 'name_conflict_t_outer');
+    assert.equal(
+      read(root, 'apps/web/src/components/outer-t.tsx'),
+      EDGE['apps/web/src/components/outer-t.tsx'],
+    );
+  });
+
+  test('a component called as a plain function gets no hook', () => {
+    assert.equal(reasonOf(report, 'Cell label'), 'component_called_as_function');
+    const out = read(root, 'apps/web/src/components/cells.tsx');
+    assert.match(out, /const Cell = \(x: string\) => <td>Cell label \{x\}<\/td>;/);
+    assert.match(out, /<td>\{t\('fixture\.cells\.tableCaptionHere'\)\}<\/td>/);
+  });
+
+  test('a t in a loop or catch clause only hides ours inside that loop or clause', () => {
+    assert.match(
+      read(root, 'apps/web/src/components/loop-t.tsx'),
+      /t\('fixture\.loopT\.itemName'\)/,
+    );
+  });
+
+  test('an existing alias import is reused, not duplicated', () => {
+    const out = read(root, 'apps/web/src/components/aliased.tsx');
+    assert.equal(out.match(/useT\b.*from/g)?.length, 1);
+    assert.match(out, /t\('fixture\.aliased\.aliasedTextHere'\)/);
+  });
+
+  test('English with two meanings keeps one key and one Bengali per meaning', () => {
+    const c = catalog(root);
+    const keys = Object.keys(c.en).filter((k) => c.en[k] === 'Open');
+    assert.equal(keys.length, 2);
+    assert.deepEqual(
+      keys.map((k) => c.bn[k]).sort(),
+      ['\u0996\u09c1\u09b2\u09c1\u09a8', '\u0996\u09cb\u09b2\u09be'].sort(),
+    );
+    const sources = JSON.parse(read(root, SOURCES));
+    assert.deepEqual(keys.map((k) => sources[k]).sort(), ['SG-ACTION', 'SG-STATUS']);
+  });
+
+  test('a file named twice (relative and absolute) is processed once', () => {
+    const r2 = fresh(EDGE);
+    const rel = 'apps/web/src/components/open-a.tsx';
+    const rep = run(r2, [rel, path.join(r2, rel)]);
+    assert.deepEqual(rep.files, [rel]);
+    assert.equal(rep.converted.length, 1);
+  });
+
+  test('a real run stops before touching anything when the runtime is missing', () => {
+    const r3 = fresh({ 'apps/web/src/lib/i18n-server.ts': null });
+    const before = readTree(r3, SRC);
+    assert.throws(() => run(r3), /i18n runtime is not on this branch.*i18n-server\.ts/);
+    assert.deepEqual(readTree(r3, SRC), before);
+    assert.equal(run(r3, SRC, { dryRun: true }).converted.length, 15);
+  });
+});

@@ -35,26 +35,38 @@ export function textSlug(english) {
 
 export class KeyAllocator {
   /** @param {string} surfaceId lower camel surface prefix @param {Record<string,string>} existingEn */
-  constructor(surfaceId, existingEn = {}) {
+  /**
+   * @param {string} surfaceId lower camel surface prefix
+   * @param {Record<string,string>} existingEn keys already in the catalogue
+   * @param {(key: string, english: string) => string} [variantOf] meaning of an existing key, for
+   *   English that means two things (a homograph); '' otherwise
+   */
+  constructor(surfaceId, existingEn = {}, variantOf = () => '') {
     this.surfaceId = surfaceId;
-    this.keyToEn = new Map(Object.entries(existingEn));
-    this.enToKey = new Map();
-    for (const [k, v] of [...this.keyToEn].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
-      if (!this.enToKey.has(v)) this.enToKey.set(v, k);
-    this.added = new Map();
+    this.keyToId = new Map();
+    this.idToKey = new Map();
+    const sorted = Object.entries(existingEn).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    for (const [k, v] of sorted) {
+      const id = `${v}\u0000${variantOf(k, v)}`;
+      this.keyToId.set(k, id);
+      if (!this.idToKey.has(id)) this.idToKey.set(id, k);
+    }
   }
 
-  /** @param {string} [slugSource] text the slug is made from (a plural's "other" form) */
-  keyFor(rel, english, slugSource = english) {
-    const known = this.enToKey.get(english);
+  /**
+   * @param {string} [slugSource] text the slug is made from (a plural's "other" form)
+   * @param {string} [variant] which meaning of a homograph this is ('' when it has one meaning)
+   */
+  keyFor(rel, english, slugSource = english, variant = '') {
+    const id = `${english}\u0000${variant}`;
+    const known = this.idToKey.get(id);
     if (known) return known;
     const base = `${this.surfaceId}.${fileSlug(rel)}.${textSlug(slugSource)}`;
     let key = base;
-    for (let n = 6; this.keyToEn.has(key) && this.keyToEn.get(key) !== english; n += 2)
-      key = `${base}${hashOf(english, n)}`;
-    this.keyToEn.set(key, english);
-    this.enToKey.set(english, key);
-    this.added.set(key, english);
+    for (let n = 6; this.keyToId.has(key) && this.keyToId.get(key) !== id; n += 2)
+      key = `${base}${hashOf(id, n)}`;
+    this.keyToId.set(key, id);
+    this.idToKey.set(id, key);
     return key;
   }
 }
