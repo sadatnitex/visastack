@@ -3167,6 +3167,27 @@ export {
   listRequestHistoriesForOwner,
 } from './evidence-request-histories';
 export {
+  ANSWER_PLAN_REQUEST_LIMIT,
+  MAX_ANSWERS_PER_CONFIRMATION,
+  type AnswerAgencyGroup,
+  type AnswerCopy,
+  type AnswerCopyState,
+  type AnswerItem,
+  type AnswerReadiness,
+  type AnswerReceiptLine,
+  type AnswerReceiptState,
+  type EvidenceAnswer,
+  type EvidenceAnswerConfirmation,
+  type EvidenceAnswerOutcome,
+  type EvidenceAnswerPlan,
+  type EvidenceAnswerReceipt,
+  type WaitingAgency,
+  confirmEvidenceAnswers,
+  listWaitingAgencies,
+  planEvidenceAnswers,
+  readEvidenceAnswerReceipt,
+} from './evidence-answer-plan';
+export {
   LEGACY_SEND_LABEL,
   type EvidenceSubmissionDownloadInput,
   type EvidenceSubmissionList,
