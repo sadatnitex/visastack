@@ -2,6 +2,8 @@
 
 import { useActionState, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appClientInvitationsCatalog } from '../../../../i18n/app-client-invitations';
 import { AGENCY_AI_CHOICE_LABEL, agencyAiTravellerNote } from '../../../../lib/agency-ai';
 import { type ActionState, acceptClientInvitationAction } from './actions';
 
@@ -23,6 +25,7 @@ export function AcceptClientInvitationForm({
   /** S22: offer "Let This Agency Use AI Tools on What I Share", unticked, once it can be stored. */
   readonly agencyAi?: { readonly agencyName: string };
 }) {
+  const t = useT(appClientInvitationsCatalog);
   const [state, formAction, pending] = useActionState(acceptClientInvitationAction, INITIAL);
   const [selection, setSelection] = useState('new');
   const aiId = useId();
@@ -31,7 +34,9 @@ export function AcceptClientInvitationForm({
     <form action={formAction} className="field-list">
       <input type="hidden" name="token" value={token} />
       <div className="field-row">
-        <span className="field-label">Which profile?</span>
+        <span className="field-label">
+          {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.whichProfile')}
+        </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <input
@@ -41,7 +46,7 @@ export function AcceptClientInvitationForm({
               checked={selection === 'new'}
               onChange={() => setSelection('new')}
             />
-            Create a New Profile
+            {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.createANewProfile')}
           </label>
           {applicants.map((a) => (
             <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -60,20 +65,24 @@ export function AcceptClientInvitationForm({
       {selection === 'new' ? (
         <div className="field-row">
           <label className="field-label" htmlFor="newDisplayName">
-            Profile Name (Optional)
+            {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.profileNameOptional')}
           </label>
           <input
             id="newDisplayName"
             name="newDisplayName"
             type="text"
             className="input"
-            placeholder="Leave blank to use the name the agency gave"
+            placeholder={t(
+              'appClientInvitations.appClientInvitationsAcceptAcceptForm.leaveBlankToUseTheName',
+            )}
           />
         </div>
       ) : null}
       {agencyAi ? (
         <fieldset className="fieldset">
-          <legend className="field-label">AI Tools</legend>
+          <legend className="field-label">
+            {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.aiTools')}
+          </legend>
           <div className="checks">
             <label className="check" htmlFor={`${aiId}-allow`}>
               <input
@@ -86,8 +95,10 @@ export function AcceptClientInvitationForm({
             </label>
           </div>
           <small className="muted" id={`${aiId}-note`}>
-            {agencyAiTravellerNote(agencyAi.agencyName)} If your sign-in is not recent, you will
-            confirm it is you, then tick this again on Sharing.
+            {t(
+              'appClientInvitations.appClientInvitationsAcceptAcceptForm.agencyaitravellernoteIfYourSignInIs',
+              { agencyAiTravellerNote: agencyAiTravellerNote(agencyAi.agencyName) },
+            )}
           </small>
         </fieldset>
       ) : null}

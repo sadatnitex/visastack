@@ -9,6 +9,8 @@ import {
   isFailure,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
+import { useT } from '../../../components/i18n-provider';
+import { oauthCatalog } from '../../../i18n/oauth';
 import { AGENCY_AI_DURATION_LABELS, agencyAiConsentSentence } from '../../../lib/agency-ai';
 import { answerAgencyAiConsentAction } from './agency-actions';
 
@@ -32,6 +34,7 @@ export interface AgencyConsentFormProps {
  * read is chosen, at most 30 days.
  */
 export function AgencyConsentForm({ request, agency, defaultDuration }: AgencyConsentFormProps) {
+  const t = useT(oauthCatalog);
   const [state, formAction, pending] = useActionState(answerAgencyAiConsentAction, NO_RESULT);
   const id = useId();
   const messageId = `${id}-message`;
@@ -49,7 +52,7 @@ export function AgencyConsentForm({ request, agency, defaultDuration }: AgencyCo
       <p className="card-body">{agencyAiConsentSentence(agency.name)}</p>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-duration`}>
-          How Long
+          {t('oauth.oauthAuthorizeAgencyConsentForm.howLong')}
         </label>
         <select
           id={`${id}-duration`}
