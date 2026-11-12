@@ -22,8 +22,10 @@ describe('pageLanguage', () => {
     expect(pageLanguage('bn', '', ['/'])).toBe('en');
   });
 
-  it('lists only the auth screens today', () => {
-    expect(BN_READY_ROUTES).toEqual(['/auth']);
+  it('lists only the translated auth screens today', () => {
+    expect(BN_READY_ROUTES).toContain('/auth/sign-in');
+    expect(pageLanguage('bn', '/auth/confirmed')).toBe('en');
+    expect(pageLanguage('bn', '/auth/account-recovery')).toBe('en');
     expect(pageLanguage('bn', '/')).toBe('en');
     expect(pageLanguage('bn', '/status')).toBe('en');
     expect(pageLanguage('bn', '/auth/sign-in')).toBe('bn');

@@ -8064,3 +8064,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Tried and dropped: excluding React's development builds from the trace (`outputFileTracingExcludes`) changed nothing measurable, so it was not kept.
 - Not verified: the real Vercel function sizes and the Function Storage figure, which are only known after a deployment; whether Vercel's meter counts per route, per grouped function or distinct files is not known from here, so the saving is stated as traced bytes.
 - Rule going forward: a page that never reads or re-encodes documents or photos must not import `providers-media`, `jobs-reading` or an adapter class that uses the native libraries; `heavy-imports.test.ts` fails when that happens.
+
+## 2026-11-12 Page language marked only where the page is in Bangla (WCAG 3.1.2)
+- Changed: the html lang follows the visitor's choice only on routes listed in BN_READY_ROUTES (apps/web/src/lib/page-language.ts: the translated sign-in, sign-up, password, reauth and verify-email screens); every other page stays lang="en". The page address header is set on every page request and replaced if a client sends one. Bengali line height follows the chosen language (data-locale on html). The account switch label carries lang="bn".
+- Known gaps: the header, footer and a few headings around the auth screens are English inside a bn page and are not yet marked lang="en"; Bengali words on en-marked pages carry no lang mark; the root layout does not re-render on a client-side link click, so the mark can lag after a soft navigation. Each is the next step of the language rollout.
+- Not verified: screen reader behaviour on a real device.
