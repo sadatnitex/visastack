@@ -9,11 +9,11 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('../lib/page-language', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/page-language')>();
-  // One route is marked ready for this test file, so the Bangla result is exercised through the real layout.
+  // The real list plus one extra route is marked ready for this test file, so the Bangla result is exercised through the real layout.
   return {
     ...actual,
     pageLanguage: (locale: string, pathname: string | null) =>
-      actual.pageLanguage(locale, pathname, ['/trust']),
+      actual.pageLanguage(locale, pathname, [...actual.BN_READY_ROUTES, '/trust']),
   };
 });
 vi.mock('next/headers', () => ({
@@ -103,6 +103,26 @@ describe('the page language (WCAG 3.1.2)', () => {
   it('is English for an English visitor', async () => {
     state.pathname = '/status';
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+  });
+  it('follows the real list: the sign-in screen is Bangla for a Bangla visitor and English for an English one', async () => {
+    state.pathname = '/auth/sign-in';
+    state.locale = 'bn';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('bn');
+    state.locale = 'en';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+  });
+  it('records the chosen language for typography even when the page is marked English', async () => {
+    state.locale = 'bn';
+    state.pathname = '/status';
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(htmlLang(html)).toBe('en');
+    expect(/<html[^>]*\bdata-locale="bn"/.test(html)).toBe(true);
+    state.locale = 'en';
+    expect(
+      /<html[^>]*\bdata-locale="en"/.test(
+        await renderServer(RootLayout({ children: <p>Page</p> })),
+      ),
+    ).toBe(true);
   });
   it('is Bangla for a Bangla visitor on a route marked ready, and only there', async () => {
     state.locale = 'bn';

@@ -10,8 +10,13 @@
  */
 export type PageLanguage = 'en' | 'bn';
 
-/** Routes whose whole page is written in Bangla when the visitor chose it. Empty today. */
-export const BN_READY_ROUTES: readonly string[] = [];
+/** Routes whose whole page is written in Bangla when the visitor chose it. Only the auth screens today. */
+export const BN_READY_ROUTES: readonly string[] = [
+  // Interim entry: the sign-in and sign-up screens are listed because their headings and controls
+  // are predominantly Bengali for a visitor who chose it. English fallbacks there get their own
+  // lang="en" marking in PR2; the coverage gate in PR4 will decide readiness formally.
+  '/auth',
+];
 
 function stripTrailingSlash(path: string): string {
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;

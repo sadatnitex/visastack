@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
@@ -14,7 +13,7 @@ import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
 import { pageLanguage } from '../lib/page-language';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
-import { PATHNAME_REQUEST_HEADER } from '../lib/request-headers';
+import { requestedPath } from '../lib/request-path';
 import { isSignedIn } from '../lib/signed-in';
 import { hasSeenVersionNotice } from '../lib/version-notice-state';
 import { setLocaleAction } from './actions';
@@ -58,15 +57,6 @@ export const viewport: Viewport = {
   colorScheme: 'light',
 };
 
-/** The address the middleware set for this request; null if it is missing, which means English. */
-async function requestedPath(): Promise<string | null> {
-  try {
-    return (await headers()).get(PATHNAME_REQUEST_HEADER);
-  } catch {
-    return null;
-  }
-}
-
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
   // Read-only check of the Neon Auth session, so the nav reflects the real session. It never
   // writes cookies during render and defaults to
@@ -84,7 +74,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const hasNotice = versionNoticeCopy(deploymentMode) !== null;
 
   return (
-    <html lang={htmlLang} className={`${inter.variable} ${bengali.variable}`}>
+    <html lang={htmlLang} data-locale={locale} className={`${inter.variable} ${bengali.variable}`}>
       <body>
         <I18nProvider locale={locale}>
           <a className="skip-link" href="#main">

@@ -1,6 +1,5 @@
-import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
-import { PATHNAME_REQUEST_HEADER } from '../../lib/request-headers';
+import { requestedPath } from '../../lib/request-path';
 import { WorkspaceFrame } from './workspace-frame';
 
 export const dynamic = 'force-dynamic';
@@ -12,17 +11,4 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
   return WorkspaceFrame({ children, pathname: await requestedPath() });
-}
-
-/**
- * The address the middleware passed on. With no request to read (a unit test, a static render) the
- * answer is none, so the layout never fails over a first-paint improvement; the case page then
- * names its traveller from the browser, as before.
- */
-async function requestedPath(): Promise<string | null> {
-  try {
-    return (await headers()).get(PATHNAME_REQUEST_HEADER);
-  } catch {
-    return null;
-  }
 }

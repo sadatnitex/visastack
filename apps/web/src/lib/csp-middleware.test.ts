@@ -1,7 +1,8 @@
 import { type NextFetchEvent, type NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { describe, expect, it } from 'vitest';
-import { PATHNAME_REQUEST_HEADER, createCspMiddleware } from './csp-middleware';
+import { createCspMiddleware } from './csp-middleware';
 import { isNeonProtectedPath } from './identity-selection';
+import { PATHNAME_REQUEST_HEADER } from './request-headers';
 
 /**
  * The middleware that puts the Content-Security-Policy and its per-request
@@ -378,8 +379,13 @@ describe('the page address handed to the workspace render', () => {
         get(CASE, { headers: { [PATHNAME_REQUEST_HEADER]: '/app/mission/someone-elses-case' } }),
         EVENT,
       );
-      expect((calls[0] as NextRequest).headers.get(PATHNAME_REQUEST_HEADER)).toBe(CASE);
-      expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER)).toBe(CASE);
+      const SPOOFED = '/app/mission/someone-elses-case';
+      const signedInSees = (calls[0] as NextRequest).headers.get(PATHNAME_REQUEST_HEADER);
+      const renderSees = forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER);
+      expect(signedInSees).toBe(CASE);
+      expect(signedInSees).not.toBe(SPOOFED);
+      expect(renderSees).toBe(CASE);
+      expect(renderSees).not.toBe(SPOOFED);
     }
   });
 
@@ -396,7 +402,11 @@ describe('the page address handed to the workspace render', () => {
           `${path} ${enabled}`,
         ).toBe(path);
         // The sign-in check, where it runs, never sees a client-chosen address either.
-        for (const call of calls) expect(call.headers.get(PATHNAME_REQUEST_HEADER)).toBe(path);
+        for (const call of calls) {
+          expect(call.headers.get(PATHNAME_REQUEST_HEADER)).toBe(path);
+          expect(call.headers.get(PATHNAME_REQUEST_HEADER)).not.toBe(CASE);
+        }
+        expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER)).not.toBe(CASE);
       }
     }
   });

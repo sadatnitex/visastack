@@ -16,8 +16,6 @@ import { PATHNAME_REQUEST_HEADER } from './request-headers';
 
 type MiddlewareResult = Awaited<ReturnType<NextMiddleware>>;
 
-export { PATHNAME_REQUEST_HEADER };
-
 export interface CspMiddlewareDeps {
   /** The sign-in middleware (Neon Auth), wrapped unchanged. */
   readonly auth: NextMiddleware;

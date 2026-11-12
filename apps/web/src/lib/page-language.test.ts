@@ -22,9 +22,12 @@ describe('pageLanguage', () => {
     expect(pageLanguage('bn', '', ['/'])).toBe('en');
   });
 
-  it('has no ready route today', () => {
-    expect(BN_READY_ROUTES).toEqual([]);
+  it('lists only the auth screens today', () => {
+    expect(BN_READY_ROUTES).toEqual(['/auth']);
     expect(pageLanguage('bn', '/')).toBe('en');
+    expect(pageLanguage('bn', '/status')).toBe('en');
+    expect(pageLanguage('bn', '/auth/sign-in')).toBe('bn');
+    expect(pageLanguage('en', '/auth/sign-in')).toBe('en');
   });
 });
 
