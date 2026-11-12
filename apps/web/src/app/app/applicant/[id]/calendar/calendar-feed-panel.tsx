@@ -2,6 +2,8 @@
 
 import { useActionState, useId, useRef, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantCalendarCatalog } from '../../../../../i18n/applicant-calendar';
 import { type CalendarFeedFormResult, calendarFeedAction } from './feed-actions';
 
 /** What the page knows about the link when it loads; the link itself is never known again. */
@@ -35,6 +37,7 @@ export const nextPanelResult = (
 
 /** The link just made, with a copy button and short steps for common calendar apps. Shown once. */
 function NewLink({ url }: { readonly url: string }) {
+  const t = useT(applicantCalendarCatalog);
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
@@ -51,31 +54,49 @@ function NewLink({ url }: { readonly url: string }) {
   return (
     <div className="field-list u-mt-100">
       <label htmlFor={id} className="field-label">
-        Your Private Calendar Link
+        {t.node(
+          'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.yourPrivateCalendarLink',
+        )}
       </label>
       <input ref={input} id={id} className="input" value={url} readOnly />
       <div className="calendar-actions">
         <button type="button" className="btn btn-primary" onClick={copy}>
-          Copy Link
+          {t.node('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.copyLink')}
         </button>
       </div>
       <output className="field-msg" aria-live="polite">
         {message}
       </output>
-      <p className="muted u-m-0">Then add it to your calendar app:</p>
+      <p className="muted u-m-0">
+        {t.node(
+          'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thenAddItToYourCalendar',
+        )}
+      </p>
       <ul className="muted u-m-0">
         <li>
-          Google Calendar on a computer: next to Other calendars, choose the plus sign, then From
-          URL, and paste the link.
+          {t.node(
+            'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.googleCalendarOnAComputerNext',
+          )}
         </li>
         <li>
-          iPhone or iPad: open Settings, then Calendar, Accounts, Add Account, Other, Add Subscribed
-          Calendar, and paste the link.
+          {t.node(
+            'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.iphoneOrIpadOpenSettingsThen',
+          )}
         </li>
-        <li>Calendar on a Mac: choose File, then New Calendar Subscription, and paste the link.</li>
-        <li>Outlook: choose Add Calendar, then Subscribe from web, and paste the link.</li>
+        <li>
+          {t.node(
+            'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.calendarOnAMacChooseFile',
+          )}
+        </li>
+        <li>
+          {t.node(
+            'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.outlookChooseAddCalendarThenSubscribe',
+          )}
+        </li>
       </ul>
-      <p className="muted u-m-0">This link is shown only now. If you lose it, make a new link.</p>
+      <p className="muted u-m-0">
+        {t.node('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thisLinkIsShownOnlyNow')}
+      </p>
     </div>
   );
 }
@@ -92,6 +113,7 @@ export function CalendarFeedPanel({
   readonly applicantId: string;
   readonly status: CalendarFeedPanelStatus;
 }) {
+  const t = useT(applicantCalendarCatalog);
   const [result, act, pending] = useActionState(
     async (previous: PanelResult, formData: FormData): Promise<PanelResult> =>
       nextPanelResult(previous, await calendarFeedAction(NO_RESULT, formData)),
@@ -107,32 +129,35 @@ export function CalendarFeedPanel({
   return (
     <section className="card u-mt-150" aria-labelledby="calendar-feed-heading">
       <h3 className="card-title" id="calendar-feed-heading">
-        Subscribe in Your Calendar App
+        {t.node(
+          'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribeInYourCalendarApp',
+        )}
       </h3>
       {state === 'unavailable' ? (
         <p className="card-body">
-          Subscribing in your calendar app is not available yet. You can still download a calendar
-          file above.
+          {t.node(
+            'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribingInYourCalendarAppIs',
+          )}
         </p>
       ) : (
         <>
           <p className="card-body">
-            Turn on a private link and add it to your calendar app once. Your dates then keep up by
-            themselves: new dates appear, changed dates move, and finished dates go away. Calendar
-            apps check the link on their own schedule, from every few minutes to about once a day.
+            {t.node(
+              'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.turnOnAPrivateLinkAnd',
+            )}
           </p>
           <div className="notice notice-warn u-mb-100">
             <p className="u-m-0">
-              Anyone who has this link can see these dates, their general titles such as &quot;Task
-              Due&quot;, and the traveller&apos;s first name, which names the calendar. It never
-              shows full names, case names, documents or notes. Keep it private. If someone else may
-              have it, make a new link or stop sharing.
+              {t.node(
+                'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.anyoneWhoHasThisLinkCan',
+              )}
             </p>
           </div>
           {state === 'unknown' ? (
             <p className="muted">
-              We could not check your calendar link just now. Refresh to try again. If you want to
-              be sure nobody can use a link you made, stop sharing.
+              {t.node(
+                'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.weCouldNotCheckYourCalendar',
+              )}
             </p>
           ) : null}
           {state === 'on' && !result.link ? (
@@ -187,8 +212,9 @@ export function CalendarFeedPanel({
           </form>
           {state === 'on' ? (
             <p className="muted u-fs-085 calendar-feed-note">
-              Making a new link stops the old one at once: add the new link to your calendar app
-              again. Stop Sharing turns the link off; your calendar app then gets no new dates.
+              {t.node(
+                'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.makingANewLinkStopsThe',
+              )}
             </p>
           ) : null}
         </>
