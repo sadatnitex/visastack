@@ -79,3 +79,8 @@ The marking pass is `scripts/i18n/mark-parts.mjs` (tests in `mark-parts.test.mjs
 - An `<option>`, `<textarea>` or `<title>` cannot hold a span, so when one message is its only child the element gets the `t.lang` spread instead. Text that switches between two messages is reported as `string_only_parent` and written by hand with a conditional `t.lang`.
 - Template literals, props of components that were not widened, and values stored before they are shown stay a plain `t()`; the report counts them by reason (`template_literal`, `component_prop`, `value_flow`).
 - Known gap: a message stored in a variable or object and shown later (`value_flow`) is not marked; it is converted by hand when found.
+
+## Plural `#` in English (12 Nov 2026)
+
+- The ICU `#` now follows the same rule as a `{token}` number: under resolved `en` it is exactly `String(n)` (`1000`, not `1,000`), so English matches the original code. Bengali is unchanged (Bengali digits with locale grouping).
+- No merged message catalogue uses `#` outside tests, so no English output on a screen changes today; the Wave E part 2 message `{notSorted, plural, one {# Needs a Kind} other {# Need a Kind}}` now prints `1000 Need a Kind`.

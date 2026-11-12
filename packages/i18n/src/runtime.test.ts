@@ -26,6 +26,13 @@ describe('catalog runtime', () => {
     expect(catalogTranslator(demo, 'bn')('demo.greeting', { name: 'আশা' })).toBe('হ্যালো আশা');
   });
 
+  it('plural # in English is never grouped, Bengali keeps its grouping', () => {
+    const msg = '{n, plural, one {# Needs a Kind} other {# Need a Kind}}';
+    expect(formatMessage(msg, { n: 1000 }, 'en-GB')).toBe('1000 Need a Kind');
+    expect(formatMessage(msg, { n: 1234567 }, 'en-GB')).toBe('1234567 Need a Kind');
+    expect(formatMessage('{n, plural, other {#}}', { n: 1234567 }, 'bn-BD')).toBe('১২,৩৪,৫৬৭');
+  });
+
   it('plural: English one and other', () => {
     const t = catalogTranslator(demo, 'en');
     expect(t('demo.items', { count: 1 })).toBe('1 item');
@@ -149,10 +156,10 @@ describe('catalogResolve', () => {
       bn: {},
     });
     expect(catalogResolve(n, 'bn', 'x.files', { n: 1234 })).toEqual({
-      text: '1,234 files',
+      text: '1234 files',
       lang: 'en',
     });
-    expect(catalogTranslator(n, 'bn')('x.files', { n: 1234 })).toBe('1,234 files');
+    expect(catalogTranslator(n, 'bn')('x.files', { n: 1234 })).toBe('1234 files');
   });
 });
 
@@ -185,7 +192,7 @@ describe('numeric {token} follows the message language', () => {
   });
   it('strings pass through and plural # is unchanged', () => {
     expect(formatMessage('{a}', { a: '12' }, 'bn-BD')).toBe('12');
-    expect(catalogResolve(c, 'en', 'x.plural', { n: 1234 }).text).toBe('1,234 files');
+    expect(catalogResolve(c, 'en', 'x.plural', { n: 1234 }).text).toBe('1234 files');
     expect(catalogResolve(c, 'bn', 'x.plural', { n: 1234 }).text).toBe('১,২৩৪ ফাইল');
   });
 });
