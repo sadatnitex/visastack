@@ -2,6 +2,8 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import {
   type ActionState,
   cancelEvidenceRequestAction,
@@ -46,6 +48,7 @@ export function EvidenceRequestActions({
   readonly submissionId?: string | undefined;
   readonly canDecide?: boolean;
 }) {
+  const t = useT(appAgencyCatalog);
   const [reviewState, reviewAction, reviewPending] = useActionState(
     startEvidenceReviewAction,
     INITIAL,
@@ -110,13 +113,15 @@ export function EvidenceRequestActions({
                 setReasonOutcome((v) => (v === 'NEEDS_REPLACEMENT' ? null : 'NEEDS_REPLACEMENT'))
               }
             >
-              Needs Replacement
+              {t('appAgency.appAgencyOrgidEvidenceRequestActions.needsReplacement')}
             </button>
           </>
         ) : null}
         {canDecide ? (
           <details className="request-decision-more">
-            <summary className="request-decision-more-toggle">More Decisions</summary>
+            <summary className="request-decision-more-toggle">
+              {t('appAgency.appAgencyOrgidEvidenceRequestActions.moreDecisions')}
+            </summary>
             <div className="request-decision-more-body">
               {status === 'RECEIVED' ? (
                 <form action={reviewAction}>
@@ -138,7 +143,7 @@ export function EvidenceRequestActions({
                   setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))
                 }
               >
-                Contradiction
+                {t('appAgency.appAgencyOrgidEvidenceRequestActions.contradiction')}
               </button>
               <button
                 type="button"
@@ -150,7 +155,7 @@ export function EvidenceRequestActions({
                   )
                 }
               >
-                Propose Correction
+                {t('appAgency.appAgencyOrgidEvidenceRequestActions.proposeCorrection')}
               </button>
               {cancelForm}
             </div>
@@ -174,7 +179,7 @@ export function EvidenceRequestActions({
             type="text"
             required
             className="input u-fs-085"
-            aria-label="Reason"
+            aria-label={t('appAgency.appAgencyOrgidEvidenceRequestActions.reason')}
             placeholder={REASON_PLACEHOLDER[reasonOutcome]}
           />
           <SubmitButton
@@ -189,7 +194,7 @@ export function EvidenceRequestActions({
       {stale ? (
         <p className="u-m-0">
           <a className="request-decision-refresh" href={refreshHref}>
-            Refresh
+            {t('appAgency.appAgencyOrgidEvidenceRequestActions.refresh')}
           </a>
         </p>
       ) : null}

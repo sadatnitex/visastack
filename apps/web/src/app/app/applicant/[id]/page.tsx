@@ -34,7 +34,7 @@ import { openOwnerGate } from '../../../../lib/owner-gate';
 import { noticesToRank, readPackageNotices } from '../../../../lib/package-notices';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
-import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
+import { STAGE_LABELS } from '../../agency/[orgId]/stage-labels';
 import { attentionContext, attentionHeading } from '../../attention-display';
 import {
   CLOCK_HOME_LIMIT,

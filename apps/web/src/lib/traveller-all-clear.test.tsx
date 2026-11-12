@@ -32,7 +32,7 @@ vi.mock('next/navigation', () => ({
   // primeLocale lets Next's own signals travel on; nothing here throws one.
   unstable_rethrow: () => undefined,
 }));
-vi.mock('../app/app/agency/[orgId]/case-search-form', () => ({
+vi.mock('../app/app/agency/[orgId]/stage-labels', () => ({
   STAGE_LABELS: { IN_PROGRESS: 'In Progress' },
 }));
 vi.mock('./master-profile', async (importOriginal) => ({

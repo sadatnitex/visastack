@@ -1,6 +1,8 @@
 'use client';
 
 import { useId } from 'react';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { MAX_ASK_ITEMS } from '../../../../lib/request-picker-types';
 
 export interface TrayItem {
@@ -23,21 +25,26 @@ export function EvidenceTray({
   readonly onRemove: (id: string, index: number) => void;
   readonly onClear: () => void;
 }) {
+  const t = useT(appAgencyCatalog);
   const headingId = useId();
   return (
     <section className="ask-tray" aria-labelledby={headingId}>
       <div className="ask-tray-head">
         <p className="ask-tray-title" id={headingId}>
-          {`Selected (${items.length})`}
+          {t('appAgency.appAgencyOrgidEvidenceTray.selectedLength', {
+            length: items.length,
+          })}
         </p>
         {items.length > 1 ? (
           <button type="button" className="btn btn-secondary" onClick={onClear}>
-            Clear All
+            {t('appAgency.appAgencyOrgidEvidenceTray.clearAll')}
           </button>
         ) : null}
       </div>
       {items.length === 0 ? (
-        <p className="muted u-fs-085">Nothing selected yet. Tick what you need above.</p>
+        <p className="muted u-fs-085">
+          {t('appAgency.appAgencyOrgidEvidenceTray.nothingSelectedYetTickWhatYou')}
+        </p>
       ) : (
         <ul className="ask-tray-list">
           {items.map((item, index) => (
@@ -46,7 +53,9 @@ export function EvidenceTray({
                 {item.label}
                 {item.hint ? <span className="ask-hint"> ({item.hint})</span> : null}
                 <span className="ask-note">
-                  {item.id.startsWith('DOCUMENT:') ? 'Document' : 'Detail'}
+                  {item.id.startsWith('DOCUMENT:')
+                    ? t('appAgency.appAgencyOrgidClientsPage.document')
+                    : t('appAgency.appAgencyOrgidEvidenceTray.detail')}
                 </span>
               </span>
               <button
@@ -56,14 +65,16 @@ export function EvidenceTray({
                 aria-label={`Remove ${item.label}${item.hint ? ` (${item.hint})` : ''}`}
                 onClick={() => onRemove(item.id, index)}
               >
-                Remove
+                {t('appAgency.appAgencyOrgidEvidenceTray.remove')}
               </button>
             </li>
           ))}
         </ul>
       )}
       {items.length >= MAX_ASK_ITEMS ? (
-        <p className="muted u-fs-085">{`${MAX_ASK_ITEMS} is the most in one send.`}</p>
+        <p className="muted u-fs-085">
+          {t('appAgency.appAgencyOrgidEvidenceTray.maxAskItemsIsTheMost', { MAX_ASK_ITEMS })}
+        </p>
       ) : null}
     </section>
   );

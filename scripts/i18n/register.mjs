@@ -1039,6 +1039,207 @@ export const HOLDBACK = new Map([
     'SG-0f35e0ea',
     'Offline notice that promises secure handling and unsaved data: a security promise, waits for the owner sign-off.',
   ],
+  [
+    'SG-0092181b',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-1a432089',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-319b7d1b',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-4249425b',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-57024979',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-5dfd4948',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-5e68244c',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-751ac880',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-7cebc450',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-85a723da',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-8b062101',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-9f18aa86',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-a178f7cf',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-ae0400c3',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b0cc740f',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-d028e6a4',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-d62d6a52',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  [
+    'SG-f0429b7a',
+    'Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.',
+  ],
+  ['SG-697612cb', 'AI features and tools (AI processing): waits for the owner sign-off.'],
+  ['SG-84755ca2', 'AI features and tools (AI processing): waits for the owner sign-off.'],
+  [
+    'SG-03518c54',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-21824069',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-2b43768d',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-363e13bd',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-37468a51',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-7e0dba4b',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-899d13d1',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-8dca9740',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-8ee1a9d7',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b0b7a8b8',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b21f69f6',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-bdbe4cd8',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-e00eb31b',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  [
+    'SG-ed74236c',
+    'Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.',
+  ],
+  ['SG-07e1fab2', 'Invitation expiry and acceptance terms: waits for the owner sign-off.'],
+  ['SG-48a3b6e0', 'Invitation expiry and acceptance terms: waits for the owner sign-off.'],
+  ['SG-d9561170', 'Invitation expiry and acceptance terms: waits for the owner sign-off.'],
+  ['SG-65a98d6a', 'Virus scanning notices: a risk statement, waits for the owner sign-off.'],
+  ['SG-e5a8b9e8', 'Virus scanning notices: a risk statement, waits for the owner sign-off.'],
+  ['SG-04033af1', 'Billing and invoices (payment): waits for the owner sign-off.'],
+  ['SG-11f4fd8f', 'Billing and invoices (payment): waits for the owner sign-off.'],
+  [
+    'SG-1f2c844a',
+    'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
+  ],
+  [
+    'SG-c87e54e8',
+    'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
+  ],
+  [
+    'SG-7a475bd6',
+    'Access: says whether a traveller has granted an organization access; waits for the owner sign-off.',
+  ],
+  [
+    'SG-98b5d44d',
+    'Access: says what the organization can still act on; waits for the owner sign-off.',
+  ],
+  [
+    'SG-576d295d',
+    'Privacy promise: says what a person chose to send; waits for the owner sign-off.',
+  ],
+  [
+    'SG-c60f522e',
+    'Privacy promise: says what is needed and when anything is sent; waits for the owner sign-off.',
+  ],
+  [
+    'SG-e3b1eece',
+    'Issuer confirmation and readiness: states what is confirmed; waits for the owner sign-off.',
+  ],
+  [
+    'SG-0a12f492',
+    'Accessible name must match the visible button, which is still English here (Remove); stays English until the button is converted.',
+  ],
+  [
+    'SG-b4a4f931',
+    'Accessible name of the show-all toggle must match its visible words, which are still English here; stays English until the toggle is converted.',
+  ],
+  [
+    'SG-75b245d1',
+    'Opening words of the show-all toggle must match its English closing words; stays English until the toggle is converted.',
+  ],
+  [
+    'SG-d6e09908',
+    'Accessible name must match the visible button, which is still English here; stays English until the button is converted.',
+  ],
+  [
+    'SG-678c621d',
+    'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
+  ],
+  [
+    'SG-d9bcf36d',
+    'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
+  ],
+  [
+    'SG-e53a446b',
+    'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
+  ],
+  [
+    'SG-289e563b',
+    'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
+  ],
+  [
+    'SG-dcadd581',
+    'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

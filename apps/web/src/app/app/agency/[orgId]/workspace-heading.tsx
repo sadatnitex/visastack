@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import type { AgencyBrand } from '../../../../lib/agency-brand';
 import { AgencyBrandScope, AgencyMark } from './org-branding-header';
 
@@ -32,6 +34,7 @@ export function AgencyWorkspaceHeading({
   readonly admin: boolean;
   readonly status: ReactNode;
 }) {
+  const t = useT(appAgencyCatalog);
   const base = `/app/agency/${organizationId}`;
   const pathname = usePathname();
   const overview = pathname === base;
@@ -49,7 +52,8 @@ export function AgencyWorkspaceHeading({
       <div className="agency-hero-text">
         {!overview ? (
           <Link href={base} className="page-back">
-            <span aria-hidden="true">{'←'}</span> Agency Overview
+            <span aria-hidden="true">{'←'}</span>{' '}
+            {t('appAgency.appAgencyOrgidWorkspaceHeading.agencyOverview')}
           </Link>
         ) : null}
         {pageName ? (
@@ -61,13 +65,13 @@ export function AgencyWorkspaceHeading({
           <p className="page-title">{brand.name}</p>
         )}
         <p className="agency-hero-attribution" data-value>
-          Powered by VisaStack
+          {t('appAgency.appAgencyOrgidBrandingForm.poweredByVisastack')}
         </p>
       </div>
       <div className="page-actions">
         {overview && admin ? (
           <Link className="btn btn-primary" href={`${base}/clients`}>
-            Invite a Client
+            {t('appAgency.appAgencyOrgidClientsPage.inviteAClient')}
           </Link>
         ) : null}
         {status}

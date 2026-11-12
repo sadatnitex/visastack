@@ -4,6 +4,8 @@ import {
   type CollectionRuleImpact,
 } from '@visastack/services';
 import { ChecklistCorrectionForm } from '../../../../../../components/checklist-correction-form';
+import { appAgencyCatalog } from '../../../../../../i18n/app-agency';
+import { getServerT } from '../../../../../../lib/i18n-server';
 import { suggestAgencyCorrectionAction } from './checklist-correction-actions';
 
 const CATEGORIES = CORRECTION_CATEGORIES.map((value) => ({
@@ -50,10 +52,15 @@ export function ChecklistCorrectionCard({
   /** The official items of the request's checklist (pack requirement id and its plain name). */
   readonly officialItems: readonly { readonly value: string; readonly label: string }[];
 }) {
+  const t = getServerT(appAgencyCatalog);
   return (
     <section className="card" aria-labelledby="collection-correction">
       <div className="card-body">
-        <h2 id="collection-correction">Official Checklist Updates</h2>
+        <h2 id="collection-correction">
+          {t(
+            'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.officialChecklistUpdates',
+          )}
+        </h2>
         {impact ? (
           <div className="notice notice-warn correction-impact">
             <p className="u-m-0">
@@ -70,13 +77,21 @@ export function ChecklistCorrectionCard({
             </p>
           </div>
         ) : open && impact === null ? (
-          <p className="muted">This request follows the newest published official checklist.</p>
+          <p className="muted">
+            {t(
+              'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.thisRequestFollowsTheNewestPublished',
+            )}
+          </p>
         ) : null}
-        <h3>Suggest a Checklist Correction</h3>
+        <h3>
+          {t(
+            'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.suggestAChecklistCorrection',
+          )}
+        </h3>
         <p className="muted">
-          If an official item looks missing, out of date or wrong, tell VisaStack. Pack editors
-          check it against the official source; nothing changes until a corrected version is
-          published.
+          {t(
+            'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.ifAnOfficialItemLooksMissing',
+          )}
         </p>
         <ChecklistCorrectionForm
           action={suggestAgencyCorrectionAction}

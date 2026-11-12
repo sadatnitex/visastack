@@ -9,6 +9,8 @@ import {
   isFailure,
   useFocusInvalidField,
 } from '../../../../../../components/form-feedback';
+import { useT } from '../../../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../../../i18n/app-agency';
 import { CLAIM_METHOD_LABELS } from '../../../../../../lib/invoice-labels';
 import {
   type ClaimValues,
@@ -51,12 +53,15 @@ export function RecentPaymentChoices({
   /** When the payment was started, already formatted for the reader. */
   readonly startedAt: string;
 }) {
+  const t = useT(appAgencyCatalog);
   const [checkState, checkAction, checking] = useActionState(checkPaymentAction, INITIAL);
   const [startState, startAction, starting] = useActionState(startPaymentAction, INITIAL);
   return (
     <div className="invoice-recent">
       <p className="invoice-note">
-        A payment for this invoice was started at {startedAt}. Check it before paying again.
+        {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aPaymentForThisInvoiceWas', {
+          startedAt,
+        })}
       </p>
       <div className="invoice-action-row">
         <form action={checkAction} className="invoice-action">
@@ -134,6 +139,7 @@ export function ClaimForm({
   /** The latest date that can be chosen (YYYY-MM-DD): the newest day anywhere on earth, so nobody is blocked from choosing their own today. */
   readonly latestDate: string;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(submitClaimAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
@@ -151,18 +157,19 @@ export function ClaimForm({
   const beside = isFailure(shown) && isClaimField(shown.field);
   return (
     <details className="invoice-claim" open={state.values !== undefined ? true : undefined}>
-      <summary className="invoice-claim-summary">I Paid Another Way</summary>
+      <summary className="invoice-claim-summary">
+        {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.iPaidAnotherWay')}
+      </summary>
       <form ref={formRef} action={formAction} className="field-list invoice-claim-form">
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="invoiceId" value={invoiceId} />
         <p className="invoice-note">
-          Tell us about a payment you already made by bank transfer, bKash or cheque. Nothing is
-          counted until VisaStack confirms it.
+          {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.tellUsAboutAPaymentYou')}
         </p>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-method`}>
-              How You Paid
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.howYouPaid')}
             </label>
             {/* The key makes the list start again from what was kept: a list does not take a new default by itself. */}
             <select
@@ -184,7 +191,7 @@ export function ClaimForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-reference`}>
-              Payment Reference
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.paymentReference')}
             </label>
             <input
               id={`${base}-reference`}
@@ -199,12 +206,14 @@ export function ClaimForm({
             />
             <FieldError result={shown} field="reference" className="invoice-field-error" />
             <p className="invoice-hint" id={referenceHintId}>
-              A transfer id, bKash transaction id or cheque number.
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aTransferIdBkashTransactionId')}
             </p>
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-amount`}>
-              {`Amount Paid (${currency})`}
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.amountPaidCurrency', {
+                currency,
+              })}
             </label>
             <input
               id={`${base}-amount`}
@@ -221,7 +230,7 @@ export function ClaimForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-paid-on`}>
-              Date Paid
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.datePaid')}
             </label>
             <input
               id={`${base}-paid-on`}
@@ -237,7 +246,7 @@ export function ClaimForm({
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-note`}>
-              Note (Optional)
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.noteOptional')}
             </label>
             <textarea
               id={`${base}-note`}
@@ -252,7 +261,7 @@ export function ClaimForm({
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-proof`}>
-              Proof of Payment (Optional)
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.proofOfPaymentOptional')}
             </label>
             <input
               id={`${base}-proof`}
@@ -264,9 +273,7 @@ export function ClaimForm({
             />
             <FieldError result={shown} field="proof" className="invoice-field-error" />
             <p className="invoice-hint" id={proofHintId}>
-              A photo or screenshot (JPEG or PNG) or a PDF, under 4 MB. Only your owners and admins
-              and VisaStack staff can open it. If you report again after an error, choose the file
-              again.
+              {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aPhotoOrScreenshotJpegOr')}
             </p>
           </div>
         </div>

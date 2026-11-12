@@ -1,6 +1,8 @@
 import { agencyCollectionRequestsEnabled } from '@visastack/services';
 import type { Metadata } from 'next';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { membershipRoleLabel } from '../../../../../lib/labels';
 import { withSession } from '../../../../../lib/session';
 import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../console-data';
@@ -23,6 +25,8 @@ export default async function AgencyTeamPage({
 }: {
   readonly params: Promise<{ orgId: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -43,7 +47,7 @@ export default async function AgencyTeamPage({
     return (
       <article className="card">
         <p className="card-body">
-          Managing the team is limited to this organization's owners and admins.
+          {t('appAgency.appAgencyOrgidTeamPage.managingTheTeamIsLimitedTo')}
         </p>
       </article>
     );
@@ -51,16 +55,14 @@ export default async function AgencyTeamPage({
 
   return (
     <article className="card">
-      <p className="card-kicker">Team</p>
-      <h2 className="card-title">Members</h2>
+      <p className="card-kicker">{t('appAgency.appAgencyOrgidTeamPage.team')}</p>
+      <h2 className="card-title">{t('appAgency.appAgencyOrgidTeamPage.members')}</h2>
       <p className="card-body u-mb-125">
-        Membership is organizational bookkeeping - it never grants access to a traveller's records
-        on its own. Access is always an accepted grant.
+        {t('appAgency.appAgencyOrgidTeamPage.membershipIsOrganizationalBookkeepingItNever')}
       </p>
       {documentRequests ? (
         <p className="card-body u-mb-125 muted">
-          Allow Document Requests lets a member create and send document requests of their own. Only
-          owners and admins see what people send back.
+          {t('appAgency.appAgencyOrgidTeamPage.allowDocumentRequestsLetsAMember')}
         </p>
       ) : null}
       {data.members.length > 0 ? (
@@ -76,12 +78,16 @@ export default async function AgencyTeamPage({
                   {membershipRoleLabel(m.role)}
                 </span>
                 {documentRequests && m.mayRequestDocuments ? (
-                  <span className="muted member-permission-note">May Request Documents</span>
+                  <span className="muted member-permission-note">
+                    {t('appAgency.appAgencyOrgidTeamPage.mayRequestDocuments')}
+                  </span>
                 ) : null}
               </span>
               <span className="row-end">
                 <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
-                  {m.active ? 'Active' : 'Inactive'}
+                  {m.active
+                    ? t('appAgency.appAgencyOrgidTeamPage.active')
+                    : t('appAgency.appAgencyOrgidTeamPage.inactive')}
                 </span>
                 {documentRequests && m.active && m.role !== 'OWNER' && m.role !== 'ADMIN' ? (
                   <DocumentRequestToggle
@@ -118,7 +124,9 @@ export default async function AgencyTeamPage({
               </span>
               <span className="row-end">
                 <span className="badge badge-warning">
-                  Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
+                  {t('appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate', {
+                    formatTimestampDate: formatTimestampDate(invitation.expiresAt),
+                  })}
                 </span>
                 <InvitationRevokeButton organizationId={orgId} invitationId={invitation.id} />
               </span>

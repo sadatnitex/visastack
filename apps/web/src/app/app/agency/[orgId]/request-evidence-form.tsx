@@ -2,6 +2,8 @@
 
 import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import {
   MAX_ASK_ITEMS,
   type MissingForCase,
@@ -85,6 +87,7 @@ export function RequestEvidenceForm({
   missions = [],
   fixed,
 }: RequestEvidenceFormProps) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(requestEvidenceAction, INITIAL);
   // Every field is held here. React resets a form after each send (accepted or refused), which
   // would put every list back to its first choice. The traveller and the case are kept so a second
@@ -235,18 +238,23 @@ export function RequestEvidenceForm({
             <input type="hidden" name="applicantId" value={fixed.applicantId} />
             <input type="hidden" name="missionId" value={fixed.missionId} />
             <p className="muted u-fs-085">
-              For {fixed.applicantName}, {fixed.caseTitle}
+              {t('appAgency.appAgencyOrgidRequestEvidenceForm.forApplicantnameCasetitle', {
+                applicantName: fixed.applicantName,
+                caseTitle: fixed.caseTitle,
+              })}
             </p>
           </>
         ) : (
           <>
             <div className="field-row">
               <label className="field-label" htmlFor={ids.applicant}>
-                Traveller
+                {t('appAgency.appAgencyOrgidRequestEvidenceForm.traveller')}
               </label>
               {applicants.length === 0 ? (
                 <p className="muted u-fs-085">
-                  No traveller has granted this organization access yet. Nothing to request from.
+                  {t(
+                    'appAgency.appAgencyOrgidRequestEvidenceForm.noTravellerHasGrantedThisOrganization',
+                  )}
                 </p>
               ) : (
                 <select
@@ -263,7 +271,7 @@ export function RequestEvidenceForm({
                   }}
                 >
                   <option value="" disabled>
-                    Choose a traveller…
+                    {t('appAgency.appAgencyOrgidRequestEvidenceForm.chooseATraveller')}
                   </option>
                   {applicants.map((a) => (
                     <option key={a.applicantId} value={a.applicantId}>
@@ -276,7 +284,7 @@ export function RequestEvidenceForm({
             {missions.length > 0 ? (
               <div className="field-row">
                 <label className="field-label" htmlFor={ids.mission}>
-                  Case
+                  {t('appAgency.appAgencyOrgidRequestEvidenceForm.case')}
                 </label>
                 <select
                   id={ids.mission}
@@ -286,7 +294,9 @@ export function RequestEvidenceForm({
                   aria-describedby={ids.missionHint}
                   onChange={(event) => setMissionId(event.target.value)}
                 >
-                  <option value="">Whole Traveller Record (Default)</option>
+                  <option value="">
+                    {t('appAgency.appAgencyOrgidRequestEvidenceForm.wholeTravellerRecordDefault')}
+                  </option>
                   {missions.map((m) => (
                     <option key={m.missionId} value={m.missionId}>
                       {m.applicantName}: {m.title}
@@ -294,7 +304,7 @@ export function RequestEvidenceForm({
                   ))}
                 </select>
                 <small className="muted" id={ids.missionHint}>
-                  Only if access is limited to one case.
+                  {t('appAgency.appAgencyOrgidRequestEvidenceForm.onlyIfAccessIsLimitedTo')}
                 </small>
               </div>
             ) : null}
@@ -331,25 +341,27 @@ export function RequestEvidenceForm({
 
         <div className="field-row">
           <label className="field-label" htmlFor={ids.message}>
-            Message (Optional)
+            {t('appAgency.appAgencyOrgidRequestEvidenceForm.messageOptional')}
           </label>
           <input
             id={ids.message}
             name="message"
             type="text"
             className="input"
-            placeholder="For example: needed for the visa form"
+            placeholder={t(
+              'appAgency.appAgencyOrgidRequestEvidenceForm.forExampleNeededForTheVisa',
+            )}
             aria-describedby={ids.messageHint}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
           />
           <small className="muted" id={ids.messageHint}>
-            The message and the due date go with every item.
+            {t('appAgency.appAgencyOrgidRequestEvidenceForm.theMessageAndTheDueDate')}
           </small>
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor={ids.due}>
-            Due Date (Optional)
+            {t('appAgency.appAgencyOrgidRequestEvidenceForm.dueDateOptional')}
           </label>
           <input
             id={ids.due}

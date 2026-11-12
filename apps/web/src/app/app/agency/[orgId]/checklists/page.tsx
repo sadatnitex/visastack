@@ -9,6 +9,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { type SearchParamsRecord, firstParam } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { CopyListButton } from './checklist-forms';
@@ -37,6 +39,8 @@ export default async function AgencyChecklistsPage({
   readonly params: Promise<{ orgId: string }>;
   readonly searchParams: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const { q } = await searchParams;
   const search = (firstParam(q) ?? '').trim().slice(0, 60);
@@ -55,16 +59,16 @@ export default async function AgencyChecklistsPage({
   return (
     <div className="stack">
       <PageHeader
-        eyebrow="Agency Workspace"
-        title="Checklists"
-        description="Make a country list your own. Your cases offer your version, and the shared one stays as it is."
+        eyebrow={t('appAgency.appAgencyOrgidBrandingForm.agencyWorkspace')}
+        title={t('appAgency.appAgencyOrgidChecklistsPage.checklists')}
+        description={t('appAgency.appAgencyOrgidChecklistsPage.makeACountryListYourOwn')}
       />
       <section className="stack" aria-labelledby="own-lists">
         <h2 id="own-lists" className="section-title">
-          Our Lists
+          {t('appAgency.appAgencyOrgidChecklistsPage.ourLists')}
         </h2>
         {data.own.length === 0 ? (
-          <p>You have no lists of your own yet. Start from a shared list below.</p>
+          <p>{t('appAgency.appAgencyOrgidChecklistsPage.youHaveNoListsOfYour')}</p>
         ) : (
           <ul className="field-list">
             {data.own.map((list) => {
@@ -83,12 +87,12 @@ export default async function AgencyChecklistsPage({
       </section>
       <section className="stack" aria-labelledby="shared-lists">
         <h2 id="shared-lists" className="section-title">
-          Start from a Shared List
+          {t('appAgency.appAgencyOrgidChecklistsPage.startFromASharedList')}
         </h2>
         <form method="get" className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="checklist-search">
-              Country
+              {t('appAgency.appAgencyOrgidChecklistsPage.country')}
             </label>
             <input
               id="checklist-search"
@@ -100,22 +104,24 @@ export default async function AgencyChecklistsPage({
             />
           </div>
           <button type="submit" className="btn btn-secondary">
-            Search
+            {t('appAgency.appAgencyOrgidCaseSearchForm.search')}
           </button>
         </form>
         {shown.length === 0 ? (
-          <p>No shared list matches.</p>
+          <p>{t('appAgency.appAgencyOrgidChecklistsPage.noSharedListMatches')}</p>
         ) : (
           <ul className="field-list">
             {shown.map((list) => (
               <li key={list.packVersionId}>
                 <strong>{list.packName}</strong>{' '}
                 {list.starter ? (
-                  <StatusBadge tone="neutral">Starter List, Not Official</StatusBadge>
+                  <StatusBadge tone="neutral">
+                    {t('appAgency.appAgencyOrgidChecklistsPage.starterListNotOfficial')}
+                  </StatusBadge>
                 ) : null}
                 {list.ownCopyPackId ? (
                   <Link href={`/app/agency/${orgId}/checklists/edit?pack=${list.ownCopyPackId}`}>
-                    Open Our Copy
+                    {t('appAgency.appAgencyOrgidChecklistsPage.openOurCopy')}
                   </Link>
                 ) : (
                   <CopyListButton
@@ -129,7 +135,11 @@ export default async function AgencyChecklistsPage({
           </ul>
         )}
         {data.shared.length > shown.length ? (
-          <p>Showing the first {shown.length}. Search by country to narrow the list.</p>
+          <p>
+            {t('appAgency.appAgencyOrgidChecklistsPage.showingTheFirstLengthSearchBy', {
+              length: shown.length,
+            })}
+          </p>
         ) : null}
       </section>
     </div>

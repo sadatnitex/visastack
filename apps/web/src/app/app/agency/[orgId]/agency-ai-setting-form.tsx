@@ -8,6 +8,8 @@ import {
   isFailure,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { agencyAiStatement } from '../../../../lib/agency-ai';
 import { setAgencyAiSettingAction } from './ai-actions';
 
@@ -24,6 +26,7 @@ export function AgencyAiSettingForm({
   readonly organizationName: string;
   readonly enabled: boolean;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(setAgencyAiSettingAction, NO_RESULT);
   const id = useId();
   const statementId = `${id}-statement`;
@@ -37,7 +40,9 @@ export function AgencyAiSettingForm({
       <input type="hidden" name="enabled" value={String(!enabled)} />
       {enabled ? null : (
         <fieldset className="fieldset">
-          <legend className="field-label">Statement</legend>
+          <legend className="field-label">
+            {t('appAgency.appAgencyOrgidAgencyAiSettingForm.statement')}
+          </legend>
           <p className="card-body" id={statementId}>
             {agencyAiStatement(organizationName)}
           </p>
@@ -50,7 +55,12 @@ export function AgencyAiSettingForm({
                 aria-describedby={invalid ? `${statementId} ${messageId}` : statementId}
                 aria-invalid={invalid || undefined}
               />
-              <span>I Confirm This Statement for {organizationName}</span>
+              <span>
+                {t(
+                  'appAgency.appAgencyOrgidAgencyAiSettingForm.iConfirmThisStatementForOrganizationname',
+                  { organizationName },
+                )}
+              </span>
             </label>
           </div>
         </fieldset>

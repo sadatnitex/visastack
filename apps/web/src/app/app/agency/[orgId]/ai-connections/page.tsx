@@ -2,8 +2,10 @@ import { aiAppLabel } from '@visastack/core/ai-features';
 import { listAgencyAiConnections } from '@visastack/services';
 import type { Metadata } from 'next';
 import { EmptyState } from '../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { AGENCY_AI_ADMINS_ONLY, AGENCY_AI_NOT_YET } from '../../../../../lib/agency-ai';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
 import { AgencyAiTurnOff } from '../agency-ai-turn-off';
 import { loadOrgAccess } from '../console-data';
@@ -22,6 +24,8 @@ export default async function AgencyAiConnectionsPage({
 }: {
   readonly params: Promise<{ orgId: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const data = await withSession(async ({ db, accountId }) => {
     const access = await loadOrgAccess(db, accountId, orgId);
@@ -33,22 +37,23 @@ export default async function AgencyAiConnectionsPage({
 
   return (
     <article className="card" aria-labelledby="agency-ai-connections-title">
-      <p className="card-kicker">AI Tools</p>
+      <p className="card-kicker">{t('appAgency.appAgencyOrgidAiConnectionsPage.aiTools')}</p>
       <h2 className="card-title" id="agency-ai-connections-title">
-        AI Connections
+        {t('appAgency.appAgencyOrgidAiConnectionsPage.aiConnections')}
       </h2>
       <p className="card-body">
-        Each app reads, for each case its owner or admin can see, only what that case’s traveller
-        allowed this agency’s AI tools to read. It works for at most 30 days.
+        {t('appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase')}
       </p>
       {!data.allowed ? (
         <p className="muted">{AGENCY_AI_ADMINS_ONLY}</p>
       ) : !data.list.available ? (
         <p className="muted">{AGENCY_AI_NOT_YET}</p>
       ) : data.list.connections.length === 0 ? (
-        <EmptyState icon="shield" title="No AI Apps Connected">
-          An owner or admin can connect one from the AI app, once AI Connections for This Agency is
-          on in Settings.
+        <EmptyState
+          icon="shield"
+          title={t('appAgency.appAgencyOrgidAiConnectionsPage.noAiAppsConnected')}
+        >
+          {t('appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect')}
         </EmptyState>
       ) : (
         <ul className="rows">

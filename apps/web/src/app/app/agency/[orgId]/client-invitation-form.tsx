@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { type ActionState, inviteClientAction } from './actions';
 import { InvitationOutcome } from './invitation-outcome';
 
@@ -21,12 +23,15 @@ export function ClientInvitationForm({
     readonly active: boolean;
   }[];
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(inviteClientAction, INITIAL);
   const activeMembers = members.filter((m) => m.active);
 
   if (activeMembers.length === 0) {
     return (
-      <p className="card-body">Add at least one active team member before inviting a client.</p>
+      <p className="card-body">
+        {t('appAgency.appAgencyOrgidClientInvitationForm.addAtLeastOneActiveTeam')}
+      </p>
     );
   }
 
@@ -36,7 +41,7 @@ export function ClientInvitationForm({
       <div className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor="displayName">
-            Traveller Name
+            {t('appAgency.appAgencyOrgidClientInvitationForm.travellerName')}
           </label>
           <input
             id="displayName"
@@ -44,12 +49,12 @@ export function ClientInvitationForm({
             type="text"
             required
             className="input"
-            placeholder="Jane Traveller"
+            placeholder={t('appAgency.appAgencyOrgidClientInvitationForm.janeTraveller')}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="contactDestination">
-            Client Email Address
+            {t('appAgency.appAgencyOrgidClientInvitationForm.clientEmailAddress')}
           </label>
           <input
             id="contactDestination"
@@ -59,27 +64,27 @@ export function ClientInvitationForm({
             aria-describedby="contactDestination-hint"
             required
             className="input"
-            placeholder="jane@example.com"
+            placeholder={t('appAgency.appAgencyOrgidClientInvitationForm.janeExampleCom')}
           />
           <p id="contactDestination-hint" className="disclosure-hint">
-            Only that email address can accept.
+            {t('appAgency.appAgencyOrgidClientInvitationForm.onlyThatEmailAddressCanAccept')}
           </p>
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="requestedRoute">
-            Requested Route (Optional)
+            {t('appAgency.appAgencyOrgidClientInvitationForm.requestedRouteOptional')}
           </label>
           <input
             id="requestedRoute"
             name="requestedRoute"
             type="text"
             className="input"
-            placeholder="US B1/B2 business visa"
+            placeholder={t('appAgency.appAgencyOrgidClientInvitationForm.usB1B2BusinessVisa')}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="caseOwnerAccountId">
-            Case Owner
+            {t('appAgency.appAgencyOrgidClientInvitationForm.caseOwner')}
           </label>
           <select id="caseOwnerAccountId" name="caseOwnerAccountId" className="input" required>
             {activeMembers.map((m) => (
