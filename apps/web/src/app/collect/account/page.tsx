@@ -11,8 +11,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DestinationLabel } from '../../../components/destination-label';
+import { collectCatalog } from '../../../i18n/collect';
 import { agencyBrand } from '../../../lib/agency-brand';
 import { formatTimestampDate } from '../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { createKeyManagementPort } from '../../../lib/providers';
 import { withSession } from '../../../lib/session';
 import { destinationName } from '../../app/agency/[orgId]/collection/terms';
@@ -70,6 +72,8 @@ export default async function CollectAccountPage({
     readonly pick?: string | string[];
   }>;
 }) {
+  await primeLocale();
+  const t = getServerT(collectCatalog);
   if (!collectSwitchOn()) notFound();
   const query = await searchParams;
   const chosen = query?.person;
@@ -133,11 +137,8 @@ export default async function CollectAccountPage({
       {loaded.state === 'not_reviewed' ? (
         <div className="card">
           <div className="card-body stack">
-            <h2>This Agency Is Not Reviewed Yet</h2>
-            <p>
-              VisaStack has not finished reviewing the agency that sent this request, so nothing can
-              be shared with it yet. Nothing has been shared. Try again later, or ask the agency.
-            </p>
+            <h2>{t('collect.collectAccountPage.thisAgencyIsNotReviewedYet')}</h2>
+            <p>{t('collect.collectAccountPage.visastackHasNotFinishedReviewingThe')}</p>
           </div>
         </div>
       ) : loaded.state === 'choose' ? (
@@ -153,7 +154,9 @@ export default async function CollectAccountPage({
               </p>
               {loaded.otherPeople ? (
                 <p className="u-fs-085">
-                  <Link href={answerHref()}>Answer for Someone Else</Link>
+                  <Link href={answerHref()}>
+                    {t('collect.collectAccountPage.answerForSomeoneElse')}
+                  </Link>
                 </p>
               ) : null}
             </div>
@@ -174,12 +177,13 @@ export default async function CollectAccountPage({
           </p>
         </>
       )}
-      <p className="muted u-fs-085">Powered by VisaStack.</p>
+      <p className="muted u-fs-085">{t('collect.collectAccountPage.poweredByVisastack')}</p>
     </section>
   );
 }
 
 function RequestHeading({ heading }: { readonly heading: Heading }) {
+  const t = getServerT(collectCatalog);
   const brand = heading.agency
     ? agencyBrand({
         name: heading.agency.name,
@@ -196,10 +200,12 @@ function RequestHeading({ heading }: { readonly heading: Heading }) {
       {brand ? (
         <AgencyBrandScope brand={brand} className="collect-agency">
           <AgencyMark brand={brand} size="lg" />
-          <h1 className="page-title">Answer {brand.name}</h1>
+          <h1 className="page-title">
+            {t('collect.collectAccountPage.answerName', { name: brand.name })}
+          </h1>
         </AgencyBrandScope>
       ) : (
-        <h1 className="page-title">Answer an Agency Request</h1>
+        <h1 className="page-title">{t('collect.collectAccountPage.answerAnAgencyRequest')}</h1>
       )}
       <p className="muted">
         For <DestinationLabel destination={destinationName(heading.destination)} />
@@ -214,18 +220,16 @@ function ChoosePerson({
 }: {
   readonly people: readonly { readonly id: string; readonly displayName: string }[];
 }) {
+  const t = getServerT(collectCatalog);
   if (people.length === 0) {
     return (
       <div className="card">
         <div className="card-body stack">
-          <h2>Set Up Your Record First</h2>
-          <p>
-            Your answer comes from your own VisaStack record, and you have no one in it yet. Add
-            yourself and your documents, then open this page again.
-          </p>
+          <h2>{t('collect.collectAccountPage.setUpYourRecordFirst')}</h2>
+          <p>{t('collect.collectAccountPage.yourAnswerComesFromYourOwn')}</p>
           <p>
             <Link className="btn btn-primary" href="/app">
-              Set Up Your Record
+              {t('collect.collectAccountPage.setUpYourRecord')}
             </Link>
           </p>
         </div>
@@ -235,8 +239,8 @@ function ChoosePerson({
   return (
     <div className="card">
       <div className="card-body stack">
-        <h2 id="collect-choose-person">Who Is This For?</h2>
-        <p>Choose whose record to answer from. Only you can see this list.</p>
+        <h2 id="collect-choose-person">{t('collect.collectAccountPage.whoIsThisFor')}</h2>
+        <p>{t('collect.collectAccountPage.chooseWhoseRecordToAnswerFrom')}</p>
         <ul className="collect-response-people" aria-labelledby="collect-choose-person">
           {people.map((person) => (
             <li key={person.id}>
@@ -252,18 +256,17 @@ function ChoosePerson({
 }
 
 function ClosedLink() {
+  const t = getServerT(collectCatalog);
   return (
     <section className="section container collect-page">
       <article className="card collect-card">
         <div className="card-body">
-          <h1 className="page-title">This Link Is Not Open</h1>
-          <p>
-            The link may have expired or been replaced, the request may have ended, or it was sent
-            to a different email address. Open it again from the message you received, signed in
-            with the address it was sent to, or ask the agency for a new link.
-          </p>
+          <h1 className="page-title">{t('collect.collectAccountPage.thisLinkIsNotOpen')}</h1>
+          <p>{t('collect.collectAccountPage.theLinkMayHaveExpiredOr')}</p>
           <p className="u-fs-085">
-            <Link href="/collect/account/answers">See Your Answers</Link>
+            <Link href="/collect/account/answers">
+              {t('collect.collectAccountPage.seeYourAnswers')}
+            </Link>
           </p>
         </div>
       </article>

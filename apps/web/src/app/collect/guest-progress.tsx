@@ -1,5 +1,7 @@
 import type { GuestChecklistItem, GuestFileView } from '@visastack/services';
 import { Icon } from '../../components/icons';
+import { collectCatalog } from '../../i18n/collect';
+import { getServerT } from '../../lib/i18n-server';
 import { type MandatoryUnit, mandatoryUnits } from './checklist';
 
 /**
@@ -97,6 +99,7 @@ export function GuestProgress({
   readonly agencyName: string | null;
   readonly blocker: SubmitBlocker;
 }) {
+  const t = getServerT(collectCatalog);
   const none = standing.total === 0;
   const complete = !none && standing.done === standing.total;
   const headline = none
@@ -120,7 +123,10 @@ export function GuestProgress({
         <div
           className="collect-meter"
           role="img"
-          aria-label={`${standing.done} of ${standing.total} mandatory items placed`}
+          aria-label={t('collect.collectGuestProgress.doneOfTotalMandatoryItemsPlaced', {
+            done: standing.done,
+            total: standing.total,
+          })}
         >
           {segmentsOf(standing).map((segment) => (
             <span
@@ -132,18 +138,18 @@ export function GuestProgress({
       )}
       <p className="collect-progress-line">
         {none
-          ? `Nothing on this list is marked Mandatory. Add what you have, then send it to ${who} when you are ready.`
+          ? t('collect.collectGuestProgress.nothingOnThisListIsMarked', { who })
           : complete
             ? blocker === 'checking'
-              ? 'Your files are still being checked. You can send them when that finishes.'
+              ? t('collect.collectGuestProgress.yourFilesAreStillBeingChecked')
               : blocker === 'retention'
-                ? `Choose how long ${who} may keep your files, then you can send.`
+                ? t('collect.collectGuestProgress.chooseHowLongWhoMayKeep', { who })
                 : `You can send now, or add more first. ${who === 'the agency' ? 'The agency' : who} receives only what you choose to send.`
             : `Next: ${standing.next ?? ''}.`}
       </p>
       {standing.hasConditional ? (
         <p className="muted u-fs-085">
-          Items marked Mandatory If It Applies are yours to check, and are not counted here.
+          {t('collect.collectGuestProgress.itemsMarkedMandatoryIfItApplies')}
         </p>
       ) : null}
     </section>
@@ -164,24 +170,31 @@ export function GuestBar({
   readonly left: number;
   readonly total: number;
 }) {
+  const t = getServerT(collectCatalog);
   return (
-    <section className="collect-bar" aria-label="Your submission">
+    <section className="collect-bar" aria-label={t('collect.collectGuestProgress.yourSubmission')}>
       <p className="collect-bar-text">
         <strong>
-          {placed} {placed === 1 ? 'File' : 'Files'} Placed
+          {t('collect.collectGuestProgress.placedFilesPlaced', {
+            placed,
+          })}
         </strong>
         <span>
           {needsLook > 0
-            ? `${needsLook} ${needsLook === 1 ? 'file needs' : 'files need'} a look`
+            ? t('collect.collectGuestProgress.needslookFilesNeedALook', {
+                needsLook,
+              })
             : total === 0
-              ? 'Nothing mandatory'
+              ? t('collect.collectGuestProgress.nothingMandatory')
               : left === 0
-                ? 'All mandatory placed'
-                : `${left} mandatory open`}
+                ? t('collect.collectGuestProgress.allMandatoryPlaced')
+                : t('collect.collectGuestProgress.leftMandatoryOpen', {
+                    left: left,
+                  })}
         </span>
       </p>
       <a className="btn btn-primary" href="#guest-submit">
-        Review and Submit
+        {t('collect.collectAccountResponseForm.reviewAndSubmit')}
       </a>
     </section>
   );

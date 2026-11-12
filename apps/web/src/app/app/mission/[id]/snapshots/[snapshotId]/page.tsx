@@ -9,6 +9,8 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { CollapsibleGroups } from '../../../../../../components/collapsible-group';
 import { PageHeader } from '../../../../../../components/ui';
+import { appMissionCatalog } from '../../../../../../i18n/app-mission';
+import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../../../lib/labels';
 import { fieldLabel } from '../../../../../../lib/master-profile';
 import { withSession } from '../../../../../../lib/session';
@@ -111,6 +113,7 @@ function RowsWithMore<T>({
   readonly label: string;
   readonly draw: (item: T) => ReactNode;
 }) {
+  const t = getServerT(appMissionCatalog);
   const rest = items.slice(FIRST_ROWS);
   return (
     <>
@@ -119,9 +122,14 @@ function RowsWithMore<T>({
         <details className="snapshot-rows-more">
           <summary className="btn btn-secondary u-btn-sm">
             <span className="snapshot-rows-more-closed">
-              Show All {items.length} {label}
+              {t('appMission.appMissionIdSnapshotsSnapshotidPage.showAllLengthLabel', {
+                length: items.length,
+                label,
+              })}
             </span>
-            <span className="snapshot-rows-more-open">Show Fewer {label}</span>
+            <span className="snapshot-rows-more-open">
+              {t('appMission.appMissionIdSnapshotsSnapshotidPage.showFewerLabel', { label })}
+            </span>
           </summary>
           <div className="rows">{rest.map(draw)}</div>
         </details>
@@ -135,6 +143,8 @@ export default async function MissionSnapshotPage({
 }: {
   readonly params: Promise<{ id: string; snapshotId: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appMissionCatalog);
   const { id, snapshotId } = await params;
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -169,15 +179,24 @@ export default async function MissionSnapshotPage({
     <section className="section container">
       <PageHeader
         back={{ href: `/app/mission/${mission.id}`, label: mission.title }}
-        eyebrow={isPacket ? 'Application Packet' : 'Working Snapshot'}
-        title={`Version ${snapshot.version}`}
-        description={`Captured while ${content.state} · checksum ${snapshot.checksum}`}
+        eyebrow={
+          isPacket
+            ? t('appMission.appMissionIdSnapshotsSnapshotidPage.applicationPacket')
+            : t('appMission.appMissionIdSnapshotsSnapshotidPage.workingSnapshot')
+        }
+        title={t('appMission.appMissionIdSnapshotsSnapshotidPage.versionVersion', {
+          version: snapshot.version,
+        })}
+        description={t(
+          'appMission.appMissionIdSnapshotsSnapshotidPage.capturedWhileStateChecksumChecksum',
+          { state: content.state, checksum: snapshot.checksum },
+        )}
         actions={
           <a
             className="btn btn-secondary"
             href={`/app/mission/${mission.id}/snapshots/${snapshot.id}/download`}
           >
-            Download JSON
+            {t('appMission.appMissionIdSnapshotsSnapshotidPage.downloadJson')}
           </a>
         }
       />
@@ -214,12 +233,13 @@ export default async function MissionSnapshotPage({
                           className="muted"
                           style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
                         >
-                          Each pack requirement resolved to the specific evidence backing it, as of
-                          this snapshot.
+                          {t(
+                            'appMission.appMissionIdSnapshotsSnapshotidPage.eachPackRequirementResolvedToThe',
+                          )}
                         </p>
                         <RowsWithMore
                           items={content.requirementMapping}
-                          label="Requirements"
+                          label={t('appMission.appMissionIdSnapshotsSnapshotidPage.requirements')}
                           draw={(m) => {
                             const label = m.kind === 'FIELD' ? (fieldLabel(m.key) ?? m.key) : m.key;
                             return (
@@ -241,7 +261,9 @@ export default async function MissionSnapshotPage({
                                 >
                                   <span className="row-key">
                                     {label}
-                                    {m.optional ? ' · optional' : ''}
+                                    {m.optional
+                                      ? t('appMission.appMissionIdSnapshotsSnapshotidPage.optional')
+                                      : ''}
                                   </span>
                                   {m.resultState ? (
                                     <span
@@ -253,7 +275,13 @@ export default async function MissionSnapshotPage({
                                     <span
                                       className={`badge ${m.satisfied ? 'badge-success' : 'badge-warning'}`}
                                     >
-                                      {m.satisfied ? 'Satisfied' : 'Not Satisfied'}
+                                      {m.satisfied
+                                        ? t(
+                                            'appMission.appMissionIdSnapshotsSnapshotidPage.satisfied',
+                                          )
+                                        : t(
+                                            'appMission.appMissionIdSnapshotsSnapshotidPage.notSatisfied',
+                                          )}
                                     </span>
                                   )}
                                 </div>
@@ -263,7 +291,10 @@ export default async function MissionSnapshotPage({
                                     {m.facts
                                       .filter((f) => f.eligible)
                                       .map((f) => f.value)
-                                      .join(', ') || '(no eligible value)'}
+                                      .join(', ') ||
+                                      t(
+                                        'appMission.appMissionIdSnapshotsSnapshotidPage.noEligibleValue',
+                                      )}
                                   </p>
                                 ) : null}
                                 {m.kind === 'DOCUMENT' && m.documents && m.documents.length > 0 ? (
@@ -271,7 +302,10 @@ export default async function MissionSnapshotPage({
                                     {m.documents
                                       .filter((d) => d.eligible)
                                       .map((d) => d.displayName)
-                                      .join(', ') || '(no eligible document)'}
+                                      .join(', ') ||
+                                      t(
+                                        'appMission.appMissionIdSnapshotsSnapshotidPage.noEligibleDocument',
+                                      )}
                                   </p>
                                 ) : null}
                               </div>
@@ -290,11 +324,13 @@ export default async function MissionSnapshotPage({
               content: (
                 <>
                   {facts.length === 0 ? (
-                    <p className="card-body">No facts recorded.</p>
+                    <p className="card-body">
+                      {t('appMission.appMissionIdSnapshotsSnapshotidPage.noFactsRecorded')}
+                    </p>
                   ) : (
                     <RowsWithMore
                       items={facts}
-                      label="Facts"
+                      label={t('appMission.appMissionIdSnapshotsSnapshotidPage.facts')}
                       draw={(fact) => (
                         <div className="row" key={fact.factId}>
                           <span className="row-key">
@@ -316,11 +352,13 @@ export default async function MissionSnapshotPage({
               content: (
                 <>
                   {content.documents.length === 0 ? (
-                    <p className="card-body">No documents recorded.</p>
+                    <p className="card-body">
+                      {t('appMission.appMissionIdSnapshotsSnapshotidPage.noDocumentsRecorded')}
+                    </p>
                   ) : (
                     <RowsWithMore
                       items={content.documents}
-                      label="Documents"
+                      label={t('appMission.appMissionIdSnapshotsSnapshotidPage.documents')}
                       draw={(doc) => (
                         <div className="row" key={doc.documentVersionId}>
                           <span className="row-key">{doc.displayName}</span>

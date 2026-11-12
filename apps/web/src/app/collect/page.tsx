@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { collectCatalog } from '../../i18n/collect';
 import { agencyBrand } from '../../lib/agency-brand';
+import { getServerT, primeLocale } from '../../lib/i18n-server';
 import { pdfUploadsAccepted } from '../../lib/upload-preflight';
 import { AgencyBrandScope, AgencyMark } from '../app/agency/[orgId]/org-branding-header';
 import { GuestChecklist, suggestedOnlyIds } from './checklist';
@@ -48,6 +50,8 @@ export default async function CollectPage({
 }: {
   readonly searchParams?: Promise<Params>;
 }) {
+  await primeLocale();
+  const t = getServerT(collectCatalog);
   if (!collectSwitchOn()) notFound();
   const params = (await searchParams) ?? {};
   const page: CollectPageState =
@@ -58,8 +62,8 @@ export default async function CollectPage({
   if (page.state === 'busy') {
     return (
       <Shell>
-        <h1 className="page-title">Please Try Again Later</h1>
-        <p>Too many links were opened from this network just now. Try again in an hour.</p>
+        <h1 className="page-title">{t('collect.collectPage.pleaseTryAgainLater')}</h1>
+        <p>{t('collect.collectPage.tooManyLinksWereOpenedFrom')}</p>
       </Shell>
     );
   }
@@ -68,17 +72,13 @@ export default async function CollectPage({
       <Shell>
         {params.left === '1' ? (
           <>
-            <h1 className="page-title">You Have Left This Request</h1>
-            <p>To come back, open the link from your message again.</p>
+            <h1 className="page-title">{t('collect.collectPage.youHaveLeftThisRequest')}</h1>
+            <p>{t('collect.collectPage.toComeBackOpenTheLink')}</p>
           </>
         ) : (
           <>
-            <h1 className="page-title">This Link Is Not Open</h1>
-            <p>
-              The link may have expired or been replaced, or the request may have ended. If it
-              reached you recently, open it again from the message you received. Otherwise ask the
-              agency that sent it for a new link.
-            </p>
+            <h1 className="page-title">{t('collect.collectAccountPage.thisLinkIsNotOpen')}</h1>
+            <p>{t('collect.collectPage.theLinkMayHaveExpiredOr')}</p>
           </>
         )}
       </Shell>
@@ -168,15 +168,17 @@ export default async function CollectPage({
                 />
               ) : (
                 <p className="collect-notice" role="note">
-                  This checklist cannot be shown right now. Ask the agency to send the request
-                  again.
+                  {t('collect.collectPage.thisChecklistCannotBeShownRight')}
                 </p>
               )}
               {uploads ? <GuestSentHistory desk={uploads} /> : null}
               {uploads ? null : retention}
             </div>
             {uploads ? (
-              <aside className="collect-rail" aria-label="Add and send your files">
+              <aside
+                className="collect-rail"
+                aria-label={t('collect.collectPage.addAndSendYourFiles')}
+              >
                 <GuestUploader pdfAccepted={pdfUploadsAccepted()} />
                 <GuestFileList desk={uploads} items={desk.items} />
                 <section id="guest-submit" className="collect-send">
@@ -217,62 +219,59 @@ export default async function CollectPage({
       )}
       {!guestStep ? (
         <>
-          <p>
-            This private link comes from an agency that asked you, through VisaStack, for documents.
-            Opening it has shared nothing.
-          </p>
+          <p>{t('collect.collectPage.thisPrivateLinkComesFromAn')}</p>
           <div className="collect-choices">
             <Link className="btn btn-primary" href={SIGN_IN_TO_RESPOND_HREF}>
-              Sign In to Respond
+              {t('collect.collectPage.signInToRespond')}
             </Link>
             <Link className="btn btn-secondary" href="/collect?step=guest">
-              Continue Without an Account
+              {t('collect.collectPage.continueWithoutAnAccount')}
             </Link>
           </div>
           <p className="muted u-fs-085">
-            Without an account, no VisaStack profile is made for you: your files go only to this
-            request.
+            {t('collect.collectPage.withoutAnAccountNoVisastackProfile')}
           </p>
         </>
       ) : !desk.guestAvailable || desk.guestSpent ? (
         <>
-          <h2 className="collect-step-title">Continue Without an Account</h2>
+          <h2 className="collect-step-title">
+            {t('collect.collectPage.continueWithoutAnAccount')}
+          </h2>
           <p>
             {desk.guestSpent
               ? `This link can no longer be opened without an account. Ask ${agencyName ?? 'the agency'} for a new link, or sign in to respond.`
               : `This link was not sent to an email address, so it cannot be opened without an account. Ask ${agencyName ?? 'the agency'} to email the request to you, or sign in to respond.`}
           </p>
           <Link className="btn btn-secondary" href="/collect">
-            Back
+            {t('collect.collectPage.back')}
           </Link>
         </>
       ) : (
         <>
-          <h2 className="collect-step-title">Continue Without an Account</h2>
+          <h2 className="collect-step-title">
+            {t('collect.collectPage.continueWithoutAnAccount')}
+          </h2>
           {desk.codePending ? (
             <>
               <output className="collect-notice">
                 {params.sent === '1'
-                  ? 'We sent a six-digit code to the email address this request was sent to.'
-                  : 'A code was sent to the email address this request was sent to.'}
+                  ? t('collect.collectPage.weSentASixDigitCode')
+                  : t('collect.collectPage.aCodeWasSentToThe')}
               </output>
               <VerifyCodeForm />
               <p className="muted u-fs-085">
-                No email? Check your spam folder, or ask for a new code.
+                {t('collect.collectPage.noEmailCheckYourSpamFolder')}
               </p>
               <SendCodeForm again />
             </>
           ) : (
             <>
-              <p>
-                To see the checklist, confirm it is you: we will email a six-digit code to the
-                address this request was sent to. No account is made.
-              </p>
+              <p>{t('collect.collectPage.toSeeTheChecklistConfirmIt')}</p>
               <SendCodeForm />
             </>
           )}
           <Link className="collect-back" href="/collect">
-            Back
+            {t('collect.collectPage.back')}
           </Link>
         </>
       )}
@@ -304,13 +303,14 @@ function Shell({
   readonly children: React.ReactNode;
   readonly wide?: boolean;
 }) {
+  const t = getServerT(collectCatalog);
   return (
     <section className="section container collect-page">
       <article className={`card collect-card${wide ? ' collect-card-wide' : ''}`}>
         <div className="card-body">
           {children}
           <p className="muted u-fs-085 collect-attribution">
-            If you were not expecting this, you can ignore it. Powered by VisaStack.
+            {t('collect.collectPage.ifYouWereNotExpectingThis')}
           </p>
         </div>
       </article>
