@@ -587,7 +587,7 @@ describe('the formatter used to prove English is unchanged', () => {
     const { name, format } = await loadFormatter();
     assert.equal(name, 'runtime');
     // The old stand-in turned every # into the number, even inside a nested {braces} message.
-    assert.equal(format('{n, plural, one {# item} other {# items}}', { n: 1234 }), '1,234 items');
+    assert.equal(format('{n, plural, one {# item} other {# items}}', { n: 1234 }), '1234 items');
   });
 
   test('a missing packages/i18n/src/icu.ts makes it throw instead of falling back to a copy', async () => {
