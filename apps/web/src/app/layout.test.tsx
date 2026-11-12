@@ -10,7 +10,11 @@ const state = vi.hoisted(() => ({
 vi.mock('../lib/page-language', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/page-language')>();
   // One route is marked ready for this test file, so the Bangla result is exercised through the real layout.
-  return { ...actual, pageLanguage: (locale: string, pathname: string | null) => actual.pageLanguage(locale, pathname, ['/trust']) };
+  return {
+    ...actual,
+    pageLanguage: (locale: string, pathname: string | null) =>
+      actual.pageLanguage(locale, pathname, ['/trust']),
+  };
 });
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
