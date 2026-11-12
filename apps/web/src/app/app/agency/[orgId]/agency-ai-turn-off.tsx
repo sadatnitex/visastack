@@ -7,6 +7,8 @@ import {
   SubmitButton,
   isFailure,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { turnOffAgencyAiConnectionAction } from './ai-actions';
 
 /**
@@ -27,6 +29,7 @@ export function AgencyAiTurnOff({
   /** False once the connection has ended: only the status is shown then. */
   readonly live: boolean;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(turnOffAgencyAiConnectionAction, NO_RESULT);
   const done = state.ok && state.message.length > 0;
   const status = useRef<HTMLOutputElement>(null);
@@ -44,12 +47,12 @@ export function AgencyAiTurnOff({
             idle="Turn Off"
             busy="Turning off…"
             className="btn btn-secondary"
-            label={`Turn Off ${appLabel}`}
+            label={t('appAgency.appAgencyOrgidAgencyAiTurnOff.turnOffApplabel', { appLabel })}
           />
         </form>
       ) : null}
       <output ref={status} tabIndex={-1} className="field-msg field-msg-ok">
-        {done ? state.message : live ? '' : 'Ended'}
+        {done ? state.message : live ? '' : t('appAgency.appAgencyOrgidAgencyAiTurnOff.ended')}
       </output>
       <FormMessage
         result={isFailure(state) ? state : NO_RESULT}

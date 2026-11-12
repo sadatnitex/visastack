@@ -8,8 +8,10 @@ import type {
 import { Icon } from '../../../../components/icons';
 import type { Tone } from '../../../../components/ui';
 import { AboutDisclosure, StatusPill } from '../../../../components/ui-lift';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatFileSize } from '../../../../lib/format-size';
+import { getServerT } from '../../../../lib/i18n-server';
 import { formatMoment } from '../../../../lib/save-status';
 import { presentScanState } from '../../../../lib/scan-state';
 import { REQ_STATUS } from './console-format';
@@ -88,9 +90,10 @@ function CopyFacts({ copy }: { readonly copy: EvidenceSubmissionView }) {
 }
 
 function Fingerprint({ copy }: { readonly copy: EvidenceSubmissionView }) {
+  const t = getServerT(appAgencyCatalog);
   return copy.checksumFingerprint ? (
     <p className="evidence-copy-meta u-m-0">
-      Fingerprint{' '}
+      {t('appAgency.appAgencyOrgidEvidenceCopies.fingerprint')}{' '}
       <code className="evidence-copy-code lc-copy-code">{copy.checksumFingerprint}</code>
     </p>
   ) : null;
@@ -109,6 +112,7 @@ function CurrentCopy({
   readonly copy: EvidenceSubmissionView;
   readonly scan: VersionScanEvidence | undefined;
 }) {
+  const t = getServerT(appAgencyCatalog);
   const waiting = copy.state === 'AWAITING_DECISION';
   const note = presentScanState(scan);
   const requestWords = REQ_STATUS[status];
@@ -117,7 +121,9 @@ function CurrentCopy({
     <div className="evidence-copy lc-copy" data-copy-state={copy.state}>
       <div className="evidence-copy-head">
         <p className="evidence-copy-title u-m-0">
-          {waiting ? 'Copy Waiting for Your Decision' : 'Accepted Copy'}
+          {waiting
+            ? t('appAgency.appAgencyOrgidEvidenceCopies.copyWaitingForYourDecision')
+            : t('appAgency.appAgencyOrgidEvidenceCopies.acceptedCopy')}
         </p>
         {copyPill === requestWords?.label ? null : (
           <StatusPill tone={waiting ? 'info' : 'success'}>{copyPill}</StatusPill>
@@ -143,29 +149,34 @@ function CurrentCopy({
           {note.recipientNote}
         </p>
       ) : null}
-      {waiting ? <p className="evidence-copy-meta u-m-0">Received is not Accepted.</p> : null}
+      {waiting ? (
+        <p className="evidence-copy-meta u-m-0">
+          {t('appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted')}
+        </p>
+      ) : null}
       {copy.fileAvailable ? (
         <form action={downloadEvidenceCopyAction} className="evidence-copy-file">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="requestId" value={requestId} />
           <input type="hidden" name="submissionId" value={copy.id} />
           <button type="submit" className="btn btn-secondary evidence-copy-button">
-            Download Sent File
+            {t('appAgency.appAgencyOrgidEvidenceCopies.downloadSentFile')}
             <span className="sr-only">: {copy.title}</span>
           </button>
-          <AboutDisclosure summary="About Downloading">
+          <AboutDisclosure summary={t('appAgency.appAgencyOrgidEvidenceCopies.aboutDownloading')}>
             <p className="evidence-copy-meta u-m-0">
-              Downloads the original. You confirm it is you first.
+              {t('appAgency.appAgencyOrgidEvidenceCopies.downloadsTheOriginalYouConfirmIt')}
             </p>
           </AboutDisclosure>
         </form>
       ) : (
         <>
-          <p className="evidence-copy-meta u-m-0">Cannot be opened right now.</p>
-          <AboutDisclosure summary="Why Not?">
+          <p className="evidence-copy-meta u-m-0">
+            {t('appAgency.appAgencyOrgidEvidenceCopies.cannotBeOpenedRightNow')}
+          </p>
+          <AboutDisclosure summary={t('appAgency.appAgencyOrgidEvidenceCopies.whyNot')}>
             <p className="evidence-copy-meta u-m-0">
-              This copy cannot be opened from here right now. It may still be being checked, or
-              access may have ended.
+              {t('appAgency.appAgencyOrgidEvidenceCopies.thisCopyCannotBeOpenedFrom')}
             </p>
           </AboutDisclosure>
         </>
@@ -176,11 +187,16 @@ function CurrentCopy({
 
 /** A send made before exact copies were kept that is still waiting: shown plainly, with no file. */
 function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
+  const t = getServerT(appAgencyCatalog);
   return (
     <div className="evidence-copy lc-copy" data-copy-state="LEGACY_WAITING">
       <div className="evidence-copy-head">
-        <p className="evidence-copy-title u-m-0">Copy Waiting for Your Decision</p>
-        <StatusPill tone="info">Waiting for a Decision</StatusPill>
+        <p className="evidence-copy-title u-m-0">
+          {t('appAgency.appAgencyOrgidEvidenceCopies.copyWaitingForYourDecision')}
+        </p>
+        <StatusPill tone="info">
+          {t('appAgency.appAgencyOrgidEvidenceCopies.waitingForADecision')}
+        </StatusPill>
       </div>
       <div className="lc-copy-file">
         <span className="lift-action-tile" aria-hidden="true">
@@ -189,12 +205,18 @@ function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
         <p className="evidence-copy-name lc-copy-name u-m-0">{send.label}</p>
       </div>
       <p className="evidence-copy-meta u-m-0">
-        {send.sentAt ? `Sent ${formatMoment(send.sentAt, MOMENT_ZONE)}` : 'Send time not kept'}
+        {send.sentAt
+          ? t('appAgency.appAgencyOrgidEvidenceCopies.sentFormatmoment', {
+              formatMoment: formatMoment(send.sentAt, MOMENT_ZONE),
+            })
+          : t('appAgency.appAgencyOrgidEvidenceCopies.sendTimeNotKept')}
       </p>
-      <p className="evidence-copy-meta u-m-0">Received is not Accepted.</p>
-      <AboutDisclosure summary="About This Send">
+      <p className="evidence-copy-meta u-m-0">
+        {t('appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted')}
+      </p>
+      <AboutDisclosure summary={t('appAgency.appAgencyOrgidEvidenceCopies.aboutThisSend')}>
         <p className="evidence-copy-meta u-m-0">
-          This send has no exact copy to open here. Accept it or send it back below.
+          {t('appAgency.appAgencyOrgidEvidenceCopies.thisSendHasNoExactCopy')}
         </p>
       </AboutDisclosure>
     </div>
@@ -202,12 +224,16 @@ function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
 }
 
 function EarlierSend({ copy }: { readonly copy: EvidenceSubmissionView }) {
+  const t = getServerT(appAgencyCatalog);
   const words = STATE_WORDS[copy.state];
   return (
     <li className="evidence-earlier-item">
       <div className="evidence-copy-head">
         <span className="evidence-copy-name">
-          Send {copy.roundNo}: {copy.title}
+          {t('appAgency.appAgencyOrgidEvidenceCopies.sendRoundnoTitle', {
+            roundNo: copy.roundNo,
+            title: copy.title,
+          })}
         </span>
         <StatusPill tone={words.tone}>{words.label}</StatusPill>
       </div>
@@ -218,7 +244,9 @@ function EarlierSend({ copy }: { readonly copy: EvidenceSubmissionView }) {
       </p>
       {copy.reason ? (
         <p className="evidence-copy-meta u-m-0">
-          Your reason, shown to the traveller: {copy.reason}
+          {t('appAgency.appAgencyOrgidEvidenceCopies.yourReasonShownToTheTraveller', {
+            reason: copy.reason,
+          })}
         </p>
       ) : null}
     </li>
@@ -226,6 +254,7 @@ function EarlierSend({ copy }: { readonly copy: EvidenceSubmissionView }) {
 }
 
 function LegacySend({ send }: { readonly send: LegacyEvidenceSend }) {
+  const t = getServerT(appAgencyCatalog);
   const words = STATE_WORDS[send.state];
   return (
     <li className="evidence-earlier-item">
@@ -234,8 +263,16 @@ function LegacySend({ send }: { readonly send: LegacyEvidenceSend }) {
         <StatusPill tone={words.tone}>{words.label}</StatusPill>
       </div>
       <p className="evidence-copy-meta u-m-0">
-        {send.sentAt ? `Sent ${formatMoment(send.sentAt, MOMENT_ZONE)}` : 'Send time not kept'}
-        {send.decidedAt ? ` · Decided ${formatMoment(send.decidedAt, MOMENT_ZONE)}` : ''}
+        {send.sentAt
+          ? t('appAgency.appAgencyOrgidEvidenceCopies.sentFormatmoment', {
+              formatMoment: formatMoment(send.sentAt, MOMENT_ZONE),
+            })
+          : t('appAgency.appAgencyOrgidEvidenceCopies.sendTimeNotKept')}
+        {send.decidedAt
+          ? t('appAgency.appAgencyOrgidEvidenceCopies.decidedFormatmoment', {
+              formatMoment: formatMoment(send.decidedAt, MOMENT_ZONE),
+            })
+          : ''}
       </p>
     </li>
   );
@@ -264,6 +301,7 @@ export function EvidenceCopies({
   /** The address says a file could not be opened (the download sent the person back here). */
   readonly fileUnavailable?: boolean;
 }) {
+  const t = getServerT(appAgencyCatalog);
   const notice = fileUnavailable ? (
     <output className="evidence-copy-notice u-m-0">{FILE_UNAVAILABLE_NOTICE}</output>
   ) : null;
@@ -302,7 +340,7 @@ export function EvidenceCopies({
       {earlierCount > 0 ? (
         <details className="evidence-earlier">
           <summary className="evidence-earlier-toggle lc-earlier-toggle">
-            Earlier Sends ({earlierCount})
+            {t('appAgency.appAgencyOrgidEvidenceCopies.earlierSendsEarliercount', { earlierCount })}
           </summary>
           <ol className="evidence-earlier-list">
             {earlier.map((copy) => (

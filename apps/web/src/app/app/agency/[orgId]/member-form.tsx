@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { type ActionState, addMemberAction } from './actions';
 import { InvitationOutcome } from './invitation-outcome';
 
@@ -15,6 +17,7 @@ export function AddMemberForm({
   /** Invitations still waiting, as the page last read them. */
   readonly pendingInvitationIds: readonly string[];
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(addMemberAction, INITIAL);
   return (
     <form action={formAction} className="field-list form-narrow">
@@ -22,7 +25,7 @@ export function AddMemberForm({
       <div className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor="memberEmail">
-            Member Email
+            {t('appAgency.appAgencyOrgidMemberForm.memberEmail')}
           </label>
           <input
             id="memberEmail"
@@ -30,17 +33,19 @@ export function AddMemberForm({
             type="email"
             required
             className="input"
-            placeholder="teammate@example.com"
+            placeholder={t('appAgency.appAgencyOrgidMemberForm.teammateExampleCom')}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="role">
-            Role
+            {t('appAgency.appAgencyOrgidMemberForm.role')}
           </label>
           <select id="role" name="role" className="input" defaultValue="REVIEWER">
-            <option value="ADMIN">Admin</option>
-            <option value="CASE_MANAGER">Case Manager</option>
-            <option value="REVIEWER">Reviewer</option>
+            <option value="ADMIN">{t('appAgency.appAgencyOrgidMemberForm.admin')}</option>
+            <option value="CASE_MANAGER">
+              {t('appAgency.appAgencyOrgidMemberForm.caseManager')}
+            </option>
+            <option value="REVIEWER">{t('appAgency.appAgencyOrgidMemberForm.reviewer')}</option>
           </select>
         </div>
       </div>

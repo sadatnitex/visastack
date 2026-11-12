@@ -15,8 +15,10 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { StatusBadge } from '../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { formatFileSize } from '../../../../../lib/format-size';
+import { getServerT } from '../../../../../lib/i18n-server';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { downloadResponseFileAction } from './collection-response-actions';
 import { GuestHoldForm, ReviewAnswerForm } from './collection-review-forms';
@@ -128,6 +130,7 @@ export function CollectionResponsesPanel({
   /** UMPE P9: guest submissions in the same queue, review decisions and the guest hold. */
   readonly extras?: CollectionQueueExtras;
 }) {
+  const t = getServerT(appAgencyCatalog);
   return (
     <section
       className="card"
@@ -135,21 +138,24 @@ export function CollectionResponsesPanel({
       id="collection-responses"
     >
       <div className="card-body stack">
-        <h2 id="collection-responses-title">Answers</h2>
+        <h2 id="collection-responses-title">
+          {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.answers')}
+        </h2>
         <p className="muted u-fs-085">
-          Each answer holds only what the person chose, exactly as it was when they sent it. Files
-          download as the originals, after you confirm it is you.
+          {t(
+            'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.eachAnswerHoldsOnlyWhatThe',
+          )}
         </p>
         {fileUnavailable ? (
           <p className="notice notice-warn" role="alert">
-            That file cannot be downloaded right now. The person may have withdrawn or changed their
-            answer, or the file is still being checked.
+            {t(
+              'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thatFileCannotBeDownloadedRight',
+            )}
           </p>
         ) : null}
         {responses.length === 0 && extras.guest.length === 0 ? (
           <p className="muted">
-            No answers yet. A person who answers through your link, signed in or without an account,
-            appears here with exactly what they chose to send.
+            {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.noAnswersYetAPersonWho')}
           </p>
         ) : (
           responses.map((response) => (
@@ -169,7 +175,11 @@ export function CollectionResponsesPanel({
                           <strong>{line.item.label}</strong>
                         </p>
                         {line.missing ? (
-                          <p className="collect-response-missing u-fs-085">Still Missing</p>
+                          <p className="collect-response-missing u-fs-085">
+                            {t(
+                              'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.stillMissing',
+                            )}
+                          </p>
                         ) : null}
                         {line.versions
                           .flatMap((v) => (v.kind === 'DOCUMENT' ? [v] : []))
@@ -188,10 +198,16 @@ export function CollectionResponsesPanel({
                                 value={document.documentVersionId}
                               />
                               <span>
-                                {document.title}, Version {document.versionNumber}
+                                {t(
+                                  'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.titleVersionVersionnumber',
+                                  { title: document.title, versionNumber: document.versionNumber },
+                                )}
                               </span>{' '}
                               <button type="submit" className="btn btn-secondary">
-                                Download {document.title}
+                                {t(
+                                  'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.downloadTitle',
+                                  { title: document.title },
+                                )}
                               </button>
                             </form>
                           ))}
@@ -199,7 +215,10 @@ export function CollectionResponsesPanel({
                           .flatMap((v) => (v.kind === 'FIELD' ? [v] : []))
                           .map((detail, index) => (
                             <p key={`${line.itemId}-${index}`} className="u-fs-085">
-                              {detail.value ?? 'Protected Detail'}
+                              {detail.value ??
+                                t(
+                                  'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.protectedDetail',
+                                )}
                             </p>
                           ))}
                       </li>
@@ -227,8 +246,9 @@ export function CollectionResponsesPanel({
                 </>
               ) : (
                 <p className="notice notice-warn">
-                  This answer has changed since it was sent, usually because the person removed a
-                  file from their record. Ask them to answer again.
+                  {t(
+                    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisAnswerHasChangedSinceIt',
+                  )}
                 </p>
               )}
             </article>
@@ -237,7 +257,10 @@ export function CollectionResponsesPanel({
         {extras.guest.map((submission) => (
           <article key={submission.id} className="collection-response">
             <h3>
-              Without an Account: Guest {submission.guestNo}, Submission {submission.submissionNo}
+              {t(
+                'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.withoutAnAccountGuestGuestnoSubmission',
+                { guestNo: submission.guestNo, submissionNo: submission.submissionNo },
+              )}
             </h3>
             <p className="u-fs-085">
               <StatusBadge tone="neutral">Submitted to Agency</StatusBadge> Sent{' '}
@@ -254,7 +277,11 @@ export function CollectionResponsesPanel({
                         <strong>{line.item.label}</strong>
                       </p>
                       {line.missing ? (
-                        <p className="collect-response-missing u-fs-085">Still Missing</p>
+                        <p className="collect-response-missing u-fs-085">
+                          {t(
+                            'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.stillMissing',
+                          )}
+                        </p>
                       ) : null}
                       {line.versions
                         .flatMap((v) => (v.kind === 'GUEST_FILE' ? [v] : []))
@@ -263,15 +290,22 @@ export function CollectionResponsesPanel({
                             <span>
                               {file.title}, {formatFileSize(file.sizeBytes)},{' '}
                               {file.virusScanned
-                                ? 'checked for viruses'
-                                : 'file checked, not scanned for viruses'}
+                                ? t(
+                                    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.checkedForViruses',
+                                  )
+                                : t(
+                                    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.fileCheckedNotScannedForViruses',
+                                  )}
                             </span>{' '}
                             <a
                               className="btn btn-secondary"
                               href={`/app/agency/${encodeURIComponent(organizationId)}/collection/guest-file?request=${encodeURIComponent(requestId)}&submission=${encodeURIComponent(submission.id)}&file=${encodeURIComponent(file.fileId)}`}
                               rel="nofollow noreferrer"
                             >
-                              Download {file.title}
+                              {t(
+                                'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.downloadTitle',
+                                { title: file.title },
+                              )}
                             </a>
                           </p>
                         ))}
@@ -288,18 +322,27 @@ export function CollectionResponsesPanel({
               </>
             ) : (
               <p className="notice notice-warn">
-                This submission no longer matches what was sent, so its files are not offered.
+                {t(
+                  'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisSubmissionNoLongerMatchesWhat',
+                )}
               </p>
             )}
           </article>
         ))}
         {extras.guest.length > 0 || extras.hold ? (
           <section className="collection-guest-hold" aria-labelledby="collection-guest-hold-title">
-            <h3 id="collection-guest-hold-title">Keeping Guest Files</h3>
+            <h3 id="collection-guest-hold-title">
+              {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.keepingGuestFiles')}
+            </h3>
             <p className="muted u-fs-085">
               {extras.hold
-                ? `A legal hold keeps the guest files of this request past the periods the guests chose. Reason: ${extras.hold.reason}`
-                : 'Guest files are deleted when the period each guest chose ends after this request closes. A legal hold keeps them until you release it.'}
+                ? t(
+                    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.aLegalHoldKeepsTheGuest',
+                    { reason: extras.hold.reason },
+                  )
+                : t(
+                    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.guestFilesAreDeletedWhenThe',
+                  )}
             </p>
             <GuestHoldForm
               organizationId={organizationId}

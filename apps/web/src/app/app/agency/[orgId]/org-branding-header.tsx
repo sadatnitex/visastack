@@ -1,6 +1,8 @@
 'use client';
 
 import { type CSSProperties, type ReactNode, useState } from 'react';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import type { AgencyBrand } from '../../../../lib/agency-brand';
 
 /**
@@ -47,6 +49,7 @@ export function AgencyMark({
   readonly brand: AgencyBrand;
   readonly size?: 'sm' | 'md' | 'lg';
 }) {
+  const t = useT(appAgencyCatalog);
   const [failed, setFailed] = useState(false);
   const showLogo = brand.logoUrl !== null && !failed;
   return (
@@ -55,7 +58,7 @@ export function AgencyMark({
         <img
           className="agency-mark-image"
           src={brand.logoUrl ?? undefined}
-          alt={`${brand.name} logo`}
+          alt={t('appAgency.appAgencyOrgidOrgBrandingHeader.nameLogo', { name: brand.name })}
           onError={() => setFailed(true)}
         />
       ) : (

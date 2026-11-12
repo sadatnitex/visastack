@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { appAgencyCatalog } from '../i18n/app-agency';
 import { EmptyState } from './ui';
 
 /**
@@ -15,7 +16,14 @@ const read = (path: string) => readFileSync(join(root, path), 'utf8');
 /** The text of the `<EmptyState ...>...</EmptyState>` that carries this title. */
 function stateWithTitle(source: string, title: string): string {
   const parts = source.split('<EmptyState');
-  const found = parts.find((part) => part.slice(0, part.indexOf('</EmptyState>')).includes(title));
+  // A converted screen names the title by its catalogue key; the English is what the key says.
+  const keys = Object.entries(appAgencyCatalog.en)
+    .filter(([, english]) => english === title)
+    .map(([key]) => key);
+  const found = parts.find((part) => {
+    const head = part.slice(0, part.indexOf('</EmptyState>'));
+    return head.includes(title) || keys.some((key) => head.includes(`t('${key}')`));
+  });
   if (!found) throw new Error(`no empty state titled "${title}"`);
   return found.slice(0, found.indexOf('</EmptyState>'));
 }

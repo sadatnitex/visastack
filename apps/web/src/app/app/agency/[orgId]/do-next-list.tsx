@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
 import { AboutDisclosure } from '../../../../components/ui-lift/about-disclosure';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
+import { getServerT } from '../../../../lib/i18n-server';
 import { agree } from '../../../../lib/plural';
 import { CHASE_AFTER_DAYS, type DoNextItem, type DoNextTier } from './do-next';
 import { FollowUpCopy } from './follow-up-copy';
@@ -35,25 +37,32 @@ export function DoNextList({
   /** The console base path, for the link to the Clients request list. */
   readonly base: string;
 }) {
+  const t = getServerT(appAgencyCatalog);
   const shown = items.slice(0, DO_NEXT_VISIBLE);
   return (
     <section className="card do-next" aria-labelledby="do-next-heading">
       <h2 className="card-title" id="do-next-heading">
-        Do Next
+        {t('appAgency.appAgencyOrgidDoNextList.doNext')}
       </h2>
       {filtered ? (
-        <span className="badge badge-neutral do-next-filtered">Filtered View</span>
+        <span className="badge badge-neutral do-next-filtered">
+          {t('appAgency.appAgencyOrgidDoNextList.filteredView')}
+        </span>
       ) : null}
-      <AboutDisclosure summary="How This Is Sorted">
+      <AboutDisclosure summary={t('appAgency.appAgencyOrgidDoNextList.howThisIsSorted')}>
         <p className="card-body do-next-intro">
-          {filtered ? 'For the cases in your current view. ' : ''}
+          {filtered ? t('appAgency.appAgencyOrgidDoNextList.forTheCasesInYourCurrent') : ''}
           {admin
-            ? `Past due items first, then requests with no reply after ${CHASE_AFTER_DAYS} days, items waiting for review, overdue tasks and cases with no owner.`
-            : 'Overdue tasks on the cases assigned to you, most overdue first.'}
+            ? t('appAgency.appAgencyOrgidDoNextList.pastDueItemsFirstThenRequests', {
+                CHASE_AFTER_DAYS,
+              })
+            : t('appAgency.appAgencyOrgidDoNextList.overdueTasksOnTheCasesAssigned')}
         </p>
       </AboutDisclosure>
       {shown.length === 0 ? (
-        <p className="do-next-empty">Nothing needs you first right now.</p>
+        <p className="do-next-empty">
+          {t('appAgency.appAgencyOrgidDoNextList.nothingNeedsYouFirstRightNow')}
+        </p>
       ) : (
         <ol className="do-next-list">
           {shown.map((item, index) => (
@@ -70,15 +79,17 @@ export function DoNextList({
               <p className="do-next-context" data-value>
                 {item.traveller}
                 {item.caseTitle && item.caseTitle !== item.heading ? ` · ${item.caseTitle}` : ''}
-                {item.caseTitle === null ? ' · Not tied to one case' : ''}
+                {item.caseTitle === null
+                  ? t('appAgency.appAgencyOrgidDoNextList.notTiedToOneCase')
+                  : ''}
               </p>
               <dl className="do-next-facts">
                 <div>
-                  <dt>Owner</dt>
+                  <dt>{t('appAgency.appAgencyOrgidDoNextList.owner')}</dt>
                   <dd data-value>{item.owner}</dd>
                 </div>
                 <div>
-                  <dt>Why</dt>
+                  <dt>{t('appAgency.appAgencyOrgidDoNextList.why')}</dt>
                   <dd>{item.reason}</dd>
                 </div>
               </dl>
@@ -116,14 +127,20 @@ export function DoNextList({
             </>
           ) : (
             <Link href={`${base}/clients?status=open`}>
-              {quietHidden} more {agree(quietHidden, 'request has', 'requests have')} had no reply
+              {t('appAgency.appAgencyOrgidDoNextList.quiethiddenMoreAgreeHadNoReply', {
+                quietHidden,
+                agree: agree(quietHidden, 'request has', 'requests have'),
+              })}
             </Link>
           )}
         </p>
       ) : null}
       {items.length > shown.length ? (
         <p className="muted do-next-more" {...atLevel('browse')}>
-          Showing {shown.length} of {items.length}. The rest are in the case list below.
+          {t('appAgency.appAgencyOrgidDoNextList.showingLengthOfLength2TheRest', {
+            length: shown.length,
+            length2: items.length,
+          })}
         </p>
       ) : null}
     </section>

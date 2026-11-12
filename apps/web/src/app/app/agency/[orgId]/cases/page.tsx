@@ -7,10 +7,12 @@ import { DestinationLabel } from '../../../../../components/destination-label';
 import { AccessEndsNote } from '../../../../../components/grant-expiry/access-ends-note';
 import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift/about-disclosure';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatDateOnly } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { buildMissingForCase } from '../../../../../lib/missing-for-case';
 import {
   SHOW_MAX,
@@ -22,7 +24,6 @@ import { buildRequestPicker, requestPickerIndex } from '../../../../../lib/reque
 import { withSession } from '../../../../../lib/session';
 import { caseAnchorId } from '../case-anchor';
 import { caseNeedsYou, caseReviewLink } from '../case-needs';
-import { STAGE_LABELS } from '../case-search-form';
 import { caseTriageView } from '../case-triage';
 import { FormGroup } from '../clients/form-group';
 import {
@@ -37,6 +38,7 @@ import {
 } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
 import { RequestEvidenceForm } from '../request-evidence-form';
+import { STAGE_LABELS } from '../stage-labels';
 import { ListPager } from './list-pager';
 import { type ListKeys, type ListWindow, listWindow } from './list-window';
 import { OpenCaseFromLink } from './open-case-from-link';
@@ -84,6 +86,8 @@ export default async function AgencyCasesPage({
   readonly params: Promise<{ orgId: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  const locale = await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const pathname = `/app/agency/${orgId}/cases`;
@@ -162,23 +166,26 @@ export default async function AgencyCasesPage({
       <OpenCaseFromLink />
       <DepthSwitch family="agency-cases" initial={depth} copy={depthWords} notesBehindInfo />
       <article className="card">
-        <p className="card-kicker">Collaborate</p>
-        <h2 className="card-title">Cases</h2>
-        <AboutDisclosure summary="About Cases" className="u-mb-125">
+        <p className="card-kicker">{t('appAgency.appAgencyOrgidCasesPage.collaborate')}</p>
+        <h2 className="card-title">{t('appAgency.appAgencyOrgidCasesPage.cases')}</h2>
+        <AboutDisclosure
+          summary={t('appAgency.appAgencyOrgidCasesPage.aboutCases')}
+          className="u-mb-125"
+        >
           <p className="card-body">
             {data.admin
-              ? 'Assign a team member and leave case notes on any case this organization has a grant for.'
-              : "Leave case notes and record decisions on cases you're assigned to."}
+              ? t('appAgency.appAgencyOrgidCasesPage.assignATeamMemberAndLeave')
+              : t('appAgency.appAgencyOrgidCasesPage.leaveCaseNotesAndRecordDecisions')}
           </p>
           {!empty && !openId && !open ? (
             <p className="card-body">
-              Choose a case to open its workspace: its team, notes, tasks and appointments.
+              {t('appAgency.appAgencyOrgidCasesPage.chooseACaseToOpenIts')}
             </p>
           ) : null}
         </AboutDisclosure>
         {empty ? (
           <EmptyState
-            title="No Cases Yet"
+            title={t('appAgency.appAgencyOrgidCasesPage.noCasesYet')}
             icon="briefcase"
             why="Once a client accepts, their cases appear here with how many checklist items are ready."
             foldWhy
@@ -187,12 +194,16 @@ export default async function AgencyCasesPage({
               : {})}
           >
             {data.admin
-              ? 'No cases are reachable yet - a traveller must grant this organization access to a specific case.'
-              : "You aren't assigned to any cases yet. An owner or admin of this organization can assign you to one."}
+              ? t('appAgency.appAgencyOrgidCasesPage.noCasesAreReachableYetA')
+              : t('appAgency.appAgencyOrgidCasesPage.youArenTAssignedToAny')}
           </EmptyState>
         ) : (
           <>
-            <ul className="agency-case-list" id="agency-case-list" aria-label="Cases">
+            <ul
+              className="agency-case-list"
+              id="agency-case-list"
+              aria-label={t('appAgency.appAgencyOrgidCasesPage.cases')}
+            >
               {data.list.cases.map((row) => {
                 const isOpen = open?.missionId === row.missionId;
                 return (
@@ -214,7 +225,9 @@ export default async function AgencyCasesPage({
                           </>
                         ) : null}
                         {row.targetDeadline
-                          ? ` · deadline ${formatDateOnly(row.targetDeadline)}`
+                          ? t('appAgency.appAgencyOrgidCasesPage.deadlineFormatdateonly', {
+                              formatDateOnly: formatDateOnly(row.targetDeadline, locale),
+                            })
                           : ''}
                         {row.referenceCode ? (
                           <>
@@ -224,7 +237,9 @@ export default async function AgencyCasesPage({
                         ) : null}
                       </span>
                       <span className="agency-case-list-action">
-                        {isOpen ? 'Open Now' : 'Open Case'}
+                        {isOpen
+                          ? t('appAgency.appAgencyOrgidCasesPage.openNow')
+                          : t('appAgency.appAgencyOrgidCasesPage.openCase')}
                       </span>
                     </Link>
                     {data.accessEnds.get(row.missionId) ? (
@@ -259,15 +274,16 @@ export default async function AgencyCasesPage({
 
       {openId && !open ? (
         <article className="card u-mt-150" id="agency-open-case">
-          <p className="card-body">
-            That case is not open to you. It may no longer be shared with this organization, or you
-            may not be assigned to it. Choose a case from the list.
-          </p>
+          <p className="card-body">{t('appAgency.appAgencyOrgidCasesPage.thatCaseIsNotOpenTo')}</p>
         </article>
       ) : null}
 
       {open ? (
-        <article className="card u-mt-150" id="agency-open-case" aria-label="Open case">
+        <article
+          className="card u-mt-150"
+          id="agency-open-case"
+          aria-label={t('appAgency.appAgencyOrgidCasesPage.openCasedd4d13')}
+        >
           <OpenCaseWorkspace
             orgId={orgId}
             pathname={pathname}
@@ -310,6 +326,7 @@ function OpenCaseWorkspace({
   readonly travellerRequests: Awaited<ReturnType<typeof loadEvidenceRequests>>;
   readonly notesPage: ListWindow;
 }) {
+  const t = getServerT(appAgencyCatalog);
   const summary = summarizeCaseTriage({
     missionId: open.missionId,
     manualMode: open.manualMode,
@@ -404,7 +421,7 @@ function OpenCaseWorkspace({
                 <FormGroup
                   key={open.missionId}
                   id="case-ask-for-evidence"
-                  title="Ask for a Document or Detail"
+                  title={t('appAgency.appAgencyOrgidCasesPage.askForADocumentOrDetail')}
                   icon="clipboard"
                   openAtFirst={false}
                 >

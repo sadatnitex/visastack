@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ActivityLog, type ActivityLogEntry } from '../../../../../components/activity-log';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { caseAnchorId } from '../case-anchor';
@@ -29,6 +31,8 @@ export default async function AgencyActivityPage({
   readonly params: Promise<{ orgId: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const before = parseCursor(query[BEFORE_KEY]);
@@ -53,20 +57,24 @@ export default async function AgencyActivityPage({
   return (
     <>
       <PageHeader
-        title="Case Activity"
-        description="Recent notes on cases you can access. This is case activity, not a complete organization audit log."
+        title={t('appAgency.appAgencyOrgidActivityPage.caseActivity')}
+        description={t('appAgency.appAgencyOrgidActivityPage.recentNotesOnCasesYouCan')}
       />
       <article className="card">
         {data.caseLimitReached ? (
           <p className="card-body">
-            Showing notes from the ten most recently updated accessible cases. Open a case for its
-            full history.
+            {t('appAgency.appAgencyOrgidActivityPage.showingNotesFromTheTenMost')}
           </p>
         ) : null}
         {entries.length ? (
           <>
-            <nav className="agency-activity-cases" aria-label="Cases in this activity">
-              <span className="muted u-fs-085">Open a case:</span>
+            <nav
+              className="agency-activity-cases"
+              aria-label={t('appAgency.appAgencyOrgidActivityPage.casesInThisActivity')}
+            >
+              <span className="muted u-fs-085">
+                {t('appAgency.appAgencyOrgidActivityPage.openACase')}
+              </span>
               <ul>
                 {data.cases.map((c) => (
                   <li key={c.missionId}>
@@ -79,7 +87,7 @@ export default async function AgencyActivityPage({
             </nav>
             <ActivityLog
               id={LOG_ID}
-              label="Case Activity Entries"
+              label={t('appAgency.appAgencyOrgidActivityPage.caseActivityEntries')}
               entries={entries}
               {...(data.nextCursor
                 ? {
@@ -104,8 +112,11 @@ export default async function AgencyActivityPage({
             </Link>
           </p>
         ) : (
-          <EmptyState icon="activity" title="No Case Activity Recorded">
-            New case notes appear here when your team records them on an accessible case.
+          <EmptyState
+            icon="activity"
+            title={t('appAgency.appAgencyOrgidActivityPage.noCaseActivityRecorded')}
+          >
+            {t('appAgency.appAgencyOrgidActivityPage.newCaseNotesAppearHereWhen')}
           </EmptyState>
         )}
       </article>

@@ -2,6 +2,8 @@
 
 import { useActionState, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { agencyBrand, contrast } from '../../../../lib/agency-brand';
 import {
   type ActionState,
@@ -58,6 +60,7 @@ export function BrandingForm({
   readonly accentColor: string | null;
   readonly logoUrl: string | null;
 }) {
+  const t = useT(appAgencyCatalog);
   const [brandingState, brandingAction, brandingPending] = useActionState(
     updateBrandingAction,
     INITIAL,
@@ -76,19 +79,27 @@ export function BrandingForm({
 
   return (
     <div className="brand-settings">
-      <section className="brand-preview" aria-label="How your agency will look">
-        <p className="brand-preview-label">How It Looks</p>
+      <section
+        className="brand-preview"
+        aria-label={t('appAgency.appAgencyOrgidBrandingForm.howYourAgencyWillLook')}
+      >
+        <p className="brand-preview-label">
+          {t('appAgency.appAgencyOrgidBrandingForm.howItLooks')}
+        </p>
         <AgencyBrandScope brand={brand} className="agency-hero agency-hero-preview">
           <AgencyMark brand={brand} size="lg" />
           <div className="agency-hero-text">
-            <span className="eyebrow">Agency Workspace</span>
+            <span className="eyebrow">
+              {t('appAgency.appAgencyOrgidBrandingForm.agencyWorkspace')}
+            </span>
             <p className="page-title agency-preview-name">{brand.name}</p>
-            <p className="agency-hero-attribution">Powered by VisaStack</p>
+            <p className="agency-hero-attribution">
+              {t('appAgency.appAgencyOrgidBrandingForm.poweredByVisastack')}
+            </p>
           </div>
         </AgencyBrandScope>
         <p className="muted brand-preview-note">
-          Travellers see this on invitations from you. Your team sees it at the top of the
-          workspace.
+          {t('appAgency.appAgencyOrgidBrandingForm.travellersSeeThisOnInvitationsFrom')}
         </p>
       </section>
 
@@ -97,7 +108,7 @@ export function BrandingForm({
           <input type="hidden" name="organizationId" value={organizationId} />
           <div className="field-row">
             <label className="field-label" htmlFor="brand-name">
-              Agency Name
+              {t('appAgency.appAgencyOrgidBrandingForm.agencyName')}
             </label>
             <input
               id="brand-name"
@@ -112,10 +123,11 @@ export function BrandingForm({
           </div>
 
           <fieldset className="brand-accent">
-            <legend className="field-label">Accent Colour</legend>
+            <legend className="field-label">
+              {t('appAgency.appAgencyOrgidBrandingForm.accentColour')}
+            </legend>
             <p className="muted brand-hint">
-              Used for your mark and highlights. Pick one, or type a colour. It must be easy to read
-              on white. Leave it empty to use the VisaStack green.
+              {t('appAgency.appAgencyOrgidBrandingForm.usedForYourMarkAndHighlights')}
             </p>
             <div className="brand-swatches">
               {ACCENT_PRESETS.map((preset) => (
@@ -135,7 +147,7 @@ export function BrandingForm({
                 id="brand-accent-picker"
                 className="brand-picker"
                 type="color"
-                aria-label="Choose a colour"
+                aria-label={t('appAgency.appAgencyOrgidBrandingForm.chooseAColour')}
                 value={HEX.test(draftAccent) ? draftAccent : '#087a68'}
                 onChange={(event) => setDraftAccent(event.target.value)}
               />
@@ -144,10 +156,10 @@ export function BrandingForm({
                 className="input"
                 type="text"
                 name="accentColor"
-                aria-label="Accent colour as a six-digit code"
+                aria-label={t('appAgency.appAgencyOrgidBrandingForm.accentColourAsASixDigit')}
                 value={draftAccent}
                 onChange={(event) => setDraftAccent(event.target.value.trim())}
-                placeholder="#087a68"
+                placeholder={t('appAgency.appAgencyOrgidBrandingForm.087a68')}
                 pattern="^#[0-9a-fA-F]{6}$"
                 maxLength={7}
               />
@@ -172,17 +184,17 @@ export function BrandingForm({
           <StatusMessage state={brandingState} />
         </form>
 
-        <section className="brand-logo" aria-label="Logo">
-          <h3 className="brand-logo-title">Logo</h3>
+        <section className="brand-logo" aria-label={t('appAgency.appAgencyOrgidBrandingForm.logo')}>
+          <h3 className="brand-logo-title">{t('appAgency.appAgencyOrgidBrandingForm.logo')}</h3>
           <p className="muted brand-hint">
-            PNG or JPEG, up to 2 MB. A square or wide logo both work. It sits on a white tile, so a
-            logo with a see-through background looks clean. It is checked to be a real PNG or JPEG
-            image before anyone sees it.
+            {t('appAgency.appAgencyOrgidBrandingForm.pngOrJpegUpTo2')}
           </p>
           <div className="brand-logo-current">
             <AgencyMark brand={brand} size="lg" />
             <span className="muted">
-              {logoUrl ? 'Your logo, as it appears.' : 'No logo yet. Your initials show instead.'}
+              {logoUrl
+                ? t('appAgency.appAgencyOrgidBrandingForm.yourLogoAsItAppears')
+                : t('appAgency.appAgencyOrgidBrandingForm.noLogoYetYourInitialsShow')}
             </span>
           </div>
           <form
@@ -200,7 +212,7 @@ export function BrandingForm({
               accept="image/png,image/jpeg"
               required
               className="input"
-              aria-label="Logo image (PNG or JPEG)"
+              aria-label={t('appAgency.appAgencyOrgidBrandingForm.logoImagePngOrJpeg')}
             />
             <SubmitButton
               pending={uploadPending}

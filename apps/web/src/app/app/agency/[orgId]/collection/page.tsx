@@ -1,3 +1,4 @@
+import { formatNumber } from '@visastack/i18n';
 import {
   COLLECTION_LIST_LIMIT,
   COLLECTION_STATUS_LABELS,
@@ -12,7 +13,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DestinationLabel } from '../../../../../components/destination-label';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
 import { STATUS_TONES, destinationName } from './terms';
 
@@ -50,11 +53,12 @@ function plural(n: number, one: string, many: string): string {
  * dash with a spoken label.
  */
 function AnswerChips({ summary }: { readonly summary: CollectionAnswerSummary | undefined }) {
+  const t = getServerT(appAgencyCatalog);
   if (!summary || summary.answers === 0) {
     return (
       <>
         <span aria-hidden="true">-</span>
-        <span className="sr-only">No Answers Yet</span>
+        <span className="sr-only">{t('appAgency.appAgencyOrgidCollectionPage.noAnswersYet')}</span>
       </>
     );
   }
@@ -62,13 +66,25 @@ function AnswerChips({ summary }: { readonly summary: CollectionAnswerSummary | 
     <span className="request-answers">
       <span className="request-answers-total">{plural(summary.answers, 'Answer', 'Answers')}</span>
       {summary.waiting > 0 ? (
-        <StatusBadge tone="warning">{summary.waiting} Waiting for Review</StatusBadge>
+        <StatusBadge tone="warning">
+          {t('appAgency.appAgencyOrgidCollectionPage.waitingWaitingForReview', {
+            waiting: summary.waiting,
+          })}
+        </StatusBadge>
       ) : null}
       {summary.needsCorrection > 0 ? (
-        <StatusBadge tone="danger">{summary.needsCorrection} Needs Correction</StatusBadge>
+        <StatusBadge tone="danger">
+          {t('appAgency.appAgencyOrgidCollectionPage.needscorrectionNeedsCorrection', {
+            needsCorrection: summary.needsCorrection,
+          })}
+        </StatusBadge>
       ) : null}
       {summary.accepted > 0 ? (
-        <StatusBadge tone="success">{summary.accepted} Accepted</StatusBadge>
+        <StatusBadge tone="success">
+          {t('appAgency.appAgencyOrgidCollectionPage.acceptedAccepted', {
+            accepted: summary.accepted,
+          })}
+        </StatusBadge>
       ) : null}
     </span>
   );
@@ -88,6 +104,8 @@ export default async function CollectionRequestsPage({
   readonly params: Promise<{ orgId: string }>;
   readonly searchParams?: Promise<{ status?: string | string[]; review?: string | string[] }>;
 }) {
+  const locale = await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const query = await searchParams;
   const asked = query?.status;
@@ -128,33 +146,38 @@ export default async function CollectionRequestsPage({
   return (
     <div className="stack">
       <PageHeader
-        title="Document Requests"
-        description="For people who are not your clients yet. Nothing is shared until they choose to respond."
+        title={t('appAgency.appAgencyOrgidCollectionNewPage.documentRequests')}
+        description={t('appAgency.appAgencyOrgidCollectionPage.forPeopleWhoAreNotYour')}
         actions={
           <Link className="btn btn-primary" href={`${base}/new`}>
-            New Request
+            {t('appAgency.appAgencyOrgidCollectionPage.newRequest')}
           </Link>
         }
       />
       {requests.length >= COLLECTION_LIST_LIMIT ? (
         <p className="notice notice-warn">
-          Showing your newest {COLLECTION_LIST_LIMIT} requests, and the filters and counts below
-          cover only these. Close requests you no longer need.
+          {t('appAgency.appAgencyOrgidCollectionPage.showingYourNewestCollectionListLimit', {
+            COLLECTION_LIST_LIMIT,
+          })}
         </p>
       ) : null}
       {requests.length === 0 ? (
-        <EmptyState title="No Document Requests Yet">
-          Start one with New Request. You can issue it as a private link or by email.
+        <EmptyState title={t('appAgency.appAgencyOrgidCollectionPage.noDocumentRequestsYet')}>
+          {t('appAgency.appAgencyOrgidCollectionPage.startOneWithNewRequestYou')}
         </EmptyState>
       ) : (
         <>
-          <nav className="request-filters" aria-label="Show requests by status">
+          <nav
+            className="request-filters"
+            aria-label={t('appAgency.appAgencyOrgidCollectionPage.showRequestsByStatus')}
+          >
             <Link
               className="request-filter"
               href={listHref(base, null, waiting)}
               {...(wanted === null ? { 'aria-current': 'page' as const } : {})}
             >
-              All <span className="request-filter-count">{requests.length}</span>
+              {t('appAgency.appAgencyOrgidClientsPage.all')}{' '}
+              <span className="request-filter-count">{formatNumber(requests.length, locale)}</span>
             </Link>
             {counts.map((entry) => (
               <Link
@@ -169,33 +192,47 @@ export default async function CollectionRequestsPage({
             ))}
           </nav>
           {waitingCount > 0 ? (
-            <nav className="request-filters" aria-label="Show requests by answers">
+            <nav
+              className="request-filters"
+              aria-label={t('appAgency.appAgencyOrgidCollectionPage.showRequestsByAnswers')}
+            >
               <Link
                 className="request-filter"
                 href={listHref(base, wanted, false)}
                 {...(!waiting ? { 'aria-current': 'page' as const } : {})}
               >
-                All Answers
+                {t('appAgency.appAgencyOrgidCollectionPage.allAnswers')}
               </Link>
               <Link
                 className="request-filter"
                 href={listHref(base, wanted, true)}
                 {...(waiting ? { 'aria-current': 'page' as const } : {})}
               >
-                Waiting for Review <span className="request-filter-count">{waitingCount}</span>
+                {t('appAgency.appAgencyOrgidCollectionPage.waitingForReview')}{' '}
+                <span className="request-filter-count">{formatNumber(waitingCount, locale)}</span>
               </Link>
             </nav>
           ) : null}
           <table className="data-table request-table">
-            <caption className="sr-only">Document Requests, Newest First</caption>
+            <caption className="sr-only">
+              {t('appAgency.appAgencyOrgidCollectionPage.documentRequestsNewestFirst')}
+            </caption>
             <thead>
               <tr>
-                <th scope="col">For</th>
-                <th scope="col">Destination</th>
-                <th scope="col">Purpose</th>
-                <th scope="col">Status</th>
-                {answers ? <th scope="col">Answers</th> : null}
-                <th scope="col">Created</th>
+                <th scope="col">{t('appAgency.appAgencyOrgidCollectionPage.for')}</th>
+                <th scope="col">
+                  {t('appAgency.appAgencyOrgidCollectionCollectionForms.destination')}
+                </th>
+                <th scope="col">
+                  {t('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}
+                </th>
+                <th scope="col">{t('appAgency.appAgencyOrgidCollectionPage.status')}</th>
+                {answers ? (
+                  <th scope="col">
+                    {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.answers')}
+                  </th>
+                ) : null}
+                <th scope="col">{t('appAgency.appAgencyOrgidCollectionPage.created')}</th>
               </tr>
             </thead>
             <tbody>
@@ -203,13 +240,17 @@ export default async function CollectionRequestsPage({
                 <tr key={request.id}>
                   <td data-label="For">
                     <Link className="request-link" href={`${base}/request?id=${request.id}`}>
-                      {request.recipientNameHint ?? 'Not Named Yet'}
+                      {request.recipientNameHint ??
+                        t('appAgency.appAgencyOrgidCollectionPage.notNamedYet')}
                     </Link>
                   </td>
                   <td data-label="Destination">
                     <DestinationLabel destination={destinationName(request.destination)} />
                   </td>
-                  <td data-label="Purpose">{request.purpose ?? 'Not Sure Yet'}</td>
+                  <td data-label="Purpose">
+                    {request.purpose ??
+                      t('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
+                  </td>
                   <td data-label="Status">
                     <StatusBadge tone={STATUS_TONES[request.status]}>
                       {COLLECTION_STATUS_LABELS[request.status]}
@@ -226,11 +267,13 @@ export default async function CollectionRequestsPage({
             </tbody>
           </table>
           {query?.review === WAITING_FILTER && answers && waitingCount === 0 ? (
-            <p className="notice">Nothing is waiting for review now.</p>
+            <p className="notice">
+              {t('appAgency.appAgencyOrgidCollectionPage.nothingIsWaitingForReviewNow')}
+            </p>
           ) : null}
           {shown.length === 0 ? (
             <p className="notice">
-              No requests match both filters. Turn one of them off to see more.
+              {t('appAgency.appAgencyOrgidCollectionPage.noRequestsMatchBothFiltersTurn')}
             </p>
           ) : null}
         </>

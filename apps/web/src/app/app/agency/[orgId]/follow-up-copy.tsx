@@ -1,8 +1,10 @@
 'use client';
 
 import { useId } from 'react';
+import { useT } from '../../../../components/i18n-provider';
 import { useShareMessage } from '../../../../components/share/use-share-message';
 import { CopyMessageOnly, WhatsAppShare } from '../../../../components/share/whatsapp-share';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 
 /**
  * Shows a prepared follow-up message for the agency to read. Send on WhatsApp comes first and opens
@@ -20,23 +22,28 @@ export function FollowUpCopy({
   readonly agencyNoteLeftOut: boolean;
   readonly summary?: string;
 }) {
+  const t = useT(appAgencyCatalog);
   const id = useId();
   const shareMessage = useShareMessage({ template: 'prepared-text', text });
 
   return (
     <>
-      {shareMessage ? <WhatsAppShare message={shareMessage} title="Follow-Up" /> : null}
+      {shareMessage ? (
+        <WhatsAppShare
+          message={shareMessage}
+          title={t('appAgency.appAgencyOrgidFollowUpCopy.followUp')}
+        />
+      ) : null}
       <details className="do-next-follow-up">
         <summary className="do-next-follow-up-toggle">{summary}</summary>
         <div className="do-next-follow-up-body">
           {agencyNoteLeftOut ? (
             <p className="do-next-follow-up-hint">
-              Your note was left out because it has a link, an email address or a long number. The
-              standard wording is used instead.
+              {t('appAgency.appAgencyOrgidFollowUpCopy.yourNoteWasLeftOutBecause')}
             </p>
           ) : null}
           <label htmlFor={id} className="field-label">
-            Message to Copy
+            {t('appAgency.appAgencyOrgidFollowUpCopy.messageToCopy')}
           </label>
           <textarea
             id={id}
@@ -46,8 +53,7 @@ export function FollowUpCopy({
             rows={Math.min(14, text.split('\n').length + 1)}
           />
           <p className="muted do-next-follow-up-note">
-            Read it first. It is not sent for you: send it from WhatsApp, or paste it into your own
-            email or message.
+            {t('appAgency.appAgencyOrgidFollowUpCopy.readItFirstItIsNot')}
           </p>
           {shareMessage ? null : <CopyMessageOnly text={text} />}
         </div>
