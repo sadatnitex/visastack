@@ -1,0 +1,321 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { after, before, describe, test } from 'node:test';
+import { parseCatalog } from './catalog.mjs';
+import { runCodemod } from './codemod.mjs';
+import { FILES, loadFormatter, loadModule, makeRoot, readTree, render } from './fixtures.mjs';
+import { renderedJsxText } from './jsx-text.mjs';
+import { KeyAllocator, fileSlug, textSlug } from './keys.mjs';
+import { Register } from './register.mjs';
+
+const SRC = Object.keys(FILES).filter((f) => f.endsWith('.tsx'));
+const CAT = 'apps/web/src/i18n/fixture.ts';
+const SOURCES = 'apps/web/src/i18n/fixture.sources.json';
+const TWINS = {
+  'apps/web/src/components/twin-a.tsx': `'use client';\nexport function TwinA() {\n  return <div><p>Save changes</p><p>Save changes!</p></div>;\n}\n`,
+  'apps/web/src/components/twin-b.tsx': `'use client';\nexport function TwinB() {\n  return <p>Save changes</p>;\n}\n`,
+};
+const roots = [];
+
+function run(root, files = SRC, opts = {}) {
+  const [report] = runCodemod({
+    root,
+    groups: [{ surface: 'fixture', files }],
+    format: false,
+    register: Register.load(root),
+    reportDir: path.join(root, 'out'),
+    ...opts,
+  });
+  return report;
+}
+function fresh(extra) {
+  const root = makeRoot(extra);
+  roots.push(root);
+  return root;
+}
+const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+const catalog = (root) => parseCatalog(read(root, CAT));
+const reasonOf = (report, text) =>
+  report.notConverted.find((s) => s.text.includes(text))?.reason ?? null;
+
+after(() => {
+  for (const r of roots) fs.rmSync(r, { recursive: true, force: true });
+});
+
+describe('a converted surface', () => {
+  let root;
+  let report;
+  let pristine;
+  before(() => {
+    pristine = fresh();
+    root = fresh();
+    report = run(root);
+  });
+
+  test('client component: one useT at the top of each component, imports added', () => {
+    const out = read(root, 'apps/web/src/components/greeting-card.tsx');
+    assert.equal(out.match(/const t = useT\(fixtureCatalog\);/g)?.length, 2);
+    assert.match(
+      out,
+      /export function GreetingCard\([^)]*\) \{\n\s+const t = useT\(fixtureCatalog\);\n\s+const \[shown\]/s,
+    );
+    assert.match(out, /import \{ useT \} from '\.\/i18n-provider';/);
+    assert.match(out, /import \{ fixtureCatalog \} from '\.\.\/i18n\/fixture';/);
+    // Expression-bodied arrow component gets a block body that returns the original JSX.
+    assert.match(
+      out,
+      /export const Compact = \(\{ name \}: \{ name: string \}\) => \{\n\s+const t = useT\(fixtureCatalog\);\n\s+return <em>\{t\('fixture\.greetingCard\.signedInAsName', \{ name \}\)\}<\/em>;\n\}/,
+    );
+    assert.ok(!/getServerT|primeLocale/.test(out));
+  });
+
+  test('server component: getServerT, never a hook', () => {
+    const out = read(root, 'apps/web/src/components/notice-panel.tsx');
+    assert.match(
+      out,
+      /export function NoticePanel\([^)]*\) \{\n\s+const t = getServerT\(fixtureCatalog\);/s,
+    );
+    assert.match(out, /import \{ getServerT \} from '\.\.\/lib\/i18n-server';/);
+    assert.ok(!/useT/.test(out));
+    assert.match(out, /<h3>\{t\('fixture\.noticePanel\.beforeYouStart'\)\}<\/h3>/);
+  });
+
+  test('async page: primeLocale is awaited before getServerT', () => {
+    const out = read(root, 'apps/web/src/app/(app)/fixture/page.tsx');
+    assert.match(
+      out,
+      /export default async function FixturePage\(\) \{\n\s+await primeLocale\(\);\n\s+const t = getServerT\(fixtureCatalog\);\n\s+const data = await/,
+    );
+    assert.match(
+      out,
+      /import \{ getServerT, primeLocale \} from '\.\.\/\.\.\/\.\.\/lib\/i18n-server';/,
+    );
+  });
+
+  test('a page that is not async, or is a client page, is reported and left as it was', () => {
+    for (const rel of [
+      'apps/web/src/app/(app)/sync/page.tsx',
+      'apps/web/src/app/(app)/client-page/page.tsx',
+    ])
+      assert.equal(read(root, rel), FILES[rel]);
+    assert.deepEqual(
+      report.fileSkips.filter((f) => /page\.tsx$/.test(f.file)),
+      [
+        { file: 'apps/web/src/app/(app)/client-page/page.tsx', reason: 'client_route_entry' },
+        { file: 'apps/web/src/app/(app)/sync/page.tsx', reason: 'route_entry_not_async' },
+      ],
+    );
+    assert.equal(reasonOf(report, 'Not async here'), 'route_entry_not_async');
+  });
+
+  test('template literals and text with values become one message with named values', () => {
+    const en = catalog(root).en;
+    assert.equal(en['fixture.greetingCard.photoOfName'], 'Photo of {name}');
+    assert.equal(en['fixture.noticePanel.lastCheckedWhen'], 'Last checked {when}.');
+    const out = read(root, 'apps/web/src/components/greeting-card.tsx');
+    assert.match(out, /alt=\{t\('fixture\.greetingCard\.photoOfName', \{ name \}\)\}/);
+  });
+
+  test('an English plural ending becomes an exact plural message', () => {
+    assert.equal(
+      catalog(root).en['fixture.greetingCard.helloNameYouHaveCountNew'],
+      '{count, plural, =1 {Hello {name}, you have {count} new message.} other {Hello {name}, you have {count} new messages.}}',
+    );
+  });
+
+  test('ternary and && branches each get a key; attributes too', () => {
+    const out = read(root, 'apps/web/src/components/greeting-card.tsx');
+    assert.match(
+      out,
+      /title=\{open \? t\('fixture\.greetingCard\.closeThePanel'\) : t\('fixture\.greetingCard\.openThePanel'\)\}/,
+    );
+    assert.match(
+      out,
+      /\{open \? t\('fixture\.greetingCard\.hide'\) : t\('fixture\.greetingCard\.show'\)\}/,
+    );
+    assert.match(out, /\{shown && t\('fixture\.greetingCard\.shownNow'\)\}/);
+    assert.match(out, /<section aria-label=\{t\('fixture\.greetingCard\.greetingCard'\)\}>/);
+    assert.equal(catalog(root).en['fixture.greetingCard.tomJerrySPage'], "Tom & Jerry's page");
+  });
+
+  test('ambiguous cases are left untouched and reported with a reason', () => {
+    const expected = {
+      'Read the': 'sentence_split_by_inline_element',
+      'help page': 'sentence_split_by_inline_element',
+      'Status:': 'conditional_inside_sentence',
+      "'Hello ' + when": 'string_concatenation',
+      'pnpm install': 'code_element',
+      'Helper text here': 'non_component_function',
+      'Open case': 'module_label_map',
+      Person: 'name_conflict_t',
+      'Shared note text': 'shared_client_server_module',
+      'Client page title': 'client_route_entry',
+    };
+    for (const [text, reason] of Object.entries(expected))
+      assert.equal(reasonOf(report, text), reason, text);
+    const lit = report.notConverted.find((s) => s.text === 'New');
+    assert.equal(lit?.reason, 'prop_typed_as_literal_union');
+    const notice = read(root, 'apps/web/src/components/notice-panel.tsx');
+    for (const kept of [
+      'Read the <a href="/help">help page</a> first.',
+      "{'Hello ' + when}",
+      '<code>pnpm install</code>',
+      '<span>Helper text here</span>',
+      "{ open: 'Open case' }",
+      "Status: {ok ? 'ready' : 'waiting'}",
+    ])
+      assert.ok(notice.includes(kept), kept);
+    assert.ok(read(root, 'apps/web/src/components/people-list.tsx').includes('Person {t.name}'));
+    assert.equal(
+      read(root, 'apps/web/src/components/shared-note.tsx'),
+      FILES['apps/web/src/components/shared-note.tsx'],
+    );
+    assert.deepEqual(
+      report.fileSkips.find((f) => f.file.endsWith('.test.tsx')),
+      { file: 'apps/web/src/components/greeting-card.test.tsx', reason: 'excluded_test_file' },
+    );
+    assert.equal(
+      read(root, 'apps/web/src/components/greeting-card.test.tsx'),
+      FILES['apps/web/src/components/greeting-card.test.tsx'],
+    );
+  });
+
+  test('Bengali only from PASS rows with the same placeholders; sources traced', () => {
+    const c = catalog(root);
+    // Stored NFC-normalised, as the runtime's checks require (U+09DF decomposes to U+09AF U+09BC).
+    assert.equal(
+      c.bn['fixture.greetingCard.welcomeBack'],
+      '\u09ab\u09bf\u09b0\u09c7 \u0986\u09b8\u09be\u09af\u09bc \u09b8\u09cd\u09ac\u09be\u0997\u09a4\u09ae',
+    );
+    assert.equal(
+      c.bn['fixture.noticePanel.lastCheckedWhen'],
+      '\u09b6\u09c7\u09b7 \u09af\u09be\u099a\u09be\u0987 {when}\u0964',
+    );
+    assert.equal(c.bn['fixture.greetingCard.hide'], undefined);
+    assert.equal(c.bn['fixture.greetingCard.photoOfName'], undefined);
+    const missing = Object.fromEntries(report.bengaliMissing.map((m) => [m.english, m.reason]));
+    assert.equal(missing.Hide, 'checks_not_pass:GLOSSARY_TERM_MISSING');
+    assert.equal(missing['Photo of {name}'], 'bn_placeholders_differ');
+    assert.equal(missing.Show, 'no_register_match');
+    const sources = JSON.parse(read(root, SOURCES));
+    assert.equal(sources['fixture.greetingCard.welcomeBack'], 'SG-1');
+    assert.equal(sources['fixture.greetingCard.hide'], 'SG-2');
+    assert.equal(sources['fixture.greetingCard.show'], null);
+  });
+
+  test('the English a person sees is byte-identical before and after', async () => {
+    const { format } = await loadFormatter();
+    const cases = [
+      [
+        'apps/web/src/components/greeting-card.tsx',
+        'GreetingCard',
+        { name: 'Ana', count: 1, open: true },
+      ],
+      [
+        'apps/web/src/components/greeting-card.tsx',
+        'GreetingCard',
+        { name: 'Ana', count: 0, open: false },
+      ],
+      [
+        'apps/web/src/components/greeting-card.tsx',
+        'GreetingCard',
+        { name: 'Ana', count: 12, open: false },
+      ],
+      ['apps/web/src/components/greeting-card.tsx', 'Compact', { name: 'Ana' }],
+      ['apps/web/src/components/notice-panel.tsx', 'NoticePanel', { when: 'today', ok: false }],
+      ['apps/web/src/components/people-list.tsx', 'PeopleList', { items: [{ name: 'Ana' }] }],
+      ['apps/web/src/app/(app)/fixture/page.tsx', 'default', {}],
+    ];
+    for (const [rel, name, props] of cases) {
+      const beforeHtml = await render(loadModule(pristine, rel, format)[name](props));
+      const afterHtml = await render(loadModule(root, rel, format)[name](props));
+      assert.ok(beforeHtml.length > 20, `${rel} rendered`);
+      assert.equal(afterHtml, beforeHtml, `${rel} ${JSON.stringify(props)}`);
+    }
+  });
+
+  test('a second run changes nothing', () => {
+    const rels = [...SRC, CAT, SOURCES];
+    const first = readTree(root, rels);
+    const firstReport = read(root, 'out/fixture.report.json');
+    const again = run(root);
+    assert.deepEqual(readTree(root, rels), first);
+    assert.equal(again.summary.changedFiles.length, 0);
+    assert.equal(again.converted.length, 0);
+    assert.notEqual(read(root, 'out/fixture.report.json'), firstReport); // nothing left to convert
+  });
+});
+
+describe('keys', () => {
+  test('are deterministic whatever order the files are given in', () => {
+    const files = [...SRC, ...Object.keys(TWINS)];
+    const a = fresh(TWINS);
+    const b = fresh(TWINS);
+    run(a, files);
+    run(b, [...files].reverse());
+    const rels = [...files, CAT, SOURCES];
+    assert.deepEqual(readTree(a, rels), readTree(b, rels));
+  });
+
+  test('identical English shares one key; a clash of slugs is settled by a hash', () => {
+    const root = fresh(TWINS);
+    run(root, Object.keys(TWINS));
+    const en = catalog(root).en;
+    assert.deepEqual(
+      Object.keys(en).sort(),
+      [
+        'fixture.twinA.saveChanges',
+        `fixture.twinA.saveChanges${(/^fixture\.twinA\.saveChanges([0-9a-f]{6})$/.exec(Object.keys(en).find((k) => k !== 'fixture.twinA.saveChanges')) ?? [])[1]}`,
+      ].sort(),
+    );
+    assert.equal(en['fixture.twinA.saveChanges'], 'Save changes');
+    assert.match(
+      read(root, 'apps/web/src/components/twin-b.tsx'),
+      /t\('fixture\.twinA\.saveChanges'\)/,
+    );
+  });
+
+  test('existing keys are reused and never renamed', () => {
+    const alloc = new KeyAllocator('docs', { 'docs.old.anything': 'Upload' });
+    assert.equal(alloc.keyFor('apps/web/src/app/x/page.tsx', 'Upload'), 'docs.old.anything');
+    assert.equal(alloc.keyFor('apps/web/src/app/x/page.tsx', 'Upload now'), 'docs.xPage.uploadNow');
+  });
+
+  test('slugs drop route groups and punctuation', () => {
+    assert.equal(fileSlug('apps/web/src/app/(app)/documents/[id]/page.tsx'), 'documentsIdPage');
+    assert.equal(fileSlug('apps/web/src/components/pilot-banner.tsx'), 'pilotBanner');
+    assert.equal(
+      textSlug("You're all set, {name}! Next: upload six more files"),
+      'youReAllSetNameNext',
+    );
+  });
+});
+
+describe('dry run', () => {
+  test('counts without writing anything', () => {
+    const root = fresh();
+    const rels = [...SRC, CAT, SOURCES];
+    const before = readTree(root, rels);
+    const report = run(root, SRC, { dryRun: true });
+    assert.deepEqual(readTree(root, rels), before);
+    // It counts exactly what a real run converts.
+    const real = run(fresh(), SRC);
+    assert.equal(report.converted.length, 15);
+    assert.deepEqual(report.converted, real.converted);
+    assert.deepEqual(report.notConverted, real.notConverted);
+  });
+});
+
+describe('JSX text rules', () => {
+  test('line breaks and indentation collapse as the JSX transform does', () => {
+    assert.deepEqual(renderedJsxText('\n    Hello\n    world  \n  '), { text: 'Hello world' });
+    assert.deepEqual(renderedJsxText(' Save'), { text: ' Save' });
+    assert.deepEqual(renderedJsxText('A &amp; B &#8212; C'), { text: 'A & B \u2014 C' });
+  });
+  test('anything the transforms could disagree on is refused', () => {
+    assert.deepEqual(renderedJsxText('a\tb'), { error: 'tab_in_jsx_text' });
+    assert.equal(renderedJsxText('a &bogus; b').error, 'unknown_html_entity:&bogus;');
+    assert.deepEqual(renderedJsxText('a\n  &nbsp;b'), { error: 'nbsp_at_line_edge' });
+  });
+});
