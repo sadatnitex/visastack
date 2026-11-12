@@ -13,6 +13,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import { oauthCatalog } from '../../../i18n/oauth';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
 import {
   type AiFileChoice,
@@ -26,7 +27,7 @@ import {
   decodeAiFilePicks,
   rememberedAiFilePicks,
 } from '../../../lib/ai-file-picks-retry';
-import { primeLocale } from '../../../lib/i18n-server';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import {
   type AuthorizeParams,
   checkAuthorizeRequest,
@@ -81,6 +82,7 @@ export default async function AuthorizePage({
   readonly searchParams: Promise<Search>;
 }) {
   await primeLocale();
+  const t = getServerT(oauthCatalog);
   if (!aiConnectorEnabled()) notFound();
   const search = await searchParams;
   const params: Record<string, string> = {};
@@ -220,21 +222,23 @@ export default async function AuthorizePage({
 
   const appName = request.client.clientName;
   return (
-    <AuthShell title={`Connect ${appName}`} eyebrow="AI App Access">
+    <AuthShell
+      title={t('oauth.oauthAuthorizePage.connectAppname', { appName })}
+      eyebrow={t('oauth.oauthAuthorizePage.aiAppAccess')}
+    >
       <p className="card-body">
-        <span className="ai-consent-host">{request.client.host}</span> is asking to read parts of a
-        VisaStack record so it can help you.
+        <span className="ai-consent-host">{request.client.host}</span>{' '}
+        {t('oauth.oauthAuthorizePage.isAskingToReadPartsOf')}
       </p>
       {request.client.loopback ? (
         <p className="notice notice-warn">
-          This app runs on this computer, not on a website. Allow it only if you started it yourself
-          just now.
+          {t('oauth.oauthAuthorizePage.thisAppRunsOnThisComputer')}
         </p>
       ) : null}
       {view.agency ? (
         <>
           <p className="card-body">
-            Agency: <strong>{view.agency.name}</strong>
+            {t('oauth.oauthAuthorizePage.agency')} <strong>{view.agency.name}</strong>
           </p>
           <AgencyConsentForm
             request={{
@@ -249,10 +253,10 @@ export default async function AuthorizePage({
           />
         </>
       ) : view.records.length === 0 ? (
-        <p className="card-body">You have no records to connect yet. Add one in VisaStack first.</p>
+        <p className="card-body">{t('oauth.oauthAuthorizePage.youHaveNoRecordsToConnect')}</p>
       ) : !view.chosen ? (
-        <nav aria-label="Choose a Record">
-          <p className="card-body">Choose the record this app may read:</p>
+        <nav aria-label={t('oauth.oauthAuthorizePage.chooseARecord')}>
+          <p className="card-body">{t('oauth.oauthAuthorizePage.chooseTheRecordThisAppMay')}</p>
           <ul className="rows">
             {view.records.map((row) => (
               <li key={row.id}>
@@ -273,7 +277,7 @@ export default async function AuthorizePage({
       ) : (
         <>
           <p className="card-body">
-            Record: <strong>{view.chosen.name}</strong>
+            {t('oauth.oauthAuthorizePage.record')} <strong>{view.chosen.name}</strong>
           </p>
           {view.accessOff ? <p className="notice notice-warn">{view.accessOff}</p> : null}
           <ConsentForm
@@ -299,8 +303,8 @@ export default async function AuthorizePage({
         </>
       )}
       {!view.agency && view.agencies.length > 0 ? (
-        <nav aria-label="Connect for an Agency">
-          <p className="card-body">Or connect it for an agency you run:</p>
+        <nav aria-label={t('oauth.oauthAuthorizePage.connectForAnAgency')}>
+          <p className="card-body">{t('oauth.oauthAuthorizePage.orConnectItForAnAgency')}</p>
           <ul className="rows">
             {view.agencies.map((item) => (
               <li key={item.id}>

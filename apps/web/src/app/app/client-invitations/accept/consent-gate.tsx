@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appClientInvitationsCatalog } from '../../../../i18n/app-client-invitations';
 import { consentName } from '../../../../lib/labels';
 import { type ActionState, setConsentAction } from '../../actions';
 
@@ -27,6 +29,7 @@ function ConsentToggle({
   readonly label: string;
   readonly granted: boolean;
 }) {
+  const t = useT(appClientInvitationsCatalog);
   const [state, formAction, pending] = useActionState(setConsentAction, INITIAL);
   const router = useRouter();
   const refreshedFor = useRef(false);
@@ -42,7 +45,9 @@ function ConsentToggle({
     <div className="row">
       <span className="row-key">{label}</span>
       {granted ? (
-        <span className="badge badge-success">On</span>
+        <span className="badge badge-success">
+          {t('appClientInvitations.appClientInvitationsAcceptConsentGate.on')}
+        </span>
       ) : (
         <form action={formAction}>
           <input type="hidden" name="type" value={type} />
@@ -51,7 +56,9 @@ function ConsentToggle({
             pending={pending}
             idle="Turn On"
             busy="Turning on…"
-            label={`Turn On: ${label}`}
+            label={t('appClientInvitations.appClientInvitationsAcceptConsentGate.turnOnLabel', {
+              label,
+            })}
             className="btn btn-primary"
             style={{ padding: '0.35rem 1rem', fontSize: 'var(--text-small)' }}
           />

@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appContributorRequestsCatalog } from '../../../../i18n/app-contributor-requests';
 import { type ActionState, submitContributorEvidenceAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -13,6 +15,7 @@ export function SubmitEvidenceForm({
   readonly token: string;
   readonly docType: string;
 }) {
+  const t = useT(appContributorRequestsCatalog);
   const [state, formAction, pending] = useActionState(submitContributorEvidenceAction, INITIAL);
 
   // Once the document is in, the form gives way to the confirmation. The message region is
@@ -41,8 +44,9 @@ export function SubmitEvidenceForm({
             }}
           >
             <input type="checkbox" name="allowWalletReuse" value="true" />
-            Also allow this document to be reused for the traveller's future cases (optional - off
-            by default, this file only helps with this one case)
+            {t(
+              'appContributorRequests.appContributorRequestsAcceptSubmitEvidenceForm.alsoAllowThisDocumentToBe',
+            )}
           </label>
           <SubmitButton
             pending={pending}
@@ -51,7 +55,9 @@ export function SubmitEvidenceForm({
             className="btn btn-primary"
           />
           <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-            PDF, PNG, JPEG, DOCX, TXT or MD · file type and structure are checked on upload.
+            {t(
+              'appContributorRequests.appContributorRequestsAcceptSubmitEvidenceForm.pdfPngJpegDocxTxtOr',
+            )}
           </p>
         </form>
       )}
