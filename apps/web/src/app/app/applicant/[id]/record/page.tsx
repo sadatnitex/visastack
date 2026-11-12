@@ -36,7 +36,7 @@ export default async function ApplicantRecordPage({
 }: {
   readonly params: Promise<{ id: string }>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const data = await withSession(async ({ db, accountId }) => {
@@ -119,8 +119,8 @@ export default async function ApplicantRecordPage({
             namePending: (summary?.pendingNameVersion ?? null) !== null,
           },
           version: summary?.latestVersionNumber ?? null,
-          updatedLabel: summary?.updatedAt ? formatTimestampDate(summary.updatedAt) : null,
-          expiresLabel: document.expiresAt ? formatTimestampDate(document.expiresAt) : null,
+          updatedLabel: summary?.updatedAt ? formatTimestampDate(summary.updatedAt, locale) : null,
+          expiresLabel: document.expiresAt ? formatTimestampDate(document.expiresAt, locale) : null,
           expiryApplies: docTypeCarriesExpiry(document.docType),
           replacedBy:
             document.supersededByDocumentId && replacedName

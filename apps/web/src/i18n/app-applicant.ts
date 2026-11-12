@@ -691,8 +691,6 @@ export const appApplicantCatalog = defineCatalog({
       'নিশ্চিত করতে DELETE লিখুন',
     'appApplicant.appApplicantIdDocumentsNeedsDecision.addANewerCopyIfYou':
       'আপনার কাছে আরও নতুন কপি থাকলে সেটি যোগ করুন, অথবা এটি যেমন আছে তেমনই রাখুন।',
-    'appApplicant.appApplicantIdDocumentsNeedsDecision.removeThisFileLabel':
-      'এই ডকুমেন্টটি সরান: {label}',
     'appApplicant.appApplicantIdExpiryPage.aboutTheseDates': 'এই তারিখগুলো সম্পর্কে',
     'appApplicant.appApplicantIdExpiryPage.addDatesToMyCalendar': 'আমার ক্যালেন্ডারে তারিখ যোগ করুন',
     'appApplicant.appApplicantIdExpiryPage.confirmationDates': 'নিশ্চিতকরণের তারিখ',
@@ -789,7 +787,6 @@ export const appApplicantCatalog = defineCatalog({
       'সর্বশেষ নিশ্চিত করা হয়েছে {formatDate}',
     'appApplicant.appApplicantIdProfileEditor.locked': 'লক করা',
     'appApplicant.appApplicantIdProfileEditor.needsReview': 'পর্যালোচনা দরকার',
-    'appApplicant.appApplicantIdProfileEditor.noLongerCurrentLabel': 'আর বর্তমান নয়: {label}',
     'appApplicant.appApplicantIdProfileEditor.noSupportingDocumentSupplied':
       '✗ সমর্থনকারী কোনো ডকুমেন্ট দেওয়া হয়নি।',
     'appApplicant.appApplicantIdProfileEditor.noneRecordedYet': 'এখনও কিছু লেখা নেই।',

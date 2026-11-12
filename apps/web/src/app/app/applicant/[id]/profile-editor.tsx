@@ -1153,7 +1153,7 @@ function SuggestionBar({
             <p>
               {t(
                 'appApplicant.appApplicantIdProfileEditor.suggestedlockedcountSuggestedSectionsAreStillLoc',
-                { suggestedLockedCount: formatNumber(view.suggestedLockedCount, locale) },
+                { suggestedLockedCount: view.suggestedLockedCount },
               )}
             </p>
             <SubmitButton

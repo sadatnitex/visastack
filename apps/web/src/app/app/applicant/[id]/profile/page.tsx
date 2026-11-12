@@ -305,7 +305,7 @@ export default async function ApplicantProfilePage({
             <h2>{data.applicant.displayName}</h2>
             <p className="muted" data-value>
               {nationality?.value || 'Nationality not recorded'} · Profile created{' '}
-              {formatTimestampDate(data.applicant.createdAt)}
+              {formatTimestampDate(data.applicant.createdAt, locale)}
             </p>
           </div>
           {/* Essentials lead: a new person sees "0 of 12 essentials", not the size of the whole
@@ -420,7 +420,7 @@ export default async function ApplicantProfilePage({
                           </span>
                         </Link>
                         <time dateTime={entry.updatedAt as string}>
-                          {formatTimestampDate(entry.updatedAt as string)}
+                          {formatTimestampDate(entry.updatedAt as string, locale)}
                         </time>
                       </li>
                     ))}

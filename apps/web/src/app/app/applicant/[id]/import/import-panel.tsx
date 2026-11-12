@@ -821,7 +821,7 @@ export function ImportPanel({
         <div className="import-controls">
           <p className="field-hint">
             {t('appApplicant.appApplicantIdImportImportPanel.theHourlyUploadLimitWasReached', {
-              held: formatNumber(counts.held, locale),
+              held: counts.held,
             })}
           </p>
           <button

@@ -341,6 +341,106 @@ export const HOLDBACK = new Map([
     'SG-d9696fe7',
     'Applicant screens: Says a value was read from the document by automatic reading (AI processing): waits for the owner sign-off.',
   ],
+  [
+    'SG-ac40a214',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-338d92d1',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-c9a7f414',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-aa9771db',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-19b168cd',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-68e8afb4',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-fe5feab6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-6cdf21a6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-a8684ed6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-dedaa54b',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-4e812a3e',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-826d2c99',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-153f9777',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-c1fb8969',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-658e1cac',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-d2c91826',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-ba0fbeb7',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-e4498255',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-d5319908',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8d14d065',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-e8727ba5',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8881fc69',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8fd6641e',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-bd7b343f',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-9d878677',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

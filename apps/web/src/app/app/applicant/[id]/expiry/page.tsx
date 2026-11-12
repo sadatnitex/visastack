@@ -145,7 +145,7 @@ export default async function ExpiryCentrePage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
@@ -286,7 +286,7 @@ export default async function ExpiryCentrePage({
                                       plural: plural(Math.abs(classification.daysRemaining), 'day'),
                                     })}
                                 {' · '}
-                                {formatDateOnly(doc.expiresAt)}
+                                {formatDateOnly(doc.expiresAt, locale)}
                               </span>
                             ) : classification.urgency === 'unknown' ? (
                               <span className="attention-detail">
