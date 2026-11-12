@@ -662,7 +662,7 @@ export const appApplicantCatalog = defineCatalog({
       'ডুপ্লিকেট মুছে ফেলবেন?',
     'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate484f53':
       'ডুপ্লিকেট মুছে ফেলুন',
-    'appApplicant.appApplicantIdDocumentsManageLifecycleTabs.removalRecords': 'অপসারণের রেকর্ড',
+    'appApplicant.appApplicantIdDocumentsManageLifecycleTabs.removalRecords': 'সরানোর রেকর্ড',
     'appApplicant.appApplicantIdDocumentsManageManageMenu.manage': 'ম্যানেজ করুন',
     'appApplicant.appApplicantIdDocumentsManageManageMenu.manageDocumentname':
       '{documentName} ম্যানেজ করুন',

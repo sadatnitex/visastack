@@ -1,4 +1,5 @@
 import { resolveDocumentType } from '@visastack/core/catalogue';
+import { formatNumber } from '@visastack/i18n';
 import {
   type FactAssuranceView,
   accountPrincipal,
@@ -385,15 +386,15 @@ export default async function ApplicantProfilePage({
               <article className="card rows">
                 <div className="row">
                   <span>{t('appApplicant.appApplicantIdProfilePage.confirmedByTheTraveller')}</span>
-                  <strong>{confirmed}</strong>
+                  <strong>{formatNumber(confirmed, locale)}</strong>
                 </div>
                 <div className="row">
                   <span>{t('appApplicant.appApplicantIdProfilePage.fieldsBackedByADocument')}</span>
-                  <strong>{supported}</strong>
+                  <strong>{formatNumber(supported, locale)}</strong>
                 </div>
                 <div className="row">
                   <span>{t('appApplicant.appApplicantIdProfilePage.fieldsThatDoNotMatch')}</span>
-                  <strong>{conflictedCount}</strong>
+                  <strong>{formatNumber(conflictedCount, locale)}</strong>
                 </div>
                 <p className="muted">
                   {t('appApplicant.appApplicantIdProfilePage.theseCountsAreSeparateTheyAre')}

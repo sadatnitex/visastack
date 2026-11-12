@@ -1,3 +1,4 @@
+import { formatNumber } from '@visastack/i18n';
 import {
   computeReadiness,
   getApplicant,
@@ -402,7 +403,7 @@ export default async function ApplicantOverviewPage({
               className={`lift-tile-numeral${data.missions.ok ? '' : ' traveller-metric-off'}`}
             >
               {data.missions.ok
-                ? data.active.length
+                ? formatNumber(data.active.length, locale)
                 : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
@@ -418,7 +419,7 @@ export default async function ApplicantOverviewPage({
               className={`lift-tile-numeral${data.documents.ok ? '' : ' traveller-metric-off'}`}
             >
               {data.documents.ok
-                ? documents.length
+                ? formatNumber(documents.length, locale)
                 : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
@@ -436,7 +437,7 @@ export default async function ApplicantOverviewPage({
               }`}
             >
               {data.documents.ok && data.requests.ok
-                ? attention
+                ? formatNumber(attention, locale)
                 : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
@@ -471,7 +472,7 @@ export default async function ApplicantOverviewPage({
                             aria-hidden="true"
                             className={`home-path-mark${step.done ? ' home-path-done' : ''}`}
                           >
-                            {step.done ? '\u2713' : index + 1}
+                            {step.done ? '\u2713' : formatNumber(index + 1, locale)}
                           </span>
                           <span className="home-path-text">
                             <span className="sr-only">
@@ -617,7 +618,11 @@ export default async function ApplicantOverviewPage({
                       href={`/app/applicant/${id}/evidence`}
                       icon="clipboard"
                       title={t('appApplicant.appApplicantIdPage.evidenceRequestsWaitingForAReply')}
-                      pill={<StatusBadge tone="warning">{requests.length}</StatusBadge>}
+                      pill={
+                        <StatusBadge tone="warning">
+                          {formatNumber(requests.length, locale)}
+                        </StatusBadge>
+                      }
                     />
                   ) : null}
                   {readings.length ? (
@@ -625,7 +630,11 @@ export default async function ApplicantOverviewPage({
                       href={`/app/applicant/${id}/review`}
                       icon="eye"
                       title={t('appApplicant.appApplicantIdPage.suggestedDetailsAwaitingApproval')}
-                      pill={<StatusBadge tone="warning">{readings.length}</StatusBadge>}
+                      pill={
+                        <StatusBadge tone="warning">
+                          {formatNumber(readings.length, locale)}
+                        </StatusBadge>
+                      }
                     />
                   ) : null}
                   {appSuggestions.length ? (
@@ -633,7 +642,11 @@ export default async function ApplicantOverviewPage({
                       href={`/app/applicant/${id}/profile`}
                       icon="shield"
                       title={t('appApplicant.appApplicantIdPage.suggestionsFromAiAppsWaitingFor')}
-                      pill={<StatusBadge tone="warning">{appSuggestions.length}</StatusBadge>}
+                      pill={
+                        <StatusBadge tone="warning">
+                          {formatNumber(appSuggestions.length, locale)}
+                        </StatusBadge>
+                      }
                     />
                   ) : null}
                   {flagged.length ? (
@@ -641,7 +654,11 @@ export default async function ApplicantOverviewPage({
                       href={`/app/applicant/${id}/documents`}
                       icon="file"
                       title={t('appApplicant.appApplicantIdPage.documentsNeedingReview')}
-                      pill={<StatusBadge tone="warning">{flagged.length}</StatusBadge>}
+                      pill={
+                        <StatusBadge tone="warning">
+                          {formatNumber(flagged.length, locale)}
+                        </StatusBadge>
+                      }
                     />
                   ) : null}
                 </article>
@@ -752,7 +769,8 @@ export default async function ApplicantOverviewPage({
                     <div className="meter-label">
                       <span>{t('appApplicant.appApplicantIdPage.essentialsAdded')}</span>
                       <span>
-                        {essentials.answered} / {essentials.total}
+                        {formatNumber(essentials.answered, locale)} /{' '}
+                        {formatNumber(essentials.total, locale)}
                       </span>
                     </div>
                     <ProgressMeter
