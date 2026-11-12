@@ -59,7 +59,13 @@ async function page(locale: 'en' | 'bn') {
   state.locale = locale;
   state.generation += 1;
   const element = await PrivacyPage({ searchParams: Promise.resolve({}) });
-  return textOf(await renderServer(<I18nProvider locale={locale} pageLang="en">{element}</I18nProvider>));
+  return textOf(
+    await renderServer(
+      <I18nProvider locale={locale} pageLang="en">
+        {element}
+      </I18nProvider>,
+    ),
+  );
 }
 
 const consentItems = [
