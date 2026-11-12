@@ -2,8 +2,10 @@ import { ANY_OF_LABEL } from '@visastack/core';
 import { isFillerCitation, safeHttpUrl } from '@visastack/services';
 import type { PackageItem } from '@visastack/services';
 import { StatusPill } from '../../../../components/ui-lift/status-pill';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { bookingReminderFor } from '../../../../lib/booking-reminder';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { getServerT } from '../../../../lib/i18n-server';
 import { provenanceLine } from '../../../../lib/pack-labels';
 import type { ChecklistExplanations } from './case-checklist';
 import { itemAction, itemAlternatives, itemNecessity, itemStatus } from './case-item-view';
@@ -82,6 +84,7 @@ export function CaseItemPane({
   wordingMax,
   selfReviewed,
 }: CaseItemPaneProps) {
+  const t = getServerT(appMissionCatalog);
   const meta = REQUIREMENT_STATE_META[r.state];
   const status = itemStatus(r);
   const label = requirementLabel(r);
@@ -104,7 +107,7 @@ export function CaseItemPane({
   const choice = packageItem && packageEditable ? choiceOptions(packageItem) : null;
   return (
     <div className="lp-pane-content">
-      <h3 className="lp-pane-title">{label || '(unnamed)'}</h3>
+      <h3 className="lp-pane-title">{label || t('appMission.appMissionIdCaseItemPane.unnamed')}</h3>
       <p className="lp-pane-line">
         <StatusPill tone={status.tone} size="md">
           {status.word}
@@ -112,24 +115,40 @@ export function CaseItemPane({
         {necessity ? <span className="lift-check-tag">{necessity}</span> : null}
       </p>
       {meta.next ? <p className="lift-check-next">{meta.next}</p> : null}
-      {r.myWording ? <p className="lift-check-aside">Original: {officialName}</p> : null}
-      {r.myWording ? <p>Your Wording</p> : null}
+      {r.myWording ? (
+        <p className="lift-check-aside">
+          {t('appMission.appMissionIdCaseItemPane.originalOfficialname', { officialName })}
+        </p>
+      ) : null}
+      {r.myWording ? <p>{t('appMission.appMissionIdCaseItemPane.yourWording')}</p> : null}
       {provenance ? <p>{provenance}</p> : null}
       {r.appliesWhen && r.appliesWhen.toLowerCase() !== 'all applicants' ? (
-        <p>For: {r.appliesWhen}</p>
+        <p>
+          {t('appMission.appMissionIdCaseItemPane.forApplieswhen', { appliesWhen: r.appliesWhen })}
+        </p>
       ) : null}
       {alternatives.length > 0 ? (
         <p>
           {ANY_OF_LABEL}: {[label, ...alternatives].join(' or ')}
         </p>
       ) : null}
-      {chosen && chosen.length > 0 ? <p>Chosen document: {chosen.join(', ')}</p> : null}
+      {chosen && chosen.length > 0 ? (
+        <p>
+          {t('appMission.appMissionIdCaseItemPane.chosenDocumentJoin', { join: chosen.join(', ') })}
+        </p>
+      ) : null}
       {formatLines && formatLines.length > 0 ? (
-        <p className="package-item-format">How to Provide It: {formatLines.join(' · ')}</p>
+        <p className="package-item-format">
+          {t('appMission.appMissionIdCaseItemPane.howToProvideItJoin', {
+            join: formatLines.join(' · '),
+          })}
+        </p>
       ) : null}
       {r.sourceInaccessible ? (
         <p>
-          <span className="badge badge-danger">Source Currently Unreachable - Under Review</span>
+          <span className="badge badge-danger">
+            {t('appMission.appMissionIdCaseItemPane.sourceCurrentlyUnreachableUnderReview')}
+          </span>
         </p>
       ) : null}
       {sourceLine || sourceHref || citationText ? (
@@ -140,7 +159,7 @@ export function CaseItemPane({
             <>
               {' · '}
               <a href={sourceHref} target="_blank" rel="noreferrer">
-                View Source
+                {t('appMission.appMissionIdCaseItemPane.viewSource')}
               </a>
             </>
           ) : null}
@@ -157,20 +176,24 @@ export function CaseItemPane({
           ) : null}
           {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
             <a className="btn btn-secondary" href="#evidence">
-              Provide Evidence
+              {t('appMission.appMissionIdCaseItemPane.provideEvidence')}
             </a>
           ) : null}
         </div>
       ) : null}
 
       {candidate && hasSeveralToChoose(candidate) ? (
-        <section className="lp-pane-section" aria-label="Which File Counts">
-          <h4 className="package-subheading">Which File Counts</h4>
+        <section
+          className="lp-pane-section"
+          aria-label={t('appMission.appMissionIdCaseItemPane.whichFileCounts')}
+        >
+          <h4 className="package-subheading">
+            {t('appMission.appMissionIdCaseItemPane.whichFileCounts')}
+          </h4>
           {evidenceEditable ? (
             <>
               <p className="muted u-fs-085 u-m-0">
-                Several are on file. Until you pick one, any eligible one may count toward
-                readiness.
+                {t('appMission.appMissionIdCaseItemPane.severalAreOnFileUntilYou')}
               </p>
               <EvidenceItemChoices missionId={missionId} candidate={candidate} />
             </>
@@ -181,17 +204,25 @@ export function CaseItemPane({
       ) : null}
 
       {packageItem ? (
-        <section className="lp-pane-section" aria-label="Which File Goes in the Handoff">
-          <h4 className="package-subheading">Which File Goes in the Handoff</h4>
+        <section
+          className="lp-pane-section"
+          aria-label={t('appMission.appMissionIdCaseItemPane.whichFileGoesInTheHandoff')}
+        >
+          <h4 className="package-subheading">
+            {t('appMission.appMissionIdCaseItemPane.whichFileGoesInTheHandoff')}
+          </h4>
           <p className="muted u-fs-085 u-m-0">{usingLine(packageItem)}</p>
           {packageItem.newerCopy ? (
             <p className="u-fs-085 u-m-0">
-              A newer copy is available: {copyName(packageItem.newerCopy)}. Your choice stays as it
-              is until you change it.
+              {t('appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname', {
+                copyName: copyName(packageItem.newerCopy),
+              })}
             </p>
           ) : null}
           {packageItem.chosen?.copy && !packageItem.chosen.copy.usable ? (
-            <p className="u-fs-085 u-m-0">The chosen copy can no longer be used.</p>
+            <p className="u-fs-085 u-m-0">
+              {t('appMission.appMissionIdCaseItemPane.theChosenCopyCanNoLonger')}
+            </p>
           ) : null}
           {choice ? (
             <PackageItemChoiceForm

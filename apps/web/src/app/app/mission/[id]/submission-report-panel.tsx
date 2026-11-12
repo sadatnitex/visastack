@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { type ActionState, recordSubmissionAction } from './actions';
 
@@ -34,12 +36,15 @@ export function SubmissionReportPanel({
   readonly submissions: readonly SubmissionView[];
   readonly eligible: boolean;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(recordSubmissionAction, INITIAL);
 
   return (
     <article className="card">
-      <p className="card-kicker">Filing</p>
-      <h2 className="card-title">Submission Report</h2>
+      <p className="card-kicker">{t('appMission.appMissionIdSubmissionReportPanel.filing')}</p>
+      <h2 className="card-title">
+        {t('appMission.appMissionIdSubmissionReportPanel.submissionReport')}
+      </h2>
       {submissions.length > 0 ? (
         <div className="rows u-mb-125">
           {submissions.map((s) => (
@@ -56,24 +61,30 @@ export function SubmissionReportPanel({
               </div>
               <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                 {s.externalReportDescription}
-                {s.externalReference ? ` · Ref: ${s.externalReference}` : ''}
+                {s.externalReference
+                  ? t('appMission.appMissionIdSubmissionReportPanel.refExternalreference', {
+                      externalReference: s.externalReference,
+                    })
+                  : ''}
               </p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="card-body u-mb-125">No submission reported yet.</p>
+        <p className="card-body u-mb-125">
+          {t('appMission.appMissionIdSubmissionReportPanel.noSubmissionReportedYet')}
+        </p>
       )}
       {eligible ? (
         <form action={formAction} className="field-list">
           <input type="hidden" name="missionId" value={missionId} />
           <div className="field-row">
             <label className="field-label" htmlFor="channel">
-              How was it submitted?
+              {t('appMission.appMissionIdSubmissionReportPanel.howWasItSubmitted')}
             </label>
             <select id="channel" name="channel" className="input" defaultValue="">
               <option value="" disabled>
-                Choose…
+                {t('appMission.appMissionIdAttemptForms.choose')}
               </option>
               {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -84,32 +95,36 @@ export function SubmissionReportPanel({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="externalReportDescription">
-              Description
+              {t('appMission.appMissionIdSubmissionReportPanel.description')}
             </label>
             <textarea
               id="externalReportDescription"
               name="externalReportDescription"
               className="input"
               rows={2}
-              placeholder="What was actually filed, and where"
+              placeholder={t(
+                'appMission.appMissionIdSubmissionReportPanel.whatWasActuallyFiledAndWhere',
+              )}
               required
             />
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="externalReference">
-              Reference Number (Optional)
+              {t('appMission.appMissionIdSubmissionReportPanel.referenceNumberOptional')}
             </label>
             <input
               id="externalReference"
               name="externalReference"
               type="text"
               className="input"
-              placeholder="e.g. tracking or receipt number"
+              placeholder={t(
+                'appMission.appMissionIdSubmissionReportPanel.eGTrackingOrReceiptNumber',
+              )}
             />
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="submittedAt">
-              Submitted on (Optional - Defaults to Now)
+              {t('appMission.appMissionIdSubmissionReportPanel.submittedOnOptionalDefaultsToNow')}
             </label>
             <input id="submittedAt" name="submittedAt" type="datetime-local" className="input" />
           </div>
@@ -125,8 +140,7 @@ export function SubmissionReportPanel({
         </form>
       ) : (
         <p className="muted u-fs-085">
-          This case must reach "Submission Ready" (with a live acknowledgement) before a submission
-          can be reported.
+          {t('appMission.appMissionIdSubmissionReportPanel.thisCaseMustReachSubmissionReady')}
         </p>
       )}
     </article>

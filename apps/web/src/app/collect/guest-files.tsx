@@ -8,6 +8,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../components/form-feedback';
+import { useT } from '../../components/i18n-provider';
+import { collectCatalog } from '../../i18n/collect';
 import {
   type GuestActionState,
   placeFileAction,
@@ -34,6 +36,7 @@ export function PlaceFileForm({
   readonly itemId: string | null;
   readonly items: readonly DeskItemOption[];
 }) {
+  const t = useT(collectCatalog);
   const [state, formAction, pending] = useActionState(placeFileAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -43,7 +46,7 @@ export function PlaceFileForm({
     <form ref={form} action={formAction} className="collect-place-form">
       <input type="hidden" name="fileId" value={fileId} />
       <label className="field-label" htmlFor={selectId}>
-        Checklist Item for {fileName}
+        {t('collect.collectGuestFiles.checklistItemForFilename', { fileName })}
       </label>
       <select
         id={selectId}
@@ -52,7 +55,7 @@ export function PlaceFileForm({
         defaultValue={itemId ?? ''}
         {...fieldProblem(state, 'itemId', messageId)}
       >
-        <option value="">Not Placed Yet</option>
+        <option value="">{t('collect.collectGuestFiles.notPlacedYet')}</option>
         {items.map((item) => (
           <option key={item.id} value={item.id}>
             {item.label}
@@ -65,7 +68,7 @@ export function PlaceFileForm({
         idle="Save"
         busy="Saving…"
         className="btn btn-secondary"
-        label={`Save the item for ${fileName}`}
+        label={t('collect.collectGuestFiles.saveTheItemForFilename', { fileName })}
       />
       <FormMessage id={messageId} result={state} pending={pending} pendingText="Saving…" />
     </form>
@@ -80,6 +83,7 @@ export function RemoveFileForm({
   readonly fileId: string;
   readonly fileName: string;
 }) {
+  const t = useT(collectCatalog);
   const [state, formAction, pending] = useActionState(removeFileAction, INITIAL);
   return (
     <form action={formAction} className="collect-remove-form">
@@ -89,7 +93,7 @@ export function RemoveFileForm({
         idle="Remove"
         busy="Removing…"
         className="btn btn-secondary"
-        label={`Remove ${fileName}`}
+        label={t('collect.collectGuestFiles.removeFilename', { fileName })}
       />
       <FormMessage
         id={`remove-${fileId}-message`}

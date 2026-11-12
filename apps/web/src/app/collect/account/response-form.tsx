@@ -8,6 +8,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
+import { useT } from '../../../components/i18n-provider';
+import { collectCatalog } from '../../../i18n/collect';
 import { type ResponseActionState, submitResponseAction, withdrawResponseAction } from './actions';
 import { type ItemView, choiceFieldName } from './terms';
 
@@ -40,6 +42,7 @@ export function ResponseForm({
   readonly consentText: string;
   readonly consentVersion: string;
 }) {
+  const t = useT(collectCatalog);
   const [state, formAction, pending] = useActionState(submitResponseAction, INITIAL);
   const [chosen, setChosen] = useState(() => initialChoices(items));
   const form = useRef<HTMLFormElement>(null);
@@ -82,9 +85,17 @@ export function ResponseForm({
                   <strong>{item.label}</strong>
                 </legend>
                 <p className="muted u-fs-085">{item.meta}</p>
-                {item.note ? <p className="u-fs-085">Note From the Agency: {item.note}</p> : null}
+                {item.note ? (
+                  <p className="u-fs-085">
+                    {t('collect.collectAccountResponseForm.noteFromTheAgencyNote', {
+                      note: item.note,
+                    })}
+                  </p>
+                ) : null}
                 {matches.length === 0 && others.length === 0 ? (
-                  <p className="muted u-fs-085">Nothing in this record matches yet.</p>
+                  <p className="muted u-fs-085">
+                    {t('collect.collectAccountResponseForm.nothingInThisRecordMatchesYet')}
+                  </p>
                 ) : null}
                 {matches.map((choice) => (
                   <ChoiceRow
@@ -99,8 +110,8 @@ export function ResponseForm({
                   <details className="collect-response-more">
                     <summary>
                       {matches.length > 0
-                        ? 'Choose a Different Document'
-                        : 'Choose from Your Documents'}
+                        ? t('collect.collectAccountResponseForm.chooseADifferentDocument')
+                        : t('collect.collectAccountResponseForm.chooseFromYourDocuments')}
                     </summary>
                     {others.map((choice) => (
                       <ChoiceRow
@@ -115,10 +126,16 @@ export function ResponseForm({
                 ) : null}
                 <p id={`${groupId}-state`} className="collect-response-state u-fs-085">
                   {ticked.size === 0 ? (
-                    <span className="collect-response-missing">Still Missing</span>
+                    <span className="collect-response-missing">
+                      {t('collect.collectAccountResponseForm.stillMissing')}
+                    </span>
                   ) : (
                     <span>
-                      {ticked.size === 1 ? 'One Copy Chosen' : `${ticked.size} Copies Chosen`}
+                      {ticked.size === 1
+                        ? t('collect.collectAccountResponseForm.oneCopyChosen')
+                        : t('collect.collectAccountResponseForm.sizeCopiesChosen', {
+                            size: ticked.size,
+                          })}
                     </span>
                   )}
                 </p>
@@ -130,13 +147,17 @@ export function ResponseForm({
 
       <section className="card" aria-labelledby="collect-response-review">
         <div className="card-body stack">
-          <h2 id="collect-response-review">Review and Submit</h2>
+          <h2 id="collect-response-review">
+            {t('collect.collectAccountResponseForm.reviewAndSubmit')}
+          </h2>
           <output className="collect-response-summary">
             {missing === 0
-              ? 'Every item has something chosen.'
+              ? t('collect.collectAccountResponseForm.everyItemHasSomethingChosen')
               : missing === 1
-                ? 'One item is Still Missing. You can submit now and the agency sees it as missing.'
-                : `${missing} items are Still Missing. You can submit now and the agency sees them as missing.`}
+                ? t('collect.collectAccountResponseForm.oneItemIsStillMissingYou')
+                : t('collect.collectAccountResponseForm.missingItemsAreStillMissingYou', {
+                    missing: missing,
+                  })}
           </output>
           <div className="field-row">
             <label className="check" htmlFor="collect-response-consent">

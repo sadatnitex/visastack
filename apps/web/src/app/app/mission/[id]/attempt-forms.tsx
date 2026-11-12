@@ -9,6 +9,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import {
   recordAttemptAction,
   recordAttemptEventAction,
@@ -37,6 +39,7 @@ export function TrackReportForm({
   /** Which report this is, so each button on the card says what it is for. */
   readonly reportName: string;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     trackReportAsAttemptAction,
     NO_RESULT,
@@ -51,7 +54,7 @@ export function TrackReportForm({
         idle="Track as Attempt"
         busy="Saving…"
         className="btn btn-secondary btn-compact"
-        label={`Track as Attempt: ${reportName}`}
+        label={t('appMission.appMissionIdAttemptForms.trackAsAttemptReportname', { reportName })}
       />
       <FormMessage id={messageId} result={state} />
     </form>
@@ -67,11 +70,12 @@ function EvidenceSelect({
   readonly choices: readonly AttemptChoice[];
   readonly hint: string;
 }) {
+  const t = useT(appMissionCatalog);
   if (choices.length === 0) return null;
   return (
     <div className="field-row">
       <label className="field-label" htmlFor={id}>
-        Attach a Document (Optional)
+        {t('appMission.appMissionIdAttemptForms.attachADocumentOptional')}
       </label>
       <select
         id={id}
@@ -80,7 +84,7 @@ function EvidenceSelect({
         defaultValue=""
         aria-describedby={`${id}-hint`}
       >
-        <option value="">No Document</option>
+        <option value="">{t('appMission.appMissionIdAttemptForms.noDocument')}</option>
         {choices.map((c) => (
           <option key={c.value} value={c.value}>
             {c.label}
@@ -105,6 +109,7 @@ export function RecordAttemptForm({
   readonly today: string;
   readonly evidenceChoices: readonly AttemptChoice[];
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     recordAttemptAction,
     NO_RESULT,
@@ -118,7 +123,7 @@ export function RecordAttemptForm({
       <input type="hidden" name="missionId" value={missionId} />
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-channel`}>
-          How It Was Sent
+          {t('appMission.appMissionIdAttemptForms.howItWasSent')}
         </label>
         <select
           id={`${id}-channel`}
@@ -128,7 +133,7 @@ export function RecordAttemptForm({
           {...fieldProblem(state, 'channel', messageId)}
         >
           <option value="" disabled>
-            Choose…
+            {t('appMission.appMissionIdAttemptForms.choose')}
           </option>
           {Object.entries(ATTEMPT_CHANNEL_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -139,7 +144,7 @@ export function RecordAttemptForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-date`}>
-          Day It Was Sent
+          {t('appMission.appMissionIdAttemptForms.dayItWasSent')}
         </label>
         <input
           id={`${id}-date`}
@@ -153,7 +158,7 @@ export function RecordAttemptForm({
       <EvidenceSelect
         id={`${id}-evidence`}
         choices={evidenceChoices}
-        hint="A receipt or confirmation from your own documents. Without one, this stays your own report."
+        hint={t('appMission.appMissionIdAttemptForms.aReceiptOrConfirmationFromYour')}
       />
       <div>
         <SubmitButton
@@ -188,6 +193,7 @@ export function AttemptEventForm({
   /** The most kinds one request may name (the service's own limit). */
   readonly maxKinds?: number;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     recordAttemptEventAction,
     NO_RESULT,
@@ -206,7 +212,9 @@ export function AttemptEventForm({
       <input type="hidden" name="attemptId" value={attemptId} />
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-kind`}>
-          What Happened After Attempt {attemptNo}
+          {t('appMission.appMissionIdAttemptForms.whatHappenedAfterAttemptAttemptno', {
+            attemptNo: attemptNo,
+          })}
         </label>
         <select
           id={`${id}-kind`}
@@ -217,7 +225,7 @@ export function AttemptEventForm({
           {...fieldProblem(state, 'kind', messageId)}
         >
           <option value="" disabled>
-            Choose…
+            {t('appMission.appMissionIdAttemptForms.choose')}
           </option>
           {Object.entries(ATTEMPT_EVENT_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -229,7 +237,7 @@ export function AttemptEventForm({
       {kind === 'DECISION' ? (
         <div className="field-row">
           <label className="field-label" htmlFor={`${id}-decision`}>
-            Decision
+            {t('appMission.appMissionIdAttemptForms.decision')}
           </label>
           <select
             id={`${id}-decision`}
@@ -239,7 +247,7 @@ export function AttemptEventForm({
             {...fieldProblem(state, 'decision', messageId)}
           >
             <option value="" disabled>
-              Choose…
+              {t('appMission.appMissionIdAttemptForms.choose')}
             </option>
             {Object.entries(ATTEMPT_DECISION_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -253,7 +261,7 @@ export function AttemptEventForm({
         <>
           <div className="field-row">
             <label className="field-label" htmlFor={`${id}-source`}>
-              Who Asked
+              {t('appMission.appMissionIdAttemptForms.whoAsked')}
             </label>
             <select
               id={`${id}-source`}
@@ -263,7 +271,7 @@ export function AttemptEventForm({
               {...fieldProblem(state, 'requestSource', messageId)}
             >
               <option value="" disabled>
-                Choose…
+                {t('appMission.appMissionIdAttemptForms.choose')}
               </option>
               {Object.entries(AUTHORITY_SOURCE_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -273,7 +281,9 @@ export function AttemptEventForm({
             </select>
           </div>
           <fieldset className="field-row attempt-kinds">
-            <legend className="field-label">Documents They Asked For</legend>
+            <legend className="field-label">
+              {t('appMission.appMissionIdAttemptForms.documentsTheyAskedFor')}
+            </legend>
             {picked.map((value) => (
               <span className="attempt-kind-chip" key={value}>
                 <input type="hidden" name="docType" value={value} />
@@ -284,12 +294,12 @@ export function AttemptEventForm({
                   aria-label={`Remove ${kindName.get(value) ?? value}`}
                   onClick={() => setPicked(picked.filter((p) => p !== value))}
                 >
-                  Remove
+                  {t('appMission.appMissionIdAttemptForms.remove')}
                 </button>
               </span>
             ))}
             <label className="sr-only" htmlFor={`${id}-next-kind`}>
-              Document to Add
+              {t('appMission.appMissionIdAttemptForms.documentToAdd')}
             </label>
             <select
               id={`${id}-next-kind`}
@@ -297,7 +307,7 @@ export function AttemptEventForm({
               value={nextKind}
               onChange={(e) => setNextKind(e.target.value)}
             >
-              <option value="">Choose a Document…</option>
+              <option value="">{t('appMission.appMissionIdAttemptForms.chooseADocument')}</option>
               {documentKinds
                 .filter((k) => !picked.includes(k.value))
                 .map((k) => (
@@ -316,14 +326,14 @@ export function AttemptEventForm({
                 setNextKind('');
               }}
             >
-              Add Document
+              {t('appMission.appMissionIdAttemptForms.addDocument')}
             </button>
           </fieldset>
         </>
       ) : null}
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-date`}>
-          Day It Happened
+          {t('appMission.appMissionIdAttemptForms.dayItHappened')}
         </label>
         <input
           id={`${id}-date`}
@@ -337,7 +347,7 @@ export function AttemptEventForm({
       <EvidenceSelect
         id={`${id}-evidence`}
         choices={evidenceChoices}
-        hint="A letter or receipt from your own documents. Without one, this stays your own report."
+        hint={t('appMission.appMissionIdAttemptForms.aLetterOrReceiptFromYour')}
       />
       <div>
         <SubmitButton
@@ -345,7 +355,9 @@ export function AttemptEventForm({
           idle="Save"
           busy="Saving…"
           className="btn btn-secondary"
-          label={`Save for Attempt ${attemptNo}`}
+          label={t('appMission.appMissionIdAttemptForms.saveForAttemptAttemptno', {
+            attemptNo: attemptNo,
+          })}
         />
         <FormMessage id={messageId} result={state} />
       </div>
