@@ -76,14 +76,15 @@ describe('the document collection flow under Bengali', () => {
     expect(look).not.toMatch(/collect\./);
   });
 
-  it('keeps consent, sharing and access wording in English', () => {
+  it('has Bengali for the consent, sharing and access wording that was signed off (2026-11-12)', () => {
     const keys = Object.entries(sources)
       .filter(([, group]) => HELD.includes(group))
       .map(([key]) => key);
     expect(keys.length).toBeGreaterThan(0);
     for (const key of keys) {
-      expect(key in bn, key).toBe(false);
       expect(en[key], key).toBeTruthy();
+      // Signed off: each key has its Bengali unless it is held for a technical reason.
+      expect(key in bn, key).toBe(true);
     }
   });
 

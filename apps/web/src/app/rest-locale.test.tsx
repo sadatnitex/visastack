@@ -107,7 +107,7 @@ describe('rest surfaces under Bengali', () => {
     },
   );
 
-  it('error page shows the Bengali Back to Home and keeps the data-safety promise English', async () => {
+  it('error page shows the Bengali Back to Home and the Bengali data-safety promise (signed off 2026-11-12)', async () => {
     const draw = (locale: 'en' | 'bn') =>
       html(() => (
         <I18nProvider locale={locale} pageLang="en">
@@ -116,7 +116,8 @@ describe('rest surfaces under Bengali', () => {
       ));
     const bn = await draw('bn');
     expect(bn.body.textContent).toContain(homeCatalog.bn['home.error.backToHome']);
-    expect(bn.body.textContent).toContain('Everything you already saved is safe');
+    expect(bn.body.textContent).toContain(homeCatalog.bn['home.error.thisIsOnOurSideNot']);
+    expect(bn.body.textContent).not.toContain('Everything you already saved is safe');
     expect((await draw('en')).body.textContent).toContain('Back to Home');
   });
 });
@@ -159,7 +160,8 @@ describe('held wording is never Bengali', () => {
         expect(Object.keys(catalog.bn), key).not.toContain(key);
       }
     }
-    expect(checked).toBeGreaterThan(20);
+    // Most holds were lifted on 2026-11-12; the ones left on these surfaces are technical.
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('every oauth sentence is held: the oauth catalogue carries no Bengali at all', () => {

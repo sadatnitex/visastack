@@ -74,8 +74,18 @@ export const applicantCalendarCatalog = defineCatalog({
   },
   bn: {
     'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.copyLink': 'লিংক কপি করুন',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.makingANewLinkStopsThe':
+      'নতুন লিংক তৈরি করলে পুরোনোটি সঙ্গে সঙ্গে বন্ধ হয়ে যায়: নতুন লিংকটি আবার আপনার ক্যালেন্ডার অ্যাপে যোগ করুন। শেয়ার বন্ধ করুন চাপলে লিংকটি বন্ধ হয়ে যায়; তখন আপনার ক্যালেন্ডার অ্যাপে আর নতুন তারিখ আসে না।',
     'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribeInYourCalendarApp':
       'আপনার ক্যালেন্ডার অ্যাপে সাবস্ক্রাইব করুন',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thisLinkIsShownOnlyNow':
+      'এই লিংকটি শুধু এখনই দেখানো হচ্ছে। হারিয়ে ফেললে নতুন লিংক তৈরি করুন।',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.turnOnAPrivateLinkAnd':
+      'একটি ব্যক্তিগত লিংক চালু করে একবার আপনার ক্যালেন্ডার অ্যাপে যোগ করুন। এরপর আপনার তারিখগুলো নিজে থেকেই হালনাগাদ থাকে: নতুন তারিখ দেখা যায়, বদলানো তারিখ সরে যায়, আর শেষ হয়ে যাওয়া তারিখ চলে যায়। ক্যালেন্ডার অ্যাপ নিজের সময়সূচি অনুযায়ী লিংকটি দেখে, কয়েক মিনিট পরপর থেকে দিনে প্রায় একবার পর্যন্ত।',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.weCouldNotCheckYourCalendar':
+      'এই মুহূর্তে আপনার ক্যালেন্ডার লিংক দেখে নেওয়া যায়নি। আবার চেষ্টা করতে পেজটি রিফ্রেশ করুন। আপনার তৈরি করা কোনো লিংক যাতে কেউ ব্যবহার করতে না পারে তা নিশ্চিত করতে চাইলে শেয়ার বন্ধ করুন।',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.yourPrivateCalendarLink':
+      'আপনার ব্যক্তিগত ক্যালেন্ডার লিংক',
     'applicantCalendar.appApplicantIdCalendarPage.addCaseNames': 'ভিসা ফাইলের নাম যোগ করুন',
     'applicantCalendar.appApplicantIdCalendarPage.addDatesToMyCalendar':
       'আমার ক্যালেন্ডারে তারিখ যোগ করুন',

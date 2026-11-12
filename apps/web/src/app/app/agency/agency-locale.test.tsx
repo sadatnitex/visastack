@@ -126,12 +126,11 @@ describe('the agencies list under Bengali', () => {
     expect(text).toContain(bn[k('appAgencyPage.yourOrganizations')]);
     expect(text).toContain(bn[k('appAgencyPage.memberships')]);
     expect(text).toContain(bn[k('appAgencyPage.applyToRegisterAnAgency')]);
-    // The withdrawal question says what happens to access: it waits for the owner sign-off.
+    // The withdrawal question says what happens to access: Bengali since the owner sign-off of 2026-11-12.
     const withdraw = k('appAgencyPage.withdrawTheApplicationForNameIt');
-    expect(withdraw in bn).toBe(false);
-    expect(text).toContain(
-      'Withdraw the application for Agency a1? It will no longer be reviewed, and anyone you added to it loses access.',
-    );
+    expect(withdraw in bn).toBe(true);
+    expect(text).toContain((bn[withdraw] ?? '').replace('{name}', 'Agency a1'));
+    expect(text).not.toContain('It will no longer be reviewed');
     expect(text).not.toMatch(/appAgency\./);
   });
 
@@ -141,8 +140,9 @@ describe('the agencies list under Bengali', () => {
       renderServer(AgencyPage({ searchParams: Promise.resolve({}) })),
     );
     expect(bnText).toContain(bn[k('appAgencyPage.yourOrganizations')]);
-    // The sentence that says what membership grants is held back in English.
-    expect(bnText).toContain(en[k('appAgencyPage.agenciesCollaborateOnCasesAndRequest')]);
+    // The sentence that says what membership grants is Bengali since the sign-off of 2026-11-12.
+    expect(bnText).toContain(bn[k('appAgencyPage.agenciesCollaborateOnCasesAndRequest')]);
+    expect(bnText).not.toContain(en[k('appAgencyPage.agenciesCollaborateOnCasesAndRequest')]);
     const enText = await render('en', () =>
       renderServer(AgencyPage({ searchParams: Promise.resolve({}) })),
     );
@@ -152,7 +152,7 @@ describe('the agencies list under Bengali', () => {
 });
 
 describe('the team page under Bengali', () => {
-  it('shows the Bengali team headings and keeps the access sentence in English', async () => {
+  it('shows the Bengali team headings and the Bengali access sentence', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: true, member: true });
     mocks.loadMembers.mockResolvedValue([]);
     mocks.loadPendingTeamInvitations.mockResolvedValue([]);
@@ -161,7 +161,8 @@ describe('the team page under Bengali', () => {
     );
     expect(text).toContain(bn[k('appAgencyOrgidTeamPage.team')]);
     expect(text).toContain(bn[k('appAgencyOrgidTeamPage.members')]);
-    expect(text).toContain('it never grants access');
+    expect(text).toContain(bn[k('appAgencyOrgidTeamPage.membershipIsOrganizationalBookkeepingItNever')]);
+    expect(text).not.toContain('it never grants access');
   });
 });
 
@@ -319,8 +320,9 @@ describe('agency forms and headings under Bengali', () => {
   });
 });
 
-describe('wording that waits for the owner sign-off stays English', () => {
-  const held = [
+describe('wording signed off by the owner on 2026-11-12 is Bengali, the rest stays English', () => {
+  // Signed off: every key has its Bengali.
+  const signedOff = [
     'They alone choose',
     'Only that email address can accept.',
     'Whole Traveller Record (Default)',
@@ -328,17 +330,23 @@ describe('wording that waits for the owner sign-off stays English', () => {
     'Bulk Export',
     'AI Tools',
     'AI Features',
-    'Amount Received',
     'Cannot be accepted',
-    'Sent {formatMoment}',
     'Lack of this is not a readiness failure',
     'No traveller has granted this organization access',
     'with exactly what they chose to send',
     'No account or profile is needed yet',
     'can still act on but that currently have nobody assigned',
-    'Remove {memberEmail}',
   ];
-  it.each(held)('has no Bengali for "%s"', (fragment) => {
+  it.each(signedOff)('has Bengali for "%s"', (fragment) => {
+    const keys = Object.keys(en).filter((key) => en[key]?.includes(fragment));
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) expect(key in bn, key).toBe(true);
+  });
+
+  // Still English: receipt record content (owner: English plus a Bengali note), and two sentences
+  // whose date or name is filled in by code that does not follow the reader language yet.
+  const kept = ['Amount Received', 'Sent {formatMoment}', 'Remove {memberEmail}'];
+  it.each(kept)('has no Bengali for "%s"', (fragment) => {
     const keys = Object.keys(en).filter((key) => en[key]?.includes(fragment));
     expect(keys.length).toBeGreaterThan(0);
     for (const key of keys) expect(key in bn, key).toBe(false);

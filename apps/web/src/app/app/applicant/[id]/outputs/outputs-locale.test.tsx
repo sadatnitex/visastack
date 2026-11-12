@@ -182,9 +182,10 @@ describe('the summaries page under Bengali', () => {
     for (const name of ['Agency Brief', 'Case Handover', 'Trip Essentials', 'AI Context']) {
       expect(text).toContain(name);
     }
-    // Held in English: what a summary is, the identity-number promise and the preview title.
-    expect(text).toContain(en[`${P}aSummaryIsAOneTime`]);
-    expect(text).toContain(en[`${P}passportAndIdNumbersShowOnly`]);
+    // What a summary is and the identity-number promise are Bengali since the owner sign-off of
+    // 2026-11-12; the preview title stays English.
+    expect(text).toContain(bn[`${P}aSummaryIsAOneTime`]);
+    expect(text).toContain(bn[`${P}passportAndIdNumbersShowOnly`]);
     expect(text).toContain('Preview: Agency Brief');
     expect(html).not.toMatch(RAW_KEY);
   });
@@ -219,8 +220,10 @@ describe('the summaries page under Bengali', () => {
       case: missionId,
       layer: ['travel_documents', 'money'],
       depth: 'standard',
+      numbers: '1',
     });
     expect(html).toContain('id="output-preview"');
+    expect(text).toContain(bn[`${P}fullDocumentNumbersAreIncludedShare`]);
     expect(text).toContain(bn[`${P}copyAll`]);
     expect(html).toMatch(
       new RegExp(`<button[^>]*value="txt"[^>]*>${bn[`${P}downloadTextFile`]}</button>`),
@@ -228,9 +231,10 @@ describe('the summaries page under Bengali', () => {
     expect(text).toContain(bn[`${P}stillUnknownOrNeedsALook`]);
     expect(text).toContain(bn[`${P}tellThemOnWhatsapp`]);
     expect(html).toContain(`aria-label="${bn[`${P}theWhatsappMessage`]}"`);
-    // Held in English: the preview wording, the file note and the short message text.
-    expect(text).toContain(en[`${P}theFileIsMadeAgainWhen`]);
-    expect(text).toContain(en[`${P}aShortMessageYouCanSend`]);
+    // The file note and the short message text are Bengali since the sign-off of 2026-11-12; the
+    // preview title stays English.
+    expect(text).toContain(bn[`${P}theFileIsMadeAgainWhen`]);
+    expect(text).toContain(bn[`${P}aShortMessageYouCanSend`]);
     expect(text).toContain('Preview: Agency Brief');
     expect(text).toContain('Needs checking: two values disagree');
     expect(html).not.toMatch(RAW_KEY);

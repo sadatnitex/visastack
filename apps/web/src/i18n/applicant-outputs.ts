@@ -90,17 +90,31 @@ export const applicantOutputsCatalog = defineCatalog({
       'Your record or your choices changed after you previewed this, so nothing was downloaded. Check the new preview below, then download again.',
   },
   bn: {
+    'applicantOutputs.appApplicantIdOutputsPage.aShortMessageYouCanSend':
+      'নিজেকে পাঠানোর মতো একটি ছোট বার্তা। এতে কোনো ডকুমেন্ট, নম্বর বা নাম থাকে না, শুধু VisaStack-এ সাইন ইন করার একটি লিংক থাকে। VisaStack এটি আপনার হয়ে কখনো পাঠায় না।',
+    'applicantOutputs.appApplicantIdOutputsPage.aSummaryIsAOneTime':
+      'সারসংক্ষেপ হলো একবারের কপি। আপনার রেকর্ড বদলালে এটি আপডেট হয় না, আর একবার শেয়ার করার পর VisaStack এটি ফিরিয়ে নিতে পারে না। কোনো এজেন্সি বা এআই অ্যাপের সঙ্গে এটি শেয়ার করা প্রতিবারই আপনার সিদ্ধান্ত।',
     'applicantOutputs.appApplicantIdOutputsPage.chooseASummary': 'একটি সারসংক্ষেপ বেছে নিন',
+    'applicantOutputs.appApplicantIdOutputsPage.chooseWhatGoesInCheckThe':
+      'কী কী থাকবে তা বেছে নিন, প্রিভিউ দেখে নিন, তারপর একটি সারসংক্ষেপ কপি, প্রিন্ট বা ডাউনলোড করুন। যা বেছে নেবেন না তা বাদ থাকবে।',
     'applicantOutputs.appApplicantIdOutputsPage.chooseWhatToInclude': 'কী কী যোগ করবেন তা বেছে নিন',
     'applicantOutputs.appApplicantIdOutputsPage.copyAll': 'সব কপি করুন',
     'applicantOutputs.appApplicantIdOutputsPage.documents': 'ডকুমেন্টস',
+    'applicantOutputs.appApplicantIdOutputsPage.documentsTheListOnlyNoDocument':
+      'ডকুমেন্ট: শুধু তালিকা। কোনো আপলোড করা ডকুমেন্ট যুক্ত নেই।',
     'applicantOutputs.appApplicantIdOutputsPage.downloadTextFile': 'টেক্সট ডকুমেন্ট ডাউনলোড করুন',
+    'applicantOutputs.appApplicantIdOutputsPage.fullDocumentNumbersAreIncludedShare':
+      'পূর্ণ ডকুমেন্ট নম্বর এতে আছে। যার এগুলো দরকার শুধু তার সঙ্গেই এই কপি শেয়ার করুন।',
     'applicantOutputs.appApplicantIdOutputsPage.howMuchDetail': 'কতটা বিস্তারিত',
     'applicantOutputs.appApplicantIdOutputsPage.includeTheListOfMyDocuments':
       'আমার ডকুমেন্টের তালিকা যুক্ত করুন',
+    'applicantOutputs.appApplicantIdOutputsPage.kindDatesAndStatusOnlyNo':
+      'শুধু ধরন, তারিখ ও অবস্থা। কোনো ডকুমেন্ট কখনোই যুক্ত করা হয় না।',
     'applicantOutputs.appApplicantIdOutputsPage.kindsOfSummary': 'সারসংক্ষেপের ধরন',
     'applicantOutputs.appApplicantIdOutputsPage.numbers': 'নম্বর',
     'applicantOutputs.appApplicantIdOutputsPage.partsOfYourRecord': 'আপনার রেকর্ডের অংশ',
+    'applicantOutputs.appApplicantIdOutputsPage.passportAndIdNumbersShowOnly':
+      'টিক না দিলে পাসপোর্ট ও আইডি নম্বরের শুধু শেষ তিনটি অক্ষর দেখানো হয়। এটি যে আপনিই, তা নিশ্চিত করতে বলা হবে।',
     'applicantOutputs.appApplicantIdOutputsPage.preview': 'প্রিভিউ',
     'applicantOutputs.appApplicantIdOutputsPage.previewYourSummary': 'আপনার সারসংক্ষেপের প্রিভিউ দেখুন',
     'applicantOutputs.appApplicantIdOutputsPage.selected': 'নির্বাচিত',
@@ -109,7 +123,11 @@ export const applicantOutputsCatalog = defineCatalog({
     'applicantOutputs.appApplicantIdOutputsPage.stillUnknownOrNeedsALook': 'এখনও জানা নেই বা দেখা দরকার',
     'applicantOutputs.appApplicantIdOutputsPage.summaries': 'সারসংক্ষেপ',
     'applicantOutputs.appApplicantIdOutputsPage.tellThemOnWhatsapp': 'WhatsApp-এ তাদের জানান',
+    'applicantOutputs.appApplicantIdOutputsPage.theFileIsMadeAgainWhen':
+      'ডাউনলোডের সময় ডকুমেন্টটি আবার তৈরি করা হয়। এই প্রিভিউয়ের পর আপনার রেকর্ড বদলে গেলে কিছুই ডাউনলোড হবে না, এবং আপনাকে আবার প্রিভিউ দেখতে বলা হবে।',
     'applicantOutputs.appApplicantIdOutputsPage.theWhatsappMessage': 'WhatsApp বার্তা',
+    'applicantOutputs.appApplicantIdOutputsPage.theseAreTheConfirmedDetailsIn':
+      'বেছে নেওয়া অংশগুলোর নিশ্চিত করা তথ্য এখানে আছে। শিটে যেগুলো চান না, সেগুলোর টিক তুলে দিন।',
     'applicantOutputs.appApplicantIdOutputsPage.visastack': 'VisaStack',
     'applicantOutputs.appApplicantIdOutputsPage.whatYouWantHelpWithOptional':
       'যে বিষয়ে সাহায্য চান (ঐচ্ছিক)',

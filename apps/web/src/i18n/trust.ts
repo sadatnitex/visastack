@@ -76,13 +76,24 @@ export const trustCatalog = defineCatalog({
   },
   bn: {
     'trust.publicTrustStory.aHistoryYouCanReview': 'যে ইতিহাস আপনি দেখে নিতে পারেন',
+    'trust.publicTrustStory.aSuggestionStaysSeparateFromA':
+      'একটি পরামর্শ নিশ্চিত তথ্য থেকে আলাদা থাকে, যতক্ষণ না আপনি তা অনুমোদন করেন। আপনি হাতেও তথ্য লিখতে পারেন।',
+    'trust.publicTrustStory.accessStartsAfterAcceptanceYouCan':
+      'গ্রহণ করার পরই অ্যাক্সেস শুরু হয়। আপনি ভবিষ্যতের অ্যাক্সেস বন্ধ করতে পারেন, কিন্তু আগে ডাউনলোড করা কপি মুছে ফেলা যাবে না।',
     'trust.publicTrustStory.aiSuggestsYouDecide': 'এআই পরামর্শ দেয়। সিদ্ধান্ত আপনার।',
+    'trust.publicTrustStory.changesAreRecordedAsNewVersions':
+      'পরিবর্তনগুলো নতুন সংস্করণ হিসেবে রেকর্ড করা হয়। আপনার ইতিহাস দেখুন এবং এক্সপোর্ট বা মুছে ফেলার অনুরোধ করুন; আইনি কারণে রেখে দেওয়ার নিয়ম প্রযোজ্য।',
+    'trust.publicTrustStory.clearBoundariesHumanControlNoApproval':
+      'স্পষ্ট সীমা। মানুষের নিয়ন্ত্রণ। অনুমোদনের কোনো নিশ্চয়তা নেই।',
     'trust.publicTrustStory.exampleAgency': 'উদাহরণ এজেন্সি',
     'trust.publicTrustStory.exampleOfSharingPermissions': 'শেয়ারিংয়ের অনুমতির উদাহরণ',
     'trust.publicTrustStory.exampleTraveller': 'নমুনা ভ্রমণকারী',
     'trust.publicTrustStory.illustrationWithMadeUpDetails': 'বানানো তথ্যসহ উদাহরণ চিত্র',
     'trust.publicTrustStory.knowWhoCanSeeWhat': 'কে কী দেখতে পারে তা জানুন',
     'trust.publicTrustStory.ownerOfThisExampleFile': 'এই নমুনা ডকুমেন্টের মালিক',
+    'trust.publicTrustStory.privateByDesign': 'ডিজাইনেই গোপনীয়',
+    'trust.publicTrustStory.reviewPauseOrEndFutureAccess':
+      'আপনার শেয়ারিং পাতায় ভবিষ্যতের অ্যাক্সেস পর্যালোচনা, স্থগিত বা শেষ করুন।',
     'trust.publicTrustStory.selectedItemsForALimitedTime': 'নির্বাচিত বিষয়, সীমিত সময়ের জন্য',
     'trust.publicTrustStory.sharingPermissions': 'শেয়ারিংয়ের অনুমতি',
     'trust.publicTrustStory.theTrustModel': 'আস্থার কাঠামো',
@@ -90,7 +101,11 @@ export const trustCatalog = defineCatalog({
     'trust.publicTrustStory.yourPassportAndPersonalRecordsBelong':
       'আপনার পাসপোর্ট ও ব্যক্তিগত রেকর্ড আপনারই। এগুলো গুছিয়ে রাখুন, কী শেয়ার করবেন তা বেছে নিন এবং আপনার পরিবর্তনের ইতিহাস দেখুন।',
     'trust.publicTrustStory.yourRecords': 'আপনার রেকর্ড',
+    'trust.publicTrustStory.yourRecordsBelongToYouChoose':
+      'আপনার রেকর্ড আপনারই। প্রতিটি শেয়ারিংয়ের অনুরোধের জন্য প্রাপক, উদ্দেশ্য, আইটেম এবং সময়সীমা বেছে নিন।',
     'trust.trustPackkeyPage.nextReviewedFormatdateonly': 'পরবর্তী পর্যালোচনা {formatDateOnly}',
+    'trust.trustPackkeyPage.notCurrentlyVerified': 'বর্তমানে যাচাই করা হয়নি',
+    'trust.trustPackkeyPage.officialChannel': 'অফিসিয়াল মাধ্যম',
     'trust.trustPackkeyPage.route': 'রুট',
     'trust.trustPackkeyPage.scamAwareness': 'প্রতারণা সম্পর্কে সচেতনতা',
   },

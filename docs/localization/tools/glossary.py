@@ -108,6 +108,8 @@ rows = [
 ("T131","Phone number","ফোন নম্বর","objects","ফোন","",""),
 ("T132","Email address","ইমেইল ঠিকানা","objects","ইমেইল","",""),
 # --- consent, privacy, account chrome
+("T133","Box","বক্স","objects","বক্স","বাক্স","Owner decision 2026-11-12 (reply: 'same, box', read as the transliteration that sounds like box). Used for the drawn boxes on a document and for a box to tick or drop files into. Never বাক্স."),
+("T133b","Boxes","বক্স","objects","বক্স","বাক্স","Owner decision 2026-11-12 (reply: 'same, box', read as the transliteration that sounds like box). Used for the drawn boxes on a document and for a box to tick or drop files into. Never বাক্স."),
 ("T140","Consent","সম্মতি","consent","সম্মতি","",""),
 ("T141","Give consent","সম্মতি দিন","consent","সম্মতি","",""),
 ("T142","Withdraw consent","সম্মতি প্রত্যাহার করুন","consent","প্রত্যাহার","",""),

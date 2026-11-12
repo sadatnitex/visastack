@@ -84,6 +84,8 @@ export const authCatalog = defineCatalog({
     'auth.authAuthUi.home': 'হোম',
     'auth.authAuthUi.keepYourDetailsTogetherReuseWhat':
       'আপনার তথ্য এক জায়গায় রাখুন। যা দরকার আবার ব্যবহার করুন, আর কী শেয়ার করবেন তা আপনিই ঠিক করুন।',
+    'auth.authAuthUi.privacy': 'গোপনীয়তা',
+    'auth.authAuthUi.terms': 'শর্তাবলি',
     'auth.authAuthUi.yourRecordYourTerms': 'আপনার রেকর্ড। আপনার শর্ত।',
     'auth.authAuthUi.yourVisastackAccount': 'আপনার VisaStack অ্যাকাউন্ট',
     'auth.authForgotPasswordPage.backToSignIn': 'সাইন ইনে ফিরে যান',
@@ -128,6 +130,10 @@ export const authCatalog = defineCatalog({
     'auth.authSignUpPage.privatePilot': 'প্রাইভেট পাইলট',
     'auth.authSignUpPage.publicBetaFreeAccount': 'পাবলিক বিটা · বিনা মূল্যে অ্যাকাউন্ট',
     'auth.authSignUpPage.theThreeSteps': 'তিনটি ধাপ',
+    'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing':
+      'এই স্বীকৃতি মার্কেটিং, এআই দিয়ে প্রক্রিয়াকরণ বা এজেন্সির সঙ্গে শেয়ার করার অনুমতি দেয় না।',
+    'auth.authSignUpPage.visastackIsAFreePublicBeta':
+      'VisaStack একটি বিনা মূল্যের পাবলিক বিটা। আপনি আসল তথ্য বা ডকুমেন্ট যোগ করলে তা আপনার নিজের ঝুঁকিতে করছেন: আপলোডে ভাইরাস স্ক্যানের মতো কিছু সুরক্ষা এখনো চালু করা হয়নি।',
     'auth.authSignUpPage.weWillEmailYouALink':
       'সাইন ইন করার আগে আপনার ঠিকানা নিশ্চিত করতে আমরা আপনাকে একটি লিংক ইমেইল করব।',
     'auth.authSignUpPage.yourNameOptional': 'আপনার নাম (ঐচ্ছিক)',

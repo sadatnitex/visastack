@@ -118,9 +118,40 @@ export const applicantSharingCatalog = defineCatalog({
       '{length, plural, =1 {{length} new document now match this grant category. They stay hidden from the recipient until you confirm including them.} other {{length} new documents now match this grant categories. They stay hidden from the recipient until you confirm including them.}}',
   },
   bn: {
+    'applicantSharing.appApplicantIdSharingAiDrafts.draftsYourAiAppsSavedFor':
+      'আপনার এআই অ্যাপ আপনার জন্য যে খসড়া সংরক্ষণ করেছে, যেমন চিঠি ও নোট। এগুলো এখানে শুধু আপনার জন্যই রাখা হয়: কোথাও কিছু পাঠানো হয় না, আর এজেন্সিগুলো এগুলো কখনো দেখে না। আপনি মুছে না ফেলা পর্যন্ত খসড়া থাকে।',
+    'applicantSharing.appApplicantIdSharingGrantAiChoice.aiTools': 'এআই টুল',
+    'applicantSharing.appApplicantIdSharingGrantForm.30DefaultUpTo90': '৩০ (ডিফল্ট), সর্বোচ্চ ৯০',
+    'applicantSharing.appApplicantIdSharingGrantForm.commonReasons': 'সাধারণ কারণ',
+    'applicantSharing.appApplicantIdSharingGrantForm.downloadsAreNotIncludedYouCan':
+      'ডাউনলোড এতে অন্তর্ভুক্ত নয়। আপনি যেকোনো সময় ভবিষ্যতের অ্যাক্সেস স্থগিত বা প্রত্যাহার করতে পারেন; আগে ডাউনলোড হয়ে যাওয়া কপি ফিরিয়ে নেওয়া যায় না।',
     'applicantSharing.appApplicantIdSharingGrantForm.eGReviewMyUkStudent':
       'যেমন: আমার যুক্তরাজ্যের স্টুডেন্ট ভিসার ডকুমেন্ট পর্যালোচনা করুন',
+    'applicantSharing.appApplicantIdSharingGrantForm.everyDocument': 'প্রতিটি ডকুমেন্ট',
+    'applicantSharing.appApplicantIdSharingGrantForm.everyGrantExpiresLeaveBlankFor':
+      'প্রতিটি অ্যাক্সেসের মেয়াদ শেষ হয়। ৩০ দিনের ডিফল্টের জন্য ঘরটি ফাঁকা রাখুন; সর্বোচ্চ ৯০ দিন।',
+    'applicantSharing.appApplicantIdSharingGrantForm.everythingInMyProfile': 'আমার প্রোফাইলের সবকিছু',
+    'applicantSharing.appApplicantIdSharingGrantForm.expiresAfterDays': 'মেয়াদ শেষ হবে (কত দিন পরে)',
+    'applicantSharing.appApplicantIdSharingGrantForm.invitationCreated': 'আমন্ত্রণ তৈরি হয়েছে',
+    'applicantSharing.appApplicantIdSharingGrantForm.onlyTheDocumentsIChoose':
+      'শুধু আমার বেছে নেওয়া ডকুমেন্ট',
+    'applicantSharing.appApplicantIdSharingGrantForm.onlyThePartsIChoose': 'শুধু আমার বেছে নেওয়া অংশ',
+    'applicantSharing.appApplicantIdSharingGrantForm.permissions': 'অনুমতি',
+    'applicantSharing.appApplicantIdSharingGrantForm.pressReviewAndConfirmFirst':
+      'আগে পর্যালোচনা ও নিশ্চিত করুন বোতামটি চাপুন।',
     'applicantSharing.appApplicantIdSharingGrantForm.recipientEmail': 'প্রাপকের ইমেইল',
+    'applicantSharing.appApplicantIdSharingGrantForm.reviewAndConfirm': 'পর্যালোচনা ও নিশ্চিত করুন',
+    'applicantSharing.appApplicantIdSharingGrantForm.revokingEndsAccessOnVisastackIt':
+      'প্রত্যাহার করলে VisaStack-এ অ্যাক্সেস শেষ হয়ে যায়। কেউ আগে যে কপি ডাউনলোড করেছেন তা ফিরিয়ে নেওয়া যায় না।',
+    'applicantSharing.appApplicantIdSharingGrantForm.safeCopiesMayBeDownloadedOriginal':
+      'নিরাপদ কপি ডাউনলোড করা যেতে পারে; মূল ডকুমেন্ট ডাউনলোড এর অন্তর্ভুক্ত নয়।',
+    'applicantSharing.appApplicantIdSharingGrantForm.sharingRequestCreated':
+      'শেয়ারিংয়ের অনুরোধ তৈরি হয়েছে',
     'applicantSharing.appApplicantIdSharingGrantForm.themExampleCom': 'them@example.com',
+    'applicantSharing.appApplicantIdSharingGrantForm.whatShouldTheySeeFromYour':
+      'আপনার প্রোফাইল থেকে তাঁরা কী দেখতে পাবেন?',
+    'applicantSharing.appApplicantIdSharingGrantForm.whichDocumentsCanTheyOpen':
+      'তাঁরা কোন কোন ডকুমেন্ট খুলতে পারেন?',
+    'applicantSharing.appApplicantIdSharingGrantForm.yourAccessSummary': 'আপনার অ্যাক্সেসের সারসংক্ষেপ',
   },
 });

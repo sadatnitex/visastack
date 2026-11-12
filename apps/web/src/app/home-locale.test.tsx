@@ -3,7 +3,7 @@ import { renderServer, textOf } from '../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
 // The locale is set here directly, as the auth screens' test does.
-const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', generation: 0 }));
+const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', generation: 0, betaOpen: false }));
 vi.mock('../lib/locale', () => ({ getLocale: async () => current.locale }));
 // Outside the server runtime React's cache remembers nothing; stand in for one request per render.
 // Each cached function keeps its own result, per request.
@@ -22,7 +22,7 @@ vi.mock('react', async (importOriginal) => ({
     return cached as unknown as T;
   },
 }));
-vi.mock('../lib/public-beta', () => ({ isPublicBetaOpen: () => false }));
+vi.mock('../lib/public-beta', () => ({ isPublicBetaOpen: () => current.betaOpen }));
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => false }));
 
 import { homeCatalog } from '../i18n/home';
@@ -134,17 +134,30 @@ describe('the home page under Bengali', () => {
     }
   });
 
-  it('keeps held-back wording in English (risk notice, privacy heading, consent wording)', async () => {
+  // Owner sign-off of 2026-11-12 (blanket approval): the legal, privacy and consent wording is Bengali now.
+  it('shows the signed-off privacy heading, sharing wording and consent promise in Bengali', async () => {
     const text = await render('bn');
     for (const key of [
-      'home.page.itIsFreeToUseAt',
       'home.page.howVisastackTreatsYourInformation',
       'home.page.selectRecordsReviewTheScopeAnd',
       'home.page.recordSharingStartsWithYourPermission',
     ] as const) {
-      expect(key in homeCatalog.bn, key).toBe(false);
-      // The risk notice shows only while the public beta is open; the others show on this view.
-      if (key !== 'home.page.itIsFreeToUseAt') expect(text, key).toContain(homeCatalog.en[key]);
+      expect(key in homeCatalog.bn, key).toBe(true);
+      expect(text, key).toContain(homeCatalog.bn[key]);
+      expect(text, key).not.toContain(homeCatalog.en[key]);
+    }
+  });
+
+  it('shows the risk notice in Bengali while the public beta is open', async () => {
+    current.betaOpen = true;
+    try {
+      const key = 'home.page.itIsFreeToUseAt' as const;
+      expect(key in homeCatalog.bn).toBe(true);
+      const text = await render('bn');
+      expect(text).toContain(homeCatalog.bn[key]);
+      expect(text).not.toContain(homeCatalog.en[key]);
+    } finally {
+      current.betaOpen = false;
     }
   });
 

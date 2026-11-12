@@ -142,6 +142,7 @@ export const appHomeCatalog = defineCatalog({
     'appHome.appAccountMenu.accountMenu': 'অ্যাকাউন্ট মেনু',
     'appHome.appAccountMenu.closeAccountMenu': 'অ্যাকাউন্ট মেনু বন্ধ করুন',
     'appHome.appAccountMenu.nameAccountMenu': '{name}, অ্যাকাউন্ট মেনু',
+    'appHome.appAccountMenu.yourPlan': 'আপনার প্ল্যান:',
     'appHome.appAddApplicantForm.familyMember': 'পরিবারের সদস্য',
     'appHome.appAddApplicantForm.fullName': 'পুরো নাম',
     'appHome.appAddApplicantForm.minorGuardian': 'অপ্রাপ্তবয়স্ক (অভিভাবক)',
@@ -163,10 +164,15 @@ export const appHomeCatalog = defineCatalog({
     'appHome.appError.theProblemIsOnOurSide':
       'সমস্যাটি আমাদের দিকে। আপনি আগে যা সংরক্ষণ করেছেন তা নিরাপদ আছে। কিছু লিখতে থাকলে হয়তো আবার লিখতে হতে পারে।',
     'appHome.appFirstRun.addDocuments': 'ডকুমেন্ট যোগ করুন',
+    'appHome.appFirstRun.letVisastackProcessMyDetails': 'VisaStack-কে আমার তথ্য প্রক্রিয়া করতে দিন',
     'appHome.appFirstRun.pickACountryAndSeeWhat':
       'একটি দেশ বেছে নিন এবং সঙ্গে সঙ্গে দেখুন সাধারণত কী চাওয়া হয়। আপনি যেকোনো সময় এটি বদলাতে পারেন।',
     'appHome.appFirstRun.skipForNow': 'এখনকার জন্য এড়িয়ে যান',
     'appHome.appFirstRun.startATrip': 'ভ্রমণ শুরু করুন',
+    'appHome.appFirstRun.thisDoesNotTurnOnAi':
+      'এতে এআই দিয়ে পড়া, এজেন্সির সঙ্গে শেয়ারিং বা মার্কেটিং চালু হয় না। আপনি বেছে না নেওয়া পর্যন্ত এগুলো বন্ধ থাকে।',
+    'appHome.appFirstRun.thisIsNeededBeforeAnythingCan':
+      'কিছু সংরক্ষণ করার আগে এটি দরকার। আপনি যেকোনো সময় এটি বন্ধ করতে পারেন।',
     'appHome.appHomeCards.actionNeeded': 'কিছু করা দরকার',
     'appHome.appHomeCards.addADocument': 'একটি ডকুমেন্ট যোগ করুন',
     'appHome.appHomeCards.startACase': 'একটি ভিসা ফাইল শুরু করুন',
@@ -181,6 +187,7 @@ export const appHomeCatalog = defineCatalog({
     'appHome.appWorkspaceRecordToolbar.helpAndNotifications': 'সহায়তা ও নোটিফিকেশন',
     'appHome.appWorkspaceRecordToolbar.helpAndSupport': 'সহায়তা ও সাপোর্ট',
     'appHome.appWorkspaceRecordToolbar.notificationsUnreadUnread': 'নোটিফিকেশন, {unread}টি না পড়া',
+    'appHome.appWorkspaceRecordToolbar.planInformation': 'প্ল্যানের তথ্য',
     'appHome.appWorkspaceRecordToolbar.searchAccessibleCasesAndClients':
       'আপনার অ্যাক্সেসে থাকা ভিসা ফাইল ও ক্লায়েন্ট খুঁজুন...',
     'appHome.appWorkspaceRecordToolbar.searchAccessibleProfilesCasesAndDocument':
@@ -193,6 +200,8 @@ export const appHomeCatalog = defineCatalog({
     'appHome.appWorkspaceShell.accountOverview': 'অ্যাকাউন্টের সারসংক্ষেপ',
     'appHome.appWorkspaceShell.availableWorkspaces': 'উপলব্ধ ওয়ার্কস্পেস',
     'appHome.appWorkspaceShell.personalSpace': 'ব্যক্তিগত জায়গা',
+    'appHome.appWorkspaceShell.sharingFollowsYourSavedPermissions':
+      'শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে।',
     'appHome.appWorkspaceShell.youControlAccess': 'অ্যাক্সেস আপনার নিয়ন্ত্রণে',
   },
 });

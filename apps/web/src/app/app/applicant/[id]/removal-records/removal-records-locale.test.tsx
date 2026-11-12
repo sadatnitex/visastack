@@ -88,9 +88,10 @@ describe('the Removal Records page under Bengali', () => {
     expect(text).not.toMatch(/appApplicant\./);
   });
 
-  it('keeps what was removed, when and by whom in English, because it is about data removal', async () => {
+  it('shows the explanation in Bengali (signed off 2026-11-12) and keeps the record lines English', async () => {
     const text = await render('bn');
-    expect(`${K}whatWasDeletedFromThisRecord` in bn).toBe(false);
+    expect(`${K}whatWasDeletedFromThisRecord` in bn).toBe(true);
+    expect(text).toContain(bn[`${K}whatWasDeletedFromThisRecord`]);
     expect(text).toContain('Removing Securely: Passport D-7K2Q9M.');
     expect(text).toContain('Times are shown in UTC.');
   });

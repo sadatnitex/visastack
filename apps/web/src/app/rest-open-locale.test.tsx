@@ -75,6 +75,17 @@ const bnOf = (k: string) =>
     `appClientInvitations.appClientInvitationsAcceptAcceptForm.${k}`
   ];
 
+/** The Bengali of a message, found by its English (a catalogue key is long and easy to mistype). */
+const bnByEn = (
+  catalog: { en: Readonly<Record<string, string>>; bn: Readonly<Record<string, string>> },
+  english: string,
+) => {
+  const key = Object.keys(catalog.en).find((k) => catalog.en[k] === english);
+  const value = key ? catalog.bn[key] : undefined;
+  if (!value) throw new Error(`no Bengali for: ${english}`);
+  return value;
+};
+
 const seen: string[] = [];
 
 async function draw(page: () => unknown | Promise<unknown>, locale: 'en' | 'bn') {
@@ -112,13 +123,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('open invitation states under Bengali', () => {
-  it('client invitation: consent steps shown when consents are off, English kept for held text', async () => {
+  it('client invitation: consent steps shown when consents are off, in Bengali (signed off 2026-11-12) except the held toggle name', async () => {
     svc.previewClientInvitation.mockResolvedValue(ok(invite));
     svc.getConsents.mockResolvedValue({ CORE_PROCESSING: false, SHARING: false });
     const bn = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
     const text = bn.body.textContent ?? '';
-    expect(text).toContain('If you accept, they will be able to:');
-    expect(text).toContain('Turn these on before accepting (both are required):');
+    expect(text).toContain(bnByEn(appClientInvitationsCatalog, 'If you accept, they will be able to:'));
+    expect(text).toContain(
+      bnByEn(appClientInvitationsCatalog, 'Turn these on before accepting (both are required):'),
+    );
     expect(
       [...bn.querySelectorAll('button')].some((b) =>
         b.getAttribute('aria-label')?.startsWith('Turn On: '),
@@ -129,15 +142,14 @@ describe('open invitation states under Bengali', () => {
     expect(en.body.textContent).toContain('Turn On');
   });
 
-  it('client invitation: the accept form (both consents on) is Bengali only where a draft is cleared', async () => {
+  it('client invitation: the accept form (both consents on) is Bengali where a draft is cleared', async () => {
     svc.previewClientInvitation.mockResolvedValue(ok(invite));
     svc.getConsents.mockResolvedValue({ CORE_PROCESSING: true, SHARING: true });
     const bn = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
     const text = bn.body.textContent ?? '';
     expect(text).toContain(bnOf('profileNameOptional'));
-    expect(text).toContain('AI Tools');
+    expect(text).toContain(bnOf('aiTools'));
     expect(text).toContain('Create a New Profile');
-    expect(text).not.toContain(bnOf('aiTools') ?? 'x-never');
     const en = await draw(() => AcceptClientInvitationPage(withToken), 'en');
     expect(en.body.textContent).toContain('Profile Name (Optional)');
     expect(en.body.textContent).not.toContain('প্রোফাইলের নাম');
@@ -159,7 +171,10 @@ describe('open invitation states under Bengali', () => {
     svc.getConsents.mockResolvedValue({ CORE_PROCESSING: true, SHARING: true });
     const bn = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
     expect(bn.body.textContent).toContain(
-      'This invitation cannot be shown right now. Ask the agency to send it again.',
+      bnByEn(
+        appClientInvitationsCatalog,
+        'This invitation cannot be shown right now. Ask the agency to send it again.',
+      ),
     );
   });
 
@@ -198,26 +213,45 @@ describe('open invitation states under Bengali', () => {
     svc.previewContributorRequest.mockResolvedValue(ok(value));
     const open = await draw(() => AcceptContributorPage(withToken), 'bn');
     expect(open.body.textContent).toContain('Provide One Document');
-    expect(open.body.textContent).toContain('30 days from upload');
-    expect(open.body.textContent).not.toMatch(BENGALI);
+    expect(open.body.textContent).toContain(
+      bnByEn(
+        appContributorRequestsCatalog,
+        "{retentionDays} days from upload, under this platform's standard retention policy.",
+      ).replace('{retentionDays}', '৩০'),
+    );
+    // A document type with no retention policy shows the Bengali no-period sentence.
+    svc.getRetentionPolicies.mockResolvedValue([]);
+    const noPolicy = await draw(() => AcceptContributorPage(withToken), 'bn');
+    expect(noPolicy.body.textContent).toContain(
+      bnByEn(
+        appContributorRequestsCatalog,
+        "This document type doesn't have a specific retention period configured yet.",
+      ),
+    );
+    svc.getRetentionPolicies.mockResolvedValue([{ docType: 'BANK_STATEMENT', retentionDays: 30 }]);
     svc.previewContributorRequest.mockResolvedValue(ok({ ...value, emailMatches: false }));
     const wrong = await draw(() => AcceptContributorPage(withToken), 'bn');
-    expect(wrong.body.textContent).toContain('sent to a different email address');
-    expect(wrong.body.textContent).not.toMatch(BENGALI);
+    expect(wrong.body.textContent).toContain(
+      bnByEn(
+        appContributorRequestsCatalog,
+        "This request was sent to a different email address than the one you're signed in with. Sign in with the email it was sent to before continuing.",
+      ),
+    );
     svc.previewContributorRequest.mockResolvedValue(notFound);
     const bad = await draw(() => AcceptContributorPage(withToken), 'bn');
     expect(bad.body.textContent).toContain('এই লিংকটি বৈধ নয়।');
   });
 
-  it('sharing invitation: unavailable and open states keep every held sentence English', async () => {
+  it('sharing invitation: unavailable and open states show the signed-off Bengali', async () => {
     svc.getConsents.mockResolvedValue({ CORE_PROCESSING: true, SHARING: true });
     svc.previewSharingInvitation.mockResolvedValue({
       ok: false,
       error: { code: 'not_found', message: 'This invitation is not available.' },
     });
     const bad = await draw(() => SharingInvitationPage(withToken), 'bn');
-    expect(bad.body.textContent).toContain('Invitation Unavailable');
-    expect(bad.body.textContent).not.toMatch(BENGALI);
+    expect(bad.body.textContent).toContain(
+      bnByEn(appSharingInvitationsCatalog, 'Invitation Unavailable'),
+    );
     svc.previewSharingInvitation.mockResolvedValue(
       ok({
         purpose: 'Visa check',
@@ -231,9 +265,17 @@ describe('open invitation states under Bengali', () => {
     );
     const open = await draw(() => SharingInvitationPage(withToken), 'bn');
     expect(open.body.textContent).toContain('Review Shared Access');
-    expect(open.body.textContent).toContain('Opening this invitation grants no access');
+    expect(open.body.textContent).toContain(
+      bnByEn(
+        appSharingInvitationsCatalog,
+        'Opening this invitation grants no access. Review everything before accepting.',
+      ),
+    );
+    expect(open.body.textContent).toContain(bnByEn(appSharingInvitationsCatalog, 'Access Ends'));
+    expect(open.body.textContent).toContain(
+      bnByEn(appSharingInvitationsCatalog, 'Invitation Expires'),
+    );
     expect(open.body.querySelector('input[name="confirm"]')).not.toBeNull();
-    expect(open.body.textContent).not.toMatch(BENGALI);
   });
 });
 
@@ -250,7 +292,9 @@ describe('live Bengali keys of the invitation screens', () => {
       ...Object.values(appContributorRequestsCatalog.bn),
       ...Object.values(appSharingInvitationsCatalog.bn),
     ];
-    expect(live.filter((v) => !text.includes(v))).toEqual([]);
+    // A value with a filled-in number is matched by the text around the number.
+    const shown = (v: string) => v.split(/\{\w+\}/).every((part) => text.includes(part));
+    expect(live.filter((v) => !shown(v))).toEqual([]);
   });
 });
 

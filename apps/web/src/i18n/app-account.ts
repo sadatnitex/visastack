@@ -135,15 +135,32 @@ export const appAccountCatalog = defineCatalog({
   },
   bn: {
     'appAccount.appAccountPage.account': 'অ্যাকাউন্ট',
+    'appAccount.appAccountPage.dataRights': 'তথ্যের অধিকার',
+    'appAccount.appAccountPage.exportYourDataReviewConsentHistory':
+      'আপনার তথ্য এক্সপোর্ট করুন, সম্মতির ইতিহাস পর্যালোচনা করুন, অথবা আপনার অ্যাকাউন্ট মুছে ফেলুন।',
     'appAccount.appAccountPage.session': 'সেশন',
     'appAccount.appAccountPage.signOut': 'সাইন আউট করুন',
     'appAccount.appAccountPage.signOutOfThisDevice': 'এই ডিভাইস থেকে সাইন আউট করুন।',
     'appAccount.appAccountPage.signedIn': 'সাইন ইন করা আছে',
     'appAccount.appAccountPage.yourAccount': 'আপনার অ্যাকাউন্ট',
+    'appAccount.appAccountPage.yourPlanWhatItIncludesAnd':
+      'আপনার প্ল্যান, তাতে কী আছে এবং আপনি তার কতটা ব্যবহার করেছেন।',
+    'appAccount.appAccountPlanPage.aiFeatures': 'এআই সুবিধা',
+    'appAccount.appAccountPlanPage.complimentaryDuringPublicBetaNoPayment':
+      'পাবলিক বিটা চলাকালে বিনামূল্যে। কোনো পেমেন্ট পদ্ধতি লাগে না। ন্যায্য ব্যবহারের সুরক্ষা এবং আপনার গোপনীয়তার অনুমতি এখনও প্রযোজ্য।',
+    'appAccount.appAccountPlanPage.currentPlan': 'বর্তমান প্ল্যান',
+    'appAccount.appAccountPlanPage.inYourPlan': 'আপনার প্ল্যানে আছে',
+    'appAccount.appAccountPlanPage.now': 'এখন:',
+    'appAccount.appAccountPlanPage.paidPlansForTravellersAreNot':
+      'ভ্রমণকারীদের জন্য পেইড প্ল্যান এখনও দেওয়া হচ্ছে না, তাই বেছে নেওয়ার বা আপগ্রেড করার কিছু নেই।',
     'appAccount.appAccountPlanPage.storage': 'স্টোরেজ',
+    'appAccount.appAccountPlanPage.whatYourPlanIncludes': 'আপনার প্ল্যানে যা আছে',
+    'appAccount.appAccountPlanPage.whetherYourPlanIncludesEachFeature':
+      'আপনার প্ল্যানে প্রতিটি সুবিধা আছে কি না, এখন তা কাজ করছে কি না, এবং আজ আপনি কতটা ব্যবহার করেছেন। এই গণনার জন্য শুধু সংখ্যাটি রাখা হয়, কী পড়া হয়েছে তা কখনো নয়। এই সুবিধাগুলো ছাড়াও VisaStack-এর সবকিছু কাজ করে।',
     'appAccount.appAccountPlanPage.yourAccount': 'আপনার অ্যাকাউন্ট',
     'appAccount.appAccountPlanPage.yourWholeAccount': 'আপনার পুরো অ্যাকাউন্ট',
     'appAccount.appAccountWhatsappConnectForm.iHaveSentIt': 'আমি পাঠিয়ে দিয়েছি',
     'appAccount.appAccountWhatsappPage.on': 'চালু',
+    'appAccount.appAccountWhatsappPage.privacyAndConsent': 'গোপনীয়তা ও সম্মতি',
   },
 });

@@ -136,17 +136,17 @@ describe('calendar page under Bengali', () => {
     expect(html).not.toMatch(RAW_KEY);
   });
 
-  it('the link panel keeps its working lines in English and shows only the Bengali heading when it is off', async () => {
+  it('the link panel shows the Bengali heading and the signed-off explanation when it is off (the button names stay English)', async () => {
     const { html, text } = await render('bn');
     const panel = html.slice(html.indexOf('calendar-feed-heading'));
     expect(textOf(panel)).toContain(bn[`${PANEL}subscribeInYourCalendarApp`]);
-    expect(text).toContain(en[`${PANEL}turnOnAPrivateLinkAnd`]);
+    expect(text).toContain(bn[`${PANEL}turnOnAPrivateLinkAnd`]);
+    expect(text).not.toContain(en[`${PANEL}turnOnAPrivateLinkAnd`]);
     expect(text).toContain('Turn On Calendar Link');
-    expect(`${PANEL}turnOnAPrivateLinkAnd` in bn).toBe(false);
     expect(`${PANEL}anyoneWhoHasThisLinkCan` in bn).toBe(false);
   });
 
-  it('the new-link state shows a Bengali Copy Link button and keeps the steps and the show-once warning in English', async () => {
+  it('the new-link state shows a Bengali Copy Link button, the heading and the show-once warning in Bengali, and the steps in English', async () => {
     state.forced = {
       ok: true,
       message: 'Your calendar link is on.',
@@ -157,11 +157,19 @@ describe('calendar page under Bengali', () => {
     const { html, text } = await render('bn');
     expect(html).toContain(`value="${LINK}"`);
     expect(html).toMatch(new RegExp(`<button[^>]*>${bn[`${PANEL}copyLink`]}</button>`));
-    expect(text).toContain(en[`${PANEL}yourPrivateCalendarLink`]);
-    expect(text).toContain(en[`${PANEL}thisLinkIsShownOnlyNow`]);
+    expect(text).toContain(bn[`${PANEL}yourPrivateCalendarLink`]);
+    expect(text).toContain(bn[`${PANEL}thisLinkIsShownOnlyNow`]);
     expect(text).toContain(en[`${PANEL}outlookChooseAddCalendarThenSubscribe`]);
     expect(text).toContain('Make a New Link');
     expect(text).toContain('Stop Sharing');
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('when the link cannot be checked it says so in Bengali (signed off 2026-11-12)', async () => {
+    mocks.getCalendarFeedStatus.mockResolvedValue({ ok: false, error: { code: 'unavailable' } });
+    const { html, text } = await render('bn');
+    expect(text).toContain(bn[`${PANEL}weCouldNotCheckYourCalendar`]);
+    expect(text).not.toContain(en[`${PANEL}weCouldNotCheckYourCalendar`]);
     expect(html).not.toMatch(RAW_KEY);
   });
 

@@ -6,6 +6,7 @@
  *   node scripts/i18n/codemod.mjs --surface documents --files apps/web/src/app/(app)/documents/page.tsx ...
  *   node scripts/i18n/codemod.mjs --surface documents --dry-run --files ...
  *   node scripts/i18n/codemod.mjs --all --dry-run          # counts per default surface (reports only)
+ *   node scripts/i18n/codemod.mjs --refill-bn [--dry-run]  # refill Bengali in every catalogue
  *
  * Writes the edited files, apps/web/src/i18n/<surface>.ts, apps/web/src/i18n/<surface>.sources.json
  * and a report of everything not converted and why (default
@@ -30,6 +31,7 @@ import {
   sourcesRel,
 } from './catalog.mjs';
 import { KeyAllocator } from './keys.mjs';
+import { refillBengali } from './refill.mjs';
 import { Register } from './register.mjs';
 import { SPECIAL_ROUTE_RE, TEST_RE, audienceOfFile, camel } from './rules.mjs';
 import { analyzeFile, planFile, rewriteFile } from './transform.mjs';
@@ -366,6 +368,7 @@ function parseArgs(argv) {
     else if (x === '--dry-run') a.dryRun = true;
     else if (x === '--no-format') a.format = false;
     else if (x === '--all') a.all = true;
+    else if (x === '--refill-bn') a.refill = true;
     else if (x === '--report-dir') a.reportDir = path.resolve(argv[++i]);
     else if (x === '--files') {
       while (argv[i + 1] && !argv[i + 1].startsWith('--')) a.files.push(argv[++i]);
@@ -377,6 +380,17 @@ function parseArgs(argv) {
 
 function main() {
   const a = parseArgs(process.argv.slice(2));
+  if (a.refill) {
+    const done = refillBengali({
+      root: REPO_ROOT,
+      dryRun: a.dryRun,
+      format: a.format ? biomeFormat : undefined,
+    });
+    say('surface\tbn_filled');
+    for (const r of done) if (r.filled.length) say(`${r.surface}\t${r.filled.length}`);
+    say(`TOTAL\t${done.reduce((n, r) => n + r.filled.length, 0)}`);
+    return;
+  }
   let groups;
   if (a.all) {
     if (!a.dryRun) throw new Error('--all is a count only: add --dry-run');

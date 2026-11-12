@@ -108,15 +108,15 @@ afterEach(() => {
 });
 
 describe('trip invitation pages under Bengali', () => {
-  it('unavailable invitation: only Go to Home is Bengali, the invitation wording stays English', async () => {
+  it('unavailable invitation: the Bengali heading and help sentence (signed off 2026-11-12)', async () => {
     const words = textOf(await accept('bn', 'N'.repeat(43)));
     expect(words).toContain(bn[key('AcceptPage', 'goToHome')]);
-    expect(words).toContain(en[key('AcceptPage', 'invitationUnavailable')]);
-    expect(words).toContain(en[key('AcceptPage', 'askThePersonWhoInvitedYou')]);
+    expect(words).toContain(bn[key('AcceptPage', 'invitationUnavailable')]);
+    expect(words).toContain(bn[key('AcceptPage', 'askThePersonWhoInvitedYou')]);
     expect(textOf(await accept('en', 'N'.repeat(43)))).not.toMatch(BENGALI);
   });
 
-  it('open invitation: the Why label is Bengali, sharing and consent wording stays English', async () => {
+  it('open invitation: the Why label and the sharing wording are Bengali (signed off 2026-11-12)', async () => {
     const organiserProof = await w.organiserProof();
     const added = await addCompanion(organiserProof, w.tripId, {
       name: 'Karim Uddin',
@@ -139,12 +139,12 @@ describe('trip invitation pages under Bengali', () => {
     const token = added.value.invitation.rawToken;
     const words = textOf(await accept('bn', token));
     expect(words).toContain(bn[key('IdPage', 'why')]);
-    expect(words).toContain(en[key('AcceptAcceptForm', 'shareMore')]);
-    expect(words).toContain(en[key('AcceptPage', 'invitationEnds')]);
+    expect(words).toContain(bn[key('AcceptAcceptForm', 'shareMore')]);
+    expect(words).toContain(bn[key('AcceptPage', 'invitationEnds')]);
     expect(textOf(await accept('en', token))).toContain('Share More');
   });
 
-  it('joined trip, name only: the Why label is Bengali and the sharing heading stays English', async () => {
+  it('joined trip, name only: the Why label is Bengali', async () => {
     const words = textOf(await joined('bn'));
     expect(words).toContain(bn[key('IdPage', 'why')]);
     expect(words).not.toContain('Papers You Show');
@@ -169,6 +169,6 @@ describe('trip invitation pages under Bengali', () => {
     const html = await joined('bn');
     expect(html).toContain('aria-label="Remove: Tokyo hotel.pdf"');
     expect(await joined('en')).toContain('aria-label="Remove: Tokyo hotel.pdf"');
-    expect(textOf(html)).toContain(en[key('IdJoinedTripForms', 'whatYouShareWithTheOrganiser')]);
+    expect(textOf(html)).toContain(bn[key('IdJoinedTripForms', 'whatYouShareWithTheOrganiser')]);
   });
 });

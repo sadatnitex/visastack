@@ -67,6 +67,8 @@ import { ReferenceCode } from './reference-code';
 import { SiteNavigation } from './site-navigation';
 import { TimeZoneSelect } from './time-zone-select';
 import { VersionNotice } from './version-notice';
+import { VisaPhotoSizes } from './visa-photo-sizes';
+import { PwaRuntime } from './pwa/pwa-runtime';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -290,6 +292,60 @@ describe('every live Bengali message of the shared components is shown under bn'
     };
     expect(html(many)).toContain('4 Need a Kind');
     expect(html(one)).toContain('1 Needs a Kind');
+  });
+
+  it('the secure preview note shows for a file whose preview is allowed (desktop, nothing stubbed)', () => {
+    show(<DocumentWalletBrowser applicantId="p" documents={wallet(3)} initialSelection="doc-1" />);
+    expect(host.textContent).toContain(
+      componentsCatalog.bn['components.documentWalletBrowser.openTheSecurePreviewBelowPermission'],
+    );
+    noRawKey();
+  });
+
+  it('visa photo checks: the guide-only note is Bengali', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              sourceWidth: 1200,
+              sourceHeight: 1500,
+              findings: [],
+              preview: { width: 384, height: 480, jpegBase64: 'AQID' },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+    show(
+      <VisaPhotoSizes
+        documentId="00000000-0000-4000-8000-000000000001"
+        returnTo="/app/applicant/a/documents"
+      />,
+    );
+    const details = host.querySelector('details');
+    if (!details) throw new Error('missing disclosure');
+    await act(async () => {
+      details.open = true;
+      details.dispatchEvent(new Event('toggle'));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(host.textContent).toContain(
+      componentsCatalog.bn['components.visaPhotoSizes.theseChecksAreAGuideOnly'],
+    );
+    noRawKey();
+  });
+
+  it('the offline notice is Bengali', async () => {
+    show(<PwaRuntime enabled={false} />);
+    await act(async () => window.dispatchEvent(new Event('offline')));
+    expect(host.querySelector('output')?.textContent).toContain(
+      componentsPwaCatalog.bn['componentsPwa.pwaPwaRuntime.youAreOfflineReconnectToContinue'],
+    );
+    await act(async () => window.dispatchEvent(new Event('online')));
   });
 
   afterAll(() => {

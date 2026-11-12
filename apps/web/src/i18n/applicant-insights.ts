@@ -76,12 +76,21 @@ export const applicantInsightsCatalog = defineCatalog({
       'What Your Documents Show',
   },
   bn: {
+    'applicantInsights.appApplicantIdInsightsPage.aSummaryOfYourSavedDocuments':
+      'আপনার সংরক্ষিত ডকুমেন্ট ও প্রোফাইলের সারসংক্ষেপ। এতে মূল তথ্যগুলো কখনো দেখানো হয় না, আর এখানে কিছুই আপনার প্রোফাইল বদলায় না।',
+    'applicantInsights.appApplicantIdInsightsPage.addADocumentAndAcceptWhat':
+      'একটি ডকুমেন্ট যোগ করুন এবং তাতে যা পাওয়া গেছে তা গ্রহণ করুন, তাহলে এখানে দেখা যাবে ডকুমেন্টটি কোন কোন তথ্যের উৎস।',
+    'applicantInsights.appApplicantIdInsightsPage.backsNoSavedDetailsYet':
+      'এখনো কোনো সংরক্ষিত তথ্যের উৎস নয়।',
     'applicantInsights.appApplicantIdInsightsPage.comingUp': 'সামনে আসছে',
     'applicantInsights.appApplicantIdInsightsPage.eachVisaApplicationIsACase':
       'প্রতিটি ভিসা আবেদন একটি ভিসা ফাইল। আপনি একটি শুরু করলে এর প্রস্তুতির অবস্থা এখানে দেখা যাবে।',
     'applicantInsights.appApplicantIdInsightsPage.noDocumentsYet': 'এখনো কোনো ডকুমেন্ট নেই',
     'applicantInsights.appApplicantIdInsightsPage.noExpiryDatesYet': 'এখনো কোনো মেয়াদের তারিখ নেই',
+    'applicantInsights.appApplicantIdInsightsPage.noSavedDetailDiffersFromWhat':
+      'আপনার ডকুমেন্ট থেকে যা পড়া হয়েছে, তার সঙ্গে আপনার সংরক্ষিত কোনো তথ্যের অমিল নেই।',
     'applicantInsights.appApplicantIdInsightsPage.openCases': 'খোলা ভিসা ফাইল',
     'applicantInsights.appApplicantIdInsightsPage.openProfile': 'প্রোফাইল খুলুন',
+    'applicantInsights.appApplicantIdInsightsPage.optionalForThisCase': 'এই ভিসা ফাইলের জন্য ঐচ্ছিক',
   },
 });

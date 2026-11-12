@@ -90,20 +90,20 @@ beforeEach(() => {
 });
 
 describe('shared workspace under Bengali', () => {
-  it('nothing shared: labels in Bengali, the sentences about what was shared stay English', async () => {
+  it('nothing shared: labels and the sentences about what was shared are Bengali (signed off 2026-11-12)', async () => {
     const shown = await render('bn', workspace({}));
     for (const k of ['sharedWithYou', 'sharedWorkspace', 'sharedFields', 'documentVault']) {
       expect(shown).toContain(bn[key(k)]);
     }
-    expect(shown).toContain(en[key('noProfileDetailsShared')]);
-    expect(shown).toContain(en[key('thisPersonHasNotSharedAny')]);
-    expect(shown).toContain(en[key('noDocumentsShared')]);
-    expect(shown).toContain(en[key('thisPersonHasNotSharedAnyb926f7')]);
-    expect(shown).toContain(en[key('everyItemBelowIsReChecked')]);
+    expect(shown).toContain(bn[key('noProfileDetailsShared')]);
+    expect(shown).toContain(bn[key('thisPersonHasNotSharedAny')]);
+    expect(shown).toContain(bn[key('noDocumentsShared')]);
+    expect(shown).toContain(bn[key('thisPersonHasNotSharedAnyb926f7')]);
+    expect(shown).toContain(bn[key('everyItemBelowIsReChecked')]);
     expect(shown).toMatch(BENGALI);
   });
 
-  it('documents and fields shared: the list headings are Bengali, safe-copy wording stays English', async () => {
+  it('documents and fields shared: the list headings and the safe-copy wording are Bengali', async () => {
     state.offer = 'not_prepared';
     const shown = await render(
       'bn',
@@ -114,11 +114,11 @@ describe('shared workspace under Bengali', () => {
     );
     expect(shown).toContain(bn[key('sharedDocuments')]);
     expect(shown).toContain('cert.pdf');
-    expect(shown).toContain(en[key('safeCopyNotPreparedYet')]);
-    expect(shown).toContain(en[key('otherDocumentsCannotBePreviewedHere')]);
+    expect(shown).toContain(bn[key('safeCopyNotPreparedYet')]);
+    expect(shown).toContain(bn[key('otherDocumentsCannotBePreviewedHere')]);
   });
 
-  it('a file with no safe copy available keeps its badge in English', async () => {
+  it('a file with no safe copy available shows its badge in Bengali', async () => {
     state.offer = 'not_available';
     const shown = await render(
       'bn',
@@ -126,12 +126,12 @@ describe('shared workspace under Bengali', () => {
         documents: [{ id: 'cert-1', displayName: 'cert.pdf', docType: 'EMPLOYMENT_CERTIFICATE' }],
       }),
     );
-    expect(shown).toContain(en[key('safeCopyNotAvailableForThis')]);
+    expect(shown).toContain(bn[key('safeCopyNotAvailableForThis')]);
   });
 
-  it('a case-limited grant keeps the access notice in English', async () => {
+  it('a case-limited grant shows the access notice in Bengali', async () => {
     const shown = await render('bn', workspace({ scope: true }));
-    expect(shown).toContain(en[key('thisAccessIsLimitedToA')]);
+    expect(shown).toContain(bn[key('thisAccessIsLimitedToA')]);
     expect(shown).toContain(bn[key('sharedWorkspace')]);
   });
 

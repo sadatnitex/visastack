@@ -428,8 +428,12 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdCaseMoreMenu.more': 'আরও',
     'appMission.appMissionIdCaseMoreMenu.openCaseHistory': 'ভিসা ফাইলের ইতিহাস খুলুন',
     'appMission.appMissionIdCaseMoreMenu.startANewCaseFromThis': 'এটি থেকে একটি নতুন ভিসা ফাইল শুরু করুন',
+    'appMission.appMissionIdCaseMoreMenu.theCaseIsRemovedForGood':
+      'চেকলিস্ট, নোট, কাজ এবং এর জন্য যা পাঠানো হয়েছিল, সবসহ ভিসা ফাইলটি স্থায়ীভাবে মুছে ফেলা হয়।',
     'appMission.appMissionIdCaseRail.aboutThisCase': 'এই ভিসা ফাইল সম্পর্কে',
     'appMission.appMissionIdCaseRail.advanceTheCase': 'ভিসা ফাইলটি এগিয়ে নিন',
+    'appMission.appMissionIdCaseRail.anOptionalLabelLinkingThisCase':
+      'একটি ঐচ্ছিক লেবেল, যা এই ভিসা ফাইলকে পরিবারের অন্য সদস্যের ভিসা ফাইলের সঙ্গে যুক্ত করে - শুধু দেখানোর জন্য। অ্যাক্সেস ও অনুমতি প্রতিটি ভিসা ফাইলে সম্পূর্ণ আলাদাই থাকে।',
     'appMission.appMissionIdCaseRail.caseDetails': 'ভিসা ফাইলের বিবরণ',
     'appMission.appMissionIdCaseRail.editCaseDetails': 'ভিসা ফাইলের বিবরণ সম্পাদনা করুন',
     'appMission.appMissionIdCaseRail.familyTrip': 'পারিবারিক ভ্রমণ',
@@ -448,11 +452,15 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdCaseRail.tripDateChecks': 'ভ্রমণের তারিখ পরীক্ষা',
     'appMission.appMissionIdCaseRail.workflow': 'ওয়ার্কফ্লো',
     'appMission.appMissionIdCaseSecondary.askAContributor': 'একজন সহযোগীর কাছে চান',
+    'appMission.appMissionIdCaseSecondary.askASponsorOrFamilyMember':
+      'একজন স্পনসর বা পরিবারের সদস্যের কাছে নির্দিষ্ট একটি ডকুমেন্ট চান। তিনি শুধু আপনার এখানে লেখা বার্তাটিই দেখতে পাবেন, আপনার রেকর্ডের আর কিছু নয়।',
     'appMission.appMissionIdCaseSecondary.collaboration': 'সহযোগিতা',
     'appMission.appMissionIdCaseSecondary.delegate': 'প্রতিনিধি',
     'appMission.appMissionIdCaseSecondary.moreForThisCase': 'এই ভিসা ফাইলের আরও কিছু',
     'appMission.appMissionIdCaseSecondary.noNotesSharedWithYouYet':
       'আপনার সঙ্গে এখনো কোনো নোট শেয়ার করা হয়নি।',
+    'appMission.appMissionIdCaseSecondary.notesAnAgencyWorkingThisCase':
+      'এই ভিসা ফাইলে কাজ করা এজেন্সি আপনার সঙ্গে যে নোট শেয়ার করতে বেছে নিয়েছে। এজেন্সির নিজস্ব অভ্যন্তরীণ নোট এখানে কখনো দেখানো হয় না।',
     'appMission.appMissionIdCaseSecondary.notesFromYourAgency': 'আপনার এজেন্সির নোট',
     'appMission.appMissionIdCaseSecondary.sectionsOfThisCase': 'এই ভিসা ফাইলের অংশসমূহ',
     'appMission.appMissionIdCaseSecondary.unknown': 'জানা নেই',
@@ -476,6 +484,8 @@ export const appMissionCatalog = defineCatalog({
       'নির্ধারিত সময়ের টাইম জোন (ঐচ্ছিক)',
     'appMission.appMissionIdCollaborationPanels.eGVisaInterviewPrepCall':
       'যেমন: ভিসা ইন্টারভিউয়ের প্রস্তুতির কল',
+    'appMission.appMissionIdCollaborationPanels.generatedStrictlyFromConfirmedEligibleEvidence':
+      'শুধু নিশ্চিত করা, যোগ্য প্রমাণ থেকে তৈরি - কিছুই বানানো নয়। এটি এআই দিয়ে লেখা নয়; একই তথ্য থেকে সবসময় একই ফল আসে এবং প্রতিটি সংস্করণ আলাদাভাবে রাখা হয়।',
     'appMission.appMissionIdCollaborationPanels.groundedDocuments':
       'যেসব ডকুমেন্টের ওপর ভিত্তি করা হয়েছে',
     'appMission.appMissionIdCollaborationPanels.meetings': 'মিটিং',
@@ -503,8 +513,12 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdComplaintFeedbackPanel.feedbackBecomesAvailableOnceThisCase':
       'এই ভিসা ফাইল বন্ধ বা বাতিল হলে মতামত দেওয়া যাবে।',
     'appMission.appMissionIdComplaintFeedbackPanel.fileANewComplaint': 'নতুন অভিযোগ দায়ের করুন',
+    'appMission.appMissionIdComplaintFeedbackPanel.onlyYouAndAuthorizedQualityStaff':
+      'শুধু আপনি এবং অনুমতিপ্রাপ্ত মান নিয়ন্ত্রণ কর্মীরা এটি দেখতে পান - এজেন্সি কখনো নয়, এবং এটি কখনো প্রকাশ্য রিভিউ বা র‍্যাংকিং হিসেবে প্রকাশ করা হয় না।',
     'appMission.appMissionIdComplaintFeedbackPanel.oversight': 'তদারকি',
     'appMission.appMissionIdComplaintFeedbackPanel.privateFeedback': 'ব্যক্তিগত মতামত',
+    'appMission.appMissionIdComplaintFeedbackPanel.reviewedOnlyByAuthorizedQualityStaff':
+      'শুধু অনুমতিপ্রাপ্ত মান নিয়ন্ত্রণ কর্মীরা এটি পর্যালোচনা করেন - এই ভিসা ফাইলে কাজ করা এজেন্সি নিজের বিরুদ্ধে করা কোনো অভিযোগ কখনো দেখতে পায় না।',
     'appMission.appMissionIdContributorRequestsPanel.contributorEmail': 'সহযোগীর ইমেইল',
     'appMission.appMissionIdContributorRequestsPanel.eGSponsorBankStatement':
       'যেমন: স্পনসরের ব্যাংক স্টেটমেন্ট',
@@ -514,6 +528,8 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdContributorRequestsPanel.sponsorExampleCom': 'sponsor@example.com',
     'appMission.appMissionIdContributorRequestsPanel.whatSNeededExactlyOneDocument':
       'যা লাগবে (ঠিক একটি ডকুমেন্ট)',
+    'appMission.appMissionIdContributorRequestsPanel.whyTheContributorWillSeeThis':
+      'কেন (সহযোগী এটি দেখতে পাবেন)',
     'appMission.appMissionIdMissionButtons.eGSmithFamilyEurope2026': 'যেমন: রহমান পরিবার ইউরোপ ২০২৬',
     'appMission.appMissionIdMissionButtons.eGTouristStudentWork': 'যেমন: পর্যটক, শিক্ষার্থী, কাজ',
     'appMission.appMissionIdMissionButtons.serviceCategory': 'সেবার ক্যাটাগরি',
@@ -539,6 +555,8 @@ export const appMissionCatalog = defineCatalog({
       'আপনি এই আইটেমটি বাদ দিলে তবেই এটি দরকার। এটি এই ভিসা ফাইলের সঙ্গেই থাকে।',
     'appMission.appMissionIdPackageForms.reasonForLeavingOut': 'বাদ দেওয়ার কারণ',
     'appMission.appMissionIdPackagePanel.outsideVisastack': 'VisaStack-এর বাইরে',
+    'appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady':
+      'এখানে দেখানো হয়েছে আপনার কী কী প্রস্তুত আছে। এটি জমা দেওয়া নয় এবং আপনি নিজে শেয়ার না করা পর্যন্ত কিছুই পাঠানো হয় না।',
     'appMission.appMissionIdPackagePanel.toChooseWhichFileAnItem':
       'কোনো আইটেম কোন ডকুমেন্ট ব্যবহার করবে তা বেছে নিতে প্রমাণের চেকলিস্টে আইটেমটি খুলুন।',
     'appMission.appMissionIdPackagePanel.tripPackage': 'ভ্রমণ প্যাকেজ',
@@ -548,6 +566,8 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdSnapshotsPage.noSnapshotsYetTakeOneFrom':
       'এখনও কোনো স্ন্যাপশট নেই। এই ভিসা ফাইলটি যেমন আছে তেমন একটি কপি রাখতে ভিসা ফাইলের পাতা থেকে একটি স্ন্যাপশট নিন।',
     'appMission.appMissionIdSnapshotsPage.showOlderSnapshots': 'পুরোনো স্ন্যাপশট দেখান',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.reasonRequiredToRejectOrRequest':
+      'কারণ (প্রত্যাখ্যান বা সংশোধনের অনুরোধ করতে আবশ্যক)',
     'appMission.appMissionIdSnapshotsSnapshotidPage.documents': 'ডকুমেন্টস',
     'appMission.appMissionIdSnapshotsSnapshotidPage.requirements': 'প্রয়োজনীয়তা',
     'appMission.appMissionIdSnapshotsSnapshotidPage.versionVersion': 'সংস্করণ {version}',
@@ -562,6 +582,8 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdSubmissionReportPanel.thisCaseMustReachSubmissionReady':
       'জমা দেওয়ার খবর জানানোর আগে এই ভিসা ফাইলকে “জমা দেওয়ার জন্য প্রস্তুত” অবস্থায় (একটি সক্রিয় স্বীকৃতিসহ) পৌঁছাতে হবে।',
     'appMission.appMissionIdTripChecksPanel.aboutTheseChecks': 'এই পরীক্ষাগুলো সম্পর্কে',
+    'appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates':
+      'আপনার ভ্রমণের তারিখ পাসপোর্ট ও ট্রাভেল ইনসুরেন্সের সঙ্গে মিলিয়ে দেখার কিছু সাধারণ পরীক্ষা। এগুলো কোনো দেশের নিয়ম নয়, তাই আপনার গন্তব্যের নিয়মগুলোও পড়ে নিন।',
     'appMission.appMissionIdTripChecksPanel.dates': 'তারিখসমূহ',
     'appMission.appMissionIdTripChecksPanel.tripDateChecks': 'ভ্রমণের তারিখ পরীক্ষা',
     'appMission.appMissionStartPage.aboutStartingATrip': 'ভ্রমণ শুরু করা সম্পর্কে',

@@ -409,13 +409,14 @@ describe('dates and held wording', () => {
     expect(formatTimestampDate('2026-10-06T10:00:00Z', 'en')).toBe('6 Oct 2026');
   });
 
-  it('keeps the AI, file-promise, disclaimer and counted-phrase wording in English', () => {
-    const held = [
+  // Owner sign-off of 2026-11-12 (blanket approval): these AI, file-promise, disclaimer and
+  // count wording keys have Bengali now. Each is also drawn under Bengali by its own surface test.
+  it('has Bengali for the signed-off AI, file-promise and disclaimer wording', () => {
+    const live = [
       'AppSuggestions.pluralYourAiAppsSuggestedFor',
       'AiReview.changeItIfItIsNot',
       'DocumentSuggestionCard.nothingIsSavedUntilYouAccept',
       'DocumentsAddPage.dropYourFilesOrAWhole',
-      'DocumentsAddReadingSwitch.automaticReadingStateWord',
       'ProfilePage.aiSuggestionsDoNotChangeYour',
       'ReviewPage.weCheckEachFileReadIt',
       'DocumentUploader.storedPrivatelyOnlyYouAndThe',
@@ -428,15 +429,25 @@ describe('dates and held wording', () => {
       'RemovalRecordsPage.whatWasDeletedFromThisRecord',
       'Page.completenessDoesNotVerifyIdentity',
       'Page.requirementCompletenessIsNotAnApproval',
-      'ExpiryPage.someVisaRoutesNeedADocument',
-      'DocumentExpiryForm.savedlabelReadFromTheDocument',
       'ReviewPage.filesNotReadYet',
       'Page.aCaseIsWhereOneVisa',
+      'ReviewPage.whatWeFound',
+    ];
+    for (const suffix of live) {
+      expect(`${K}${suffix}` in en, suffix).toBe(true);
+      expect(`${K}${suffix}` in bn, suffix).toBe(true);
+    }
+  });
+
+  it('keeps in English what is held for a technical or official-rule reason', () => {
+    const held = [
+      'DocumentsAddReadingSwitch.automaticReadingStateWord',
+      'ExpiryPage.someVisaRoutesNeedADocument',
+      'DocumentExpiryForm.savedlabelReadFromTheDocument',
       'ProfilePage.theDetailsMostVisaFormsAsk',
       'DocumentsNeedsDecision.removeThisFileLabel',
       'ProfileEditor.noLongerCurrentLabel',
       'DocumentUploader.notConfirmed',
-      'ReviewPage.whatWeFound',
       'ExpiryPage.expiresInPlural',
       'ExpiryPage.expiredPluralAgo',
       'ProfileEditor.iHaveNoTolowercase',

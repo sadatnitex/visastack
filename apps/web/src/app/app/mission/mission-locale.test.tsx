@@ -27,7 +27,7 @@ const sources = JSON.parse(
   readFileSync(join(__dirname, '../../../i18n/app-mission.sources.json'), 'utf8'),
 ) as Record<string, string>;
 
-/** Register rows held back in English: official requirement wording, sharing, access, deletion, AI. */
+/** Register rows that were held back for sign-off: official requirement wording, sharing, access, deletion, AI. */
 const HELD = [
   'SG-a5fa0621',
   'SG-9574696f',
@@ -81,14 +81,16 @@ describe('the case screens under Bengali', () => {
     expect(html).not.toContain('of');
   });
 
-  it('keeps official requirement, sharing, access, deletion and AI wording in English', () => {
-    const keys = Object.entries(sources)
-      .filter(([, group]) => HELD.includes(group))
-      .map(([key]) => key);
-    expect(keys.length).toBeGreaterThanOrEqual(HELD.length);
-    for (const key of keys) {
-      expect(key in bn, key).toBe(false);
+  // Owner sign-off of 2026-11-12: all but three of these now have Bengali. SG-a5fa0621 is held after
+  // reading (official authority was rendered as government authority); SG-c0b36ea9 is a count
+  // built from an English word helper; SG-86f84a55 is a button name whose visible text is English.
+  const STILL_HELD = ['SG-a5fa0621', 'SG-c0b36ea9', 'SG-86f84a55'];
+  it('shows the signed-off sharing, access, deletion and AI wording in Bengali and keeps one sentence English', () => {
+    const entries = Object.entries(sources).filter(([, group]) => HELD.includes(group));
+    expect(entries.length).toBeGreaterThanOrEqual(HELD.length);
+    for (const [key, group] of entries) {
       expect(en[key], key).toBeTruthy();
+      expect(key in bn, key).toBe(!STILL_HELD.includes(group));
     }
   });
 

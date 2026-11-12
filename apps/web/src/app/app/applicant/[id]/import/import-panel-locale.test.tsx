@@ -125,9 +125,10 @@ describe('the import panel under Bengali', () => {
     const labels = host.innerHTML.match(/aria-label="[^"]*"/g)?.join('|') ?? '';
     expect(labels).toContain(bn[`${K}folderToImport`]);
     expect(labels).toContain(bn[`${K}filesToImport`]);
-    // The limits and the privacy promise are held back, so they stay English.
-    expect(`${K}eachFileIsStoredPrivatelyAnd` in bn).toBe(false);
-    expect(text()).toContain(en[`${K}eachFileIsStoredPrivatelyAnd`]);
+    // The privacy promise is Bengali since the owner sign-off of 2026-11-12.
+    expect(`${K}eachFileIsStoredPrivatelyAnd` in bn).toBe(true);
+    expect(text()).toContain(bn[`${K}eachFileIsStoredPrivatelyAnd`]);
+    expect(text()).not.toContain(en[`${K}eachFileIsStoredPrivatelyAnd`]);
     expect(text()).not.toMatch(/appApplicant\./);
   });
 
@@ -149,15 +150,28 @@ describe('the import panel under Bengali', () => {
     );
     await flush();
     expect(text()).toContain(bn[`${K}forgetEarlierImports`]);
-    // Held back: it says what automatic reading did and what the person still approves.
-    expect(`${K}yourFilesAreSavedAndChecked` in bn).toBe(false);
-    expect(text()).toContain('Your files are saved and checked.');
+    // It says what automatic reading did and what the person still approves: Bengali since the
+    // owner sign-off of 2026-11-12.
+    expect(`${K}yourFilesAreSavedAndChecked` in bn).toBe(true);
+    expect(text()).toContain(bn[`${K}yourFilesAreSavedAndChecked`]);
+    expect(text()).not.toContain('Your files are saved and checked.');
     expect(text()).not.toMatch(/appApplicant\./);
   });
 
   it('offers the not-sure choice for the family route in Bengali', async () => {
     await mount('bn', people, true);
     expect(host.innerHTML).toContain(`>${bn[`${K}notSureHelpMeDecide`]}<`);
+  });
+
+  it('says each file waits for one decision when the person is not sure (signed off 2026-11-12)', async () => {
+    await mount('bn', people, true);
+    const select = host.querySelector('select') as HTMLSelectElement;
+    await act(async () => {
+      select.value = '__not_sure';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(text()).toContain(bn[`${K}eachFileWaitsInNeedsOne`]);
+    expect(text()).not.toContain(en[`${K}eachFileWaitsInNeedsOne`]);
   });
 
   it('names the folder a file came from in Bengali', async () => {

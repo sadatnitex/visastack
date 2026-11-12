@@ -2,6 +2,17 @@ import type { CasePackage, PackageItem } from '@visastack/services';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+vi.mock('server-only', () => ({}));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 vi.mock('./package-actions', () => ({
   recordPackageChoiceAction: vi.fn(),
   markPackageChangeReviewedAction: vi.fn(),
@@ -128,5 +139,20 @@ describe('PackagePanel', () => {
   it('shows a finished case as it is, with no forms', () => {
     const html = renderToStaticMarkup(<PackagePanel pkg={pkg({ active: false })} />);
     expect(html).not.toContain('<form');
+  });
+});
+
+describe('the trip package under Bengali (wording signed off 2026-11-12)', () => {
+  it('says what the package shows in Bengali', async () => {
+    const { appMissionCatalog } = await import('../../../../i18n/app-mission');
+    const { primeLocale } = await import('../../../../lib/i18n-server');
+    loc.holder = null;
+    loc.locale = 'bn';
+    await primeLocale();
+    const html = renderToStaticMarkup(<PackagePanel pkg={pkg()} />);
+    loc.locale = 'en';
+    const key = 'appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady';
+    expect(html).toContain((appMissionCatalog.bn as Record<string, string>)[key]);
+    expect(html).not.toContain((appMissionCatalog.en as Record<string, string>)[key]);
   });
 });

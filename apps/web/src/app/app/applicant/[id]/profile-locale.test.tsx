@@ -174,12 +174,15 @@ describe('the profile page under Bengali', () => {
     expect(text).not.toMatch(/appApplicant\./);
   });
 
-  it('keeps the AI approval promises and the unchecked identity line in English', async () => {
+  it('shows the AI approval promise in Bengali and keeps the visa-form statement in English', async () => {
     const text = await page('bn');
-    for (const key of [`${P}aiSuggestionsDoNotChangeYour`, `${P}theDetailsMostVisaFormsAsk`]) {
-      expect(key in bn, key).toBe(false);
-      expect(text, key).toContain(en[key] ?? 'MISSING');
-    }
+    const promise = `${P}aiSuggestionsDoNotChangeYour`;
+    expect(promise in bn).toBe(true);
+    expect(text).toContain(bn[promise]);
+    // Official requirement wording stays English (owner decision).
+    const forms = `${P}theDetailsMostVisaFormsAsk`;
+    expect(forms in bn).toBe(false);
+    expect(text).toContain(en[forms] ?? 'MISSING');
     expect(text).toContain('This does not verify identity.');
   });
 
