@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationState, renderServer, textOf } from '../../../../lib/next-mocks.test-support';
 import { missingBengali } from '../agency-bn.test-support';
@@ -169,9 +170,9 @@ describe('the agency overview under Bengali', () => {
     const { html } = await draw('bn');
     const labels = [...html.matchAll(/data-label="([^"]*)"/g)].map((match) => match[1]);
     // The marked headings hold a span now (a lang attribute on Bengali words), so read the text inside.
-    const headings = [...html.matchAll(/<th scope="col">(.*?)<\/th>/g)].map((match) =>
-      (match[1] ?? '').replace(/<[^>]*>/g, ''),
-    );
+    const headings = [
+      ...new JSDOM(`<body>${html}</body>`).window.document.querySelectorAll('th[scope="col"]'),
+    ].map((cell) => cell.textContent);
     expect(labels.length).toBeGreaterThan(0);
     // Every phone label is the very heading of its column, so the two never differ in language.
     for (const label of labels) expect(headings).toContain(label);
