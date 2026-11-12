@@ -348,7 +348,7 @@ export async function uploadDocumentAction(
       // The record's owner, for themselves (checked above): the line when a paid plan would help.
       return {
         ok: false,
-        message: reservation.error.message,
+        message: await serviceErrorMessage(reservation.error),
         ...(await upgradeLineForRefusal(db, self, reservation.error)),
         ...(reservation.error.code === 'rate_limited' ? { refusal: 'rate_limited' as const } : {}),
       } satisfies ActionState;

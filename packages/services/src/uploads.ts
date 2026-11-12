@@ -112,7 +112,7 @@ async function checkQuotaTiers(
       .where(eq(schema.applicants.id, input.applicantId))
       .limit(1),
   );
-  if (!owner) return err(keyedError('not_found', 'uploads.applicantNotFound'));
+  if (!owner) return err(keyedError('not_found', 'documents.applicantNotFound'));
   const limits = await storageLimitsForOwner(tx, owner.id, config);
   // This record's own room is shown to anyone who may open it (the Documents page meter). The
   // owner's whole-account limit is theirs: someone uploading into another person's record is told

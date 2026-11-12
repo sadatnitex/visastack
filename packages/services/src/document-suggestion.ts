@@ -129,8 +129,7 @@ export async function decideDocumentSuggestion(
     }
     kind = prepared.value;
     name = cleanDocumentName(input.name);
-    if (name.length === 0)
-      return err(keyedError('invalid', 'suggestions.enterANameForThisDocument'));
+    if (name.length === 0) return err(keyedError('invalid', 'naming.enterANameForThisDocument'));
   }
 
   const documentId = proof.resource.document.id;
@@ -152,7 +151,7 @@ export async function decideDocumentSuggestion(
           .limit(1)
           .for('update'),
       );
-      if (!document) refuseKeyed('not_found', 'suggestions.documentNotFound');
+      if (!document) refuseKeyed('not_found', 'documents.documentNotFound');
       // Nothing is decided for a file that is not, or is no longer, past its safety checks.
       const latest = first(
         await tx

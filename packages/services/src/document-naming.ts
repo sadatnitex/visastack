@@ -73,7 +73,7 @@ export async function proposeDocumentName(
         .limit(1)
         .for('update'),
     );
-    if (!document) return err(keyedError('not_found', 'naming.documentNotFound'));
+    if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
     const nextNumber = await nextNameVersionNumber(tx, input.documentId);
 
     const version = required(
@@ -153,7 +153,7 @@ export async function decideDocumentName(
       )
       .limit(1),
   );
-  if (!document) return err(keyedError('not_found', 'naming.documentNotFound'));
+  if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
 
   const applicant = first(
     await db
@@ -290,7 +290,7 @@ export async function renameDocument(
         .limit(1)
         .for('update'),
     );
-    if (!document) return err(keyedError('not_found', 'naming.documentNotFound'));
+    if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
     const versionNumber = await nextNameVersionNumber(tx, documentId);
     const decidedAt = new Date();
     const version = required(
