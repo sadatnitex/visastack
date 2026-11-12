@@ -9,6 +9,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { applicantCalendarCatalog } from '../../../../../i18n/applicant-calendar';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import {
   CALENDAR_EXPORT_LIMIT,
   describeCalendarItem,
@@ -55,6 +57,8 @@ export default async function CalendarExportPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams: Promise<CalendarQuery>;
 }) {
+  await primeLocale();
+  const t = getServerT(applicantCalendarCatalog);
   const { id } = await params;
   const query = await searchParams;
   const loaded = await loadCalendarDates(id);
@@ -71,23 +75,21 @@ export default async function CalendarExportPage({
   const header = (
     <PageHeader
       as="h2"
-      eyebrow="Calendar"
-      title="Add Dates to My Calendar"
-      description="Choose the dates you want, check the preview, then download one file to open in your calendar app."
+      eyebrow={t('applicantCalendar.appApplicantIdCalendarPage.calendar')}
+      title={t('applicantCalendar.appApplicantIdCalendarPage.addDatesToMyCalendar')}
+      description={t('applicantCalendar.appApplicantIdCalendarPage.chooseTheDatesYouWantCheck')}
       back={{ href: '/app', label: 'Home' }}
     />
   );
   const notes = (
     <div className="notice notice-stack u-mb-150">
       <p className="u-m-0">
-        This is a one-time copy. If a date changes later, your calendar will not update; download a
-        new file. Calendar apps that support updates replace the dates you added before; others may
-        add them again.
+        {t('applicantCalendar.appApplicantIdCalendarPage.thisIsAOneTimeCopy')}
       </p>
       <p className="u-m-0">
-        Dates without a time are added as all-day events. Titles are general, such as &quot;Task
-        Due&quot;, unless you choose to add case names. Dates more than {CALENDAR_PAST_DAYS} days
-        ago are not listed.
+        {t('applicantCalendar.appApplicantIdCalendarPage.datesWithoutATimeAreAdded', {
+          CALENDAR_PAST_DAYS,
+        })}
       </p>
     </div>
   );
@@ -96,7 +98,7 @@ export default async function CalendarExportPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          We could not load your dates just now. Refresh to try again.
+          {t('applicantCalendar.appApplicantIdCalendarPage.weCouldNotLoadYourDates')}
         </p>
         {subscribe}
       </>
@@ -131,9 +133,11 @@ export default async function CalendarExportPage({
       <>
         {header}
         {notes}
-        <EmptyState title="No Dates to Add" icon="calendar">
-          Appointments, due dates and document expiry dates appear here once they are set. Items
-          without a date are never added.
+        <EmptyState
+          title={t('applicantCalendar.appApplicantIdCalendarPage.noDatesToAdd')}
+          icon="calendar"
+        >
+          {t('applicantCalendar.appApplicantIdCalendarPage.appointmentsDueDatesAndDocumentExpiry')}
         </EmptyState>
         {subscribe}
       </>
@@ -147,24 +151,24 @@ export default async function CalendarExportPage({
 
       {nothingChosen ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          Choose at least one date first. A date finished or removed since the preview is left out.
+          {t('applicantCalendar.appApplicantIdCalendarPage.chooseAtLeastOneDateFirst')}
         </p>
       ) : null}
       {failed ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          We could not make the file just now. Try again.
+          {t('applicantCalendar.appApplicantIdCalendarPage.weCouldNotMakeTheFile')}
         </p>
       ) : null}
 
       {preview && preview.events.length > 0 ? (
         <section className="card u-mb-150" aria-labelledby="calendar-preview-heading">
           <h3 className="card-title" id="calendar-preview-heading">
-            Preview
+            {t('applicantCalendar.appApplicantIdCalendarPage.preview')}
           </h3>
           <p className="card-body">
-            The file will hold {plural(preview.events.length, 'event')}, as shown here. It is made
-            again when you download it: anything finished or removed since this preview is left out,
-            and anything changed comes in as it is then.
+            {t('applicantCalendar.appApplicantIdCalendarPage.theFileWillHoldPluralAs', {
+              plural: plural(preview.events.length, 'event'),
+            })}
           </p>
           <CalendarPreviewPanel
             events={preview.events.map((event) => ({
@@ -181,9 +185,11 @@ export default async function CalendarExportPage({
           </p>
           {preview.leftOut > 0 ? (
             <p className="muted">
-              One file holds up to {CALENDAR_EXPORT_LIMIT} events, so the last{' '}
-              {plural(preview.leftOut, 'date')} you chose {preview.leftOut === 1 ? 'is' : 'are'}{' '}
-              left out. Download them in a second file.
+              {t('applicantCalendar.appApplicantIdCalendarPage.oneFileHoldsUpToCalendar', {
+                leftOut: preview.leftOut,
+                CALENDAR_EXPORT_LIMIT,
+                plural: plural(preview.leftOut, 'date'),
+              })}
             </p>
           ) : null}
           <form method="post" action={`${pageHref}/download`} className="calendar-actions">
@@ -199,7 +205,7 @@ export default async function CalendarExportPage({
               <input key={`${name}=${value}`} type="hidden" name={name} value={value} />
             ))}
             <button type="submit" className="btn btn-primary">
-              Download Calendar File
+              {t('applicantCalendar.appApplicantIdCalendarPage.downloadCalendarFile')}
             </button>
           </form>
         </section>
@@ -207,12 +213,14 @@ export default async function CalendarExportPage({
 
       <section className="card" aria-labelledby="calendar-choose-heading">
         <h3 className="card-title" id="calendar-choose-heading">
-          Choose Dates
+          {t('applicantCalendar.appApplicantIdCalendarPage.chooseDates')}
         </h3>
         <form method="get" action={pageHref} className="calendar-form">
           <input type="hidden" name="preview" value="1" />
           <fieldset className="fieldset">
-            <legend className="field-label">Dates to Add</legend>
+            <legend className="field-label">
+              {t('applicantCalendar.appApplicantIdCalendarPage.datesToAdd')}
+            </legend>
             <CalendarDateGroups
               items={items.map((item) => ({
                 key: item.key,
@@ -225,12 +233,17 @@ export default async function CalendarExportPage({
             />
             {truncated ? (
               <p className="muted u-m-0">
-                Only the earliest {CALENDAR_SOURCE_LIMIT} of each kind of date are listed.
+                {t(
+                  'applicantCalendar.appApplicantIdCalendarPage.onlyTheEarliestCalendarSourceLimit',
+                  { CALENDAR_SOURCE_LIMIT },
+                )}
               </p>
             ) : null}
           </fieldset>
           <fieldset className="fieldset">
-            <legend className="field-label">Titles</legend>
+            <legend className="field-label">
+              {t('applicantCalendar.appApplicantIdCalendarPage.titles')}
+            </legend>
             <label className="check calendar-date" htmlFor="calendar-case-names">
               <input
                 id="calendar-case-names"
@@ -240,16 +253,16 @@ export default async function CalendarExportPage({
                 defaultChecked={options.titleStyle === 'withCaseNames'}
                 aria-describedby="calendar-case-names-note"
               />
-              <span>Add Case Names</span>
+              <span>{t('applicantCalendar.appApplicantIdCalendarPage.addCaseNames')}</span>
             </label>
             <p id="calendar-case-names-note" className="muted u-fs-075 u-m-0">
-              Adds the case name after the title, for example &quot;Task Due - Japan Visit&quot;.
-              Anyone who can see your calendar will see it. A case name with a number, a link or an
-              email address in it is left out.
+              {t('applicantCalendar.appApplicantIdCalendarPage.addsTheCaseNameAfterThe')}
             </p>
           </fieldset>
           <fieldset className="fieldset">
-            <legend className="field-label">Remind Me</legend>
+            <legend className="field-label">
+              {t('applicantCalendar.appApplicantIdCalendarPage.remindMe')}
+            </legend>
             <div className="checks">
               {REMINDER_CHOICES.map(([value, label]) => (
                 <label
@@ -269,16 +282,18 @@ export default async function CalendarExportPage({
               ))}
             </div>
           </fieldset>
-          <StickyActionBar label="Preview Your Dates">
+          <StickyActionBar
+            label={t('applicantCalendar.appApplicantIdCalendarPage.previewYourDates')}
+          >
             <button
               type="submit"
               className={`btn ${preview && preview.events.length > 0 ? 'btn-secondary' : 'btn-primary'}`}
             >
-              Preview
+              {t('applicantCalendar.appApplicantIdCalendarPage.preview')}
             </button>
             {wantsPreview ? (
               <Link href={pageHref} className="btn btn-secondary">
-                Clear Choices
+                {t('applicantCalendar.appApplicantIdCalendarPage.clearChoices')}
               </Link>
             ) : null}
           </StickyActionBar>

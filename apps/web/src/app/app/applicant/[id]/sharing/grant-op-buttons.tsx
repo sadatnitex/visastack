@@ -2,6 +2,8 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { type ActionState, updateGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -26,6 +28,7 @@ export function GrantOpButtons({
     readonly variant: string;
   }>;
 }) {
+  const t = useT(applicantSharingCatalog);
   const [state, formAction, pending] = useActionState(updateGrantAction, INITIAL);
   const [confirming, setConfirming] = useState<string | null>(null);
   useEffect(() => {
@@ -57,7 +60,7 @@ export function GrantOpButtons({
                       className="btn btn-secondary u-btn-sm"
                       onClick={() => setConfirming(null)}
                     >
-                      Keep Access
+                      {t('applicantSharing.appApplicantIdSharingGrantOpButtons.keepAccess')}
                     </button>
                   </div>
                 </div>

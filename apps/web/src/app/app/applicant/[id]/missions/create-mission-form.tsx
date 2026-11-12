@@ -7,9 +7,11 @@ import {
   SubmitButton,
   useFocusInvalidField,
 } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
 import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { Disclosure } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
+import { applicantMissionsCatalog } from '../../../../../i18n/applicant-missions';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../../lib/case-choices';
 import { CASE_DATE_FIELDS } from '../../../../../lib/form-dates';
 import { usePartTypedDateCheck } from '../../../../../lib/use-part-typed-date-check';
@@ -41,6 +43,7 @@ export function CreateMissionForm({
   /** Start with the optional details open (the Everything level of the Cases page shows all of it). */
   readonly openDetails?: boolean;
 }) {
+  const t = useT(applicantMissionsCatalog);
   const [state, formAction, pending] = useActionState(createMissionAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const baseId = useId();
@@ -121,7 +124,9 @@ export function CreateMissionForm({
           maxLength={TITLE_MAX}
           autoComplete="off"
           className="input"
-          placeholder="e.g. UK Student Visa - Autumn 2026"
+          placeholder={t(
+            'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGUkStudentVisaAutumn',
+          )}
           defaultValue={values.title ?? ''}
           {...control}
         />
@@ -134,7 +139,7 @@ export function CreateMissionForm({
             id={id}
             countries={countries}
             defaultValue={values.destination ?? ''}
-            placeholder="Not Sure Yet"
+            placeholder={t('applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet')}
             problem={control}
           />
         ),
@@ -148,7 +153,9 @@ export function CreateMissionForm({
           defaultValue={values.purpose ?? ''}
           {...control}
         >
-          <option value="">Not Sure Yet</option>
+          <option value="">
+            {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet')}
+          </option>
           {purposes.map((group) => (
             <optgroup key={group.family} label={group.label}>
               {group.options.map((option) => (
@@ -160,15 +167,20 @@ export function CreateMissionForm({
           ))}
         </select>
       ))}
-      <AboutDisclosure summary="About Checklists">
+      <AboutDisclosure
+        summary={t('applicantMissions.appApplicantIdMissionsCreateMissionForm.aboutChecklists')}
+      >
         <p className="muted u-fs-085 u-m-0">
-          With a country and a purpose, the checklist for that visa route is linked when there is
-          one.
+          {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.withACountryAndAPurpose')}
         </p>
       </AboutDisclosure>
       <Disclosure
-        title="Add More Details (Optional)"
-        hint="Family trip label, embassy, dates and deadline"
+        title={t(
+          'applicantMissions.appApplicantIdMissionsCreateMissionForm.addMoreDetailsOptional',
+        )}
+        hint={t(
+          'applicantMissions.appApplicantIdMissionsCreateMissionForm.familyTripLabelEmbassyDatesAnd',
+        )}
         {...(detailsHaveProblem || openDetails ? { open: true } : {})}
       >
         {field('itineraryRef', 'Family Trip Label (Optional)', (id, control) => (
@@ -177,7 +189,9 @@ export function CreateMissionForm({
             name="itineraryRef"
             type="text"
             className="input"
-            placeholder="e.g. Smith Family Europe 2026"
+            placeholder={t(
+              'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGSmithFamilyEurope2026',
+            )}
             defaultValue={values.itineraryRef ?? ''}
             {...control}
           />
@@ -188,7 +202,9 @@ export function CreateMissionForm({
             name="jurisdiction"
             type="text"
             className="input"
-            placeholder="e.g. US Embassy Dhaka"
+            placeholder={t(
+              'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGUsEmbassyDhaka',
+            )}
             defaultValue={values.jurisdiction ?? ''}
             {...control}
           />
@@ -199,17 +215,21 @@ export function CreateMissionForm({
             name="serviceCategory"
             type="text"
             className="input"
-            placeholder="e.g. Tourist, Student, Work"
+            placeholder={t(
+              'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGTouristStudentWork',
+            )}
             defaultValue={values.serviceCategory ?? ''}
             {...control}
           />
         ))}
         <fieldset className="fieldset case-date-range">
-          <legend className="field-label">Travel Dates (Optional)</legend>
+          <legend className="field-label">
+            {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional')}
+          </legend>
           <div className="case-date-pair">
             <div>
               <label className="field-label" htmlFor={`${baseId}-travelStartDate`}>
-                Start Date
+                {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.startDate')}
               </label>
               <input
                 id={`${baseId}-travelStartDate`}
@@ -223,7 +243,7 @@ export function CreateMissionForm({
             </div>
             <div>
               <label className="field-label" htmlFor={`${baseId}-travelEndDate`}>
-                End Date
+                {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.endDate')}
               </label>
               <input
                 id={`${baseId}-travelEndDate`}
@@ -248,7 +268,9 @@ export function CreateMissionForm({
           />
         ))}
       </Disclosure>
-      <StickyActionBar label="Create the Case">
+      <StickyActionBar
+        label={t('applicantMissions.appApplicantIdMissionsCreateMissionForm.createTheCase')}
+      >
         <SubmitButton
           pending={pending}
           idle="Create Case"

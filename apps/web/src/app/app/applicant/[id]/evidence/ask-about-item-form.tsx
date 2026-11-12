@@ -2,6 +2,8 @@
 
 import { useActionState, useEffect, useId, useRef } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
 import { SAVING_TEXT, saveResult } from '../../../../../lib/save-status';
 import { type ActionState, askAboutRequestItemAction } from './actions';
 
@@ -29,6 +31,7 @@ export function AskAboutItemForm({
   /** What the request is for, so several Send Question buttons on one page each say which item. */
   readonly itemLabel?: string;
 }) {
+  const t = useT(applicantEvidenceCatalog);
   const [state, formAction, pending] = useActionState(askAboutRequestItemAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   const fieldId = useId();
@@ -46,7 +49,7 @@ export function AskAboutItemForm({
       <input type="hidden" name="requestId" value={requestId} />
       <div className="field-row">
         <label htmlFor={fieldId} className="field-label">
-          Your Question
+          {t('applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.yourQuestion')}
         </label>
         <textarea
           id={fieldId}
@@ -58,8 +61,10 @@ export function AskAboutItemForm({
           className="input"
         />
         <p id={noteId} className="muted u-fs-085 request-ask-note">
-          Everyone who can read the shared notes on this case will see your question. Do not type
-          passport, bank or card numbers. Up to {maxLength} characters.
+          {t(
+            'applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.everyoneWhoCanReadTheShared',
+            { maxLength },
+          )}
         </p>
       </div>
       <div className="request-response-actions">

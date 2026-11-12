@@ -11,7 +11,9 @@ import {
   PageHeader,
   StatusBadge,
 } from '../../../../../components/ui';
+import { applicantInsightsCatalog } from '../../../../../i18n/applicant-insights';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import {
   EXPIRY_BADGE,
   ORIGINAL_STATE_BADGE,
@@ -54,11 +56,18 @@ function MoreOnItsPage({
   /** More than one page, when the rows that are not shown are resolved in different places. */
   readonly pages?: readonly MorePage[];
 }) {
+  const t = getServerT(applicantInsightsCatalog);
   if (total <= shown) return null;
   const links = pages ?? (href && label ? [{ href, label }] : []);
   return (
     <p className="insights-more">
-      <span className="insights-note">{`Showing ${shown} of ${total} ${noun}.`}</span>{' '}
+      <span className="insights-note">
+        {t('applicantInsights.appApplicantIdInsightsPage.showingShownOfTotalNoun', {
+          shown,
+          total,
+          noun,
+        })}
+      </span>{' '}
       {links.map((link) => (
         <Link key={link.href} className="btn btn-secondary insights-action" href={link.href}>
           {link.label}
@@ -135,6 +144,8 @@ export default async function DocumentInsightsPage({
 }: {
   readonly params: Promise<{ id: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(applicantInsightsCatalog);
   const { id } = await params;
   const loaded = await withSession(async ({ db, accountId }) => {
     const access = await requireAccess(
@@ -155,9 +166,9 @@ export default async function DocumentInsightsPage({
   const header = (
     <PageHeader
       as="h2"
-      eyebrow="Document Insights"
-      title="What Your Documents Show"
-      description="A summary of your saved documents and profile. It never shows the details themselves, and nothing here changes your profile."
+      eyebrow={t('applicantInsights.appApplicantIdInsightsPage.documentInsights')}
+      title={t('applicantInsights.appApplicantIdInsightsPage.whatYourDocumentsShow')}
+      description={t('applicantInsights.appApplicantIdInsightsPage.aSummaryOfYourSavedDocuments')}
       back={{ href: documentsHref, label: 'Documents' }}
     />
   );
@@ -166,8 +177,7 @@ export default async function DocumentInsightsPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          We could not put this summary together just now. Refresh to try again. Nothing is reported
-          as missing while it cannot load.
+          {t('applicantInsights.appApplicantIdInsightsPage.weCouldNotPutThisSummary')}
         </p>
       </>
     );
@@ -279,7 +289,10 @@ export default async function DocumentInsightsPage({
     <>
       {header}
 
-      <ul className="insights-summary" aria-label="Summary">
+      <ul
+        className="insights-summary"
+        aria-label={t('applicantInsights.appApplicantIdInsightsPage.summary')}
+      >
         {summary.map((item) => (
           <li key={item.key} className="insights-summary-item" data-tone={item.tone}>
             <span className="insights-summary-icon" aria-hidden="true">
@@ -296,20 +309,23 @@ export default async function DocumentInsightsPage({
           id="insights-check"
           tone="amber"
           icon="alert"
-          kicker="Differences"
-          title="Details to Check"
+          kicker={t('applicantInsights.appApplicantIdInsightsPage.differences')}
+          title={t('applicantInsights.appApplicantIdInsightsPage.detailsToCheck')}
           listName="Details"
           count={toCheck.length}
           open={checkOpen}
         >
           {toCheck.length === 0 ? (
-            <EmptyState icon="check" title="Nothing to Check">
-              No saved detail differs from what was read in your documents.
+            <EmptyState
+              icon="check"
+              title={t('applicantInsights.appApplicantIdInsightsPage.nothingToCheck')}
+            >
+              {t('applicantInsights.appApplicantIdInsightsPage.noSavedDetailDiffersFromWhat')}
             </EmptyState>
           ) : (
             <>
               <p className="insights-note">
-                We only say that two details differ and where. Open each one to see both and decide.
+                {t('applicantInsights.appApplicantIdInsightsPage.weOnlySayThatTwoDetails')}
               </p>
               <AttentionList items={toCheck.slice(0, CARD_ROWS)} />
               <MoreOnItsPage
@@ -333,15 +349,18 @@ export default async function DocumentInsightsPage({
           id="insights-expiry"
           tone="red"
           icon="calendar"
-          kicker="Coming Up"
-          title="Expiry Timeline"
+          kicker={t('applicantInsights.appApplicantIdInsightsPage.comingUp')}
+          title={t('applicantInsights.appApplicantIdInsightsPage.expiryTimeline')}
           listName="Dates"
           count={insights.expiry.length}
           open={expiringNow}
         >
           {insights.expiry.length === 0 ? (
-            <EmptyState icon="calendar" title="No Expiry Dates Yet">
-              Documents with an end date, such as a passport, appear here in the order they run out.
+            <EmptyState
+              icon="calendar"
+              title={t('applicantInsights.appApplicantIdInsightsPage.noExpiryDatesYet')}
+            >
+              {t('applicantInsights.appApplicantIdInsightsPage.documentsWithAnEndDateSuch')}
             </EmptyState>
           ) : (
             <ol className="insights-list insights-timeline">
@@ -363,10 +382,15 @@ export default async function DocumentInsightsPage({
             </ol>
           )}
           {insights.expiry.length > CARD_ROWS ? (
-            <p className="insights-note">{`Showing ${CARD_ROWS} of ${insights.expiry.length} dates.`}</p>
+            <p className="insights-note">
+              {t('applicantInsights.appApplicantIdInsightsPage.showingCardRowsOfLengthDates', {
+                CARD_ROWS,
+                length: insights.expiry.length,
+              })}
+            </p>
           ) : null}
           <Link className="btn btn-secondary insights-action" href={`/app/applicant/${id}/expiry`}>
-            Open Dates &amp; Expiry
+            {t('applicantInsights.appApplicantIdInsightsPage.openDatesExpiry')}
           </Link>
         </InsightsCard>
 
@@ -374,8 +398,8 @@ export default async function DocumentInsightsPage({
           id="insights-cases"
           tone="blue"
           icon="briefcase"
-          kicker="Cases"
-          title="Readiness by Case"
+          kicker={t('applicantInsights.appApplicantIdInsightsPage.cases')}
+          title={t('applicantInsights.appApplicantIdInsightsPage.readinessByCase')}
           listName="Cases"
           count={insights.cases.length}
           open={false}
@@ -383,10 +407,10 @@ export default async function DocumentInsightsPage({
           {insights.cases.length === 0 ? (
             <EmptyState
               icon="folder"
-              title="No Open Cases"
+              title={t('applicantInsights.appApplicantIdInsightsPage.noOpenCases')}
               action={{ href: `/app/applicant/${id}/missions#start-case`, label: 'Start a Case' }}
             >
-              Each visa application is a case. Its readiness appears here once you start one.
+              {t('applicantInsights.appApplicantIdInsightsPage.eachVisaApplicationIsACase')}
             </EmptyState>
           ) : (
             <ul className="insights-list">
@@ -414,7 +438,7 @@ export default async function DocumentInsightsPage({
             total={insights.cases.length}
             noun="cases"
             href={`/app/applicant/${id}/missions`}
-            label="Open Cases"
+            label={t('applicantInsights.appApplicantIdInsightsPage.openCases')}
           />
         </InsightsCard>
 
@@ -422,8 +446,8 @@ export default async function DocumentInsightsPage({
           id="insights-originals"
           tone="violet"
           icon="file"
-          kicker="Paper Copies"
-          title="Originals to Bring"
+          kicker={t('applicantInsights.appApplicantIdInsightsPage.paperCopies')}
+          title={t('applicantInsights.appApplicantIdInsightsPage.originalsToBring')}
           listName="Originals"
           count={
             insights.originals.cases.length > 0
@@ -433,8 +457,7 @@ export default async function DocumentInsightsPage({
           open={false}
         >
           <p className="insights-note">
-            Embassies usually want these handed in as the original paper. The scan on file keeps
-            your application ready; keep the original safe.
+            {t('applicantInsights.appApplicantIdInsightsPage.embassiesUsuallyWantTheseHandedIn')}
           </p>
           {insights.originals.cases.length > 0 ? (
             originalCases.map((entry) => (
@@ -461,7 +484,11 @@ export default async function DocumentInsightsPage({
                               {documentTypeLabel(item.kind)}
                             </span>
                             {item.optional ? (
-                              <span className="insights-row-detail">Optional for this case</span>
+                              <span className="insights-row-detail">
+                                {t(
+                                  'applicantInsights.appApplicantIdInsightsPage.optionalForThisCase',
+                                )}
+                              </span>
                             ) : null}
                           </span>
                           <span className="insights-row-end">
@@ -471,7 +498,7 @@ export default async function DocumentInsightsPage({
                                 className="btn btn-secondary insights-action"
                                 href={uploadHref(item.kind)}
                               >
-                                Upload
+                                {t('applicantInsights.appApplicantIdInsightsPage.upload')}
                                 <span className="sr-only"> {documentTypeLabel(item.kind)}</span>
                               </Link>
                             ) : null}
@@ -487,7 +514,7 @@ export default async function DocumentInsightsPage({
                     total={entry.items.length}
                     noun="documents"
                     href={`/app/mission/${entry.caseId}`}
-                    label="Open the Case"
+                    label={t('applicantInsights.appApplicantIdInsightsPage.openTheCase')}
                   />
                 )}
               </div>
@@ -497,14 +524,18 @@ export default async function DocumentInsightsPage({
               {insights.originals.onFile.slice(0, CARD_ROWS).map((ref) => (
                 <li key={ref.id} className="insights-row">
                   <span className="insights-row-label">{documentName(ref)}</span>
-                  <StatusBadge tone="neutral">Usually Original</StatusBadge>
+                  <StatusBadge tone="neutral">
+                    {t('applicantInsights.appApplicantIdInsightsPage.usuallyOriginal')}
+                  </StatusBadge>
                 </li>
               ))}
             </ul>
           ) : (
-            <EmptyState icon="file" title="No Originals Listed Yet">
-              Once a case lists its documents, or you add one usually handed in as the original, it
-              appears here.
+            <EmptyState
+              icon="file"
+              title={t('applicantInsights.appApplicantIdInsightsPage.noOriginalsListedYet')}
+            >
+              {t('applicantInsights.appApplicantIdInsightsPage.onceACaseListsItsDocuments')}
             </EmptyState>
           )}
           {insights.originals.cases.length > 0 ? (
@@ -513,7 +544,7 @@ export default async function DocumentInsightsPage({
               total={insights.originals.cases.length}
               noun="cases"
               href={`/app/applicant/${id}/missions`}
-              label="Open Cases"
+              label={t('applicantInsights.appApplicantIdInsightsPage.openCases')}
             />
           ) : (
             <MoreOnItsPage
@@ -521,7 +552,7 @@ export default async function DocumentInsightsPage({
               total={insights.originals.onFile.length}
               noun="documents"
               href={documentsHref}
-              label="Open Documents"
+              label={t('applicantInsights.appApplicantIdInsightsPage.openDocuments')}
             />
           )}
         </InsightsCard>
@@ -530,26 +561,32 @@ export default async function DocumentInsightsPage({
           id="insights-coverage"
           tone="teal"
           icon="clipboard"
-          kicker="Profile Coverage"
-          title="Sections Backed by a Document"
+          kicker={t('applicantInsights.appApplicantIdInsightsPage.profileCoverage')}
+          title={t('applicantInsights.appApplicantIdInsightsPage.sectionsBackedByADocument')}
           listName="Sections"
           count={insights.coverage.sections.length}
           open={false}
         >
           {insights.coverage.sections.length === 0 ? (
-            <EmptyState icon="folder" title="No Sections to Back Yet">
-              Open a profile section that a document can back, and it appears here.
+            <EmptyState
+              icon="folder"
+              title={t('applicantInsights.appApplicantIdInsightsPage.noSectionsToBackYet')}
+            >
+              {t('applicantInsights.appApplicantIdInsightsPage.openAProfileSectionThatA')}
             </EmptyState>
           ) : (
             <>
               <p className="insights-note">
-                {insights.coverage.covered} of{' '}
-                {plural(insights.coverage.sections.length, 'open section')}{' '}
-                {insights.coverage.covered === 1 ? 'has' : 'have'} a supporting document.
+                {t('applicantInsights.appApplicantIdInsightsPage.coveredOfPluralHaveASupporting', {
+                  covered: insights.coverage.covered,
+                  plural: plural(insights.coverage.sections.length, 'open section'),
+                })}
               </p>
               {missingSections.length > 0 ? (
                 <div className="insights-group">
-                  <h4 className="insights-group-title">No Document Yet</h4>
+                  <h4 className="insights-group-title">
+                    {t('applicantInsights.appApplicantIdInsightsPage.noDocumentYet')}
+                  </h4>
                   <ul className="insights-list">
                     {missingSections.slice(0, CARD_ROWS).map((section) => {
                       const first = section.kinds[0];
@@ -573,7 +610,7 @@ export default async function DocumentInsightsPage({
                               className="btn btn-secondary insights-action"
                               href={uploadHref(first.kind)}
                             >
-                              Upload
+                              {t('applicantInsights.appApplicantIdInsightsPage.upload')}
                               <span className="sr-only"> {documentTypeLabel(first.kind)}</span>
                             </Link>
                           ) : null}
@@ -585,7 +622,9 @@ export default async function DocumentInsightsPage({
               ) : null}
               {coveredSections.length > 0 ? (
                 <div className="insights-group">
-                  <h4 className="insights-group-title">Backed</h4>
+                  <h4 className="insights-group-title">
+                    {t('applicantInsights.appApplicantIdInsightsPage.backed')}
+                  </h4>
                   <ul className="insights-list">
                     {coveredSections.slice(0, CARD_ROWS).map((section) => (
                       <li key={section.key} className="insights-row">
@@ -598,7 +637,9 @@ export default async function DocumentInsightsPage({
                               .join(', ')}
                           </span>
                         </span>
-                        <StatusBadge tone="success">Backed</StatusBadge>
+                        <StatusBadge tone="success">
+                          {t('applicantInsights.appApplicantIdInsightsPage.backed')}
+                        </StatusBadge>
                       </li>
                     ))}
                   </ul>
@@ -612,7 +653,7 @@ export default async function DocumentInsightsPage({
                 total={insights.coverage.sections.length}
                 noun="sections"
                 href={profileHref}
-                label="Open Profile"
+                label={t('applicantInsights.appApplicantIdInsightsPage.openProfile')}
               />
             </>
           )}
@@ -622,8 +663,8 @@ export default async function DocumentInsightsPage({
           id="insights-evidence"
           tone="blue"
           icon="share"
-          kicker="Evidence Map"
-          title="Documents Behind Your Details"
+          kicker={t('applicantInsights.appApplicantIdInsightsPage.evidenceMap')}
+          title={t('applicantInsights.appApplicantIdInsightsPage.documentsBehindYourDetails')}
           listName="Documents"
           count={insights.evidence.length}
           open={false}
@@ -631,10 +672,10 @@ export default async function DocumentInsightsPage({
           {insights.evidence.length === 0 ? (
             <EmptyState
               icon="file"
-              title="No Documents Yet"
+              title={t('applicantInsights.appApplicantIdInsightsPage.noDocumentsYet')}
               action={{ href: `${documentsHref}/add`, label: 'Add a Document' }}
             >
-              Add a document and accept what was found in it, and this shows which details it backs.
+              {t('applicantInsights.appApplicantIdInsightsPage.addADocumentAndAcceptWhat')}
             </EmptyState>
           ) : (
             <ul className="insights-list">
@@ -645,22 +686,34 @@ export default async function DocumentInsightsPage({
                     {entry.document.restricted ? (
                       <>
                         {' '}
-                        <StatusBadge tone="neutral">Protected</StatusBadge>
+                        <StatusBadge tone="neutral">
+                          {t('applicantInsights.appApplicantIdInsightsPage.protected')}
+                        </StatusBadge>
                       </>
                     ) : null}
                   </span>
                   <span className="insights-row-detail">
                     {entry.backedCount === 0
-                      ? 'Backs no saved details yet.'
+                      ? t('applicantInsights.appApplicantIdInsightsPage.backsNoSavedDetailsYet')
                       : entry.backedFieldKeys.length > 0
-                        ? `Backs ${plural(entry.backedCount, 'saved detail')}: ${entry.backedFieldKeys.map(detailName).join(', ')}.`
+                        ? t('applicantInsights.appApplicantIdInsightsPage.backsPluralJoin', {
+                            plural: plural(entry.backedCount, 'saved detail'),
+                            join: entry.backedFieldKeys.map(detailName).join(', '),
+                          })
                         : entry.backedSections.length > 0
-                          ? `Backs ${plural(entry.backedCount, 'saved detail')} in ${entry.backedSections.map((s) => s.label).join(', ')}.`
-                          : `Backs ${plural(entry.backedCount, 'saved detail')}.`}
+                          ? t('applicantInsights.appApplicantIdInsightsPage.backsPluralInJoin', {
+                              plural: plural(entry.backedCount, 'saved detail'),
+                              join: entry.backedSections.map((s) => s.label).join(', '),
+                            })
+                          : t('applicantInsights.appApplicantIdInsightsPage.backsPlural', {
+                              plural: plural(entry.backedCount, 'saved detail'),
+                            })}
                   </span>
                   {entry.canBackSections.length > 0 ? (
                     <span className="insights-row-detail">
-                      Can back: {entry.canBackSections.map((s) => s.label).join(', ')}.
+                      {t('applicantInsights.appApplicantIdInsightsPage.canBackJoin', {
+                        join: entry.canBackSections.map((s) => s.label).join(', '),
+                      })}
                     </span>
                   ) : null}
                 </li>
@@ -672,7 +725,7 @@ export default async function DocumentInsightsPage({
             total={insights.evidence.length}
             noun="documents"
             href={documentsHref}
-            label="Open Documents"
+            label={t('applicantInsights.appApplicantIdInsightsPage.openDocuments')}
           />
         </InsightsCard>
       </div>

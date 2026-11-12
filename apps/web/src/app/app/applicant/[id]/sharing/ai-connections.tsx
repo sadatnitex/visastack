@@ -1,5 +1,6 @@
 import { type AiFeatureOffReason, aiFeatureOffHint } from '@visastack/core/ai-features';
 import type { AiConnectionList, AiConnectionSummary } from '@visastack/services';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import {
   AI_CONNECTION_DURATIONS,
   AI_CONNECTION_LAYERS,
@@ -19,6 +20,7 @@ import {
   aiFilesLine,
 } from '../../../../../lib/ai-consent-labels';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT } from '../../../../../lib/i18n-server';
 import { ChangeAccessForm } from './ai-connection-change';
 import { AiConnectionTurnOff } from './ai-connection-turn-off';
 
@@ -103,6 +105,7 @@ function ChangeAccess({
   readonly suggestionsAvailable: boolean;
   readonly files: AiConnectionFiles | undefined;
 }) {
+  const t = getServerT(applicantSharingCatalog);
   const options = caseOptionsFor(item, cases);
   const back = returning?.connectionId === item.id ? returning : undefined;
   const stored = storedChoices(item);
@@ -114,8 +117,14 @@ function ChangeAccess({
     options.some((option) => option.id === chosen.cases);
   return (
     <details className="ai-connection-change" open={back !== undefined}>
-      <summary className="btn btn-secondary" aria-label={`Change Access for ${item.clientName}`}>
-        Change Access
+      <summary
+        className="btn btn-secondary"
+        aria-label={t(
+          'applicantSharing.appApplicantIdSharingAiConnections.changeAccessForClientname',
+          { clientName: item.clientName },
+        )}
+      >
+        {t('applicantSharing.appApplicantIdSharingAiConnections.changeAccess')}
       </summary>
       <ChangeAccessForm
         applicantId={applicantId}
@@ -155,25 +164,34 @@ function Details({
   readonly suggestionsAvailable: boolean;
   readonly files: AiConnectionFiles | undefined;
 }) {
+  const t = getServerT(applicantSharingCatalog);
   const access = aiAccessLabels(item.scopes);
   const ticked = files?.byConnection[item.id] ?? [];
   return (
     <dl className="ai-connection-facts">
       <div>
-        <dt>Connected</dt>
+        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.connected')}</dt>
         <dd>{formatTimestampDate(item.connectedAt)}</dd>
       </div>
       <div>
-        <dt>Can Read</dt>
-        <dd>{access.length > 0 ? access.join(', ') : 'Nothing from this record'}</dd>
+        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.canRead')}</dt>
+        <dd>
+          {access.length > 0
+            ? access.join(', ')
+            : t('applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord')}
+        </dd>
       </div>
       <div>
-        <dt>Cases</dt>
+        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.cases')}</dt>
         <dd>{aiCaseLine(item)}</dd>
       </div>
       <div>
         <dt>{AI_FULL_NUMBERS_LABEL}</dt>
-        <dd>{item.revealIdentifiers ? 'Yes' : 'No'}</dd>
+        <dd>
+          {item.revealIdentifiers
+            ? t('applicantSharing.appApplicantIdSharingAiConnections.yes')
+            : t('applicantSharing.appApplicantIdSharingAiConnections.no')}
+        </dd>
       </div>
       {ticked.length > 0 ? (
         <div>
@@ -181,23 +199,38 @@ function Details({
           <dd>
             {files?.view.available
               ? aiFilesLine(ticked)
-              : `${aiFilesLine(ticked)}, but turned off right now`}
+              : t(
+                  'applicantSharing.appApplicantIdSharingAiConnections.aifileslineButTurnedOffRightNow',
+                  { aiFilesLine: aiFilesLine(ticked) },
+                )}
           </dd>
         </div>
       ) : null}
       {aiAllowsSuggestions(item.scopes) ? (
         <div>
           <dt>{AI_SUGGEST_CHANGES_LABEL}</dt>
-          <dd>{suggestionsAvailable ? 'Yes' : 'Yes, but turned off right now'}</dd>
+          <dd>
+            {suggestionsAvailable
+              ? t('applicantSharing.appApplicantIdSharingAiConnections.yes')
+              : t('applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow')}
+          </dd>
         </div>
       ) : null}
       <div>
-        <dt>Ends</dt>
-        <dd>{item.expiresAt ? formatTimestamp(item.expiresAt) : 'Until You Turn It Off'}</dd>
+        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.ends')}</dt>
+        <dd>
+          {item.expiresAt
+            ? formatTimestamp(item.expiresAt)
+            : t('applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff')}
+        </dd>
       </div>
       <div>
-        <dt>Last Used</dt>
-        <dd>{item.lastUsedAt ? formatTimestamp(item.lastUsedAt) : 'Not Used Yet'}</dd>
+        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.lastUsed')}</dt>
+        <dd>
+          {item.lastUsedAt
+            ? formatTimestamp(item.lastUsedAt)
+            : t('applicantSharing.appApplicantIdSharingAiConnections.notUsedYet')}
+        </dd>
       </div>
     </dl>
   );
@@ -245,6 +278,7 @@ export function AiConnectionsSection({
    */
   readonly accessOff?: AiFeatureOffReason | null;
 }) {
+  const t = getServerT(applicantSharingCatalog);
   // While connecting is off the card shows only what can still be acted on, or what just happened.
   if (!connectorOn && list.active.length === 0 && !notice) return null;
   const onlyNotice = !connectorOn && list.active.length === 0;
@@ -254,20 +288,19 @@ export function AiConnectionsSection({
       id="ai-connections"
       aria-labelledby="ai-connections-title"
     >
-      <p className="card-kicker">AI Apps</p>
+      <p className="card-kicker">
+        {t('applicantSharing.appApplicantIdSharingAiConnections.aiApps')}
+      </p>
       <h2 className="card-title" id="ai-connections-title">
-        AI Connections
+        {t('applicantSharing.appApplicantIdSharingAiConnections.aiConnections')}
       </h2>
       {list.active.some((item) => aiAllowsSuggestions(item.scopes)) ? (
         <p className="card-body">
-          AI apps you connected to this record. Each one can read only what you chose. An app you
-          let suggest changes can leave suggestions, drafts and reminders for you, and nothing
-          changes until you approve it. Turning one off stops it straight away.
+          {t('applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis')}
         </p>
       ) : (
         <p className="card-body">
-          AI apps you connected to this record. Each one can read only what you chose and cannot
-          change anything in VisaStack. Turning one off stops it straight away.
+          {t('applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis12cecd')}
         </p>
       )}
       {accessOff !== undefined && list.active.length > 0 ? (
@@ -276,18 +309,17 @@ export function AiConnectionsSection({
       {notice ? (
         <output className="notice ai-connections-notice">
           {notice === 'off'
-            ? 'Turned off. That app can no longer read this record.'
-            : 'Access changed. The app gets the new access on its next request.'}
+            ? t('applicantSharing.appApplicantIdSharingAiConnections.turnedOffThatAppCanNo')
+            : t('applicantSharing.appApplicantIdSharingAiConnections.accessChangedTheAppGetsThe')}
         </output>
       ) : null}
       {onlyNotice ? null : !list.available ? (
         <p className="card-body muted">
-          AI connections cannot be shown right now. Try again later.
+          {t('applicantSharing.appApplicantIdSharingAiConnections.aiConnectionsCannotBeShownRight')}
         </p>
       ) : list.active.length === 0 ? (
         <p className="card-body muted">
-          No AI apps are connected to this record. When you connect one from your AI app, it appears
-          here with what it can read.
+          {t('applicantSharing.appApplicantIdSharingAiConnections.noAiAppsAreConnectedTo')}
         </p>
       ) : (
         <ul className="ai-connection-list">
@@ -327,7 +359,11 @@ export function AiConnectionsSection({
       ) : null}
       {connectorOn && list.recentlyEnded.length > 0 ? (
         <details className="ai-connections-ended">
-          <summary>Recently Turned Off ({list.recentlyEnded.length})</summary>
+          <summary>
+            {t('applicantSharing.appApplicantIdSharingAiConnections.recentlyTurnedOffLength', {
+              length: list.recentlyEnded.length,
+            })}
+          </summary>
           <ul className="ai-connection-list">
             {list.recentlyEnded.map((item) => (
               <li key={item.id} className="ai-connection">

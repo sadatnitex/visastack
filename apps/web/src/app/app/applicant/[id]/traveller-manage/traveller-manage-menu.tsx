@@ -4,6 +4,8 @@ import type { TravellerAction } from '@visastack/services';
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantTravellerManageCatalog } from '../../../../../i18n/applicant-traveller-manage';
 import { travellerLifecycleAction } from './actions';
 import { TRAVELLER_ACTION_LABELS } from './labels';
 
@@ -58,6 +60,7 @@ export function TravellerManageMenu({
   /** How long a removed record waits in Recently Deleted (TRAVELLER_RECENTLY_DELETED_DAYS). */
   readonly days: number;
 }) {
+  const t = useT(applicantTravellerManageCatalog);
   const items = MENU_ACTIONS.filter((action) => actions.includes(action));
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<MenuAction | null>(null);
@@ -141,14 +144,25 @@ export function TravellerManageMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={`Manage ${name}`}
+        aria-label={t(
+          'applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manageName',
+          { name },
+        )}
         onClick={() => (open ? closeMenu(false) : openAt(0))}
         onKeyDown={onButtonKey}
       >
-        Manage
+        {t('applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manage')}
       </button>
       {open ? (
-        <div id={menuId} role="menu" aria-label={`Manage ${name}`} className="lc-manage-menu">
+        <div
+          id={menuId}
+          role="menu"
+          aria-label={t(
+            'applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manageName',
+            { name },
+          )}
+          className="lc-manage-menu"
+        >
           {items.map((action, index) => (
             <button
               key={action}
@@ -192,7 +206,9 @@ export function TravellerManageMenu({
                 button.current?.focus();
               }}
             >
-              Cancel
+              {t(
+                'applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.cancel',
+              )}
             </button>
           </form>
         </section>

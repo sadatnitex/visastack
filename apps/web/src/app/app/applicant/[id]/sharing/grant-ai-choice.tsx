@@ -2,6 +2,8 @@
 
 import { useActionState, useId } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { AGENCY_AI_CHOICE_LABEL, agencyAiTravellerNote } from '../../../../../lib/agency-ai';
 import { setGrantAiAssistAction } from './grant-ai-actions';
 
@@ -21,6 +23,7 @@ export function GrantAiChoice({
   readonly agencyName: string;
   readonly allowed: boolean;
 }) {
+  const t = useT(applicantSharingCatalog);
   const [state, formAction, pending] = useActionState(setGrantAiAssistAction, NO_RESULT);
   const id = useId();
   const noteId = `${id}-note`;
@@ -29,7 +32,9 @@ export function GrantAiChoice({
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="grantId" value={grantId} />
       <fieldset className="fieldset">
-        <legend className="field-label">AI Tools</legend>
+        <legend className="field-label">
+          {t('applicantSharing.appApplicantIdSharingGrantAiChoice.aiTools')}
+        </legend>
         <div className="checks">
           <label className="check" htmlFor={`${id}-allow`}>
             <input
@@ -53,7 +58,10 @@ export function GrantAiChoice({
           idle="Save"
           busy="Saving…"
           className="btn btn-secondary"
-          label={`Save AI Tools Choice for ${agencyName}`}
+          label={t(
+            'applicantSharing.appApplicantIdSharingGrantAiChoice.saveAiToolsChoiceForAgencyname',
+            { agencyName },
+          )}
         />
       </div>
     </form>

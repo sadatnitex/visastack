@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { type ActionState, expandGrantScopeAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -26,6 +28,7 @@ export function ScopeExpansionForm({
   readonly grantId: string;
   readonly candidates: readonly ScopeExpansionCandidate[];
 }) {
+  const t = useT(applicantSharingCatalog);
   const [state, formAction, pending] = useActionState(expandGrantScopeAction, INITIAL);
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(candidates.map((c) => c.id)),
@@ -34,9 +37,10 @@ export function ScopeExpansionForm({
   return (
     <div className="notice lc-scope-expansion">
       <p className="u-m-0">
-        {candidates.length} new document{candidates.length === 1 ? '' : 's'} now match{' '}
-        {candidates.length === 1 ? 'this grant category' : 'this grant categories'}. They stay
-        hidden from the recipient until you confirm including them.
+        {t(
+          'applicantSharing.appApplicantIdSharingScopeExpansionForm.lengthNewDocumentsNowMatchThis',
+          { length: candidates.length },
+        )}
       </p>
       <form action={formAction} className="lc-scope-expansion-form">
         <input type="hidden" name="applicantId" value={applicantId} />

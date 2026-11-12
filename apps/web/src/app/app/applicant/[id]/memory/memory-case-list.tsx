@@ -3,9 +3,11 @@ import Link from 'next/link';
 import { CollapsibleGroup } from '../../../../../components/collapsible-group';
 import { DestinationLabel } from '../../../../../components/destination-label';
 import { ShowMore } from '../../../../../components/show-more';
+import { applicantMemoryCatalog } from '../../../../../i18n/applicant-memory';
 import { eventKey, eventLine } from '../../../../../lib/application-memory-labels';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT } from '../../../../../lib/i18n-server';
 import { type SearchParamsRecord, TRAVELLER_LIST_STEP, nextShow } from '../../../../../lib/paging';
 
 /** A reported submission date and a decision date are calendar dates the person gave. */
@@ -35,6 +37,7 @@ export function MemoryCaseList({
   readonly totalCases: number;
   readonly searchParams: SearchParamsRecord;
 }) {
+  const t = getServerT(applicantMemoryCatalog);
   const next =
     totalCases > cases.length ? nextShow(cases.length, { step: TRAVELLER_LIST_STEP }) : null;
   return (
@@ -57,7 +60,11 @@ export function MemoryCaseList({
           >
             <article className="memory-case">
               <p className="card-kicker">
-                {item.destination ? <DestinationLabel destination={item.destination} /> : 'Case'}
+                {item.destination ? (
+                  <DestinationLabel destination={item.destination} />
+                ) : (
+                  t('applicantMemory.appApplicantIdMemoryMemoryCaseList.case')
+                )}
               </p>
               <h3 className="card-title">
                 <Link href={`/app/mission/${item.missionId}`}>{item.title}</Link>
@@ -75,16 +82,24 @@ export function MemoryCaseList({
               ) : null}
               {item.removed ? (
                 <p className="memory-case-note">
-                  This case's files were removed at the end of its keep period. The record of what
-                  happened stays.
+                  {t(
+                    'applicantMemory.appApplicantIdMemoryMemoryCaseList.thisCaseSFilesWereRemoved',
+                  )}
                 </p>
               ) : null}
               {item.events.length === 0 ? (
-                <p className="memory-case-note">Nothing has been prepared for this case yet.</p>
+                <p className="memory-case-note">
+                  {t(
+                    'applicantMemory.appApplicantIdMemoryMemoryCaseList.nothingHasBeenPreparedForThis',
+                  )}
+                </p>
               ) : (
                 <section
                   className="activity-log-scroll memory-events-scroll"
-                  aria-label={`Records of ${item.title}`}
+                  aria-label={t(
+                    'applicantMemory.appApplicantIdMemoryMemoryCaseList.recordsOfTitle',
+                    { title: item.title },
+                  )}
                   // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
                   tabIndex={0}
                 >
@@ -107,13 +122,18 @@ export function MemoryCaseList({
                                 className="btn btn-secondary"
                                 href={`/app/mission/${item.missionId}/snapshots/${event.snapshotId}`}
                               >
-                                View Snapshot {event.snapshotVersion}
+                                {t(
+                                  'applicantMemory.appApplicantIdMemoryMemoryCaseList.viewSnapshotSnapshotversion',
+                                  { snapshotVersion: event.snapshotVersion },
+                                )}
                               </Link>
                               <Link
                                 className="btn btn-secondary"
                                 href={`/app/applicant/${applicantId}/memory/compare?snapshot=${event.snapshotId}`}
                               >
-                                Compare with Today
+                                {t(
+                                  'applicantMemory.appApplicantIdMemoryMemoryCaseList.compareWithToday',
+                                )}
                               </Link>
                             </span>
                           ) : null}

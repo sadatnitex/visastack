@@ -6,8 +6,10 @@ import {
   SelectedScopeSummary,
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { AGENCY_AI_ALLOWED_LINE } from '../../../../../lib/agency-ai';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT } from '../../../../../lib/i18n-server';
 import { categoryLabel } from '../../../../../lib/master-profile';
 import { permissionPhrase } from '../../../../../lib/permission-phrases';
 import { CaseExceptions } from './case-exceptions';
@@ -50,6 +52,7 @@ export function GrantPane({
   aiAssistReady,
   expansions,
 }: GrantPaneProps) {
+  const t = getServerT(applicantSharingCatalog);
   const canPause = grant.status === 'ACTIVE';
   const canResume = grant.status === 'PAUSED';
   const canRevoke =
@@ -58,7 +61,9 @@ export function GrantPane({
     <div className="lp-pane-content sharing-grant-pane">
       <h3 className="lp-pane-title">
         {grant.recipient.label}
-        {grant.recipient.kind === 'organization' ? ' (organization)' : ''}
+        {grant.recipient.kind === 'organization'
+          ? t('applicantSharing.appApplicantIdSharingGrantPane.organization')
+          : ''}
       </h3>
       <p className="lp-pane-line">
         <span className={`badge ${badge.tone} lift-pill lift-pill-md`}>{badge.label}</span>
@@ -85,7 +90,11 @@ export function GrantPane({
         endsOn={grant.expiryAt ? formatTimestampDate(grant.expiryAt) : null}
       />
       {grant.acceptedAt ? (
-        <p className="muted lc-small-m0">Accepted {formatTimestampDate(grant.acceptedAt)}</p>
+        <p className="muted lc-small-m0">
+          {t('applicantSharing.appApplicantIdSharingGrantPane.acceptedFormattimestampdate', {
+            formatTimestampDate: formatTimestampDate(grant.acceptedAt),
+          })}
+        </p>
       ) : null}
       {aiAssistReady &&
       grant.recipient.kind === 'organization' &&

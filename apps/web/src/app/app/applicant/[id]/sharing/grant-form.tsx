@@ -4,12 +4,14 @@ import type { PermissionAction } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { Fragment, useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
 import { InvitationLink } from '../../../../../components/invitation-link';
 import { ReceiptCard } from '../../../../../components/receipt-card';
 import {
   SelectedScopeSummary,
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { PERMISSION_ACTION_LABELS } from '../../../../../lib/labels';
 import { permissionPhrase } from '../../../../../lib/permission-phrases';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
@@ -87,6 +89,7 @@ export function GrantForm({
    */
   readonly initialDocumentId?: string;
 }) {
+  const t = useT(applicantSharingCatalog);
   const preselected = documents.some((document) => document.id === initialDocumentId)
     ? initialDocumentId
     : undefined;
@@ -219,7 +222,7 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="recipientEmail">
-          Recipient Email
+          {t('applicantSharing.appApplicantIdSharingGrantForm.recipientEmail')}
         </label>
         <input
           id="recipientEmail"
@@ -227,14 +230,14 @@ export function GrantForm({
           type="email"
           required
           className="input"
-          placeholder="them@example.com"
+          placeholder={t('applicantSharing.appApplicantIdSharingGrantForm.themExampleCom')}
           onChange={(e) => setRecipientEmail(e.target.value)}
         />
       </div>
 
       <div className="field-row">
         <label className="field-label" htmlFor="purpose">
-          Purpose
+          {t('applicantSharing.appApplicantIdSharingGrantForm.purpose')}
         </label>
         <input
           id="purpose"
@@ -242,12 +245,14 @@ export function GrantForm({
           type="text"
           required
           className="input"
-          placeholder="e.g. Review my UK student visa documents"
+          placeholder={t('applicantSharing.appApplicantIdSharingGrantForm.eGReviewMyUkStudent')}
           value={purpose}
           onChange={(e) => setPurpose(e.target.value)}
         />
         <fieldset className="fieldset grant-purpose-chips">
-          <legend className="sr-only">Common Reasons</legend>
+          <legend className="sr-only">
+            {t('applicantSharing.appApplicantIdSharingGrantForm.commonReasons')}
+          </legend>
           {PURPOSE_SUGGESTIONS.map((suggestion) => (
             <button
               key={suggestion.name}
@@ -268,7 +273,9 @@ export function GrantForm({
       </div>
 
       <fieldset className="fieldset">
-        <legend className="field-label">Permissions</legend>
+        <legend className="field-label">
+          {t('applicantSharing.appApplicantIdSharingGrantForm.permissions')}
+        </legend>
         <div className="checks">
           {SHAREABLE_ACTIONS.map((action) => {
             const noteId = action.note ? `grant-action-${action.value}-note` : undefined;
@@ -300,7 +307,9 @@ export function GrantForm({
       </fieldset>
 
       <fieldset className="fieldset">
-        <legend className="field-label">What should they see from your profile?</legend>
+        <legend className="field-label">
+          {t('applicantSharing.appApplicantIdSharingGrantForm.whatShouldTheySeeFromYour')}
+        </legend>
         <div className="checks">
           <label className="check">
             <input
@@ -313,7 +322,9 @@ export function GrantForm({
                 setCategories([]);
               }}
             />
-            <span>Everything in my profile</span>
+            <span>
+              {t('applicantSharing.appApplicantIdSharingGrantForm.everythingInMyProfile')}
+            </span>
           </label>
           <label className="check">
             <input
@@ -323,7 +334,7 @@ export function GrantForm({
               checked={profileScope === 'some'}
               onChange={() => setProfileScope('some')}
             />
-            <span>Only the parts I choose</span>
+            <span>{t('applicantSharing.appApplicantIdSharingGrantForm.onlyThePartsIChoose')}</span>
           </label>
         </div>
         {profileScope === 'some' ? (
@@ -368,7 +379,9 @@ export function GrantForm({
 
       {documents.length > 0 ? (
         <fieldset className="fieldset">
-          <legend className="field-label">Which documents can they open?</legend>
+          <legend className="field-label">
+            {t('applicantSharing.appApplicantIdSharingGrantForm.whichDocumentsCanTheyOpen')}
+          </legend>
           <div className="checks">
             <label className="check">
               <input
@@ -381,7 +394,7 @@ export function GrantForm({
                   setSelectedDocuments([]);
                 }}
               />
-              <span>Every document</span>
+              <span>{t('applicantSharing.appApplicantIdSharingGrantForm.everyDocument')}</span>
             </label>
             <label className="check">
               <input
@@ -391,7 +404,9 @@ export function GrantForm({
                 checked={documentScope === 'some'}
                 onChange={() => setDocumentScope('some')}
               />
-              <span>Only the documents I choose</span>
+              <span>
+                {t('applicantSharing.appApplicantIdSharingGrantForm.onlyTheDocumentsIChoose')}
+              </span>
             </label>
           </div>
           {documentScope === 'some' ? (
@@ -417,7 +432,7 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="expiryDays">
-          Expires After (Days)
+          {t('applicantSharing.appApplicantIdSharingGrantForm.expiresAfterDays')}
         </label>
         <input
           id="expiryDays"
@@ -426,16 +441,20 @@ export function GrantForm({
           min="1"
           max="90"
           className="input"
-          placeholder="30 (default), up to 90"
+          placeholder={t('applicantSharing.appApplicantIdSharingGrantForm.30DefaultUpTo90')}
           onChange={(e) => setExpiryDays(e.target.value)}
         />
         <p className="muted" style={{ fontSize: 'var(--text-caption)', margin: '0.3rem 0 0' }}>
-          Every grant expires. Leave blank for the 30-day default; the maximum is 90 days.
+          {t('applicantSharing.appApplicantIdSharingGrantForm.everyGrantExpiresLeaveBlankFor')}
         </p>
       </div>
 
       <div className="sharing-scope-review" ref={review} tabIndex={-1} aria-live="polite">
-        <h3>{reviewed ? 'Confirm This Access' : 'Your Access Summary'}</h3>
+        <h3>
+          {reviewed
+            ? t('applicantSharing.appApplicantIdSharingGrantForm.confirmThisAccess')
+            : t('applicantSharing.appApplicantIdSharingGrantForm.yourAccessSummary')}
+        </h3>
         <SelectedScopeSummary
           recipient={recipientEmail || 'This recipient'}
           purpose={purpose || null}
@@ -456,14 +475,13 @@ export function GrantForm({
             revoking are left, each said once. */}
         <p className="scope-summary-note">
           {canDownload
-            ? 'Safe copies may be downloaded; original downloads are not included.'
-            : 'Downloads are not included. You can pause or revoke future access at any time; copies already downloaded cannot be recalled.'}
+            ? t('applicantSharing.appApplicantIdSharingGrantForm.safeCopiesMayBeDownloadedOriginal')
+            : t('applicantSharing.appApplicantIdSharingGrantForm.downloadsAreNotIncludedYouCan')}
         </p>
         {canDownload ? (
           // Owner-approved wording, 25 Oct 2026; shown only when downloads are allowed.
           <p className="scope-summary-download">
-            Revoking ends access on VisaStack. It cannot take back copies someone already
-            downloaded.
+            {t('applicantSharing.appApplicantIdSharingGrantForm.revokingEndsAccessOnVisastackIt')}
           </p>
         ) : null}
       </div>
@@ -477,7 +495,7 @@ export function GrantForm({
         {/* Friction F7: the confirm button is not ready until the access has been reviewed. */}
         {reviewed || pending ? null : (
           <p className="muted u-m-0" data-testid="confirm-reason">
-            Press Review and Confirm first.
+            {t('applicantSharing.appApplicantIdSharingGrantForm.pressReviewAndConfirmFirst')}
           </p>
         )}
         <button
@@ -488,7 +506,7 @@ export function GrantForm({
           }}
           aria-disabled={pending || undefined}
         >
-          Review and Confirm
+          {t('applicantSharing.appApplicantIdSharingGrantForm.reviewAndConfirm')}
         </button>
         <SubmitButton
           unavailable={!reviewed || actions.length === 0}
@@ -503,7 +521,11 @@ export function GrantForm({
         {receipt ? (
           <ReceiptCard
             key={receipt.at}
-            title={receipt.invited ? 'Invitation Created' : 'Sharing Request Created'}
+            title={
+              receipt.invited
+                ? t('applicantSharing.appApplicantIdSharingGrantForm.invitationCreated')
+                : t('applicantSharing.appApplicantIdSharingGrantForm.sharingRequestCreated')
+            }
             what={receipt.invited ? state.message : DIRECT_RECEIPT_LINE}
             at={receipt.at}
             to={receipt.to || undefined}

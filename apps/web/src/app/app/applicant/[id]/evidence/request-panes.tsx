@@ -13,7 +13,9 @@ import { ReferenceCode } from '../../../../../components/reference-code';
 import { RequestThread } from '../../../../../components/request-thread/request-thread';
 import { buildThread } from '../../../../../components/request-thread/thread-model';
 import { StatusPill } from '../../../../../components/ui-lift';
+import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
 import { formatDateOnly } from '../../../../../lib/format-date';
+import { getServerT } from '../../../../../lib/i18n-server';
 import { formatMoment } from '../../../../../lib/save-status';
 import { AnswerReceipt } from './answer-receipt';
 import { AskAboutItemForm } from './ask-about-item-form';
@@ -81,6 +83,7 @@ export function answerReceiptFor(
 }
 
 function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & RequestPanesProps) {
+  const t = getServerT(applicantEvidenceCatalog);
   const { req, item } = entry;
   const { applicantId: id, timeZone, choiceBasis } = data;
   const awaitingReply = AWAITING_SUBMISSION.has(req.status);
@@ -134,7 +137,11 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
         <StatusPill tone={chip.tone}>{chip.word}</StatusPill>
       </p>
       {req.dueDate ? (
-        <p className="case-row-meta">Needed by {formatDateOnly(req.dueDate)}</p>
+        <p className="case-row-meta">
+          {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.neededByFormatdateonly', {
+            formatDateOnly: formatDateOnly(req.dueDate),
+          })}
+        </p>
       ) : null}
       {item.rule ? <p className="case-row-meta">{item.rule}</p> : null}
       {receipt ? (
@@ -147,11 +154,18 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           {...(code ? { referenceCode: code } : {})}
         />
       ) : code ? (
-        <ReferenceCode code={code} label="Request Reference" />
+        <ReferenceCode
+          code={code}
+          label={t('applicantEvidence.appApplicantIdEvidenceRequestPanes.requestReference')}
+        />
       ) : null}
       <p className="case-row-meta">{item.guidance}</p>
       {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
-        <p className="case-row-meta">You sent this on {formatMoment(req.respondedAt, timeZone)}.</p>
+        <p className="case-row-meta">
+          {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.youSentThisOnFormatmoment', {
+            formatMoment: formatMoment(req.respondedAt, timeZone),
+          })}
+        </p>
       ) : null}
       <RequestThread thread={thread} viewer="traveller" timeZone={timeZone} />
       {item.group !== null ? (
@@ -186,19 +200,23 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
             className="btn btn-primary evidence-add-link"
             href={`/app/applicant/${id}/documents/add`}
           >
-            Add Documents
+            {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.addDocuments')}
             <span className="sr-only">: {itemName}</span>
           </Link>
         ) : null
       ) : null}
       {questions.length > 0 ? (
         <div className="request-questions lc-questions">
-          <p className="request-questions-title lc-questions-title u-m-0">Your Questions</p>
+          <p className="request-questions-title lc-questions-title u-m-0">
+            {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.yourQuestions')}
+          </p>
           <ul className="request-questions-list">
             {questions.map((question) => (
               <li key={question.askedAt.toISOString()}>
                 <span className="case-row-meta">
-                  Asked {formatMoment(question.askedAt, timeZone)}
+                  {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment', {
+                    formatMoment: formatMoment(question.askedAt, timeZone),
+                  })}
                 </span>
                 <span className="request-question-text">{question.text}</span>
               </li>
@@ -206,7 +224,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           </ul>
           {req.missionId ? (
             <Link href={`/app/mission/${req.missionId}#notes`} className="request-questions-link">
-              Read Replies in the Case Notes
+              {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.readRepliesInTheCaseNotes')}
               <span className="sr-only">: {itemName}</span>
             </Link>
           ) : null}
@@ -215,12 +233,14 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
       {canAsk && req.missionId ? (
         questions.length >= REQUEST_QUESTION_LIMIT ? (
           <p className="case-row-meta" {...(unusableFile ? {} : atLevel('everything'))}>
-            You have asked several questions about this item. The agency answers in the case notes.
+            {t(
+              'applicantEvidence.appApplicantIdEvidenceRequestPanes.youHaveAskedSeveralQuestionsAbout',
+            )}
           </p>
         ) : (
           <details className="request-ask lc-ask" {...(unusableFile ? {} : atLevel('everything'))}>
             <summary className="request-ask-toggle">
-              Ask the Agency About This Item
+              {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.askTheAgencyAboutThisItem')}
               <span className="sr-only">: {itemName}</span>
             </summary>
             <AskAboutItemForm

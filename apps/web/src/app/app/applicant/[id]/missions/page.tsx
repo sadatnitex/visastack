@@ -9,6 +9,7 @@ import { SearchableList } from '../../../../../components/list-pattern';
 import { MarkTile } from '../../../../../components/mark-tile';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
+import { applicantMissionsCatalog } from '../../../../../i18n/applicant-missions';
 import {
   caseCountryOptions,
   casePurposeGroups,
@@ -22,6 +23,7 @@ import {
 import { openCasesNewestFirst } from '../../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
 import { caseStatus } from '../../../../../lib/status-words';
 import { CreateMissionForm } from './create-mission-form';
@@ -100,6 +102,8 @@ export default async function MissionsPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<{ readonly deleted?: string; readonly manual?: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(applicantMissionsCatalog);
   const { id } = await params;
   // A cancelled case was just deleted: say so once, then it is simply not in the list.
   const query = await searchParams;
@@ -160,18 +164,22 @@ export default async function MissionsPage({
     <>
       <PageHeader
         eyebrow={data.applicant.displayName}
-        title="Cases"
+        title={t('applicantMissions.appApplicantIdMissionsPage.cases')}
         actions={
           <Link className="btn btn-secondary" href={startHref}>
             {startLabel}
           </Link>
         }
       />
-      {justDeleted ? <output className="notice u-mb-100">Case deleted.</output> : null}
+      {justDeleted ? (
+        <output className="notice u-mb-100">
+          {t('applicantMissions.appApplicantIdMissionsPage.caseDeleted')}
+        </output>
+      ) : null}
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What a case is, one tap away. */}
-      <AboutDisclosure summary="About Cases">
-        <p>A case checks this traveller's documents against the list for one visa.</p>
+      <AboutDisclosure summary={t('applicantMissions.appApplicantIdMissionsPage.aboutCases')}>
+        <p>{t('applicantMissions.appApplicantIdMissionsPage.aCaseChecksThisTravellerS')}</p>
       </AboutDisclosure>
 
       <DepthScope family="cases" depth={depth}>
@@ -184,9 +192,9 @@ export default async function MissionsPage({
               {caseStatus(active.state).word}
             </>
           ) : data.missionsRead ? (
-            'No active case yet.'
+            t('applicantMissions.appApplicantIdMissionsPage.noActiveCaseYet')
           ) : (
-            'Your cases could not be loaded. Refresh to try again.'
+            t('applicantMissions.appApplicantIdMissionsPage.yourCasesCouldNotBeLoaded')
           )}
         </p>
 
@@ -200,26 +208,30 @@ export default async function MissionsPage({
               resultsClassName="case-list"
             >
               <div data-case-group="active">
-                <h2 className="case-section-title">Active ({activeCases.length})</h2>
+                <h2 className="case-section-title">
+                  {t('applicantMissions.appApplicantIdMissionsPage.activeLength', {
+                    length: activeCases.length,
+                  })}
+                </h2>
                 {!data.missionsRead ? (
                   // A failed read never claims there are no cases: that invites a duplicate case.
                   <p className="notice notice-warn u-mt-050">
-                    Your cases could not be loaded. Refresh to try again.
+                    {t('applicantMissions.appApplicantIdMissionsPage.yourCasesCouldNotBeLoaded')}
                   </p>
                 ) : hasNoCase ? (
                   <EmptyState
                     art="trips"
-                    title="No Cases Yet"
+                    title={t('applicantMissions.appApplicantIdMissionsPage.noCasesYet')}
                     fold
                     why="Once a checklist is attached, you see how many items are ready and what is still missing."
                     action={{ href: startHref, label: startLabel }}
                   >
-                    A case checks this person's documents against the checklist of one visa route.
-                    Start one by saying where and why.
+                    {t('applicantMissions.appApplicantIdMissionsPage.aCaseChecksThisPersonS')}
                   </EmptyState>
                 ) : activeCases.length === 0 ? (
                   <p className="muted u-mt-050">
-                    No case is being worked on right now. <Link href={startHref}>{startLabel}</Link>
+                    {t('applicantMissions.appApplicantIdMissionsPage.noCaseIsBeingWorkedOn')}{' '}
+                    <Link href={startHref}>{startLabel}</Link>
                   </p>
                 ) : (
                   <CaseRows cases={activeCases} readiness={data.readiness} />
@@ -228,7 +240,11 @@ export default async function MissionsPage({
 
               {pastCases.length > 0 ? (
                 <details className="case-past-fold" data-case-group="past">
-                  <summary>Past Trips ({pastCases.length})</summary>
+                  <summary>
+                    {t('applicantMissions.appApplicantIdMissionsPage.pastTripsLength', {
+                      length: pastCases.length,
+                    })}
+                  </summary>
                   <CaseRows cases={pastCases} readiness={data.readiness} past />
                 </details>
               ) : null}
@@ -242,17 +258,20 @@ export default async function MissionsPage({
             // not tucked away.
             {...atLevel(data.missionsRead && activeCases.length === 0 ? 'browse' : 'everything')}
           >
-            <p className="card-kicker">New</p>
+            <p className="card-kicker">{t('applicantMissions.appApplicantIdMissionsPage.new')}</p>
             <h2 className="card-title">{startLabel}</h2>
             {data.coreGranted ? (
               <>
                 <p className="card-body">
-                  Say where you are going and why. We set up the case and its checklist.
+                  {t('applicantMissions.appApplicantIdMissionsPage.sayWhereYouAreGoingAnd')}
                 </p>
                 <Link className="btn btn-primary" href={startHref}>
-                  Start a Trip
+                  {t('applicantMissions.appApplicantIdMissionsPage.startATrip')}
                 </Link>
-                <AboutDisclosure summary="Not Sure Where Yet? Add a Case by Name" open={manualOpen}>
+                <AboutDisclosure
+                  summary={t('applicantMissions.appApplicantIdMissionsPage.notSureWhereYetAddA')}
+                  open={manualOpen}
+                >
                   <CreateMissionForm
                     applicantId={id}
                     countries={caseCountryOptions()}
@@ -272,10 +291,10 @@ export default async function MissionsPage({
 
         <div className="action-row u-mt-150" {...atLevel('everything')}>
           <Link className="btn btn-secondary" href={`/app/applicant/${id}/outputs`}>
-            Prepare a Summary
+            {t('applicantMissions.appApplicantIdMissionsPage.prepareASummary')}
           </Link>
           <Link className="btn btn-secondary" href={`/app/applicant/${id}/memory`}>
-            Case History
+            {t('applicantMissions.appApplicantIdMissionsPage.caseHistory')}
           </Link>
         </div>
       </DepthScope>

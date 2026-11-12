@@ -1,5 +1,7 @@
 import { CALENDAR_KINDS, type CalendarKind } from '@visastack/core/calendar';
 import { CollapsibleGroup } from '../../../../../components/collapsible-group';
+import { applicantCalendarCatalog } from '../../../../../i18n/applicant-calendar';
+import { getServerT } from '../../../../../lib/i18n-server';
 import { CalendarSelectAll } from './calendar-select-all';
 
 /** One date to choose, already in words (the page words it from the server's own item). */
@@ -110,10 +112,11 @@ export function CalendarDateGroups({
 export function CalendarPreviewPanel({
   events,
 }: { readonly events: readonly CalendarPreviewRow[] }) {
+  const t = getServerT(applicantCalendarCatalog);
   return (
     <section
       className="activity-log-scroll calendar-preview-scroll"
-      aria-label="Events in the File"
+      aria-label={t('applicantCalendar.appApplicantIdCalendarCalendarDateGroups.eventsInTheFile')}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
       tabIndex={0}
     >
