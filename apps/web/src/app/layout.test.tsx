@@ -7,6 +7,11 @@ const state = vi.hoisted(() => ({
   locale: 'en',
   pathname: null as string | null,
 }));
+vi.mock('../lib/page-language', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/page-language')>();
+  // One route is marked ready for this test file, so the Bangla result is exercised through the real layout.
+  return { ...actual, BN_READY_ROUTES: ['/trust'] };
+});
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
 }));
@@ -85,18 +90,21 @@ describe('the page language (WCAG 3.1.2)', () => {
     state.pathname = '/status';
     const html = await renderServer(RootLayout({ children: <p>Page</p> }));
     expect(htmlLang(html)).toBe('en');
-    state.locale = 'en';
-    state.pathname = null;
   });
   it('is English when the page address is missing', async () => {
     state.locale = 'bn';
     state.pathname = null;
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
-    state.locale = 'en';
   });
   it('is English for an English visitor', async () => {
     state.pathname = '/status';
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
-    state.pathname = null;
+  });
+  it('is Bangla for a Bangla visitor on a route marked ready, and only there', async () => {
+    state.locale = 'bn';
+    state.pathname = '/trust/uk';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('bn');
+    state.pathname = '/status';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
   });
 });

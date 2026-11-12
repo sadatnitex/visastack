@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
-import { PATHNAME_REQUEST_HEADER } from '../../lib/csp-middleware';
+import { PATHNAME_REQUEST_HEADER } from '../../lib/request-headers';
 import { WorkspaceFrame } from './workspace-frame';
 
 export const dynamic = 'force-dynamic';

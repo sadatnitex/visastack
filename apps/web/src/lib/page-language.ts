@@ -20,11 +20,11 @@ function stripTrailingSlash(path: string): string {
 /**
  * Matching rule: an entry matches the same path, or any path below it at a "/" boundary.
  * "/trust" matches "/trust" and "/trust/x" but not "/trustworthy". The entry "/" matches only
- * "/" itself, so it can never claim the whole site. A query string or "#" part and a trailing
- * slash are ignored.
+ * "/" itself, so it can never claim the whole site. A trailing slash is ignored. The
+ * pathname never carries a query string or "#" part (the middleware sets it from the path alone).
  */
 export function matchesRoute(pathname: string, route: string): boolean {
-  const path = stripTrailingSlash(pathname.split(/[?#]/)[0] ?? '');
+  const path = stripTrailingSlash(pathname);
   const entry = stripTrailingSlash(route);
   if (entry === '/') return path === '/';
   return path === entry || path.startsWith(`${entry}/`);

@@ -41,10 +41,8 @@ describe('matchesRoute', () => {
     expect(matchesRoute('/status', '/')).toBe(false);
   });
 
-  it('ignores a trailing slash, a query string and a hash', () => {
+  it('ignores a trailing slash', () => {
     expect(matchesRoute('/trust/', '/trust')).toBe(true);
-    expect(matchesRoute('/trust?x=1', '/trust')).toBe(true);
-    expect(matchesRoute('/trust#top', '/trust')).toBe(true);
     expect(matchesRoute('/trust', '/trust/')).toBe(true);
   });
 });

@@ -8,7 +8,7 @@ import { I18nProvider } from '../components/i18n-provider';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
-import { PATHNAME_REQUEST_HEADER } from '../lib/csp-middleware';
+import { PATHNAME_REQUEST_HEADER } from '../lib/request-headers';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { primeLocale } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';

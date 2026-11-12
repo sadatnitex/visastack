@@ -12,18 +12,11 @@ import {
   resolveAppOrigin,
   resolveCspMode,
 } from './csp';
+import { PATHNAME_REQUEST_HEADER } from './request-headers';
 
 type MiddlewareResult = Awaited<ReturnType<NextMiddleware>>;
 
-/**
- * The request header that carries the page address to the render, on every page request.
- * A layout cannot see the address of the page below it. The workspace case sidebar needs it on the
- * very first paint, and the root layout needs it to decide the page language (see
- * `page-language.ts`). It is always overwritten here, so a client cannot choose it. In the
- * workspace it only selects which record the layout then checks with its normal owner read; in the
- * root layout it only selects a language label from a fixed list.
- */
-export const PATHNAME_REQUEST_HEADER = 'x-vs-pathname';
+export { PATHNAME_REQUEST_HEADER };
 
 export interface CspMiddlewareDeps {
   /** The sign-in middleware (Neon Auth), wrapped unchanged. */
