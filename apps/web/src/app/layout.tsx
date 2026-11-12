@@ -3,12 +3,13 @@ import localFont from 'next/font/local';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
+import { I18nProvider } from '../components/i18n-provider';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
+import { primeLocale } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
-import { getLocale } from '../lib/locale';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
 import { isSignedIn } from '../lib/signed-in';
@@ -59,7 +60,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // writes cookies during render and defaults to
   // signed-out if the read fails, so a hiccup never breaks the whole shell.
   const signedIn = await isSignedIn();
-  const locale = await getLocale();
+  const locale = await primeLocale();
   const deploymentMode = getDeploymentMode();
   const serviceWorker = isServiceWorkerEnabled((name) => process.env[name]);
   // A visitor sees the notice about this version in full once; after that every page keeps a
@@ -71,72 +72,76 @@ export default async function RootLayout({ children }: { readonly children: Reac
   return (
     <html lang={locale} className={`${inter.variable} ${bengali.variable}`}>
       <body>
-        <a className="skip-link" href="#main">
-          Skip to Content
-        </a>
-        {!signedIn ? (
-          <PilotBanner
-            mode={deploymentMode}
-            registrationOpen={isPublicBetaOpen()}
-            seen={noticeSeen}
-          />
-        ) : null}
-        <header className="nav">
-          <Link className="brand" href="/">
-            <BrandMark />
-            VisaStack
-          </Link>
-          <SiteNavigation>
-            <div className="site-nav-pages">
-              <Link href="/#product">Product</Link>
-              <Link href="/#for-agencies">For Agencies</Link>
-              <Link href="/trust">Privacy and Control</Link>
-              <Link href="/#how-it-works">How It Works</Link>
-            </div>
-            <div className="site-nav-actions">
-              {/* Hidden until translation work starts (see LANGUAGE_CHOICE_ENABLED). */}
-              {LANGUAGE_CHOICE_ENABLED ? (
-                <form action={setLocaleAction} aria-label="Language">
-                  <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-                  {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
-                  <button
-                    type="submit"
-                    className="lang-switch"
-                    lang={locale === 'en' ? 'bn' : 'en'}
-                  >
-                    {locale === 'en' ? 'বাংলা' : 'English'}
-                  </button>
-                </form>
-              ) : null}
-              <a className="btn btn-secondary nav-cta" href="/app">
-                {signedIn ? 'Workspace' : 'Sign In'}
-              </a>
-              {!signedIn && isPublicBetaOpen() ? (
-                <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
-                  Get Started
-                </Link>
-              ) : null}
-            </div>
-          </SiteNavigation>
-        </header>
-        <main id="main">{children}</main>
-        <footer className="footer">
-          <div className="container footer-inner">
-            <span>© {new Date().getFullYear()} VisaStack. Proprietary and confidential.</span>
-            <nav className="footer-links" aria-label="Footer">
-              <Link href="/#capabilities">Features</Link>
-              <Link href="/trust">Public Trust</Link>
-              <Link href="/status">Status</Link>
-              {hasNotice ? <Link href="/status#about-this-version">About This Version</Link> : null}
-              <Link href="/privacy">Privacy</Link>
-              <Link href="/terms">Terms</Link>
-              {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a
+        <I18nProvider locale={locale}>
+          <a className="skip-link" href="#main">
+            Skip to Content
+          </a>
+          {!signedIn ? (
+            <PilotBanner
+              mode={deploymentMode}
+              registrationOpen={isPublicBetaOpen()}
+              seen={noticeSeen}
+            />
+          ) : null}
+          <header className="nav">
+            <Link className="brand" href="/">
+              <BrandMark />
+              VisaStack
+            </Link>
+            <SiteNavigation>
+              <div className="site-nav-pages">
+                <Link href="/#product">Product</Link>
+                <Link href="/#for-agencies">For Agencies</Link>
+                <Link href="/trust">Privacy and Control</Link>
+                <Link href="/#how-it-works">How It Works</Link>
+              </div>
+              <div className="site-nav-actions">
+                {/* Hidden until translation work starts (see LANGUAGE_CHOICE_ENABLED). */}
+                {LANGUAGE_CHOICE_ENABLED ? (
+                  <form action={setLocaleAction} aria-label="Language">
+                    <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
+                    {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
+                    <button
+                      type="submit"
+                      className="lang-switch"
+                      lang={locale === 'en' ? 'bn' : 'en'}
+                    >
+                      {locale === 'en' ? 'বাংলা' : 'English'}
+                    </button>
+                  </form>
+                ) : null}
+                <a className="btn btn-secondary nav-cta" href="/app">
+                  {signedIn ? 'Workspace' : 'Sign In'}
+                </a>
+                {!signedIn && isPublicBetaOpen() ? (
+                  <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
+                    Get Started
+                  </Link>
+                ) : null}
+              </div>
+            </SiteNavigation>
+          </header>
+          <main id="main">{children}</main>
+          <footer className="footer">
+            <div className="container footer-inner">
+              <span>© {new Date().getFullYear()} VisaStack. Proprietary and confidential.</span>
+              <nav className="footer-links" aria-label="Footer">
+                <Link href="/#capabilities">Features</Link>
+                <Link href="/trust">Public Trust</Link>
+                <Link href="/status">Status</Link>
+                {hasNotice ? (
+                  <Link href="/status#about-this-version">About This Version</Link>
+                ) : null}
+                <Link href="/privacy">Privacy</Link>
+                <Link href="/terms">Terms</Link>
+                {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a
                   prefetch of it would be a blocked cross-origin request. */}
-              <a href="/app">{signedIn ? 'Workspace' : 'Sign In'}</a>
-            </nav>
-          </div>
-        </footer>
-        <PwaRuntime enabled={serviceWorker} />
+                <a href="/app">{signedIn ? 'Workspace' : 'Sign In'}</a>
+              </nav>
+            </div>
+          </footer>
+          <PwaRuntime enabled={serviceWorker} />
+        </I18nProvider>
       </body>
     </html>
   );

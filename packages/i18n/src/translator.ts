@@ -1,7 +1,7 @@
+import type { MessageParams } from './icu';
 import { CATALOGS, DEFAULT_LOCALE, LOCALES, type Locale, type MessageKey } from './messages';
 
-/** Interpolation parameters for a message (`{token}` → value). */
-export type MessageParams = Readonly<Record<string, string | number>>;
+export type { MessageParams };
 
 export type Translator = (key: MessageKey, params?: MessageParams) => string;
 
