@@ -74,7 +74,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function mount(locale: 'en' | 'bn', people?: { id: string; name: string }[]) {
+async function mount(
+  locale: 'en' | 'bn',
+  people?: { id: string; name: string }[],
+  familyBatch = false,
+) {
   await act(async () => {
     root.render(
       <I18nProvider locale={locale} pageLang={locale}>
@@ -82,6 +86,7 @@ async function mount(locale: 'en' | 'bn', people?: { id: string; name: string }[
           applicantId="a-1"
           limitBytes={1000}
           limitLabel="1 KB"
+          familyBatch={familyBatch}
           {...(people ? { people } : {})}
         />
       </I18nProvider>,
@@ -148,6 +153,11 @@ describe('the import panel under Bengali', () => {
     expect(`${K}yourFilesAreSavedAndChecked` in bn).toBe(false);
     expect(text()).toContain('Your files are saved and checked.');
     expect(text()).not.toMatch(/appApplicant\./);
+  });
+
+  it('offers the not-sure choice for the family route in Bengali', async () => {
+    await mount('bn', people, true);
+    expect(host.innerHTML).toContain(`>${bn[`${K}notSureHelpMeDecide`]}<`);
   });
 
   it('names the folder a file came from in Bengali', async () => {

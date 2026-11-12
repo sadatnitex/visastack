@@ -296,7 +296,7 @@ export default async function ExpiryCentrePage({
                                     {' '}
                                     <Link
                                       href={`/app/applicant/${id}/documents?document=${doc.id}#expiry-${doc.id}`}
-                                      aria-label={`Set Expiry Date: ${doc.approvedName ?? doc.originalName}`}
+                                      aria-label={`${t('appApplicant.appApplicantIdExpiryPage.setExpiryDate')}: ${doc.approvedName ?? doc.originalName}`}
                                     >
                                       {t('appApplicant.appApplicantIdExpiryPage.setExpiryDate')}
                                     </Link>

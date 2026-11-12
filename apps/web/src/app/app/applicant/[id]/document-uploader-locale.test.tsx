@@ -34,6 +34,7 @@ async function upload(
   locale: 'en' | 'bn',
   outcome?: Record<string, unknown>,
   extra: Record<string, unknown> = {},
+  count = 1,
 ) {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const host = document.createElement('div');
@@ -54,8 +55,11 @@ async function upload(
   if (outcome) {
     copy.send.mockResolvedValue(outcome);
     const picker = host.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['x'], 'passport.jpg', { type: 'image/jpeg' });
-    Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+    const files = Array.from(
+      { length: count },
+      (_, i) => new File(['x'], i === 0 ? 'passport.jpg' : `page-${i}.jpg`, { type: 'image/jpeg' }),
+    );
+    Object.defineProperty(picker, 'files', { value: files, configurable: true });
     await act(async () => {
       picker.dispatchEvent(new Event('change', { bubbles: true }));
     });
@@ -104,6 +108,11 @@ describe('the uploader under Bengali', () => {
     expect(text).toContain(bn[`${K}documentSaved`]);
     expect(text).toContain('passport.jpg');
     expect(text).toContain('Passport added.');
+  });
+
+  it('says several saved files are saved, in the plural Bengali title', async () => {
+    const { text } = await upload('bn', { kind: 'added', message: 'Added.', title: null }, {}, 2);
+    expect(text).toContain(bn[`${K}documentsSaved`]);
   });
 
   it('offers Remove This New Copy in Bengali, with the file name, for an identical copy', async () => {

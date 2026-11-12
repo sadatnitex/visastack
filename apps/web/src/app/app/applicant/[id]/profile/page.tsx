@@ -1,5 +1,4 @@
 import { resolveDocumentType } from '@visastack/core/catalogue';
-import { formatNumber } from '@visastack/i18n';
 import {
   type FactAssuranceView,
   accountPrincipal,
@@ -39,6 +38,7 @@ import { ownedPhotoUrl } from '../../../../../lib/profile-photos';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
 import { AppSuggestionsSection } from '../app-suggestions';
+import { numberText } from '../number-text';
 import { type FieldAssurance, ProfileEditor } from '../profile-editor';
 
 export const metadata: Metadata = { title: 'My Profile' };
@@ -386,15 +386,15 @@ export default async function ApplicantProfilePage({
               <article className="card rows">
                 <div className="row">
                   <span>{t('appApplicant.appApplicantIdProfilePage.confirmedByTheTraveller')}</span>
-                  <strong>{formatNumber(confirmed, locale)}</strong>
+                  <strong>{numberText(confirmed, locale)}</strong>
                 </div>
                 <div className="row">
                   <span>{t('appApplicant.appApplicantIdProfilePage.fieldsBackedByADocument')}</span>
-                  <strong>{formatNumber(supported, locale)}</strong>
+                  <strong>{numberText(supported, locale)}</strong>
                 </div>
                 <div className="row">
                   <span>{t('appApplicant.appApplicantIdProfilePage.fieldsThatDoNotMatch')}</span>
-                  <strong>{formatNumber(conflictedCount, locale)}</strong>
+                  <strong>{numberText(conflictedCount, locale)}</strong>
                 </div>
                 <p className="muted">
                   {t('appApplicant.appApplicantIdProfilePage.theseCountsAreSeparateTheyAre')}

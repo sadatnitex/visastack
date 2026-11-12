@@ -75,7 +75,11 @@ const en = appApplicantCatalog.en as Record<string, string>;
 const K = 'appApplicant.appApplicantId';
 const BENGALI = /[ঀ-৿]/;
 
-const editor = (locale: 'en' | 'bn', startWithAll = false) =>
+const editor = (
+  locale: 'en' | 'bn',
+  startWithAll = false,
+  extra: Partial<React.ComponentProps<typeof ProfileEditor>> = {},
+) =>
   textOf(
     renderToStaticMarkup(
       <I18nProvider locale={locale} pageLang={locale}>
@@ -86,6 +90,7 @@ const editor = (locale: 'en' | 'bn', startWithAll = false) =>
           assurance={new Map()}
           view={fixtureView()}
           startWithAll={startWithAll}
+          {...extra}
         />
       </I18nProvider>,
     ),
@@ -225,6 +230,54 @@ describe('the profile editor under Bengali', () => {
     // Field names come from the profile catalogue and stay as they are.
     expect(text).toContain('Given Name');
     expect(text).not.toMatch(/appApplicant\./);
+  });
+
+  it('shows the checked, ended and needs-review states in Bengali, and the assurance lines in each case', () => {
+    const value = (status: string) => ({
+      factId: 'f1',
+      value: 'Karim',
+      status,
+      updatedAt: '2026-10-10T12:00:00Z',
+    });
+    const assurance = (declared: boolean, supplied: boolean) =>
+      new Map([
+        [
+          'f1',
+          {
+            applicantDeclared: declared,
+            documentSupplied: supplied,
+            machineChecks: [],
+            agencyReviews: [],
+            issuerConfirmations: [],
+            tier: 'E1' as const,
+          },
+        ],
+      ]);
+    const conflicted = editor('bn', true, {
+      values: { given_name: value('CONFLICTED') } as never,
+      assurance: assurance(true, false),
+      repeatingValues: {
+        historical_passport_number: {
+          'existing-record': { factId: 'fact', value: 'SYNTHETIC', status: 'DECLARED' },
+        },
+      } as never,
+      endedRecords: { 'existing-record': '2025-06-30T00:00:00.000Z' },
+    });
+    for (const key of [
+      'needsReview',
+      'enteredByTheTraveller',
+      'noSupportingDocumentSupplied',
+      'ended',
+    ])
+      expect(conflicted, key).toContain(bn[`${E}${key}`]);
+    // The other branch of each assurance line is held back, so it stays English.
+    const other = editor('bn', true, {
+      assurance: assurance(false, true),
+      values: { given_name: value('DECLARED') } as never,
+    });
+    expect(other).toContain('Not yet entered');
+    expect(other).toContain('Backed by a supplied document');
+    expect(conflicted).not.toMatch(/appApplicant\./);
   });
 
   it('shows the locked section and the essentials-only view in each of their states', () => {

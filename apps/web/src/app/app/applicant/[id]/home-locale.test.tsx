@@ -183,6 +183,44 @@ describe('the traveller home under Bengali', () => {
     expect(text).not.toContain(bn[`${K}nothingIsWaitingForYou`]);
   });
 
+  it('shows the open request line, the checklist meter label and the case fallbacks in Bengali', async () => {
+    service.listEvidenceRequestsForApplicant.mockResolvedValue({
+      ok: true,
+      value: [{ id: 'r1', status: 'OPEN' }],
+    });
+    service.listMissions.mockResolvedValue({
+      ok: true,
+      value: [{ ...openCase, state: 'SOMETHING_NEW', jurisdiction: null, packVersionId: 'pv1' }],
+    });
+    service.computeReadiness.mockResolvedValue({
+      ok: true,
+      value: { requiredCount: 3, satisfiedRequired: 1, items: [] },
+    });
+    const text = await home('bn');
+    for (const key of ['evidenceRequestsWaitingForAReply', 'inProgress', 'visaCase'])
+      expect(text, key).toContain(bn[`${K}${key}`]);
+    expect(text).toContain(`${bn[`${K}evidenceRequestsWaitingForAReply`]} ১`);
+    expect(text).not.toMatch(/appApplicant\./);
+  });
+
+  it('writes counts of a thousand or more with no grouping under English', async () => {
+    service.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: Array.from({ length: 1234 }, (_, i) => ({
+        id: `d${i}`,
+        safetyStatus: 'CLEAN',
+        classification: null,
+        createdAt: new Date('2026-10-12'),
+        updatedAt: new Date('2026-10-12'),
+        uploadedAt: new Date('2026-10-12'),
+      })),
+    });
+    const english = await home('en');
+    expect(english).toContain('1234');
+    expect(english).not.toContain('1,234');
+    expect(await home('bn')).toContain('১,২৩৪');
+  });
+
   it('keeps the same English as before under English, with Latin digits', async () => {
     service.listMissions.mockResolvedValue({ ok: true, value: [openCase] });
     service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [quarantined] });

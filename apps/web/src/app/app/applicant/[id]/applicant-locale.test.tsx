@@ -35,6 +35,10 @@ vi.mock('../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'aut
 vi.mock('../../../../lib/session', () => ({
   withSession: (callback: (ctx: unknown) => unknown) => callback({ db: {}, accountId: 'owner' }),
 }));
+vi.mock('./documents/needs-decision-actions', () => ({
+  decideRelationAction: vi.fn(),
+  needsDecisionAction: vi.fn(),
+}));
 vi.mock('./actions', () => ({
   setDocumentExpiryAction: vi.fn(),
   renameDocumentAction: vi.fn(),
@@ -49,6 +53,8 @@ import { navigationState, renderServer, textOf } from '../../../../lib/next-mock
 import { DocumentExpiryForm } from './document-expiry-form';
 import { DocumentRenameForm } from './document-rename-form';
 import { DocumentTypeForm } from './document-type-form';
+import { LifecycleTabs } from './documents/manage/lifecycle-tabs';
+import { NeedsDecision } from './documents/needs-decision';
 import { default as ExpiryPage } from './expiry/page';
 import { default as HistoryPage } from './history/page';
 import { RecordBrowser } from './record-browser';
@@ -147,6 +153,52 @@ describe('the record tabs and list under Bengali', () => {
     expect(one).not.toContain('১টি আইটেম মিলেছে।');
     expect(one).toContain(en[`${K}RecordBrowser.1ItemMatches`] ?? 'MISSING');
     expect(many).toContain(bn[`${K}RecordBrowser.recordFilters`]);
+  });
+});
+
+describe('the lists, tabs and decision cards under Bengali', () => {
+  it('offers Previous in Bengali when the list has more than one page', () => {
+    const items = Array.from({ length: 14 }, (_, i) => item(`d${i}`));
+    expect(client('bn', <RecordBrowser items={items} />)).toContain(
+      bn[`${K}RecordBrowser.previous`],
+    );
+    expect(client('en', <RecordBrowser items={items} />)).toContain('Previous');
+  });
+
+  it('names the removal records tab with the same Bengali as the page it opens', async () => {
+    const tabs = await server('bn', () => (
+      <LifecycleTabs
+        basePath="/app/applicant/p1/documents"
+        active="current"
+        archivedCount={0}
+        deletedCount={0}
+        removalRecordsHref="/app/applicant/p1/removal-records"
+      />
+    ));
+    expect(tabs).toContain(bn[`${K}DocumentsManageLifecycleTabs.removalRecords`]);
+    expect(bn[`${K}DocumentsManageLifecycleTabs.removalRecords`]).toBe(
+      bn[`${K}RemovalRecordsPage.removalRecords`],
+    );
+  });
+
+  it('says what to do with a file that was out of date on arrival, in Bengali', () => {
+    const text = client(
+      'bn',
+      <NeedsDecision
+        applicantId="a1"
+        items={[
+          {
+            kind: 'expired_on_arrival',
+            exceptionId: 'x1',
+            documentId: 'd2',
+            title: 'Passport, Anna',
+          },
+        ]}
+        linked={[]}
+      />,
+    );
+    expect(text).toContain(bn[`${K}DocumentsNeedsDecision.addANewerCopyIfYou`]);
+    expect(text).not.toMatch(/appApplicant\./);
   });
 });
 
@@ -275,6 +327,77 @@ describe('the history and expiry pages under Bengali', () => {
     expect(text).toContain('No Documents Yet');
     expect(text).not.toMatch(BENGALI);
     expect(await server('en', history)).not.toMatch(BENGALI);
+  });
+});
+
+describe('the history log and the expiry list in their fuller states under Bengali', () => {
+  const history = () =>
+    HistoryPage({ params: Promise.resolve({ id: 'person' }), searchParams: Promise.resolve({}) });
+  const expiry = () => ExpiryPage({ params: Promise.resolve({ id: 'person' }) });
+
+  it('shows the part filter and the entries label in Bengali once something is saved', async () => {
+    service.listApplicantProfile.mockResolvedValue({
+      ok: true,
+      value: {
+        total: 1,
+        nextCursor: null,
+        items: [
+          {
+            id: 'v1',
+            factId: 'f1',
+            fieldKey: 'given_name',
+            packId: 'universal',
+            repeatingRecordKey: null,
+            value: 'Karim',
+            isProtected: false,
+            status: 'DECLARED',
+            method: 'MANUAL',
+            reason: null,
+            actor: 'owner',
+            isCurrent: true,
+            createdAt: new Date('2026-10-01T10:00:00Z'),
+          },
+        ],
+      },
+    });
+    const text = await server('bn', history);
+    for (const key of ['partOfTheProfile', 'everyPart', 'showThisPart'])
+      expect(text, key).toContain(bn[`${K}HistoryHistoryLog.${key}`]);
+    expect(text).not.toMatch(/appApplicant\./);
+  });
+
+  it('names the set-expiry link in one language, for both its text and its accessible name', async () => {
+    service.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          id: 'd1',
+          originalName: 'passport.pdf',
+          approvedName: null,
+          docType: 'PASSPORT',
+          subject: null,
+          expiresAt: null,
+          safetyStatus: 'CLEAN',
+          processingStatus: 'APPROVED',
+          expiry: { origin: 'NONE', typedOn: null, mismatch: false, canType: true },
+        },
+      ],
+    });
+    const html = await (async () => {
+      current.holder = null;
+      current.locale = 'bn';
+      await primeLocale();
+      return renderServer(Promise.resolve(expiry()) as never);
+    })();
+    expect(textOf(html)).toContain(bn[`${K}ExpiryPage.setExpiryDate`]);
+    expect(html).toContain(`aria-label="${bn[`${K}ExpiryPage.setExpiryDate`]}: passport.pdf"`);
+    const english = await (async () => {
+      current.holder = null;
+      current.locale = 'en';
+      await primeLocale();
+      return renderServer(Promise.resolve(expiry()) as never);
+    })();
+    expect(english).toContain('aria-label="Set Expiry Date: passport.pdf"');
   });
 });
 

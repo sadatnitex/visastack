@@ -1,4 +1,3 @@
-import { formatNumber } from '@visastack/i18n';
 import {
   computeReadiness,
   getApplicant,
@@ -44,6 +43,7 @@ import {
   validUntilLine,
 } from '../../deadline-clock-data';
 import { HeldFilesLine, readHeldFileCount } from '../../held-files-line';
+import { numberText } from './number-text';
 import { TravellerLifecycleBar } from './traveller-manage/lifecycle-bar';
 import { loadTravellerManage } from './traveller-manage/load';
 import { OUTCOME_PARAM } from './traveller-manage/messages';
@@ -403,7 +403,7 @@ export default async function ApplicantOverviewPage({
               className={`lift-tile-numeral${data.missions.ok ? '' : ' traveller-metric-off'}`}
             >
               {data.missions.ok
-                ? formatNumber(data.active.length, locale)
+                ? numberText(data.active.length, locale)
                 : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
@@ -419,7 +419,7 @@ export default async function ApplicantOverviewPage({
               className={`lift-tile-numeral${data.documents.ok ? '' : ' traveller-metric-off'}`}
             >
               {data.documents.ok
-                ? formatNumber(documents.length, locale)
+                ? numberText(documents.length, locale)
                 : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
@@ -437,7 +437,7 @@ export default async function ApplicantOverviewPage({
               }`}
             >
               {data.documents.ok && data.requests.ok
-                ? formatNumber(attention, locale)
+                ? numberText(attention, locale)
                 : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
@@ -472,7 +472,7 @@ export default async function ApplicantOverviewPage({
                             aria-hidden="true"
                             className={`home-path-mark${step.done ? ' home-path-done' : ''}`}
                           >
-                            {step.done ? '\u2713' : formatNumber(index + 1, locale)}
+                            {step.done ? '\u2713' : numberText(index + 1, locale)}
                           </span>
                           <span className="home-path-text">
                             <span className="sr-only">
@@ -620,7 +620,7 @@ export default async function ApplicantOverviewPage({
                       title={t('appApplicant.appApplicantIdPage.evidenceRequestsWaitingForAReply')}
                       pill={
                         <StatusBadge tone="warning">
-                          {formatNumber(requests.length, locale)}
+                          {numberText(requests.length, locale)}
                         </StatusBadge>
                       }
                     />
@@ -632,7 +632,7 @@ export default async function ApplicantOverviewPage({
                       title={t('appApplicant.appApplicantIdPage.suggestedDetailsAwaitingApproval')}
                       pill={
                         <StatusBadge tone="warning">
-                          {formatNumber(readings.length, locale)}
+                          {numberText(readings.length, locale)}
                         </StatusBadge>
                       }
                     />
@@ -644,7 +644,7 @@ export default async function ApplicantOverviewPage({
                       title={t('appApplicant.appApplicantIdPage.suggestionsFromAiAppsWaitingFor')}
                       pill={
                         <StatusBadge tone="warning">
-                          {formatNumber(appSuggestions.length, locale)}
+                          {numberText(appSuggestions.length, locale)}
                         </StatusBadge>
                       }
                     />
@@ -656,7 +656,7 @@ export default async function ApplicantOverviewPage({
                       title={t('appApplicant.appApplicantIdPage.documentsNeedingReview')}
                       pill={
                         <StatusBadge tone="warning">
-                          {formatNumber(flagged.length, locale)}
+                          {numberText(flagged.length, locale)}
                         </StatusBadge>
                       }
                     />
@@ -769,8 +769,8 @@ export default async function ApplicantOverviewPage({
                     <div className="meter-label">
                       <span>{t('appApplicant.appApplicantIdPage.essentialsAdded')}</span>
                       <span>
-                        {formatNumber(essentials.answered, locale)} /{' '}
-                        {formatNumber(essentials.total, locale)}
+                        {numberText(essentials.answered, locale)} /{' '}
+                        {numberText(essentials.total, locale)}
                       </span>
                     </div>
                     <ProgressMeter

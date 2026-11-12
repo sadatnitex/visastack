@@ -1,9 +1,8 @@
 'use client';
 
-import { formatNumber } from '@visastack/i18n';
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
-import { useLocale, useT } from '../../../../../components/i18n-provider';
+import { useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
@@ -383,7 +382,6 @@ export function ImportPanel({
   readonly readingOn?: boolean;
 }) {
   const t = useT(appApplicantCatalog);
-  const locale = useLocale();
   const router = useRouter();
   const forId = useId();
   // Who the next files are for: one of this account's people, or "not sure" (the family route).
@@ -780,7 +778,7 @@ export function ImportPanel({
       {truncated ? (
         <p className="field-hint">
           {t('appApplicant.appApplicantIdImportImportPanel.thisFolderHoldsMoreThanTolocalestring', {
-            toLocaleString: formatNumber(MAX_ENTRIES_LOOKED_AT, locale),
+            toLocaleString: MAX_ENTRIES_LOOKED_AT.toLocaleString('en-GB'),
             MAX_IMPORT_FILES: MAX_IMPORT_FILES,
           })}
         </p>
