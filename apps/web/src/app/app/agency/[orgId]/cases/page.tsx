@@ -225,9 +225,9 @@ export default async function AgencyCasesPage({
                           </>
                         ) : null}
                         {row.targetDeadline
-                          ? t('appAgency.appAgencyOrgidCasesPage.deadlineFormatdateonly', {
+                          ? ` ${t('appAgency.appAgencyOrgidCasesPage.deadlineFormatdateonly', {
                               formatDateOnly: formatDateOnly(row.targetDeadline, locale),
-                            })
+                            }).trimStart()}`
                           : ''}
                         {row.referenceCode ? (
                           <>

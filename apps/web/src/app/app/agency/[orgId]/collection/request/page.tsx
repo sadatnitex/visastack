@@ -27,6 +27,7 @@ import { notFound, redirect } from 'next/navigation';
 import { DestinationLabel } from '../../../../../../components/destination-label';
 import { StatusBadge } from '../../../../../../components/ui';
 import { appAgencyCatalog } from '../../../../../../i18n/app-agency';
+import { dayLabel } from '../../day-label';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { reportServerError } from '../../../../../../lib/server-error';
@@ -134,7 +135,7 @@ export default async function CollectionRequestPage({
     readonly details?: string | string[];
   }>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const { id, file, details } = await searchParams;
@@ -244,18 +245,18 @@ export default async function CollectionRequestPage({
             <dt>{t('appAgency.appAgencyOrgidCollectionRequestPage.travelDates')}</dt>
             <dd>
               {detail.travelFrom
-                ? formatDateOnly(detail.travelFrom)
+                ? formatDateOnly(detail.travelFrom, locale)
                 : t('appAgency.appAgencyOrgidCollectionRequestPage.notGiven')}
               {detail.travelTo
                 ? t('appAgency.appAgencyOrgidCollectionRequestPage.toFormatdateonly', {
-                    formatDateOnly: formatDateOnly(detail.travelTo),
+                    formatDateOnly: formatDateOnly(detail.travelTo, locale),
                   })
                 : ''}
             </dd>
             <dt>{t('appAgency.appAgencyOrgidCollectionRequestPage.due')}</dt>
             <dd>
               {detail.dueAt
-                ? formatTimestampDate(detail.dueAt)
+                ? dayLabel(detail.dueAt, locale)
                 : t('appAgency.appAgencyOrgidCollectionRequestPage.noDueDate')}
             </dd>
             <dt>{t('appAgency.appAgencyOrgidCollectionRequestPage.knownDetails')}</dt>
@@ -425,20 +426,26 @@ export default async function CollectionRequestPage({
               <tbody>
                 {detail.links.map((link) => (
                   <tr key={link.id}>
-                    <td data-label="Revision">{link.revisionNo}</td>
-                    <td data-label="State">{LINK_STATES[link.state]}</td>
-                    <td data-label="Sent By">
+                    <td data-label={t('appAgency.appAgencyOrgidCollectionRequestPage.revision')}>
+                      {link.revisionNo}
+                    </td>
+                    <td data-label={t('appAgency.appAgencyOrgidCollectionRequestPage.state')}>
+                      {LINK_STATES[link.state]}
+                    </td>
+                    <td data-label={t('appAgency.appAgencyOrgidCollectionRequestPage.sentBy')}>
                       {link.emailed
                         ? t('appAgency.appAgencyOrgidCollectionCollectionForms.email')
                         : t('appAgency.appAgencyOrgidCollectionRequestPage.copiedLink')}
                     </td>
-                    <td data-label="Email">
+                    <td data-label={t('appAgency.appAgencyOrgidCollectionCollectionForms.email')}>
                       <EmailStateCell email={link.email} />
                     </td>
-                    <td data-label="Expires">{formatTimestampDate(link.expiresAt)}</td>
-                    <td data-label="Last Opened">
+                    <td data-label={t('appAgency.appAgencyOrgidCollectionRequestPage.expires')}>
+                      {dayLabel(link.expiresAt, locale)}
+                    </td>
+                    <td data-label={t('appAgency.appAgencyOrgidCollectionRequestPage.lastOpened')}>
                       {link.lastOpenedAt
-                        ? formatTimestampDate(link.lastOpenedAt)
+                        ? dayLabel(link.lastOpenedAt, locale)
                         : t('appAgency.appAgencyOrgidCollectionRequestPage.notYet')}
                     </td>
                   </tr>

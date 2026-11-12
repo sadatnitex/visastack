@@ -587,8 +587,10 @@ export default async function AgencyDashboardPage({
                             </span>
                           ) : null}
                         </th>
-                        <td data-label="Stage">{STAGE_LABELS[mission.state] ?? mission.state}</td>
-                        <td data-label="Readiness">
+                        <td data-label={t('appAgency.appAgencyOrgidCaseSearchForm.stage')}>
+                          {STAGE_LABELS[mission.state] ?? mission.state}
+                        </td>
+                        <td data-label={t('appAgency.appAgencyOrgidPage.readiness')}>
                           <StatusBadge
                             tone={
                               mission.manualMode
@@ -622,7 +624,7 @@ export default async function AgencyDashboardPage({
                             </span>
                           )}
                         </td>
-                        <td data-label="Deadline">
+                        <td data-label={t('appAgency.appAgencyOrgidPage.deadline')}>
                           {mission.targetDeadline ? (
                             formatDateOnly(mission.targetDeadline, locale)
                           ) : (
@@ -631,7 +633,7 @@ export default async function AgencyDashboardPage({
                             </span>
                           )}
                         </td>
-                        <td data-label="Needs Attention">
+                        <td data-label={t('appAgency.appAgencyOrgidPage.needsAttention')}>
                           <span className="case-row-badges">
                             {row.openRequests > 0 ? (
                               <StatusBadge tone="warning">
@@ -671,7 +673,7 @@ export default async function AgencyDashboardPage({
                             ) : null}
                           </span>
                         </td>
-                        <td data-label="Assigned">
+                        <td data-label={t('appAgency.appAgencyOrgidMissionCollaboration.assigned')}>
                           {row.assignedToMe ? (
                             <StatusBadge tone="neutral">
                               {t('appAgency.appAgencyOrgidPage.assignedToYou')}
@@ -687,7 +689,7 @@ export default async function AgencyDashboardPage({
                             </span>
                           )}
                         </td>
-                        <td data-label="Traveller Confirmed">
+                        <td data-label={t('appAgency.appAgencyOrgidPage.travellerConfirmed')}>
                           {/* TRU-02 (Part 7 section 3): the applicant's own live sign-off status, not a
                           reviewer's. This org can see whether it exists, never act on it. */}
                           {mission.liveAcknowledgementAt

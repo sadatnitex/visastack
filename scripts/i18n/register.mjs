@@ -308,6 +308,18 @@ export const HOLDBACK = new Map([
     'Issuer confirmation and readiness: states what is confirmed; waits for the owner sign-off.',
   ],
   [
+    'SG-0a12f492',
+    'Accessible name must match the visible button, which is still English here (Remove); stays English until the button is converted.',
+  ],
+  [
+    'SG-b4a4f931',
+    'Accessible name of the show-all toggle must match its visible words, which are still English here; stays English until the toggle is converted.',
+  ],
+  [
+    'SG-75b245d1',
+    'Opening words of the show-all toggle must match its English closing words; stays English until the toggle is converted.',
+  ],
+  [
     'SG-d6e09908',
     'Accessible name must match the visible button, which is still English here; stays English until the button is converted.',
   ],

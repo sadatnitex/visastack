@@ -67,10 +67,14 @@ const k = (key: string) => `appAgency.appAgencyOrgidClientsPage.${key}`;
 const page = (items: unknown[]) => ({ items, nextCursor: null, total: items.length });
 const counts = { all: 1, open: 1, review: 0, replacement: 0, closed: 0 };
 
-async function show(locale: 'en' | 'bn') {
+async function show(locale: 'en' | 'bn', search: Record<string, string> = {}) {
   current.holder = null;
   current.locale = locale;
-  return textOf(await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) })));
+  return textOf(
+    await renderServer(
+      Page({ params: Promise.resolve({ orgId: 'o1' }), searchParams: Promise.resolve(search) }),
+    ),
+  );
 }
 
 beforeEach(() => {
@@ -142,6 +146,39 @@ describe('the agency Clients page under Bengali', () => {
     expect(text).toContain('· due Oct 20, 2026');
     expect(text).not.toContain(bn[k('noClientsInvitedYet')]);
     expect(text).not.toMatch(/appAgency\./);
+  });
+
+  it('names the request a link led to in Bengali when it is not on the page yet (linked state)', async () => {
+    const linked = '11111111-1111-4111-8111-111111111111';
+    const row = {
+      id: linked,
+      kind: 'DOCUMENT',
+      docType: 'PASSPORT',
+      fieldKey: null,
+      status: 'RECEIVED',
+      applicantName: 'Rahim Uddin',
+      dueDate: null,
+      referenceCode: 'R-7K2Q9M',
+    };
+    mocks.loadEvidenceRequestPage.mockImplementation(
+      async (
+        _db: unknown,
+        _a: unknown,
+        _o: unknown,
+        _access: unknown,
+        options: { only?: string },
+      ) =>
+        options.only ? { ...page([row]), viewCounts: counts } : { ...page([]), viewCounts: counts },
+    );
+    const text = await show('bn', { request: linked });
+    expect(text).not.toMatch(/appAgency\./);
+    const html = await renderServer(
+      Page({
+        params: Promise.resolve({ orgId: 'o1' }),
+        searchParams: Promise.resolve({ request: linked }),
+      }),
+    );
+    expect(html).toContain(`aria-label="${bn[k('theRequestYouFollowedALink')]}"`);
   });
 
   it('keeps the explanation in English for a member who is not an administrator', async () => {

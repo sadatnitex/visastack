@@ -14,7 +14,7 @@ import { notFound } from 'next/navigation';
 import { DestinationLabel } from '../../../../../components/destination-label';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
-import { formatTimestampDate } from '../../../../../lib/format-date';
+import { dayLabel } from '../day-label';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
 import { STATUS_TONES, destinationName } from './terms';
@@ -238,30 +238,38 @@ export default async function CollectionRequestsPage({
             <tbody>
               {shown.map((request) => (
                 <tr key={request.id}>
-                  <td data-label="For">
+                  <td data-label={t('appAgency.appAgencyOrgidCollectionPage.for')}>
                     <Link className="request-link" href={`${base}/request?id=${request.id}`}>
                       {request.recipientNameHint ??
                         t('appAgency.appAgencyOrgidCollectionPage.notNamedYet')}
                     </Link>
                   </td>
-                  <td data-label="Destination">
+                  <td
+                    data-label={t('appAgency.appAgencyOrgidCollectionCollectionForms.destination')}
+                  >
                     <DestinationLabel destination={destinationName(request.destination)} />
                   </td>
-                  <td data-label="Purpose">
+                  <td data-label={t('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}>
                     {request.purpose ??
                       t('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
                   </td>
-                  <td data-label="Status">
+                  <td data-label={t('appAgency.appAgencyOrgidCollectionPage.status')}>
                     <StatusBadge tone={STATUS_TONES[request.status]}>
                       {COLLECTION_STATUS_LABELS[request.status]}
                     </StatusBadge>
                   </td>
                   {answers ? (
-                    <td data-label="Answers">
+                    <td
+                      data-label={t(
+                        'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.answers',
+                      )}
+                    >
                       <AnswerChips summary={answers.get(request.id)} />
                     </td>
                   ) : null}
-                  <td data-label="Created">{formatTimestampDate(request.createdAt)}</td>
+                  <td data-label={t('appAgency.appAgencyOrgidCollectionPage.created')}>
+                    {dayLabel(request.createdAt, locale)}
+                  </td>
                 </tr>
               ))}
             </tbody>

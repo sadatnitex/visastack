@@ -165,6 +165,28 @@ describe('the team page under Bengali', () => {
   });
 });
 
+describe('the team page rows under Bengali', () => {
+  it('shows an active member with the Bengali word for active (rows state)', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: true, member: true });
+    mocks.loadMembers.mockResolvedValue([
+      {
+        membershipId: 'ms1',
+        accountId: 'a1',
+        email: 'owner@example.com',
+        role: 'OWNER',
+        active: true,
+      },
+    ]);
+    mocks.loadPendingTeamInvitations.mockResolvedValue([]);
+    const text = await render('bn', () =>
+      renderServer(TeamPage({ params: Promise.resolve({ orgId: 'o1' }) })),
+    );
+    expect(text).toContain('owner@example.com');
+    expect(text).toContain(bn[k('appAgencyOrgidTeamPage.active')]);
+    expect(text).not.toMatch(/appAgency\./);
+  });
+});
+
 describe('agency forms and headings under Bengali', () => {
   it('translates the organization form placeholder', () => {
     const html = renderToStaticMarkup(

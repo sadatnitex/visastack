@@ -848,7 +848,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidCollectionCollectionForms.noteToThePersonOptional':
       'ব্যক্তির জন্য নোট (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.purpose': 'উদ্দেশ্য',
-    'appAgency.appAgencyOrgidCollectionCollectionForms.removeLabel': 'সরান: {label}',
     'appAgency.appAgencyOrgidCollectionCollectionForms.specificRouteOptional': 'নির্দিষ্ট রুট (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.travelFromOptional': 'কোথা থেকে ভ্রমণ (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.travelToOptional': 'কোথায় ভ্রমণ (ঐচ্ছিক)',
@@ -984,8 +983,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidPage.requestsAndTeam': 'অনুরোধ ও টিম',
     'appAgency.appAgencyOrgidPage.reviewissuesNeedsReplacement': '{reviewIssues} বদলাতে হবে',
     'appAgency.appAgencyOrgidPage.setUpYourAgency': 'আপনার এজেন্সি সেট আপ করুন',
-    'appAgency.appAgencyOrgidPage.showAllMinCases': 'সব {min}টি ভিসা ফাইল দেখান',
-    'appAgency.appAgencyOrgidPage.showFewerCases': 'কম ভিসা ফাইল দেখান',
     'appAgency.appAgencyOrgidPage.teamMembers': 'টিমের সদস্য',
     'appAgency.appAgencyOrgidPage.traveller': 'ভ্রমণকারী',
     'appAgency.appAgencyOrgidPage.viewAccessibleCaseActivity': 'অ্যাক্সেসযোগ্য ভিসা ফাইলের কার্যকলাপ দেখুন',

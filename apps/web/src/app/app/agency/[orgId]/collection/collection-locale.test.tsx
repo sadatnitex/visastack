@@ -91,10 +91,14 @@ function detail(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function list(locale: 'en' | 'bn') {
+async function list(locale: 'en' | 'bn', query: { status?: string; review?: string } = {}) {
   current.holder = null;
   current.locale = locale;
-  return textOf(await renderServer(ListPage({ params: Promise.resolve({ orgId: ORG }) })));
+  return textOf(
+    await renderServer(
+      ListPage({ params: Promise.resolve({ orgId: ORG }), searchParams: Promise.resolve(query) }),
+    ),
+  );
 }
 async function request(locale: 'en' | 'bn') {
   current.holder = null;
@@ -159,6 +163,50 @@ describe('the Document Requests list under Bengali', () => {
     expect(text).not.toMatch(/appAgency\./);
   });
 
+  it('says in Bengali that no request matches both filters (filtered state)', async () => {
+    const sent = '30000000-0000-4000-8000-0000000000a1';
+    const draft = '30000000-0000-4000-8000-0000000000a2';
+    const row = (id: string, status: string) => ({
+      id,
+      status,
+      destination: 'GB',
+      purpose: null,
+      route: null,
+      recipientNameHint: null,
+      dueAt: null,
+      createdAt: at,
+      updatedAt: at,
+    });
+    mocks.list.mockResolvedValue({ ok: true, value: [row(sent, 'SENT'), row(draft, 'DRAFT')] });
+    mocks.summary.mockResolvedValue(
+      new Map([[sent, { answers: 1, waiting: 1, needsCorrection: 0, accepted: 0 }]]),
+    );
+    const text = await list('bn', { status: 'DRAFT', review: 'waiting' });
+    expect(text).toContain(bn[k('CollectionPage.noRequestsMatchBothFiltersTurn')]);
+    expect(text).not.toMatch(/appAgency\./);
+  });
+
+  it('shows the counts without a thousands separator in English and in Bengali digits under Bengali', async () => {
+    const rows = Array.from({ length: 1234 }, (_, index) => ({
+      id: `30000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      status: 'SENT',
+      destination: 'GB',
+      purpose: null,
+      route: null,
+      recipientNameHint: null,
+      dueAt: null,
+      createdAt: at,
+      updatedAt: at,
+    }));
+    mocks.list.mockResolvedValue({ ok: true, value: rows });
+    mocks.summary.mockResolvedValue(
+      new Map([[rows[0]?.id ?? '', { answers: 1, waiting: 1, needsCorrection: 0, accepted: 0 }]]),
+    );
+    expect(await list('en')).toMatch(/All 1234 /);
+    expect(await list('en')).not.toContain('1,234');
+    expect(await list('bn')).toContain('১,২৩৪');
+  });
+
   it('stays English for English readers', async () => {
     mocks.list.mockResolvedValue({ ok: true, value: [] });
     expect(await list('en')).not.toMatch(BENGALI);
@@ -175,8 +223,9 @@ describe('a Document Request under Bengali', () => {
     expect(text).toContain(bn[k('CollectionRequestPage.checklist')]);
     expect(text).toContain(bn[k('CollectionRequestPage.travelDates')]);
     expect(text).toContain(bn[k('CollectionPage.for')]);
-    // Held: the dates sit inside an English phrase, so they stay English.
-    expect(text).toContain('Dec 3, 2026');
+    // The dates are written in Bengali; the word between them waits for the register.
+    expect(text).toContain('৩ ডিসে, ২০২৬');
+    expect(text).toContain('১০ ডিসে, ২০২৬');
     expect(text).toContain('Issuing freezes this checklist');
     expect(text).toContain('No items yet. Add what your agency needs below.');
     expect(text).not.toMatch(/appAgency\./);
@@ -222,6 +271,38 @@ describe('a Document Request under Bengali', () => {
     expect(text).toContain('one-time code sent to the email address you entered');
     expect(text).toContain('End This Request');
     expect(text).not.toMatch(/appAgency\./);
+  });
+
+  it('writes the due, expiry and last opened days in Bengali, and in English as before', async () => {
+    mocks.get.mockResolvedValue({
+      ok: true,
+      value: detail({
+        status: 'SENT',
+        storedStatus: 'SENT',
+        dueAt: new Date('2026-12-05T12:00:00Z'),
+        revisions: [],
+        links: [
+          {
+            id: 'l1',
+            revisionNo: 1,
+            state: 'OPEN',
+            emailed: false,
+            email: NOT_EMAILED,
+            createdAt: at,
+            expiresAt: new Date('2026-11-16T12:00:00Z'),
+            lastOpenedAt: new Date('2026-11-10T12:00:00Z'),
+          },
+        ],
+      }),
+    });
+    const bnText = await request('bn');
+    expect(bnText).toContain('৫ ডিসে, ২০২৬');
+    expect(bnText).toContain('১৬ নভে, ২০২৬');
+    expect(bnText).toContain('১০ নভে, ২০২৬');
+    const enText = await request('en');
+    expect(enText).toContain('5 Dec 2026');
+    expect(enText).toContain('16 Nov 2026');
+    expect(enText).toContain('10 Nov 2026');
   });
 
   it('stays English for English readers', async () => {
