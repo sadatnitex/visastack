@@ -78,10 +78,16 @@ export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
     <div
       style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border, #333)' }}
     >
+      {/* Wording follows what the ZIP holds: every version that isDocumentVersionUsable accepts
+          (services/documents.ts), as collected in services/account-export.ts. "Usable" means the
+          file format check passed, not a virus scan (lib/scan-state.ts), so the sentence never
+          says "safe" and says plainly that no virus scan runs yet. Change all three together. */}
       <p className="card-body" style={{ marginBottom: '0.75rem' }}>
         Need the actual document files too, not just their metadata? Request a large export - a ZIP
-        containing every current, safe document file alongside the same manifest and CSV tables
-        above. It takes a few minutes to prepare and stays downloadable for 24 hours.
+        with every usable document file, including earlier copies, alongside the same manifest and
+        CSV tables above. A file is included only if it passed the file format check, and files are
+        not scanned for viruses yet. It takes a few minutes to prepare and stays downloadable for 24
+        hours.
       </p>
       {active ? (
         <StatusLine job={active} />

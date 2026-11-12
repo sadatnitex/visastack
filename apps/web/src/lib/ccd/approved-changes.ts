@@ -829,6 +829,19 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   },
   {
     screen: 'privacy',
+    from: {
+      kind: 'text',
+      name: 'Deletion is reversible during a 7-day grace window, then permanent. Your audit trail is preserved and anonymized. An active legal hold blocks deletion until released.',
+    },
+    to: {
+      kind: 'text',
+      name: 'Deletion is reversible during a 7-day grace window, then permanent. An active legal hold blocks deletion until released.',
+    },
+    reason:
+      'Owner decision D1 (2026-11-12): the audit trail sentence is corrected and moved behind "What Happens to Your Audit Trail" so the screen stays within 30 words.',
+  },
+  {
+    screen: 'privacy',
     from: { kind: 'heading', name: 'Your Data Rights', detail: '1' },
     to: { kind: 'heading', name: 'Privacy & Consent', detail: '1' },
     reason: 'D3: the page is "Privacy & Consent", as in the account menu.',

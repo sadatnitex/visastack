@@ -786,7 +786,7 @@ Human review sign-off (to be completed by the editor and, for legal wording, a q
 |---|---|---|
 | ![](screens/J14-agencyOwner_app_agency_orgId_-en.jpg) | ![](screens/J14-agencyOwner_app_agency_orgId_-bn.jpg) | ![](screens/J14-agencyOwner_app_agency_orgId_-rtl.jpg) |
 
-Measured: bn draft swapped 244 of 405 text runs (60%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 4, bn 4, RTL 4.
+Measured: bn draft swapped 244 of 406 text runs (60%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 4, bn 4, RTL 4.
 
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
@@ -991,7 +991,7 @@ Human review sign-off (to be completed by the editor and, for legal wording, a q
 |---|---|---|
 | ![](screens/J18-rahim_app_privacy-en.jpg) | ![](screens/J18-rahim_app_privacy-bn.jpg) | ![](screens/J18-rahim_app_privacy-rtl.jpg) |
 
-Measured: bn draft swapped 133 of 185 text runs (72%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 3, bn 3, RTL 3.
+Measured: bn draft swapped 135 of 187 text runs (72%). Sideways overflow in pixels: English 0, bn 0, RTL 0. Clipped text blocks: English 3, bn 3, RTL 3.
 
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|

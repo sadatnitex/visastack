@@ -148,7 +148,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-33c77ba0a1 | Requested Route (Optional) | `app/app/agency/[orgId]/client-invitation-form.tsx:70` (seen on a screen) |
 | SRC-3fd82f942b | Evidence (Optional) | `app/app/mission/[id]/outcome-panel.tsx:149` (seen on a screen) |
 
-### Who is asking (G4_who_is_asking): 159 rows, 118 distinct texts
+### Who is asking (G4_who_is_asking): 157 rows, 116 distinct texts
 
 | Source id | English | Where |
 |---|---|---|
@@ -200,7 +200,7 @@ The tables below are generated from the census (rows carrying each guard tag), s
 | SRC-4cace4cfc4 | Temporary Residence Permit | `core/src/catalogue/documents.ts:435` (seen on a screen) |
 | SRC-6be4286880 | Search covers only the cases you are already allowed to see, by traveller, case title, reference, destination or stage. | `app/app/agency/[orgId]/page.tsx:452` (seen on a screen) |
 
-### Data actions (G8_data_action): 459 rows, 371 distinct texts
+### Data actions (G8_data_action): 460 rows, 372 distinct texts
 
 | Source id | English | Where |
 |---|---|---|

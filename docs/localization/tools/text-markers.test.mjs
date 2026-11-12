@@ -49,3 +49,26 @@ test('comments, svg titles and tag splitting', () => {
   assert.deepEqual(splitOnTags('one <b>two</b> three'), ['one ', 'two', ' three']);
   assert.deepEqual(splitOnTags('a < b'), ['a < b']);
 });
+
+test('isMessageKey accepts real message keys and leaves ordinary text alone', async () => {
+  const { isMessageKey } = await import('./text-markers.mjs');
+  for (const key of [
+    'consent.issuerContact.title',
+    'grant.status.awaitingYourAcceptance',
+    'grant.status.pendingAcceptance',
+  ])
+    assert.equal(isMessageKey(key), true, key);
+  for (const text of [
+    'e.gSomething',
+    'e.g.',
+    'www.example.com',
+    'Consent.issuerContact.title',
+    'consent.issuerContact',
+    'Read the Privacy Notice',
+    'v1.2.3',
+    'a.b.cD',
+    '',
+  ])
+    assert.equal(isMessageKey(text), false, text);
+  assert.equal(isMessageKey(`${'a'.repeat(50000)}.`), false);
+});

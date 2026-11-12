@@ -189,9 +189,17 @@ export default async function PrivacyPage({
             <p className="card-kicker">Erasure</p>
             <h2 className="card-title">Delete Your Account</h2>
             <p className="card-body u-mb-125">
-              Deletion is reversible during a 7-day grace window, then permanent. Your audit trail
-              is preserved and anonymized. An active legal hold blocks deletion until released.
+              Deletion is reversible during a 7-day grace window, then permanent. An active legal
+              hold blocks deletion until released.
             </p>
+            <details className="card-body u-mb-125">
+              <summary>What Happens to Your Audit Trail</summary>
+              <p>
+                Your audit trail is kept, as the law and security require. It no longer links to
+                your account, but it still holds technical details such as the IP address and device
+                used.
+              </p>
+            </details>
             <DeletionPanel
               scheduledFor={data.scheduledFor}
               impact={data.impact}
@@ -250,8 +258,8 @@ export default async function PrivacyPage({
               AI Use Today
             </h2>
             <p className="card-body">
-              How much you used each AI feature today. Only the number is kept, never what was read.
-              Everything in VisaStack works without these features.
+              How much you used each AI feature today. For this count, only the number is kept,
+              never what was read. Everything in VisaStack works without these features.
             </p>
             <div className="rows u-mt-050">
               {data.aiUsage.map((feature) => {

@@ -16,8 +16,9 @@ import { personHoldsTablePresent } from './umpe-document-tables';
  *
  * Deletion is a two-step, reversible operation: a request opens a grace window
  * during which it can be cancelled; execution (after the window) irreversibly
- * removes the account's owned data. The audit trail is preserved and
- * anonymized (FK `set null`), and the request row survives as a tombstone.
+ * removes the account's owned data. The audit trail is kept as it is
+ * (append-only; the account id stays on its rows but no longer resolves to an account, and ip,
+ * device and metadata stay, so it is at best pseudonymous), and the request row survives as a tombstone.
  * Every transition is audited.
  */
 
@@ -532,8 +533,8 @@ export async function executeAccountDeletion(
       ),
       'deletion request',
     );
-    // Audit before deleting the account (its id must still satisfy the FK);
-    // the account delete then set-nulls this event's actor reference.
+    // Audit before deleting the account. The audit table has no FK to accounts: this event keeps
+    // the actor id verbatim, like every other audit row (append-only and hash-chained).
     await appendAuditEvent(tx, {
       eventType: 'ACCOUNT_DELETION_EXECUTED',
       actorAccountId: input.accountId,
@@ -543,8 +544,9 @@ export async function executeAccountDeletion(
       resourceId: input.accountId,
       metadata: { pendingErasureJobs: storageObjects.length + heldFilesQueued },
     });
-    // Removes the account; cascades memberships/consents/recipient-grants and
-    // set-nulls audit/uploader/actor references.
+    // Removes the account; cascades memberships/consents/recipient-grants and set-nulls the
+    // uploader/actor references that have a real FK. Audit rows are not touched: they keep the
+    // actor id (which no longer resolves to an account), ip, device and metadata.
     await tx.delete(schema.accounts).where(eq(schema.accounts.id, input.accountId));
     return ok(updated);
   });

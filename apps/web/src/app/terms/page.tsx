@@ -1,8 +1,10 @@
 import { SIGNUP_TERMS_VERSION } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { isPublicBetaOpen } from '../../lib/public-beta';
 
 export const metadata: Metadata = { title: 'Terms of Use' };
+export const dynamic = 'force-dynamic';
 
 export default function TermsPage() {
   return (
@@ -11,13 +13,28 @@ export default function TermsPage() {
       <p className="card-body">
         Version {SIGNUP_TERMS_VERSION}. These beta terms await legal review.
       </p>
-      <h2>Free Public Beta, at Your Own Risk</h2>
-      <p>
-        VisaStack is a free public beta, provided as it is. You may use your own details and
-        documents, at your own risk: some protections, such as virus scanning of uploads, are not
-        switched on yet, and the status page lists what works today. Creating an account does not
-        grant access to an agency workspace.
-      </p>
+      {isPublicBetaOpen() ? (
+        <>
+          <h2>Free Public Beta, at Your Own Risk</h2>
+          <p>
+            VisaStack is a free public beta, provided as it is. You may use your own details and
+            documents, at your own risk: some protections, such as virus scanning of uploads, are
+            not switched on yet, and the status page lists what works today. Creating an account
+            does not grant access to an agency workspace.
+          </p>
+        </>
+      ) : (
+        <>
+          <h2>Private Pilot, Made-Up Details Only</h2>
+          <p>
+            VisaStack is a private pilot, provided as it is. Please use made-up details, or
+            documents with all personal information permanently blacked out. Real applicant details
+            are not accepted yet. Some protections, such as virus scanning of uploads, are not
+            switched on yet, and the status page lists what works today. Creating an account does
+            not grant access to an agency workspace.
+          </p>
+        </>
+      )}
       <h2>Your Information and Access</h2>
       <p>
         Only provide information and files you are authorized to use. Keep your sign-in details

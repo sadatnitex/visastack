@@ -31,5 +31,31 @@
     "document_navigation_labels": "Accepted as drafted: ডকুমেন্টস for the label Documents; other document-label strings stay as listed in data/NAV_TERM_REVIEW.csv.",
     "generic_error_wording": "Accepted as drafted: কিছু একটা সমস্যা হয়েছে.",
     "note": "The reply was read as accepting the drafted answers to the four open items and deciding the currency display. Nothing has been reviewed."
+  },
+  "decision_queue_2026-11-12": {
+    "decided_on": "2026-11-12",
+    "decided_by": "owner",
+    "choice": "Accept all 9 recommendations",
+    "source": "docs/localization/data/legal-review/DECISION_QUEUE.md",
+    "items": {
+      "D1": "1 (recommended): English now says the audit trail is kept, no longer links to the account, and still holds IP address and device",
+      "D2": "1 (recommended): code is changed to re-queue held removals when a hold is released; English stays. Done in a separate change, not this one",
+      "D3": "1 (recommended): English says every usable file including earlier copies that passed the file format check, not scanned for viruses yet",
+      "D4": "1 (recommended): Privacy Notice everywhere a person sees it, including both invitation links; the staff admin label follows later",
+      "D5": "1 (recommended): Terms and Privacy Notice follow the same public-beta switch as the landing page and banner",
+      "D6": "1 (recommended): English scoped to For this count, only the number is kept, never what was read",
+      "D7": "1 (recommended): English kept; exception recorded in docs/operations/pilot-to-commercial-activation.md",
+      "D8": "1 (recommended): keep নিরাপদ where the English says safe about data kept or untouched; never for a file check. No change",
+      "D9": "1 (recommended): left untranslated and marked in the census as a key, not text"
+    },
+    "note": "Decisions only. No translation is marked reviewed or approved."
+  },
+  "further_decisions_2026-11-12": {
+    "decided_on": "2026-11-12",
+    "decided_by": "owner",
+    "staff_and_admin_screens": "Platform staff and admin screens stay English only for now.",
+    "account_language_and_email": "No per-account language field and no migration 0135 for now, so emails stay English.",
+    "official_content_and_billing_documents": "Official visa rule content, invoices and receipts stay English, with one short Bengali note saying they are shown as published.",
+    "note": "Decisions only. No translation is marked reviewed or approved."
   }
 }
