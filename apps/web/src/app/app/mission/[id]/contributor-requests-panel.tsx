@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import { useLocale, useT } from '../../../../components/i18n-provider';
+import { useT } from '../../../../components/i18n-provider';
 import { useShareMessage } from '../../../../components/share/use-share-message';
 import { WhatsAppShare } from '../../../../components/share/whatsapp-share';
 import { appMissionCatalog } from '../../../../i18n/app-mission';
@@ -40,7 +40,6 @@ export function ContributorRequestsPanel({
   readonly requests: readonly ContributorRequestRow[];
 }) {
   const t = useT(appMissionCatalog);
-  const locale = useLocale();
   const [state, formAction, pending] = useActionState(createContributorRequestAction, INITIAL);
 
   return (
@@ -66,7 +65,7 @@ export function ContributorRequestsPanel({
                   {r.status === 'PENDING'
                     ? t(
                         'appMission.appMissionIdContributorRequestsPanel.expiresFormattimestampdate',
-                        { formatTimestampDate: formatTimestampDate(r.expiresAt, locale) },
+                        { formatTimestampDate: formatTimestampDate(r.expiresAt) },
                       )
                     : ''}
                 </span>

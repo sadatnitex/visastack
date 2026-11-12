@@ -11,7 +11,7 @@ import { DestinationLabel } from '../../../../components/destination-label';
 import { StatusBadge } from '../../../../components/ui';
 import { collectCatalog } from '../../../../i18n/collect';
 import { formatTimestampDate } from '../../../../lib/format-date';
-import { getServerLocale, getServerT, primeLocale } from '../../../../lib/i18n-server';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { destinationName } from '../../../app/agency/[orgId]/collection/terms';
 import { WithdrawAnswerButton } from '../response-form';
@@ -54,7 +54,6 @@ export default async function YourAnswersPage({
 }) {
   await primeLocale();
   const t = getServerT(collectCatalog);
-  const locale = getServerLocale();
   // Always open, whatever the switch says: what was shared can always be seen and withdrawn.
   const query = await searchParams;
   const sent = query?.sent === '1';
@@ -128,7 +127,7 @@ export default async function YourAnswersPage({
                       {answer.withdrawnAt ? (
                         <StatusBadge tone="neutral">
                           {t('collect.collectAccountAnswersPage.withdrawnFormattimestampdate', {
-                            formatTimestampDate: formatTimestampDate(answer.withdrawnAt, locale),
+                            formatTimestampDate: formatTimestampDate(answer.withdrawnAt),
                           })}
                         </StatusBadge>
                       ) : (

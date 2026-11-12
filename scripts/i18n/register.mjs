@@ -197,6 +197,26 @@ export const HOLDBACK = new Map([
     'SG-c0b36ea9',
     'Done or cancelled task count: the number word comes from an English helper, so the sentence would mix scripts; waits for a proper plural message.',
   ],
+  [
+    'SG-4fbf3546',
+    'Optional marker with a leading separator: the Bengali drops the space that joins it to the label.',
+  ],
+  [
+    'SG-c60ff807',
+    'Already sent note that follows other text: the Bengali drops the leading space.',
+  ],
+  [
+    'SG-cb6538b8',
+    'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
+  [
+    'SG-260ff35f',
+    'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
+  [
+    'SG-e004a268',
+    'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

@@ -252,7 +252,6 @@ function PackCard({
   'mission' | 'packInfo' | 'packOptions' | 'noChecklistLines' | 'primaryAttach'
 > & { readonly sources: readonly CaseSourceRow[] }) {
   const t = getServerT(appMissionCatalog);
-  const locale = getServerLocale();
   // The official page for the place the case travels to: a stand-in where no checklist exists.
   const officialPage = officialPageForDestination(mission.destination);
   return (
@@ -293,7 +292,7 @@ function PackCard({
             {packInfo.effectiveDate ? (
               <p className="muted lift-rail-note">
                 {t('appMission.appMissionIdCaseRail.inEffectSinceFormatdateonly', {
-                  formatDateOnly: formatDateOnly(packInfo.effectiveDate, locale),
+                  formatDateOnly: formatDateOnly(packInfo.effectiveDate),
                 })}
               </p>
             ) : null}

@@ -126,10 +126,8 @@ export const collectCatalog = defineCatalog({
   bn: {
     'collect.collectAccountPage.answerAnAgencyRequest': 'এজেন্সির অনুরোধের উত্তর দিন',
     'collect.collectAccountPage.thisLinkIsNotOpen': 'এই লিংকটি খোলা নেই',
-    'collect.collectGuestDeskFiles.alreadySent': 'আগেই পাঠানো হয়েছে।',
     'collect.collectGuestDeskFiles.whatYouSent': 'আপনি যা পাঠিয়েছেন',
     'collect.collectGuestDeskFiles.yourFiles': 'আপনার ডকুমেন্ট',
-    'collect.collectGuestFiles.removeFilename': '{fileName} সরান',
     'collect.collectGuestProgress.allMandatoryPlaced': 'সব বাধ্যতামূলক বসানো হয়েছে',
     'collect.collectGuestProgress.doneOfTotalMandatoryItemsPlaced':
       '{total}টি বাধ্যতামূলক আইটেমের মধ্যে {done}টি বসানো হয়েছে',

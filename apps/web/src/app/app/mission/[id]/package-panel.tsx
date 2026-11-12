@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
-import { getServerLocale, getServerT } from '../../../../lib/i18n-server';
+import { getServerT } from '../../../../lib/i18n-server';
 import { documentKindLabel } from '../../../../lib/item-names';
 import { fieldLabel } from '../../../../lib/master-profile';
 import {
@@ -76,7 +76,6 @@ export function PackagePanel({
   readonly listedIds?: ReadonlySet<string>;
 }) {
   const t = getServerT(appMissionCatalog);
-  const locale = getServerLocale();
   const items = pkg.items.filter(
     (item) => item.state !== 'NOT_APPLICABLE' && !listedIds.has(item.packRequirementId),
   );
@@ -200,11 +199,11 @@ export function PackagePanel({
         <p className="muted u-fs-085">
           {pkg.latestHandoff.current
             ? t('appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdate', {
-                formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt, locale),
+                formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt),
               })
             : t(
                 'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdateBefore',
-                { formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt, locale) },
+                { formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt) },
               )}
         </p>
       ) : null}

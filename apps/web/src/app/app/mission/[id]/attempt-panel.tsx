@@ -5,7 +5,7 @@ import {
 } from '@visastack/services';
 import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { formatDateOnly } from '../../../../lib/format-date';
-import { getServerLocale, getServerT } from '../../../../lib/i18n-server';
+import { getServerT } from '../../../../lib/i18n-server';
 import {
   type AttemptChoice,
   AttemptEventForm,
@@ -59,7 +59,6 @@ export function AttemptPanel({
   readonly documentKinds: readonly AttemptChoice[];
 }) {
   const t = getServerT(appMissionCatalog);
-  const locale = getServerLocale();
   const evidenceChoices: AttemptChoice[] = view.evidenceChoices.map((c) => ({
     value: c.versionId,
     label: c.label,
@@ -134,7 +133,7 @@ export function AttemptPanel({
                 {attempt.standing.kind === 'DECIDED' ? (
                   <p className="muted attempt-meta">
                     {t('appMission.appMissionIdAttemptPanel.decisionOnFormatdateonlyBasislabel', {
-                      formatDateOnly: formatDateOnly(attempt.standing.occurredOn, locale),
+                      formatDateOnly: formatDateOnly(attempt.standing.occurredOn),
                       basisLabel: basisLabel(attempt.standing.documentSupplied),
                     })}
                   </p>
