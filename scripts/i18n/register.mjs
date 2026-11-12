@@ -342,6 +342,7 @@ export const HOLDBACK = new Map([
   [
     'SG-dcadd581',
     'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
+  ],
   // Wave E: case screens and the document collection flow.
   ['SG-094bebc7', 'Case answer status "Submitted to Agency": a sharing outcome, owner sign-off.'],
   [
