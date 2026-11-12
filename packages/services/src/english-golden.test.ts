@@ -25,8 +25,12 @@ const squash = (text: string): string => text.replace(/\s+/g, ' ');
 /** The text as a reader sees it: string escapes resolved, so `’` equals the curly quote. */
 function readable(source: string): string {
   return source
-    .replace(/\\u\{([0-9a-fA-F]+)\}/g, (_m, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_m, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\u\{([0-9a-fA-F]+)\}/g, (_m, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_m, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16)),
+    )
     .replace(/\\(['"`\\])/g, '$1')
     .replace(/\\n/g, '\n');
 }
@@ -90,7 +94,9 @@ describe('person-facing English in services and core is unchanged', () => {
         const own = sourceOf(join(ROOT, file));
         const catalogue = catalogueText(file);
         for (const english of strings) {
-          const found = pieces(english).every((piece) => own.includes(piece) || catalogue.includes(piece));
+          const found = pieces(english).every(
+            (piece) => own.includes(piece) || catalogue.includes(piece),
+          );
           if (!found) missing.push(`${file}: ${JSON.stringify(english)}`);
         }
       }

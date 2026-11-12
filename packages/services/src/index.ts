@@ -69,9 +69,12 @@ export {
   type ServiceError,
   type ServiceErrorCode,
   type StorageLimitReason,
+  keyedError,
+  keyedErrorWith,
   refusal,
   serviceError,
 } from './errors';
+export { type ServiceMessageKey, serviceMessages } from './i18n';
 
 export {
   type AuditEventInput,

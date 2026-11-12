@@ -7,6 +7,9 @@
  * programmer/infrastructure faults.
  */
 
+import { type Catalog, type MessageParams, catalogResolve } from '@visastack/i18n';
+import { type ServiceMessageKey, serviceMessages } from './i18n';
+
 export type ServiceErrorCode =
   /** The actor is not permitted to perform this action on this resource. */
   | 'forbidden'
@@ -129,10 +132,40 @@ export interface ServiceError {
   readonly message: string;
   /** Set on plan and billing refusals, and on typed field refusals (money fields, payment report fields). */
   readonly reason?: RefusalReason;
+  /**
+   * Set on a refusal whose words live in the services message catalogue. `message` is still the
+   * English sentence (rendered from that catalogue), so logs, stored text and message comparisons
+   * keep working; the web layer words it in the visitor's language from the key (see
+   * `serviceErrorText` in apps/web). Numbers in `params` are raw.
+   */
+  readonly messageKey?: string;
+  readonly params?: MessageParams;
 }
 
 export function serviceError(code: ServiceErrorCode, message: string): ServiceError {
   return { code, message };
+}
+
+/** A refusal worded from a catalogue; `message` is the catalogue's English. */
+export function keyedErrorWith<K extends string>(
+  catalog: Catalog<K>,
+  code: ServiceErrorCode,
+  key: K,
+  params?: MessageParams,
+): ServiceError {
+  const message = catalogResolve(catalog, 'en', key, params).text;
+  return params === undefined
+    ? { code, message, messageKey: key }
+    : { code, message, messageKey: key, params };
+}
+
+/** A refusal worded from the services message catalogue. */
+export function keyedError(
+  code: ServiceErrorCode,
+  key: ServiceMessageKey,
+  params?: MessageParams,
+): ServiceError {
+  return keyedErrorWith(serviceMessages, code, key, params);
 }
 
 /** A typed plan or billing refusal: an `invalid` error that also says why. */

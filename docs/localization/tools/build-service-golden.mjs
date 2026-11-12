@@ -9,6 +9,7 @@
  * Usage: node docs/localization/tools/build-service-golden.mjs
  * Run it only when the census is regenerated; the golden is not edited by hand.
  */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,10 +56,13 @@ for (const r of rows.slice(1)) {
   const english = r[col('english')];
   // A value that is only a placeholder carries no words to keep.
   if (!english || /^(\{[^}]*\})+$/.test(english.trim())) continue;
-  (byFile[file] ??= new Set()).add(english);
+  if (!byFile[file]) byFile[file] = new Set();
+  byFile[file].add(english);
 }
 const out = {};
 for (const file of Object.keys(byFile).sort()) out[file] = [...byFile[file]].sort();
 fs.writeFileSync(OUT, `${JSON.stringify(out)}\n`);
+// The repository formatter owns the layout of every committed file.
+execFileSync('pnpm', ['exec', 'biome', 'format', '--write', OUT], { cwd: ROOT, stdio: 'ignore' });
 const count = Object.values(out).reduce((n, l) => n + l.length, 0);
-console.log(`${Object.keys(out).length} files, ${count} strings, ${fs.statSync(OUT).size} bytes`);
+console.info(`${Object.keys(out).length} files, ${count} strings, ${fs.statSync(OUT).size} bytes`);

@@ -33,7 +33,41 @@ function serviceErrorMessages(): Message[] {
   return found;
 }
 
-const messages = serviceErrorMessages();
+/** The text of every `en` value in a catalogue source: `'key': 'sentence'` inside the `en` block. */
+function catalogueEnValues(source: string): string[] {
+  const start = source.search(/\ben\s*:\s*\{/);
+  if (start === -1) return [];
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  let close = open;
+  for (let i = open; i < source.length; i += 1) {
+    if (source[i] === '{') depth += 1;
+    else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        close = i;
+        break;
+      }
+    }
+  }
+  const value = /:\s*(['"`])((?:\\.|(?!\1).)*)\1/gs;
+  return [...source.slice(open, close).matchAll(value)].map((m) => m[2] ?? '');
+}
+
+/** Messages that live in a catalogue under `i18n/`: the same words, so the same rules. */
+function catalogueMessages(): Message[] {
+  const dir = `${SRC}i18n/`;
+  const found: Message[] = [];
+  for (const file of readdirSync(dir)) {
+    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
+    for (const text of catalogueEnValues(readFileSync(`${dir}${file}`, 'utf8'))) {
+      found.push({ file: `i18n/${file}`, text });
+    }
+  }
+  return found;
+}
+
+const messages = [...serviceErrorMessages(), ...catalogueMessages()];
 const describeHits = (hits: readonly Message[]) =>
   hits.map((m) => `${m.file}: ${JSON.stringify(m.text)}`).join('\n');
 
@@ -59,5 +93,22 @@ describe('service error messages use product words', () => {
   it('never shows an internal job state to someone downloading an export', () => {
     const hits = messages.filter((m) => /\bexport job\b|\bREADY but\b/i.test(m.text));
     expect(hits, describeHits(hits)).toEqual([]);
+  });
+});
+
+describe('the catalogue scan itself', () => {
+  it('reads the en values and nothing from bn', () => {
+    const sample = `defineCatalog({
+      en: { 'a.b': 'Open a mission', c: "Say \\"hi\\"", d: \`Cost {n}\` },
+      bn: { 'a.b': 'bangla only' },
+    })`;
+    expect(catalogueEnValues(sample)).toEqual(['Open a mission', 'Say \\"hi\\"', 'Cost {n}']);
+  });
+
+  it('finds a catalogue sentence that breaks a vocabulary rule', () => {
+    const hits = catalogueEnValues("en: { x: 'This mission failed' }").filter((t) =>
+      /\bmissions?\b/i.test(t),
+    );
+    expect(hits).toHaveLength(1);
   });
 });
