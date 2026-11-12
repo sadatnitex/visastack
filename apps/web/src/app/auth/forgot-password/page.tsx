@@ -23,22 +23,26 @@ export default async function ForgotPasswordPage({
   const { e, sent } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title={t('auth.authForgotPasswordPage.resetYourPassword')}>
+    <AuthShell title={t.node('auth.authForgotPasswordPage.resetYourPassword')}>
       {sent === '1' ? (
         <div className="card u-mb-100">
-          <h2 className="card-title">{t('auth.authForgotPasswordPage.checkYourEmail')}</h2>
-          <Notice>{t('auth.authForgotPasswordPage.ifAnAccountUsesThatAddress')}</Notice>
+          <h2 className="card-title">{t.node('auth.authForgotPasswordPage.checkYourEmail')}</h2>
+          <Notice>{t.node('auth.authForgotPasswordPage.ifAnAccountUsesThatAddress')}</Notice>
           <details className="u-mt-100">
-            <summary>{t('auth.authForgotPasswordPage.didNotGetALinkSend')}</summary>
-            <p className="card-body">{t('auth.authForgotPasswordPage.waitAFewMinutesThenEnter')}</p>
+            <summary>{t.node('auth.authForgotPasswordPage.didNotGetALinkSend')}</summary>
+            <p className="card-body">
+              {t.node('auth.authForgotPasswordPage.waitAFewMinutesThenEnter')}
+            </p>
             <RecoveryForm resend />
           </details>
           <p className="card-body u-mt-100">
             <Link href="/auth/forgot-password">
-              {t('auth.authForgotPasswordPage.useADifferentEmailAddress')}
+              {t.node('auth.authForgotPasswordPage.useADifferentEmailAddress')}
             </Link>
             {' · '}
-            <Link href="/auth/sign-up">{t('auth.authForgotPasswordPage.createAnAccount')}</Link>
+            <Link href="/auth/sign-up">
+              {t.node('auth.authForgotPasswordPage.createAnAccount')}
+            </Link>
           </p>
         </div>
       ) : (
@@ -50,7 +54,7 @@ export default async function ForgotPasswordPage({
         </>
       )}
       <p className="card-body">
-        <Link href="/auth/sign-in">{t('auth.authForgotPasswordPage.backToSignIn')}</Link>
+        <Link href="/auth/sign-in">{t.node('auth.authForgotPasswordPage.backToSignIn')}</Link>
       </p>
     </AuthShell>
   );
@@ -72,8 +76,8 @@ function RecoveryForm({ error, resend = false }: { error?: string | undefined; r
       />
       <button type="submit" className="btn btn-primary">
         {resend
-          ? t('auth.authForgotPasswordPage.sendAnotherLink')
-          : t('auth.authForgotPasswordPage.sendMeALink')}
+          ? t.node('auth.authForgotPasswordPage.sendAnotherLink')
+          : t.node('auth.authForgotPasswordPage.sendMeALink')}
       </button>
     </form>
   );

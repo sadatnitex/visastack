@@ -10,6 +10,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appTripInvitationsCatalog } from '../../../../i18n/app-trip-invitations';
 import {
   choosePaperAction,
   leaveTripAction,
@@ -45,6 +47,7 @@ export function ShareLevelForm({
   readonly current: string;
   readonly choices: readonly ShareChoice[];
 }) {
+  const t = useT(appTripInvitationsCatalog);
   const [state, action, pending] = useActionState<FormResult, FormData>(
     setShareLevelAction,
     NO_RESULT,
@@ -57,7 +60,9 @@ export function ShareLevelForm({
     <form ref={form} action={action} className="companion-accept-form">
       <input type="hidden" name="tripId" value={tripId} />
       <fieldset className="companion-share">
-        <legend className="label">What You Share with the Organiser</legend>
+        <legend className="label">
+          {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser')}
+        </legend>
         {choices.map((item) => (
           <label key={item.value} className="companion-choice">
             <input
@@ -101,6 +106,7 @@ export function PlanOwnCaseForm({ tripId }: { readonly tripId: string }) {
 
 /** Leave This Trip: a quiet button that asks once, because the organiser stops seeing the person. */
 export function LeaveTripForm({ tripId }: { readonly tripId: string }) {
+  const t = useT(appTripInvitationsCatalog);
   const [state, action, pending] = useActionState<FormResult, FormData>(leaveTripAction, NO_RESULT);
   const id = useId();
   const [asking, setAsking] = useState(false);
@@ -110,7 +116,9 @@ export function LeaveTripForm({ tripId }: { readonly tripId: string }) {
       {asking ? (
         <>
           <span className="muted u-fs-085">
-            Leave this trip? The organiser will no longer see you.
+            {t(
+              'appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTripTheOrganiserWill',
+            )}
           </span>
           <SubmitButton
             pending={pending}
@@ -119,12 +127,12 @@ export function LeaveTripForm({ tripId }: { readonly tripId: string }) {
             className="btn btn-secondary"
           />
           <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
-            Stay
+            {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.stay')}
           </button>
         </>
       ) : (
         <button type="button" className="btn btn-secondary" onClick={() => setAsking(true)}>
-          Leave This Trip
+          {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTrip')}
         </button>
       )}
       <FormMessage id={`${id}-msg`} result={state} />
@@ -140,6 +148,7 @@ export function RemovePaperForm({
   readonly tripId: string;
   readonly paper: PaperChoice;
 }) {
+  const t = useT(appTripInvitationsCatalog);
   const [state, action, pending] = useActionState<FormResult, FormData>(
     removePaperAction,
     NO_RESULT,
@@ -154,7 +163,9 @@ export function RemovePaperForm({
         idle="Remove"
         busy="Removing…"
         className="btn btn-secondary"
-        label={`Remove: ${paper.name}`}
+        label={t('appTripInvitations.appTripInvitationsIdJoinedTripForms.removeName', {
+          name: paper.name,
+        })}
       />
       <FormMessage id={`${id}-msg`} result={state} />
     </form>
@@ -169,6 +180,7 @@ export function ChoosePaperForm({
   readonly tripId: string;
   readonly options: readonly PaperChoice[];
 }) {
+  const t = useT(appTripInvitationsCatalog);
   const [state, action, pending] = useActionState<FormResult, FormData>(
     choosePaperAction,
     NO_RESULT,
@@ -181,7 +193,7 @@ export function ChoosePaperForm({
     <form ref={form} action={action} className="trip-add-form">
       <input type="hidden" name="tripId" value={tripId} />
       <label className="label" htmlFor={`${id}-paper`}>
-        Paper to Show
+        {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.paperToShow')}
       </label>
       <select
         id={`${id}-paper`}
@@ -192,7 +204,7 @@ export function ChoosePaperForm({
         {...fieldProblem(state, 'documentId', messageId)}
       >
         <option value="" disabled>
-          Choose a Paper
+          {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.chooseAPaper')}
         </option>
         {options.map((paper) => (
           <option key={paper.documentId} value={paper.documentId}>

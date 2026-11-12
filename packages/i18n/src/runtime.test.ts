@@ -72,7 +72,11 @@ describe('formatting', () => {
   });
 
   it('formats numbers and dates per locale', () => {
-    expect(formatNumber(1234.5, 'en')).toBe('1,234.5');
+    expect(formatNumber(1234.5, 'en')).toBe('1234.5');
+    expect(formatNumber(1234, 'en')).toBe('1234');
+    expect(formatNumber(1234567, 'en')).toBe('1234567');
+    expect(formatNumber(1234567, 'en', { grouping: true })).toBe('1,234,567');
+    expect(formatNumber(1234567, 'bn')).toBe('১২,৩৪,৫৬৭');
     expect(formatNumber(1234.5, 'bn')).toBe('১,২৩৪.৫');
     const date = new Date(Date.UTC(2026, 10, 12));
     const opts = { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' } as const;

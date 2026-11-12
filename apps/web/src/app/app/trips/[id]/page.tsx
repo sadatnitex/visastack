@@ -43,7 +43,7 @@ export default async function GroupTripPage({
   const notice = typeof done === 'string' ? NOTICES[done] : undefined;
   const data = await withSession(({ db, accountId }) => loadTripPage(db, accountId, id));
   // The layout already answered 404 for a missing trip; this covers one removed in between.
-  if (!data) return <p>{t('appTrips.appTripsIdPage.thisTripIsNotAvailable')}</p>;
+  if (!data) return <p>{t.node('appTrips.appTripsIdPage.thisTripIsNotAvailable')}</p>;
   return (
     <>
       <PageHeader

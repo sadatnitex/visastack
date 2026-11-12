@@ -1,7 +1,9 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '../../../../../../../components/i18n-provider';
 import { UNDO_WINDOW_MS, UndoStatus } from '../../../../../../../components/lifecycle/undo-status';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { type ArchiveActionResult, archiveDocumentAction, restoreDocumentAction } from './actions';
 import {
@@ -75,6 +77,7 @@ function ArchiveChange({
   readonly undo: Change;
   readonly wording: Wording;
 }) {
+  const t = useT(appApplicantCatalog);
   const router = useRouter();
   // Held in a ref so the cleanup below runs only when the panel leaves, never on a new router.
   const routerRef = useRef(router);
@@ -148,7 +151,7 @@ function ArchiveChange({
         {primary}
       </button>
       <button type="button" className="btn btn-secondary" onClick={onClose}>
-        Close
+        {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
       </button>
     </div>
   );

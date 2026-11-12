@@ -26,15 +26,15 @@ export default function WorkspaceError({
 
   return (
     <section className="section container center">
-      <span className="eyebrow">{t('appHome.appError.somethingWentWrong')}</span>
-      <h1 className="section-title error-title">{t('appHome.appError.thisPageDidNotLoad')}</h1>
-      <p className="section-sub error-body">{t('appHome.appError.theProblemIsOnOurSide')}</p>
+      <span className="eyebrow">{t.node('appHome.appError.somethingWentWrong')}</span>
+      <h1 className="section-title error-title">{t.node('appHome.appError.thisPageDidNotLoad')}</h1>
+      <p className="section-sub error-body">{t.node('appHome.appError.theProblemIsOnOurSide')}</p>
       <div className="cta-row cta-row-center">
         <button type="button" className="btn btn-primary" onClick={() => reset()}>
-          {t('appHome.appError.tryAgain')}
+          {t.node('appHome.appError.tryAgain')}
         </button>
         <a className="btn btn-secondary" href="/app">
-          {t('appHome.appError.goToYourOverview')}
+          {t.node('appHome.appError.goToYourOverview')}
         </a>
       </div>
       <p className="muted error-reference">

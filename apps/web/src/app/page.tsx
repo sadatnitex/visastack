@@ -213,8 +213,8 @@ function StoryGroup({
 }: {
   readonly id: string;
   readonly titleId: string;
-  readonly kicker: string;
-  readonly title: string;
+  readonly kicker: ReactNode;
+  readonly title: ReactNode;
   readonly className?: string;
   readonly children: ReactNode;
 }) {
@@ -263,10 +263,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const signedIn = await isSignedIn();
   const betaOpen = isPublicBetaOpen();
   const startLabel = signedIn
-    ? t('home.page.openYourWorkspace')
+    ? t.node('home.page.openYourWorkspace')
     : betaOpen
-      ? t('home.page.createYourFreeAccount')
-      : t('home.page.signInToGetStarted');
+      ? t.node('home.page.createYourFreeAccount')
+      : t.node('home.page.signInToGetStarted');
   const startHref = !signedIn && betaOpen ? '/auth/sign-up' : '/app';
 
   return (
@@ -274,17 +274,17 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       <section className="c1-hero c1-shell" aria-labelledby="land-hero-title">
         {authError ? (
           <p className="notice notice-warn c1-alert" role="alert">
-            {t('home.page.signInDidnTCompletePlease')} <strong>{authError}</strong>.
+            {t.node('home.page.signInDidnTCompletePlease')} <strong>{authError}</strong>.
           </p>
         ) : null}
         <p className="c1-nudge">
-          {betaOpen ? t('home.page.freePublicBeta') : t('home.page.inviteOnlyPilot')}
+          {betaOpen ? t.node('home.page.freePublicBeta') : t.node('home.page.inviteOnlyPilot')}
         </p>
         <h1 className="c1-headline" id="land-hero-title">
-          {t(HERO_HEADLINE_FIRST)} <br />
-          {t(HERO_HEADLINE_SECOND)}
+          {t.node(HERO_HEADLINE_FIRST)} <br />
+          {t.node(HERO_HEADLINE_SECOND)}
         </h1>
-        <p className="c1-subline">{t('home.page.onePrivateFileForYourPassport')}</p>
+        <p className="c1-subline">{t.node('home.page.onePrivateFileForYourPassport')}</p>
         <div className="c1-cta">
           <a className="c1-pill" href={startHref}>
             {startLabel}{' '}
@@ -293,10 +293,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </span>
           </a>
           <Link className="c1-pill c1-pill-light" href="/status">
-            {t('home.page.seeWhatWorksToday')}
+            {t.node('home.page.seeWhatWorksToday')}
           </Link>
         </div>
-        <p className="c1-meta">{t('home.page.onePersonalRecordSeparateCasesExplicit')}</p>
+        <p className="c1-meta">{t.node('home.page.onePersonalRecordSeparateCasesExplicit')}</p>
 
         <figure
           className="c1-devices"
@@ -309,47 +309,49 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <span>●●● ▰</span>
             </div>
             <div className="c1-phonebody">
-              <p className="c1-tinycap">{t('home.page.visastackPersonalRecord')}</p>
+              <p className="c1-tinycap">{t.node('home.page.visastackPersonalRecord')}</p>
               <p className="c1-phonename">
                 Ready for
                 <br />
                 what’s next.
               </p>
-              <p className="c1-sample">{t('home.page.ayeshaSRecordExample')}</p>
+              <p className="c1-sample">{t.node('home.page.ayeshaSRecordExample')}</p>
               <div className="c1-segment" aria-hidden="true">
-                <span>{t('home.page.documents')}</span>
-                <span>{t('home.page.cases')}</span>
-                <span>{t('home.page.sharing')}</span>
+                <span>{t.node('home.page.documents')}</span>
+                <span>{t.node('home.page.cases')}</span>
+                <span>{t.node('home.page.sharing')}</span>
               </div>
               <div className="c1-phonepanel">
-                <p className="c1-tinycap c1-panelcap">{t('home.page.yourDocuments')}</p>
+                <p className="c1-tinycap c1-panelcap">{t.node('home.page.yourDocuments')}</p>
                 {PHONE_FILES.map((file) => (
                   <div className="c1-fileline" key={file.name}>
                     <span className="c1-fileico" aria-hidden="true">
                       ▤
                     </span>
                     <span className="c1-fileinfo">
-                      <b>{t(file.name)}</b>
-                      <small>{t(file.detail)}</small>
+                      <b>{t.node(file.name)}</b>
+                      <small>{t.node(file.detail)}</small>
                     </span>
                     <span className={file.warning ? 'c1-tag c1-tag-warning' : 'c1-tag'}>
-                      {t(file.tag)}
+                      {t.node(file.tag)}
                     </span>
                   </div>
                 ))}
               </div>
               <div className="c1-phonepanel">
-                <p className="c1-next-label">{t('home.page.nextAction')}</p>
-                <b className="c1-next-title">{t('home.page.replaceBankStatement')}</b>
-                <p className="c1-next-detail">{t('home.page.requestedForYourJapanVisitorVisa')}</p>
-                <span className="c1-capsule">{t('home.page.reviewRequest')}</span>
+                <p className="c1-next-label">{t.node('home.page.nextAction')}</p>
+                <b className="c1-next-title">{t.node('home.page.replaceBankStatement')}</b>
+                <p className="c1-next-detail">
+                  {t.node('home.page.requestedForYourJapanVisitorVisa')}
+                </p>
+                <span className="c1-capsule">{t.node('home.page.reviewRequest')}</span>
               </div>
             </div>
             <div className="c1-bottomnav" aria-hidden="true">
-              <span>{t('home.page.home')}</span>
-              <span>{t('home.page.record')}</span>
-              <span>{t('home.page.casese84518')}</span>
-              <span>{t('home.page.sharingc17536')}</span>
+              <span>{t.node('home.page.home')}</span>
+              <span>{t.node('home.page.record')}</span>
+              <span>{t.node('home.page.casese84518')}</span>
+              <span>{t.node('home.page.sharingc17536')}</span>
             </div>
           </div>
           {FLOATS.map((float) => (
@@ -361,13 +363,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 {float.icon}
               </span>
               <span>
-                <b>{t(float.title)}</b>
-                <small>{t(float.detail)}</small>
+                <b>{t.node(float.title)}</b>
+                <small>{t.node(float.detail)}</small>
               </span>
             </div>
           ))}
           <figcaption className="c1-fineprint">
-            {t('home.page.illustrativeInterfaceSampleInformation')}
+            {t.node('home.page.illustrativeInterfaceSampleInformation')}
           </figcaption>
         </figure>
       </section>
@@ -380,11 +382,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         >
           <div className="land-wrap">
             <div className="land-head">
-              <p className="land-kicker">{t('home.page.seeYourChecklist')}</p>
+              <p className="land-kicker">{t.node('home.page.seeYourChecklist')}</p>
               <h2 className="land-h2" id="land-country-title">
-                {t('home.page.pickACountrySeeWhatIs')}
+                {t.node('home.page.pickACountrySeeWhatIs')}
               </h2>
-              <p className="land-sub">{t('home.page.noAccountIsNeededToLook')}</p>
+              <p className="land-sub">{t.node('home.page.noAccountIsNeededToLook')}</p>
             </div>
             <CountryChecklistPicker
               variant="home"
@@ -399,12 +401,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="c1-shell">
           <div className="c1-darkintro">
             <div>
-              <p className="c1-nudge">{t('home.page.theProductNotJustThePromise')}</p>
+              <p className="c1-nudge">{t.node('home.page.theProductNotJustThePromise')}</p>
               <h2 className="c1-sectionhead" id="land-product-title">
-                {t('home.page.lessPaperworkMoreControl')}
+                {t.node('home.page.lessPaperworkMoreControl')}
               </h2>
             </div>
-            <p>{t('home.page.yourDocumentsLiveInYourPersonal')}</p>
+            <p>{t.node('home.page.yourDocumentsLiveInYourPersonal')}</p>
           </div>
           {/* WP-SB8: on a phone the four cards sit in one row that scrolls sideways (no stacked grid). */}
           <div
@@ -416,58 +418,58 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             tabIndex={0}
           >
             <article className="c1-feature c1-feature-glow c1-feature-big">
-              <span className="c1-small-label">{t('home.page.01AReusableRecord')}</span>
+              <span className="c1-small-label">{t.node('home.page.01AReusableRecord')}</span>
               <h3>
                 Keep the details.
                 <br />
                 Lose the repetition.
               </h3>
-              <p>{t('home.page.findYourCurrentDocumentsAndSee')}</p>
+              <p>{t.node('home.page.findYourCurrentDocumentsAndSee')}</p>
               <div className="c1-miniui" aria-hidden="true">
-                <b>{t('home.page.personalRecord')}</b>
+                <b>{t.node('home.page.personalRecord')}</b>
                 <div className="c1-fileline">
                   <span className="c1-fileico">▤</span>
                   <span className="c1-fileinfo">
-                    <b>{t('home.page.passport')}</b>
-                    <small>{t('home.page.currentVersionUpdated8Oct')}</small>
+                    <b>{t.node('home.page.passport')}</b>
+                    <small>{t.node('home.page.currentVersionUpdated8Oct')}</small>
                   </span>
-                  <span className="c1-tag">{t('home.page.current')}</span>
+                  <span className="c1-tag">{t.node('home.page.current')}</span>
                 </div>
               </div>
             </article>
             <article className="c1-feature c1-feature-mid">
-              <span className="c1-small-label">{t('home.page.02SpecificRequests')}</span>
+              <span className="c1-small-label">{t.node('home.page.02SpecificRequests')}</span>
               <h3>
                 See exactly
                 <br />
                 what’s missing.
               </h3>
-              <p>{t('home.page.oneClearRequestWithTheDocument')}</p>
+              <p>{t.node('home.page.oneClearRequestWithTheDocument')}</p>
               <p className="c1-request" aria-hidden="true">
-                <span>{t('home.page.employmentLetter')}</span>
-                <span className="c1-request-state">{t('home.page.requested')}</span>
+                <span>{t.node('home.page.employmentLetter')}</span>
+                <span className="c1-request-state">{t.node('home.page.requested')}</span>
               </p>
             </article>
             <article className="c1-feature c1-feature-light">
-              <span className="c1-small-label">{t('home.page.03YourChoice')}</span>
+              <span className="c1-small-label">{t.node('home.page.03YourChoice')}</span>
               <h3>
                 Share the part.
                 <br />
                 Not the whole.
               </h3>
-              <p>{t('home.page.selectRecordsReviewTheScopeAnd')}</p>
+              <p>{t.node('home.page.selectRecordsReviewTheScopeAnd')}</p>
             </article>
             <article className="c1-feature c1-feature-deep">
-              <span className="c1-small-label">{t('home.page.04HistoricalAccuracy')}</span>
+              <span className="c1-small-label">{t.node('home.page.04HistoricalAccuracy')}</span>
               <h3>
                 Yesterday stays
                 <br />
                 yesterday.
               </h3>
-              <p>{t('home.page.keepAnAccurateHistoryOfPrevious')}</p>
+              <p>{t.node('home.page.keepAnAccurateHistoryOfPrevious')}</p>
             </article>
           </div>
-          <p className="c1-chapter-note">{t('home.page.privacyAndSharingAreGovernedBy')}</p>
+          <p className="c1-chapter-note">{t.node('home.page.privacyAndSharingAreGovernedBy')}</p>
         </div>
       </section>
 
@@ -482,29 +484,29 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <StoryGroup
             id="problem"
             titleId="land-problem-title"
-            kicker={t('home.page.theProblem')}
-            title={t('home.page.everyVisaStartsWithTheSame')}
+            kicker={t.node('home.page.theProblem')}
+            title={t.node('home.page.everyVisaStartsWithTheSame')}
           >
-            <p className="land-sub">{t('home.page.yourLifeDoesNotChangeBetween')}</p>
+            <p className="land-sub">{t.node('home.page.yourLifeDoesNotChangeBetween')}</p>
             <div className="land-versus">
               <div className="land-versus-col land-versus-before">
-                <p className="land-versus-label">{t('home.page.withoutOneProfile')}</p>
+                <p className="land-versus-label">{t.node('home.page.withoutOneProfile')}</p>
                 <ul>
                   {BEFORE.map((line) => (
                     <li key={line}>
                       <Icon name="close" size={16} />
-                      <span>{t(line)}</span>
+                      <span>{t.node(line)}</span>
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="land-versus-col land-versus-after">
-                <p className="land-versus-label">{t('home.page.withVisastack')}</p>
+                <p className="land-versus-label">{t.node('home.page.withVisastack')}</p>
                 <ul>
                   {AFTER.map((line) => (
                     <li key={line}>
                       <Icon name="check" size={16} />
-                      <span>{t(line)}</span>
+                      <span>{t.node(line)}</span>
                     </li>
                   ))}
                 </ul>
@@ -515,10 +517,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <StoryGroup
             id="how-it-works"
             titleId="land-how-title"
-            kicker={t('home.page.threeSimpleSteps')}
-            title={t('home.page.howItWorks')}
+            kicker={t.node('home.page.threeSimpleSteps')}
+            title={t.node('home.page.howItWorks')}
           >
-            <p className="land-sub">{t('home.page.threeStepsAndTheFirstOne')}</p>
+            <p className="land-sub">{t.node('home.page.threeStepsAndTheFirstOne')}</p>
             <ol className="land-steps">
               {STEPS.map((step, index) => (
                 <li className="land-step" key={step.title}>
@@ -526,8 +528,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                     <Icon name={step.icon} size={22} />
                   </span>
                   <p className="land-step-kicker">Step {index + 1}</p>
-                  <h3 className="land-h3">{t(step.title)}</h3>
-                  <p className="land-body">{t(step.body)}</p>
+                  <h3 className="land-h3">{t.node(step.title)}</h3>
+                  <p className="land-body">{t.node(step.body)}</p>
                 </li>
               ))}
             </ol>
@@ -536,8 +538,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <StoryGroup
             id="capabilities"
             titleId="land-cap-title"
-            kicker={t('home.page.whatWorksToday')}
-            title={t('home.page.switchedOnStepByStep')}
+            kicker={t.node('home.page.whatWorksToday')}
+            title={t.node('home.page.switchedOnStepByStep')}
           >
             <p className="land-sub">
               {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
@@ -545,15 +547,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               Checking a file shows how complete it is, never a guess at your chances of approval.
             </p>
             <p className="land-trust-link">
-              <Link href="/status">{t('home.page.seeWhatWorksToday')}</Link>
+              <Link href="/status">{t.node('home.page.seeWhatWorksToday')}</Link>
             </p>
           </StoryGroup>
 
           <StoryGroup
             id="for-agencies"
             titleId="land-who-title"
-            kicker={t('home.page.whoItIsFor')}
-            title={t('home.page.calmerForTheTravellerClearerFor')}
+            kicker={t.node('home.page.whoItIsFor')}
+            title={t.node('home.page.calmerForTheTravellerClearerFor')}
           >
             <div className="land-who">
               {AUDIENCES.map((audience) => (
@@ -561,13 +563,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                   <span className="land-tile-icon">
                     <Icon name={audience.icon} size={22} />
                   </span>
-                  <p className="land-step-kicker">{t(audience.who)}</p>
-                  <h3 className="land-h3">{t(audience.title)}</h3>
+                  <p className="land-step-kicker">{t.node(audience.who)}</p>
+                  <h3 className="land-h3">{t.node(audience.title)}</h3>
                   <ul className="land-ticks">
                     {audience.points.map((point) => (
                       <li key={point}>
                         <Icon name="check" size={16} />
-                        <span>{t(point)}</span>
+                        <span>{t.node(point)}</span>
                       </li>
                     ))}
                   </ul>
@@ -576,55 +578,57 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </div>
             {/* VS-016, chosen by the owner on 6 Nov 2026: what the product does, with no number to prove. */}
             <p className="land-sub land-proof">
-              {t('home.page.oneTravellerProfileSoAgenciesStop')}
+              {t.node('home.page.oneTravellerProfileSoAgenciesStop')}
             </p>
           </StoryGroup>
 
           <StoryGroup
             id="trust"
             titleId="land-trust-title"
-            kicker={t('home.page.trustBuiltIn')}
-            title={t('home.page.howVisastackTreatsYourInformation')}
+            kicker={t.node('home.page.trustBuiltIn')}
+            title={t.node('home.page.howVisastackTreatsYourInformation')}
             className="land-trust"
           >
-            <p className="land-sub">{t('home.page.thesePromisesAreBuiltIntoHow')}</p>
+            <p className="land-sub">{t.node('home.page.thesePromisesAreBuiltIntoHow')}</p>
             <ul className="land-promises">
               {PROMISES.map((promise) => (
                 <li key={promise.text}>
                   <span className="land-promise-icon">
                     <Icon name={promise.icon} size={20} />
                   </span>
-                  <span>{t(promise.text)}</span>
+                  <span>{t.node(promise.text)}</span>
                 </li>
               ))}
             </ul>
             <p className="land-trust-link">
-              <Link href="/trust">{t('home.page.readOurPublicTrustPage')}</Link>
+              <Link href="/trust">{t.node('home.page.readOurPublicTrustPage')}</Link>
             </p>
           </StoryGroup>
 
           <StoryGroup
             id="road-ahead"
             titleId="land-road-title"
-            kicker={t('home.page.theRoadAhead')}
-            title={t('home.page.honestAboutWhereWeAre')}
+            kicker={t.node('home.page.theRoadAhead')}
+            title={t.node('home.page.honestAboutWhereWeAre')}
           >
             <p className="land-sub">
               {betaOpen
-                ? t('home.page.registrationIsOpenForPublicBeta')
-                : t('home.page.thisIsAPrivatePilotFor')}{' '}
-              {betaOpen ? t('home.page.itIsFreeToUseAt') : t('home.page.pleaseUseMadeUpDetailsOr')}
+                ? t.node('home.page.registrationIsOpenForPublicBeta')
+                : t.node('home.page.thisIsAPrivatePilotFor')}{' '}
+              {betaOpen
+                ? t.node('home.page.itIsFreeToUseAt')
+                : t.node('home.page.pleaseUseMadeUpDetailsOr')}
             </p>
             <ol className="land-horizons">
               {HORIZONS.map((horizon) => (
                 <li className={`land-horizon land-horizon-${horizon.state}`} key={horizon.title}>
                   <p className="land-horizon-label">
                     {horizon.state === 'now' && betaOpen
-                      ? t('home.page.availableInBeta')
-                      : t(horizon.label)}
+                      ? t.node('home.page.availableInBeta')
+                      : t.node(horizon.label)}
                   </p>
-                  <h3 className="land-h3">{t(horizon.title)}</h3>
-                  <p className="land-body">{t(horizon.body)}</p>
+                  <h3 className="land-h3">{t.node(horizon.title)}</h3>
+                  <p className="land-body">{t.node(horizon.body)}</p>
                 </li>
               ))}
             </ol>
@@ -638,16 +642,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <div className="land-wrap">
           <div className="land-final-card">
             <h2 className="land-final-title" id="land-final-title">
-              {t('home.page.stopStartingFromZero')}
+              {t.node('home.page.stopStartingFromZero')}
             </h2>
-            <p className="land-final-sub">{t('home.page.buildYourProfileOnceAndLet')}</p>
+            <p className="land-final-sub">{t.node('home.page.buildYourProfileOnceAndLet')}</p>
             <div className="cta-row land-final-cta">
               <a className="btn land-btn land-btn-light" href={startHref}>
                 {startLabel}
                 <Icon name="arrow" size={18} />
               </a>
               <Link className="btn land-btn land-btn-ghost" href="/status">
-                {t('home.page.seeWhatWorksToday')}
+                {t.node('home.page.seeWhatWorksToday')}
               </Link>
             </div>
           </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { type Locale, formatDate as formatLocaleDate } from '@visastack/i18n';
 import Link from 'next/link';
 import {
   createContext,
@@ -17,6 +18,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useLocale, useT } from '../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { fieldStatusWords } from '../../../../lib/field-state-words';
 import { formatDateOnly } from '../../../../lib/format-date';
 import type {
@@ -54,12 +57,10 @@ const SENSITIVITY_LABELS: Record<string, string> = {
  * `effectiveFrom` value below (finding #25, post-programme defect
  * register), which uses the timezone-stable `formatDateOnly` instead.
  */
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+function formatDate(iso: string, locale: Locale = 'en'): string {
+  const options = { year: 'numeric', month: 'short', day: 'numeric' } as const;
+  if (locale === 'bn') return formatLocaleDate(new Date(iso), locale, options);
+  return new Date(iso).toLocaleDateString(undefined, options);
 }
 
 /**
@@ -98,10 +99,11 @@ export interface FieldAssurance {
 }
 
 function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) {
+  const t = useT(appApplicantCatalog);
   return (
     <details style={{ marginTop: '0.3rem' }}>
       <summary className="muted" style={{ fontSize: 'var(--text-caption)', cursor: 'pointer' }}>
-        How This Was Checked
+        {t('appApplicant.appApplicantIdProfileEditor.howThisWasChecked')}
       </summary>
       <div
         style={{
@@ -114,12 +116,14 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
         }}
       >
         <p className="muted u-fs-075-m0">
-          {assurance.applicantDeclared ? '✓ Entered by the traveller.' : '✗ Not yet entered.'}
+          {assurance.applicantDeclared
+            ? t('appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller')
+            : t('appApplicant.appApplicantIdProfileEditor.notYetEntered')}
         </p>
         <p className="muted u-fs-075-m0">
           {assurance.documentSupplied
-            ? '✓ Backed by a supplied document.'
-            : '✗ No supporting document supplied.'}
+            ? t('appApplicant.appApplicantIdProfileEditor.backedByASuppliedDocument')
+            : t('appApplicant.appApplicantIdProfileEditor.noSupportingDocumentSupplied')}
         </p>
         <div>
           <p className="muted u-fs-075-m0">
@@ -204,6 +208,8 @@ function FieldRow({
   sourceDocumentId,
   onChoice,
 }: FieldRowProps) {
+  const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState(saveFactAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
@@ -226,7 +232,9 @@ function FieldRow({
           {sensitivityLabel ? (
             <span
               className={`badge ${field.sensitivity === 'RESTRICTED' ? 'badge-danger' : 'badge-warning'}`}
-              title={`This field is marked ${sensitivityLabel.toLowerCase()} in the canonical registry.`}
+              title={t('appApplicant.appApplicantIdProfileEditor.thisFieldIsMarkedTolowercaseIn', {
+                toLowerCase: sensitivityLabel.toLowerCase(),
+              })}
             >
               {sensitivityLabel}
             </span>
@@ -244,7 +252,7 @@ function FieldRow({
             onChange={(event) => onChoice?.(event.target.value)}
             {...fieldProblem(state, 'value', messageId)}
           >
-            <option value="">Select…</option>
+            <option value="">{t('appApplicant.appApplicantIdProfileEditor.select')}</option>
             {field.options.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
@@ -265,30 +273,45 @@ function FieldRow({
         <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
       <details className="field-backdate">
-        <summary className="muted">Add the Date This Became True</summary>
+        <summary className="muted">
+          {t('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
+        </summary>
         <div className="field-control">
           <input
             type="date"
             name="effectiveFrom"
             className="input"
-            aria-label={`When ${field.label.toLowerCase()} became true. Leave blank if you are not sure.`}
+            aria-label={t(
+              'appApplicant.appApplicantIdProfileEditor.whenTolowercaseBecameTrueLeaveBlank',
+              { toLowerCase: field.label.toLowerCase() },
+            )}
             {...fieldProblem(state, 'effectiveFrom', messageId)}
           />
         </div>
       </details>
       {effectiveFrom && updatedAt && !sameDay(effectiveFrom, updatedAt) ? (
-        <p className="muted u-fs-075-m0">Effective as of {formatDateOnly(effectiveFrom)}</p>
+        <p className="muted u-fs-075-m0">
+          {t('appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly', {
+            formatDateOnly: formatDateOnly(effectiveFrom, locale),
+          })}
+        </p>
       ) : null}
       {updatedAt ? (
-        <p className="muted u-fs-075-m0">Last confirmed {formatDate(updatedAt)}</p>
+        <p className="muted u-fs-075-m0">
+          {t('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
+            formatDate: formatDate(updatedAt, locale),
+          })}
+        </p>
       ) : null}
       {sourceDocumentId ? (
         <p className="u-fs-075-m0">
           <Link
             href={`/app/applicant/${applicantId}/documents?document=${encodeURIComponent(sourceDocumentId)}`}
-            aria-label={`Where this came from: the document ${field.label} was read from`}
+            aria-label={t('appApplicant.appApplicantIdProfileEditor.whereThisCameFromTheDocument', {
+              label: field.label,
+            })}
           >
-            Where This Came From
+            {t('appApplicant.appApplicantIdProfileEditor.whereThisCameFrom')}
           </Link>
         </p>
       ) : null}
@@ -372,6 +395,7 @@ function ExemptionToggle({
   readonly on: boolean;
   readonly label: string;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(setExemptionAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
@@ -394,7 +418,7 @@ function ExemptionToggle({
       </label>
       <noscript>
         <button type="submit" className="btn btn-secondary">
-          Apply
+          {t('appApplicant.appApplicantIdProfileEditor.apply')}
         </button>
       </noscript>
       {state.ok ? null : <FormMessage id={messageId} result={state} />}
@@ -433,6 +457,7 @@ function NotCurrentControl({
   readonly field: EditorFieldDef;
   readonly current: ProfileValue;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(markNotCurrentAction, INITIAL);
   const messageId = useId();
   useEffect(() => {
@@ -443,7 +468,7 @@ function NotCurrentControl({
     <div className="profile-lifecycle-mark">
       {marked ? (
         <p className="muted u-fs-075-m0">
-          You marked this No Longer Current. Enter a new value above when you have one.
+          {t('appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent')}
         </p>
       ) : (
         <form action={formAction}>
@@ -454,7 +479,9 @@ function NotCurrentControl({
             idle="No Longer Current"
             busy="Saving…"
             className="btn btn-secondary btn-compact"
-            label={`No Longer Current: ${field.label}`}
+            label={t('appApplicant.appApplicantIdProfileEditor.noLongerCurrentLabel', {
+              label: field.label,
+            })}
           />
         </form>
       )}
@@ -481,6 +508,8 @@ function RecordEndState({
   readonly endedOn: string | undefined;
   readonly position: number;
 }) {
+  const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState(markEndedAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const noteRef = useRef<HTMLDivElement>(null);
@@ -495,23 +524,29 @@ function RecordEndState({
     <>
       {endedOn ? (
         <div ref={noteRef} tabIndex={-1} className="profile-record-ended">
-          <span className="badge badge-neutral">Ended</span>
+          <span className="badge badge-neutral">
+            {t('appApplicant.appApplicantIdProfileEditor.ended')}
+          </span>
           <p className="muted u-fs-075-m0">
-            Ended on {formatDateOnly(endedOn)}. Its details stay on file. Save a change below to
-            make it current again.
+            {t('appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay', {
+              formatDateOnly: formatDateOnly(endedOn, locale),
+            })}
           </p>
         </div>
       ) : (
         <details className="profile-record-end">
           <summary className="muted">
-            This {group.label} Ended ({position})
+            {t('appApplicant.appApplicantIdProfileEditor.thisLabelEndedPosition', {
+              label: group.label,
+              position,
+            })}
           </summary>
           <form ref={formRef} action={formAction} className="field-control">
             <input type="hidden" name="applicantId" value={applicantId} />
             <input type="hidden" name="recordGroupKey" value={group.key} />
             <input type="hidden" name="repeatingRecordKey" value={recordKey} />
             <label className="field-label" htmlFor={dateId}>
-              Date It Ended
+              {t('appApplicant.appApplicantIdProfileEditor.dateItEnded')}
             </label>
             <input
               id={dateId}
@@ -528,7 +563,7 @@ function RecordEndState({
               idle="Mark as Ended"
               busy="Saving…"
               className="btn btn-secondary btn-compact"
-              label={`Mark as Ended: ${name}`}
+              label={t('appApplicant.appApplicantIdProfileEditor.markAsEndedName', { name })}
             />
           </form>
         </details>
@@ -546,6 +581,7 @@ interface RepeatingGroupProps {
 }
 
 function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: RepeatingGroupProps) {
+  const t = useT(appApplicantCatalog);
   const [newRecordKeys, setNewRecordKeys] = useState<readonly string[]>([]);
   // Union of record keys across every field in the group: a record with only some fields filled in still shows up.
   const savedKeys = new Set<string>();
@@ -567,13 +603,15 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
             className="btn btn-secondary btn-compact"
             onClick={() => setNewRecordKeys((keys) => [...keys, crypto.randomUUID()])}
           >
-            Add {group.label}
+            {t('appApplicant.appApplicantIdProfileEditor.addLabel', { label: group.label })}
           </button>
         )}
       </div>
       {recordKeys.length === 0 ? (
         <p className="muted u-fs-085">
-          {group.noneDeclared ? 'You said you have none.' : 'None recorded yet.'}
+          {group.noneDeclared
+            ? t('appApplicant.appApplicantIdProfileEditor.youSaidYouHaveNone')
+            : t('appApplicant.appApplicantIdProfileEditor.noneRecordedYet')}
         </p>
       ) : (
         <div className="profile-group-records">
@@ -608,7 +646,9 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
           kind="RECORD_NONE"
           targetKey={group.key}
           on={group.noneDeclared}
-          label={`I have no ${group.label.toLowerCase()}`}
+          label={t('appApplicant.appApplicantIdProfileEditor.iHaveNoTolowercase', {
+            toLowerCase: group.label.toLowerCase(),
+          })}
         />
       ) : null}
     </div>
@@ -644,6 +684,7 @@ function OtherItems({
   readonly repeatingValues: RepeatingValues;
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(saveOtherItemAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
@@ -661,10 +702,12 @@ function OtherItems({
 
   return (
     <div className="profile-other-items">
-      <h5>Something else in {section.label}</h5>
-      <p className="muted">
-        Not on the list? Add it here. It stays with this section and is saved like any other detail.
-      </p>
+      <h5>
+        {t('appApplicant.appApplicantIdProfileEditor.somethingElseInLabel', {
+          label: section.label,
+        })}
+      </h5>
+      <p className="muted">{t('appApplicant.appApplicantIdProfileEditor.notOnTheListAddIt')}</p>
       {recordKeys.map((recordKey) => (
         <div key={recordKey} className="field-list profile-group-record">
           {fields.map((field) => (
@@ -680,7 +723,7 @@ function OtherItems({
         </div>
       ))}
       <details className="profile-edit-section">
-        <summary>Add Something Else</summary>
+        <summary>{t('appApplicant.appApplicantIdProfileEditor.addSomethingElse')}</summary>
         <form ref={formRef} action={formAction} className="field-list">
           <input type="hidden" name="applicantId" value={applicantId} />
           <input type="hidden" name="sectionKey" value={section.key} />
@@ -730,12 +773,15 @@ function SectionDocuments({
   readonly documents: NonNullable<EditorSection['documents']>;
   readonly search: string;
 }) {
+  const t = useT(appApplicantCatalog);
   const headingId = useId();
   const shown = documents.filter((document) => matchesSearch(document.label, search));
   if (shown.length === 0) return null;
   return (
     <section className="section-documents" aria-labelledby={headingId}>
-      <h5 id={headingId}>Documents for This Section</h5>
+      <h5 id={headingId}>
+        {t('appApplicant.appApplicantIdProfileEditor.documentsForThisSection')}
+      </h5>
       <ul>
         {shown.map((document) => (
           <li key={document.key}>
@@ -743,8 +789,7 @@ function SectionDocuments({
               <b>{document.label}</b>
               {document.original ? (
                 <small className="muted">
-                  Usually handed in as the original when you apply. Upload a clear scan or photo
-                  here so it is ready to share.
+                  {t('appApplicant.appApplicantIdProfileEditor.usuallyHandedInAsTheOriginal')}
                 </small>
               ) : null}
             </div>
@@ -752,14 +797,18 @@ function SectionDocuments({
               <span
                 className={`badge ${document.uploaded > 0 ? 'badge-success' : 'badge-neutral'}`}
               >
-                {document.uploaded > 0 ? 'Uploaded' : 'Not Uploaded Yet'}
+                {document.uploaded > 0
+                  ? t('appApplicant.appApplicantIdProfileEditor.uploaded')
+                  : t('appApplicant.appApplicantIdProfileEditor.notUploadedYet')}
               </span>
             )}
             <Link
               className="btn btn-secondary"
               href={`/app/applicant/${applicantId}/documents/add?type=${document.key}`}
             >
-              {document.uploaded ? 'Add Another' : 'Upload'}
+              {document.uploaded
+                ? t('appApplicant.appApplicantIdProfileEditor.addAnother')
+                : t('appApplicant.appApplicantIdProfileEditor.upload')}
               <span className="sr-only"> {document.label}</span>
             </Link>
           </li>
@@ -786,6 +835,7 @@ function SingleField({
   readonly values: Readonly<Record<string, ProfileValue>>;
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
 }) {
+  const t = useT(appApplicantCatalog);
   const current = values[field.key];
   const hasValue = isCurrentValue(current);
   return (
@@ -798,7 +848,11 @@ function SingleField({
           assurance={assurance}
         />
       ) : (
-        <p className="muted">{field.label}: marked as not applying to you.</p>
+        <p className="muted">
+          {t('appApplicant.appApplicantIdProfileEditor.labelMarkedAsNotApplyingTo', {
+            label: field.label,
+          })}
+        </p>
       )}
       {applies && current && (hasValue || current.status === 'STALE') ? (
         <NotCurrentControl applicantId={applicantId} field={field} current={current} />
@@ -809,7 +863,7 @@ function SingleField({
           kind="FIELD_NOT_APPLICABLE"
           targetKey={field.key}
           on={!applies}
-          label="This does not apply to me"
+          label={t('appApplicant.appApplicantIdProfileEditor.thisDoesNotApplyToMe')}
         />
       )}
     </div>
@@ -831,6 +885,7 @@ function SectionFields({
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
   readonly search: string;
 }) {
+  const t = useT(appApplicantCatalog);
   const notApplicable = new Set(section.notApplicable);
   const singles = section.singles.filter((field) => matchesSearch(field.label, search));
   const groups = section.groups.filter(
@@ -850,13 +905,15 @@ function SectionFields({
                 <dt>{field.label}</dt>
                 <dd>
                   {notApplicable.has(field.key)
-                    ? 'Does not apply'
+                    ? t('appApplicant.appApplicantIdProfileEditor.doesNotApply')
                     : current?.value === OTHER_CHOICE && otherText
-                      ? `Other: ${otherText}`
+                      ? t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText })
                       : displayValue(field, current)}
                 </dd>
                 {current?.status === 'CONFLICTED' ? (
-                  <span className="badge badge-warning">Needs Review</span>
+                  <span className="badge badge-warning">
+                    {t('appApplicant.appApplicantIdProfileEditor.needsReview')}
+                  </span>
                 ) : null}
               </div>
             );
@@ -865,7 +922,7 @@ function SectionFields({
       ) : null}
       {singles.length > 0 ? (
         <details className="profile-edit-section" open={search.trim() ? true : undefined}>
-          <summary>Edit These Details</summary>
+          <summary>{t('appApplicant.appApplicantIdProfileEditor.editTheseDetails')}</summary>
           <div className="field-list">
             {singles.map((field) => (
               <SingleField
@@ -907,14 +964,21 @@ function SectionToggle({
   readonly applicantId: string;
   readonly section: EditorSection;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(setSectionOpenAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
   if (section.reason === 'default') {
-    return <span className="muted">Open for everyone</span>;
+    return (
+      <span className="muted">{t('appApplicant.appApplicantIdProfileEditor.openForEveryone')}</span>
+    );
   }
   if (section.open && !section.canClose) {
-    return <span className="muted">Open because it holds your details</span>;
+    return (
+      <span className="muted">
+        {t('appApplicant.appApplicantIdProfileEditor.openBecauseItHoldsYourDetails')}
+      </span>
+    );
   }
   return (
     <form ref={formRef} action={formAction} className="profile-exempt">
@@ -930,11 +994,11 @@ function SectionToggle({
             if (!pending) formRef.current?.requestSubmit();
           }}
         />
-        Use This Section
+        {t('appApplicant.appApplicantIdProfileEditor.useThisSection')}
       </label>
       <noscript>
         <button type="submit" className="btn btn-secondary">
-          Apply
+          {t('appApplicant.appApplicantIdProfileEditor.apply')}
         </button>
       </noscript>
       <FormMessage id={messageId} result={state} />
@@ -957,6 +1021,7 @@ function SectionCard({
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
   readonly search: string;
 }) {
+  const t = useT(appApplicantCatalog);
   const headingId = useId();
   const searching = search.trim() !== '';
   return (
@@ -973,16 +1038,25 @@ function SectionCard({
         </div>
         <div className="profile-section-state">
           <span className={`badge ${section.open ? 'badge-success' : 'badge-neutral'}`}>
-            {section.open ? 'Open' : 'Locked'}
+            {section.open
+              ? t('appApplicant.appApplicantIdProfileEditor.open')
+              : t('appApplicant.appApplicantIdProfileEditor.locked')}
           </span>
-          {section.suggested ? <span className="badge badge-warning">Suggested</span> : null}
+          {section.suggested ? (
+            <span className="badge badge-warning">
+              {t('appApplicant.appApplicantIdProfileEditor.suggested')}
+            </span>
+          ) : null}
           <SectionToggle applicantId={applicantId} section={section} />
         </div>
       </header>
       {section.open ? (
         <>
           <p className="muted profile-section-progress">
-            {section.answered} of {section.total} details counted
+            {t('appApplicant.appApplicantIdProfileEditor.answeredOfTotalDetailsCounted', {
+              answered: section.answered,
+              total: section.total,
+            })}
           </p>
           <SectionDocuments
             applicantId={applicantId}
@@ -1000,7 +1074,11 @@ function SectionCard({
         </>
       ) : (
         <details className="profile-section-preview" open={searching || undefined}>
-          <summary>See the {plural(section.detailCount, 'detail')} inside</summary>
+          <summary>
+            {t('appApplicant.appApplicantIdProfileEditor.seeThePluralInside', {
+              plural: plural(section.detailCount, 'detail'),
+            })}
+          </summary>
           <ul>
             {section.previewLabels
               .filter((label) => matchesSearch(label, search))
@@ -1009,8 +1087,7 @@ function SectionCard({
               ))}
           </ul>
           <p className="muted">
-            Locked and not counted. Tick “Use this section” to fill it in; it then counts toward
-            your completion.
+            {t('appApplicant.appApplicantIdProfileEditor.lockedAndNotCountedTickUse')}
           </p>
         </details>
       )}
@@ -1040,13 +1117,14 @@ function SuggestionBar({
   readonly applicantId: string;
   readonly view: MasterProfileView;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(openSuggestedSectionsAction, INITIAL);
   const messageId = useId();
   return (
     <div className="profile-suggest">
       <form method="get" action="#profile-editor" className="profile-suggest-pick">
         <label className="field-label" htmlFor="profile-purpose">
-          What is this profile for?
+          {t('appApplicant.appApplicantIdProfileEditor.whatIsThisProfileFor')}
         </label>
         <select
           id="profile-purpose"
@@ -1054,7 +1132,7 @@ function SuggestionBar({
           className="input"
           defaultValue={view.suggestedFamily ?? ''}
         >
-          <option value="">Choose a purpose…</option>
+          <option value="">{t('appApplicant.appApplicantIdProfileEditor.chooseAPurpose')}</option>
           {view.families.map((family) => (
             <option key={family.key} value={family.key}>
               {family.label}
@@ -1062,7 +1140,7 @@ function SuggestionBar({
           ))}
         </select>
         <button type="submit" className="btn btn-secondary">
-          Show Suggestions
+          {t('appApplicant.appApplicantIdProfileEditor.showSuggestions')}
         </button>
       </form>
       {view.suggestedFamily ? (
@@ -1071,8 +1149,10 @@ function SuggestionBar({
             <input type="hidden" name="applicantId" value={applicantId} />
             <input type="hidden" name="family" value={view.suggestedFamily} />
             <p>
-              {view.suggestedLockedCount} suggested section
-              {view.suggestedLockedCount === 1 ? ' is' : 's are'} still locked.
+              {t(
+                'appApplicant.appApplicantIdProfileEditor.suggestedlockedcountSuggestedSectionsAreStillLoc',
+                { suggestedLockedCount: view.suggestedLockedCount },
+              )}
             </p>
             <SubmitButton
               pending={pending}
@@ -1083,7 +1163,9 @@ function SuggestionBar({
             <FormMessage id={messageId} result={state} />
           </form>
         ) : (
-          <p className="muted">Every section suggested for this purpose is already open.</p>
+          <p className="muted">
+            {t('appApplicant.appApplicantIdProfileEditor.everySectionSuggestedForThisPurpose')}
+          </p>
         )
       ) : null}
     </div>
@@ -1102,12 +1184,16 @@ function layerProgress(layer: EditorLayer): { answered: number; total: number } 
 }
 
 function AreaCount({ layer }: { readonly layer: EditorLayer }) {
+  const t = useT(appApplicantCatalog);
   const progress = layerProgress(layer);
   if (!progress) return null;
   return (
     <span className="profile-area-count">
       {progress.answered}/{progress.total}
-      <span className="sr-only"> details filled</span>
+      <span className="sr-only">
+        {' '}
+        {t('appApplicant.appApplicantIdProfileEditor.detailsFilled')}
+      </span>
     </span>
   );
 }
@@ -1142,6 +1228,7 @@ function EssentialsFirst({
   readonly showAll: boolean;
   readonly onToggle: () => void;
 }) {
+  const t = useT(appApplicantCatalog);
   const headingId = useId();
   const { essentials } = view;
   // The count and bar sit in the banner above; this block only says what to do.
@@ -1150,19 +1237,22 @@ function EssentialsFirst({
     <section className="profile-essentials" aria-labelledby={headingId}>
       <div className="profile-essentials-head">
         <div>
-          <h3 id={headingId}>Essentials First</h3>
+          <h3 id={headingId}>{t('appApplicant.appApplicantIdProfileEditor.essentialsFirst')}</h3>
           <p className="muted">
             {complete
-              ? 'Every essential is added. Add more from any section when a case needs it.'
-              : 'Start with the details most visa forms ask for first. Everything else can wait.'}
+              ? t('appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore')
+              : t('appApplicant.appApplicantIdProfileEditor.startWithTheDetailsMostVisa')}
           </p>
         </div>
       </div>
       {showAll ? (
         <p className="muted">
-          Full profile: {view.answered} of {view.total} details in your{' '}
-          {plural(view.openSections, 'open section')} have values ({view.percent}%). Opening a
-          section adds its details to this number at once.
+          {t('appApplicant.appApplicantIdProfileEditor.fullProfileAnsweredOfTotalDetails', {
+            answered: view.answered,
+            total: view.total,
+            plural: plural(view.openSections, 'open section'),
+            percent: view.percent,
+          })}
         </p>
       ) : (
         <ol className="profile-essentials-list">
@@ -1201,11 +1291,13 @@ function EssentialsFirst({
       )}
       <div className="profile-essentials-actions">
         <button type="button" className="btn btn-secondary" onClick={onToggle}>
-          {showAll ? 'Show Essentials Only' : 'Show All Sections'}
+          {showAll
+            ? t('appApplicant.appApplicantIdProfileEditor.showEssentialsOnly')
+            : t('appApplicant.appApplicantIdProfileEditor.showAllSections')}
         </button>
         {showAll ? null : (
           <span className="muted">
-            Every section, with every detail you can add, including these.
+            {t('appApplicant.appApplicantIdProfileEditor.everySectionWithEveryDetailYou')}
           </span>
         )}
       </div>
@@ -1252,6 +1344,7 @@ export function ProfileEditor({
   startWithAll = false,
   endedRecords,
 }: ProfileEditorProps) {
+  const t = useT(appApplicantCatalog);
   const editor = useRef<HTMLDivElement>(null);
   // Essentials First leads until every essential is added; a profile with no essentials list
   // (nothing to show) opens on all sections. A link to one section always opens all sections.
@@ -1398,7 +1491,7 @@ export function ProfileEditor({
                   className="profile-area-rail"
                   role={searching ? undefined : 'tablist'}
                   aria-orientation={searching ? undefined : 'vertical'}
-                  aria-label="Profile areas"
+                  aria-label={t('appApplicant.appApplicantIdProfileEditor.profileAreas')}
                 >
                   {view.layers.map((layer, index) => (
                     <button
@@ -1423,7 +1516,9 @@ export function ProfileEditor({
                   onToggle={(event) => setPickerOpen(event.currentTarget.open)}
                 >
                   <summary>
-                    <span className="profile-area-picker-label">Area</span>
+                    <span className="profile-area-picker-label">
+                      {t('appApplicant.appApplicantIdProfileEditor.area')}
+                    </span>
                     <span className="profile-area-name">{current?.label}</span>
                     {current ? <AreaCount layer={current} /> : null}
                   </summary>
@@ -1447,23 +1542,27 @@ export function ProfileEditor({
                   href={`/app/applicant/${applicantId}/history`}
                   className="profile-history-link"
                 >
-                  History →
+                  {t('appApplicant.appApplicantIdProfileEditor.history')}
                 </Link>
                 <div className="profile-field-search">
                   <label className="field-label" htmlFor="profile-search">
-                    Search All Profile Fields
+                    {t('appApplicant.appApplicantIdProfileEditor.searchAllProfileFields')}
                   </label>
                   <input
                     id="profile-search"
                     type="search"
                     className="input"
-                    placeholder="e.g. passport, address, employer"
+                    placeholder={t(
+                      'appApplicant.appApplicantIdProfileEditor.eGPassportAddressEmployer',
+                    )}
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
                 </div>
                 {searching && visibleLayers.length === 0 ? (
-                  <output className="muted">No fields match. Try another field name.</output>
+                  <output className="muted">
+                    {t('appApplicant.appApplicantIdProfileEditor.noFieldsMatchTryAnotherField')}
+                  </output>
                 ) : null}
                 {view.layers.map((layer) => {
                   const visible = visibleLayers.some((item) => item.key === layer.key);
@@ -1477,8 +1576,14 @@ export function ProfileEditor({
                     >
                       <h3>{layer.label}</h3>
                       <p className="muted">
-                        {layer.description} {layer.openCount} of {layer.sections.length} sections
-                        open.
+                        {t(
+                          'appApplicant.appApplicantIdProfileEditor.descriptionOpencountOfLengthSectionsOpen',
+                          {
+                            description: layer.description,
+                            openCount: layer.openCount,
+                            length: layer.sections.length,
+                          },
+                        )}
                       </p>
                       {layer.sections
                         .filter((section) => sectionMatches(section, search))

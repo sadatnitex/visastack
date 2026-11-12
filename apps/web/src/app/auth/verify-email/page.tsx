@@ -49,16 +49,16 @@ export default async function VerifyEmailPage({
         errorId={error ? 'verify-error' : undefined}
       />
       <button type="submit" className="btn btn-primary">
-        {t('auth.authVerifyEmailPage.sendTheLinkAgain')}
+        {t.node('auth.authVerifyEmailPage.sendTheLinkAgain')}
       </button>
     </form>
   );
   return (
-    <AuthShell title={t('auth.authVerifyEmailPage.confirmYourEmailAddress')}>
+    <AuthShell title={t.node('auth.authVerifyEmailPage.confirmYourEmailAddress')}>
       <ol className="auth-steps" aria-label={t('auth.authSignUpPage.theThreeSteps')}>
-        <li>{t('auth.authSignUpPage.1CreateYourAccount')}</li>
-        <li aria-current="step">{t('auth.authSignUpPage.2ConfirmYourEmail')}</li>
-        <li>{t('auth.authSignUpPage.3SignIn')}</li>
+        <li>{t.node('auth.authSignUpPage.1CreateYourAccount')}</li>
+        <li aria-current="step">{t.node('auth.authSignUpPage.2ConfirmYourEmail')}</li>
+        <li>{t.node('auth.authSignUpPage.3SignIn')}</li>
       </ol>
       {remembered ? (
         <>
@@ -78,12 +78,12 @@ export default async function VerifyEmailPage({
               <input type="hidden" name="saved" value="1" />
               <button type="submit" className="btn btn-primary">
                 {s === '1'
-                  ? t('auth.authVerifyEmailPage.sendTheLinkAgain')
-                  : t('auth.authVerifyEmailPage.sendTheLink')}
+                  ? t.node('auth.authVerifyEmailPage.sendTheLinkAgain')
+                  : t.node('auth.authVerifyEmailPage.sendTheLink')}
               </button>
             </form>
             <details className="verify-other-address">
-              <summary>{t('auth.authVerifyEmailPage.useADifferentEmail')}</summary>
+              <summary>{t.node('auth.authVerifyEmailPage.useADifferentEmail')}</summary>
               {addressForm}
             </details>
           </div>
@@ -92,17 +92,17 @@ export default async function VerifyEmailPage({
         <>
           <p className="card-body">
             {s === '1'
-              ? t('auth.authVerifyEmailPage.checkYourInboxIfYourAddress')
-              : t('auth.authVerifyEmailPage.youNeedToConfirmYourEmail')}
+              ? t.node('auth.authVerifyEmailPage.checkYourInboxIfYourAddress')
+              : t.node('auth.authVerifyEmailPage.youNeedToConfirmYourEmail')}
           </p>
-          {s === '1' ? <Notice>{t('auth.authVerifyEmailPage.ifYouDoNotSeeIt')}</Notice> : null}
+          {s === '1' ? <Notice>{t.node('auth.authVerifyEmailPage.ifYouDoNotSeeIt')}</Notice> : null}
           <ErrorLine id="verify-error" message={error} />
           <div className="card u-mb-100">{addressForm}</div>
         </>
       )}
       <p className="card-body">
         <Link href={`/auth/sign-in?next=${encodeURIComponent(returnPath)}`}>
-          {t('auth.authForgotPasswordPage.backToSignIn')}
+          {t.node('auth.authForgotPasswordPage.backToSignIn')}
         </Link>
       </p>
     </AuthShell>

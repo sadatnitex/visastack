@@ -35,7 +35,7 @@ export function SwitchInvitationAccount({
     <form action={switchInvitationAccountAction} className="invitation-switch">
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="token" value={token} />
-      <span>{t('invitation.invitationSwitchAccount.notYou')}</span> <SwitchButton />
+      <span>{t.node('invitation.invitationSwitchAccount.notYou')}</span> <SwitchButton />
     </form>
   );
 }

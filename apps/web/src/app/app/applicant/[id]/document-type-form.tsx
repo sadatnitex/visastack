@@ -1,3 +1,5 @@
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
+import { getServerT } from '../../../../lib/i18n-server';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
 import { setDocumentTypeAction } from './actions';
 
@@ -19,6 +21,7 @@ export function DocumentTypeForm({
   readonly subject: string | null;
   readonly groups: readonly ChoiceGroup[];
 }) {
+  const t = getServerT(appApplicantCatalog);
   const selectId = `type-${documentId}`;
   const nameId = `type-name-${documentId}`;
   return (
@@ -26,10 +29,10 @@ export function DocumentTypeForm({
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="documentId" value={documentId} />
       <label className="field-label" htmlFor={selectId}>
-        Kind of Document
+        {t('appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument')}
       </label>
       <select id={selectId} name="docType" className="input" defaultValue={docType ?? ''}>
-        <option value="">Not Set Yet</option>
+        <option value="">{t('appApplicant.appApplicantIdDocumentTypeForm.notSetYet')}</option>
         {groups.map((group) => (
           <optgroup key={group.key} label={group.label}>
             {group.choices.map((choice) => (
@@ -41,7 +44,7 @@ export function DocumentTypeForm({
         ))}
       </select>
       <label className="field-label" htmlFor={nameId}>
-        Name for an Other Type
+        {t('appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType')}
       </label>
       <div className="field-inline">
         <input
@@ -51,10 +54,12 @@ export function DocumentTypeForm({
           maxLength={120}
           defaultValue={subject ?? ''}
           className="input"
-          placeholder="For example: Marriage Certificate"
+          placeholder={t(
+            'appApplicant.appApplicantIdDocumentTypeForm.forExampleMarriageCertificate',
+          )}
         />
         <button type="submit" className="btn btn-secondary">
-          Save
+          {t('appApplicant.appApplicantIdDocumentTypeForm.save')}
         </button>
       </div>
     </form>

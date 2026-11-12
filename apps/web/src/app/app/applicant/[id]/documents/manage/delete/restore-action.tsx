@@ -1,6 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useT } from '../../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { restoreDeletedAction, restoreInfoAction } from './actions';
 import { removedInLine } from './messages';
@@ -15,6 +17,7 @@ export function RestoreDeletedAction({
   documentName,
   onClose,
 }: ManageActionProps) {
+  const t = useT(appApplicantCatalog);
   const router = useRouter();
   const [days, setDays] = useState<number | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -70,11 +73,13 @@ export function RestoreDeletedAction({
     return (
       <div ref={root} className="lc-delete" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-          Document Restored
+          {t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.documentRestored')}
         </h3>
         <output className="lc-delete-result">
-          {documentName} is back in your documents. Cases that moved to the identical copy stay with
-          that copy.
+          {t(
+            'appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.documentnameIsBackInYourDocuments',
+            { documentName },
+          )}
         </output>
         <div className="lc-delete-actions">
           <button
@@ -85,7 +90,7 @@ export function RestoreDeletedAction({
               router.refresh();
             }}
           >
-            Done
+            {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
           </button>
         </div>
       </div>
@@ -95,19 +100,27 @@ export function RestoreDeletedAction({
   return (
     <div ref={root} className="lc-delete" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-        Restore {documentName}?
+        {t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restoreDocumentname', {
+          documentName,
+        })}
       </h3>
       {problem ? (
         <p className="lc-delete-problem" role="alert">
           {problem}
         </p>
       ) : null}
-      {days === null && !problem ? <output>Checking this document</output> : null}
+      {days === null && !problem ? (
+        <output>
+          {t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.checkingThisDocument')}
+        </output>
+      ) : null}
       {days !== null ? (
         <>
           <p>
-            {removedInLine(days)}. Restore it to bring it back to your documents. Cases that moved
-            to the identical copy stay with that copy.
+            {t(
+              'appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.removedinlineRestoreItToBringIt',
+              { removedInLine: removedInLine(days) },
+            )}
           </p>
           <div className="lc-delete-actions">
             <button
@@ -116,7 +129,9 @@ export function RestoreDeletedAction({
               aria-disabled={busy || undefined}
               onClick={restore}
             >
-              {busy ? 'Restoring' : 'Restore'}
+              {busy
+                ? t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restoring')
+                : t('appApplicant.appApplicantIdDocumentsManageDeleteRestoreAction.restore')}
             </button>
             <button
               type="button"
@@ -126,14 +141,14 @@ export function RestoreDeletedAction({
                 if (!busy) onClose();
               }}
             >
-              Cancel
+              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </>
       ) : (
         <div className="lc-delete-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       )}

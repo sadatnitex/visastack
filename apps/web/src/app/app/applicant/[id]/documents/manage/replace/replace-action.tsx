@@ -1,6 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useLocale, useT } from '../../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import { formatTimestampDate } from '../../../../../../../lib/format-date';
 import { acceptAttribute } from '../../../../../../../lib/upload-rules';
 import { uploadDocumentAction } from '../../../actions';
@@ -39,6 +41,8 @@ export function ReplaceAction({
   documentName,
   onClose,
 }: ManageActionProps) {
+  const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const router = useRouter();
   const [options, setOptions] = useState<Options | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -186,7 +190,7 @@ export function ReplaceAction({
     return (
       <div ref={root} className="lc-replace" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-replace-heading">
-          Document Replaced
+          {t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.documentReplaced')}
         </h3>
         <output className="lc-replace-result">{result}</output>
         <div className="lc-replace-actions">
@@ -199,7 +203,7 @@ export function ReplaceAction({
               router.refresh();
             }}
           >
-            Done
+            {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
           </button>
         </div>
       </div>
@@ -210,7 +214,9 @@ export function ReplaceAction({
     return (
       <div ref={root} className="lc-replace" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-replace-heading">
-          Replace {documentName}?
+          {t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.replaceDocumentname', {
+            documentName,
+          })}
         </h3>
         <p>
           The newer document is <strong>{chosenCandidate.name}</strong>.{' '}
@@ -224,8 +230,9 @@ export function ReplaceAction({
           </ul>
         ) : null}
         <p className="lc-replace-note">
-          The old document stays in your records, marked Replaced. Anything you already sent stays
-          exactly as it was.
+          {t(
+            'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.theOldDocumentStaysInYour',
+          )}
         </p>
         {problemLine}
         <div className="lc-replace-actions">
@@ -235,7 +242,9 @@ export function ReplaceAction({
             aria-disabled={busy || undefined}
             onClick={replace}
           >
-            {busy ? 'Replacing' : 'Replace'}
+            {busy
+              ? t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.replacing')
+              : t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.replace')}
           </button>
           <button
             type="button"
@@ -247,7 +256,7 @@ export function ReplaceAction({
               goTo('choose');
             }}
           >
-            Back
+            {t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.back')}
           </button>
         </div>
       </div>
@@ -257,20 +266,35 @@ export function ReplaceAction({
   return (
     <div ref={root} className="lc-replace" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-replace-heading">
-        Replace with a Newer Document
+        {t(
+          'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.replaceWithANewerDocument',
+        )}
       </h3>
       {problemLine}
-      {!options && !problem ? <output>Loading your documents</output> : null}
+      {!options && !problem ? (
+        <output>
+          {t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.loadingYourDocuments')}
+        </output>
+      ) : null}
       {options ? (
         <>
           <fieldset className="lc-replace-choices" aria-describedby={choiceHintId}>
-            <legend className="lc-replace-legend">Choose the Newer Document</legend>
+            <legend className="lc-replace-legend">
+              {t(
+                'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.chooseTheNewerDocument',
+              )}
+            </legend>
             <p id={choiceHintId} className="lc-replace-note">
-              It takes the place of {documentName}.
+              {t(
+                'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.itTakesThePlaceOfDocumentname',
+                { documentName },
+              )}
             </p>
             {options.candidates.length === 0 ? (
               <p className="lc-replace-note">
-                You have no other document of this kind yet. Add the new one below.
+                {t(
+                  'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.youHaveNoOtherDocumentOf',
+                )}
               </p>
             ) : (
               options.candidates.map((candidate) => (
@@ -290,8 +314,13 @@ export function ReplaceAction({
                   <span className="lc-replace-choice-text">
                     <span className="lc-replace-choice-name">{candidate.name}</span>
                     <span className="lc-replace-choice-meta">
-                      Added {formatTimestampDate(candidate.uploadedAt)}
-                      {STATUS_WORDS[candidate.status]}
+                      {t(
+                        'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.addedFormattimestampdateStatusWords',
+                        {
+                          formatTimestampDate: formatTimestampDate(candidate.uploadedAt, locale),
+                          STATUS_WORDS: STATUS_WORDS[candidate.status],
+                        },
+                      )}
                     </span>
                   </span>
                 </label>
@@ -300,17 +329,21 @@ export function ReplaceAction({
             {checking && stillChecking ? (
               <div className="lc-replace-recheck">
                 <p className="lc-replace-note">
-                  A check can take a few minutes. You can close this and come back.
+                  {t(
+                    'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.aCheckCanTakeAFew',
+                  )}
                 </p>
                 <button type="button" className="btn btn-secondary" onClick={watchChecks}>
-                  Check Again
+                  {t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.checkAgain')}
                 </button>
               </div>
             ) : null}
           </fieldset>
           <form className="lc-replace-upload" onSubmit={upload}>
             <label htmlFor={fileId} className="lc-replace-legend">
-              Add the Newer Document
+              {t(
+                'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.addTheNewerDocument',
+              )}
             </label>
             <input
               id={fileId}
@@ -325,7 +358,11 @@ export function ReplaceAction({
               choose it.
             </p>
             <button type="submit" className="btn btn-secondary" aria-disabled={busy || undefined}>
-              {busy ? 'Adding' : 'Add the Document'}
+              {busy
+                ? t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.adding')
+                : t(
+                    'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.addTheDocument',
+                  )}
             </button>
             {uploadNote ? <output className="lc-replace-upload-note">{uploadNote}</output> : null}
           </form>
@@ -338,10 +375,10 @@ export function ReplaceAction({
                 if (chosenCandidate && !busy) goTo('confirm');
               }}
             >
-              Continue
+              {t('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.continue')}
             </button>
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </>
@@ -349,7 +386,7 @@ export function ReplaceAction({
       {problem && !options ? (
         <div className="lc-replace-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       ) : null}

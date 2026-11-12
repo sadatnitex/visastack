@@ -142,89 +142,312 @@ export const HOLDBACK = new Map([
     'Joiner word between names (" or "): its spaces carry the layout and the sentence around it is still English.',
   ],
   [
-    'SG-674ee0dc',
-    'Shared-access end date label: access and expiry wording waits for the owner sign-off.',
+    'SG-e6123c0d',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-8205ffbd',
-    'Invitation recovery help (new link or invited email): invitation access wording waits for the owner sign-off.',
+    'SG-0016aa98',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-515d1469',
-    'Invitation expiry label: invitation expiry wording waits for the owner sign-off.',
+    'SG-5018af46',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-750b0e73',
-    'Invitation unavailable heading: invitation status wording waits for the owner sign-off.',
+    'SG-e7158ae3',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-03d5ab6c',
-    'Opening an invitation grants no access: a consent statement, waits for the owner sign-off.',
+    'SG-afe937a3',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-8600dbb5',
-    'Permissions heading on a sharing invitation: access control wording waits for the owner sign-off.',
+    'SG-ce511844',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-b1994b75',
-    'Agency AI note on the client invitation: AI and consent wording waits for the owner sign-off.',
-  ],
-  ['SG-e432687f', 'AI Tools consent toggle: AI processing wording waits for the owner sign-off.'],
-  ['SG-02122e22', 'Turn On consent toggle label: consent wording waits for the owner sign-off.'],
-  [
-    'SG-69e97063',
-    'What an agency can do if you accept: access wording waits for the owner sign-off.',
-  ],
-  ['SG-cdca8c7b', 'Turn these on before accepting: consent wording waits for the owner sign-off.'],
-  [
-    'SG-1206824f',
-    'Contributor request sent to a different email: access control wording waits for the owner sign-off.',
+    'SG-81bf750c',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-056ff2bb',
-    'Error page promise that saved work is safe: a data safety promise, waits for the owner sign-off.',
+    'SG-67266d24',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-a70820b8',
-    'App connection duration (How Long): authorization wording waits for the owner sign-off.',
-  ],
-  ['SG-a4126292', 'Answer an AI app: authorization wording waits for the owner sign-off.'],
-  [
-    'SG-3fb2aa39',
-    'AI App Access heading: AI and authorization wording waits for the owner sign-off.',
+    'SG-61e87632',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-cc574f29',
-    'AI App Access heading (variant): AI and authorization wording waits for the owner sign-off.',
+    'SG-8829c695',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-711744f6',
-    'Choose a record to connect to an AI app: authorization wording waits for the owner sign-off.',
+    'SG-72d9142d',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-fab4e436',
-    'Choose the record an app may read: authorization wording waits for the owner sign-off.',
-  ],
-  ['SG-48c8ec6a', 'Connect an app: authorization wording waits for the owner sign-off.'],
-  [
-    'SG-3bf94aa3',
-    'Connect an app for an agency: authorization wording waits for the owner sign-off.',
+    'SG-a59d20ba',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-6e5e6fff',
-    'Connect an app for an agency you run: authorization wording waits for the owner sign-off.',
+    'SG-882d2ab6',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-ee296cf8',
-    'Warning that an app runs on this computer: authorization wording waits for the owner sign-off.',
+    'SG-6dc10a9f',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-cdb5fd11',
-    'No records to connect: authorization screen wording waits for the owner sign-off.',
+    'SG-24776023',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
   ],
   [
-    'SG-07369aca',
-    'Client invitation cannot be shown, ask the agency to send it again: invitation recovery wording waits for the owner sign-off.',
+    'SG-1436ceee',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-1065be84',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-5463c56c',
+    'Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).',
+  ],
+  [
+    'SG-b9d38c86',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-0b6663fd',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-226bab50',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-f6430216',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-03b8a6b0',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-4d48fa01',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-197fdeca',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-eac05478',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-3a222fbf',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-e78bd437',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-f1f5bccb',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-7b432da4',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-fe795501',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-a17de272',
+    'Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.',
+  ],
+  [
+    'SG-66f87a10',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-583aa6b5',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-3141220f',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-16600835',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-37c14fc0',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-b41c58b1',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-3d6b855e',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-e3fdc097',
+    'Applicant screens: Disclaimer or official visa rule wording: waits for the owner sign-off.',
+  ],
+  [
+    'SG-eb382184',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-8546093a',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-de969496',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-59d94eb1',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-5a6c4e41',
+    'Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.',
+  ],
+  [
+    'SG-b08c4520',
+    'Applicant screens: Process promise about checking saved documents against a checklist: waits for the owner sign-off.',
+  ],
+  [
+    'SG-d7a62e22',
+    'Applicant screens: Status of automatic reading (AI processing): waits for the owner sign-off.',
+  ],
+  [
+    'SG-1549c176',
+    'Applicant screens: Statement about what visa forms require: waits for the owner sign-off.',
+  ],
+  [
+    'SG-ff7d2a1c',
+    'Applicant screens: Statement about what visa forms require: waits for the owner sign-off.',
+  ],
+  [
+    'SG-d9696fe7',
+    'Applicant screens: Says a value was read from the document by automatic reading (AI processing): waits for the owner sign-off.',
+  ],
+  [
+    'SG-ac40a214',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-338d92d1',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-c9a7f414',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-aa9771db',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-19b168cd',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-68e8afb4',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-fe5feab6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-6cdf21a6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-a8684ed6',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-dedaa54b',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-4e812a3e',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-826d2c99',
+    'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
+  ],
+  [
+    'SG-153f9777',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-c1fb8969',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-658e1cac',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-d2c91826',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-ba0fbeb7',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-e4498255',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-d5319908',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8d14d065',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-e8727ba5',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8881fc69',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-8fd6641e',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-bd7b343f',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-9d878677',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
+    'SG-a7694752',
+    'Applicant screens: Joiner text whose trailing space carries the layout, so its Bengali would run into the next sentence.',
+  ],
+  [
+    'SG-6775fd3b',
+    'Applicant screens: Heading over what automatic reading found (AI processing): waits for the owner sign-off.',
   ],
   // Wave E: case screens and the document collection flow.
   ['SG-094bebc7', 'Case answer status "Submitted to Agency": a sharing outcome, owner sign-off.'],
@@ -305,6 +528,208 @@ export const HOLDBACK = new Map([
   [
     'SG-86f84a55',
     'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
+  // Wave F part 1: account, privacy, trip invitations, notifications, shared.
+  [
+    'SG-3a144529',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-39303114',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-d5eb6533',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-df4ae9fc',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-8d730501',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-529d695c',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-9c7d6ee0',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-7739b95f',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-8be28114',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-9b86192c',
+    'Data Rights heading on the account page: privacy wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-aeff30b3',
+    'Billing line with an amount and date: payment wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-0006fab9',
+    'AI Features in the plan list: AI processing allowance wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-88aeced1',
+    'Trip invitation sharing choices (what you share with the organiser): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-436b1b32',
+    'Trip invitation sharing choices (what you share with the organiser): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-89e5a96d',
+    'Trip invitation expiry and unavailable states: invitation terms, owner sign-off.',
+  ],
+  [
+    'SG-1c102ea8',
+    'Trip invitation expiry and unavailable states: invitation terms, owner sign-off.',
+  ],
+  [
+    'SG-750b0e73',
+    'Trip invitation expiry and unavailable states: invitation terms, owner sign-off.',
+  ],
+  [
+    'SG-c983b88e',
+    'Safe copy (redacted document) explanation or status: privacy promise, owner sign-off.',
+  ],
+  [
+    'SG-0b90abd7',
+    'Safe copy (redacted document) explanation or status: privacy promise, owner sign-off.',
+  ],
+  [
+    'SG-e2005eec',
+    'Safe copy (redacted document) explanation or status: privacy promise, owner sign-off.',
+  ],
+  [
+    'SG-93434b03',
+    'Shared workspace access rules (what a grant covers): access control wording, owner sign-off.',
+  ],
+  [
+    'SG-5f0ee722',
+    'Shared workspace access rules (what a grant covers): access control wording, owner sign-off.',
+  ],
+  [
+    'SG-a23537b2',
+    'Shared workspace access rules (what a grant covers): access control wording, owner sign-off.',
+  ],
+  [
+    'SG-7f6342c7',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-9da51aed',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-1167490a',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-938c310f',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-04e98a42',
+    'Invoice reference on the plan page: invoice and payment wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-a104e7e5',
+    'Now (state of an AI feature in the plan list): AI allowance wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-4bd5843b',
+    'Remove: {name} (accessible name of the Remove button): the visible button text stays English, so the name waits with it.',
+  ],
+  [
+    'SG-674ee0dc',
+    'Shared-access end date label: access and expiry wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-8205ffbd',
+    'Invitation recovery help (new link or invited email): invitation access wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-515d1469',
+    'Invitation expiry label: invitation expiry wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-03d5ab6c',
+    'Opening an invitation grants no access: a consent statement, waits for the owner sign-off.',
+  ],
+  [
+    'SG-8600dbb5',
+    'Permissions heading on a sharing invitation: access control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-b1994b75',
+    'Agency AI note on the client invitation: AI and consent wording waits for the owner sign-off.',
+  ],
+  ['SG-e432687f', 'AI Tools consent toggle: AI processing wording waits for the owner sign-off.'],
+  ['SG-02122e22', 'Turn On consent toggle label: consent wording waits for the owner sign-off.'],
+  [
+    'SG-69e97063',
+    'What an agency can do if you accept: access wording waits for the owner sign-off.',
+  ],
+  ['SG-cdca8c7b', 'Turn these on before accepting: consent wording waits for the owner sign-off.'],
+  [
+    'SG-1206824f',
+    'Contributor request sent to a different email: access control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-056ff2bb',
+    'Error page promise that saved work is safe: a data safety promise, waits for the owner sign-off.',
+  ],
+  [
+    'SG-a70820b8',
+    'App connection duration (How Long): authorization wording waits for the owner sign-off.',
+  ],
+  ['SG-a4126292', 'Answer an AI app: authorization wording waits for the owner sign-off.'],
+  [
+    'SG-3fb2aa39',
+    'AI App Access heading: AI and authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-cc574f29',
+    'AI App Access heading (variant): AI and authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-711744f6',
+    'Choose a record to connect to an AI app: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-fab4e436',
+    'Choose the record an app may read: authorization wording waits for the owner sign-off.',
+  ],
+  ['SG-48c8ec6a', 'Connect an app: authorization wording waits for the owner sign-off.'],
+  [
+    'SG-3bf94aa3',
+    'Connect an app for an agency: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-6e5e6fff',
+    'Connect an app for an agency you run: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-ee296cf8',
+    'Warning that an app runs on this computer: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-cdb5fd11',
+    'No records to connect: authorization screen wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-07369aca',
+    'Client invitation cannot be shown, ask the agency to send it again: invitation recovery wording waits for the owner sign-off.',
   ],
 ]);
 
