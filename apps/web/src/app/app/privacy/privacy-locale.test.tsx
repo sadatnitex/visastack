@@ -59,7 +59,7 @@ async function page(locale: 'en' | 'bn') {
   state.locale = locale;
   state.generation += 1;
   const element = await PrivacyPage({ searchParams: Promise.resolve({}) });
-  return textOf(await renderServer(<I18nProvider locale={locale}>{element}</I18nProvider>));
+  return textOf(await renderServer(<I18nProvider locale={locale} pageLang="en">{element}</I18nProvider>));
 }
 
 const consentItems = [
@@ -115,7 +115,7 @@ describe('privacy screens under Bengali (owner-approved legal wording, PR #518)'
     const render = (locale: 'en' | 'bn') =>
       textOf(
         renderToStaticMarkup(
-          <I18nProvider locale={locale}>
+          <I18nProvider locale={locale} pageLang="en">
             <DeletionPanel
               scheduledFor={null}
               impact={{

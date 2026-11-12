@@ -59,7 +59,7 @@ async function markup(locale: 'en' | 'bn', notifications: unknown[]) {
   state.generation += 1;
   state.notifications = notifications;
   const page = await NotificationsPage({ searchParams: Promise.resolve({}) });
-  return renderServer(<I18nProvider locale={locale}>{page}</I18nProvider>);
+  return renderServer(<I18nProvider locale={locale} pageLang="en">{page}</I18nProvider>);
 }
 const render = async (locale: 'en' | 'bn', notifications: unknown[]) =>
   textOf(await markup(locale, notifications));

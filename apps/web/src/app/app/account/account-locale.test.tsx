@@ -91,7 +91,7 @@ const en = appAccountCatalog.en as Record<string, string>;
 async function html(locale: 'en' | 'bn', page: () => Promise<React.JSX.Element>) {
   state.locale = locale;
   state.generation += 1;
-  return renderServer(<I18nProvider locale={locale}>{await page()}</I18nProvider>);
+  return renderServer(<I18nProvider locale={locale} pageLang="en">{await page()}</I18nProvider>);
 }
 const account = (locale: 'en' | 'bn') => html(locale, () => AccountPage());
 const whatsapp = (locale: 'en' | 'bn') => html(locale, () => WhatsAppPage());

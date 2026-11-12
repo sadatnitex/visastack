@@ -83,7 +83,7 @@ let w: JoinedWorld;
 async function show(locale: 'en' | 'bn', element: () => Promise<React.JSX.Element>) {
   state.locale = locale;
   state.generation += 1;
-  return renderServer(<I18nProvider locale={locale}>{await element()}</I18nProvider>);
+  return renderServer(<I18nProvider locale={locale} pageLang="en">{await element()}</I18nProvider>);
 }
 const accept = (locale: 'en' | 'bn', token: string) =>
   show(locale, () => AcceptPage({ searchParams: Promise.resolve({ token }) }));

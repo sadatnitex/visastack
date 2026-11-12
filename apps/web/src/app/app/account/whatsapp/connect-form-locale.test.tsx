@@ -19,7 +19,7 @@ const BENGALI = /[ঀ-৿]/;
 const render = async (locale: 'en' | 'bn') =>
   textOf(
     await renderServer(
-      <I18nProvider locale={locale}>
+      <I18nProvider locale={locale} pageLang="en">
         <ConnectWhatsAppForm />
       </I18nProvider>,
     ),
