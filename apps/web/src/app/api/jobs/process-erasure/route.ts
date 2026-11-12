@@ -32,11 +32,11 @@ export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
 
-  // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
-  // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
   // Jobs parked by a hold that has since ended (a release normally re-queues them at once; this
   // catches a release that raced the worker, older parked jobs, and holds ended by a backup repair).
   const heldRequeue = await runHeldJobRequeue(systemPrincipal('process-erasure'));
+  // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
+  // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
   const recentlyDeleted = await runRecentlyDeletedPurge(systemPrincipal('process-erasure'));
 
   let totalProcessed = 0;

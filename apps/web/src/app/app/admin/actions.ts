@@ -175,7 +175,7 @@ export async function releaseLegalHoldAction(
     // Held documents are put back in the queue by the release itself; when any were, wake the
     // worker after the response. Best effort: the daily sweep is the backstop, and a failure here
     // never fails the release.
-    if (requeued > 0) after(() => triggerErasureWorker());
+    if (requeued > 0) after(() => triggerErasureWorker({ limit: requeued }));
   }
   return result;
 }

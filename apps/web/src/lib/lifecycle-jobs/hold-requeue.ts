@@ -16,14 +16,20 @@ type SweepResult = Awaited<ReturnType<typeof requeueUncoveredParkedJobs>>;
 const NOTHING: SweepResult = { requeued: 0, failed: 0 };
 
 /** Re-queue parked jobs no hold covers. Never throws: a failure is reported. */
-export async function runHeldJobRequeue(scope: ErasureScope): Promise<SweepResult> {
-  const connection = connectJobPool<SweepDb>('runHeldJobRequeue');
+export async function runHeldJobRequeue(
+  scope: ErasureScope,
+  options: {
+    readonly sweep?: typeof requeueUncoveredParkedJobs;
+    readonly connect?: () => { readonly db: SweepDb; readonly end: () => Promise<void> } | null;
+  } = {},
+): Promise<SweepResult> {
+  const connection = (options.connect ?? (() => connectJobPool<SweepDb>('runHeldJobRequeue')))();
   if (!connection) {
     console.error('[runHeldJobRequeue] database not configured');
     return NOTHING;
   }
   try {
-    const result = await requeueUncoveredParkedJobs(connection.db, scope);
+    const result = await (options.sweep ?? requeueUncoveredParkedJobs)(connection.db, scope);
     if (result.failed > 0) {
       reportServerError('runHeldJobRequeue', new Error('some parked jobs could not be re-queued'), {
         step: 'sweep pass',

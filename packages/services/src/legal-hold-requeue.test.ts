@@ -5,7 +5,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { systemPrincipal } from './access/principal';
+import { systemScopeForTest } from './access/system-scope.test-support';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -297,7 +297,7 @@ describe('release lock order', () => {
 
 describe('the daily sweep for jobs parked with no hold behind them', () => {
   let db: Db;
-  const scope = systemPrincipal('process-erasure');
+  const scope = systemScopeForTest('process-erasure');
   beforeEach(async () => {
     db = (await createMigratedPglite().then((c) => drizzle(c, { schema }))) as unknown as Db;
   });
@@ -346,5 +346,86 @@ describe('the daily sweep for jobs parked with no hold behind them', () => {
 
   it('refuses a scope that is not the erasure job', async () => {
     await expect(requeueUncoveredParkedJobs(db, {} as unknown as typeof scope)).rejects.toThrow();
+  });
+
+  it('is not starved by applicants whose holds still stand', async () => {
+    const standing = [];
+    for (let i = 0; i < 3; i++) {
+      const held = await seedApplicant(db, `held${i}@example.com`);
+      await place(db, held);
+      standing.push(
+        await seedJob(db, { applicantId: held.applicantId, status: 'BLOCKED_BY_HOLD' }),
+      );
+    }
+    const free = await seedApplicant(db, 'free@example.com');
+    const stranded = await seedJob(db, {
+      applicantId: free.applicantId,
+      status: 'BLOCKED_BY_HOLD',
+    });
+
+    // Applicants under an applicant-wide hold are skipped in the query, so a limit of one still
+    // reaches the only applicant that has anything to do.
+    expect(await requeueUncoveredParkedJobs(db, scope, { limit: 1 })).toEqual({
+      requeued: 1,
+      failed: 0,
+    });
+    expect(await statusOf(db, stranded.id)).toBe('PENDING');
+    for (const job of standing) expect(await statusOf(db, job.id)).toBe('BLOCKED_BY_HOLD');
+  });
+});
+
+describe('a kept document removal', () => {
+  it('reads Removing again once the release queues it', async () => {
+    const db = (await createMigratedPglite().then((c) => drizzle(c, { schema }))) as unknown as Db;
+    const owner = await seedApplicant(db, 'p@example.com');
+    const hold = await place(db, owner);
+    const doc = await registerDocument(db, {
+      actorAccountId: owner.accountId,
+      applicantId: owner.applicantId,
+      originalName: 'r.pdf',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    const [receipt] = await db
+      .insert(schema.deletionReceipts)
+      .values({
+        applicantId: owner.applicantId,
+        subjectKind: 'DOCUMENT',
+        subjectCode: 'D-ABC234',
+        path: 'REQUEST',
+        requestedAt: new Date(),
+        status: 'BLOCKED',
+      })
+      .returning();
+    if (!receipt) throw new Error('receipt');
+    await db.insert(schema.documentLifecycle).values({
+      documentId: doc.value.id,
+      applicantId: owner.applicantId,
+      receiptId: receipt.id,
+      deletedAt: new Date(),
+      deletePath: 'REQUEST',
+      purgeAfter: new Date(),
+    } as never);
+    const [job] = await db
+      .insert(schema.erasureJobs)
+      .values({
+        reason: 'DOCUMENT_REMOVAL',
+        status: 'BLOCKED_BY_HOLD',
+        bucket: 'CLEAN',
+        objectKey: `obj-${randomUUID()}`,
+        storageObjectId: randomUUID(),
+        applicantId: owner.applicantId,
+        documentId: doc.value.id,
+      })
+      .returning();
+    if (!job) throw new Error('job');
+
+    await release(db, owner.accountId, hold.id);
+
+    expect(await statusOf(db, job.id)).toBe('PENDING');
+    const [after] = await db
+      .select()
+      .from(schema.deletionReceipts)
+      .where(eq(schema.deletionReceipts.id, receipt.id));
+    expect(after?.status).toBe('REMOVING');
   });
 });
