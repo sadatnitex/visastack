@@ -23,3 +23,14 @@ The language switch (`LANGUAGE_CHOICE_ENABLED` in `apps/web/src/lib/language-cho
 ## Turning it on, and back off
 
 Activation: change `LANGUAGE_CHOICE_ENABLED` to `true` in a reviewed pull request, only after the owner's explicit word. Rollback: revert that pull request; every visitor returns to English at once and nothing stored needs cleaning up.
+
+## Preview path for browser checks (non-production only)
+
+While `LANGUAGE_CHOICE_ENABLED` is false every visitor sees English. So that browser checks can render Bangla, `getLocale` (`apps/web/src/lib/locale.ts`, `localePreviewActive`) honours an existing `visastack_locale` cookie when all of these hold:
+
+- `LOCALE_PREVIEW=1` is set in the server process (exactly `1`).
+- `VERCEL_ENV` is not `production`.
+- The host is not a production site (`isProductionSite`, checked directly, so the Render fallback is refused even if `DEPLOYMENT_MODE=development` is set there).
+- The deployment mode is exactly `development`. `controlled_pilot` and `commercial` never qualify.
+
+Anything unexpected gives English. The language picker, `setLocaleAction` and every visitor action are unchanged; only how a cookie is read changes. Never set the flag in `apps/web/vercel.json`, a Dockerfile, an env example or a workflow: `locale-preview-guard.test.ts` fails if it appears there (a later package that uses it in the browser-check workflow adds that one file to the guard's allow list in review). A localized check step needs `DEPLOYMENT_MODE=development` and `LOCALE_PREVIEW=1`, set only for that step.
