@@ -197,7 +197,7 @@ export default async function PrivacyPage({
               <p>
                 Your audit trail is kept, as the law and security require. It no longer links to
                 your account, but it still holds technical details such as the IP address and device
-                used.
+                used, an internal reference number, and for invitations, the email address used.
               </p>
             </details>
             <DeletionPanel

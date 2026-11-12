@@ -84,10 +84,9 @@ export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
           says "safe" and says plainly that no virus scan runs yet. Change all three together. */}
       <p className="card-body" style={{ marginBottom: '0.75rem' }}>
         Need the actual document files too, not just their metadata? Request a large export - a ZIP
-        with every usable document file, including earlier copies, alongside the same manifest and
-        CSV tables above. A file is included only if it passed the file format check, and files are
-        not scanned for viruses yet. It takes a few minutes to prepare and stays downloadable for 24
-        hours.
+        with every usable document file, including earlier copies, that passed the file format check
+        (files are not scanned for viruses yet) alongside the same manifest and CSV tables above. It
+        takes a few minutes to prepare and stays downloadable for 24 hours.
       </p>
       {active ? (
         <StatusLine job={active} />

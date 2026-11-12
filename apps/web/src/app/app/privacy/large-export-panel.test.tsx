@@ -8,9 +8,9 @@ const words = () => renderToStaticMarkup(<LargeExportPanel jobs={[]} />).replace
 
 it('describes the ZIP as usable files including earlier copies that passed the format check', () => {
   const text = words().replace(/\s+/g, ' ');
-  expect(text).toContain('every usable document file, including earlier copies');
-  expect(text).toContain('passed the file format check');
-  expect(text).toContain('not scanned for viruses yet');
+  expect(text).toContain(
+    'a ZIP with every usable document file, including earlier copies, that passed the file format check (files are not scanned for viruses yet) alongside the same manifest and CSV tables above.',
+  );
   expect(text).toContain('24 hours');
 });
 

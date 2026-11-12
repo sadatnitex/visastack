@@ -57,5 +57,12 @@
     "account_language_and_email": "No per-account language field and no migration 0135 for now, so emails stay English.",
     "official_content_and_billing_documents": "Official visa rule content, invoices and receipts stay English, with one short Bengali note saying they are shown as published.",
     "note": "Decisions only. No translation is marked reviewed or approved."
+  },
+  "follow_up_decisions_2026-11-12": {
+    "decided_on": "2026-11-12",
+    "decided_by": "owner (chosen in the orchestrator session, after the pull request was built)",
+    "D1_audit_trail_detail": "English extended: ...still holds technical details such as the IP address and device used, an internal reference number, and for invitations, the email address used.",
+    "sign_up_notice_versions": "SIGNUP_TERMS_VERSION and SIGNUP_PRIVACY_VERSION raised from 2026-10-24.1 to 2026-11-12.1 because the Terms and Privacy Notice wording changed",
+    "note": "Decisions only. No translation is marked reviewed or approved."
   }
 }

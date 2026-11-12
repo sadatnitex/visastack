@@ -118,7 +118,6 @@ const DISPLAY_PROPS = new Set([
   'emptyMessage',
   'loadingLabel',
 ]);
-/^[a-z]+(\.[a-z]+)*\.[a-z]+[A-Z][A-Za-z]*(\.[A-Za-z]+)*$|^[a-z]+\.[a-z]+[A-Z][A-Za-z]*(\.[A-Za-z]+)+$/;
 const STRONG_KEYS = new Set([
   'label',
   'title',
