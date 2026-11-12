@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
@@ -7,9 +8,11 @@ import { I18nProvider } from '../components/i18n-provider';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
+import { PATHNAME_REQUEST_HEADER } from '../lib/csp-middleware';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { primeLocale } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
+import { pageLanguage } from '../lib/page-language';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
 import { isSignedIn } from '../lib/signed-in';
@@ -55,12 +58,23 @@ export const viewport: Viewport = {
   colorScheme: 'light',
 };
 
+/** The address the middleware set for this request; null if it is missing, which means English. */
+async function requestedPath(): Promise<string | null> {
+  try {
+    return (await headers()).get(PATHNAME_REQUEST_HEADER);
+  } catch {
+    return null;
+  }
+}
+
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
   // Read-only check of the Neon Auth session, so the nav reflects the real session. It never
   // writes cookies during render and defaults to
   // signed-out if the read fails, so a hiccup never breaks the whole shell.
   const signedIn = await isSignedIn();
   const locale = await primeLocale();
+  // The page is marked Bangla only where its words are Bangla (WCAG 3.1.2), not for every page.
+  const htmlLang = pageLanguage(locale, await requestedPath());
   const deploymentMode = getDeploymentMode();
   const serviceWorker = isServiceWorkerEnabled((name) => process.env[name]);
   // A visitor sees the notice about this version in full once; after that every page keeps a
@@ -70,7 +84,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const hasNotice = versionNoticeCopy(deploymentMode) !== null;
 
   return (
-    <html lang={locale} className={`${inter.variable} ${bengali.variable}`}>
+    <html lang={htmlLang} className={`${inter.variable} ${bengali.variable}`}>
       <body>
         <I18nProvider locale={locale}>
           <a className="skip-link" href="#main">

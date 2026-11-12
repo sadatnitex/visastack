@@ -76,7 +76,8 @@ describe('outside a production build', () => {
     const page = await middleware(get('/trust'), EVENT);
     expect(page?.headers.get('content-security-policy')).toBeNull();
     expect(page?.headers.get('content-security-policy-report-only')).toBeNull();
-    expect(page?.headers.get('x-middleware-override-headers')).toBeNull();
+    // Only the page address is forwarded (for the page language); no policy or nonce is.
+    expect(page?.headers.get('x-middleware-override-headers')).toBe('x-vs-pathname');
     expect(calls).toHaveLength(0);
 
     const original = get('/app');
@@ -382,9 +383,9 @@ describe('the page address handed to the workspace render', () => {
     }
   });
 
-  it('is not added to, and is removed from, pages outside the workspace, with the policy on and off', async () => {
+  it('is set on pages outside the workspace too, and a client-chosen value never reaches the render', async () => {
     for (const enabled of [true, false]) {
-      for (const path of ['/', '/trust', '/collect/account/answers', '/application']) {
+      for (const path of ['/', '/trust', '/status', '/collect/account/answers', '/application']) {
         const { handler, calls } = fakeSignIn();
         const response = await build({ auth: handler, enabled })(
           get(path, { headers: { [PATHNAME_REQUEST_HEADER]: CASE } }),
@@ -393,9 +394,9 @@ describe('the page address handed to the workspace render', () => {
         expect(
           forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER),
           `${path} ${enabled}`,
-        ).toBeNull();
+        ).toBe(path);
         // The sign-in check, where it runs, never sees a client-chosen address either.
-        for (const call of calls) expect(call.headers.get(PATHNAME_REQUEST_HEADER)).toBeNull();
+        for (const call of calls) expect(call.headers.get(PATHNAME_REQUEST_HEADER)).toBe(path);
       }
     }
   });

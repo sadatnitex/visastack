@@ -1,12 +1,21 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
-const state = vi.hoisted(() => ({ signedIn: false, languageChoice: false, noticeSeen: false }));
+const state = vi.hoisted(() => ({
+  signedIn: false,
+  languageChoice: false,
+  noticeSeen: false,
+  locale: 'en',
+  pathname: null as string | null,
+}));
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
+}));
 vi.mock('../lib/version-notice-state', () => ({
   hasSeenVersionNotice: async () => state.noticeSeen,
 }));
 vi.mock('next/font/local', () => ({ default: () => ({ variable: 'synthetic-font' }) }));
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
-vi.mock('../lib/locale', () => ({ getLocale: async () => 'en' }));
+vi.mock('../lib/locale', () => ({ getLocale: async () => state.locale }));
 vi.mock('../lib/language-choice', () => ({
   get LANGUAGE_CHOICE_ENABLED() {
     return state.languageChoice;
@@ -63,5 +72,31 @@ describe('the language switch', () => {
     expect(html).toContain('class="lang-switch"');
     expect(html).toContain(`lang="bn">${BANGLA}</button>`);
     state.languageChoice = false;
+  });
+});
+describe('the page language (WCAG 3.1.2)', () => {
+  afterEach(() => {
+    state.locale = 'en';
+    state.pathname = null;
+  });
+  const htmlLang = (html: string) => /<html[^>]*\blang="([^"]*)"/.exec(html)?.[1];
+  it('stays English for a Bangla visitor on a page that is not translated yet', async () => {
+    state.locale = 'bn';
+    state.pathname = '/status';
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(htmlLang(html)).toBe('en');
+    state.locale = 'en';
+    state.pathname = null;
+  });
+  it('is English when the page address is missing', async () => {
+    state.locale = 'bn';
+    state.pathname = null;
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+    state.locale = 'en';
+  });
+  it('is English for an English visitor', async () => {
+    state.pathname = '/status';
+    expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+    state.pathname = null;
   });
 });

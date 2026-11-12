@@ -1,0 +1,40 @@
+/**
+ * Which language the page itself is marked with (the `lang` of the html element, WCAG 3.1.2).
+ *
+ * The visitor's choice (`locale`) is not the same thing. Until a screen is fully translated its
+ * words are English, and marking it Bangla would make a screen reader voice English text with
+ * Bangla rules. So the page is marked Bangla only when the visitor chose Bangla AND the route is
+ * on the ready list below. Anything else is English.
+ *
+ * Add a route here in the same change that finishes translating it.
+ */
+export type PageLanguage = 'en' | 'bn';
+
+/** Routes whose whole page is written in Bangla when the visitor chose it. Empty today. */
+export const BN_READY_ROUTES: readonly string[] = [];
+
+function stripTrailingSlash(path: string): string {
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+}
+
+/**
+ * Matching rule: an entry matches the same path, or any path below it at a "/" boundary.
+ * "/trust" matches "/trust" and "/trust/x" but not "/trustworthy". The entry "/" matches only
+ * "/" itself, so it can never claim the whole site. A query string or "#" part and a trailing
+ * slash are ignored.
+ */
+export function matchesRoute(pathname: string, route: string): boolean {
+  const path = stripTrailingSlash(pathname.split(/[?#]/)[0] ?? '');
+  const entry = stripTrailingSlash(route);
+  if (entry === '/') return path === '/';
+  return path === entry || path.startsWith(`${entry}/`);
+}
+
+export function pageLanguage(
+  locale: string,
+  pathname: string | null | undefined,
+  routes: readonly string[] = BN_READY_ROUTES,
+): PageLanguage {
+  if (locale !== 'bn' || !pathname) return 'en';
+  return routes.some((route) => matchesRoute(pathname, route)) ? 'bn' : 'en';
+}

@@ -16,16 +16,14 @@ import {
 type MiddlewareResult = Awaited<ReturnType<NextMiddleware>>;
 
 /**
- * The request header that carries the page address to the render, for the workspace pages only.
- * A layout cannot see the address of the page below it, and the case sidebar needs it on the very
- * first paint. It is always overwritten here, so a client cannot choose it, and it only ever
- * selects which record the layout then checks with its normal owner read.
+ * The request header that carries the page address to the render, on every page request.
+ * A layout cannot see the address of the page below it. The workspace case sidebar needs it on the
+ * very first paint, and the root layout needs it to decide the page language (see
+ * `page-language.ts`). It is always overwritten here, so a client cannot choose it. In the
+ * workspace it only selects which record the layout then checks with its normal owner read; in the
+ * root layout it only selects a language label from a fixed list.
  */
 export const PATHNAME_REQUEST_HEADER = 'x-vs-pathname';
-
-function isWorkspacePath(pathname: string): boolean {
-  return pathname === '/app' || pathname.startsWith('/app/');
-}
 
 export interface CspMiddlewareDeps {
   /** The sign-in middleware (Neon Auth), wrapped unchanged. */
@@ -63,14 +61,9 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     const runAuth = deps.needsSignIn(request.nextUrl.pathname);
 
     if (!deps.enabled) {
-      const workspace = isWorkspacePath(request.nextUrl.pathname);
-      // Nothing to add or remove: pass the request on untouched.
-      if (!workspace && !request.headers.has(PATHNAME_REQUEST_HEADER)) {
-        return runAuth ? deps.auth(request, event) : NextResponse.next();
-      }
+      // `set` overwrites anything the client sent under this name.
       const plainHeaders = new Headers(request.headers);
-      if (workspace) plainHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
-      else plainHeaders.delete(PATHNAME_REQUEST_HEADER);
+      plainHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
       if (!runAuth) return NextResponse.next({ request: { headers: plainHeaders } });
       return deps.auth(
         new NextRequest(request.url, { method: request.method, headers: plainHeaders }),
@@ -94,11 +87,7 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     requestHeaders.set(NONCE_REQUEST_HEADER, nonce);
     requestHeaders.set(headerName, policy);
     requestHeaders.delete(mode === 'report-only' ? CSP_HEADER_ENFORCE : CSP_HEADER_REPORT_ONLY);
-    if (isWorkspacePath(request.nextUrl.pathname)) {
-      requestHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
-    } else {
-      requestHeaders.delete(PATHNAME_REQUEST_HEADER);
-    }
+    requestHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
 
     let response: MiddlewareResult = undefined;
     if (runAuth) {
