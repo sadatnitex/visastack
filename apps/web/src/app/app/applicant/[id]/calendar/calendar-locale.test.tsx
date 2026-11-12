@@ -63,7 +63,7 @@ const LINK = `https://vs.example.test/api/calendar-feed/${'z'.repeat(43)}.ics`;
 async function render(
   locale: 'en' | 'bn',
   query: Record<string, string | string[]> = {},
-): Promise<{ html: string; text: string }> {
+): Promise<{ html: string; marked: string; text: string }> {
   state.holder = null;
   state.locale = locale;
   const marked = await renderServer(
