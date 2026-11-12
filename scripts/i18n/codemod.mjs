@@ -142,6 +142,7 @@ export function runCodemod({
   groups,
   dryRun = false,
   format = true,
+  formatter = biomeFormat,
   register,
   reportDir,
   writeReport = true,
@@ -306,7 +307,7 @@ export function runCodemod({
     }
     if (format) {
       try {
-        biomeFormat(
+        formatter(
           root,
           writes.map(([rel]) => rel),
         );

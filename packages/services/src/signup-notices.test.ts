@@ -21,6 +21,11 @@ const input = {
 };
 
 describe('signup notice acknowledgement', () => {
+  it('uses the 2026-11-12 notice versions (owner decision, wording changed)', () => {
+    expect(SIGNUP_TERMS_VERSION).toBe('2026-11-12.1');
+    expect(SIGNUP_PRIVACY_VERSION).toBe('2026-11-12.1');
+  });
+
   let db: Db;
   beforeEach(async () => {
     const handle = drizzle(await createMigratedPglite(), { schema });

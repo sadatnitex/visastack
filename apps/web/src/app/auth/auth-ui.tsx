@@ -2,6 +2,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon } from '../../components/icons';
+import { authCatalog } from '../../i18n/auth';
+import { getServerT } from '../../lib/i18n-server';
 import { PasswordInput } from './password-input';
 
 /** Shared pieces of the Neon Auth pages, so every form has the same labels, errors and spacing. */
@@ -19,25 +21,26 @@ export function AuthShell({
   utility?: ReactNode;
   variant?: 'signup';
 }) {
+  const t = getServerT(authCatalog);
   return (
     <section className={variant === 'signup' ? 'auth-shell auth-shell-signup' : 'auth-shell'}>
-      <aside className="auth-introduction" aria-label="Your VisaStack account">
+      <aside className="auth-introduction" aria-label={t('auth.authAuthUi.yourVisastackAccount')}>
         <Link href="/" className="brand auth-brand">
           <BrandMark />
-          VisaStack
+          {t('auth.authAuthUi.visastack')}
         </Link>
         <div className="auth-message">
-          <p className="auth-kicker">Your record. Your terms.</p>
+          <p className="auth-kicker">{t('auth.authAuthUi.yourRecordYourTerms')}</p>
           <h2>
             A better way <br />
             to prepare for <br />
             <em>what's next.</em>
           </h2>
-          <p>Keep your details together. Reuse what you need, and choose what you share.</p>
+          <p>{t('auth.authAuthUi.keepYourDetailsTogetherReuseWhat')}</p>
         </div>
         <p className="auth-footnote">
           <Icon name="shield" size={24} />
-          You stay in control of your records and every suggestion you approve.
+          {t('auth.authAuthUi.youStayInControlOfYour')}
         </p>
       </aside>
       <div className="auth-form-panel">
@@ -45,10 +48,10 @@ export function AuthShell({
         {eyebrow ? <p className="auth-beta-label">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
         {children}
-        <nav className="auth-legal-links" aria-label="Account information">
-          <Link href="/">Home</Link>
-          <Link href="/privacy">Privacy</Link>
-          <Link href="/terms">Terms</Link>
+        <nav className="auth-legal-links" aria-label={t('auth.authAuthUi.accountInformation')}>
+          <Link href="/">{t('auth.authAuthUi.home')}</Link>
+          <Link href="/privacy">{t('auth.authAuthUi.privacy')}</Link>
+          <Link href="/terms">{t('auth.authAuthUi.terms')}</Link>
         </nav>
       </div>
     </section>

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import { authCatalog } from '../../../i18n/auth';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import {
   PENDING_CONFIRMATION_COOKIE,
@@ -27,6 +29,8 @@ const NOTICES: Record<string, string> = {
 export default async function SignInPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; n?: string; next?: string }> }) {
+  await primeLocale();
+  const t = getServerT(authCatalog);
   const { e, n, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   const notice = n ? NOTICES[n] : undefined;
@@ -38,7 +42,7 @@ export default async function SignInPage({
       ? decodePendingConfirmation((await cookies()).get(PENDING_CONFIRMATION_COOKIE)?.value)
       : null;
   return (
-    <AuthShell title="Sign In">
+    <AuthShell title={t('auth.authSignInPage.signIn')}>
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorLine id="signin-error" message={error} />
       <div className="card u-mb-100">
@@ -48,7 +52,7 @@ export default async function SignInPage({
             id="email"
             name="email"
             type="email"
-            label="Email Address"
+            label={t('auth.authForgotPasswordPage.emailAddress')}
             autoComplete="email"
             required
             maxLength={254}
@@ -59,19 +63,19 @@ export default async function SignInPage({
             id="password"
             name="password"
             type="password"
-            label="Password"
+            label={t('auth.authReauthPage.password')}
             autoComplete="current-password"
             required
             minLength={8}
             maxLength={128}
           />
           <button type="submit" className="btn btn-primary">
-            Sign In
+            {t('auth.authSignInPage.signIn')}
           </button>
         </form>
       </div>
       <p className="card-body">
-        <Link href="/auth/forgot-password">Forgot your password?</Link>
+        <Link href="/auth/forgot-password">{t('auth.authSignInPage.forgotYourPassword')}</Link>
       </p>
       <p className="card-body">
         New here?{' '}

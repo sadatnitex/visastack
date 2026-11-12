@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { authCatalog } from '../../../i18n/auth';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { createSignupForm } from '../../../lib/signup-form';
@@ -22,14 +24,20 @@ const ERRORS: Record<string, string> = {
 export default async function SignUpPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; next?: string }> }) {
+  await primeLocale();
+  const t = getServerT(authCatalog);
   const { e, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   const signupForm = createSignupForm();
   return (
     <AuthShell
-      title="Create Your Account"
+      title={t('auth.authSignUpPage.createYourAccount')}
       variant="signup"
-      eyebrow={isPublicBetaOpen() ? 'Public Beta · Free Account' : 'Private Pilot'}
+      eyebrow={
+        isPublicBetaOpen()
+          ? t('auth.authSignUpPage.publicBetaFreeAccount')
+          : t('auth.authSignUpPage.privatePilot')
+      }
       utility={
         <>
           Already have an account?{' '}
@@ -43,20 +51,19 @@ export default async function SignUpPage({
           agency choice that used to sit here was guidance only (the server never read it), so it is
           gone; one account serves both, and agencies start from the account menu after sign-in. */}
       <p className="card-body signup-introduction">
-        One profile you can use again and again. Agencies use the same account.
+        {t('auth.authSignUpPage.oneProfileYouCanUseAgain')}
       </p>
       {!isPublicBetaOpen() ? (
-        <p className="card-body signup-invite-note">Access is by invitation.</p>
+        <p className="card-body signup-invite-note">
+          {t('auth.authSignUpPage.accessIsByInvitation')}
+        </p>
       ) : null}
-      <ol className="auth-steps" aria-label="The three steps">
-        <li aria-current="step">1 Create Your Account</li>
-        <li>2 Confirm Your Email</li>
-        <li>3 Sign In</li>
+      <ol className="auth-steps" aria-label={t('auth.authSignUpPage.theThreeSteps')}>
+        <li aria-current="step">{t('auth.authSignUpPage.1CreateYourAccount')}</li>
+        <li>{t('auth.authSignUpPage.2ConfirmYourEmail')}</li>
+        <li>{t('auth.authSignUpPage.3SignIn')}</li>
       </ol>
-      <p className="notice u-mb-100">
-        VisaStack is a free public beta. If you add real details or documents, you do so at your own
-        risk: some protections, such as virus scanning of uploads, are not switched on yet.
-      </p>
+      <p className="notice u-mb-100">{t('auth.authSignUpPage.visastackIsAFreePublicBeta')}</p>
       <ErrorLine id="signup-error" message={error} />
       {e === 'exists' && (
         <p className="card-body">
@@ -71,13 +78,13 @@ export default async function SignUpPage({
           <input type="hidden" name="next" value={safeReturnPath(next)} />
           <input type="hidden" name="signupForm" value={signupForm} />
           <div hidden aria-hidden="true">
-            <label htmlFor="signup-website">Leave This Field Empty</label>
+            <label htmlFor="signup-website">{t('auth.authSignUpPage.leaveThisFieldEmpty')}</label>
             <input id="signup-website" name="website" autoComplete="off" tabIndex={-1} />
           </div>
           <TextField
             id="name"
             name="name"
-            label="Your Name (Optional)"
+            label={t('auth.authSignUpPage.yourNameOptional')}
             autoComplete="name"
             maxLength={120}
           />
@@ -85,7 +92,7 @@ export default async function SignUpPage({
             id="email"
             name="email"
             type="email"
-            label="Email Address"
+            label={t('auth.authForgotPasswordPage.emailAddress')}
             autoComplete="email"
             required
             maxLength={254}
@@ -95,7 +102,7 @@ export default async function SignUpPage({
             id="password"
             name="password"
             type="password"
-            label="Password (At Least 8 Characters)"
+            label={t('auth.authSignUpPage.passwordAtLeast8Characters')}
             autoComplete="new-password"
             required
             minLength={8}
@@ -107,15 +114,15 @@ export default async function SignUpPage({
             <Link href="/privacy">privacy notice</Link>.
           </label>
           <p className="card-body signup-notice-note">
-            This acknowledgement does not enable marketing, AI processing or sharing with an agency.
+            {t('auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing')}
           </p>
           <button type="submit" className="btn btn-primary">
-            Create Free Account
+            {t('auth.authSignUpPage.createFreeAccount')}
           </button>
         </form>
       </div>
       <p className="card-body signup-confirmation-note">
-        We will email you a link to confirm your address before you can sign in.
+        {t('auth.authSignUpPage.weWillEmailYouALink')}
       </p>
     </AuthShell>
   );

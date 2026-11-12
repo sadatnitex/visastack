@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { authCatalog } from '../../../i18n/auth';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { requestPasswordResetAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
@@ -16,28 +18,27 @@ const ERRORS: Record<string, string> = {
 export default async function ForgotPasswordPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; sent?: string }> }) {
+  await primeLocale();
+  const t = getServerT(authCatalog);
   const { e, sent } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title="Reset Your Password">
+    <AuthShell title={t('auth.authForgotPasswordPage.resetYourPassword')}>
       {sent === '1' ? (
         <div className="card u-mb-100">
-          <h2 className="card-title">Check Your Email</h2>
-          <Notice>
-            If an account uses that address, a password reset link will arrive shortly. Check your
-            inbox and spam folder. If you do not have an account, you can create one instead.
-          </Notice>
+          <h2 className="card-title">{t('auth.authForgotPasswordPage.checkYourEmail')}</h2>
+          <Notice>{t('auth.authForgotPasswordPage.ifAnAccountUsesThatAddress')}</Notice>
           <details className="u-mt-100">
-            <summary>Did not get a link? Send another</summary>
-            <p className="card-body">
-              Wait a few minutes, then enter your email to request a new link.
-            </p>
+            <summary>{t('auth.authForgotPasswordPage.didNotGetALinkSend')}</summary>
+            <p className="card-body">{t('auth.authForgotPasswordPage.waitAFewMinutesThenEnter')}</p>
             <RecoveryForm resend />
           </details>
           <p className="card-body u-mt-100">
-            <Link href="/auth/forgot-password">Use a Different Email Address</Link>
+            <Link href="/auth/forgot-password">
+              {t('auth.authForgotPasswordPage.useADifferentEmailAddress')}
+            </Link>
             {' · '}
-            <Link href="/auth/sign-up">Create an Account</Link>
+            <Link href="/auth/sign-up">{t('auth.authForgotPasswordPage.createAnAccount')}</Link>
           </p>
         </div>
       ) : (
@@ -49,27 +50,30 @@ export default async function ForgotPasswordPage({
         </>
       )}
       <p className="card-body">
-        <Link href="/auth/sign-in">Back to Sign In</Link>
+        <Link href="/auth/sign-in">{t('auth.authForgotPasswordPage.backToSignIn')}</Link>
       </p>
     </AuthShell>
   );
 }
 
 function RecoveryForm({ error, resend = false }: { error?: string | undefined; resend?: boolean }) {
+  const t = getServerT(authCatalog);
   return (
     <form action={requestPasswordResetAction} className="field-list">
       <TextField
         id={resend ? 'resend-email' : 'email'}
         name="email"
         type="email"
-        label="Email Address"
+        label={t('auth.authForgotPasswordPage.emailAddress')}
         autoComplete="email"
         required
         maxLength={254}
         errorId={error ? 'forgot-error' : undefined}
       />
       <button type="submit" className="btn btn-primary">
-        {resend ? 'Send Another Link' : 'Send Me a Link'}
+        {resend
+          ? t('auth.authForgotPasswordPage.sendAnotherLink')
+          : t('auth.authForgotPasswordPage.sendMeALink')}
       </button>
     </form>
   );
