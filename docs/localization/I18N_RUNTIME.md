@@ -47,6 +47,16 @@ Anything unexpected gives English. The language picker, `setLocaleAction` and ev
 - English is unchanged: under locale `en` every key resolves `en` and the page is `en`, so `t.node` returns the bare string and the English HTML is byte-identical (checked with `verify-english snapshot` and `compare`).
 - Call sites are not converted here. A marking pass after the conversion waves merge switches JSX text from `{t('k')}` to `{t.node('k')}` across the converted screens at once. Keep `t('k')` for attributes and other plain-string uses.
 
+## Numbers in `{token}` (number params)
+
+A numeric `{token}` is formatted by the language the message is actually written in, the same rule the plural `#` already follows (`catalogResolve` picks the language, `formatMessage` formats).
+
+- Resolved `en`: exactly `String(value)`. English output is byte-identical to before, so `1000` stays `1000` (no grouping is added).
+- Resolved `bn`: Bengali digits with the locale's grouping (`12,34,567`), as `NUMBER_DATE_FORMAT_RULES.md` asks for counts shown to a person.
+- A Bengali visitor who gets an English fallback message sees Latin digits ("6 of 12"), never Bengali digits inside English.
+- Strings and other values are inserted unchanged. Pass a raw number, not `formatNumber(value, locale)`: a pre-formatted string is locked to the visitor's language and shows Bengali digits inside an English fallback. Keep passing strings for values that must not change (codes, reference numbers, money from `formatMoney`).
+- Converted call site: the notification bell label in `workspace-record-toolbar.tsx` now passes the raw unread count. Only an unread count of 1000 or more differs in English (`1000`, was `1,000`); the badge itself caps at 99+.
+
 ### Corrections and the marking pass (appended)
 
 Corrections to the section above, kept as notes because the docs are append-only:
@@ -59,7 +69,7 @@ The marking pass is `scripts/i18n/mark-parts.mjs` (tests in `mark-parts.test.mjs
 
 - `node scripts/i18n/mark-parts.mjs --surface auth,home --dry-run` counts first; without `--dry-run` it writes and formats. `--all` takes every catalogue, `--files` takes named files, `--exclude <prefix>...` keeps paths untouched (other lanes' files), and `--node-props Component.prop,...` also rewrites a component prop that the author has already widened to `ReactNode`. A second run changes nothing.
 - JSX text children `{t('k')}` (also under `?:`, `&&`, `||`, `??`) become `{t.node('k')}`.
-- `aria-label`, `title`, `placeholder` and `alt` on a host element (and on `Link`) get `{...t.lang('k')}`. When the element also holds text from another key, or words written in the file, a single `lang` would be wrong for that text, so the attribute is left alone and counted as `attribute_lang_mixed`.
-- An `<option>`, `<textarea>` or `<title>` cannot hold a span, so when the message is its only child the element gets the `t.lang` spread instead.
+- `aria-label`, `title` and `alt` on a host element (and on `Link`) get `{...t.lang('k')}`, but only when everything inside the element is provably the same message or wordless (an icon). A variable, a `.map()`, another message, written words or an unknown component inside it means one `lang` would be wrong for that content, so the attribute is left alone and counted as `attribute_lang_mixed`. A form control (`input`, `textarea`, `select`) is skipped as `form_control`, because its `lang` also names what the person types.
+- An `<option>`, `<textarea>` or `<title>` cannot hold a span, so when one message is its only child the element gets the `t.lang` spread instead. Text that switches between two messages is reported as `string_only_parent` and written by hand with a conditional `t.lang`.
 - Template literals, props of components that were not widened, and values stored before they are shown stay a plain `t()`; the report counts them by reason (`template_literal`, `component_prop`, `value_flow`).
 - Known gap: a message stored in a variable or object and shown later (`value_flow`) is not marked; it is converted by hand when found.
