@@ -155,6 +155,7 @@
   "erasure#listErasureJobsNeedingAttention",
   "erasure#retryErasureJob",
   "erasure#runErasureWorker",
+  "erasure-requeue#requeueParkedErasureJob",
   "expiry#setDocumentExpiryPolicy",
   "export#exportAccount",
   "feedback#listFeedbackForMission",

@@ -2,6 +2,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { requeueParkedErasureJob } from './erasure-requeue';
 import { type ServiceError, serviceError } from './errors';
 import { missionsSelectingDocument } from './material-revision';
 import { enqueueNotificationBothChannels } from './notifications';
@@ -274,6 +275,14 @@ export async function releaseLegalHold(
   if (!hold.active) return err(serviceError('invalid', 'legal hold is already released'));
 
   return db.transaction(async (tx) => {
+    // Same lock, same order as placing a hold and the worker's hold recheck (applicant row first,
+    // audit chain after), so a release never deadlocks with either and the re-queue below sees
+    // any hold being placed at the same moment.
+    await tx
+      .select({ id: schema.applicants.id })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, hold.applicantId))
+      .for('update');
     const updated = required(
       first(
         await tx
@@ -294,8 +303,61 @@ export async function releaseLegalHold(
       resourceType: 'legal_hold',
       resourceId: updated.id,
     });
+    // Deliberate: if this throws, the release rolls back with it. A hold that stays on is safer
+    // than one that is released while its documents silently stay parked.
+    await requeueJobsParkedByHold(tx, {
+      applicantId: hold.applicantId,
+      holdId: updated.id,
+      actorAccountId: input.actorAccountId,
+    });
     return ok(updated);
   });
+}
+
+/**
+ * Put back in the queue the deletion jobs a released hold had parked (owner decision D2: the
+ * product tells a person a held document "is removed once that ends", so it must be).
+ *
+ * A parked job records no hold id, only its applicant and (for a document) its document, so every
+ * BLOCKED_BY_HOLD job of the applicant is looked at and kept parked unless NO active hold still
+ * covers it (the same checks the worker makes, so an overlapping hold of any scope wins). Only
+ * BLOCKED_BY_HOLD jobs are touched: a FAILED job needs a person. Repeating this, or racing an
+ * admin retry, queues each job once (see `requeueParkedErasureJob`). The caller already holds the applicant
+ * lock the worker's own hold recheck takes.
+ */
+async function requeueJobsParkedByHold(
+  tx: Db,
+  input: { readonly applicantId: string; readonly holdId: string; readonly actorAccountId: string },
+): Promise<number> {
+  const parked = await tx
+    .select({ id: schema.erasureJobs.id, documentId: schema.erasureJobs.documentId })
+    .from(schema.erasureJobs)
+    .where(
+      and(
+        eq(schema.erasureJobs.applicantId, input.applicantId),
+        eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
+      ),
+    );
+  let requeued = 0;
+  for (const job of parked) {
+    const stillHeld = job.documentId
+      ? await documentBlockedByLegalHold(tx, {
+          applicantId: input.applicantId,
+          documentId: job.documentId,
+        })
+      : await hasActiveLegalHold(tx, input.applicantId);
+    if (stillHeld) continue;
+    const done = await requeueParkedErasureJob(tx, job.id, {
+      fromStatuses: ['BLOCKED_BY_HOLD'],
+      audit: {
+        actorAccountId: input.actorAccountId,
+        method: 'SYSTEM',
+        extraMetadata: { cause: 'HOLD_RELEASED', holdId: input.holdId },
+      },
+    });
+    if (done) requeued += 1;
+  }
+  return requeued;
 }
 
 export async function listLegalHolds(db: Db, applicantId: string): Promise<LegalHold[]> {

@@ -168,7 +168,12 @@ export async function releaseLegalHoldAction(
     if (!released.ok) return { ok: false, message: released.error.message } satisfies ActionState;
     return { ok: true, message: 'Legal hold released.' } satisfies ActionState;
   });
-  if (result.ok) revalidatePath('/app/admin');
+  if (result.ok) {
+    revalidatePath('/app/admin');
+    // Held documents are put back in the queue by the release itself; wake the worker after the
+    // response, best effort (the scheduled run is the backstop, a failure never fails the release).
+    after(() => triggerErasureWorker());
+  }
   return result;
 }
 
