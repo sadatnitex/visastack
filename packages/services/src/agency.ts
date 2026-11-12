@@ -36,7 +36,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import {
   evidenceSubmissionsPresent,
   newerUnlinkedDecision,
@@ -238,9 +238,7 @@ export async function assignMember(
     return err(keyedError('forbidden', 'agency.only_an_org_owner_admin_can'));
   }
   if (!(await isActiveMember(db, input.memberAccountId, input.organizationId))) {
-    return err(
-      keyedError('invalid', 'agency.the_assignee_must_be_an_active'),
-    );
+    return err(keyedError('invalid', 'agency.the_assignee_must_be_an_active'));
   }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
@@ -574,7 +572,8 @@ export async function createTaskForOrg(
   input: CreateTaskForOrgInput,
 ): Promise<Result<OrgVisibleTask, ServiceError>> {
   const description = input.description.trim();
-  if (description.length === 0) return err(keyedError('invalid', 'agency.a_description_is_required'));
+  if (description.length === 0)
+    return err(keyedError('invalid', 'agency.a_description_is_required'));
   const mission = await loadMissionForOrgWrite(
     db,
     input.organizationId,
@@ -918,8 +917,7 @@ export async function updateAppointmentForOrg(
 
   // A known IANA name only, saved as typed (letter case corrected), as when the appointment was made.
   const timezone = input.timezone === undefined ? undefined : recognisedTimeZone(input.timezone);
-  if (timezone === null)
-    return err(keyedError('invalid', 'agency.enter_a_time_zone_name_such'));
+  if (timezone === null) return err(keyedError('invalid', 'agency.enter_a_time_zone_name_such'));
 
   return db.transaction(async (tx) => {
     const appointment = first(
@@ -1999,8 +1997,7 @@ export async function requestEvidenceBatch(
 ): Promise<Result<EvidenceRequest[], ServiceError>> {
   // The traveller (and the case, when the proof names one) come from the proof itself, issued by
   // `requireAccess` for this organization's grant: they are never taken from the caller's input.
-  const noGrant = () =>
-    keyedError('forbidden', 'agency.this_organization_has_no_current_grant');
+  const noGrant = () => keyedError('forbidden', 'agency.this_organization_has_no_current_grant');
   if (!AuthorizedApplicant.isGenuine(access, 'MANAGE')) return err(noGrant());
   if (access.resource.kind === 'document') return err(noGrant());
   // Only an organization member acting for their organization asks (a traveller never does).
@@ -2042,9 +2039,7 @@ export async function requestEvidenceBatch(
         ? isAskableFieldKey(item.key)
         : resolveDocumentType(item.key)?.key === item.key;
     if (!known) {
-      return err(
-        keyedError('invalid', 'agency.one_of_the_items_is_not'),
-      );
+      return err(keyedError('invalid', 'agency.one_of_the_items_is_not'));
     }
   }
 
@@ -2915,9 +2910,7 @@ async function loadEvidenceRequestForOrg(
       request.missionId ?? undefined,
     ))
   ) {
-    return err(
-      keyedError('forbidden', 'agency.this_organization_has_no_current_grant'),
-    );
+    return err(keyedError('forbidden', 'agency.this_organization_has_no_current_grant'));
   }
   return ok(request);
 }
@@ -3000,9 +2993,7 @@ export async function submitEvidenceResponse(
   const lifecycle = await lifecycleTablesPresent(db);
   // Until the exact-copy tables exist a chosen version could not be kept, so it is not accepted.
   if (!exact && input.documentVersionId !== undefined) {
-    return err(
-      keyedError('invalid', 'agency.choosing_an_exact_version_is_not'),
-    );
+    return err(keyedError('invalid', 'agency.choosing_an_exact_version_is_not'));
   }
 
   return db.transaction(async (tx) => {
@@ -3037,15 +3028,11 @@ export async function submitEvidenceResponse(
           (input.documentVersionId !== undefined &&
             input.documentVersionId !== earlier.documentVersionId)
         ) {
-          return err(
-            keyedError('invalid', 'agency.this_retry_key_was_already_used'),
-          );
+          return err(keyedError('invalid', 'agency.this_retry_key_was_already_used'));
         }
         const waiting = await waitingSubmission(tx, request);
         if (waiting?.id !== earlier.id) {
-          return err(
-            keyedError('stale', 'agency.this_was_already_sent_and_has'),
-          );
+          return err(keyedError('stale', 'agency.this_was_already_sent_and_has'));
         }
         return ok({ ...request, submissionId: earlier.id, replayed: true });
       }
@@ -3064,9 +3051,7 @@ export async function submitEvidenceResponse(
       request.missionId ?? undefined,
     );
     if (grantId === null) {
-      return err(
-        keyedError('forbidden', 'agency.this_organization_no_longer_has_access'),
-      );
+      return err(keyedError('forbidden', 'agency.this_organization_no_longer_has_access'));
     }
 
     let pin: SendPin | undefined;
@@ -3096,9 +3081,7 @@ export async function submitEvidenceResponse(
       }
     } else {
       if (!input.documentId || input.factId) {
-        return err(
-          keyedError('invalid', 'agency.a_document_request_is_satisfied_by'),
-        );
+        return err(keyedError('invalid', 'agency.a_document_request_is_satisfied_by'));
       }
       const document = first(
         await tx
@@ -3122,18 +3105,14 @@ export async function submitEvidenceResponse(
         return err(keyedError('not_found', 'agency.document_not_found_for_this_applicant'));
       }
       if (document.docType !== request.docType) {
-        return err(
-          keyedError('invalid', 'agency.this_document_does_not_match_the'),
-        );
+        return err(keyedError('invalid', 'agency.this_document_does_not_match_the'));
       }
       const version = await chooseSendVersion(tx, input.documentId, input.documentVersionId);
       if (input.documentVersionId !== undefined && !version) {
         return err(keyedError('not_found', 'agency.document_not_found_for_this_applicant'));
       }
       if (!version || !(await versionIsUsable(tx, version))) {
-        return err(
-          keyedError('invalid', 'agency.this_document_has_not_finished_safety'),
-        );
+        return err(keyedError('invalid', 'agency.this_document_has_not_finished_safety'));
       }
       pin = {
         documentId: input.documentId,
@@ -3449,9 +3428,7 @@ export async function decideEvidenceResponse(
       request.requestedByAccountId &&
       request.requestedByAccountId === input.actorAccountId
     ) {
-      return err(
-        keyedError('forbidden', 'agency.this_organization_requires_a_reviewer_different'),
-      );
+      return err(keyedError('forbidden', 'agency.this_organization_requires_a_reviewer_different'));
     }
 
     // The exact send being decided: the newest one, only while nobody has decided it yet and the
@@ -3459,9 +3436,7 @@ export async function decideEvidenceResponse(
     const pinned =
       exact && request.kind === 'DOCUMENT' ? await waitingSubmission(tx, request) : undefined;
     if (input.submissionId !== undefined && input.submissionId !== pinned?.id) {
-      return err(
-        keyedError('stale', 'agency.a_newer_copy_was_sent_or'),
-      );
+      return err(keyedError('stale', 'agency.a_newer_copy_was_sent_or'));
     }
     if (input.outcome === 'ACCEPTED' && request.kind === 'DOCUMENT') {
       // Nothing was ever pointed at, so there is nothing to accept.

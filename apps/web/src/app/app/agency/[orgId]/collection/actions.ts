@@ -1,5 +1,7 @@
 'use server';
 
+import { serviceErrorMessage } from '../../../../../lib/service-error-message';
+
 import {
   type AgencyCollectionScope,
   type Db,
@@ -122,7 +124,7 @@ export async function createRequestAction(
       recipientEmailHint: optional('recipientEmail'),
       packTerms: collectionPackTerms(request),
     });
-    if (!result.ok) return { ok: false, message: result.error.message };
+    if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
     return { ok: true, message: '', id: result.value.id };
   });
   if (!created.ok || !created.id) return { ok: false, message: created.message };
@@ -169,7 +171,7 @@ export async function editDraftAction(
     if (!edited.ok) {
       return {
         ok: false,
-        message: edited.error.message,
+        message: await serviceErrorMessage(edited.error),
         ...(edit.type === 'add' ? { field: 'label' } : {}),
       };
     }
@@ -196,7 +198,7 @@ export async function choosePackAction(
       packVersionId: chosen.length > 0 ? chosen : null,
       packTerms: collectionPackTerms(detail.value),
     });
-    if (!changed.ok) return { ok: false, message: changed.error.message };
+    if (!changed.ok) return { ok: false, message: await serviceErrorMessage(changed.error) };
     return {
       ok: true,
       message: chosen.length > 0 ? 'Official checklist applied.' : 'Now your agency checklist.',
@@ -215,7 +217,7 @@ export async function issueRequestAction(
   const requestId = text(formData, 'requestId');
   const result = await withScope(organizationId, NOT_FOUND, async (db, scope) => {
     const issued = await issueCollectionRequest(db, scope, requestId);
-    if (!issued.ok) return { ok: false, message: issued.error.message };
+    if (!issued.ok) return { ok: false, message: await serviceErrorMessage(issued.error) };
     return {
       ok: true,
       message: `Revision ${issued.value.revisionNo} issued. Copy the link now: it is shown only once.`,
@@ -235,7 +237,7 @@ export async function newLinkAction(
   const requestId = text(formData, 'requestId');
   const result = await withScope(organizationId, NOT_FOUND, async (db, scope) => {
     const created = await createCollectionLink(db, scope, requestId);
-    if (!created.ok) return { ok: false, message: created.error.message };
+    if (!created.ok) return { ok: false, message: await serviceErrorMessage(created.error) };
     return {
       ok: true,
       message: 'New link ready. Copy it now: it is shown only once.',
@@ -274,7 +276,8 @@ export async function emailLinkAction(
     const created = await createCollectionLink(db, scope, requestId, {
       email: { address, encryption },
     });
-    if (!created.ok) return { ok: false, message: created.error.message, field: 'email' };
+    if (!created.ok)
+      return { ok: false, message: await serviceErrorMessage(created.error), field: 'email' };
     return { ok: true, message: '', id: created.value.link.id };
   });
   if (!queued.ok || !queued.id) {
@@ -296,7 +299,7 @@ export async function endRequestAction(
   const outcome = text(formData, 'outcome') === 'CLOSED' ? 'CLOSED' : 'REVOKED';
   const result = await withScope(organizationId, NOT_FOUND, async (db, scope) => {
     const ended = await endCollectionRequest(db, scope, requestId, outcome);
-    if (!ended.ok) return { ok: false, message: ended.error.message };
+    if (!ended.ok) return { ok: false, message: await serviceErrorMessage(ended.error) };
     return {
       ok: true,
       message:

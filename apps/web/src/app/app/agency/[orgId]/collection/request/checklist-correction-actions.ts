@@ -1,5 +1,7 @@
 'use server';
 
+import { serviceErrorMessage } from '../../../../../../lib/service-error-message';
+
 import { agencyCollectionPrincipal, suggestAgencyChecklistCorrection } from '@visastack/services';
 import { unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../../../components/form-feedback';
@@ -39,7 +41,8 @@ export async function suggestAgencyCorrectionAction(
         officialUrl: fields.officialUrl,
         detail: fields.detail,
       });
-      if (!sent.ok) return { ok: false, message: sent.error.message } satisfies FormResult;
+      if (!sent.ok)
+        return { ok: false, message: await serviceErrorMessage(sent.error) } satisfies FormResult;
       return {
         ok: true,
         message: sent.value.duplicate ? CORRECTION_ALREADY_SENT : CORRECTION_SENT,
