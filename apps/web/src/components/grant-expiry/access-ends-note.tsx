@@ -15,8 +15,8 @@ export async function AccessEndsNote({
   /** The traveller's time zone (the case's `applicantTimezone`). */
   readonly timeZone?: string;
 }) {
-  const t = await getT(componentsMoreCatalog);
   if (endsAt === null) return null;
+  const t = await getT(componentsMoreCatalog);
   const day = new Date(endsAt).toLocaleDateString('en-GB', {
     year: 'numeric',
     month: 'short',

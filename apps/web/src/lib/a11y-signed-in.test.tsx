@@ -1,9 +1,8 @@
 import type { ReactElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './axe.test-support';
 import { headingProblems } from './ccd/inventory';
-import { navigationState, textOf } from './next-mocks.test-support';
+import { navigationState, renderServer, textOf } from './next-mocks.test-support';
 
 /**
  * Signed-in pages, as whole pages in the real signed-in shell (site header, signed-in
@@ -202,7 +201,7 @@ async function shellMarkup(screen: Screen): Promise<string> {
   screen.setup?.();
   const page = await screen.build();
   const shell = await AppLayout({ children: page });
-  return renderToStaticMarkup(await RootLayout({ children: shell }));
+  return renderServer(RootLayout({ children: shell }));
 }
 
 beforeEach(() => {

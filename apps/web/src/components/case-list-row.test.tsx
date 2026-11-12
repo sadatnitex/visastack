@@ -136,12 +136,16 @@ describe('a case row', () => {
 
   it('shows the country and the purpose on one muted line, and invents neither', async () => {
     expect((await draw()).querySelector('.trip-card-sub')?.textContent).toBe('Japan · Tourism');
-    expect((await draw({ purpose: null })).querySelector('.trip-card-sub')?.textContent).toBe('Japan');
+    expect((await draw({ purpose: null })).querySelector('.trip-card-sub')?.textContent).toBe(
+      'Japan',
+    );
     expect(
       (await draw({ destination: null, iso2: null })).querySelector('.trip-card-sub')?.textContent,
     ).toBe('Tourism');
     expect(
-      (await draw({ destination: null, iso2: null, purpose: null })).querySelector('.trip-card-sub'),
+      (await draw({ destination: null, iso2: null, purpose: null })).querySelector(
+        '.trip-card-sub',
+      ),
     ).toBeNull();
   });
 
@@ -183,7 +187,8 @@ describe('a case row', () => {
 
   it('says why there is no count instead of making one up', async () => {
     expect(
-      (await draw({ progress: { kind: 'none-required' } })).querySelector('.trip-card-count')?.textContent,
+      (await draw({ progress: { kind: 'none-required' } })).querySelector('.trip-card-count')
+        ?.textContent,
     ).toBe('No required items');
     expect(
       (await draw({ progress: { kind: 'unread' } })).querySelector('.trip-card-count')?.textContent,
@@ -209,7 +214,9 @@ describe('a case row', () => {
       { ...base, id: 'c3', state: 'CLOSED', past: true },
       { ...base, id: 'c4', destination: null, iso2: null, purpose: null },
     ];
-    const drawn = await Promise.all(states.map((props) => renderServer(<CaseListRow {...props} />)));
+    const drawn = await Promise.all(
+      states.map((props) => renderServer(<CaseListRow {...props} />)),
+    );
     doc.innerHTML = `<ul>${drawn.join('')}</ul>`;
     document.body.append(doc);
     expect(await axeViolations(doc.outerHTML)).toEqual([]);

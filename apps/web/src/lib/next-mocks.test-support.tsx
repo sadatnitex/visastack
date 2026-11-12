@@ -86,7 +86,14 @@ export function stubProps<T extends object = Record<string, unknown>>(
 
 /** Prerender awaits async server components; the stream is read into one string. */
 async function prerenderToString(element: ReactElement): Promise<string> {
-  const { prelude } = await prerender(element);
+  // Like static markup, an error anywhere in the tree fails the render (not a quiet fallback).
+  const failures: unknown[] = [];
+  const { prelude } = await prerender(element, {
+    onError: (error: unknown) => {
+      failures.push(error);
+    },
+  });
+  if (failures.length > 0) throw failures[0];
   const reader = prelude.getReader();
   const decoder = new TextDecoder();
   let out = '';
