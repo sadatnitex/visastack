@@ -12,7 +12,6 @@ import { depthWord } from '../../../lib/ccd/depth-words';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../../../lib/language-choice';
-import { getLocale } from '../../../lib/locale';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { withSession } from '../../../lib/session';
 import { signOutCurrentUser } from '../../../lib/sign-out';
@@ -24,9 +23,8 @@ export const metadata: Metadata = { title: 'Account' };
 export const dynamic = 'force-dynamic';
 
 export default async function AccountPage() {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appAccountCatalog);
-  const locale = await getLocale();
   const depth = await readDepth('account');
   const data = await withSession(async ({ db, accountId, email }) => {
     const [isAdmin, memberships, photo, whatsapp] = await Promise.all([

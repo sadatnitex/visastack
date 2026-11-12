@@ -147,7 +147,7 @@ describe('trip invitation pages under Bengali', () => {
     expect(textOf(await joined('en'))).not.toMatch(BENGALI);
   });
 
-  it('joined trip with a chosen paper: the Remove label names the paper in Bengali', async () => {
+  it('joined trip with a chosen paper: the Remove label keeps its English name, matching the visible button', async () => {
     const self = await addPerson(w.db, w.guestId, COMPANION_NAME);
     const hotel = await addPaper(w.db, w.guestId, self, 'hotel_booking', 'Tokyo hotel.pdf');
     const access = await joinedCompanionAccess(w.db, w.guestId, w.tripId);
@@ -163,7 +163,7 @@ describe('trip invitation pages under Bengali', () => {
     if (!proof.ok) throw new Error('proof');
     await chooseTripPaper(w.db, access, proof.value as AuthorizedApplicant<'VIEW_METADATA'>);
     const html = await joined('bn');
-    expect(html).toContain('aria-label="সরান: Tokyo hotel.pdf"');
+    expect(html).toContain('aria-label="Remove: Tokyo hotel.pdf"');
     expect(await joined('en')).toContain('aria-label="Remove: Tokyo hotel.pdf"');
     expect(textOf(html)).toContain(en[key('IdJoinedTripForms', 'whatYouShareWithTheOrganiser')]);
   });

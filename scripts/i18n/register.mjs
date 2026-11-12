@@ -257,6 +257,10 @@ export const HOLDBACK = new Map([
     'SG-a104e7e5',
     'Now (state of an AI feature in the plan list): AI allowance wording waits for the owner sign-off.',
   ],
+  [
+    'SG-4bd5843b',
+    'Remove: {name} (accessible name of the Remove button): the visible button text stays English, so the name waits with it.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

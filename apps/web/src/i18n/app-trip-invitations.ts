@@ -50,7 +50,6 @@ export const appTripInvitationsCatalog = defineCatalog({
   },
   bn: {
     'appTripInvitations.appTripInvitationsAcceptPage.goToHome': 'হোমে যান',
-    'appTripInvitations.appTripInvitationsIdJoinedTripForms.removeName': 'সরান: {name}',
     'appTripInvitations.appTripInvitationsIdPage.why': 'কেন',
   },
 });
