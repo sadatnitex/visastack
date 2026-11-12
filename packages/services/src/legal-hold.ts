@@ -1,10 +1,14 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { serverErrorEvent } from './error-report';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { missionsSelectingDocument } from './material-revision';
 import { enqueueNotificationBothChannels } from './notifications';
+import { formatObservabilityLine } from './observability-format';
 import {
   type Page,
   type PageRequest,
@@ -257,7 +261,7 @@ export async function releaseLegalHold(
     readonly holdId: string;
     readonly stepUpSatisfied: boolean;
   },
-): Promise<Result<LegalHold, ServiceError>> {
+): Promise<Result<LegalHold & { readonly requeuedJobs: number }, ServiceError>> {
   if (!input.stepUpSatisfied) {
     return err(
       serviceError('step_up_required', 'releasing a legal hold requires reauthentication'),
@@ -274,16 +278,29 @@ export async function releaseLegalHold(
   if (!hold.active) return err(serviceError('invalid', 'legal hold is already released'));
 
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.legalHolds)
-          .set({ active: false, releasedAt: new Date(), updatedAt: new Date() })
-          .where(eq(schema.legalHolds.id, input.holdId))
-          .returning(),
-      ),
-      'legal hold',
+    // Lock order, the same everywhere in this codebase: the applicant row, then the applicant's
+    // parked erasure jobs (by stored file, then id), and only then anything that writes an audit event (which takes
+    // the one global audit lock). An admin retry locks a job row and only later the audit lock, so
+    // writing audit events before the job rows are locked would deadlock with it.
+    await lockApplicant(tx, hold.applicantId);
+    const parked = await lockParkedJobs(tx, hold.applicantId);
+    // Which parked jobs a hold covers now, before this one is released: of those put back after,
+    // the ones in this set were kept by this hold; the rest were already uncovered.
+    const heldBefore = await heldJobIds(tx, hold.applicantId, parked);
+    // Checked again under the lock: of two releases at once, only one gets through.
+    const updated = first(
+      await tx
+        .update(schema.legalHolds)
+        .set({ active: false, releasedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(schema.legalHolds.id, input.holdId), eq(schema.legalHolds.active, true)))
+        .returning(),
     );
+    if (!updated) return err(serviceError('invalid', 'legal hold is already released'));
+    // Deliberate: if this throws, the release rolls back with it. A hold that stays on is safer
+    // than one that is released while its documents silently stay parked. All reads and updates
+    // come first (the rows are locked); the audit events, which hold the global audit lock, come
+    // last so that lock is held as briefly as possible.
+    const requeued = await requeueUncoveredJobs(tx, hold.applicantId, parked);
     await appendAuditEvent(tx, {
       eventType: 'LEGAL_HOLD_RELEASED',
       actorAccountId: input.actorAccountId,
@@ -294,8 +311,274 @@ export async function releaseLegalHold(
       resourceType: 'legal_hold',
       resourceId: updated.id,
     });
-    return ok(updated);
+    await auditRequeuedJobs(
+      tx,
+      hold.applicantId,
+      requeued.map((job) =>
+        heldBefore.has(job.id)
+          ? { job, cause: 'HOLD_RELEASED' as const, holdId: updated.id }
+          : { job, cause: 'HOLD_NO_LONGER_ACTIVE' as const },
+      ),
+      input.actorAccountId,
+    );
+    return ok({ ...updated, requeuedJobs: requeued.length });
   });
+}
+
+type ParkedJob = {
+  readonly id: string;
+  readonly documentId: string | null;
+  readonly reason: typeof schema.erasureJobs.$inferSelect.reason;
+};
+
+/**
+ * The applicant row lock the worker's own hold recheck and `placeLegalHold` also take. It is the
+ * weaker "no key update" form on purpose: it still excludes every other `for update` taker, but it
+ * does not block `for key share`, which a notification insert takes on the applicant. The hold
+ * review reminder sweep holds a hold row and then inserts notifications; a full `for update` here
+ * would make a release (applicant, then hold row) and that sweep (hold row, then applicant) wait on
+ * each other.
+ */
+async function lockApplicant(tx: Db, applicantId: string): Promise<void> {
+  await tx
+    .select({ id: schema.applicants.id })
+    .from(schema.applicants)
+    .where(eq(schema.applicants.id, applicantId))
+    .for('no key update');
+}
+
+/**
+ * Lock an applicant's jobs parked by a hold, in stored-file order (no two callers can wait on each
+ * other). That is the order in which a document's files are queued for removal (retention purge
+ * and document removal both go through the files by id), so a sweep that meets a half-queued
+ * multi-file document waits behind it instead of crossing it.
+ */
+async function lockParkedJobs(tx: Db, applicantId: string): Promise<ParkedJob[]> {
+  return tx
+    .select({
+      id: schema.erasureJobs.id,
+      documentId: schema.erasureJobs.documentId,
+      reason: schema.erasureJobs.reason,
+    })
+    .from(schema.erasureJobs)
+    .where(
+      and(
+        eq(schema.erasureJobs.applicantId, applicantId),
+        eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
+      ),
+    )
+    .orderBy(asc(schema.erasureJobs.storageObjectId), asc(schema.erasureJobs.id))
+    .for('update');
+}
+
+/**
+ * The only parked jobs that go back in the queue by themselves: the ones a person asked for (a
+ * document they asked to remove), which is what the product promised ("removed once that ends").
+ * A retention purge job is not here on purpose: the retention rules may have changed while the hold
+ * stood, and only the retention purge pass re-checks whether a document is still due, so it stays
+ * parked for that pass. Other reasons were never promised and keep the manual retry.
+ */
+const REQUEUED_BY_HOLD_RELEASE: readonly ParkedJob['reason'][] = ['DOCUMENT_REMOVAL'];
+
+/** The ids of the jobs (of the kinds this module puts back) that an active hold still covers. */
+async function heldJobIds(
+  tx: Db,
+  applicantId: string,
+  jobs: readonly ParkedJob[],
+): Promise<Set<string>> {
+  const held = new Set<string>();
+  const heldByDocument = new Map<string, boolean>();
+  let heldApplicantWide: boolean | undefined;
+  for (const job of jobs) {
+    if (!REQUEUED_BY_HOLD_RELEASE.includes(job.reason)) continue;
+    let stillHeld: boolean;
+    if (job.documentId) {
+      const known = heldByDocument.get(job.documentId);
+      stillHeld =
+        known ??
+        (await documentBlockedByLegalHold(tx, { applicantId, documentId: job.documentId }));
+      heldByDocument.set(job.documentId, stillHeld);
+    } else {
+      heldApplicantWide ??= await hasActiveLegalHold(tx, applicantId);
+      stillHeld = heldApplicantWide;
+    }
+    if (stillHeld) held.add(job.id);
+  }
+  return held;
+}
+
+/**
+ * Put back in the queue the locked parked jobs that no active hold covers any more (owner decision
+ * D2: the product tells a person a held document "is removed once that ends", so it must be).
+ *
+ * A parked job records no hold id, only its applicant and (for a document) its document, so each is
+ * re-checked with the same predicates the worker uses: an overlapping hold of any scope keeps it
+ * parked. Only BLOCKED_BY_HOLD jobs are touched (a FAILED job needs a person), and the update only
+ * matches a job still parked, so repeating this or racing an admin retry queues each job once and
+ * writes one audit event. Same reset and same event type as the admin `retryErasureJob`, marked
+ * as automatic (SYSTEM, with the cause, written afterwards by `auditRequeuedJobs`). Call with the
+ * applicant and job locks held. Returns the jobs that were put back.
+ */
+async function requeueUncoveredJobs(
+  tx: Db,
+  applicantId: string,
+  jobs: readonly ParkedJob[],
+): Promise<ParkedJob[]> {
+  const requeued: ParkedJob[] = [];
+  const held = await heldJobIds(tx, applicantId, jobs);
+  for (const job of jobs) {
+    if (!REQUEUED_BY_HOLD_RELEASE.includes(job.reason) || held.has(job.id)) continue;
+    const updated = await tx
+      .update(schema.erasureJobs)
+      .set({
+        status: 'PENDING',
+        attempts: 0,
+        lastError: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        availableAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.erasureJobs.id, job.id), eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD')),
+      )
+      .returning({ id: schema.erasureJobs.id });
+    if (updated.length === 0) continue;
+    await unblockRemovalRecord(tx, job);
+    requeued.push(job);
+  }
+  return requeued;
+}
+
+/**
+ * A document's Removal Record reads "Kept (Legal Requirement)" while its job is parked; once the job
+ * is queued again it reads Removing, as `enqueueDocumentRemoval` does when it queues a kept document.
+ */
+async function unblockRemovalRecord(tx: Db, job: ParkedJob): Promise<void> {
+  if (job.reason !== 'DOCUMENT_REMOVAL' || !job.documentId) return;
+  if (!(await lifecycleTablesPresent(tx))) return;
+  const lifecycle = first(
+    await tx
+      .select({ receiptId: schema.documentLifecycle.receiptId })
+      .from(schema.documentLifecycle)
+      .where(eq(schema.documentLifecycle.documentId, job.documentId)),
+  );
+  if (!lifecycle?.receiptId) return;
+  await tx
+    .update(schema.deletionReceipts)
+    .set({ status: 'REMOVING' })
+    .where(
+      and(
+        eq(schema.deletionReceipts.id, lifecycle.receiptId),
+        eq(schema.deletionReceipts.status, 'BLOCKED'),
+      ),
+    );
+}
+
+/** One `ERASURE_JOB_RETRIED` audit event per re-queued job: SYSTEM, the cause, and the hold if any. */
+async function auditRequeuedJobs(
+  tx: Db,
+  applicantId: string,
+  entries: readonly {
+    readonly job: ParkedJob;
+    readonly cause: 'HOLD_RELEASED' | 'HOLD_NO_LONGER_ACTIVE';
+    readonly holdId?: string;
+  }[],
+  actorAccountId: string | null,
+): Promise<void> {
+  for (const { job, cause, holdId } of entries) {
+    await appendAuditEvent(tx, {
+      eventType: 'ERASURE_JOB_RETRIED',
+      actorAccountId,
+      applicantId,
+      resourceType: 'erasure_job',
+      resourceId: job.id,
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      metadata: {
+        outcome: 'REQUEUED',
+        was: 'BLOCKED_BY_HOLD',
+        cause,
+        ...(holdId ? { holdId } : {}),
+      },
+    });
+  }
+}
+
+/** At most this many applicants are looked at per sweep run (chosen at random, so the rest get their turn on later runs). */
+const REQUEUE_SWEEP_APPLICANT_LIMIT = 100;
+
+/**
+ * The daily backstop for jobs parked with no hold behind them: one a worker parked just as its hold
+ * was released (the worker's first check does not take the applicant lock), one parked before
+ * releases re-queued on their own, and one whose hold was released by a backup repair. For each
+ * applicant with a parked job it takes the same locks as a release, re-checks the holds, and
+ * re-queues the uncovered jobs (SYSTEM, cause HOLD_NO_LONGER_ACTIVE). Runs as the `process-erasure`
+ * job only. Each applicant gets its own transaction, so one failure never holds back the others.
+ */
+export async function requeueUncoveredParkedJobs(
+  db: Db,
+  scope: SystemScope<'process-erasure'>,
+  options: { readonly limit?: number; readonly stopAt?: number } = {},
+): Promise<{ readonly requeued: number; readonly failed: number }> {
+  if (!SystemScope.isGenuine(scope) || scope.job !== 'process-erasure') {
+    throw new Error('the parked job sweep needs the scope of the erasure job');
+  }
+  // An applicant-wide hold covers every one of its jobs, so those applicants are skipped in the
+  // query (written out in SQL: a subquery built from the table helpers can lose which table the
+  // outer column belongs to). The rest come in random order, so a few applicants whose scoped holds
+  // still stand can never crowd the others out of the limit run after run.
+  const applicants = await db
+    .select({ applicantId: schema.erasureJobs.applicantId })
+    .from(schema.erasureJobs)
+    .where(
+      and(
+        eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
+        inArray(schema.erasureJobs.reason, [...REQUEUED_BY_HOLD_RELEASE]),
+        isNotNull(schema.erasureJobs.applicantId),
+        sql`not exists (
+          select 1 from legal_holds lh
+          where lh.applicant_id = erasure_jobs.applicant_id
+            and lh.active = true and lh.mission_id is null and lh.document_id is null
+        )`,
+      ),
+    )
+    .groupBy(schema.erasureJobs.applicantId)
+    .orderBy(sql`random()`)
+    .limit(options.limit ?? REQUEUE_SWEEP_APPLICANT_LIMIT);
+  let requeued = 0;
+  let failed = 0;
+  for (const { applicantId } of applicants) {
+    if (!applicantId) continue;
+    // A time budget from the caller (the job route has a fixed run time): what is left waits for
+    // the next run, picked at random again.
+    if (options.stopAt !== undefined && Date.now() >= options.stopAt) break;
+    try {
+      requeued += await db.transaction(async (tx) => {
+        await lockApplicant(tx, applicantId);
+        const parked = await lockParkedJobs(tx, applicantId);
+        const requeuedJobs = await requeueUncoveredJobs(tx, applicantId, parked);
+        await auditRequeuedJobs(
+          tx,
+          applicantId,
+          requeuedJobs.map((job) => ({ job, cause: 'HOLD_NO_LONGER_ACTIVE' as const })),
+          null,
+        );
+        return requeuedJobs.length;
+      });
+    } catch (error) {
+      // Keep going with the other applicants, but never lose the reason: it reaches the logs.
+      failed += 1;
+      console.error(
+        formatObservabilityLine(
+          serverErrorEvent('requeueUncoveredParkedJobs', error, {
+            step: 'one applicant could not be re-queued',
+          }),
+        ),
+      );
+    }
+  }
+  return { requeued, failed };
 }
 
 export async function listLegalHolds(db: Db, applicantId: string): Promise<LegalHold[]> {
