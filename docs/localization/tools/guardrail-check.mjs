@@ -240,7 +240,7 @@ export function check(enIn, bnIn, opts = {}) {
   if (
     /[A-Za-z]{4,}/.test(
       stripMarkers(bn).replace(
-        /\{\w+\}|https?:\/\/\S*|\S+@\S+\.\S+|\b[A-Z][A-Z0-9/.-]{2,}\b|VisaStack|WhatsApp|PDF|OCR|ICS|CSV|URL|WiFi|Wi-Fi|Google|Apple|Microsoft|iPhone|iPad|Android|Safari|Outlook|Vercel|Cloudflare|ImmiAccount|clamav|zip|JPG|JPEG|PNG|HEIC|Word|Excel|COVID/g,
+        /\{\w+\}|https?:\/\/\S*|\S+@\S+\.\S+|\b[A-Z][A-Z0-9/.-]{2,}\b|VisaStack|WhatsApp|ChatGPT|Claude|Meta|PDF|OCR|ICS|CSV|URL|WiFi|Wi-Fi|Google|Apple|Microsoft|iPhone|iPad|Android|Safari|Outlook|Vercel|Cloudflare|ImmiAccount|clamav|zip|JPG|JPEG|PNG|HEIC|Word|Excel|COVID/g,
         '',
       ),
     )
