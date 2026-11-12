@@ -14,9 +14,9 @@ import { notFound } from 'next/navigation';
 import { DestinationLabel } from '../../../../../components/destination-label';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
-import { dayLabel } from '../day-label';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
+import { dayLabel } from '../day-label';
 import { STATUS_TONES, destinationName } from './terms';
 
 export const metadata: Metadata = { title: 'Document Requests' };

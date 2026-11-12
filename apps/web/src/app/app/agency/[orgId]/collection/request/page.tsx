@@ -27,13 +27,13 @@ import { notFound, redirect } from 'next/navigation';
 import { DestinationLabel } from '../../../../../../components/destination-label';
 import { StatusBadge } from '../../../../../../components/ui';
 import { appAgencyCatalog } from '../../../../../../i18n/app-agency';
-import { dayLabel } from '../../day-label';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { establishStepUpProof } from '../../../../../../lib/step-up';
 import { uploadLimitLabel } from '../../../../../../lib/upload-preflight';
+import { dayLabel } from '../../day-label';
 import {
   AddItemForm,
   EmailLinkForm,
