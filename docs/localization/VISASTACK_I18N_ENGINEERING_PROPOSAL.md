@@ -93,9 +93,9 @@ Made by the owner on 2026-11-12 (recorded in `data/drafts/OWNER_DECISIONS.json` 
 | Decision | Choice | Consequence |
 |---|---|---|
 | First language | Bengali (bn-BD) | Slices in Section 3.3 run for Bengali only; ar, fr, de, es and zh-Hans stay not started |
-| Word for "case" | ফাইল | 206 drafts changed from কেস. Uploaded files are also ফাইল; 2 drafts hold both ideas and are listed for the editor in `data/CASE_FILE_COLLISION_REVIEW.csv`. The glossary term for case manager becomes ফাইল ম্যানেজার |
-| Digits in prose | Bengali | Static prose digits in drafts converted (63 drafts). Runtime numbers need the locale formatter: with `bn-BD` the platform's own `Intl` already gives Bengali digits and lakh grouping, so the helper in Section 3.4 must pass the locale and must not force Latin digits. Typed identifiers (passport and document numbers, codes, emails) stay as typed, so inputs and read-back values need an explicit Latin-digit rule |
-| Editor and legal reviewer | The owner, for both | Recorded as the owner's own decision. The brief notes an owner as editor does not by itself replace a qualified legal reviewer; the queue (`data/QUALIFIED_REVIEW_QUEUE.csv`, 1,779 groups) is assigned to the owner and nothing is reviewed yet |
+| Word for "case" | ফাইল, written ভিসা ফাইল | Every case is ভিসা ফাইল in the drafts, uploaded evidence is ডকুমেন্ট or আপলোড করা ডকুমেন্ট, and a bare ফাইল is never used for either, so the two objects cannot be confused (follow-up of 2026-11-12). Drafts holding both objects are listed in `data/CASE_FILE_COLLISION_REVIEW.csv`. Case manager is ভিসা ফাইল ম্যানেজার |
+| Digits in prose | Bengali | Static prose digits in drafts converted (57 drafts with Bengali digits; identifiers, codes, emails and URLs untouched, audited in `data/NUMBER_DATE_AUDIT.csv`). Runtime numbers need the locale formatter: with `bn-BD` the platform's own `Intl` already gives Bengali digits and lakh grouping, so the helper in Section 3.4 must pass the locale and must not force Latin digits. Typed identifiers (passport and document numbers, codes, emails) stay as typed, so inputs and read-back values need an explicit Latin-digit rule |
+| Editor and legal reviewer | The owner, for both | Recorded as the owner's own decision. The brief notes an owner as editor does not by itself replace a qualified legal reviewer; the review queues (`data/review-queues/`: ordinary UI, commercial, privacy and legal, official visa requirements) are assigned to the owner and nothing is reviewed yet |
 
 Still open:
 

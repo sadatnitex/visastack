@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { hasTag, splitOnTags, stripMarkers } from './text-markers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const OUT = process.argv.includes('--out')
@@ -764,14 +765,8 @@ function processFile(rel) {
     if (/^system: /.test(text)) return;
     if (partial.prop === 'reference' && /\.(pdf|jpe?g|png|docx?|xlsx?)$/i.test(text)) return;
     // Markup inside a string (an email body, an offline page): each text run is its own unit.
-    if (
-      partial.kind !== 'jsx_composed' &&
-      !partial.splitDone &&
-      /<\/?[a-zA-Z][^>]*>/.test(text) &&
-      /[<>]/.test(text)
-    ) {
-      const runs = text
-        .split(/<[^>]+>/)
+    if (partial.kind !== 'jsx_composed' && !partial.splitDone && hasTag(text)) {
+      const runs = splitOnTags(text)
         .map(normWs)
         .filter((x) => x && LETTER.test(x));
       let first;
@@ -953,7 +948,9 @@ function processFile(rel) {
         ).length;
         if (
           c.hasLetterText &&
-          flat.replace(/<\/?[\w.]+\/?>|\{\w+\}/g, '').trim().length > 0 &&
+          stripMarkers(flat)
+            .replace(/\{\w+\}/g, '')
+            .trim().length > 0 &&
           (c.hasOther || textOnlyFragments > 1)
         ) {
           const ph = [...flat.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);

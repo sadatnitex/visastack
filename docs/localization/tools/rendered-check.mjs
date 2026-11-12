@@ -11,6 +11,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  removeBlocks,
+  removeComments,
+  splitOnTags,
+  stripMarkers,
+  titleOf,
+} from './text-markers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const WORK = path.join(ROOT, 'apps/web/.preview/l10n/work');
@@ -72,8 +79,11 @@ for (const r of census.rows) {
   addExact(r.english, r.id);
   if (/\{\w+\}|<\/?[\w.]+\/?>/.test(r.english) || r.icu_flags.includes('PLURAL_PAREN_S')) {
     const t = r.english.replace(/\(s\)/g, '(?:s|es)?');
-    const literalLetters = (r.english.replace(/\{\w+\}|<\/?[\w.]+\/?>/g, '').match(/\p{L}/gu) || [])
-      .length;
+    const literalLetters = (
+      stripMarkers(r.english)
+        .replace(/\{\w+\}/g, '')
+        .match(/\p{L}/gu) || []
+    ).length;
     if (literalLetters < 2) continue; // a template with no real words would match anything
     try {
       templates.push([toRegex(t), r.id]);
@@ -81,8 +91,8 @@ for (const r of census.rows) {
       /* skip malformed */
     }
   }
-  const lits = r.english
-    .split(/\{\w+\}|<\/?[\w.]+\/?>/)
+  const lits = splitOnTags(r.english)
+    .flatMap((x) => x.split(/\{\w+\}/))
     .map(norm)
     .filter((x) => x.length >= 4 && LETTER.test(x));
   for (const l of lits) fragments.push([l, r.id]);
@@ -136,14 +146,14 @@ const isDataLike = (t) => {
 };
 
 function extract(rawHtml) {
-  const html = rawHtml
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<svg[\s\S]*?<\/svg>/gi, (m) => {
-      const t = m.match(/<title>([\s\S]*?)<\/title>/i);
-      return t ? ` <svgtitle>${t[1]}</svgtitle> ` : ' ';
-    });
+  // Scan, do not pattern-match: end tags may carry spaces and a regex cannot be trusted to find them.
+  let html = removeBlocks(rawHtml, 'script');
+  html = removeBlocks(html, 'style');
+  html = removeComments(html);
+  html = removeBlocks(html, 'svg', (block) => {
+    const t = titleOf(block);
+    return t ? ` <svgtitle>${t}</svgtitle> ` : ' ';
+  });
   const out = [];
   const tagRe = /<\/?([a-zA-Z][\w:-]*)([^>]*)>/g;
   let last = 0;

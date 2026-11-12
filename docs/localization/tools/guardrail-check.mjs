@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripMarkers } from './text-markers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -64,19 +65,27 @@ const GLOSS = loadGlossary().filter(
 
 // Claims that must not appear in Bengali unless the English makes the same claim.
 const CLAIMS = [
-  { en: /\b(secure|safe|safety|security)\b/i, bn: /নিরাপ/, name: 'security claim' },
-  { en: /\b(verify|verified|verification)\b/i, bn: /যাচাই/, name: 'verification claim' },
-  { en: /\b(official|government)\b/i, bn: /অফিসিয়াল|সরকারি/, name: 'official or government claim' },
-  { en: /\b(approve|approved|approval)\b/i, bn: /অনুমোদ/, name: 'approval claim' },
-  { en: /\b(guarantee|guaranteed)\b/i, bn: /গ্যারান্টি|নিশ্চয়তা/, name: 'guarantee claim' },
+  { en: /\b(secur\w*|saf(e|ely|ety)\w*)\b/i, bn: /নিরাপ/, name: 'security claim' },
+  { en: /\bverif\w*/i, bn: /যাচাই/, name: 'verification claim' },
   {
-    en: /\b(scan|scanned|scanning|antivirus)\b/i,
+    en: /\b(official\w*|government\w*)\b/i,
+    bn: /অফিসিয়াল|সরকারি/,
+    name: 'official or government claim',
+  },
+  { en: /\bapprov\w*/i, bn: /অনুমোদ/, name: 'approval claim' },
+  { en: /\bguarantee\w*/i, bn: /গ্যারান্টি|নিশ্চয়তা/, name: 'guarantee claim' },
+  {
+    en: /\b(scan\w*|antivirus)\b/i,
     bn: /স্ক্যান|অ্যান্টিভাইরাস/,
     name: 'antivirus scan claim',
   },
   { en: /\b(viruses|virus|malware)\b/i, bn: /ভাইরাস|ম্যালওয়্যার/, name: 'virus claim' },
-  { en: /\b(confirm|confirmed|confirmation)\b/i, bn: /নিশ্চিত/, name: 'confirmation claim' },
-  { en: /\b(encrypt|encrypted|encryption)\b/i, bn: /এনক্রিপ্ট|সংকেত/, name: 'encryption claim' },
+  {
+    en: /\b(confirm\w*|guarantee\w*|sure|certain\w*|definite\w*)\b/i,
+    bn: /নিশ্চিত/,
+    name: 'confirmation claim',
+  },
+  { en: /\bencrypt\w*/i, bn: /এনক্রিপ্ট/, name: 'encryption claim' },
   {
     en: /\b(quarantine|quarantined|held|hold|flagged|blocked)\b/i,
     bn: /কোয়ারেন্টাইন|আটক|ব্লক/,
@@ -85,7 +94,6 @@ const CLAIMS = [
   { en: /\b(clean)\b/i, bn: /পরিষ্কার/, name: 'cleanliness claim' },
 ];
 const BANNED_BN = [
-  [/দলিল/, '"দলিল" means a deed; the word for document is ডকুমেন্ট'],
   [/নাবালক|নাবালিকা/, 'Gendered word for a minor; use অপ্রাপ্তবয়স্ক'],
   [/\u2014/, 'Em dash character'],
 ];
@@ -111,7 +119,9 @@ export function check(enIn, bnIn) {
   if (JSON.stringify(tgE) !== JSON.stringify(tgB))
     f.push({ rule: 'MARKUP_MISMATCH', detail: `en ${tgE.join(' ')} vs bn ${tgB.join(' ')}` });
   // 2. glossary stems for terms found in the English
-  const present = GLOSS.filter((t) => WORD(t.english).test(en));
+  // Placeholders, typed keywords (DELETE) and all-capital words are not English terms to translate.
+  const enTerms = en.replace(/\{[^}]*\}/g, ' ').replace(/\b[A-Z]{3,}\b/g, ' ');
+  const present = GLOSS.filter((t) => WORD(t.english).test(enTerms));
   // longest term wins: drop a term contained in a longer present term (Verify inside Verified is not an issue; Mandatory inside Mandatory if applicable is)
   const longest = present.filter(
     (t) =>
@@ -153,13 +163,34 @@ export function check(enIn, bnIn) {
         rule: 'STRONGER_CLAIM',
         detail: `Bengali has a ${c.name} the English does not make`,
       });
+  // Owner terminology decisions (2026-11-12). The case is ভিসা ফাইল; an upload is ডকুমেন্ট; bare ফাইল is ambiguous.
+  if (/(?<![\u0980-\u09FF\u200C\u200D])(?<!ভিসা )ফাইল/.test(bn))
+    f.push({
+      rule: 'CASE_UPLOAD_AMBIGUITY',
+      detail: 'Bare ফাইল: write ভিসা ফাইল for the case and ডকুমেন্ট for an upload',
+    });
+  if (/নথি/.test(bn)) f.push({ rule: 'NOT_STANDARD_DOCUMENT_WORD', detail: 'Use ডকুমেন্ট, not নথি' });
+  if (/দলিল/.test(bn) && !/\bdeed/i.test(en))
+    f.push({
+      rule: 'NOT_STANDARD_DOCUMENT_WORD',
+      detail: 'দলিল means a deed; use ডকুমেন্ট unless the English is about a deed',
+    });
+  if (en.trim().toLowerCase() === 'documents' && bn.trim() !== 'ডকুমেন্টস')
+    f.push({ rule: 'NAV_DOCUMENTS', detail: 'The navigation label Documents is ডকুমেন্টস' });
+  if (/[\u0980-\u09FF\u200C\u200D]ডকুমেন্ট/.test(bn))
+    f.push({
+      rule: 'TRANSFORM_DAMAGE',
+      detail:
+        'A Bengali word is glued to ডকুমেন্ট: a terminology replacement cut into another word (for example প্রোফাইল)',
+    });
+  const enNoPh = `${en.replace(/\{[^}]*\}/g, ' ')}${/\bv\{/i.test(en) ? ' version' : ''}`;
   // Version words: banned only where the English does not mean a version; and a real version must not silently become a copy.
-  if (/সংস্করণ|ভার্সন/.test(bn) && !/\bversion/i.test(en))
+  if (/সংস্করণ|ভার্সন/.test(bn) && !/\bversion/i.test(enNoPh))
     f.push({
       rule: 'BANNED_WORDING',
       detail: 'Version wording where the English says copy or document (no Version 2 semantics)',
     });
-  if (/\bversions?\b/i.test(en) && !/সংস্করণ|ভার্সন/.test(bn))
+  if (/\bversions?\b/i.test(enNoPh) && !/সংস্করণ|ভার্সন/.test(bn))
     f.push({
       rule: 'VERSION_CONCEPT_REVIEW',
       detail:
@@ -188,8 +219,8 @@ export function check(enIn, bnIn) {
   // 6. forbidden Latin letters (a bn string that is still English)
   if (
     /[A-Za-z]{4,}/.test(
-      bn.replace(
-        /\{\w+\}|<\/?[\w.]+\/?>|VisaStack|WhatsApp|PDF|OCR|ICS|CSV|URL|WiFi|Wi-Fi|Google|Apple|Microsoft/g,
+      stripMarkers(bn).replace(
+        /\{\w+\}|https?:\/\/\S*|\S+@\S+\.\S+|\b[A-Z][A-Z0-9/.-]{2,}\b|VisaStack|WhatsApp|PDF|OCR|ICS|CSV|URL|WiFi|Wi-Fi|Google|Apple|Microsoft|iPhone|iPad|Android|Safari|Outlook|Vercel|Cloudflare|ImmiAccount|clamav|zip|JPG|JPEG|PNG|HEIC|Word|Excel|COVID/g,
         '',
       ),
     )

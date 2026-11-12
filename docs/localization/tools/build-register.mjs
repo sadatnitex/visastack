@@ -43,17 +43,80 @@ const decisions = JSON.parse(
   fs.readFileSync(path.join(draftDir, 'OWNER_DECISIONS.json'), 'utf8'),
 ).decisions;
 const BN_DIGITS = '০১২৩৪৫৬৭৮৯';
+// Text that must keep its original characters: placeholders, tags, URLs, email addresses, and
+// code-like tokens (letters mixed with digits, such as P-A13JCX or ISO8601).
 const KEEP_TOKEN =
-  /(\{[^}]*\}|<[^>]*>|[A-Za-z][\w./-]*[0-9][\w./-]*|[0-9][\w./-]*[A-Za-z][\w./-]*)/;
-/** Owner decisions 2026-11-12: the case word is ফাইল; prose digits are Bengali (codes, placeholders and tags are left alone). */
-function applyOwnerDecisions(text) {
-  let out = text.split(decisions.case_term.replaces).join(decisions.case_term.bn);
+  /(\{[^}]*\}|<[^>]*>|https?:\/\/\S+|\S+@\S+\.\S+|[A-Za-z][\w./-]*[0-9][\w./-]*|[0-9][\w./-]*[A-Za-z][\w./-]*)/;
+const NOT_AFTER_BENGALI = '(?<![\\u0980-\\u09FF\\u200C\\u200D])';
+const CASE_MARK = '';
+/**
+ * Owner decisions of 2026-11-12 (data/drafts/OWNER_DECISIONS.json), applied to the original drafts:
+ * the case is written ভিসা ফাইল; an uploaded file is a ডকুমেন্ট; bare ফাইল is never used; the
+ * navigation label Documents is ডকুমেন্টস; prose digits are Bengali (codes and addresses are not).
+ */
+function applyOwnerDecisions(text, english) {
+  let t = text;
+  // 1. the case (already-final text is left alone, so the transform is idempotent)
+  t = t.replace(/ভিসা ফাইল/g, CASE_MARK);
+  t = t.replace(/ভিসা কেস/g, CASE_MARK);
+  t = t.replace(new RegExp(`${NOT_AFTER_BENGALI}কেস`, 'g'), CASE_MARK);
+  // English "file" that means the visa file (marketing headlines), not an upload
+  if (/\b(clean|one private) file\b/i.test(english))
+    t = t.replace(new RegExp(`${NOT_AFTER_BENGALI}ফাইল`, 'g'), CASE_MARK);
+  // 2. uploaded evidence: compounds first, then the bare word
+  const rx = (pattern) => new RegExp(`${NOT_AFTER_BENGALI}${pattern}`, 'g');
+  t = t
+    .replace(rx('ফাইলের ধরন ও কাঠামো'), 'ডকুমেন্টের ফরম্যাট ও কাঠামো')
+    .replace(rx('ফাইলের ধরন'), 'ডকুমেন্টের ফরম্যাট')
+    .replace(rx('ফাইলের নাম'), 'ডকুমেন্টের নাম')
+    .replace(/ডকুমেন্ট ফাইল(?![\u0980-\u09FF])/g, 'আপলোড করা ডকুমেন্ট')
+    .replace(/ডকুমেন্টের ফাইল(?![\u0980-\u09FF])/g, 'ডকুমেন্ট')
+    .replace(rx('ফাইল'), 'ডকুমেন্ট')
+    .replace(/ডকুমেন্ট ডকুমেন্ট/g, 'ডকুমেন্ট');
+  t = t.split(CASE_MARK).join('ভিসা ফাইল');
+  // 3. navigation label
+  if (english.trim().toLowerCase() === 'documents') t = 'ডকুমেন্টস';
+  // 4. digits in prose
   if (decisions.digits_in_prose === 'bengali')
-    out = out
+    t = t
       .split(KEEP_TOKEN)
       .map((part, i) => (i % 2 ? part : part.replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)])))
       .join('');
-  return out;
+  return t;
+}
+const QUEUES = {
+  PRIVACY_CONSENT_LEGAL: '03-privacy-consent-legal',
+  COMMERCIAL: '02-commercial',
+  OFFICIAL_VISA_REQUIREMENT: '04-official-visa-requirements',
+  ORDINARY_UI: '01-ordinary-ui',
+};
+const LEGAL_RE =
+  /\b(consent|privacy|personal (data|information)|legal hold|legal requirement|retention|retain|erase|erasure|data protection|terms of|terms and|permanently delet\w*|audit trail|anonymi[sz]ed|lawful|withdraw consent|controller|processor)\b/i;
+const COMMERCIAL_RE =
+  /\b(invoice|receipt|refund|payment|price|pricing|billing|fee|fees|checkout|subscription|credit|charge|renew\w*|currency|plan|plans|purchase|paid|quota|fair.use)\b/i;
+const OFFICIAL_RE =
+  /\b(embassy|consulate|visa (rule|requirement|route|centre|center|application centre)|official (source|checklist|rule|requirement|page|website|pack)|immigration authority|checklist pack|issuing authority)\b/i;
+/** Which review queue a group belongs to: by file class first, then by what the words say. Precedence: legal, commercial, official, ordinary. */
+function reviewQueue(g) {
+  const text = g.english;
+  // A string that only sits in a specialist file, and is three words or fewer with no telling word,
+  // is an ordinary interface word ("When", "Reference"); it does not need a specialist reviewer.
+  const short = text.trim().split(/\s+/).length <= 3;
+  const byFile = (cond) => cond && !short;
+  const hits = [];
+  if (
+    LEGAL_RE.test(text) ||
+    byFile(g.rc === 'LEGAL_POLICY_TEXT' || ['consent', 'privacy_lifecycle'].includes(g.domain))
+  )
+    hits.push('PRIVACY_CONSENT_LEGAL');
+  if (
+    COMMERCIAL_RE.test(text) ||
+    byFile(g.rc === 'PAYMENT_BILLING' || g.domain === 'payments_billing')
+  )
+    hits.push('COMMERCIAL');
+  if (OFFICIAL_RE.test(text) || byFile(g.rc === 'OFFICIAL_RULE_CONTENT'))
+    hits.push('OFFICIAL_VISA_REQUIREMENT');
+  return { queue: hits[0] ?? 'ORDINARY_UI', also: hits.slice(1) };
 }
 const glossary = loadGlossary();
 const glossHits = (en) =>
@@ -116,6 +179,7 @@ const COLS = [
   'guard_tags',
   'priority',
   'review_class',
+  'review_queue',
   'journeys',
   'roles',
   'placeholders',
@@ -151,7 +215,19 @@ const stats = {
 };
 const flaggedList = [];
 const collisions = [];
-const queue = [];
+const navLabels = [];
+const queues = {
+  ORDINARY_UI: [],
+  COMMERCIAL: [],
+  PRIVACY_CONSENT_LEGAL: [],
+  OFFICIAL_VISA_REQUIREMENT: [],
+};
+const queueUndrafted = {
+  ORDINARY_UI: 0,
+  COMMERCIAL: 0,
+  PRIVACY_CONSENT_LEGAL: 0,
+  OFFICIAL_VISA_REQUIREMENT: 0,
+};
 stats.qualified = { total: 0, drafted: 0 };
 stats.versionReview = 0;
 for (const g of [...groups.values()].sort(
@@ -168,7 +244,7 @@ for (const g of [...groups.values()].sort(
   let note = '';
   let prov = 'NOT_DRAFTED';
   if (d?.bn) {
-    bn = applyOwnerDecisions(d.bn);
+    bn = applyOwnerDecisions(d.bn, g.english);
     conf = d.conf ?? '';
     note = d.note ?? '';
     const all = check(g.english, bn);
@@ -193,37 +269,57 @@ for (const g of [...groups.values()].sort(
     prov = 'OWNER_DECISION_NEEDED';
     checks = 'NOT_DRAFTED';
   } else stats.undrafted++;
+  const rq = reviewQueue(g);
   const legal =
-    g.rc !== 'STANDARD_UI' || /LEGAL_REVIEW|OFFICIAL_RULE|BILLING_REVIEW/.test(note)
-      ? `YES (${g.rc !== 'STANDARD_UI' ? g.rc : note})`
+    rq.queue !== 'ORDINARY_UI' || /LEGAL_REVIEW|OFFICIAL_RULE|BILLING_REVIEW/.test(note)
+      ? `YES (${rq.queue !== 'ORDINARY_UI' ? rq.queue : note})`
       : '';
-  if (bn && /\bcases?\b/i.test(g.english) && /\b(files?|uploads?|uploaded)\b/i.test(g.english))
+  if (
+    bn &&
+    /\bdocuments?\b/i.test(g.english) &&
+    g.english.split(/\s+/).length <= 4 &&
+    !g.english.includes('{')
+  )
+    navLabels.push(
+      [g.sg, g.english, bn, g.domain, g.kinds.size ? [...g.kinds].sort().join('+') : '']
+        .map(q)
+        .join(','),
+    );
+  if (bn.includes('ভিসা ফাইল') && /ডকুমেন্ট|আপলোড/.test(bn))
     collisions.push(
       [
         g.sg,
         g.english,
         bn,
-        'English has both case and file; Bengali uses ফাইল for both. Editor: keep the case as ফাইল and call the upload ডকুমেন্ট or আপলোড করা ফাইল',
+        'Holds both objects. Check that the visa file and the uploaded document cannot be confused',
       ]
         .map(q)
         .join(','),
     );
+  if (bn) {
+    queues[rq.queue].push(
+      [
+        g.sg,
+        g.english,
+        bn,
+        g.priority,
+        checks,
+        glossHits(g.english).join(' '),
+        rq.also.join(' '),
+        'owner (decision 2026-11-12)',
+        'NO',
+        'ASSIGNED_NOT_REVIEWED',
+        '',
+        '',
+      ]
+        .map(q)
+        .join(','),
+    );
+    queueUndrafted.ORDINARY_UI += 0;
+  } else queueUndrafted[rq.queue]++;
   if (legal) {
     stats.qualified.total++;
     if (bn) stats.qualified.drafted++;
-    queue.push(
-      [
-        g.sg,
-        g.rc,
-        g.domain,
-        g.english,
-        bn,
-        checks,
-        'OWNER_ASSIGNED_BY_OWNER_DECISION (not asserted to be a qualified legal reviewer; nothing reviewed yet)',
-      ]
-        .map(q)
-        .join(','),
-    );
   }
   if (checks.includes('VERSION_CONCEPT_REVIEW')) stats.versionReview++;
   out.push(
@@ -237,6 +333,7 @@ for (const g of [...groups.values()].sort(
       g.guard,
       g.priority,
       g.rc,
+      rq.queue,
       inp ? inp.journeys.join(' ') : '',
       [...g.roles].sort().join('|'),
       g.ph,
@@ -266,9 +363,22 @@ fs.writeFileSync(
 );
 stats.caseFileCollisions = collisions.length;
 fs.writeFileSync(
-  path.join(LOC, 'data/QUALIFIED_REVIEW_QUEUE.csv'),
-  `${['semantic_group,review_class,domain,english,bn_BD_draft,automated_checks,reviewer_state', ...queue].join('\n')}\n`,
+  path.join(LOC, 'data/NAV_TERM_REVIEW.csv'),
+  `${['semantic_group,english,bn_BD_draft,domain,text_kinds', ...navLabels].join('\n')}\n`,
 );
+stats.documentLabels = navLabels.length;
+fs.rmSync(path.join(LOC, 'data/QUALIFIED_REVIEW_QUEUE.csv'), { force: true });
+fs.mkdirSync(path.join(LOC, 'data/review-queues'), { recursive: true });
+const QHEAD =
+  'semantic_group,english,bn_BD_draft,priority,automated_checks,glossary_terms,also_matches,assigned_reviewer,reviewed,review_state,reviewer_sign_off,sign_off_date';
+stats.queues = {};
+for (const [name, file] of Object.entries(QUEUES)) {
+  fs.writeFileSync(
+    path.join(LOC, `data/review-queues/${file}.csv`),
+    `${[QHEAD, ...queues[name]].join('\n')}\n`,
+  );
+  stats.queues[name] = { drafted: queues[name].length, notDraftedYet: queueUndrafted[name] };
+}
 fs.writeFileSync(
   path.join(WORK, 'register-stats.json'),
   JSON.stringify({ ...stats, flaggedSample: flaggedList.slice(0, 40) }, null, 1),

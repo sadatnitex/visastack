@@ -9,8 +9,8 @@ Source: `data/INDEPENDENT_REVIEW.md` (separate session; findings re-checked agai
 | 3 | The no-version rule applied to real versions (snapshot, pack, case state) | FIXED in checker and guardrails; five error drafts corrected in `data/drafts/bn-BD.corrections.jsonl` | Version words are banned only where English means a copy; dropping "version" where English says version is flagged `VERSION_CONCEPT_REVIEW` for an editor. Other drafts with that pattern are listed by the flag, not silently changed |
 | 4 | 25 icon and form-field names and 970 starter-checklist `purpose` and `country` keys counted as translatable | FIXED | `name` props must contain a space; seed `purpose`, `country`, `reference` rows are `EXCLUDED_MATCHING_KEY` (matched by code in `build.ts`); machine reasons starting `system:` excluded |
 | 5 | Stored answer values (catalogue choices) carry no "translate at display only" flag | FIXED | New `handling_note` column: `STORED_ANSWER_VALUE_TRANSLATE_AT_DISPLAY_ONLY` |
-| 6 | Qualified review flagged but not sent | PARTLY | `data/QUALIFIED_REVIEW_QUEUE.csv` lists every group needing a qualified reviewer. The owner has assigned themself as editor and legal reviewer (2026-11-12). That is the owner's decision, not a claim that they are a qualified legal reviewer; nothing has been reviewed yet |
-| 7 | Platform evidence overclaimed | FIXED in wording; limits OPEN | Attested rows are Firefox only, 92 `bn-BD` and 156 generic `bn`; Google rows downgraded; glossary attestation now exact-form only. Bangladeshi sources remain unreachable |
+| 6 | Qualified review flagged but not sent | PARTLY | `data/review-queues/` splits the work into ordinary UI, commercial, privacy and legal, and official visa requirements. The owner has assigned themself as editor and legal reviewer (2026-11-12). That is the owner's decision, not a claim that they are a qualified legal reviewer; nothing has been reviewed yet |
+| 7 | Platform evidence overclaimed | FIXED; limits OPEN | Attested rows are 248 Firefox (92 `bn-BD`, 156 generic `bn`) and 17 Google signed-out page rows (reproduced with redirects followed; an earlier downgrade of those rows was my own re-check error and is reversed). Only 79 attested rows match the English intent exactly. Glossary terms are classified observed exact form, different form, related only, or language-model recommendation. Bangladeshi sources remain unreachable |
 | 8 | Glossary: legal hold used the Saved word; Received read as "found"; Safe copy vs the safety rule | FIXED | Legal hold is আইনি হোল্ড with সংরক্ষণ forbidden; Received is পাওয়া হয়েছে; নিরাপদ allowed only inside "Safe copy" |
 | 9 | `document.quarantined` kept নথি while neighbours use ডকুমেন্ট | FIXED | Added to the existing-catalogue review with a proposed fix |
 | 10 | Clipped-text measure identical across variants | FIXED | Measure removed from the report |
@@ -18,3 +18,16 @@ Source: `data/INDEPENDENT_REVIEW.md` (separate session; findings re-checked agai
 | 12 | Guard tags noisy; "Go to Workspace" classed as billing | PARTLY | Generic "checked", "safe" and "either" removed from the tags; billing class tightened. Tags remain heuristic |
 | 13 | Checker passed a wrong draft ("Open Privacy") and failed a correct one | OPEN | Acknowledged: the checker is word-level and is not a proxy for review. The draft was corrected by hand |
 | 14 | No sources cited for ar, fr, de, es, zh-Hans notes | OPEN | The notes are from general knowledge of CLDR and common practice; they must be confirmed by native reviewers before use |
+
+## Follow-up closure of PR 511 (second pass)
+
+| Item | Status | What was done |
+|---|---|---|
+| CodeQL: 4 high, 3 warning, 2 note | FIXED, to be proven on the final head | All nine were in the localization tooling. Regex tag and script stripping replaced by a tested regex-free scanner (`tools/text-markers.mjs`, `tools/text-markers.test.mjs`); Python file handles closed; unused imports and variable removed |
+| Case versus uploaded document | FIXED | Case is written ভিসা ফাইল everywhere; uploaded evidence is ডকুমেন্ট or আপলোড করা ডকুমেন্ট; bare ফাইল is rejected by the checker. Complete register re-checked: 0 bare ফাইল, 14 drafts hold both objects and read distinctly |
+| Transform bug found during the audit | FIXED | A compound-phrase replacement cut into প্রোফাইল ("Profile Name" became প্রোডকুমেন্টের নাম). Guarded for zero-width joiners and covered by a checker rule (`TRANSFORM_DAMAGE`) |
+| Documents navigation term | FIXED | The English label Documents is ডকুমেন্টস in all 3 rows; 83 document-label strings listed for confirmation |
+| 231 flagged drafts | AUDITED | `data/FLAGGED_AUDIT.csv`: 62 semantic errors fixed (legal hold, virus-check wording, version meaning), 83 checker false positives removed, the rest accepted by design, open for an editor, or source issues |
+| Version wording | FIXED | Numbered pack, checklist, snapshot, letter and profile-detail versions keep সংস্করণ or স্ন্যাপশট; document history keeps কপি; 26 rows remain flagged for an editor to confirm |
+| Number and date rules | DOCUMENTED | `data/NUMBER_DATE_FORMAT_RULES.md`, audit found no changed identifier; no runtime change |
+| Review queues | SPLIT | Four queues; all items assigned to the owner and none reviewed |

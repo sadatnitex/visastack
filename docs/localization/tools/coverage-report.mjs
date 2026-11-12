@@ -513,24 +513,116 @@ if (shots.length) {
   );
 }
 // ---- evidence, review and open requirements
-const evText = fs
-  .readFileSync(path.join(LOC, 'VISASTACK_PLATFORM_LANGUAGE_EVIDENCE.csv'), 'utf8')
-  .split('\n')
-  .slice(1)
-  .filter(Boolean);
-const evCount = { attested: 0, bnGeneric: 0, bnBD: 0, unverified: 0, direct: 0, bilingual: 0 };
-for (const l of evText) {
-  if (l.includes('"OFFICIAL_STRING_RESOURCE","OFFICIAL_STRING_RESOURCE"')) {
-    evCount.attested++;
-    if (l.includes('"bn-BD"')) evCount.bnBD++;
-    else evCount.bnGeneric++;
+const attest = JSON.parse(fs.readFileSync(path.join(LOC, 'data/ATTESTATION_STATUS.json'), 'utf8'));
+const csvRows = (file) => {
+  const t = fs.readFileSync(file, 'utf8');
+  const out = [];
+  let row = [];
+  let fld = '';
+  let qt = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (qt) {
+      if (ch === '"') {
+        if (t[i + 1] === '"') {
+          fld += '"';
+          i++;
+        } else qt = false;
+      } else fld += ch;
+    } else if (ch === '"') qt = true;
+    else if (ch === ',') {
+      row.push(fld);
+      fld = '';
+    } else if (ch === '\n') {
+      row.push(fld);
+      out.push(row);
+      row = [];
+      fld = '';
+    } else if (ch !== '\r') fld += ch;
   }
-  if (l.includes('"DIRECT_SCREEN","')) evCount.direct++;
-  if (l.includes('"BILINGUAL_OFFICIAL_PAGE","')) evCount.bilingual++;
-}
-add('## 9. Platform evidence: what is and is not attested', '');
+  const [h, ...body] = out;
+  return body
+    .filter((r) => r.length === h.length)
+    .map((r) => Object.fromEntries(h.map((k, i) => [k, r[i]])));
+};
+const regRows = csvRows(path.join(LOC, 'VISASTACK_TRANSLATION_REGISTER.csv'));
+const draftedRows = regRows.filter((r) => r.bn_BD_draft);
+const bareFile = draftedRows.filter((r) => /(?<![ঀ-৿‌‍])(?<!ভিসা )ফাইল/.test(r.bn_BD_draft)).length;
+const flaggedAudit = csvRows(path.join(LOC, 'data/FLAGGED_AUDIT.csv'));
+const auditCounts = {};
+for (const r of flaggedAudit)
+  auditCounts[r.classification] = (auditCounts[r.classification] ?? 0) + 1;
+const queueCounts = Object.entries(reg.queues ?? {});
+
+add('### Terminology audit (owner decisions of 2026-11-12 and the follow-up)', '');
 add(
-  `${evText.length} evidence rows. Product-attested rows are Firefox string files only (\`OFFICIAL_STRING_RESOURCE\`): ${evCount.attested}, of which ${evCount.bnBD} are locale \`bn-BD\` and ${evCount.bnGeneric} are generic \`bn\`. Every one was re-fetched and its Bengali text found in the source file. There are no \`DIRECT_SCREEN\` or \`BILINGUAL_OFFICIAL_PAGE\` rows: Google Bengali pages were read by the research helper but could not be reproduced on re-check, so those rows are downgraded to \`UNVERIFIED\`. Facebook, bKash, myGov, e-Passport, Pathao and the Microsoft terminology search were unreachable from this environment (blocked or no usable page), so they are \`UNVERIFIED\` or \`CONTEXTUAL_ANALOGY\` with the reason recorded. No Bangladeshi government, bank or ride app is attested. Glossary terms marked \`OFFICIAL_STRING_RESOURCE\` are only those whose exact proposed form appears in the evidence.`,
+  table(
+    ['Check', 'Result'],
+    [
+      [
+        'Drafts containing a bare ফাইল (ambiguous between the visa file and an uploaded document)',
+        bareFile,
+      ],
+      [
+        'Drafts using ভিসা ফাইল for the case',
+        draftedRows.filter((r) => r.bn_BD_draft.includes('ভিসা ফাইল')).length,
+      ],
+      [
+        'Drafts holding both the visa file and an uploaded document (listed for the editor)',
+        reg.caseFileCollisions,
+      ],
+      [
+        'Drafts using নথি (non-standard for document)',
+        draftedRows.filter((r) => /নথি/.test(r.bn_BD_draft)).length,
+      ],
+      [
+        'Drafts using দলিল (allowed only for deeds)',
+        draftedRows.filter((r) => /দলিল/.test(r.bn_BD_draft)).length +
+          ' (Property Deed, Sale Deed)',
+      ],
+      [
+        'English label "Documents" written as ডকুমেন্টস',
+        `${draftedRows.filter((r) => r.english.trim().toLowerCase() === 'documents' && r.bn_BD_draft === 'ডকুমেন্টস').length} of ${draftedRows.filter((r) => r.english.trim().toLowerCase() === 'documents').length}`,
+      ],
+      [
+        'Document-label strings listed for the owner to confirm the navigation term',
+        reg.documentLabels,
+      ],
+    ],
+  ),
+  '',
+);
+add('### The 231 drafts flagged at PR head bd5eb8bc', '');
+add(
+  `Every one was reviewed (\`data/FLAGGED_AUDIT.csv\`). Dispositions: ${Object.entries(auditCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${v}`)
+    .join(
+      ', ',
+    )}. Drafts flagged by the automated checks today: ${reg.checkedFlag}. A flag is a prompt for an editor, not a verdict; drafts still flagged are listed with the reason they were kept.`,
+  '',
+);
+add('### Review queues (assigned to the owner; none reviewed)', '');
+add(
+  table(
+    ['Queue', 'Drafted, awaiting review', 'Not drafted yet', 'File'],
+    queueCounts.map(([k, v]) => [k, v.drafted, v.notDraftedYet, `\`data/review-queues/\``]),
+  ),
+  '',
+);
+add(
+  'Every item in every queue shows `assigned_reviewer` = owner, `reviewed` = NO and `review_state` = ASSIGNED_NOT_REVIEWED. Assignment is not review. Queue membership uses the file the text sits in and what the words say; short generic words are kept in the ordinary queue.',
+  '',
+);
+add('### Number and date rules', '');
+add(
+  '`data/NUMBER_DATE_FORMAT_RULES.md` (real `Intl` output) says which values take bn-BD formatting and which never change (passports, identifiers, reference codes, emails, URLs, typed values). `data/NUMBER_DATE_AUDIT.csv` lists any draft where a protected token or a number changed; none was found. No runtime formatting was implemented.',
+  '',
+);
+
+add('## 9. Platform evidence: observed, recommended, never verified', '');
+add(
+  `${attest.evidence_rows} evidence rows; ${attest.attested_rows} are product-attested (re-fetched and found in the source): ${attest.firefox_rows} Firefox string-file rows (${attest.firefox_bn_BD} \`bn-BD\`, ${attest.firefox_bn} generic \`bn\`) and ${attest.google_rows} signed-out Google Accounts page rows (generic Bengali). Only ${attest.attested_exact_intent} of the ${attest.attested_rows} have English that matches the intent exactly; the rest are related or loose strings and are not evidence for that meaning. No Bangladeshi government, bank, ride or messaging product is observed: Facebook, bKash, Pathao, myGov, e-Passport, Google Drive and the Microsoft terminology search could not be read from this environment (research gaps, with the attempt recorded). Glossary terms: ${attest.glossary.OBSERVED_EXACT_FORM} observed in the exact proposed form, ${attest.glossary.OBSERVED_DIFFERENT_FORM} observed in a different form, ${attest.glossary.OBSERVED_RELATED_ONLY} related only, ${attest.glossary.LLM_RECOMMENDATION} language-model recommendation with nothing observed. Every register draft is a language-model draft. Full detail: \`data/ATTESTATION_STATUS.md\`.`,
   '',
 );
 add(
@@ -539,7 +631,7 @@ add(
 );
 add('## 10. Independent review and what was done about it', '');
 add(
-  'A separate session re-checked the census, the report and the drafts (`data/INDEPENDENT_REVIEW.md`, rows in `data/independent-review-sample.csv`). Actions taken are in `data/REVIEW_RESPONSE.md`. Headline: census precision 92.5 percent on its sample; drafts 110 OK, 5 minor, 5 error of 120. Its five most serious findings and their status: (1) about 900 service error messages were missing from the census: now extracted as `ERROR_CALL` rows; (2) this report was stale: regenerated, with counts computed by script; (3) the no-version rule was applied to real versions: the checker now flags dropped versions for an editor and bans version words only where English means a copy, and the five error drafts were corrected in `data/drafts/bn-BD.corrections.jsonl`; (4) no qualified reviewer is assigned: still open, queue in `data/QUALIFIED_REVIEW_QUEUE.csv`; (5) platform evidence was overclaimed: wording corrected above.',
+  'A separate session re-checked the census, the report and the drafts (`data/INDEPENDENT_REVIEW.md`, rows in `data/independent-review-sample.csv`). Actions taken are in `data/REVIEW_RESPONSE.md`. Headline: census precision 92.5 percent on its sample; drafts 110 OK, 5 minor, 5 error of 120. Its five most serious findings and their status: (1) about 900 service error messages were missing from the census: now extracted as `ERROR_CALL` rows; (2) this report was stale: regenerated, with counts computed by script; (3) the no-version rule was applied to real versions: the checker now flags dropped versions for an editor and bans version words only where English means a copy, and the five error drafts were corrected in `data/drafts/bn-BD.corrections.jsonl`; (4) no qualified reviewer: the owner assigned themself as editor and legal reviewer; nothing is reviewed; queues are in `data/review-queues/`; (5) platform evidence was overclaimed: wording corrected, attestation classified per term (section 9).',
   '',
 );
 add('## 11. Requirements not met or only partly met', '');

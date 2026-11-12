@@ -1,6 +1,7 @@
 # Review of the Bengali strings that already sit in packages/i18n/src/messages.ts (current repo truth).
-import csv, re, subprocess, json
-src = open('packages/i18n/src/messages.ts', encoding='utf-8').read()
+import csv, re
+with open('packages/i18n/src/messages.ts', encoding='utf-8') as fh:
+    src = fh.read()
 def block(name):
     m = re.search(r'export const %s[^=]*=\s*\{(.*?)\n\};?' % name, src, re.S)
     out = {}
@@ -10,23 +11,23 @@ def block(name):
 EN, BN = block('EN'), block('BN')
 # key: (severity, issue_class, why, proposed)
 R = {
- 'document.status.clean': ('CRITICAL','STRONGER_CLAIM','English says only that the file type and structure were checked. "পরিষ্কার" means clean and reads as virus-free.','ফাইলের ধরন পরীক্ষা করা হয়েছে'),
+ 'document.status.clean': ('CRITICAL','STRONGER_CLAIM','English says only that the file type and structure were checked. "পরিষ্কার" means clean and reads as virus-free.','ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে'),
  'document.scanning': ('CRITICAL','STRONGER_CLAIM','English says "being checked". Bengali says "scanned for safety", which claims a security scan.','এই ডকুমেন্ট পরীক্ষা করা হচ্ছে।'),
  'document.status.scanning': ('CRITICAL','STRONGER_CLAIM','English "Being Checked" became "স্ক্যান করা হচ্ছে" (being scanned).','পরীক্ষা করা হচ্ছে'),
- 'document.processing.scanning': ('CRITICAL','STRONGER_CLAIM','English "Checking the File" became "স্ক্যান করা হচ্ছে" (being scanned).','ফাইল পরীক্ষা করা হচ্ছে'),
- 'document.processing.quarantined': ('CRITICAL','MEANING_CHANGE','English "Checking the File" became "কোয়ারেন্টাইনে" (in quarantine), a held-back state.','ফাইল পরীক্ষা করা হচ্ছে'),
+ 'document.processing.scanning': ('CRITICAL','STRONGER_CLAIM','English "Checking the File" became "স্ক্যান করা হচ্ছে" (being scanned).','ডকুমেন্ট পরীক্ষা করা হচ্ছে'),
+ 'document.processing.quarantined': ('CRITICAL','MEANING_CHANGE','English "Checking the File" became "কোয়ারেন্টাইনে" (in quarantine), a held-back state.','ডকুমেন্ট পরীক্ষা করা হচ্ছে'),
  'document.processing.ready': ('CRITICAL','MEANING_CHANGE','English "Reviewed and Approved" became "প্রস্তুত" (Ready). Ready is not approved.','পর্যালোচনা ও অনুমোদন করা হয়েছে'),
  'document.status.quarantined': ('HIGH','WEAKER_CLAIM','English "Held for Safety"; "চিহ্নিত" only means marked. The hold is lost.','নিরাপত্তার জন্য আটকে রাখা হয়েছে'),
  'document.status.pending': ('HIGH','WRONG_TERM','"মুলতুবি" means adjourned or postponed; English says waiting to be checked.','পরীক্ষার অপেক্ষায়'),
- 'document.processing.normalizing': ('HIGH','WRONG_TERM','"যাচাই" is the word for verify. English is a file check, which uses "পরীক্ষা".','ফাইল পরীক্ষা করা হচ্ছে'),
- 'document.processing.extracting': ('MEDIUM','MEANING_CHANGE','English "Reading the File"; "প্রক্রিয়াকরণ" says processing, which is vaguer.','ফাইল পড়া হচ্ছে'),
+ 'document.processing.normalizing': ('HIGH','WRONG_TERM','"যাচাই" is the word for verify. English is a file check, which uses "পরীক্ষা".','ডকুমেন্ট পরীক্ষা করা হচ্ছে'),
+ 'document.processing.extracting': ('MEDIUM','MEANING_CHANGE','English "Reading the File"; "প্রক্রিয়াকরণ" says processing, which is vaguer.','ডকুমেন্ট পড়া হচ্ছে'),
  'mission.readiness.missing': ('HIGH','MEANING_CHANGE','English counts requirements. Bengali says required documents, which narrows the meaning.','{count}টি প্রয়োজনীয়তা এখনও বাকি'),
  'mission.readiness.ready': ('HIGH','MEANING_CHANGE','English "required items"; Bengali says required documents.','প্রয়োজনীয় সব আইটেম দেওয়া হয়েছে।'),
  'mission.readiness.needsReview': ('MEDIUM','MEANING_CHANGE','"বিষয়" (matters) replaces requirements.','{count}টি প্রয়োজনীয়তা নিশ্চিত করতে আরও তথ্য লাগবে।'),
  'grant.status.paused': ('HIGH','WRONG_TERM','"বিরত" means abstained or refrained, not paused.','স্থগিত'),
  'grant.pending': ('HIGH','AMBIGUOUS','Reads as "{recipient} is waiting to receive". English: waiting for {recipient} to accept.','{recipient}-এর গ্রহণের অপেক্ষায়।'),
  'document.quarantined': ('LOW','TERMINOLOGY_INCONSISTENT','Uses "নথি" while the glossary and neighbouring corrected rows use ডকুমেন্ট; one screen would show both words.','এই ডকুমেন্ট চিহ্নিত করা হয়েছে এবং আপনার মনোযোগ দরকার।'),
- 'mission.readiness.manualOnly': ('LOW','OWNER_DECISION_TERM','Correct meaning. The owner chose ফাইল for "case" on 2026-11-12, so কেস changes.','এই ফাইলটি স্বয়ংক্রিয়ভাবে মূল্যায়ন করা হয় না।'),
+ 'mission.readiness.manualOnly': ('LOW','OWNER_DECISION_TERM','Correct meaning. The owner chose ফাইল for "case" on 2026-11-12; it is written ভিসা ফাইল so it cannot be read as an uploaded file.','এই ভিসা ফাইলটি স্বয়ংক্রিয়ভাবে মূল্যায়ন করা হয় না।'),
  'consent.ai.title': ('MEDIUM','TERMINOLOGY','"নিষ্কাশন" is a technical Sanskritised word with a drainage sense. Plain wording: AI reading information from a document.','ডকুমেন্ট থেকে এআই-এর তথ্য পড়ার সম্মতি'),
  'consent.ocr.title': ('LOW','TERMINOLOGY','"ওসিআর" is jargon. Keep only if the English keeps OCR.','এআই দিয়ে লেখা পড়ার সম্মতি (ওসিআর)'),
  'consent.issuerContact.title': ('LOW','TERMINOLOGY','Reads as a contact between issuers. Clearer: consent to contact the issuing body.','ইস্যুকারী প্রতিষ্ঠানের সঙ্গে যোগাযোগের সম্মতি'),

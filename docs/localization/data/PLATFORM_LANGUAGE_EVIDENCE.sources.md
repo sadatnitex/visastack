@@ -56,3 +56,23 @@ Companion to PLATFORM_LANGUAGE_EVIDENCE.raw.csv. One line per source: what was t
 - Product-attested (first three evidence types): Firefox string resources (bn and bn-BD folders) and Google sign-in pages (hl=bn). Everything else is UNVERIFIED or CONTEXTUAL_ANALOGY.
 - Blocked hosts: facebook.com, bkash.com, mygov.bd, epassport.gov.bd, pathao.com, drive.google.com, www.google.com, workspace.google.com, myaccount.google.com, support.google.com, support.microsoft.com, aka.ms, mozilla-l10n.github.io, wiki.mozilla.org, github.com HTML and the GitHub contents API. To reach them the session's allowed network domains would need to include them.
 - Intents with no Firefox or Google match (no honest row written): Sign up (Firefox), Forgot password, Reset password, Upload, Invite, Decline (only a prompt-button match), Consent, Scan a file, Version, Pending (only Paused/Starting), Optional, Review, Filter, Copy link (only Copy Download Link), Delete all data (only Remove All Passwords), Date of birth, Phone number, Country, Family member, Guardian, Team member, Role, Checklist, Appointment, Payment, Receipt, Plan/Subscription.
+
+
+## Second pass, 2026-11-12 (orchestrating session)
+
+Re-test with `curl -L` and a browser user agent:
+
+| URL | Result |
+|---|---|
+| facebook.com/login, bn-in.facebook.com | no connection (000) |
+| bkash.com/bn | no connection (000) |
+| pathao.com/bn | no connection (000) |
+| mygov.bd | no connection (000) |
+| epassport.gov.bd | no connection (000) |
+| support.google.com/accounts/answer/32050?hl=bn | no connection (000) |
+| accounts.google.com/signin?hl=bn | 200, about 946 KB. All 17 Google rows reproduced when redirects are followed (an earlier re-check without `-L` got only a redirect and wrongly downgraded them) |
+| microsoft.com Terminology search | 403 |
+| learn.microsoft.com style-guide index | 200, English only |
+| raw.githubusercontent.com Firefox string files | 200; all 248 Firefox rows reproduced |
+
+Re-verification is scripted in `tools/evidence-verify.py`.

@@ -24,7 +24,7 @@ Each row is a set of different facts. A translation must give each English word 
 | | Approved | A person approved an AI suggestion. Never a visa decision | অনুমোদিত | গ্রহণ, যাচাই, নিশ্চিত |
 | | Confirmed | A person confirmed a choice | নিশ্চিত করা হয়েছে | অনুমোদিত, যাচাই |
 | | Ready | Ready for the person to use or send | প্রস্তুত | জমা, অনুমোদিত |
-| File safety | File format checked | Type and structure looked at | ফাইলের ধরন পরীক্ষা করা হয়েছে | পরিষ্কার (clean), নিরাপদ (safe), স্ক্যান, ভাইরাস |
+| File safety | File format checked | Type and structure looked at | ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে | পরিষ্কার (clean), নিরাপদ (safe), স্ক্যান, ভাইরাস |
 | | Antivirus scanned | A real antivirus scan ran. Today most screens do not claim this | স্ক্যান করা হয়েছে (only where English says scan) | |
 | | Held for safety | The file exists but is held back from use | নিরাপত্তার জন্য আটকে রাখা হয়েছে | মুছে, বাতিল (deleted, cancelled), কোয়ারেন্টাইন unless English says quarantine |
 | Requirement level | Mandatory | Always needed | বাধ্যতামূলক | ঐচ্ছিক, প্রস্তাবিত |
@@ -45,7 +45,7 @@ Each row is a set of different facts. A translation must give each English word 
 | | Downloaded copy already retained | A copy someone saved earlier still exists | আগে ডাউনলোড করা কপি | a promise that revoking removes it |
 | Copies | Current copy / earlier document / replaced copy / exact copy / pinned | See `docs/localization/data/BN_BD_CORE_GLOSSARY.csv` T080 to T084 | বর্তমান কপি / আগের ডকুমেন্ট / প্রতিস্থাপিত কপি / হুবহু কপি / নির্দিষ্ট করা | সংস্করণ, ভার্সন, any "Version 2" idea, for document copies. Where the English really says version (a snapshot number, a published checklist pack, a product release), keep the version idea; replacing it with কপি changes the meaning |
 | Country roles | Nationality / residence / destination / where you apply | Four different facts | জাতীয়তা / বসবাসের দেশ / গন্তব্য / যেখান থেকে আবেদন করবেন | using one for another |
-| Data actions | Legal hold is আইনি হোল্ড and never সংরক্ষণ (the word for Saved). Export data / share access / download original / safe copy / archive / delete / permanent erasure | Different actions with different effects. Erasure is not available under a legal hold | এক্সপোর্ট / শেয়ার / মূল ফাইল / নিরাপদ কপি / আর্কাইভ / মুছে ফেলুন / স্থায়ীভাবে মুছে ফেলুন | merging any two |
+| Data actions | Legal hold is আইনি হোল্ড and never সংরক্ষণ (the word for Saved). Export data / share access / download original / safe copy / archive / delete / permanent erasure | Different actions with different effects. Erasure is not available under a legal hold | এক্সপোর্ট / শেয়ার / মূল ডকুমেন্ট / নিরাপদ কপি / আর্কাইভ / মুছে ফেলুন / স্থায়ীভাবে মুছে ফেলুন | merging any two |
 
 The word নিরাপদ is allowed only inside the product noun "Safe copy" (নিরাপদ কপি), where the English says safe. It must never describe a format check, a file or a document.
 
@@ -75,7 +75,7 @@ A draft with any of these must not be released. Each has an automated check wher
 - Sign in is সাইন ইন (Firefox and Google Bengali use it; see the platform evidence file). Create account is অ্যাকাউন্ট তৈরি করুন.
 - Blame free errors: "কিছু একটা সমস্যা হয়েছে". Google Bengali uses "কিছু ভুল হয়েছে"; the editor may keep that, but never "আপনি ভুল করেছেন".
 - Digits (owner decision 2026-11-12): Bengali digits in prose. Identifiers a person types or reads back (passport number, document number, codes, email addresses) keep their original characters. Counts, dates, times and amounts come from the bn-BD locale formatter, which gives Bengali digits and lakh grouping by default. The checker warns on Latin digits in prose (`WARN_LATIN_DIGITS`).
-- The word for a case (owner decision 2026-11-12) is ফাইল. Uploaded files are also ফাইল. Where one sentence holds both ideas, keep the case as ফাইল and call the upload ডকুমেন্ট or আপলোড করা ফাইল; such strings are listed in `data/CASE_FILE_COLLISION_REVIEW.csv`.
+- The word for a case (owner decision 2026-11-12) is ফাইল, written ভিসা ফাইল in every draft so it cannot be read as an uploaded file. Uploaded evidence is ডকুমেন্ট, or আপলোড করা ডকুমেন্ট where the upload must be named. Bare ফাইল is not used for either object and the checker rejects it (`CASE_UPLOAD_AMBIGUITY`). The navigation label Documents is ডকুমেন্টস (`NAV_DOCUMENTS`). নথি is not used; দলিল is used only for real deeds. Strings holding both objects are listed in `data/CASE_FILE_COLLISION_REVIEW.csv`.
 - Sentence end: the danda "।". No letter-spacing, no forced capitals, no italic or faux bold. Allow line height of at least 1.6 for Bengali matras and conjuncts, and never cut text inside a conjunct.
 - The English display rule of Title Case Terms and sentence case sentences does not apply to Bengali (no letter case); the product's title-casing function must be skipped for Bengali.
 

@@ -15,5 +15,13 @@
     "legal_reviewer_note": "Recorded as the owner's own decision. The brief says an owner as editor is not a substitute for a qualified legal reviewer where one is needed; the owner has chosen to act as both. Nothing has been reviewed yet.",
     "first_language": "bn-BD",
     "first_language_note": "Bengali ships first. ar, fr, de, es and zh-Hans remain not started and are not justified until the owner names another launch locale."
+  },
+  "follow_up_2026-11-12": {
+    "case_written_as": "ভিসা ফাইল (head word ফাইल per owner decision; the qualifier is added wherever the bare word could be read as an uploaded file)",
+    "uploaded_evidence": "ডকুমেন্ট, or আপলোড করা ডকুমেন্ট where the upload must be named",
+    "bare_file_rule": "Bare ফাইল is not used for either object in the register; the checker rejects it (CASE_UPLOAD_AMBIGUITY)",
+    "navigation_documents": "The English navigation label Documents is ডকুমেন্টস",
+    "format_wording": "File format checked is ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে (not ফাইলের ধরন, which now reads as the visa file)",
+    "legal_quotations": "দলিল is kept only for real deeds (Property Deed, Sale Deed)"
   }
 }

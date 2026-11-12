@@ -10,10 +10,10 @@ rows = [
 ("T005","Send","পাঠান","G1_state","পাঠা|পাঠিয়ে","জমা|সংরক্ষণ",""),
 ("T006","Sent","পাঠানো হয়েছে","G1_state","পাঠানো|পাঠিয়ে|পাঠা","জমা|সংরক্ষণ|পাওয়া","Delivery is not implied."),
 ("T007","Received","পাওয়া হয়েছে","G1_state","পাওয়া|পেয়ে|পেল|হাতে","পাঠানো|জমা|গ্রহণ","Means the other side has it. Not 'Accepted'."),
-("T008","Review","পর্যালোচনা করুন","G1_state","পর্যালোচ","যাচাই|অনুমোদন",""),
+("T008","Review","পর্যালোচনা করুন","G1_state","পর্যালোচ|দেখে নিন|দেখুন|দেখতে|দেখে","যাচাই|অনুমোদন",""),
 ("T009","Reviewed","পর্যালোচনা করা হয়েছে","G1_state","পর্যালোচ","যাচাই|অনুমোদিত|নিশ্চিত","A person looked at it. It does not mean approved or verified."),
 ("T010","Accept","গ্রহণ করুন","G1_state","গ্রহণ","অনুমোদন|নিশ্চিত","Invitation or grant acceptance."),
-("T011","Accepted","গ্রহণ করা হয়েছে","G1_state","গ্রহণ","অনুমোদিত|পাওয়া|নিশ্চিত","Accepted an invitation. Not 'Approved'."),
+("T011","Accepted","গ্রহণ করা হয়েছে","G1_state","গ্রহণ|গৃহীত","অনুমোদিত|পাওয়া|নিশ্চিত","Accepted an invitation. Not 'Approved'."),
 ("T012","Verify","যাচাই করুন","G1_state","যাচাই","পরীক্ষা|অনুমোদন",""),
 ("T013","Verified","যাচাই করা হয়েছে","G1_state","যাচাই","পরীক্ষা|অনুমোদিত","Keep exactly what English verified (for example an email address). Never imply official-source or government verification unless English says so."),
 ("T014","Approve","অনুমোদন করুন","G1_state","অনুমোদন","গ্রহণ|যাচাই|নিশ্চিত","A person approves an AI suggestion. Not a visa approval."),
@@ -25,7 +25,7 @@ rows = [
 ("T020","Rejected","প্রত্যাখ্যাত","G1_state","প্রত্যাখ্যা","","A person or agency declined an item. Not a visa refusal unless English says so."),
 ("T021","Failed","ব্যর্থ হয়েছে","G1_state","ব্যর্থ","",""),
 # --- G2 file safety: check / scan / hold are three different things
-("T030","Format checked","ফাইলের ধরন পরীক্ষা করা হয়েছে","G2_safety","পরীক্ষা","স্ক্যান|ভাইরাস|নিরাপদ","Only the file type and structure were looked at. Must never read as a virus scan or as 'safe'."),
+("T030","Format checked","ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে","G2_safety","পরীক্ষা","স্ক্যান|ভাইরাস|নিরাপদ","Only the file type and structure were looked at. Must never read as a virus scan or as 'safe'."),
 ("T031","Waiting to be checked","পরীক্ষার অপেক্ষায়","G2_safety","পরীক্ষা","স্ক্যান|ভাইরাস",""),
 ("T032","Being checked","পরীক্ষা করা হচ্ছে","G2_safety","পরীক্ষা","স্ক্যান|ভাইরাস",""),
 ("T033","Held for safety","নিরাপত্তার জন্য আটকে রাখা হয়েছে","G2_safety","আটকে|আটক","মুছে|বাতিল","The file is not deleted. It is held back from use."),
@@ -35,7 +35,7 @@ rows = [
 # --- G3 requirement levels
 ("T040","Mandatory","বাধ্যতামূলক","G3_level","বাধ্যতামূলক","ঐচ্ছিক|প্রস্তাবিত",""),
 ("T041","Mandatory if applicable","প্রযোজ্য হলে বাধ্যতামূলক","G3_level","প্রযোজ্য হলে","ঐচ্ছিক","Keep the condition. Do not shorten to 'mandatory'."),
-("T042","Required","আবশ্যক","G3_level","আবশ্যক|প্রয়োজন|বাধ্যতামূলক|লাগবে|দরকার","ঐচ্ছিক","Form fields and rules. Same strength as mandatory."),
+("T042","Required","আবশ্যক","G3_level","আবশ্যক|প্রয়োজন|বাধ্যতামূলক|লাগবে|লাগে|দরকার|হবে","ঐচ্ছিক","Form fields and rules. Same strength as mandatory."),
 ("T043","One of several","এগুলোর যেকোনো একটি দিলেই চলবে","G3_level","একটি","সবগুলো","Alternatives: any one is enough. Never read as 'all of these are required'."),
 ("T044","Recommended","প্রস্তাবিত","G3_level","প্রস্তাবিত","বাধ্যতামূলক|আবশ্যক","Helpful but not required."),
 ("T045","Optional","ঐচ্ছিক","G3_level","ঐচ্ছিক","বাধ্যতামূলক|আবশ্যক",""),
@@ -58,7 +58,7 @@ rows = [
 ("T065","Revoked","প্রত্যাহার করা হয়েছে","G5_share","প্রত্যাহার","মুছে|মেয়াদ","Access was withdrawn. A copy already downloaded may still exist."),
 ("T066","Expired","মেয়াদ শেষ হয়েছে","G5_share","মেয়াদ","প্রত্যাহার",""),
 ("T067","Invitation","আমন্ত্রণ","G5_share","আমন্ত্রণ","",""),
-("T068","Invite","আমন্ত্রণ জানান","G5_share","আমন্ত্রণ","",""),
+("T068","Invite","আমন্ত্রণ জানান","G5_share","আমন্ত্রণ|আমন্ত্রিত","",""),
 ("T069","Link opened","লিংক খোলা হয়েছে","G5_share","খোলা","গ্রহণ|অনুমোদন","Opening a link does not give access. Only accepting does."),
 ("T070","Access accepted","অ্যাক্সেস গ্রহণ করা হয়েছে","G5_share","গ্রহণ","খোলা",""),
 ("T071","Already downloaded copy","আগে ডাউনলোড করা কপি","G5_share","ডাউনলোড","","Revoking access cannot take back a copy someone already kept."),
@@ -75,13 +75,13 @@ rows = [
 ("T093","Where you apply","যেখান থেকে আবেদন করবেন","G7_country","আবেদন","গন্তব্য","The consular place of application. It can differ from residence."),
 # --- G8 data actions
 ("T100","Download","ডাউনলোড করুন","G8_data","ডাউনলোড","",""),
-("T101","Original file","মূল ফাইল","G8_data","মূল","কপি|নিরাপদ",""),
+("T101","Original file","মূল ডকুমেন্ট","G8_data","মূল","কপি|নিরাপদ",""),
 ("T102","Export","এক্সপোর্ট করুন","G8_data","এক্সপোর্ট","",""),
 ("T103","Archive","আর্কাইভ","G8_data","আর্কাইভ","মুছে",""),
 ("T104","Delete","মুছে ফেলুন","G8_data","মুছে","স্থায়ী",""),
 ("T105","Erase permanently","স্থায়ীভাবে মুছে ফেলুন","G8_data","স্থায়ী","",""),
 ("T106","Legal hold","আইনি হোল্ড আছে","G8_data","আইনি","সংরক্ষণ|জমা","Under a hold, erasure is not available. Legal review required."),
-("T107","Remove","সরান","G8_data","সরা|সরান|অপসারণ|মুছে","",""),
+("T107","Remove","সরান","G8_data","সরা|সরান|সরিয়ে|সরে|অপসারণ|মুছে","",""),
 # --- people and objects
 ("T110","Traveller","ভ্রমণকারী","people","ভ্রমণকারী","",""),
 ("T111","Family member","পরিবারের সদস্য","people","পরিবার","",""),
@@ -89,20 +89,21 @@ rows = [
 ("T113","Minor","অপ্রাপ্তবয়স্ক","people","অপ্রাপ্তবয়স্ক","",""),
 ("T114","Agency","এজেন্সি","people","এজেন্সি","",""),
 ("T115","Team member","টিমের সদস্য","people","সদস্য","",""),
-("T116","Case manager","ফাইল ম্যানেজার","people","ম্যানেজার","",""),
+("T116","Case manager","ভিসা ফাইল ম্যানেজার","people","ম্যানেজার","",""),
 ("T117","Client","ক্লায়েন্ট","people","ক্লায়েন্ট","",""),
 ("T118","Guest","অতিথি","people","অতিথি","",""),
 ("T119","Contributor","সহযোগী","people","সহযোগী","",""),
 ("T120","Profile","প্রোফাইল","objects","প্রোফাইল","",""),
-("T121","Document","ডকুমেন্ট","objects","ডকুমেন্ট","দলিল","Everyday word in Bangladesh. 'দলিল' means a deed and must not be used."),
+("T121","Document","ডকুমেন্ট","objects","ডকুমেন্ট","দলিল|নথি","Everyday word in Bangladesh. 'দলিল' means a deed and is used only for real deeds. Uploaded evidence is ডকুমেন্ট or আপলোড করা ডকুমেন্ট, never bare ফাইল."),
+("T121b","Documents (navigation label)","ডকুমেন্টস","objects","ডকুমেন্টস","","Standard Bengali navigation term for the English label Documents (owner decision 2026-11-12)."),
 ("T122","Document wallet","ডকুমেন্ট ওয়ালেট","objects","ওয়ালেট","",""),
-("T123","Case","ফাইল","objects","ফাইল","","Owner decision 2026-11-12. 'Case' is a VisaStack word for one visa preparation. Uploaded files are also ফাইল: see data/CASE_FILE_COLLISION_REVIEW.csv."),
+("T123","Case","ভিসা ফাইল","objects","ভিসা ফাইল","","Owner decision 2026-11-12: the case is ফাইল; written ভিসা ফাইল so it cannot be read as an uploaded file. 'Case' is a VisaStack word for one visa preparation. Uploaded files are also ফাইল: see data/CASE_FILE_COLLISION_REVIEW.csv."),
 ("T124","Checklist","চেকলিস্ট","objects","চেকলিস্ট","",""),
 ("T125","Appointment","অ্যাপয়েন্টমেন্ট","objects","অ্যাপয়েন্টমেন্ট","",""),
 ("T126","Reminder","রিমাইন্ডার","objects","রিমাইন্ডার","",""),
 ("T127","Passport","পাসপোর্ট","objects","পাসপোর্ট","",""),
 ("T128","Date of birth","জন্মতারিখ","objects","জন্ম","",""),
-("T129","Name","নাম","objects","নাম","",""),
+("T129","Name","নাম","objects","নাম|পদবি","",""),
 ("T130","Address","ঠিকানা","objects","ঠিকানা","",""),
 ("T131","Phone number","ফোন নম্বর","objects","ফোন","",""),
 ("T132","Email address","ইমেইল ঠিকানা","objects","ইমেইল","",""),
@@ -141,7 +142,7 @@ rows = [
 ]
 with open('docs/localization/data/BN_BD_CORE_GLOSSARY.csv','w',newline='',encoding='utf-8') as f:
     w=csv.writer(f,quoting=csv.QUOTE_MINIMAL)
-    w.writerow(["term_id","english","bn_bd_proposed","semantic_group","bn_must_contain_any_of","bn_must_not_contain_any_of","usage_note","evidence_quality","attested_by","reviewer","release_state"])
+    w.writerow(["term_id","english","bn_bd_proposed","semantic_group","bn_must_contain_any_of","bn_must_not_contain_any_of","usage_note","evidence_quality","attested_by","attestation_class","observed_forms","reviewer","release_state"])
     for r in rows:
-        w.writerow([*r,"VISASTACK_RECOMMENDED","","UNREVIEWED","DRAFT_NOT_FOR_RELEASE"])
+        w.writerow([*r,"VISASTACK_RECOMMENDED","","LLM_RECOMMENDATION","","ASSIGNED_TO_OWNER_NOT_REVIEWED","DRAFT_NOT_FOR_RELEASE"])
 print(len(rows),"terms")
