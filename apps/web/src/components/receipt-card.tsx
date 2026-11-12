@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useId, useMemo, useRef } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 import { Icon } from './icons';
 import { ReferenceCode } from './reference-code';
 
@@ -90,6 +92,7 @@ export function ReceiptCard({
    */
   readonly onlyIfIdle?: boolean;
 }) {
+  const t = useT(componentsCatalog);
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   const card = useRef<HTMLElement>(null);
@@ -129,7 +132,7 @@ export function ReceiptCard({
       <dl className="receipt-facts">
         {when ? (
           <div>
-            <dt>When</dt>
+            <dt>{t.node('components.receiptCard.when')}</dt>
             <dd>
               <time dateTime={new Date(at).toISOString()}>{when}</time>
             </dd>
@@ -144,7 +147,10 @@ export function ReceiptCard({
       </dl>
       {reference ? (
         <p className="receipt-reference">
-          <ReferenceCode code={reference.code} label={reference.label ?? 'Reference'} />
+          <ReferenceCode
+            code={reference.code}
+            label={reference.label ?? t('components.receiptCard.reference')}
+          />
         </p>
       ) : null}
       {honestLine ? <p className="receipt-honest">{honestLine}</p> : null}
@@ -165,7 +171,7 @@ export function ReceiptCard({
             requestAnimationFrame(() => returnFocusTo?.()?.focus());
           }}
         >
-          Done
+          {t.node('components.receiptCard.done')}
         </button>
       </div>
     </section>

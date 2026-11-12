@@ -1,7 +1,7 @@
 /**
  * Message syntax: `{token}` interpolation plus a small ICU plural subset:
  * `{count, plural, one {# item} other {# items}}`. `#` is the number, formatted
- * for the locale. A numeric `{token}` is formatted by the message language (see formatToken). Exact matches (`=0 {...}`) win over plural categories.
+ * like a `{token}` number (English exactly as written, Bengali digits in Bengali). A numeric `{token}` is formatted by the message language (see formatToken). Exact matches (`=0 {...}`) win over plural categories.
  * Unknown tokens are left intact. No dependency beyond `Intl`.
  */
 
@@ -88,7 +88,7 @@ export function formatMessage(
           branches.get(`=${value}`) ??
           branches.get(new Intl.PluralRules(localeTag).select(value)) ??
           (branches.get('other') as string);
-        const number = new Intl.NumberFormat(localeTag).format(value);
+        const number = formatToken(value, localeTag);
         out += formatMessage(body, params, localeTag, number);
       } else {
         out += whole;

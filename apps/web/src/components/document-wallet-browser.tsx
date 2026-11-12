@@ -2,11 +2,13 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import { DEPTH_PHONE_QUERY } from '../lib/ccd/depth';
 import { formatTimestampDate } from '../lib/format-date';
 import { documentMark } from '../lib/item-icons';
 import { agree, plural } from '../lib/plural';
 import { useMediaQuery } from '../lib/use-popover';
+import { useT } from './i18n-provider';
 import { Icon } from './icons';
 import { ListFilterBar } from './list-pattern';
 import { useSheetBehaviour } from './list-pattern/use-sheet';
@@ -107,6 +109,7 @@ export function DocumentWalletBrowser({
   readonly documents: readonly WalletBrowserDocument[];
   readonly initialSelection?: string;
 }) {
+  const t = useT(componentsCatalog);
   const [selectedId, setSelectedId] = useState(initialSelection ?? documents[0]?.id ?? '');
   // On a phone the chosen document opens as a full screen of its own, with one way back. A link
   // that names a document (a reminder) opens it straight away. Larger screens keep the side panel.
@@ -175,7 +178,10 @@ export function DocumentWalletBrowser({
     <>
       {/* Four zeros say nothing: with no documents at all the empty state below is the whole screen. */}
       {documents.length > 0 ? (
-        <div className="wallet-overview-strip" aria-label="Document state filters">
+        <div
+          className="wallet-overview-strip"
+          aria-label={t('components.documentWalletBrowser.documentStateFilters')}
+        >
           {(Object.entries(FILTER_LABELS) as [Filter, string][]).map(([key, label]) => (
             <button
               key={key}
@@ -194,7 +200,10 @@ export function DocumentWalletBrowser({
         </div>
       ) : null}
       <div className="document-wallet-layout">
-        <section className="card document-wallet-list" aria-label="Document metadata list">
+        <section
+          className="card document-wallet-list"
+          aria-label={t('components.documentWalletBrowser.documentMetadataList')}
+        >
           {documents.length > 0 ? (
             <ListFilterBar
               rows={documents.length}
@@ -209,7 +218,9 @@ export function DocumentWalletBrowser({
               searchLabel="Search Documents"
             >
               <label>
-                <span className="sr-only">Category</span>
+                <span className="sr-only">
+                  {t.node('components.documentWalletBrowser.category')}
+                </span>
                 <select
                   className="input"
                   value={category}
@@ -218,13 +229,17 @@ export function DocumentWalletBrowser({
                     setPage(0);
                   }}
                 >
-                  <option value="all">All Categories</option>
+                  <option value="all">{t('components.documentWalletBrowser.allCategories')}</option>
                   {categories.map((value) => (
                     <option key={value} value={value}>
                       {value}
                     </option>
                   ))}
-                  {notSorted > 0 ? <option value={NOT_SORTED}>Not Set Yet</option> : null}
+                  {notSorted > 0 ? (
+                    <option value={NOT_SORTED}>
+                      {t('components.documentWalletBrowser.notSetYet')}
+                    </option>
+                  ) : null}
                 </select>
               </label>
             </ListFilterBar>
@@ -235,14 +250,16 @@ export function DocumentWalletBrowser({
                 <Icon name="alert" size={18} />
               </span>
               <span className="wallet-nokind-title">
-                {notSorted} {agree(notSorted, 'Needs', 'Need')} a Kind
+                {t.node('components.documentWalletBrowser.notsortedAgreeAKind', {
+                  notSorted,
+                })}
               </span>
               <details className="wallet-why">
-                <summary>Why?</summary>
+                <summary>{t.node('components.documentWalletBrowser.why')}</summary>
                 <p>
-                  {notSorted} document{notSorted === 1 ? ' has' : 's have'} no kind set yet, so{' '}
-                  {notSorted === 1 ? 'it is' : 'they are'} in no category and left out when you
-                  share by category. Open a document and choose its kind.
+                  {t.node('components.documentWalletBrowser.notsortedDocumentsHaveNoKindSet', {
+                    notSorted,
+                  })}
                 </p>
               </details>
               <button
@@ -253,7 +270,9 @@ export function DocumentWalletBrowser({
                   setPage(0);
                 }}
               >
-                {category === NOT_SORTED ? 'Show All' : `Show ${notSorted === 1 ? 'It' : 'Them'}`}
+                {category === NOT_SORTED
+                  ? t.node('components.documentWalletBrowser.showAll')
+                  : t.node('components.documentWalletBrowser.showThem', { notSorted })}
               </button>
             </div>
           ) : null}
@@ -305,7 +324,7 @@ export function DocumentWalletBrowser({
                     {doc.manage ? <div className="wallet-document-manage">{doc.manage}</div> : null}
                     {selectedId === doc.id ? (
                       <a className="wallet-detail-jump" href="#wallet-selected-document">
-                        View Selected Details →
+                        {t.node('components.documentWalletBrowser.viewSelectedDetails')}
                       </a>
                     ) : null}
                   </li>
@@ -315,7 +334,11 @@ export function DocumentWalletBrowser({
           ) : (
             <EmptyState
               art="documents"
-              title={documents.length ? 'No Documents Match' : 'No Documents Yet'}
+              title={
+                documents.length
+                  ? t('components.documentWalletBrowser.noDocumentsMatch')
+                  : t('components.documentWalletBrowser.noDocumentsYet')
+              }
               {...(documents.length
                 ? {}
                 : {
@@ -327,19 +350,22 @@ export function DocumentWalletBrowser({
                   })}
             >
               {documents.length
-                ? 'Clear the search or choose another category or status.'
-                : 'Add each paper once.'}
+                ? t.node('components.documentWalletBrowser.clearTheSearchOrChooseAnother')
+                : t.node('components.documentWalletBrowser.addEachPaperOnce')}
             </EmptyState>
           )}
           {pageCount > 1 ? (
-            <div className="wallet-pagination" aria-label="Document pages">
+            <div
+              className="wallet-pagination"
+              aria-label={t('components.documentWalletBrowser.documentPages')}
+            >
               <button
                 type="button"
                 className="btn btn-secondary"
                 disabled={activePage === 0}
                 onClick={() => setPage(activePage - 1)}
               >
-                Previous
+                {t.node('components.documentWalletBrowser.previous')}
               </button>
               <span className="wallet-page-count" data-value="page">
                 {activePage + 1} of {pageCount}
@@ -350,7 +376,7 @@ export function DocumentWalletBrowser({
                 disabled={activePage + 1 === pageCount}
                 onClick={() => setPage(activePage + 1)}
               >
-                Next
+                {t.node('components.documentWalletBrowser.next')}
               </button>
             </div>
           ) : null}
@@ -361,59 +387,63 @@ export function DocumentWalletBrowser({
           tabIndex={-1}
           className="card wallet-selected-document"
           data-sheet={sheetOpen ? 'open' : 'closed'}
-          aria-label="Selected document details"
+          aria-label={t('components.documentWalletBrowser.selectedDocumentDetails')}
           {...(sheetShown ? { role: 'dialog', 'aria-modal': true } : {})}
         >
           <div className="wallet-sheet-bar">
             <button type="button" className="btn btn-secondary" onClick={closeSheet}>
-              Back to Documents
+              {t.node('components.documentWalletBrowser.backToDocuments')}
             </button>
           </div>
-          <h2 className="wallet-selected-title">Selected Document</h2>
+          <h2 className="wallet-selected-title">
+            {t.node('components.documentWalletBrowser.selectedDocument')}
+          </h2>
           {selected ? (
             <>
               {!matches.some((doc) => doc.id === selected.id) ? (
-                <p className="muted">Your selected document is outside the current list filter.</p>
+                <p className="muted">
+                  {t.node('components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe')}
+                </p>
               ) : null}
               <div className="document-preview-placeholder">
                 <strong data-value="name">{selected.name}</strong>
-                {selected.previewAllowed ? null : <p>Preview is blocked for this file.</p>}
+                {selected.previewAllowed ? null : (
+                  <p>{t.node('components.documentWalletBrowser.previewIsBlockedForThisFile')}</p>
+                )}
               </div>
               {selected.details}
               <Link className="btn btn-secondary" href={`/app/applicant/${applicantId}/sharing`}>
-                Review Sharing Permissions
+                {t.node('components.documentWalletBrowser.reviewSharingPermissions')}
               </Link>
               <details className="docs-more wallet-about-file">
-                <summary>About This File</summary>
+                <summary>{t.node('components.documentWalletBrowser.aboutThisFile')}</summary>
                 {selected.previewAllowed ? null : (
-                  <p>
-                    Preview is blocked while this file is unsafe, still processing or otherwise
-                    unavailable.
-                  </p>
+                  <p>{t.node('components.documentWalletBrowser.previewIsBlockedWhileThisFile')}</p>
                 )}
                 {selected.aboutFile}
                 {selected.previewAllowed ? (
                   <p>
-                    Open the secure preview below. Permission and current safety are checked again
-                    before bytes are served.
+                    {t.node('components.documentWalletBrowser.openTheSecurePreviewBelowPermission')}
                   </p>
                 ) : null}
                 <p className="muted">
-                  File format is checked when the file is opened. A verified format is not recorded
-                  in this metadata view.
+                  {t.node('components.documentWalletBrowser.fileFormatIsCheckedWhenThe')}
                 </p>
                 <p className="wallet-ai-notice">
-                  Sharing requires consent, an exact reviewed scope and recipient acceptance. AI
-                  suggestions never update your profile until you approve them.
+                  {t.node('components.documentWalletBrowser.sharingRequiresConsentAnExactReviewed')}
                 </p>
               </details>
             </>
           ) : (
             <EmptyState
               icon="alert"
-              title={selectedId ? 'Selected Document Is Unavailable' : 'Choose a Document'}
+              title={
+                selectedId
+                  ? t('components.documentWalletBrowser.selectedDocumentIsUnavailable')
+                  : t('components.documentReviewPanel.chooseADocument')
+              }
             >
-              Select an available row to review its metadata and authorized actions.
+              {t.node('components.documentWalletBrowser.selectAnAvailableRowToReview')}
             </EmptyState>
           )}
         </aside>

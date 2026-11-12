@@ -99,7 +99,11 @@ describe('landmarks', () => {
 
   it('tells public and workspace navigation landmarks apart', () => {
     expect(read('layout.tsx')).toContain('<SiteNavigation>');
-    expect(read('../components/site-navigation.tsx')).toContain('aria-label="Site"');
+    // The label comes from the message catalogue; its English text is still "Site".
+    expect(read('../components/site-navigation.tsx')).toContain(
+      "aria-label={t('components.siteNavigation.site')}",
+    );
+    expect(read('../i18n/components.ts')).toContain("'components.siteNavigation.site': 'Site'");
     expect(read('layout.tsx')).toContain('aria-label="Footer"');
     // The label now comes from the message catalogue; its English text is still "Workspace".
     expect(read('app/app-nav.tsx')).toContain("aria-label={t('appHome.appAppNav.workspace')}");

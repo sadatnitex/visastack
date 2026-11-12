@@ -362,6 +362,7 @@ describe('holdback list', () => {
     'SG-0cb96f1d',
     'SG-0d5c8615',
     'SG-0eec3e1b',
+    'SG-0f35e0ea',
     'SG-0f9d5b37',
     'SG-1065be84',
     'SG-1167490a',
@@ -381,7 +382,9 @@ describe('holdback list', () => {
     'SG-1fec77cc',
     'SG-226bab50',
     'SG-22bda9c8',
+    'SG-237c256a',
     'SG-24776023',
+    'SG-24e6815a',
     'SG-2604b090',
     'SG-260ff35f',
     'SG-2b1514c9',
@@ -401,6 +404,7 @@ describe('holdback list', () => {
     'SG-3bf94aa3',
     'SG-3d6b855e',
     'SG-3fb2aa39',
+    'SG-41ac0866',
     'SG-426b883f',
     'SG-436b1b32',
     'SG-45ad6a0b',
@@ -417,6 +421,7 @@ describe('holdback list', () => {
     'SG-50c83703',
     'SG-515d1469',
     'SG-529d695c',
+    'SG-5431e93a',
     'SG-5463c56c',
     'SG-554ff162',
     'SG-57b3157f',
@@ -429,6 +434,7 @@ describe('holdback list', () => {
     'SG-5ca1af5a',
     'SG-5efa8d43',
     'SG-5f0ee722',
+    'SG-5f2daee2',
     'SG-5f596105',
     'SG-60e310fc',
     'SG-61e87632',
@@ -448,8 +454,10 @@ describe('holdback list', () => {
     'SG-6dc10a9f',
     'SG-6e5e6fff',
     'SG-711744f6',
+    'SG-718c2cbe',
     'SG-72d9142d',
     'SG-7393361c',
+    'SG-742d2250',
     'SG-750b0e73',
     'SG-76d5a28d',
     'SG-7739b95f',
@@ -478,6 +486,7 @@ describe('holdback list', () => {
     'SG-8d14d065',
     'SG-8d730501',
     'SG-8e79eb73',
+    'SG-8e9d31bd',
     'SG-8fd6641e',
     'SG-8fe742c5',
     'SG-93434b03',
@@ -508,6 +517,7 @@ describe('holdback list', () => {
     'SG-ac40a214',
     'SG-ad36e94f',
     'SG-aeff30b3',
+    'SG-af6e7d3f',
     'SG-afc89023',
     'SG-afe937a3',
     'SG-afed0db1',
@@ -524,6 +534,7 @@ describe('holdback list', () => {
     'SG-b9d38c86',
     'SG-ba0fbeb7',
     'SG-bd7b343f',
+    'SG-bf823720',
     'SG-c0b36ea9',
     'SG-c1fb8969',
     'SG-c26f3e5b',
@@ -564,6 +575,7 @@ describe('holdback list', () => {
     'SG-e432687f',
     'SG-e4498255',
     'SG-e4a97e33',
+    'SG-e4aa566a',
     'SG-e6123c0d',
     'SG-e7158ae3',
     'SG-e78bd437',
@@ -650,7 +662,7 @@ describe('the formatter used to prove English is unchanged', () => {
     const { name, format } = await loadFormatter();
     assert.equal(name, 'runtime');
     // The old stand-in turned every # into the number, even inside a nested {braces} message.
-    assert.equal(format('{n, plural, one {# item} other {# items}}', { n: 1234 }), '1,234 items');
+    assert.equal(format('{n, plural, one {# item} other {# items}}', { n: 1234 }), '1234 items');
   });
 
   test('a missing packages/i18n/src/icu.ts makes it throw instead of falling back to a copy', async () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import {
   COMMON_TIME_ZONES,
   type TimeZoneGroups,
@@ -10,6 +11,7 @@ import {
   listTimeZones,
   modernZoneId,
 } from '../lib/time-zones';
+import { useT } from './i18n-provider';
 
 /**
  * The full grouped list is about 420 zones, each formatted once. It is built at most once per page
@@ -56,6 +58,7 @@ export function TimeZoneSelect({
   required?: boolean;
   className?: string;
 }) {
+  const t = useT(componentsCatalog);
   const ownId = useId();
   const id = givenId ?? ownId;
   const select = useRef<HTMLSelectElement>(null);
@@ -128,10 +131,10 @@ export function TimeZoneSelect({
       value={value}
       onChange={(event) => setValue(event.target.value)}
     >
-      <option value="">Choose a Time Zone</option>
+      <option value="">{t('components.timeZoneSelect.chooseATimeZone')}</option>
       {full ? (
         <>
-          <optgroup label="Common">
+          <optgroup label={t('components.timeZoneSelect.common')}>
             {full.common.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
@@ -155,10 +158,12 @@ export function TimeZoneSelect({
               {extra.label}
             </option>
           ) : null}
-          <optgroup label="Common">
+          <optgroup label={t('components.timeZoneSelect.common')}>
             {COMMON_TIME_ZONES.map((zone) => (
               <option key={zone} value={zone}>
-                {zone === 'UTC' ? 'UTC' : (zone.split('/').pop() ?? zone).replaceAll('_', ' ')}
+                {zone === 'UTC'
+                  ? t('components.timeZoneSelect.utc')
+                  : (zone.split('/').pop() ?? zone).replaceAll('_', ' ')}
               </option>
             ))}
           </optgroup>

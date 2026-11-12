@@ -15,7 +15,9 @@ import {
   removeProfilePhotoAction,
   saveProfilePhotoAction,
 } from '../../app/app/profile-photo-actions';
+import { componentsProfilePhotoCatalog } from '../../i18n/components-profile-photo';
 import { FormMessage, type FormResult, NO_RESULT } from '../form-feedback';
+import { useT } from '../i18n-provider';
 import {
   type Crop,
   MAX_ZOOM,
@@ -65,6 +67,7 @@ export function ProfilePhotoControl({
   readonly photoUrl: string | null;
   readonly avatarClassName: string;
 }) {
+  const t = useT(componentsProfilePhotoCatalog);
   const [photoUrl, setPhotoUrl] = useState(initialUrl);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<FormResult>(NO_RESULT);
@@ -245,17 +248,20 @@ export function ProfilePhotoControl({
             }
           }}
         >
-          <h3 id={headingId}>Crop Your Photo</h3>
+          <h3 id={headingId}>
+            {t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.cropYourPhoto')}
+          </h3>
           <p id={helpId} className="muted">
-            Drag the photo, use the arrow keys or the move buttons to move it. Use the slider or the
-            plus and minus keys to zoom.
+            {t.node(
+              'componentsProfilePhoto.profilePhotoProfilePhotoControl.dragThePhotoUseTheArrow',
+            )}
           </p>
           {/* A button so it takes focus and keys natively; it has no click action of its own. */}
           <button
             ref={area}
             type="button"
             className="profile-photo-crop-area"
-            aria-label="Photo Position"
+            aria-label={t('componentsProfilePhoto.profilePhotoProfilePhotoControl.photoPosition')}
             aria-describedby={helpId}
             onKeyDown={onKeyDown}
             onPointerDown={onPointerDown}
@@ -282,7 +288,9 @@ export function ProfilePhotoControl({
               </button>
             ))}
           </div>
-          <label htmlFor={zoomId}>Zoom</label>
+          <label htmlFor={zoomId}>
+            {t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.zoom')}
+          </label>
           <input
             id={zoomId}
             type="range"
@@ -301,7 +309,9 @@ export function ProfilePhotoControl({
               aria-disabled={busy || undefined}
               onClick={save}
             >
-              {phase === 'saving' ? 'Saving Photo' : 'Save Photo'}
+              {phase === 'saving'
+                ? t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto')
+                : t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.savePhoto')}
             </button>
             <button
               type="button"
@@ -311,7 +321,7 @@ export function ProfilePhotoControl({
                 if (!busy) closeCrop();
               }}
             >
-              Cancel
+              {t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.cancel')}
             </button>
           </div>
         </section>
@@ -326,7 +336,9 @@ export function ProfilePhotoControl({
               if (!busy) fileInput.current?.click();
             }}
           >
-            {photoUrl ? 'Replace Photo' : 'Add Photo'}
+            {photoUrl
+              ? t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.replacePhoto')
+              : t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.addPhoto')}
           </button>
           {photoUrl ? (
             <button
@@ -335,7 +347,9 @@ export function ProfilePhotoControl({
               aria-disabled={busy || undefined}
               onClick={remove}
             >
-              {phase === 'removing' ? 'Removing Photo' : 'Remove Photo'}
+              {phase === 'removing'
+                ? t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto')
+                : t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.removePhoto')}
             </button>
           ) : null}
         </div>
@@ -347,8 +361,9 @@ export function ProfilePhotoControl({
         accept={ACCEPT}
         tabIndex={-1}
         aria-hidden="true"
-        aria-label="Photo File"
+        aria-label={t('componentsProfilePhoto.profilePhotoProfilePhotoControl.photoFile')}
         onChange={(event) => void onFile(event.target.files?.[0])}
+        {...t.lang('componentsProfilePhoto.profilePhotoProfilePhotoControl.photoFile')}
       />
       <FormMessage
         result={result}
