@@ -1,7 +1,6 @@
 import { catalogTranslator } from '@visastack/i18n';
 import { describe, expect, it } from 'vitest';
 import { keyedError } from '../errors';
-import { SAFE_COPY_TOO_LARGE_MESSAGE } from '../redaction';
 import { documentsBn, documentsEn } from './documents';
 import { serviceMessages } from './messages';
 
@@ -41,26 +40,6 @@ const OLD_ENGLISH: ReadonlyArray<readonly [keyof typeof documentsEn, string]> = 
     'documents.safeCopiesAreMadeOnlyThrough',
     'safe copies are made only through the safe copy route',
   ],
-  ['safeCopy.documentNotFound', 'document not found'],
-  ['safeCopy.thisDocumentIsTooLargeFor', 'This document is too large for a safe copy'],
-  ['safeCopy.thisPageTookTooLongTo', 'this page took too long to prepare'],
-  ['safeCopy.safeCopiesAreMadeFromPdf', 'safe copies are made from PDF files and photos only'],
-  ['safeCopy.thisFileCouldNotBeRead', 'this file could not be read for a safe copy'],
-  ['safeCopy.theSafeCopyIsNotPrepared', 'the safe copy is not prepared yet'],
-  ['safeCopy.safeCopiesAreNotReadyYet', 'safe copies are not ready yet'],
-  ['safeCopy.aNewerVersionOrNewerBoxes', 'a newer version or newer boxes have been saved'],
-  ['safeCopy.thisDocumentIsNotAvailableYet', 'this document is not available yet'],
-  ['safeCopy.accessDenied', 'access denied'],
-  ['safeCopy.onlyTheOwnerCanPrepareA', 'only the owner can prepare a safe copy'],
-  ['safeCopy.chooseAPageOfThisDocument', 'choose a page of this document'],
-  ['safeCopy.markEveryPageOfTheDocument', 'mark every page of the document'],
-  ['safeCopy.aPageCanHaveAtMost', 'a page can have at most 200 boxes'],
-  ['safeCopy.aBoxIsNotOnThe', 'a box is not on the page'],
-  ['safeCopy.theSuggestionCountDoesNotMatch', 'the suggestion count does not match the boxes'],
-  ['safeCopy.removeTheBoxesOrDoNot', 'remove the boxes, or do not choose nothing to hide'],
-  ['safeCopy.addABoxOrChooseNothing', 'add a box, or choose Nothing to Hide on This Document'],
-  ['safeCopy.onlyTheOwnerCanChangeA', 'only the owner can change a safe copy'],
-  ['safeCopy.recordNotFound', 'record not found'],
   ['photos.accessDenied', 'access denied'],
   [
     'photos.onlyTheOwnerOfThisProfile',
@@ -122,10 +101,6 @@ describe('document refusals keep their English', () => {
     ).toBe(
       '"Visa Slip" is not a known document type. Pick one from the list, or use "Other Document".',
     );
-  });
-
-  it('the exported too-large sentence is the catalogue English', () => {
-    expect(documentsEn['safeCopy.thisDocumentIsTooLargeFor']).toBe(SAFE_COPY_TOO_LARGE_MESSAGE);
   });
 
   it('Bangla exists only for keys that have English, and renders under bn', () => {

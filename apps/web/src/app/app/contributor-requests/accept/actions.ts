@@ -15,6 +15,7 @@ import {
   reserveUpload,
 } from '@visastack/services';
 import { after } from 'next/server';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import { triggerIntakeAndReading } from '../../../api/jobs/process-ai-reading/run';
@@ -134,7 +135,7 @@ export async function submitContributorEvidenceAction(
         if (!created.ok) {
           await storage.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
           await failUpload(db, intent.id, created.error.message);
-          return { ok: false, message: created.error.message };
+          return { ok: false, message: await serviceErrorMessage(created.error) };
         }
         return { ok: true, version: created.value };
       } catch (error) {

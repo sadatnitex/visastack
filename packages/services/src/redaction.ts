@@ -26,7 +26,7 @@ import {
   enqueueErasureJob,
   safeCopyDrawingIds,
 } from './erasure';
-import { type ServiceError, keyedError, serviceError } from './errors';
+import { type ServiceError, serviceError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import type { KeyManagementPort } from './ports';
 import type {
@@ -196,7 +196,7 @@ function ownerDocument(proof: AnyProof, action: 'PREVIEW' | 'MANAGE'): DocumentR
 
 /** The same answer as for a document that does not exist. */
 function notFound(): ServiceError {
-  return keyedError('not_found', 'safeCopy.documentNotFound');
+  return serviceError('not_found', 'document not found');
 }
 
 async function audit(
@@ -346,27 +346,27 @@ function failureRefusal(reason: SafeCopyFailureReason): SafeCopyRefusal {
 function refusalError(refusal: SafeCopyRefusal): SafeCopyError {
   switch (refusal) {
     case 'too_large':
-      return { ...keyedError('invalid', 'safeCopy.thisDocumentIsTooLargeFor'), refusal };
+      return { ...serviceError('invalid', SAFE_COPY_TOO_LARGE_MESSAGE), refusal };
     case 'too_slow':
-      return { ...keyedError('upstream_error', 'safeCopy.thisPageTookTooLongTo'), refusal };
+      return { ...serviceError('upstream_error', 'this page took too long to prepare'), refusal };
     case 'unsupported':
       return {
-        ...keyedError('invalid', 'safeCopy.safeCopiesAreMadeFromPdf'),
+        ...serviceError('invalid', 'safe copies are made from PDF files and photos only'),
         refusal,
       };
     case 'unreadable':
-      return { ...keyedError('invalid', 'safeCopy.thisFileCouldNotBeRead'), refusal };
+      return { ...serviceError('invalid', 'this file could not be read for a safe copy'), refusal };
     case 'not_prepared':
-      return { ...keyedError('forbidden', 'safeCopy.theSafeCopyIsNotPrepared'), refusal };
+      return { ...serviceError('forbidden', 'the safe copy is not prepared yet'), refusal };
     case 'not_ready_yet':
-      return { ...keyedError('upstream_error', 'safeCopy.safeCopiesAreNotReadyYet'), refusal };
+      return { ...serviceError('upstream_error', 'safe copies are not ready yet'), refusal };
     case 'out_of_date':
       return {
-        ...keyedError('stale', 'safeCopy.aNewerVersionOrNewerBoxes'),
+        ...serviceError('stale', 'a newer version or newer boxes have been saved'),
         refusal,
       };
     case 'not_available':
-      return { ...keyedError('forbidden', 'safeCopy.thisDocumentIsNotAvailableYet'), refusal };
+      return { ...serviceError('forbidden', 'this document is not available yet'), refusal };
   }
 }
 
@@ -491,9 +491,9 @@ export async function listRedactionStates(
   const genuine =
     AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
     AuthorizedApplicant.isGenuine(proof, 'DOWNLOAD_REDACTED');
-  if (!genuine) return err(keyedError('forbidden', 'safeCopy.accessDenied'));
+  if (!genuine) return err(serviceError('forbidden', 'access denied'));
   if (proof.action === 'DOWNLOAD_REDACTED' && proof.resource.kind !== 'document') {
-    return err(keyedError('forbidden', 'safeCopy.accessDenied'));
+    return err(serviceError('forbidden', 'access denied'));
   }
   const ids = [...new Set(versionIds)].slice(0, MAX_LISTED_VERSIONS);
   if (ids.length === 0) return ok(new Map());
@@ -585,7 +585,7 @@ export async function getSafeCopyState(
     !AuthorizedApplicant.isGenuine(proof, 'DOWNLOAD_REDACTED') ||
     proof.resource.kind !== 'document'
   ) {
-    return err(keyedError('forbidden', 'safeCopy.accessDenied'));
+    return err(serviceError('forbidden', 'access denied'));
   }
   const states = await listSafeCopyStatesForDocuments(proof);
   return ok(states.get(proof.resource.document.id) ?? 'NOT_PREPARED');
@@ -703,7 +703,7 @@ export async function openRedactionEditor(
   deps: RedactionDeps,
 ): Promise<Result<RedactionEditorView, SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
-  if (!document) return err(keyedError('forbidden', 'safeCopy.onlyTheOwnerCanPrepareA'));
+  if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
   if (!(await documentIsPresent(proof))) return err(notFound());
   const metadata = { variant: 'redaction_editor', disposition: 'preview' };
   const loaded = await loadForOwner(proof, document, deps, 'REDACTION_PAGE', metadata, undefined);
@@ -744,14 +744,14 @@ export async function renderRedactionPage(
   input: { readonly versionId: string; readonly page: number },
 ): Promise<Result<RenderedRedactionPage, SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
-  if (!document) return err(keyedError('forbidden', 'safeCopy.onlyTheOwnerCanPrepareA'));
+  if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
   if (!(await documentIsPresent(proof))) return err(notFound());
   if (
     !Number.isSafeInteger(input.page) ||
     input.page < 1 ||
     input.page > REDACTION_LIMITS.maxPages
   ) {
-    return err(keyedError('invalid', 'safeCopy.chooseAPageOfThisDocument'));
+    return err(serviceError('invalid', 'choose a page of this document'));
   }
   const metadata = { variant: 'redaction_page', disposition: 'preview', page: input.page };
   const loaded = await loadForOwner(
@@ -764,8 +764,7 @@ export async function renderRedactionPage(
   );
   if (!loaded.ok) return loaded;
   const { source, pageCount } = loaded.value;
-  if (input.page > pageCount)
-    return err(keyedError('invalid', 'safeCopy.chooseAPageOfThisDocument'));
+  if (input.page > pageCount) return err(serviceError('invalid', 'choose a page of this document'));
   const rendered = await deps.renderer.renderPage(source, input.page, budget());
   if (!rendered.ok) {
     reportRenderFailure('drawing an editor page', rendered);
@@ -1115,7 +1114,7 @@ export async function suggestRedactions(
   input: { readonly versionId: string },
 ): Promise<Result<readonly RedactionSuggestion[], SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
-  if (!document) return err(keyedError('forbidden', 'safeCopy.onlyTheOwnerCanPrepareA'));
+  if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
   if (!(await documentIsPresent(proof))) return err(notFound());
   const metadata = { variant: 'redaction_suggestions', disposition: 'preview' };
   const loaded = await loadForOwner(
@@ -1208,21 +1207,21 @@ export async function saveRedactionMasks(
   input: SaveRedactionMasksInput,
 ): Promise<Result<SavedRedaction, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
-  if (!document) return err(keyedError('forbidden', 'safeCopy.onlyTheOwnerCanPrepareA'));
+  if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
   if (!(await documentIsPresent(proof))) return err(notFound());
   if (input.pages.length < 1 || input.pages.length > REDACTION_LIMITS.maxPages) {
-    return err(keyedError('invalid', 'safeCopy.markEveryPageOfTheDocument'));
+    return err(serviceError('invalid', 'mark every page of the document'));
   }
   const pages: RedactionBox[][] = [];
   let acceptedSuggestions = 0;
   for (const page of input.pages) {
     if (page.boxes.length > REDACTION_LIMITS.maxBoxesPerPage) {
-      return err(keyedError('invalid', 'safeCopy.aPageCanHaveAtMost'));
+      return err(serviceError('invalid', 'a page can have at most 200 boxes'));
     }
     const boxes: RedactionBox[] = [];
     for (const value of page.boxes) {
       const box = parseRedactionBox(value);
-      if (!box) return err(keyedError('invalid', 'safeCopy.aBoxIsNotOnThe'));
+      if (!box) return err(serviceError('invalid', 'a box is not on the page'));
       boxes.push(box);
     }
     if (
@@ -1230,17 +1229,17 @@ export async function saveRedactionMasks(
       page.acceptedSuggestions < 0 ||
       page.acceptedSuggestions > boxes.length
     ) {
-      return err(keyedError('invalid', 'safeCopy.theSuggestionCountDoesNotMatch'));
+      return err(serviceError('invalid', 'the suggestion count does not match the boxes'));
     }
     acceptedSuggestions += page.acceptedSuggestions;
     pages.push(boxes);
   }
   const boxCount = pages.reduce((sum, boxes) => sum + boxes.length, 0);
   if (input.nothingToHide && boxCount > 0) {
-    return err(keyedError('invalid', 'safeCopy.removeTheBoxesOrDoNot'));
+    return err(serviceError('invalid', 'remove the boxes, or do not choose nothing to hide'));
   }
   if (!input.nothingToHide && boxCount === 0) {
-    return err(keyedError('invalid', 'safeCopy.addABoxOrChooseNothing'));
+    return err(serviceError('invalid', 'add a box, or choose Nothing to Hide on This Document'));
   }
 
   const db = proof.tx;
@@ -1259,7 +1258,7 @@ export async function saveRedactionMasks(
   const counted = await deps.renderer.pageCount(loaded.source, budget());
   if (!counted.ok) return err(refusalError(failureRefusal(counted.reason)));
   if (counted.pageCount !== pages.length) {
-    return err(keyedError('invalid', 'safeCopy.markEveryPageOfTheDocument'));
+    return err(serviceError('invalid', 'mark every page of the document'));
   }
 
   const versionId = latest.version.id;
@@ -1338,7 +1337,7 @@ export async function clearRedactionMasks(
   deps?: Pick<RedactionDeps, 'storage'>,
 ): Promise<Result<{ readonly pagesCleared: number }, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
-  if (!document) return err(keyedError('forbidden', 'safeCopy.onlyTheOwnerCanChangeA'));
+  if (!document) return err(serviceError('forbidden', 'only the owner can change a safe copy'));
   if (!(await documentIsPresent(proof))) return err(notFound());
   const db = proof.tx;
   if (!(await redactionMasksTablePresent(db))) return err(refusalError('not_ready_yet'));
@@ -1354,7 +1353,7 @@ export async function clearRedactionMasks(
       )
       .limit(1),
   );
-  if (!version) return err(keyedError('not_found', 'safeCopy.recordNotFound'));
+  if (!version) return err(serviceError('not_found', 'record not found'));
   const outcome = await db.transaction(async (tx) => {
     const removed = await tx
       .delete(schema.redactionMasks)
@@ -1412,14 +1411,14 @@ export async function prepareSafeCopyPage(
   input: { readonly versionId: string; readonly page: number; readonly maskRevision: string },
 ): Promise<Result<PreparedSafeCopyPage, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
-  if (!document) return err(keyedError('forbidden', 'safeCopy.onlyTheOwnerCanPrepareA'));
+  if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
   if (!(await documentIsPresent(proof))) return err(notFound());
   if (
     !Number.isSafeInteger(input.page) ||
     input.page < 1 ||
     input.page > REDACTION_LIMITS.maxPages
   ) {
-    return err(keyedError('invalid', 'safeCopy.chooseAPageOfThisDocument'));
+    return err(serviceError('invalid', 'choose a page of this document'));
   }
   const db = proof.tx;
   if (!(await redactionMasksTablePresent(db))) return err(refusalError('not_ready_yet'));
@@ -1440,7 +1439,7 @@ export async function prepareSafeCopyPage(
   const marked = rows === 'missing' ? undefined : markedVersion(rows);
   if (!marked || marked.revision !== input.maskRevision) return err(refusalError('out_of_date'));
   const target = marked.pages[input.page - 1];
-  if (!target) return err(keyedError('invalid', 'safeCopy.chooseAPageOfThisDocument'));
+  if (!target) return err(serviceError('invalid', 'choose a page of this document'));
   if (target.drawn) return progress();
 
   const metadata = { variant: 'safe_copy_prepare', disposition: 'store', page: input.page };
@@ -1620,13 +1619,12 @@ export async function produceSafeCopy(
   options: { readonly purposes?: DocumentPurposes; readonly disposition?: 'ai_file' } = {},
 ): Promise<Result<ProducedSafeCopy, SafeCopyError>> {
   if (!AuthorizedApplicant.isGenuine(proof, 'DOWNLOAD_REDACTED')) {
-    return err(keyedError('forbidden', 'safeCopy.accessDenied'));
+    return err(serviceError('forbidden', 'access denied'));
   }
-  if (proof.resource.kind !== 'document')
-    return err(keyedError('forbidden', 'safeCopy.accessDenied'));
+  if (proof.resource.kind !== 'document') return err(serviceError('forbidden', 'access denied'));
   const document = proof.resource.document;
   if (document.applicantId !== proof.applicant.id) {
-    return err(keyedError('forbidden', 'safeCopy.accessDenied'));
+    return err(serviceError('forbidden', 'access denied'));
   }
   if (!(await documentIsPresent(proof))) return err(notFound());
   const requested = { variant: 'redacted', disposition: options.disposition ?? 'download' };

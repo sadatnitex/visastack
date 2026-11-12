@@ -1,7 +1,8 @@
 /**
- * Document, safe copy, profile photo, upload and naming refusals. `en` is the exact English each
- * refusal has always carried. `bn` holds only wording whose automated checks passed in the
- * translation register; the rest shows English until a checked draft exists.
+ * Document, profile photo, upload and naming refusals that a person can read on a screen. `en` is the
+ * exact English each refusal has always carried. `bn` holds only wording whose automated checks
+ * passed in the translation register; the rest shows English until a checked draft exists.
+ * Safe copy refusals are not here: the safe copy screens word their own refusals from a code.
  */
 export const documentsEn = {
   'documents.applicantNotFound': 'applicant not found',
@@ -27,26 +28,6 @@ export const documentsEn = {
   'documents.storedObjectMissing': 'stored object missing',
   'documents.confirmItIsYouToDownload': 'confirm it is you to download this file',
   'documents.safeCopiesAreMadeOnlyThrough': 'safe copies are made only through the safe copy route',
-  'safeCopy.documentNotFound': 'document not found',
-  'safeCopy.thisDocumentIsTooLargeFor': 'This document is too large for a safe copy',
-  'safeCopy.thisPageTookTooLongTo': 'this page took too long to prepare',
-  'safeCopy.safeCopiesAreMadeFromPdf': 'safe copies are made from PDF files and photos only',
-  'safeCopy.thisFileCouldNotBeRead': 'this file could not be read for a safe copy',
-  'safeCopy.theSafeCopyIsNotPrepared': 'the safe copy is not prepared yet',
-  'safeCopy.safeCopiesAreNotReadyYet': 'safe copies are not ready yet',
-  'safeCopy.aNewerVersionOrNewerBoxes': 'a newer version or newer boxes have been saved',
-  'safeCopy.thisDocumentIsNotAvailableYet': 'this document is not available yet',
-  'safeCopy.accessDenied': 'access denied',
-  'safeCopy.onlyTheOwnerCanPrepareA': 'only the owner can prepare a safe copy',
-  'safeCopy.chooseAPageOfThisDocument': 'choose a page of this document',
-  'safeCopy.markEveryPageOfTheDocument': 'mark every page of the document',
-  'safeCopy.aPageCanHaveAtMost': 'a page can have at most 200 boxes',
-  'safeCopy.aBoxIsNotOnThe': 'a box is not on the page',
-  'safeCopy.theSuggestionCountDoesNotMatch': 'the suggestion count does not match the boxes',
-  'safeCopy.removeTheBoxesOrDoNot': 'remove the boxes, or do not choose nothing to hide',
-  'safeCopy.addABoxOrChooseNothing': 'add a box, or choose Nothing to Hide on This Document',
-  'safeCopy.onlyTheOwnerCanChangeA': 'only the owner can change a safe copy',
-  'safeCopy.recordNotFound': 'record not found',
   'photos.accessDenied': 'access denied',
   'photos.onlyTheOwnerOfThisProfile': 'Only the owner of this profile can see or change its photo.',
   'photos.chooseAJpegOrPngPhoto': 'Choose a JPEG or PNG photo.',
@@ -89,5 +70,5 @@ export const documentsBn = {
   'documents.coreProcessingConsentIsRequired': 'মূল প্রক্রিয়াকরণের সম্মতি আবশ্যক',
   'documents.thisDocumentHasARetentionPurge':
     'এই ডকুমেন্টটি মেয়াদ শেষে মুছে ফেলার প্রক্রিয়ায় আছে, তাই তা শেষ না হওয়া পর্যন্ত এতে কোনো পরিবর্তন করা যাবে না',
-  'safeCopy.thisDocumentIsTooLargeFor': 'এই ডকুমেন্ট নিরাপদ কপির জন্য খুব বড়',
+  'documents.confirmItIsYouToDownload': 'এই ডকুমেন্ট ডাউনলোড করতে নিশ্চিত করুন যে এটি আপনিই',
 } as const;

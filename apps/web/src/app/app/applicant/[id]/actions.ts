@@ -66,9 +66,9 @@ import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort } from '../../../../lib/providers';
-import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { createPreviewRenderer } from '../../../../lib/providers-media';
 import { reportServerError } from '../../../../lib/server-error';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import {
@@ -265,7 +265,8 @@ export async function uploadDocumentAction(
     String(formData.get('docType') ?? ''),
     String(formData.get('subject') ?? ''),
   );
-  if (!kind.ok) return { ok: false, message: await serviceErrorMessage(kind.error), field: 'docType' };
+  if (!kind.ok)
+    return { ok: false, message: await serviceErrorMessage(kind.error), field: 'docType' };
 
   const declaredType = file.type || 'application/octet-stream';
   // UMPE P3: the browser's id for this one file (the same on every attempt) and the file's own
@@ -619,7 +620,8 @@ export async function decideDocumentNameAction(
             : 'ACCEPTED_EDITED',
       ...(action === 'accept' ? { finalName } : {}),
     });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     return {
       ok: true,
       message: action === 'reject' ? 'Naming proposal rejected.' : 'Filename approved.',
@@ -1232,7 +1234,8 @@ export async function decideDocumentSuggestionAction(
         ? { decision, nameVersionId, typeProposalId, docType, subject, name }
         : { decision, nameVersionId, typeProposalId },
     );
-    if (!decided.ok) return { ok: false, message: await plainErrorText(decided.error) } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await plainErrorText(decided.error) } satisfies ActionState;
     // UMPE G4: the service queued a fresh reading for an accepted kind; run it now.
     if (decided.value.decision === 'accept') readSoon();
     return {
@@ -1539,7 +1542,10 @@ export async function requestDocumentReadingAction(formData: FormData): Promise<
     }),
   );
   const base = `/app/applicant/${encodeURIComponent(applicantId)}/documents?document=${encodeURIComponent(documentId)}`;
-  if (!result.ok) redirect(`${base}&reading_error=${encodeURIComponent(await serviceErrorMessage(result.error))}`);
+  if (!result.ok)
+    redirect(
+      `${base}&reading_error=${encodeURIComponent(await serviceErrorMessage(result.error))}`,
+    );
   revalidatePath(`/app/applicant/${applicantId}/documents`);
   after(() => triggerIntakeAndReading());
   redirect(`${base}&reading_queued=true`);
