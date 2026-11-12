@@ -145,7 +145,21 @@ describe('traveller screens keep engineering words out (first journey, lane 1)',
   const inOtherPackage = (file: string) =>
     OTHER_PACKAGES.some((part) => `${relative(WEB_SRC, file)}${sep}`.startsWith(`${part}${sep}`));
   const files = sourceFiles(join(WEB_SRC, 'app', 'app')).filter((file) => !inOtherPackage(file));
-  const all = files.flatMap((file) => visibleText(file, readFileSync(file, 'utf8')));
+  // The applicant record screens keep their English in a catalogue; the sharing and evidence
+  // messages in it belong to the other packages above and are left out.
+  const applicantCatalogue = catalogueEnglish().filter(
+    (entry) =>
+      entry.file.endsWith('app-applicant.ts') &&
+      !/appApplicantId(Sharing|Evidence)/.test(entry.key),
+  );
+  const all = [
+    ...files.flatMap((file) => visibleText(file, readFileSync(file, 'utf8'))),
+    ...applicantCatalogue.map((entry) => ({
+      file: entry.file,
+      line: entry.line,
+      text: entry.text,
+    })),
+  ];
 
   it('scans the traveller screens', () => {
     const scanned = files.map((file) => relative(WEB_SRC, file));

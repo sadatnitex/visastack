@@ -1,3 +1,5 @@
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
+import { getServerT } from '../../../../../lib/i18n-server';
 import type { FlowStep } from '../../../../../lib/upload-batch';
 
 const STEPS: readonly { readonly key: FlowStep; readonly label: string }[] = [
@@ -12,9 +14,13 @@ const STEPS: readonly { readonly key: FlowStep; readonly label: string }[] = [
  * it reads the same to a screen reader.
  */
 export function FlowSteps({ current }: { readonly current: FlowStep | 'done' }) {
+  const t = getServerT(appApplicantCatalog);
   const at = current === 'done' ? STEPS.length : STEPS.findIndex((step) => step.key === current);
   return (
-    <ol className="flow-steps" aria-label="Where you are">
+    <ol
+      className="flow-steps"
+      aria-label={t('appApplicant.appApplicantIdReviewFlowSteps.whereYouAre')}
+    >
       {STEPS.map((step, index) => {
         const state = index < at ? 'done' : index === at ? 'current' : 'todo';
         return (
@@ -30,7 +36,11 @@ export function FlowSteps({ current }: { readonly current: FlowStep | 'done' }) 
             <span className="flow-step-label">
               {step.label}
               <span className="sr-only">
-                {state === 'done' ? ', done' : state === 'current' ? ', now' : ', next'}
+                {state === 'done'
+                  ? t('appApplicant.appApplicantIdReviewFlowSteps.done')
+                  : state === 'current'
+                    ? t('appApplicant.appApplicantIdReviewFlowSteps.now')
+                    : t('appApplicant.appApplicantIdReviewFlowSteps.next')}
               </span>
             </span>
           </li>

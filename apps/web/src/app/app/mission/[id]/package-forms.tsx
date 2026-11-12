@@ -9,6 +9,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import {
   confirmPackageHandoffAction,
   markPackageChangeReviewedAction,
@@ -43,6 +45,7 @@ export function PackageItemChoiceForm({
   readonly canExclude: boolean;
   readonly hasChoice: boolean;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     recordPackageChoiceAction,
     NO_RESULT,
@@ -64,7 +67,7 @@ export function PackageItemChoiceForm({
       <input type="hidden" name="missionId" value={missionId} />
       <input type="hidden" name="packRequirementId" value={packRequirementId} />
       <label className="label" htmlFor={`${id}-choice`}>
-        What to Use for {itemName}
+        {t('appMission.appMissionIdPackageForms.whatToUseForItemname', { itemName })}
       </label>
       <select
         id={`${id}-choice`}
@@ -79,16 +82,26 @@ export function PackageItemChoiceForm({
             {option.label}
           </option>
         ))}
-        <option value="missing">Leave Missing for Now</option>
-        {canExclude ? <option value="exclude">Leave Out of This Package</option> : null}
-        {hasChoice ? <option value="clear">Go Back to the Suggested Copy</option> : null}
+        <option value="missing">
+          {t('appMission.appMissionIdPackageForms.leaveMissingForNow')}
+        </option>
+        {canExclude ? (
+          <option value="exclude">
+            {t('appMission.appMissionIdPackageForms.leaveOutOfThisPackage')}
+          </option>
+        ) : null}
+        {hasChoice ? (
+          <option value="clear">
+            {t('appMission.appMissionIdPackageForms.goBackToTheSuggestedCopy')}
+          </option>
+        ) : null}
       </select>
       {canExclude ? (
         // The reason is asked only once Leave Out is picked. The box stays in the page, hidden,
         // so a typed reason is never lost by looking at another choice and coming back.
         <div hidden={scripted && value !== 'exclude'} className="package-reason">
           <label className="label" htmlFor={`${id}-reason`}>
-            Reason for Leaving Out
+            {t('appMission.appMissionIdPackageForms.reasonForLeavingOut')}
           </label>
           <input
             id={`${id}-reason`}
@@ -98,7 +111,7 @@ export function PackageItemChoiceForm({
             {...fieldProblem(state, 'reason', messageId, reasonHint)}
           />
           <p id={reasonHint} className="muted u-fs-085 u-m-0">
-            Needed only when you leave this item out. It stays with this case.
+            {t('appMission.appMissionIdPackageForms.neededOnlyWhenYouLeaveThis')}
           </p>
         </div>
       ) : null}
@@ -108,7 +121,7 @@ export function PackageItemChoiceForm({
           idle="Save Choice"
           busy="Saving…"
           className="btn btn-secondary"
-          label={`Save Choice for ${itemName}`}
+          label={t('appMission.appMissionIdPackageForms.saveChoiceForItemname', { itemName })}
         />
         <FormMessage id={messageId} result={state} />
       </div>
@@ -141,6 +154,7 @@ export function PackageChangeReviewedForm({ missionId }: { readonly missionId: s
  * outside VisaStack. It sends nothing to anyone and is not a submission.
  */
 export function PackageHandoffForm({ missionId }: { readonly missionId: string }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     confirmPackageHandoffAction,
     NO_RESULT,
@@ -159,7 +173,7 @@ export function PackageHandoffForm({ missionId }: { readonly missionId: string }
           value="yes"
           {...fieldProblem(state, 'outsideStepsSeen', messageId)}
         />
-        <span>I have read the steps outside VisaStack and will do them myself.</span>
+        <span>{t('appMission.appMissionIdPackageForms.iHaveReadTheStepsOutside')}</span>
       </label>
       <div>
         <SubmitButton

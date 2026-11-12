@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../../components/form-feedback';
+import { useT } from '../../../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../../../i18n/app-mission';
 import { formatTimestamp } from '../../../../../../lib/format-date';
 import { type ActionState, decideAcknowledgementAction } from './actions';
 
@@ -52,6 +54,7 @@ export function AcknowledgementPanel({
   /** Every past decision recorded against THIS specific snapshot, newest first. */
   readonly history: readonly AcknowledgementHistoryEntry[];
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(decideAcknowledgementAction, INITIAL);
   const live = history.find((entry) => entry.decision === 'ACKNOWLEDGED' && !entry.invalidatedAt);
   const changedSince =
@@ -59,33 +62,48 @@ export function AcknowledgementPanel({
 
   return (
     <article className="card u-mb-150">
-      <p className="card-kicker">Final Review</p>
-      <h2 className="card-title">Confirm This Prepared File</h2>
+      <p className="card-kicker">
+        {t('appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.finalReview')}
+      </p>
+      <h2 className="card-title">
+        {t(
+          'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.confirmThisPreparedFile',
+        )}
+      </h2>
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
-        This page is the exact evidence bundle, selected facts, and rule context this decision
-        applies to. Acknowledging it does not mean it has been submitted, officially verified, or
-        approved by anyone -- only that you have reviewed this exact content.
+        {t(
+          'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.thisPageIsTheExactEvidence',
+        )}
       </p>
 
       <div className="notice u-mb-100">
-        <strong>What you are confirming</strong>
+        <strong>
+          {t('appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.whatYouAreConfirming')}
+        </strong>
         <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
           <li>
             This exact version of the file, reference{' '}
             <span className="mono">{checksum.slice(0, 8)}</span>. It is the content shown on this
             page.
           </li>
-          <li>That you have read it. Acknowledging is not the same as submitting it.</li>
           <li>
-            If the case changes afterwards, this confirmation stops counting and you will be asked
-            to decide again.
+            {t(
+              'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.thatYouHaveReadItAcknowledging',
+            )}
+          </li>
+          <li>
+            {t(
+              'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.ifTheCaseChangesAfterwardsThis',
+            )}
           </li>
         </ul>
       </div>
 
       {changedSince ? (
         <p className="notice notice-warn u-mb-100">
-          The case changed after you last acknowledged it. Review this version and decide again.
+          {t(
+            'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.theCaseChangedAfterYouLast',
+          )}
         </p>
       ) : null}
 
@@ -115,8 +133,10 @@ export function AcknowledgementPanel({
               ) : null}
               {entry.invalidatedAt ? (
                 <p className="muted u-fs-075-m0">
-                  Historical -- the case changed after this decision, on{' '}
-                  {formatTimestamp(entry.invalidatedAt)}. A new decision is needed.
+                  {t(
+                    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.historicalTheCaseChangedAfterThis',
+                    { formatTimestamp: formatTimestamp(entry.invalidatedAt) },
+                  )}
                 </p>
               ) : null}
             </div>
@@ -130,14 +150,18 @@ export function AcknowledgementPanel({
         <input type="hidden" name="expectedSnapshotChecksum" value={checksum} />
         <div className="field-row">
           <label className="field-label" htmlFor="reason">
-            Reason (Required to Reject or Request a Correction)
+            {t(
+              'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.reasonRequiredToRejectOrRequest',
+            )}
           </label>
           <textarea
             id="reason"
             name="reason"
             className="input"
             rows={3}
-            placeholder="What needs to change, or why you're rejecting this?"
+            placeholder={t(
+              'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.whatNeedsToChangeOrWhy',
+            )}
           />
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>

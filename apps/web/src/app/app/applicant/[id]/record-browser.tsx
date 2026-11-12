@@ -1,8 +1,9 @@
 'use client';
-
 import Link from 'next/link';
 import { useId, useState } from 'react';
+import { useT } from '../../../../components/i18n-provider';
 import { StatusBadge } from '../../../../components/ui';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import {
   RECORD_FILTERS,
   type RecordFilter,
@@ -31,6 +32,7 @@ export function RecordBrowser({
   /** False when the documents could not be read, so document counts are unknown, not zero. */
   readonly documentsLoaded?: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('all');
   const [filter, setFilter] = useState<RecordFilter>('all');
@@ -58,7 +60,9 @@ export function RecordBrowser({
   return (
     <div className="record-hub">
       <fieldset className="record-hub-filter-set">
-        <legend className="sr-only">Record Filters</legend>
+        <legend className="sr-only">
+          {t('appApplicant.appApplicantIdRecordBrowser.recordFilters')}
+        </legend>
         <div className="record-hub-filters">
           {RECORD_FILTERS.map(({ key, label }) => (
             <button
@@ -73,7 +77,9 @@ export function RecordBrowser({
             >
               <span>{label}</span>
               {unavailable(key) ? (
-                <span className="record-hub-filter-unavailable">Not Available Right Now</span>
+                <span className="record-hub-filter-unavailable">
+                  {t('appApplicant.appApplicantIdRecordBrowser.notAvailableRightNow')}
+                </span>
               ) : (
                 <strong>{counts[key]}</strong>
               )}
@@ -102,7 +108,7 @@ export function RecordBrowser({
           </select>
         </label>
         <label htmlFor={searchId}>
-          Search Your Record
+          {t('appApplicant.appApplicantIdRecordBrowser.searchYourRecord')}
           <input
             id={searchId}
             className="input"
@@ -112,19 +118,23 @@ export function RecordBrowser({
               setQuery(event.target.value);
               setPage(0);
             }}
-            placeholder="Names, kinds, categories or cases"
+            placeholder={t('appApplicant.appApplicantIdRecordBrowser.namesKindsCategoriesOrCases')}
           />
         </label>
       </div>
       <output className="muted record-hub-count" aria-live="polite">
-        {rowCount === 1 ? '1 item matches.' : `${rowCount} items match.`}
+        {rowCount === 1
+          ? t('appApplicant.appApplicantIdRecordBrowser.1ItemMatches')
+          : t('appApplicant.appApplicantIdRecordBrowser.rowcountItemsMatch', {
+              rowCount: rowCount,
+            })}
         {pageCount > 1 ? ` Page ${activePage + 1} of ${pageCount}.` : null}
       </output>
       {shownGroups.length === 0 ? (
         // When documents did not load, the alert above already explains the short list.
         documentsLoaded ? (
           <p className="notice record-hub-empty">
-            Nothing matches. Clear the search or choose another category or filter.
+            {t('appApplicant.appApplicantIdRecordBrowser.nothingMatchesClearTheSearchOr')}
           </p>
         ) : null
       ) : (
@@ -181,14 +191,17 @@ export function RecordBrowser({
         ))
       )}
       {pageCount > 1 ? (
-        <div className="wallet-pagination" aria-label="Record pages">
+        <div
+          className="wallet-pagination"
+          aria-label={t('appApplicant.appApplicantIdRecordBrowser.recordPages')}
+        >
           <button
             type="button"
             className="btn btn-secondary"
             disabled={activePage === 0}
             onClick={() => setPage(activePage - 1)}
           >
-            Previous
+            {t('appApplicant.appApplicantIdRecordBrowser.previous')}
           </button>
           <button
             type="button"
@@ -196,7 +209,7 @@ export function RecordBrowser({
             disabled={activePage + 1 === pageCount}
             onClick={() => setPage(activePage + 1)}
           >
-            Next
+            {t('appApplicant.appApplicantIdPage.next')}
           </button>
         </div>
       ) : null}

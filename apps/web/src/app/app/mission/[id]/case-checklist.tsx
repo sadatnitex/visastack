@@ -4,7 +4,9 @@ import type { ComponentProps } from 'react';
 import { Icon } from '../../../../components/icons';
 import { GroupedList, ListRow, type PaneEntry } from '../../../../components/list-pattern';
 import { SectionCard } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { getServerT } from '../../../../lib/i18n-server';
 import { FIELD_MARK, documentMark } from '../../../../lib/item-icons';
 import { CaseItemPane } from './case-item-pane';
 import { itemAction, itemNecessity, itemStatus } from './case-item-view';
@@ -102,6 +104,7 @@ export function CaseChecklist({
   itemHref,
   openItem = null,
 }: CaseChecklistProps) {
+  const t = getServerT(appMissionCatalog);
   const requirementRow = (r: RequirementDetailRow) => {
     const status = itemStatus(r);
     return (
@@ -149,9 +152,15 @@ export function CaseChecklist({
   return (
     <div id="readiness">
       <SectionCard
-        heading="Evidence Checklist"
+        heading={t('appMission.appMissionIdCaseChecklist.evidenceChecklist')}
         level={3}
-        action={packName ? <span className="lift-card-note">From {packName}</span> : undefined}
+        action={
+          packName ? (
+            <span className="lift-card-note">
+              {t('appMission.appMissionIdCaseChecklist.fromPackname', { packName })}
+            </span>
+          ) : undefined
+        }
       >
         {/* WP-SB2: each group opens and closes. Its heading stays a real heading inside the
             opener, so heading navigation still finds every group. */}
@@ -234,6 +243,7 @@ export function CaseExpiringDocuments({
 }: {
   readonly documents: readonly ExpiringDocumentRow[];
 }) {
+  const t = getServerT(appMissionCatalog);
   return (
     <section
       className="case-expiring lift-card lift-expiring"
@@ -241,7 +251,7 @@ export function CaseExpiringDocuments({
       aria-labelledby="case-expiring-heading"
     >
       <h3 id="case-expiring-heading" className="case-checklist-heading lift-card-title">
-        Documents That Expire Before Your Trip Ends
+        {t('appMission.appMissionIdCaseChecklist.documentsThatExpireBeforeYourTrip')}
       </h3>
       <ul className="case-sources-list lift-expiring-list">
         {documents.map((doc) => (
@@ -263,10 +273,11 @@ export function CaseExpiringDocuments({
 
 /** The official pages the checklist cites, with when each was last read. */
 export function CaseSources({ sources }: { readonly sources: readonly CaseSourceRow[] }) {
+  const t = getServerT(appMissionCatalog);
   return (
     <section className="case-sources" aria-labelledby="case-sources-heading">
       <h3 id="case-sources-heading" className="case-checklist-heading">
-        Sources for This Checklist
+        {t('appMission.appMissionIdCaseChecklist.sourcesForThisChecklist')}
       </h3>
       <ul className="case-sources-list">
         {sources.map((source) => (
@@ -284,8 +295,7 @@ export function CaseSources({ sources }: { readonly sources: readonly CaseSource
         ))}
       </ul>
       <p className="muted u-fs-085">
-        Checked is when VisaStack last read the page. Always confirm the final requirements with the
-        official authority or your agency.
+        {t('appMission.appMissionIdCaseChecklist.checkedIsWhenVisastackLastRead')}
       </p>
     </section>
   );
