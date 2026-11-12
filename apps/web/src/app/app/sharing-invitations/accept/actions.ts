@@ -2,6 +2,7 @@
 
 import { acceptSharingInvitation } from '@visastack/services';
 import { redirect } from 'next/navigation';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
@@ -20,6 +21,6 @@ export async function acceptSharingInvitationAction(
       rawToken: String(form.get('token') ?? ''),
     }),
   );
-  if (!result.ok) return { ok: false, message: result.error.message };
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
   redirect(`/app/shared/${result.value}`);
 }

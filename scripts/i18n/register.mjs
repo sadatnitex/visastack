@@ -23,6 +23,8 @@ import { readIfExists } from './catalog.mjs';
  * only on that sign-off.
  */
 export const HOLDBACK = new Map([
+  ['SG-066180d4', 'english word inside bengali sentence'],
+  ['SG-103526c4', 'english word inside bengali sentence'],
   [
     'SG-dc1af39a',
     'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',

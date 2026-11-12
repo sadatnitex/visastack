@@ -35,7 +35,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -204,20 +204,18 @@ export async function prepareGrantScope(
   Result<{ readonly expiryAt: Date; readonly documentScopeSnapshot: string[] | null }, ServiceError>
 > {
   if (!(await ownsApplicant(db, input.actorAccountId, input.applicantId))) {
-    return err(serviceError('forbidden', 'only the applicant owner can grant access'));
+    return err(keyedError('forbidden', 'sharing.ownerOnlyGrant'));
   }
   if (!(await hasConsent(db, input.actorAccountId, 'SHARING'))) {
-    return err(
-      serviceError('consent_required', 'Sharing consent is required before creating a grant'),
-    );
+    return err(keyedError('consent_required', 'sharing.consentRequired'));
   }
   if (input.recipientAccountId && input.recipientOrganizationId) {
-    return err(serviceError('invalid', 'a grant must name exactly one recipient type, not both'));
+    return err(keyedError('invalid', 'sharing.oneRecipientType'));
   }
   if (recipientRequired && !input.recipientAccountId && !input.recipientOrganizationId)
-    return err(serviceError('invalid', 'a grant must name a recipient'));
+    return err(keyedError('invalid', 'sharing.recipientRequired'));
   if (input.actions.length === 0) {
-    return err(serviceError('invalid', 'a grant needs at least one action'));
+    return err(keyedError('invalid', 'sharing.actionRequired'));
   }
   const invalidAction = input.actions.find(
     (action) => !(PERMISSION_ACTIONS as readonly string[]).includes(action),
@@ -226,17 +224,13 @@ export async function prepareGrantScope(
   // S22: letting an agency's AI tools read is the traveller's own separate choice on an agency
   // grant (`setGrantAiAssist`, with a fresh identity check), never part of making a grant.
   if (input.actions.includes('AI_ASSIST')) {
-    return err(
-      serviceError('invalid', 'AI tools are allowed on an agency grant itself, after it is made'),
-    );
+    return err(keyedError('invalid', 'sharing.aiAfterGrant'));
   }
   if (input.actions.some((action) => STEP_UP_ACTIONS.includes(action)) && !input.stepUpSatisfied) {
-    return err(
-      serviceError('step_up_required', 'granting this level of access requires reauthentication'),
-    );
+    return err(keyedError('step_up_required', 'sharing.stepUpGrant'));
   }
   if (input.purpose.trim().length === 0) {
-    return err(serviceError('invalid', 'a purpose is required'));
+    return err(keyedError('invalid', 'sharing.purposeRequired'));
   }
   if (input.categories) {
     const invalidCategory = input.categories.find((category) => !isSharingCategory(category));
@@ -245,15 +239,13 @@ export async function prepareGrantScope(
   }
   const now = Date.now();
   if (input.expiryAt && !Number.isFinite(input.expiryAt.getTime()))
-    return err(serviceError('invalid', 'expiry must be a valid date'));
+    return err(keyedError('invalid', 'sharing.expiryInvalid'));
   if (input.expiryAt) {
     if (input.expiryAt.getTime() <= now) {
-      return err(serviceError('invalid', 'expiry must be in the future'));
+      return err(keyedError('invalid', 'sharing.expiryPast'));
     }
     if (input.expiryAt.getTime() > now + GRANT_MAX_DURATION_DAYS * 24 * 60 * 60 * 1000) {
-      return err(
-        serviceError('invalid', `expiry may be at most ${GRANT_MAX_DURATION_DAYS} days out`),
-      );
+      return err(keyedError('invalid', 'sharing.expiryTooFar', { days: GRANT_MAX_DURATION_DAYS }));
     }
   }
   // PRD SHR-01: no expiry named by the caller defaults to 30 days, never to
@@ -269,7 +261,7 @@ export async function prepareGrantScope(
         .where(eq(schema.accounts.id, input.recipientAccountId))
         .limit(1),
     );
-    if (!recipient) return err(serviceError('not_found', 'recipient account not found'));
+    if (!recipient) return err(keyedError('not_found', 'sharing.recipientAccountMissing'));
   }
   if (input.recipientOrganizationId) {
     const org = first(
@@ -279,11 +271,9 @@ export async function prepareGrantScope(
         .where(eq(schema.organizations.id, input.recipientOrganizationId))
         .limit(1),
     );
-    if (!org) return err(serviceError('not_found', 'recipient organization not found'));
+    if (!org) return err(keyedError('not_found', 'sharing.recipientOrganizationMissing'));
     if (org.status !== 'ACTIVE') {
-      return err(
-        serviceError('invalid', 'recipient organization is not an active, verified organization'),
-      );
+      return err(keyedError('invalid', 'sharing.recipientOrganizationInactive'));
     }
   }
   if (input.missionId) {
@@ -295,7 +285,7 @@ export async function prepareGrantScope(
         .limit(1),
     );
     if (!mission || mission.applicantId !== input.applicantId) {
-      return err(serviceError('invalid', 'case does not belong to this applicant'));
+      return err(keyedError('invalid', 'sharing.caseNotApplicants'));
     }
   }
   if (input.documentIds && input.documentIds.length > 0) {
@@ -312,7 +302,7 @@ export async function prepareGrantScope(
         ),
       );
     if (docs.length !== uniqueIds.length || docs.some((d) => d.applicantId !== input.applicantId)) {
-      return err(serviceError('invalid', 'one or more documents do not belong to this applicant'));
+      return err(keyedError('invalid', 'sharing.documentsNotApplicants'));
     }
   }
 
@@ -417,9 +407,9 @@ export async function acceptGrant(
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<Grant, ServiceError>> {
   const grant = await loadGrant(db, input.grantId);
-  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!grant) return err(keyedError('not_found', 'sharing.grantMissing'));
   if (grant.status !== 'PENDING_ACCEPTANCE') {
-    return err(serviceError('invalid', 'grant is not pending acceptance'));
+    return err(keyedError('invalid', 'sharing.grantNotPending'));
   }
 
   const isRecipientAccount = grant.recipientAccountId === input.actorAccountId;
@@ -440,12 +430,7 @@ export async function acceptGrant(
     isRecipientOrgOwnerOrAdmin = m?.active === true && (m.role === 'OWNER' || m.role === 'ADMIN');
   }
   if (!isRecipientAccount && !isRecipientOrgOwnerOrAdmin) {
-    return err(
-      serviceError(
-        'forbidden',
-        'only the grant recipient, or an OWNER/ADMIN of the recipient organization, can accept it',
-      ),
-    );
+    return err(keyedError('forbidden', 'sharing.acceptOnlyRecipient'));
   }
 
   return db.transaction(async (tx) => {
@@ -458,7 +443,7 @@ export async function acceptGrant(
       .returning();
     const updated = first(rows);
     if (!updated) {
-      return err(serviceError('invalid', 'grant is not pending acceptance'));
+      return err(keyedError('invalid', 'sharing.grantNotPending'));
     }
     await appendAuditEvent(tx, {
       eventType: 'GRANT_ACCEPTED',
@@ -504,9 +489,9 @@ async function ownerTransition(
   eventType: string,
 ): Promise<Result<Grant, ServiceError>> {
   const grant = await loadGrant(db, grantId);
-  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!grant) return err(keyedError('not_found', 'sharing.grantMissing'));
   if (!(await ownsApplicant(db, actorAccountId, grant.applicantId))) {
-    return err(serviceError('forbidden', 'only the applicant owner can change this grant'));
+    return err(keyedError('forbidden', 'sharing.ownerOnlyChange'));
   }
   return db.transaction(async (tx) => {
     const rows = await tx
@@ -585,9 +570,9 @@ export async function resumeGrant(
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<Grant, ServiceError>> {
   const grant = await loadGrant(db, input.grantId);
-  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!grant) return err(keyedError('not_found', 'sharing.grantMissing'));
   if (grant.expiryAt && grant.expiryAt.getTime() <= Date.now()) {
-    return err(serviceError('invalid', 'this grant has already expired and cannot be resumed'));
+    return err(keyedError('invalid', 'sharing.expiredCannotResume'));
   }
   return ownerTransition(
     db,
@@ -645,28 +630,28 @@ export async function extendGrant(
   const denied = ownerOnly(proof, 'MANAGE');
   if (denied) return err(denied);
   if (proof.resource.kind !== 'applicant') {
-    return err(serviceError('invalid', 'Choose the traveller whose sharing this is.'));
+    return err(keyedError('invalid', 'sharing.chooseTraveller'));
   }
   const db = proof.tx;
   const applicantId = proof.applicant.id;
   const grant = await loadGrant(db, input.grantId);
   if (!grant || grant.applicantId !== applicantId) {
-    return err(serviceError('not_found', 'grant not found'));
+    return err(keyedError('not_found', 'sharing.grantMissing'));
   }
   const now = input.now ?? new Date();
-  if (grant.status === 'PAUSED') return err(serviceError('invalid', GRANT_EXTEND_RESUME_FIRST));
+  if (grant.status === 'PAUSED') return err(keyedError('invalid', 'sharing.extendResumeFirst'));
   if (grant.status !== 'ACTIVE' || !grant.acceptedAt || grantHasEnded(grant, now.getTime())) {
-    return err(serviceError('invalid', GRANT_EXTEND_ENDED));
+    return err(keyedError('invalid', 'sharing.extendEnded'));
   }
   const current = grant.expiryAt;
   if (!current) {
-    return err(serviceError('invalid', 'this grant has no end date to extend'));
+    return err(keyedError('invalid', 'sharing.noEndDate'));
   }
   // The same standing createGrant asks for: current sharing consent, a recipient agency that is
   // still verified, and a fresh sign-in when the grant hands out a step-up action. An ordinary
   // grant (the agency client default included) stays one tap.
   if (!(await hasConsent(db, proof.applicant.ownerAccountId, 'SHARING'))) {
-    return err(serviceError('consent_required', 'Sharing consent is needed to keep sharing.'));
+    return err(keyedError('consent_required', 'sharing.consentToKeep'));
   }
   if (grant.recipientOrganizationId) {
     const organization = first(
@@ -677,7 +662,7 @@ export async function extendGrant(
         .limit(1),
     );
     if (organization?.status !== 'ACTIVE') {
-      return err(serviceError('invalid', GRANT_EXTEND_ENDED));
+      return err(keyedError('invalid', 'sharing.extendEnded'));
     }
   }
   if (
@@ -688,7 +673,7 @@ export async function extendGrant(
       resourceId: applicantId,
     })
   ) {
-    return err(serviceError('step_up_required', 'Confirm it is you to keep sharing.'));
+    return err(keyedError('step_up_required', 'sharing.confirmToKeep'));
   }
   // The person was looking at another date: an earlier tap already moved this one.
   if (input.expectedExpiryAt && input.expectedExpiryAt.getTime() !== current.getTime()) {
@@ -716,12 +701,12 @@ export async function extendGrant(
       // Lost the race to another tap or a pause or revoke: report what is true now.
       const latest = await loadGrant(tx, grant.id);
       if (latest?.status === 'PAUSED') {
-        return err(serviceError('invalid', GRANT_EXTEND_RESUME_FIRST));
+        return err(keyedError('invalid', 'sharing.extendResumeFirst'));
       }
       if (latest && latest.status === 'ACTIVE' && !grantHasEnded(latest, now.getTime())) {
         return ok({ grant: latest, extended: false, atLimit: false, daysAdded: 0 });
       }
-      return err(serviceError('invalid', GRANT_EXTEND_ENDED));
+      return err(keyedError('invalid', 'sharing.extendEnded'));
     }
     await appendAuditEvent(tx, {
       eventType: 'GRANT_EXTENDED',
@@ -823,7 +808,7 @@ export async function listAccessForApplicant(
   applicantId: string,
 ): Promise<Result<GrantWithExceptions[], ServiceError>> {
   if (!(await ownsApplicant(db, actorAccountId, applicantId))) {
-    return err(serviceError('forbidden', 'not authorized to view access for this applicant'));
+    return err(keyedError('forbidden', 'sharing.notAuthorizedAccess'));
   }
   const rows = await db
     .select()
@@ -1011,9 +996,6 @@ async function resolveGrantRecipient(
 // it (access/grant-scope.ts). The recipient is never told about an exception
 // or about the case it hides: nothing here notifies anyone.
 
-const CASE_SHARING_UNAVAILABLE =
-  'Sharing choices for new cases are not available yet. Please try again in a few minutes.';
-
 /** One recipient the owner is asked about when a new case is made. */
 export interface CaseSharingQuestion {
   /** A grant the recipient holds, or an invitation they have not accepted yet. */
@@ -1030,7 +1012,7 @@ function ownerOnly<A extends PermissionAction>(
   action: A,
 ): ServiceError | undefined {
   if (!AuthorizedApplicant.isGenuine(proof, action) || proof.actor.kind !== 'applicant_owner') {
-    return serviceError('forbidden', 'Only the owner of this record can choose who sees a case.');
+    return keyedError('forbidden', 'sharing.ownerOnlyChooseCase');
   }
   return undefined;
 }
@@ -1152,7 +1134,7 @@ export async function applyCaseSharingAnswers(
   const denied = ownerOnly(proof, 'MANAGE');
   if (denied) return err(denied);
   if (proof.resource.kind !== 'mission') {
-    return err(serviceError('invalid', 'Choose the case these answers are for.'));
+    return err(keyedError('invalid', 'sharing.chooseCaseAnswers'));
   }
   const applicantId = proof.applicant.id;
   const mission = proof.resource.mission;
@@ -1176,12 +1158,7 @@ export async function applyCaseSharingAnswers(
         .limit(1),
     );
     if (alreadyAnswered) {
-      return err(
-        serviceError(
-          'invalid',
-          'Sharing for this case was already chosen. To share it with someone now, use Allow This Case on the Sharing page.',
-        ),
-      );
+      return err(keyedError('invalid', 'sharing.caseAlreadyChosen'));
     }
 
     const questions = await loadCaseSharingQuestions(tx, applicantId, new Date());
@@ -1196,9 +1173,7 @@ export async function applyCaseSharingAnswers(
       [...allowedGrants].some((id) => !grantIds.has(id)) ||
       [...allowedInvitations].some((id) => !invitationIds.has(id))
     ) {
-      return err(
-        serviceError('invalid', 'One of the people you chose no longer has access to all cases.'),
-      );
+      return err(keyedError('invalid', 'sharing.personLostAccess'));
     }
     const outcome: CaseSharingOutcome = {
       excludedGrantIds: [...grantIds].filter((id) => !allowedGrants.has(id)),
@@ -1223,10 +1198,7 @@ export async function applyCaseSharingAnswers(
       const owning = owningGrant && grantQuestions.find((q) => q.id === owningGrant.id);
       if (owning) {
         return err(
-          serviceError(
-            'invalid',
-            `${owning.recipient.label} runs this case for you, so it always sees it. Tick it to continue.`,
-          ),
+          keyedError('invalid', 'sharing.recipientAlwaysSees', { label: owning.recipient.label }),
         );
       }
     }
@@ -1236,7 +1208,7 @@ export async function applyCaseSharingAnswers(
       ...outcome.excludedInvitationIds.map((id) => ({ grantId: null, sharingInvitationId: id })),
     ];
     if (excluded.length > 0 && !(await caseExclusionsTablePresent(tx))) {
-      return err(serviceError('upstream_error', CASE_SHARING_UNAVAILABLE));
+      return err(keyedError('upstream_error', 'sharing.caseSharingUnavailable'));
     }
 
     const audit = async (
@@ -1308,22 +1280,22 @@ export async function removeCaseException(
   const denied = ownerOnly(proof, 'MANAGE');
   if (denied) return err(denied);
   if (proof.resource.kind !== 'mission') {
-    return err(serviceError('invalid', 'Choose the case to allow.'));
+    return err(keyedError('invalid', 'sharing.chooseCaseToAllow'));
   }
   const applicantId = proof.applicant.id;
   const missionId = proof.resource.mission.id;
   const ownerAccountId = proof.applicant.ownerAccountId;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.grantId)) {
-    return err(serviceError('not_found', 'That sharing was not found.'));
+    return err(keyedError('not_found', 'sharing.sharingMissing'));
   }
   return proof.tx.transaction(async (tx) => {
     await lockCaseSharing(tx, applicantId);
     const grant = await loadGrant(tx, input.grantId);
     if (!grant || grant.applicantId !== applicantId || grant.missionId !== null) {
-      return err(serviceError('not_found', 'That sharing was not found.'));
+      return err(keyedError('not_found', 'sharing.sharingMissing'));
     }
     if (!isLiveGrant(grant, new Date())) {
-      return err(serviceError('invalid', 'This sharing has ended, so there is nothing to allow.'));
+      return err(keyedError('invalid', 'sharing.sharingEnded'));
     }
     if (
       grant.actions.some((action) => STEP_UP_ACTIONS.includes(action)) &&
@@ -1333,10 +1305,10 @@ export async function removeCaseException(
         resourceId: applicantId,
       })
     ) {
-      return err(serviceError('step_up_required', 'Confirm it is you to allow this case.'));
+      return err(keyedError('step_up_required', 'sharing.confirmToAllow'));
     }
     if (!(await caseExclusionsTablePresent(tx))) {
-      return err(serviceError('not_found', 'This case is already shared.'));
+      return err(keyedError('not_found', 'sharing.caseAlreadyShared'));
     }
     const exclusions = schema.grantCaseExclusions;
     const removed = await tx
@@ -1350,7 +1322,7 @@ export async function removeCaseException(
       )
       .returning({ id: exclusions.id });
     if (removed.length === 0) {
-      return err(serviceError('not_found', 'This case is already shared.'));
+      return err(keyedError('not_found', 'sharing.caseAlreadyShared'));
     }
     const audit = async (parent: {
       readonly kind: 'grant' | 'sharing_invitation';
@@ -1526,9 +1498,9 @@ export async function getRecipientWorkspace(
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<RecipientWorkspaceView, ServiceError>> {
   const grant = await loadGrant(db, input.grantId);
-  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!grant) return err(keyedError('not_found', 'sharing.grantMissing'));
   if (grant.status !== 'ACTIVE' || !grant.acceptedAt) {
-    return err(serviceError('forbidden', 'this grant is not active'));
+    return err(keyedError('forbidden', 'sharing.grantNotActive'));
   }
 
   let actor: PolicyActor;
@@ -1556,7 +1528,7 @@ export async function getRecipientWorkspace(
         .limit(1),
     );
     if (!membership?.active) {
-      return err(serviceError('forbidden', 'not authorized to view this shared workspace'));
+      return err(keyedError('forbidden', 'sharing.notAuthorizedWorkspace'));
     }
     actor = {
       kind: 'organization_member',
@@ -1571,11 +1543,11 @@ export async function getRecipientWorkspace(
       },
     };
   } else {
-    return err(serviceError('forbidden', 'not authorized to view this shared workspace'));
+    return err(keyedError('forbidden', 'sharing.notAuthorizedWorkspace'));
   }
 
   const applicant = await getApplicant(db, grant.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'sharing.applicantMissing'));
 
   const grants = await loadGrantsForPolicy(db, grant.applicantId);
   const now = new Date();
@@ -1690,9 +1662,9 @@ export async function previewScopeExpansion(
   input: { readonly actorAccountId: string; readonly grantId: string },
 ): Promise<Result<readonly ScopeExpansionCandidate[], ServiceError>> {
   const grant = await loadGrant(db, input.grantId);
-  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!grant) return err(keyedError('not_found', 'sharing.grantMissing'));
   if (!(await ownsApplicant(db, input.actorAccountId, grant.applicantId))) {
-    return err(serviceError('forbidden', 'only the applicant owner can view this grant'));
+    return err(keyedError('forbidden', 'sharing.ownerOnlyView'));
   }
   if (!grant.categories || grant.categories.length === 0) return ok([]);
 
@@ -1748,16 +1720,16 @@ export async function expandGrantScope(
   },
 ): Promise<Result<Grant, ServiceError>> {
   const grant = await loadGrant(db, input.grantId);
-  if (!grant) return err(serviceError('not_found', 'grant not found'));
+  if (!grant) return err(keyedError('not_found', 'sharing.grantMissing'));
   if (!(await ownsApplicant(db, input.actorAccountId, grant.applicantId))) {
-    return err(serviceError('forbidden', 'only the applicant owner can change this grant'));
+    return err(keyedError('forbidden', 'sharing.ownerOnlyChange'));
   }
   if (!grant.categories || grant.categories.length === 0) {
-    return err(serviceError('invalid', 'this grant has no category scope to expand'));
+    return err(keyedError('invalid', 'sharing.noCategoryScope'));
   }
   const requestedIds = [...new Set(input.documentIds)];
   if (requestedIds.length === 0) {
-    return err(serviceError('invalid', 'name at least one document to include'));
+    return err(keyedError('invalid', 'sharing.nameDocument'));
   }
 
   const matchingIds = new Set(

@@ -1,5 +1,6 @@
 import { type CatalogKey, defineCatalog } from '@visastack/i18n';
 import { documentsBn, documentsEn } from './documents';
+import { sharingBn, sharingEn } from './sharing';
 
 /**
  * The words behind service refusals that carry a `messageKey` (see `keyedError` in errors.ts).
@@ -12,8 +13,8 @@ import { documentsBn, documentsEn } from './documents';
  * never come here.
  */
 export const serviceMessages = defineCatalog({
-  en: { ...documentsEn },
-  bn: { ...documentsBn },
+  en: { ...documentsEn, ...sharingEn },
+  bn: { ...documentsBn, ...sharingBn },
 });
 
 export type ServiceMessageKey = CatalogKey<typeof serviceMessages>;

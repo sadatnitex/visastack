@@ -27,7 +27,7 @@ Then read docs/SESSION-START.md once: the full picture (where things are, standa
 - Before building: confirm the approach in at most 3 one-sentence bullets, flag anything hard to reverse, then execute without waiting.
 - Code: complete and working, exact file paths, install commands and env vars listed. No placeholders.
 - NO em dashes anywhere (code, docs, commits, PR text, chat). Use a hyphen. Nothing may read as machine-produced. Sweep before every push: git diff --text origin/main -- . ':(exclude)docs/design/harbor-v2' | grep -a '^+' | grep -av '^+++' | grep -ac "$(printf '\xe2\x80\x94')" must print 0 (also check untracked files). docs/design/harbor-v2 is an immutable external reference and is exempt (CR13). Build such characters from code points when writing files.
-- Public and user-facing wording is plain: no engineering talk, no tool names. Bangla and all translation work is DEFERRED until the owner says the rest of the product is done. Do not start it.
+- Public and user-facing wording is plain: no engineering talk, no tool names. Bengali localization is in progress by owner decision (2026-11-12); see docs/localization/.
 - "Always push and merge to production when a segment is correctly done": draft PR, then ready, then squash merge. Exception: the final Part 10 release-candidate PR must NOT be merged or deployed without the owner's explicit instruction after they read the final report (directive 4637-4651).
 - After every merge and deployment, report in plain language: a table (Area | What changed | What you will see | Who notices), then Checked live / Not live yet / Not yet checked / Needs you. End with (1) what was done (2) one concrete next step.
 
