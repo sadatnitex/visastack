@@ -72,7 +72,7 @@ describe('the "Updated" time under Bengali', () => {
   it('shows Bengali digits for the time, and the browser format for English', async () => {
     await act(async () => {
       root.render(
-        <I18nProvider locale="bn">
+        <I18nProvider locale="bn" pageLang="en">
           <StatusClient versionNotice={NOTICE} />
         </I18nProvider>,
       );

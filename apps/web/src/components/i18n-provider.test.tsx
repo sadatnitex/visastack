@@ -38,7 +38,7 @@ describe('I18nProvider', () => {
     expect(renderToString(<Probe />)).toContain('Save / 2 files');
     expect(
       renderToString(
-        <I18nProvider locale="en">
+        <I18nProvider locale="en" pageLang="en">
           <Probe />
         </I18nProvider>,
       ),
@@ -47,7 +47,7 @@ describe('I18nProvider', () => {
 
   it('renders Bengali when the provider gives bn', () => {
     const html = renderToString(
-      <I18nProvider locale="bn">
+      <I18nProvider locale="bn" pageLang="bn">
         <Probe />
       </I18nProvider>,
     );
@@ -57,7 +57,7 @@ describe('I18nProvider', () => {
 
   it('hydrates server-rendered Bengali without a mismatch', async () => {
     const tree = (
-      <I18nProvider locale="bn">
+      <I18nProvider locale="bn" pageLang="bn">
         <Probe />
       </I18nProvider>
     );
@@ -75,5 +75,34 @@ describe('I18nProvider', () => {
     });
     expect(errors).not.toHaveBeenCalled();
     expect(container.innerHTML).toBe(before);
+  });
+
+  it('gives client translators the page language the layout passed', () => {
+    const catalogMixed = defineCatalog({
+      en: { 'demo.a': 'A', 'demo.b': 'B' },
+      bn: { 'demo.a': 'এ' },
+    });
+    function Parts() {
+      const t = useT(catalogMixed);
+      return (
+        <p>
+          {t.node('demo.a')}|{t.node('demo.b')}
+        </p>
+      );
+    }
+    const onEn = renderToString(
+      <I18nProvider locale="bn" pageLang="en">
+        <Parts />
+      </I18nProvider>,
+    );
+    expect(onEn).toContain('<span lang="bn">এ</span>');
+    expect(onEn).not.toContain('lang="en"');
+    const onBn = renderToString(
+      <I18nProvider locale="bn" pageLang="bn">
+        <Parts />
+      </I18nProvider>,
+    );
+    expect(onBn).toContain('<span lang="en">B</span>');
+    expect(onBn).not.toContain('lang="bn"');
   });
 });

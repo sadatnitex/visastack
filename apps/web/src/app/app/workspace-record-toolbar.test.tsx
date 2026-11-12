@@ -184,7 +184,7 @@ describe('bell count digits', () => {
     expect(badge()).toBe('3');
     act(() =>
       root.render(
-        <I18nProvider locale="bn">
+        <I18nProvider locale="bn" pageLang="en">
           <WorkspaceRecordToolbar
             accountName="Synthetic Self"
             access={access}
