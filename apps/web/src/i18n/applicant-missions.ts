@@ -82,9 +82,25 @@ export const applicantMissionsCatalog = defineCatalog({
       'Who Can See This Case',
   },
   bn: {
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.addMoreDetailsOptional':
+      'আরও তথ্য যোগ করুন (ঐচ্ছিক)',
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGSmithFamilyEurope2026':
+      'যেমন: রহমান পরিবার ইউরোপ ২০২৬',
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGTouristStudentWork':
+      'যেমন: পর্যটক, শিক্ষার্থী, কাজ',
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional':
+      'ভ্রমণের তারিখ (ঐচ্ছিক)',
     'applicantMissions.appApplicantIdMissionsPage.aboutCases': 'ভিসা ফাইল সম্পর্কে',
     'applicantMissions.appApplicantIdMissionsPage.cases': 'ভিসা ফাইল',
     'applicantMissions.appApplicantIdMissionsPage.new': 'নতুন',
     'applicantMissions.appApplicantIdMissionsPage.startATrip': 'ভ্রমণ শুরু করুন',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPage.startANewCaseFromThis':
+      'এটি থেকে একটি নতুন ভিসা ফাইল শুরু করুন',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.targetDeadlineOptional':
+      'লক্ষ্যমাত্রার শেষ তারিখ (ঐচ্ছিক)',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.travelEndDate':
+      'ভ্রমণ শেষের তারিখ',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.travelStartDate':
+      'ভ্রমণ শুরুর তারিখ',
   },
 });

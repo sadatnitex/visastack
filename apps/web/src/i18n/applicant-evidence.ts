@@ -62,10 +62,22 @@ export const applicantEvidenceCatalog = defineCatalog({
       'Your documents could not be loaded. Refresh to try again.',
   },
   bn: {
+    'applicantEvidence.appApplicantIdEvidenceAnswerReceipt.answerSent': 'উত্তর পাঠানো হয়েছে',
+    'applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.yourQuestion': 'আপনার প্রশ্ন',
     'applicantEvidence.appApplicantIdEvidencePage.aboutRequests': 'অনুরোধ সম্পর্কে',
     'applicantEvidence.appApplicantIdEvidencePage.nothingIsWaitingForYou':
       'আপনার জন্য কিছু অপেক্ষায় নেই।',
     'applicantEvidence.appApplicantIdEvidencePage.requestsFromAgencies': 'এজেন্সির অনুরোধ',
     'applicantEvidence.appApplicantIdEvidenceRequestPanes.requestReference': 'অনুরোধের রেফারেন্স',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.aboutSending': 'পাঠানো সম্পর্কে',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheCopyToSend':
+      'পাঠানোর জন্য কপি বেছে নিন',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheDetailToSend':
+      'পাঠানোর জন্য তথ্য বেছে নিন',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.newest': 'সবচেয়ে নতুন',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.noCopyOfThisDocumentType':
+      'এই ধরনের ডকুমেন্টের কোনো কপি এখন পাঠানো যাচ্ছে না। ডকুমেন্ট পৃষ্ঠায় এটি যোগ করুন, তারপর ফিরে এসে পাঠান।',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.sentBackByTheAgency':
+      'এজেন্সি ফেরত পাঠিয়েছে',
   },
 });

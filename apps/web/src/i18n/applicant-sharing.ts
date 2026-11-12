@@ -117,5 +117,10 @@ export const applicantSharingCatalog = defineCatalog({
     'applicantSharing.appApplicantIdSharingScopeExpansionForm.lengthNewDocumentsNowMatchThis':
       '{length, plural, =1 {{length} new document now match this grant category. They stay hidden from the recipient until you confirm including them.} other {{length} new documents now match this grant categories. They stay hidden from the recipient until you confirm including them.}}',
   },
-  bn: {},
+  bn: {
+    'applicantSharing.appApplicantIdSharingGrantForm.eGReviewMyUkStudent':
+      'যেমন: আমার যুক্তরাজ্যের স্টুডেন্ট ভিসার ডকুমেন্ট পর্যালোচনা করুন',
+    'applicantSharing.appApplicantIdSharingGrantForm.recipientEmail': 'প্রাপকের ইমেইল',
+    'applicantSharing.appApplicantIdSharingGrantForm.themExampleCom': 'them@example.com',
+  },
 });

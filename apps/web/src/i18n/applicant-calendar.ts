@@ -73,6 +73,9 @@ export const applicantCalendarCatalog = defineCatalog({
       'We could not make the file just now. Try again.',
   },
   bn: {
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.copyLink': 'লিংক কপি করুন',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribeInYourCalendarApp':
+      'আপনার ক্যালেন্ডার অ্যাপে সাবস্ক্রাইব করুন',
     'applicantCalendar.appApplicantIdCalendarPage.addCaseNames': 'ভিসা ফাইলের নাম যোগ করুন',
     'applicantCalendar.appApplicantIdCalendarPage.addDatesToMyCalendar':
       'আমার ক্যালেন্ডারে তারিখ যোগ করুন',

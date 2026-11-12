@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+vi.mock('@visastack/i18n', async (original) =>
+  (await import('../bn-coverage.test-support')).trackBengali(await original()),
+);
 // The language switch is off in the product, so the locale is set here directly.
 const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
 vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => current.locale }));
@@ -13,6 +16,7 @@ vi.mock('react', async (importOriginal) => ({
 }));
 
 import { renderServer, textOf } from '../../../../../lib/next-mocks.test-support';
+import { expectEveryLiveMessageRendered } from '../bn-coverage.test-support';
 
 const mocks = vi.hoisted(() => ({ requireAccess: vi.fn(), getTravellerInsights: vi.fn() }));
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -53,6 +57,41 @@ function empty() {
   });
 }
 
+function populated() {
+  return buildTravellerInsights({
+    documents: [
+      {
+        id: 'doc-pass',
+        docType: 'PASSPORT',
+        expiresAt: '2027-01-23T12:00:00.000Z',
+        lifecycle: 'CURRENT',
+        safetyStatus: 'CLEAN',
+        createdAt: '2026-01-01T00:00:00Z',
+        reminderThresholds: [90, 60, 30, 7, 0],
+      },
+    ],
+    facts: [
+      {
+        fieldKey: 'given_name',
+        repeatingRecordKey: null,
+        status: 'DOCUMENT_SUPPORTED',
+        isProtected: false,
+        value: 'Nusrat',
+        comparable: true,
+        sourceDocumentId: 'doc-pass',
+      },
+    ],
+    pendingReadings: [],
+    pendingCheckDocumentIds: [],
+    sections: { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
+    // Six cases, one more than a card lists, so the link to the rest is shown.
+    cases: ['Study Visa', 'Family Visit', 'Work Trip', 'Tour', 'Medical', 'Business'].map(
+      (title, index) => ({ id: `case-${index}`, title, hasChecklist: true, readiness: null }),
+    ),
+    now: new Date('2026-10-25T12:00:00Z'),
+  });
+}
+
 beforeEach(() => {
   mocks.requireAccess.mockResolvedValue({
     ok: true,
@@ -71,6 +110,19 @@ describe('document insights under Bengali', () => {
     expect(text).toContain(bn[`${K}noDocumentsYet`]);
     expect(text).toContain(bn[`${K}noExpiryDatesYet`]);
     expect(text).toContain(bn[`${K}eachVisaApplicationIsACase`]);
+    expect(text).toContain('A summary of your saved documents and profile.');
+    expect(text).not.toMatch(/applicantInsights\.|\{[A-Za-z]+\}/);
+  });
+
+  it('with documents and a case it shows the Bengali Coming Up, Open Cases and Open Profile labels and keeps the values and claims in English', async () => {
+    mocks.getTravellerInsights.mockResolvedValue({ ok: true, value: populated() });
+    const text = await render('bn');
+    expect(text).toContain(bn[`${K}comingUp`]);
+    expect(text).toContain(bn[`${K}openCases`]);
+    expect(text).toContain(bn[`${K}openProfile`]);
+    expect(text).not.toContain(bn[`${K}noDocumentsYet`]);
+    expect(text).not.toContain(bn[`${K}eachVisaApplicationIsACase`]);
+    expect(text).toContain('Study Visa');
     expect(text).toContain('A summary of your saved documents and profile.');
     expect(text).not.toMatch(/applicantInsights\.|\{[A-Za-z]+\}/);
   });
@@ -100,5 +152,11 @@ describe('document insights under English', () => {
     const text = await render('en');
     expect(text).not.toMatch(BENGALI);
     expect(text).toContain('What Your Documents Show');
+  });
+});
+
+describe('Bengali coverage of the insights surface', () => {
+  it('every live Bengali message was rendered by a test above', () => {
+    expectEveryLiveMessageRendered(applicantInsightsCatalog);
   });
 });
