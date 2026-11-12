@@ -2,6 +2,7 @@ import { systemPrincipal } from '@visastack/services';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerErasureWorker } from '../../../../lib/jobs';
 import { runGuestRetentionPurge } from '../../../../lib/lifecycle-jobs/guest-purge';
+import { runHeldJobRequeue } from '../../../../lib/lifecycle-jobs/hold-requeue';
 import { runRecentlyDeletedPurge } from '../../../../lib/lifecycle-jobs/purge';
 
 /**
@@ -33,6 +34,9 @@ export async function GET(request: Request): Promise<Response> {
 
   // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
   // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
+  // Jobs parked by a hold that has since ended (a release normally re-queues them at once; this
+  // catches a release that raced the worker, older parked jobs, and holds ended by a backup repair).
+  const heldRequeue = await runHeldJobRequeue(systemPrincipal('process-erasure'));
   const recentlyDeleted = await runRecentlyDeletedPurge(systemPrincipal('process-erasure'));
 
   let totalProcessed = 0;
@@ -55,6 +59,7 @@ export async function GET(request: Request): Promise<Response> {
     processed: totalProcessed,
     blocked: totalBlocked,
     failed: totalFailed,
+    heldRequeue,
     recentlyDeleted,
     guestRetention,
   });

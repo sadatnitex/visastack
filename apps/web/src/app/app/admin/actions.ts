@@ -148,6 +148,7 @@ export async function releaseLegalHoldAction(
 ): Promise<ActionState> {
   const holdId = String(formData.get('holdId') ?? '').trim();
   if (holdId.length === 0) return { ok: false, message: 'Missing hold id.' };
+  let requeued = 0;
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'LEGAL_HOLD_RELEASE'))) {
       return DENIED;
@@ -166,13 +167,15 @@ export async function releaseLegalHoldAction(
       stepUpSatisfied: true,
     });
     if (!released.ok) return { ok: false, message: released.error.message } satisfies ActionState;
+    requeued = released.value.requeuedJobs;
     return { ok: true, message: 'Legal hold released.' } satisfies ActionState;
   });
   if (result.ok) {
     revalidatePath('/app/admin');
-    // Held documents are put back in the queue by the release itself; wake the worker after the
-    // response, best effort (the scheduled run is the backstop, a failure never fails the release).
-    after(() => triggerErasureWorker());
+    // Held documents are put back in the queue by the release itself; when any were, wake the
+    // worker after the response. Best effort: the daily sweep is the backstop, and a failure here
+    // never fails the release.
+    if (requeued > 0) after(() => triggerErasureWorker());
   }
   return result;
 }

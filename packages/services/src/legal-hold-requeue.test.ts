@@ -2,16 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { systemPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { registerDocument } from './documents';
 import { retryErasureJob } from './erasure';
-import { placeLegalHold, releaseLegalHold } from './legal-hold';
+import { placeLegalHold, releaseLegalHold, requeueUncoveredParkedJobs } from './legal-hold';
 
 async function seedApplicant(db: Db, email: string) {
   const provisioned = await provisionAccount(db, { email });
@@ -101,6 +102,7 @@ describe('releasing a legal hold puts the jobs it parked back in the queue', () 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       actorAccountId: owner.accountId,
+      applicantId: owner.applicantId,
       method: 'SYSTEM',
       resourceType: 'erasure_job',
       resourceId: job.id,
@@ -198,5 +200,151 @@ describe('releasing a legal hold puts the jobs it parked back in the queue', () 
     expect(await statusOf(db, otherJob.id)).toBe('BLOCKED_BY_HOLD');
     expect(await statusOf(db, failedJob.id)).toBe('FAILED');
     expect(await retryEvents(db)).toHaveLength(1);
+  });
+
+  it('lets only one of two releases at the same moment through', async () => {
+    const owner = await seedApplicant(db, 'h@example.com');
+    const hold = await place(db, owner);
+    await seedJob(db, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+
+    const results = await Promise.all([
+      release(db, owner.accountId, hold.id),
+      release(db, owner.accountId, hold.id),
+    ]);
+
+    expect(results.filter((r) => isOk(r))).toHaveLength(1);
+    expect(await retryEvents(db)).toHaveLength(1);
+    const released = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'LEGAL_HOLD_RELEASED'));
+    expect(released).toHaveLength(1);
+  });
+
+  it('rolls the release back when the re-queue fails, so the hold stays on', async () => {
+    const owner = await seedApplicant(db, 'i@example.com');
+    const hold = await place(db, owner);
+    const job = await seedJob(db, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+    await db.execute(sql`
+      create function refuse_requeue() returns trigger language plpgsql as
+      $$ begin raise exception 'simulated re-queue failure'; end $$`);
+    await db.execute(sql`
+      create trigger refuse_requeue before update on erasure_jobs
+      for each row execute function refuse_requeue()`);
+
+    await expect(release(db, owner.accountId, hold.id)).rejects.toThrow();
+
+    const [row] = await db
+      .select()
+      .from(schema.legalHolds)
+      .where(eq(schema.legalHolds.id, hold.id));
+    expect(row?.active).toBe(true);
+    expect(row?.releasedAt).toBeNull();
+    expect(await statusOf(db, job.id)).toBe('BLOCKED_BY_HOLD');
+    const released = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'LEGAL_HOLD_RELEASED'));
+    expect(released).toHaveLength(0);
+  });
+
+  it('reports how many jobs a release put back', async () => {
+    const owner = await seedApplicant(db, 'j@example.com');
+    const hold = await place(db, owner);
+    await seedJob(db, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+    await seedJob(db, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+    const released = await release(db, owner.accountId, hold.id);
+    expect(isOk(released) && released.value.requeuedJobs).toBe(2);
+    const none = await place(db, owner);
+    const again = await release(db, owner.accountId, none.id);
+    expect(isOk(again) && again.value.requeuedJobs).toBe(0);
+  });
+});
+
+describe('release lock order', () => {
+  it('locks the applicant and its parked jobs before any audit write', async () => {
+    // PGlite runs one transaction at a time, so a real deadlock cannot be reproduced here. What
+    // this proves is the statement order the deadlock fix depends on: every row lock comes before
+    // the first audit write (the audit write takes the one global audit lock), and the parked
+    // jobs are locked in id order. An admin retry locks a job row and only then the audit lock.
+    const queries: string[] = [];
+    const client = await createMigratedPglite();
+    const logged = drizzle(client, {
+      schema,
+      logger: { logQuery: (query: string) => queries.push(query) },
+    }) as unknown as Db;
+    const owner = await seedApplicant(logged, 'k@example.com');
+    const hold = await place(logged, owner);
+    await seedJob(logged, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+
+    queries.length = 0;
+    expect(isOk(await release(logged, owner.accountId, hold.id))).toBe(true);
+
+    const at = (matches: (q: string) => boolean) => queries.findIndex(matches);
+    const lockApplicant = at((q) => /from "applicants".*for update/is.test(q));
+    const lockJobs = at((q) => /from "erasure_jobs".*order by.*for update/is.test(q));
+    const firstAudit = at((q) => q.includes('pg_advisory_xact_lock'));
+    const updateHold = at((q) => /update "legal_holds"/i.test(q));
+    const updateJob = at((q) => /update "erasure_jobs"/i.test(q));
+    expect(lockApplicant).toBeGreaterThanOrEqual(0);
+    expect(lockApplicant).toBeLessThan(lockJobs);
+    expect(lockJobs).toBeLessThan(updateHold);
+    expect(lockJobs).toBeLessThan(firstAudit);
+    expect(firstAudit).toBeGreaterThan(updateHold);
+    expect(updateJob).toBeGreaterThan(lockJobs);
+  });
+});
+
+describe('the daily sweep for jobs parked with no hold behind them', () => {
+  let db: Db;
+  const scope = systemPrincipal('process-erasure');
+  beforeEach(async () => {
+    db = (await createMigratedPglite().then((c) => drizzle(c, { schema }))) as unknown as Db;
+  });
+
+  it('re-queues a job parked after its hold was already released, and says why', async () => {
+    // The end state of the race: the worker parks a job from a check made just before a release
+    // committed, so the job is parked and nothing holds it. Older parked jobs look the same.
+    const owner = await seedApplicant(db, 'l@example.com');
+    const job = await seedJob(db, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+
+    expect(await requeueUncoveredParkedJobs(db, scope)).toEqual({ requeued: 1, failed: 0 });
+
+    expect(await statusOf(db, job.id)).toBe('PENDING');
+    const events = await retryEvents(db);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      actorAccountId: null,
+      applicantId: owner.applicantId,
+      method: 'SYSTEM',
+      resourceId: job.id,
+      metadata: { outcome: 'REQUEUED', was: 'BLOCKED_BY_HOLD', cause: 'HOLD_NO_LONGER_ACTIVE' },
+    });
+  });
+
+  it('is repeatable: a second run queues nothing and writes nothing', async () => {
+    const owner = await seedApplicant(db, 'm@example.com');
+    await seedJob(db, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+    await requeueUncoveredParkedJobs(db, scope);
+    expect(await requeueUncoveredParkedJobs(db, scope)).toEqual({ requeued: 0, failed: 0 });
+    expect(await retryEvents(db)).toHaveLength(1);
+  });
+
+  it('leaves a job parked while a hold stands, and leaves FAILED jobs alone', async () => {
+    const owner = await seedApplicant(db, 'n@example.com');
+    const other = await seedApplicant(db, 'o@example.com');
+    await place(db, owner);
+    const held = await seedJob(db, { applicantId: owner.applicantId, status: 'BLOCKED_BY_HOLD' });
+    const failed = await seedJob(db, { applicantId: other.applicantId, status: 'FAILED' });
+
+    expect(await requeueUncoveredParkedJobs(db, scope)).toEqual({ requeued: 0, failed: 0 });
+
+    expect(await statusOf(db, held.id)).toBe('BLOCKED_BY_HOLD');
+    expect(await statusOf(db, failed.id)).toBe('FAILED');
+    expect(await retryEvents(db)).toHaveLength(0);
+  });
+
+  it('refuses a scope that is not the erasure job', async () => {
+    await expect(requeueUncoveredParkedJobs(db, {} as unknown as typeof scope)).rejects.toThrow();
   });
 });

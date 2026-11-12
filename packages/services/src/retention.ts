@@ -28,6 +28,7 @@ export {
   missionBlockedByLegalHold,
   placeLegalHold,
   releaseLegalHold,
+  requeueUncoveredParkedJobs,
   sweepLegalHoldReviewReminders,
 } from './legal-hold';
 
