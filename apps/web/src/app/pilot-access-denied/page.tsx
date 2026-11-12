@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pilotAccessDeniedCatalog } from '../../i18n/pilot-access-denied';
+import { getServerT, primeLocale } from '../../lib/i18n-server';
 import { createIdentityPort } from '../../lib/providers';
 import { reportServerError } from '../../lib/server-error';
 
@@ -22,6 +24,8 @@ export const dynamic = 'force-dynamic';
  * exposing internal security detail."
  */
 export default async function PilotAccessDeniedPage() {
+  await primeLocale();
+  const t = getServerT(pilotAccessDeniedCatalog);
   let email: string | null = null;
   try {
     const identity = await createIdentityPort().currentIdentity();
@@ -33,9 +37,11 @@ export default async function PilotAccessDeniedPage() {
 
   return (
     <section className="section container center">
-      <span className="eyebrow">Controlled Pilot</span>
+      <span className="eyebrow">
+        {t('pilotAccessDenied.pilotAccessDeniedPage.controlledPilot')}
+      </span>
       <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
-        This pilot is invite-only
+        {t('pilotAccessDenied.pilotAccessDeniedPage.thisPilotIsInviteOnly')}
       </h1>
       <p className="section-sub" style={{ margin: '0.75rem auto 1.5rem', maxWidth: '34rem' }}>
         {email
@@ -53,11 +59,11 @@ export default async function PilotAccessDeniedPage() {
           }}
         >
           <button type="submit" className="btn btn-primary">
-            Sign Out
+            {t('pilotAccessDenied.pilotAccessDeniedPage.signOut')}
           </button>
         </form>
         <Link className="btn btn-secondary" href="/">
-          Back to Home
+          {t('pilotAccessDenied.pilotAccessDeniedPage.backToHome')}
         </Link>
       </div>
     </section>

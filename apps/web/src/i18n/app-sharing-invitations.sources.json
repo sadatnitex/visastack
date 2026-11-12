@@ -1,0 +1,20 @@
+{
+  "appSharingInvitations.appSharingInvitationsAcceptAcceptForm.iHaveReviewedThePurposePermissions": null,
+  "appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds": "SG-674ee0dc",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.allDocumentsInThisProfile": "SG-26fb40b6",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.allProfileCategories": "SG-a2b34628",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.askTheSenderForANew": "SG-8205ffbd",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.documents": "SG-88d6fc66",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.invitationExpires": "SG-515d1469",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable": "SG-750b0e73",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting": "SG-4992ef4b",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.openingThisInvitationGrantsNoAccess": "SG-03d5ab6c",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.permissions": "SG-8600dbb5",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.pluralCapturedWhenInvited": "SG-2702c582",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.profileCategories": "SG-5ea53818",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.purpose": "SG-6e173f9e",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.returnToYourWorkspace": "SG-9f3a9885",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.reviewSharedAccess": "SG-7b977c68",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.sharedBy": "SG-b791607a",
+  "appSharingInvitations.appSharingInvitationsAcceptPage.signInWithTheInvitedEmail": "SG-5be34008"
+}

@@ -5,6 +5,8 @@ import {
   getPaymentResultView,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { paymentsCatalog } from '../../../i18n/payments';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { verifyPaymentResultParams } from '../../../lib/payment-result';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
@@ -67,6 +69,8 @@ export default async function PaymentResultPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await primeLocale();
+  const t = getServerT(paymentsCatalog);
   const raw = await searchParams;
   const one = (
     values: Record<string, string | string[] | undefined>,
@@ -91,8 +95,10 @@ export default async function PaymentResultPage({
       <p className="section-sub payment-result-body">{copy.body}</p>
       {view ? (
         <p className="section-sub payment-result-body payment-result-amount">
-          {person ? 'Purchase' : 'Invoice'} {view.invoiceRef}:{' '}
-          {formatMoney(view.amountMinorUnits, view.currency)}
+          {person
+            ? t('payments.paymentsResultPage.purchase')
+            : t('payments.paymentsResultPage.invoice')}{' '}
+          {view.invoiceRef}: {formatMoney(view.amountMinorUnits, view.currency)}
         </p>
       ) : null}
       <div className="cta-row cta-row-center">
@@ -103,16 +109,16 @@ export default async function PaymentResultPage({
             className="btn btn-secondary"
             href={`/payments/result?${new URLSearchParams({ t: params.t, x: params.x, s: params.s }).toString()}`}
           >
-            Check Again
+            {t('payments.paymentsResultPage.checkAgain')}
           </a>
         ) : null}
         {person ? (
           <a className="btn btn-primary" href="/app/account/plan">
-            Go to Plan &amp; Usage
+            {t('payments.paymentsResultPage.goToPlanUsage')}
           </a>
         ) : (
           <a className="btn btn-primary" href="/app">
-            Go to Workspace
+            {t('payments.paymentsResultPage.goToWorkspace')}
           </a>
         )}
       </div>
