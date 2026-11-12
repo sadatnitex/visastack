@@ -52,7 +52,6 @@ import {
   CONSENT_SHORT,
   attentionActionLabel,
 } from '../../../lib/labels';
-import { getLocale } from '../../../lib/locale';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { openOwnerGate } from '../../../lib/owner-gate';
 import {
@@ -436,9 +435,8 @@ function returnTask(value: string | string[] | undefined): string | null {
 export default async function AppPage({
   searchParams,
 }: { readonly searchParams?: Promise<SearchParams> }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const params: SearchParams = (await searchParams) ?? {};
-  const locale = await getLocale();
   const t = createTranslator(locale);
   const task = returnTask(params.next);
   const later = params.setup === 'later';

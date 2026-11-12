@@ -1,5 +1,6 @@
 'use client';
 
+import { formatNumber } from '@visastack/i18n';
 import type {
   WorkspaceSearchResult,
   WorkspaceSearchScope,
@@ -9,7 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
-import { useT } from '../../components/i18n-provider';
+import { useLocale, useT } from '../../components/i18n-provider';
 import { Icon } from '../../components/icons';
 import { ShortcutHint } from '../../components/shortcut-hint';
 import { appHomeCatalog } from '../../i18n/app-home';
@@ -36,6 +37,7 @@ export function WorkspaceRecordToolbar({
   readonly contextChip?: ReactNode;
 }) {
   const t = useT(appHomeCatalog);
+  const locale = useLocale();
   const pathname = usePathname();
   const [query, setQuery] = useState('');
   const [mobileSearch, setMobileSearch] = useState(false);
@@ -273,7 +275,7 @@ export function WorkspaceRecordToolbar({
           aria-label={
             state
               ? t('appHome.appWorkspaceRecordToolbar.notificationsUnreadUnread', {
-                  unread: state.unread,
+                  unread: formatNumber(state.unread, locale),
                 })
               : t('appHome.appWorkspaceRecordToolbar.notifications')
           }

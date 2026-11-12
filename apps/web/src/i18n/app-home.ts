@@ -171,7 +171,6 @@ export const appHomeCatalog = defineCatalog({
     'appHome.appHomeCards.addADocument': 'একটি ডকুমেন্ট যোগ করুন',
     'appHome.appHomeCards.startACase': 'একটি ভিসা ফাইল শুরু করুন',
     'appHome.appPage.addDatesToMyCalendar': 'আমার ক্যালেন্ডারে তারিখ যোগ করুন',
-    'appHome.appPage.or': 'অথবা',
     'appHome.appRecentActivity.nothingYetEachTimeYourRecord':
       'এখনো কিছু নেই। আপনার রেকর্ড যতবার খোলা বা বদলানো হবে, ততবার তা এখানে দেখা যাবে।',
     'appHome.appRecentActivity.recentActivity': 'সাম্প্রতিক কার্যকলাপ',

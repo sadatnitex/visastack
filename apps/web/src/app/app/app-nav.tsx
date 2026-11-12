@@ -1,10 +1,11 @@
 'use client';
 
+import { formatNumber } from '@visastack/i18n';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
-import { useT } from '../../components/i18n-provider';
+import { useLocale, useT } from '../../components/i18n-provider';
 import { Icon, type IconName } from '../../components/icons';
 import { LinkPending } from '../../components/link-pending';
 import { ShortcutHint } from '../../components/shortcut-hint';
@@ -156,6 +157,7 @@ export function AppNav({
   readonly children?: ReactNode;
 }) {
   const t = useT(appHomeCatalog);
+  const locale = useLocale();
   const pathname = usePathname();
   const [hash, setHash] = useState('');
   const [open, setOpen] = useState(false);
@@ -255,7 +257,10 @@ export function AppNav({
         href={item.href}
         aria-label={
           badge
-            ? t('appHome.appAppNav.labelSpokenNew', { label: item.label, spoken: badge.spoken })
+            ? t('appHome.appAppNav.labelSpokenNew', {
+                label: item.label,
+                spoken: badge.spoken.replace(/\d+/, (n) => formatNumber(Number(n), locale)),
+              })
             : item.label
         }
         onClick={() => setOpen(false)}

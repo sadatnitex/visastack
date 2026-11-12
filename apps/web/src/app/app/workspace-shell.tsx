@@ -28,11 +28,12 @@ import {
   workspaceNavigation,
 } from '../../lib/workspace-navigation';
 
-type WorkspaceKind = WorkspaceNavigation['kind'];
 import { useT } from '../../components/i18n-provider';
 import { appHomeCatalog } from '../../i18n/app-home';
 import { AppNav, navIconFor } from './app-nav';
 import { WorkspaceRecordToolbar } from './workspace-record-toolbar';
+
+type WorkspaceKind = WorkspaceNavigation['kind'];
 
 type Subject = { readonly route: string; readonly applicantId: string };
 const SubjectContext = createContext<((subject: Subject) => void) | null>(null);

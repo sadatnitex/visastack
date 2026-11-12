@@ -71,6 +71,10 @@ export const HOLDBACK = new Map([
     'SG-00706ded',
     'Invitation and sharing choice statement: wording waits for the owner sign-off with the other sharing and consent text.',
   ],
+  [
+    'SG-9e771a8e',
+    'Joiner word between names (" or "): its spaces carry the layout and the sentence around it is still English.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
