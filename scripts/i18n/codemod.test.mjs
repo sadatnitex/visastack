@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
+import ts from 'typescript';
 import { parseCatalog } from './catalog.mjs';
 import { runCodemod } from './codemod.mjs';
 import { FILES, loadFormatter, loadModule, makeRoot, readTree, render } from './fixtures.mjs';
 import { renderedJsxText } from './jsx-text.mjs';
 import { KeyAllocator, fileSlug, textSlug } from './keys.mjs';
 import { HOLDBACK, Register } from './register.mjs';
+import { defaultExportFn } from './transform.mjs';
 
 const SRC = Object.keys(FILES).filter((f) => f.endsWith('.tsx'));
 const CAT = 'apps/web/src/i18n/fixture.ts';
@@ -345,15 +347,19 @@ describe('holdback list', () => {
     'SG-0092181b',
     'SG-03518c54',
     'SG-04033af1',
+    'SG-04e98a42',
     'SG-079d1f0e',
     'SG-07e1fab2',
     'SG-094bebc7',
     'SG-0a12f492',
+    'SG-0b90abd7',
     'SG-0c3f69ec',
     'SG-0f9d5b37',
+    'SG-1167490a',
     'SG-11f4fd8f',
     'SG-192889ed',
     'SG-1a432089',
+    'SG-1c102ea8',
     'SG-1f2c844a',
     'SG-1fec77cc',
     'SG-21824069',
@@ -367,13 +373,18 @@ describe('holdback list', () => {
     'SG-361e0c20',
     'SG-363e13bd',
     'SG-37468a51',
+    'SG-39303114',
+    'SG-3a144529',
     'SG-4249425b',
+    'SG-436b1b32',
     'SG-45ad6a0b',
     'SG-461caf20',
     'SG-48a3b6e0',
+    'SG-4bd5843b',
     'SG-4bfc56d4',
     'SG-4fbf3546',
     'SG-50c83703',
+    'SG-529d695c',
     'SG-57024979',
     'SG-576d295d',
     'SG-57b3157f',
@@ -383,37 +394,53 @@ describe('holdback list', () => {
     'SG-5dfd4948',
     'SG-5e68244c',
     'SG-5efa8d43',
+    'SG-5f0ee722',
     'SG-63dab094',
     'SG-65a98d6a',
     'SG-678c621d',
     'SG-697612cb',
+    'SG-750b0e73',
     'SG-751ac880',
     'SG-75b245d1',
+    'SG-7739b95f',
     'SG-7a475bd6',
     'SG-7cebc450',
     'SG-7d8d7a57',
     'SG-7e0dba4b',
+    'SG-7f6342c7',
     'SG-84514c27',
     'SG-84755ca2',
     'SG-85a723da',
     'SG-86f84a55',
+    'SG-88aeced1',
     'SG-8939253f',
     'SG-8987f99a',
     'SG-899d13d1',
+    'SG-89e5a96d',
     'SG-8b062101',
+    'SG-8be28114',
+    'SG-8d730501',
     'SG-8dca9740',
     'SG-8e79eb73',
     'SG-8ee1a9d7',
+    'SG-93434b03',
+    'SG-938c310f',
     'SG-9574696f',
     'SG-98b5d44d',
     'SG-98c55098',
     'SG-991b05ef',
+    'SG-9b86192c',
+    'SG-9c7d6ee0',
+    'SG-9da51aed',
     'SG-9e771a8e',
     'SG-9f18aa86',
+    'SG-a104e7e5',
     'SG-a178f7cf',
+    'SG-a23537b2',
     'SG-a5b2278c',
     'SG-a5fa0621',
     'SG-ae0400c3',
+    'SG-aeff30b3',
     'SG-b0b7a8b8',
     'SG-b0cc740f',
     'SG-b21f69f6',
@@ -427,11 +454,13 @@ describe('holdback list', () => {
     'SG-c60ff807',
     'SG-c68a7790',
     'SG-c87e54e8',
+    'SG-c983b88e',
     'SG-cb6538b8',
     'SG-cda9a1ac',
     'SG-d028e6a4',
     'SG-d3914f71',
     'SG-d39a9da3',
+    'SG-d5eb6533',
     'SG-d62d6a52',
     'SG-d6e09908',
     'SG-d7bcf439',
@@ -439,8 +468,10 @@ describe('holdback list', () => {
     'SG-d9bcf36d',
     'SG-dc081055',
     'SG-dcadd581',
+    'SG-df4ae9fc',
     'SG-e004a268',
     'SG-e00eb31b',
+    'SG-e2005eec',
     'SG-e3b1eece',
     'SG-e4a97e33',
     'SG-e53a446b',
@@ -677,5 +708,23 @@ SG-ACTION,ORDINARY_UI,Open,\u0996\u09c1\u09b2\u09c1\u09a8,PASS
     assert.throws(() => run(r3), /i18n runtime is not on this branch.*i18n-server\.ts/);
     assert.deepEqual(readTree(r3, SRC), before);
     assert.equal(run(r3, SRC, { dryRun: true }).converted.length, 15);
+  });
+});
+
+describe('the default export of a page with overloads', () => {
+  const parse = (text) => ts.createSourceFile('page.tsx', text, ts.ScriptTarget.Latest, true);
+  test('overload signatures with no body are skipped; the implementation is found', () => {
+    const sf = parse(
+      'export default function Page(a: string): string;\nexport default function Page(a: number): number;\nexport default function Page(a: unknown) { return a; }\n',
+    );
+    const found = defaultExportFn(sf);
+    assert.ok(found?.body, 'the function with a body is returned');
+    assert.equal(found.parameters[0].type.getText(sf), 'unknown');
+  });
+  test('a lone signature with no body is not a page function', () => {
+    assert.equal(
+      defaultExportFn(parse('export default function Page(a: string): string;\n')),
+      null,
+    );
   });
 });

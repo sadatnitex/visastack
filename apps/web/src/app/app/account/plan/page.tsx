@@ -28,7 +28,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ShowMore } from '../../../../components/show-more';
 import { PageHeader } from '../../../../components/ui';
+import { appAccountCatalog } from '../../../../i18n/app-account';
 import { planFeatureView, readAiUsage } from '../../../../lib/ai-usage';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { SHOW_MAX, nextShow, parseShow } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
 import { uploadLimitLabel } from '../../../../lib/upload-preflight';
@@ -76,6 +78,7 @@ function ComparePlans({
   /** Said in place of the Get buttons when buying is not the next step (covered, or renewing). */
   readonly buyNote: string | null;
 }) {
+  const t = getServerT(appAccountCatalog);
   const free = catalogue.free;
   const columns = [
     ...(free
@@ -99,21 +102,21 @@ function ComparePlans({
   ];
   return (
     <article className="card u-mt-150" aria-labelledby="compare-plans-title">
-      <p className="card-kicker">More Room</p>
+      <p className="card-kicker">{t('appAccount.appAccountPlanPage.moreRoom')}</p>
       <h2 className="card-title" id="compare-plans-title">
-        Compare Plans
+        {t('appAccount.appAccountPlanPage.comparePlans')}
       </h2>
       <p className="card-body">
-        Everything in VisaStack stays free during the beta. A paid plan gives you more room: more
-        storage and higher daily limits, for you and everyone you keep a record for. It is paid in
-        advance and never charges you again by itself.
+        {t('appAccount.appAccountPlanPage.everythingInVisastackStaysFreeDuring')}
       </p>
       <div className="u-mt-100">
         <table className="data-table">
-          <caption className="sr-only">Traveller Free and the Paid Plans Side by Side</caption>
+          <caption className="sr-only">
+            {t('appAccount.appAccountPlanPage.travellerFreeAndThePaidPlans')}
+          </caption>
           <thead>
             <tr>
-              <th scope="col">What You Get</th>
+              <th scope="col">{t('appAccount.appAccountPlanPage.whatYouGet')}</th>
               {columns.map((column) => (
                 <th scope="col" key={column.id}>
                   {column.name}
@@ -123,7 +126,7 @@ function ComparePlans({
           </thead>
           <tbody>
             <tr>
-              <th scope="row">Price</th>
+              <th scope="row">{t('appAccount.appAccountPlanPage.price')}</th>
               {columns.map((column) => (
                 <td key={column.id} data-label={column.name}>
                   {column.price}
@@ -131,7 +134,7 @@ function ComparePlans({
               ))}
             </tr>
             <tr>
-              <th scope="row">Storage for the Whole Account</th>
+              <th scope="row">{t('appAccount.appAccountPlanPage.storageForTheWholeAccount')}</th>
               {columns.map((column) => (
                 <td key={column.id} data-label={column.name}>
                   {mbLabel(column.storage.accountBytes ?? settings.accountBytes)}
@@ -139,7 +142,7 @@ function ComparePlans({
               ))}
             </tr>
             <tr>
-              <th scope="row">Storage per Person</th>
+              <th scope="row">{t('appAccount.appAccountPlanPage.storagePerPerson')}</th>
               {columns.map((column) => (
                 <td key={column.id} data-label={column.name}>
                   {mbLabel(column.storage.personBytes ?? settings.personBytes)}
@@ -177,6 +180,7 @@ function ComparePlans({
  * itself. Renew Now opens the renewal to confirm; Stop Renewing cancels it and its reminders.
  */
 function RenewalControls({ renewal, now }: { readonly renewal: OwnRenewal; readonly now: Date }) {
+  const t = getServerT(appAccountCatalog);
   const ended = renewal.paidUntil.getTime() <= now.getTime();
   const until = lastDay(renewal.paidUntil);
   const open = renewal.renews ? renewal.openRenewal : null;
@@ -207,7 +211,7 @@ function RenewalControls({ renewal, now }: { readonly renewal: OwnRenewal; reado
             className="btn btn-primary"
             href={`${PLAN_PATH}?${PURCHASE_PARAM}=${open.invoiceId}#confirm-purchase-title`}
           >
-            Renew Now
+            {t('appAccount.appAccountPlanPage.renewNow')}
           </Link>
         ) : null}
         {renewal.renewable ? <RenewalForm renews={renewal.renews} /> : null}
@@ -225,47 +229,47 @@ function ConfirmPurchase({
   /** Whether a Get button is shown below (a plan on sale, none covering today). */
   readonly canBuy: boolean;
 }) {
+  const t = getServerT(appAccountCatalog);
   return (
     <article
       className="card u-mt-150"
       aria-labelledby="confirm-purchase-title"
       id="confirm-purchase"
     >
-      <p className="card-kicker">Before You Pay</p>
+      <p className="card-kicker">{t('appAccount.appAccountPlanPage.beforeYouPay')}</p>
       <h2 className="card-title" id="confirm-purchase-title" tabIndex={-1}>
-        Confirm Your Purchase
+        {t('appAccount.appAccountPlanPage.confirmYourPurchase')}
       </h2>
       {purchase ? (
         <>
           <div className="rows rows-grid u-mt-050">
             <div className="row">
-              <span className="row-key">Plan</span>
+              <span className="row-key">{t('appAccount.appAccountPage.plan')}</span>
               <span className="row-val">{purchase.planName}</span>
             </div>
             <div className="row">
-              <span className="row-key">Price</span>
+              <span className="row-key">{t('appAccount.appAccountPlanPage.price')}</span>
               <span className="row-val">
                 {formatMoney(purchase.amountMinorUnits, purchase.currency)}
               </span>
             </div>
             <div className="row">
-              <span className="row-key">Covers You From</span>
+              <span className="row-key">{t('appAccount.appAccountPlanPage.coversYouFrom')}</span>
               <span className="row-val">
                 {formatBillingDate(purchase.periodStart, BILLING_TIME_ZONE)}
               </span>
             </div>
             <div className="row">
-              <span className="row-key">Covers You Until</span>
+              <span className="row-key">{t('appAccount.appAccountPlanPage.coversYouUntil')}</span>
               <span className="row-val">{lastDay(purchase.periodEnd)}</span>
             </div>
             <div className="row">
-              <span className="row-key">Reference</span>
+              <span className="row-key">{t('appAccount.appAccountPlanPage.reference')}</span>
               <span className="row-val">{purchase.invoiceRef}</span>
             </div>
           </div>
           <p className="card-body u-mt-100">
-            No automatic charge. We remind you before it ends, and you decide then whether to pay
-            again.
+            {t('appAccount.appAccountPlanPage.noAutomaticChargeWeRemindYou')}
           </p>
           <div className="u-mt-100">
             <PayPurchaseForm invoiceId={purchase.invoiceId} />
@@ -297,6 +301,8 @@ export default async function TravellerPlanPage({
 }: {
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAccountCatalog);
   const query = (await searchParams) ?? {};
   const purchaseValue = query[PURCHASE_PARAM];
   const purchaseParam = typeof purchaseValue === 'string' ? purchaseValue : null;
@@ -391,18 +397,18 @@ export default async function TravellerPlanPage({
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Account"
-        title={<>Plan &amp; Usage</>}
-        description="Your plan, what it includes and how much of it you have used."
+        eyebrow={t('appAccount.appAccountPlanBillingPage.account')}
+        title={t('appAccount.appAccountPage.planUsage')}
+        description={t('appAccount.appAccountPage.yourPlanWhatItIncludesAnd')}
         actions={
           <>
             {billing ? (
               <Link className="btn btn-secondary" href={`${PLAN_PATH}/billing`}>
-                Billing History
+                {t('appAccount.appAccountPlanBillingPage.billingHistory')}
               </Link>
             ) : null}
             <Link className="btn btn-secondary" href="/app/account">
-              Your Account
+              {t('appAccount.appAccountPlanPage.yourAccount')}
             </Link>
           </>
         }
@@ -410,25 +416,25 @@ export default async function TravellerPlanPage({
 
       <div className="grid">
         <article className="card" aria-labelledby="current-plan-title">
-          <p className="card-kicker">Current Plan</p>
+          <p className="card-kicker">{t('appAccount.appAccountPlanPage.currentPlan')}</p>
           <h2 className="card-title" id="current-plan-title">
-            {summary.plan?.name ?? 'Your Plan'}
+            {summary.plan?.name ?? t('appAccount.appAccountPlanPage.yourPlan')}
           </h2>
           {summary.paidUntil ? (
             <p className="card-body">
-              Paid until {formatBillingDate(summary.paidUntil, BILLING_TIME_ZONE)}. Fair-use
-              safeguards and your privacy permissions still apply.
+              {t('appAccount.appAccountPlanPage.paidUntilFormatbillingdateFairUseSafeguards', {
+                formatBillingDate: formatBillingDate(summary.paidUntil, BILLING_TIME_ZONE),
+              })}
             </p>
           ) : (
             <>
               <p className="card-body">
-                Complimentary during public beta. No payment method is required. Fair-use safeguards
-                and your privacy permissions still apply.
+                {t('appAccount.appAccountPlanPage.complimentaryDuringPublicBetaNoPayment')}
               </p>
               <p className="card-body u-mt-100">
                 {offered
-                  ? 'You can compare it with the paid plans below.'
-                  : 'Paid plans for travellers are not offered yet, so there is nothing to choose or upgrade.'}
+                  ? t('appAccount.appAccountPlanPage.youCanCompareItWithThe')
+                  : t('appAccount.appAccountPlanPage.paidPlansForTravellersAreNot')}
               </p>
             </>
           )}
@@ -436,17 +442,18 @@ export default async function TravellerPlanPage({
         </article>
 
         <article className="card" aria-labelledby="storage-title">
-          <p className="card-kicker">What Your Plan Includes</p>
+          <p className="card-kicker">{t('appAccount.appAccountPlanPage.whatYourPlanIncludes')}</p>
           <h2 className="card-title" id="storage-title">
-            Storage
+            {t('appAccount.appAccountPlanPage.storage')}
           </h2>
           <p className="card-body u-mb-125">
-            Every saved version of every document counts. Each file can be up to{' '}
-            {uploadLimitLabel(quota)}.
+            {t('appAccount.appAccountPlanPage.everySavedVersionOfEveryDocument', {
+              uploadLimitLabel: uploadLimitLabel(quota),
+            })}
           </p>
           <div className="stack-sm u-mb-125">
             <UsageMeter
-              label="Your Whole Account"
+              label={t('appAccount.appAccountPlanPage.yourWholeAccount')}
               usedBytes={usedBytes}
               limitBytes={limits.accountBytes}
             />
@@ -473,12 +480,12 @@ export default async function TravellerPlanPage({
             />
           ) : null}
           {profiles.length === 0 ? (
-            <p className="muted u-fs-085">Nothing stored yet.</p>
+            <p className="muted u-fs-085">{t('appAccount.appAccountPlanPage.nothingStoredYet')}</p>
           ) : (
             <p className="muted u-fs-085">
-              Each person you keep a record for can hold up to {mbLabel(limits.personBytes)}. When
-              you share a record with an agency, that agency's own plan can also limit what more can
-              be added to it.
+              {t('appAccount.appAccountPlanPage.eachPersonYouKeepARecord', {
+                mbLabel: mbLabel(limits.personBytes),
+              })}
             </p>
           )}
           {storageTight ? (
@@ -512,14 +519,12 @@ export default async function TravellerPlanPage({
 
       {aiUsage ? (
         <article className="card u-mt-150" aria-labelledby="plan-ai-title">
-          <p className="card-kicker">What Your Plan Includes</p>
+          <p className="card-kicker">{t('appAccount.appAccountPlanPage.whatYourPlanIncludes')}</p>
           <h2 className="card-title" id="plan-ai-title">
-            AI Features
+            {t('appAccount.appAccountPlanPage.aiFeatures')}
           </h2>
           <p className="card-body">
-            Whether your plan includes each feature, whether it works right now, and how much you
-            used it today. For this count, only the number is kept, never what was read. Everything
-            in VisaStack works without these features.
+            {t('appAccount.appAccountPlanPage.whetherYourPlanIncludesEachFeature')}
           </p>
           <div className="rows rows-grid u-mt-050">
             {aiUsage.map((feature) => {
@@ -529,11 +534,13 @@ export default async function TravellerPlanPage({
                   <span className="row-key">{feature.name}</span>
                   <span className="row-val">
                     <span className={`badge ${view.inPlan ? 'badge-success' : 'badge-neutral'}`}>
-                      {view.inPlan ? 'In Your Plan' : 'Not in Your Plan'}
+                      {view.inPlan
+                        ? t('appAccount.appAccountPlanPage.inYourPlan')
+                        : t('appAccount.appAccountPlanPage.notInYourPlan')}
                     </span>{' '}
                     {view.now ? (
                       <span className={`badge ${view.now.tone}`}>
-                        <span className="sr-only">Now: </span>
+                        <span className="sr-only">{t('appAccount.appAccountPlanPage.now')} </span>
                         {view.now.label}
                       </span>
                     ) : null}

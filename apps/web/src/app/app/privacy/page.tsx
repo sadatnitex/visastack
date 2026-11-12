@@ -14,9 +14,11 @@ import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
 import { EmptyState, PageHeader } from '../../../components/ui';
 import { AboutDisclosure } from '../../../components/ui-lift';
+import { appPrivacyCatalog } from '../../../i18n/app-privacy';
 import { readAiUsage, usageBadge, usageLine } from '../../../lib/ai-usage';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { consentName } from '../../../lib/labels';
 import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../lib/paging';
 import { withSession } from '../../../lib/session';
@@ -64,6 +66,8 @@ export default async function PrivacyPage(props: PrivacyPageProps): Promise<Reac
 export default async function PrivacyPage({
   searchParams,
 }: PrivacyPageProps = {}): Promise<React.JSX.Element> {
+  await primeLocale();
+  const t = getServerT(appPrivacyCatalog);
   const query = (await searchParams) ?? {};
   const consentBefore = parseCursor(query.consentBefore);
   const data = await withSession(async ({ db, accountId }) => {
@@ -120,11 +124,14 @@ export default async function PrivacyPage({
 
   return (
     <section className="section container">
-      <PageHeader eyebrow="Account" title="Privacy & Consent" />
+      <PageHeader
+        eyebrow={t('appPrivacy.appPrivacyPage.account')}
+        title={t('appPrivacy.appPrivacyPage.privacyConsent')}
+      />
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What this page holds is one tap away. */}
-      <AboutDisclosure summary="About This">
-        <p>Export everything, review your consent history, or delete your account.</p>
+      <AboutDisclosure summary={t('appPrivacy.appPrivacyPage.aboutThis')}>
+        <p>{t('appPrivacy.appPrivacyPage.exportEverythingReviewYourConsentHistory')}</p>
       </AboutDisclosure>
 
       <DepthScope family="privacy" depth={depth}>
@@ -136,21 +143,23 @@ export default async function PrivacyPage({
         />
 
         {/* The three rights, each one tap from where it is used (the link opens its level). */}
-        <nav className="card rows u-mb-150" aria-label="Your rights">
+        <nav className="card rows u-mb-150" aria-label={t('appPrivacy.appPrivacyPage.yourRights')}>
           <a className="row row-link" href="#export-data">
-            <span className="row-key">Export Your Data</span>
+            <span className="row-key">{t('appPrivacy.appPrivacyPage.exportYourData')}</span>
             <span className="muted" aria-hidden="true">
               →
             </span>
           </a>
           <a className="row row-link" href="#consent-history">
-            <span className="row-key">Review Your Consent History</span>
+            <span className="row-key">
+              {t('appPrivacy.appPrivacyPage.reviewYourConsentHistory')}
+            </span>
             <span className="muted" aria-hidden="true">
               →
             </span>
           </a>
           <a className="row row-link" href="#delete-account">
-            <span className="row-key">Delete Your Account</span>
+            <span className="row-key">{t('appPrivacy.appPrivacyPage.deleteYourAccount')}</span>
             <span className="muted" aria-hidden="true">
               →
             </span>
@@ -159,19 +168,17 @@ export default async function PrivacyPage({
 
         <div className="grid">
           <article className="card" id="export-data">
-            <p className="card-kicker">Portability</p>
-            <h2 className="card-title">Export Your Data</h2>
+            <p className="card-kicker">{t('appPrivacy.appPrivacyPage.portability')}</p>
+            <h2 className="card-title">{t('appPrivacy.appPrivacyPage.exportYourData')}</h2>
             <p className="card-body u-mb-125" {...atLevel('browse')}>
-              Download a complete, structured snapshot of your account: identity, consents,
-              travellers, Master Profile facts with full history, document metadata, and your audit
-              trail.
+              {t('appPrivacy.appPrivacyPage.downloadACompleteStructuredSnapshotOf')}
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
               <a href="/app/privacy/export" className="btn btn-primary" download>
-                Download Export (JSON)
+                {t('appPrivacy.appPrivacyPage.downloadExportJson')}
               </a>
               <a href="/app/privacy/export?format=csv" className="btn btn-secondary" download>
-                Download Export (CSV/ZIP)
+                {t('appPrivacy.appPrivacyPage.downloadExportCsvZip')}
               </a>
             </div>
             {/* An export on its way or ready to download is never hidden; otherwise Everything. */}
@@ -186,19 +193,14 @@ export default async function PrivacyPage({
             id="delete-account"
             {...(data.scheduledFor ? {} : atLevel('everything'))}
           >
-            <p className="card-kicker">Erasure</p>
-            <h2 className="card-title">Delete Your Account</h2>
+            <p className="card-kicker">{t('appPrivacy.appPrivacyPage.erasure')}</p>
+            <h2 className="card-title">{t('appPrivacy.appPrivacyPage.deleteYourAccount')}</h2>
             <p className="card-body u-mb-125">
-              Deletion is reversible during a 7-day grace window, then permanent. An active legal
-              hold blocks deletion until released.
+              {t('appPrivacy.appPrivacyPage.deletionIsReversibleDuringA7')}
             </p>
             <details className="card-body u-mb-125">
-              <summary>What Happens to Your Audit Trail</summary>
-              <p>
-                Your audit trail is kept, as the law and security require. It no longer links to
-                your account, but it still holds technical details such as the IP address and device
-                used, an internal reference number, and for invitations, the email address used.
-              </p>
+              <summary>{t('appPrivacy.appPrivacyPage.whatHappensToYourAuditTrail')}</summary>
+              <p>{t('appPrivacy.appPrivacyPage.yourAuditTrailIsKeptAs')}</p>
             </details>
             <DeletionPanel
               scheduledFor={data.scheduledFor}
@@ -209,17 +211,17 @@ export default async function PrivacyPage({
         </div>
 
         <article className="card u-mt-150" id="consent-history" {...atLevel('browse')}>
-          <p className="card-kicker">Transparency</p>
-          <h2 className="card-title">Consent History</h2>
+          <p className="card-kicker">{t('appPrivacy.appPrivacyPage.transparency')}</p>
+          <h2 className="card-title">{t('appPrivacy.appPrivacyPage.consentHistory')}</h2>
           {data.history.length === 0 && !consentBefore ? (
-            <EmptyState icon="activity" title="No Changes Yet">
-              Each time you turn a permission on or off, it is recorded here with the date.
+            <EmptyState icon="activity" title={t('appPrivacy.appPrivacyPage.noChangesYet')}>
+              {t('appPrivacy.appPrivacyPage.eachTimeYouTurnAPermission')}
             </EmptyState>
           ) : (
             <div className="u-mt-050">
               <ActivityLog
                 id={CONSENT_LOG_ID}
-                label="Consent History Entries"
+                label={t('appPrivacy.appPrivacyPage.consentHistoryEntries')}
                 entries={data.history}
                 {...(data.historyOlder
                   ? {
@@ -253,14 +255,11 @@ export default async function PrivacyPage({
             aria-labelledby="ai-use-today-title"
             {...atLevel('browse')}
           >
-            <p className="card-kicker">Transparency</p>
+            <p className="card-kicker">{t('appPrivacy.appPrivacyPage.transparency')}</p>
             <h2 className="card-title" id="ai-use-today-title">
-              AI Use Today
+              {t('appPrivacy.appPrivacyPage.aiUseToday')}
             </h2>
-            <p className="card-body">
-              How much you used each AI feature today. For this count, only the number is kept,
-              never what was read. Everything in VisaStack works without these features.
-            </p>
+            <p className="card-body">{t('appPrivacy.appPrivacyPage.howMuchYouUsedEachAi')}</p>
             <div className="rows u-mt-050">
               {data.aiUsage.map((feature) => {
                 const badge = usageBadge(feature);

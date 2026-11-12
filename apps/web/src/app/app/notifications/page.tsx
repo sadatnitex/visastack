@@ -3,9 +3,11 @@ import type { Metadata } from 'next';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
 import { EmptyState, PageHeader } from '../../../components/ui';
+import { appNotificationsCatalog } from '../../../i18n/app-notifications';
 import type { DepthLevel } from '../../../lib/ccd/depth';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import {
   SHOW_MAX,
   type SearchParamsRecord,
@@ -45,6 +47,8 @@ export default async function NotificationsPage(
 export default async function NotificationsPage({
   searchParams,
 }: NotificationsPageProps = {}): Promise<React.JSX.Element> {
+  const locale = await primeLocale();
+  const t = getServerT(appNotificationsCatalog);
   const query = (await searchParams) ?? {};
   const shown = parseShow(query.show, { step: TRAVELLER_LIST_STEP });
   // Read as far as Show More can ever reach, plus one: the page then knows how many more there
@@ -71,13 +75,16 @@ export default async function NotificationsPage({
 
   return (
     <section className="section container">
-      <PageHeader eyebrow="Account" title="Notifications" />
+      <PageHeader
+        eyebrow={t('appNotifications.appNotificationsPage.account')}
+        title={t('appNotifications.appNotificationsPage.notifications')}
+      />
 
       <DepthScope family="notifications" depth={depth}>
         <DepthSwitch family="notifications" initial={depth} copy={depthCopyFor('notifications')} />
         {allRead ? (
           <p className="muted" data-only="glance">
-            Nothing unread in your latest notifications.
+            {t('appNotifications.appNotificationsPage.nothingUnreadInYourLatestNotifications')}
           </p>
         ) : null}
 
@@ -86,13 +93,12 @@ export default async function NotificationsPage({
           {notifications.length === 0 ? (
             <EmptyState
               icon="bell"
-              title="No Notifications Yet"
+              title={t('appNotifications.appNotificationsPage.noNotificationsYet')}
               fold
               why="You never have to open every case to find out what changed."
               action={{ href: '/app', label: 'Go to Home' }}
             >
-              This is where VisaStack tells you what needs you: a request from an agency, a document
-              close to expiring, a case that moved. Nothing needs you right now.
+              {t('appNotifications.appNotificationsPage.thisIsWhereVisastackTellsYou')}
             </EmptyState>
           ) : (
             <NotificationList
@@ -102,6 +108,7 @@ export default async function NotificationsPage({
               searchParams={query}
               markReadAction={markNotificationReadAction}
               markAllReadAction={markAllNotificationsReadAction}
+              locale={locale}
             />
           )}
         </article>

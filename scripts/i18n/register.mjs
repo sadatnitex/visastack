@@ -423,6 +423,127 @@ export const HOLDBACK = new Map([
     'SG-86f84a55',
     'Button name read by screen readers while the visible text is still English (label in name).',
   ],
+  // Wave F part 1: account, privacy, trip invitations, notifications, shared.
+  [
+    'SG-3a144529',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-39303114',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-d5eb6533',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-df4ae9fc',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-8d730501',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-529d695c',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-9c7d6ee0',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-7739b95f',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-8be28114',
+    'Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.',
+  ],
+  [
+    'SG-9b86192c',
+    'Data Rights heading on the account page: privacy wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-aeff30b3',
+    'Billing line with an amount and date: payment wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-0006fab9',
+    'AI Features in the plan list: AI processing allowance wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-88aeced1',
+    'Trip invitation sharing choices (what you share with the organiser): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-436b1b32',
+    'Trip invitation sharing choices (what you share with the organiser): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-89e5a96d',
+    'Trip invitation expiry and unavailable states: invitation terms, owner sign-off.',
+  ],
+  [
+    'SG-1c102ea8',
+    'Trip invitation expiry and unavailable states: invitation terms, owner sign-off.',
+  ],
+  [
+    'SG-750b0e73',
+    'Trip invitation expiry and unavailable states: invitation terms, owner sign-off.',
+  ],
+  [
+    'SG-c983b88e',
+    'Safe copy (redacted document) explanation or status: privacy promise, owner sign-off.',
+  ],
+  [
+    'SG-0b90abd7',
+    'Safe copy (redacted document) explanation or status: privacy promise, owner sign-off.',
+  ],
+  [
+    'SG-e2005eec',
+    'Safe copy (redacted document) explanation or status: privacy promise, owner sign-off.',
+  ],
+  [
+    'SG-93434b03',
+    'Shared workspace access rules (what a grant covers): access control wording, owner sign-off.',
+  ],
+  [
+    'SG-5f0ee722',
+    'Shared workspace access rules (what a grant covers): access control wording, owner sign-off.',
+  ],
+  [
+    'SG-a23537b2',
+    'Shared workspace access rules (what a grant covers): access control wording, owner sign-off.',
+  ],
+  [
+    'SG-7f6342c7',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-9da51aed',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-1167490a',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-938c310f',
+    'Statement that nothing was shared with you: sharing permission wording, owner sign-off.',
+  ],
+  [
+    'SG-04e98a42',
+    'Invoice reference on the plan page: invoice and payment wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-a104e7e5',
+    'Now (state of an AI feature in the plan list): AI allowance wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-4bd5843b',
+    'Remove: {name} (accessible name of the Remove button): the visible button text stays English, so the name waits with it.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
