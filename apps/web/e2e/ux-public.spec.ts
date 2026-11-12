@@ -162,6 +162,8 @@ test.describe('language choice', () => {
     // The choice is kept (the switch offers English) but the page is marked English until /status is translated.
     await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    // The choice itself is still Bangla: the status screen now carries Bangla headings.
+    await expect(page.locator('html')).toHaveAttribute('data-locale', 'bn');
   });
 });
 
