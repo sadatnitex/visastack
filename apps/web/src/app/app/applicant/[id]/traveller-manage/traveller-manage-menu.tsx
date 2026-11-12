@@ -151,7 +151,7 @@ export function TravellerManageMenu({
         onClick={() => (open ? closeMenu(false) : openAt(0))}
         onKeyDown={onButtonKey}
       >
-        {t('applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manage')}
+        {t.node('applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manage')}
       </button>
       {open ? (
         <div
@@ -206,7 +206,7 @@ export function TravellerManageMenu({
                 button.current?.focus();
               }}
             >
-              {t(
+              {t.node(
                 'applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.cancel',
               )}
             </button>

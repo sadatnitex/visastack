@@ -61,7 +61,7 @@ function AiDraft({
         {draft.caseTitle ? `, for ${draft.caseTitle}` : ''}.
       </p>
       <details className="ai-draft-text">
-        <summary>{t('applicantSharing.appApplicantIdSharingAiDrafts.showDraft')}</summary>
+        <summary>{t.node('applicantSharing.appApplicantIdSharingAiDrafts.showDraft')}</summary>
         {/* A long draft scrolls in its own box, which keyboard users can reach and scroll. */}
         <p
           className="ai-draft-body"
@@ -85,7 +85,7 @@ function AiDraft({
             title: draft.title,
           })}
         >
-          {t('applicantSharing.appApplicantIdSharingAiDrafts.copyDraft')}
+          {t.node('applicantSharing.appApplicantIdSharingAiDrafts.copyDraft')}
         </button>
         <form action={formAction}>
           <input type="hidden" name="applicantId" value={applicantId} />
@@ -133,13 +133,13 @@ export function AiDraftsSection({
   return (
     <article className="card ai-drafts" id="ai-drafts" aria-labelledby="ai-drafts-title">
       <p className="card-kicker">
-        {t('applicantSharing.appApplicantIdSharingAiConnections.aiApps')}
+        {t.node('applicantSharing.appApplicantIdSharingAiConnections.aiApps')}
       </p>
       <h2 className="card-title" id="ai-drafts-title" ref={headingRef} tabIndex={-1}>
-        {t('applicantSharing.appApplicantIdSharingAiDrafts.draftsFromAiApps')}
+        {t.node('applicantSharing.appApplicantIdSharingAiDrafts.draftsFromAiApps')}
       </h2>
       <p className="card-body">
-        {t('applicantSharing.appApplicantIdSharingAiDrafts.draftsYourAiAppsSavedFor')}
+        {t.node('applicantSharing.appApplicantIdSharingAiDrafts.draftsYourAiAppsSavedFor')}
       </p>
       <FormMessage result={lastResult} />
       {shown.length > 0 ? (
@@ -158,12 +158,12 @@ export function AiDraftsSection({
         </ul>
       ) : (
         <p className="card-body muted">
-          {t('applicantSharing.appApplicantIdSharingAiDrafts.noDraftsFromAiApps')}
+          {t.node('applicantSharing.appApplicantIdSharingAiDrafts.noDraftsFromAiApps')}
         </p>
       )}
       {more > 0 ? (
         <p className="card-body muted">
-          {t('applicantSharing.appApplicantIdSharingAiDrafts.andPluralNotShownHereDelete', {
+          {t.node('applicantSharing.appApplicantIdSharingAiDrafts.andPluralNotShownHereDelete', {
             plural: plural(more, 'more draft', 'more drafts'),
           })}
         </p>

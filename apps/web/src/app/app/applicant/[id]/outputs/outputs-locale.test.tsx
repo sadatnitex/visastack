@@ -84,13 +84,15 @@ type Query = Record<string, string | string[]>;
 async function render(locale: 'en' | 'bn', query: Query = {}) {
   current.holder = null;
   current.locale = locale;
-  const html = await renderServer(
+  const marked = await renderServer(
     OutputsPage({
       params: Promise.resolve({ id: applicantId }),
       searchParams: Promise.resolve(query),
     }),
   );
-  return { html, text: textOf(html) };
+  // Bengali on a page marked English carries its own language; the checks below read the words.
+  const html = marked.replace(/<span lang="bn">([^<]*)<\/span>/g, '$1');
+  return { html, marked, text: textOf(html) };
 }
 
 async function fact(fieldKey: string, value: string, status?: 'CONFLICTED') {
@@ -154,7 +156,8 @@ afterEach(() => {
 
 describe('the summaries page under Bengali', () => {
   it('the starting brief shows the Bengali headings, choices and Preview, and keeps the summary names and promises in English', async () => {
-    const { html, text } = await render('bn', { output: 'agency_brief', case: missionId });
+    const { html, marked, text } = await render('bn', { output: 'agency_brief', case: missionId });
+    expect(marked).toContain('<span lang="bn">');
     for (const key of [
       'summaries',
       'chooseWhatToInclude',

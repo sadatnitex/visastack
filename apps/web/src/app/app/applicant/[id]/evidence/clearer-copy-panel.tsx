@@ -50,7 +50,7 @@ export function ClearerCopyPanel({
       <summary
         className={`evidence-clearer-toggle lc-clearer${primary ? ' evidence-clearer-primary lc-clearer-primary' : ''}`}
       >
-        {t('applicantEvidence.appApplicantIdEvidenceClearerCopyPanel.uploadAClearerCopy')}
+        {t.node('applicantEvidence.appApplicantIdEvidenceClearerCopyPanel.uploadAClearerCopy')}
         <span className="sr-only">: {documentName}</span>
       </summary>
       {open ? (

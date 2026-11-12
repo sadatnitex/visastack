@@ -219,11 +219,13 @@ export default async function EvidencePage({
       />
       {/* Owner, 10 Nov 2026: the page says who is asking, and that it is not a government rule. */}
       <p className="muted">
-        {t('applicantEvidence.appApplicantIdEvidencePage.anAgencyIsAskingYouFor')}
+        {t.node('applicantEvidence.appApplicantIdEvidencePage.anAgencyIsAskingYouFor')}
       </p>
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. The rest is one tap away. */}
       <AboutDisclosure summary={t('applicantEvidence.appApplicantIdEvidencePage.aboutRequests')}>
-        <p>{t('applicantEvidence.appApplicantIdEvidencePage.anAgencyRequestIsThatOrganisation')}</p>
+        <p>
+          {t.node('applicantEvidence.appApplicantIdEvidencePage.anAgencyRequestIsThatOrganisation')}
+        </p>
       </AboutDisclosure>
 
       <DepthScope family="evidence-requests" depth={depth}>
@@ -231,7 +233,7 @@ export default async function EvidencePage({
 
         {nothingWaiting ? (
           <p className="muted" data-only="glance">
-            {t('applicantEvidence.appApplicantIdEvidencePage.nothingIsWaitingForYou')}
+            {t.node('applicantEvidence.appApplicantIdEvidencePage.nothingIsWaitingForYou')}
           </p>
         ) : null}
 
@@ -255,7 +257,7 @@ export default async function EvidencePage({
           // A failed read never claims there are no requests: one may be waiting.
           <article className="card lc-empty-host">
             <p className="notice notice-warn u-m-0" role="alert">
-              {t('applicantEvidence.appApplicantIdEvidencePage.yourRequestsCouldNotBeLoaded')}
+              {t.node('applicantEvidence.appApplicantIdEvidencePage.yourRequestsCouldNotBeLoaded')}
             </p>
           </article>
         ) : data.requestCounts.total === 0 ? (
@@ -267,7 +269,7 @@ export default async function EvidencePage({
               why="You reply from your saved documents in one step, and you decide what to send."
               action={{ href: `/app/applicant/${id}/documents`, label: 'Open Documents' }}
             >
-              {t('applicantEvidence.appApplicantIdEvidencePage.thisIsWhereAnAgencyAsks')}
+              {t.node('applicantEvidence.appApplicantIdEvidencePage.thisIsWhereAnAgencyAsks')}
             </EmptyState>
           </article>
         ) : (

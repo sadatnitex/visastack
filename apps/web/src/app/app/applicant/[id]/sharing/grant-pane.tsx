@@ -62,7 +62,7 @@ export function GrantPane({
       <h3 className="lp-pane-title">
         {grant.recipient.label}
         {grant.recipient.kind === 'organization'
-          ? t('applicantSharing.appApplicantIdSharingGrantPane.organization')
+          ? t.node('applicantSharing.appApplicantIdSharingGrantPane.organization')
           : ''}
       </h3>
       <p className="lp-pane-line">
@@ -91,7 +91,7 @@ export function GrantPane({
       />
       {grant.acceptedAt ? (
         <p className="muted lc-small-m0">
-          {t('applicantSharing.appApplicantIdSharingGrantPane.acceptedFormattimestampdate', {
+          {t.node('applicantSharing.appApplicantIdSharingGrantPane.acceptedFormattimestampdate', {
             formatTimestampDate: formatTimestampDate(grant.acceptedAt),
           })}
         </p>

@@ -222,7 +222,7 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="recipientEmail">
-          {t('applicantSharing.appApplicantIdSharingGrantForm.recipientEmail')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantForm.recipientEmail')}
         </label>
         <input
           id="recipientEmail"
@@ -237,7 +237,7 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="purpose">
-          {t('applicantSharing.appApplicantIdSharingGrantForm.purpose')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantForm.purpose')}
         </label>
         <input
           id="purpose"
@@ -251,7 +251,7 @@ export function GrantForm({
         />
         <fieldset className="fieldset grant-purpose-chips">
           <legend className="sr-only">
-            {t('applicantSharing.appApplicantIdSharingGrantForm.commonReasons')}
+            {t.node('applicantSharing.appApplicantIdSharingGrantForm.commonReasons')}
           </legend>
           {PURPOSE_SUGGESTIONS.map((suggestion) => (
             <button
@@ -274,7 +274,7 @@ export function GrantForm({
 
       <fieldset className="fieldset">
         <legend className="field-label">
-          {t('applicantSharing.appApplicantIdSharingGrantForm.permissions')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantForm.permissions')}
         </legend>
         <div className="checks">
           {SHAREABLE_ACTIONS.map((action) => {
@@ -308,7 +308,7 @@ export function GrantForm({
 
       <fieldset className="fieldset">
         <legend className="field-label">
-          {t('applicantSharing.appApplicantIdSharingGrantForm.whatShouldTheySeeFromYour')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantForm.whatShouldTheySeeFromYour')}
         </legend>
         <div className="checks">
           <label className="check">
@@ -323,7 +323,7 @@ export function GrantForm({
               }}
             />
             <span>
-              {t('applicantSharing.appApplicantIdSharingGrantForm.everythingInMyProfile')}
+              {t.node('applicantSharing.appApplicantIdSharingGrantForm.everythingInMyProfile')}
             </span>
           </label>
           <label className="check">
@@ -334,7 +334,9 @@ export function GrantForm({
               checked={profileScope === 'some'}
               onChange={() => setProfileScope('some')}
             />
-            <span>{t('applicantSharing.appApplicantIdSharingGrantForm.onlyThePartsIChoose')}</span>
+            <span>
+              {t.node('applicantSharing.appApplicantIdSharingGrantForm.onlyThePartsIChoose')}
+            </span>
           </label>
         </div>
         {profileScope === 'some' ? (
@@ -380,7 +382,7 @@ export function GrantForm({
       {documents.length > 0 ? (
         <fieldset className="fieldset">
           <legend className="field-label">
-            {t('applicantSharing.appApplicantIdSharingGrantForm.whichDocumentsCanTheyOpen')}
+            {t.node('applicantSharing.appApplicantIdSharingGrantForm.whichDocumentsCanTheyOpen')}
           </legend>
           <div className="checks">
             <label className="check">
@@ -394,7 +396,7 @@ export function GrantForm({
                   setSelectedDocuments([]);
                 }}
               />
-              <span>{t('applicantSharing.appApplicantIdSharingGrantForm.everyDocument')}</span>
+              <span>{t.node('applicantSharing.appApplicantIdSharingGrantForm.everyDocument')}</span>
             </label>
             <label className="check">
               <input
@@ -405,7 +407,7 @@ export function GrantForm({
                 onChange={() => setDocumentScope('some')}
               />
               <span>
-                {t('applicantSharing.appApplicantIdSharingGrantForm.onlyTheDocumentsIChoose')}
+                {t.node('applicantSharing.appApplicantIdSharingGrantForm.onlyTheDocumentsIChoose')}
               </span>
             </label>
           </div>
@@ -432,7 +434,7 @@ export function GrantForm({
 
       <div className="field-row">
         <label className="field-label" htmlFor="expiryDays">
-          {t('applicantSharing.appApplicantIdSharingGrantForm.expiresAfterDays')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantForm.expiresAfterDays')}
         </label>
         <input
           id="expiryDays"
@@ -445,15 +447,15 @@ export function GrantForm({
           onChange={(e) => setExpiryDays(e.target.value)}
         />
         <p className="muted" style={{ fontSize: 'var(--text-caption)', margin: '0.3rem 0 0' }}>
-          {t('applicantSharing.appApplicantIdSharingGrantForm.everyGrantExpiresLeaveBlankFor')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantForm.everyGrantExpiresLeaveBlankFor')}
         </p>
       </div>
 
       <div className="sharing-scope-review" ref={review} tabIndex={-1} aria-live="polite">
         <h3>
           {reviewed
-            ? t('applicantSharing.appApplicantIdSharingGrantForm.confirmThisAccess')
-            : t('applicantSharing.appApplicantIdSharingGrantForm.yourAccessSummary')}
+            ? t.node('applicantSharing.appApplicantIdSharingGrantForm.confirmThisAccess')
+            : t.node('applicantSharing.appApplicantIdSharingGrantForm.yourAccessSummary')}
         </h3>
         <SelectedScopeSummary
           recipient={recipientEmail || 'This recipient'}
@@ -475,13 +477,19 @@ export function GrantForm({
             revoking are left, each said once. */}
         <p className="scope-summary-note">
           {canDownload
-            ? t('applicantSharing.appApplicantIdSharingGrantForm.safeCopiesMayBeDownloadedOriginal')
-            : t('applicantSharing.appApplicantIdSharingGrantForm.downloadsAreNotIncludedYouCan')}
+            ? t.node(
+                'applicantSharing.appApplicantIdSharingGrantForm.safeCopiesMayBeDownloadedOriginal',
+              )
+            : t.node(
+                'applicantSharing.appApplicantIdSharingGrantForm.downloadsAreNotIncludedYouCan',
+              )}
         </p>
         {canDownload ? (
           // Owner-approved wording, 25 Oct 2026; shown only when downloads are allowed.
           <p className="scope-summary-download">
-            {t('applicantSharing.appApplicantIdSharingGrantForm.revokingEndsAccessOnVisastackIt')}
+            {t.node(
+              'applicantSharing.appApplicantIdSharingGrantForm.revokingEndsAccessOnVisastackIt',
+            )}
           </p>
         ) : null}
       </div>
@@ -495,7 +503,7 @@ export function GrantForm({
         {/* Friction F7: the confirm button is not ready until the access has been reviewed. */}
         {reviewed || pending ? null : (
           <p className="muted u-m-0" data-testid="confirm-reason">
-            {t('applicantSharing.appApplicantIdSharingGrantForm.pressReviewAndConfirmFirst')}
+            {t.node('applicantSharing.appApplicantIdSharingGrantForm.pressReviewAndConfirmFirst')}
           </p>
         )}
         <button
@@ -506,7 +514,7 @@ export function GrantForm({
           }}
           aria-disabled={pending || undefined}
         >
-          {t('applicantSharing.appApplicantIdSharingGrantForm.reviewAndConfirm')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantForm.reviewAndConfirm')}
         </button>
         <SubmitButton
           unavailable={!reviewed || actions.length === 0}

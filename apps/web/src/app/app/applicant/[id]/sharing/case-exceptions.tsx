@@ -39,7 +39,9 @@ export function CaseExceptions({
   return (
     <div className="sharing-case-exceptions">
       <p className="muted u-m-0">
-        {t('applicantSharing.appApplicantIdSharingCaseExceptions.thisAccessCoversEveryCaseExcept')}
+        {t.node(
+          'applicantSharing.appApplicantIdSharingCaseExceptions.thisAccessCoversEveryCaseExcept',
+        )}
       </p>
       <ul className="sharing-case-exceptions-list">
         {exceptions.map((exception) => (
@@ -106,13 +108,13 @@ function CaseExceptionRow({
         <input type="hidden" name="missionId" value={exception.missionId} />
         <span>
           {exception.sharedSeparately
-            ? t('applicantSharing.appApplicantIdSharingCaseExceptions.sharedSeparately')
-            : t('applicantSharing.appApplicantIdSharingCaseExceptions.notShared')}
+            ? t.node('applicantSharing.appApplicantIdSharingCaseExceptions.sharedSeparately')
+            : t.node('applicantSharing.appApplicantIdSharingCaseExceptions.notShared')}
           : {exception.title}
         </span>
         {exception.sharedSeparately ? (
           <span className="muted">
-            {t(
+            {t.node(
               'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelSeesThisCaseThroughAnother',
               { recipientLabel },
             )}
@@ -121,7 +123,7 @@ function CaseExceptionRow({
         {confirming ? (
           <div className="notice" role="alert" ref={confirmRef}>
             <p className="u-m-0">
-              {t(
+              {t.node(
                 'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelWillBeAbleToSee',
                 { recipientLabel },
               )}
@@ -141,7 +143,7 @@ function CaseExceptionRow({
                   setConfirming(false);
                 }}
               >
-                {t('applicantSharing.appApplicantIdSharingCaseExceptions.keepItPrivate')}
+                {t.node('applicantSharing.appApplicantIdSharingCaseExceptions.keepItPrivate')}
               </button>
             </div>
           </div>
@@ -156,7 +158,7 @@ function CaseExceptionRow({
             )}
             onClick={() => setConfirming(true)}
           >
-            {t('applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCase')}
+            {t.node('applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCase')}
           </button>
         )}
         <div ref={messageRef} tabIndex={-1} className="sharing-case-exception-message">

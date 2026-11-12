@@ -54,42 +54,48 @@ function NewLink({ url }: { readonly url: string }) {
   return (
     <div className="field-list u-mt-100">
       <label htmlFor={id} className="field-label">
-        {t('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.yourPrivateCalendarLink')}
+        {t.node(
+          'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.yourPrivateCalendarLink',
+        )}
       </label>
       <input ref={input} id={id} className="input" value={url} readOnly />
       <div className="calendar-actions">
         <button type="button" className="btn btn-primary" onClick={copy}>
-          {t('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.copyLink')}
+          {t.node('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.copyLink')}
         </button>
       </div>
       <output className="field-msg" aria-live="polite">
         {message}
       </output>
       <p className="muted u-m-0">
-        {t('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thenAddItToYourCalendar')}
+        {t.node(
+          'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thenAddItToYourCalendar',
+        )}
       </p>
       <ul className="muted u-m-0">
         <li>
-          {t(
+          {t.node(
             'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.googleCalendarOnAComputerNext',
           )}
         </li>
         <li>
-          {t(
+          {t.node(
             'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.iphoneOrIpadOpenSettingsThen',
           )}
         </li>
         <li>
-          {t('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.calendarOnAMacChooseFile')}
+          {t.node(
+            'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.calendarOnAMacChooseFile',
+          )}
         </li>
         <li>
-          {t(
+          {t.node(
             'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.outlookChooseAddCalendarThenSubscribe',
           )}
         </li>
       </ul>
       <p className="muted u-m-0">
-        {t('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thisLinkIsShownOnlyNow')}
+        {t.node('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thisLinkIsShownOnlyNow')}
       </p>
     </div>
   );
@@ -123,29 +129,33 @@ export function CalendarFeedPanel({
   return (
     <section className="card u-mt-150" aria-labelledby="calendar-feed-heading">
       <h3 className="card-title" id="calendar-feed-heading">
-        {t('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribeInYourCalendarApp')}
+        {t.node(
+          'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribeInYourCalendarApp',
+        )}
       </h3>
       {state === 'unavailable' ? (
         <p className="card-body">
-          {t(
+          {t.node(
             'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribingInYourCalendarAppIs',
           )}
         </p>
       ) : (
         <>
           <p className="card-body">
-            {t('applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.turnOnAPrivateLinkAnd')}
+            {t.node(
+              'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.turnOnAPrivateLinkAnd',
+            )}
           </p>
           <div className="notice notice-warn u-mb-100">
             <p className="u-m-0">
-              {t(
+              {t.node(
                 'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.anyoneWhoHasThisLinkCan',
               )}
             </p>
           </div>
           {state === 'unknown' ? (
             <p className="muted">
-              {t(
+              {t.node(
                 'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.weCouldNotCheckYourCalendar',
               )}
             </p>
@@ -202,7 +212,7 @@ export function CalendarFeedPanel({
           </form>
           {state === 'on' ? (
             <p className="muted u-fs-085 calendar-feed-note">
-              {t(
+              {t.node(
                 'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.makingANewLinkStopsThe',
               )}
             </p>

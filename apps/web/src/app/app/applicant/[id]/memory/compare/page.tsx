@@ -169,18 +169,22 @@ function ChangesView({
       />
       {unavailable ? (
         <p className="notice notice-warn">
-          {t('applicantMemory.appApplicantIdMemoryComparePage.thisComparisonCannotBeShownRight')}
+          {t.node(
+            'applicantMemory.appApplicantIdMemoryComparePage.thisComparisonCannotBeShownRight',
+          )}
         </p>
       ) : null}
       <article className="card then-now-card">
         <p className="then-now-review">{reviewSentence(snapshot.version, changes.review)}</p>
         {!snapshot.exact ? (
           <p className="then-now-note">
-            {t('applicantMemory.appApplicantIdMemoryComparePage.thisOlderSnapshotDidNotRecord')}
+            {t.node(
+              'applicantMemory.appApplicantIdMemoryComparePage.thisOlderSnapshotDidNotRecord',
+            )}
           </p>
         ) : changes.changes.length === 0 ? (
           <p className="then-now-note">
-            {t(
+            {t.node(
               'applicantMemory.appApplicantIdMemoryComparePage.nothingDiffersByVersionEveryDetail',
             )}
           </p>
@@ -210,7 +214,7 @@ function ChangesView({
                           { name: line.name },
                         )}
                       >
-                        {t('applicantMemory.appApplicantIdMemoryComparePage.compare')}
+                        {t.node('applicantMemory.appApplicantIdMemoryComparePage.compare')}
                       </Link>
                     ) : null}
                   </li>
@@ -232,8 +236,8 @@ function ChangesView({
         {snapshot.exact && changes.unchangedDetailCount > 0 ? (
           <p className="then-now-note">
             {changes.unchangedDetailCount === 1
-              ? t('applicantMemory.appApplicantIdMemoryComparePage.1DetailIsStillTheVersion')
-              : t(
+              ? t.node('applicantMemory.appApplicantIdMemoryComparePage.1DetailIsStillTheVersion')
+              : t.node(
                   'applicantMemory.appApplicantIdMemoryComparePage.unchangeddetailcountDetailsAreStillTheVersions',
                   { unchangedDetailCount: changes.unchangedDetailCount },
                 )}
@@ -244,12 +248,12 @@ function ChangesView({
             className="btn btn-secondary"
             href={`/app/mission/${snapshot.missionId}/snapshots/${snapshot.id}`}
           >
-            {t('applicantMemory.appApplicantIdMemoryComparePage.viewSnapshotVersion', {
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.viewSnapshotVersion', {
               version: snapshot.version,
             })}
           </Link>
           <Link className="btn btn-secondary" href={`/app/mission/${snapshot.missionId}`}>
-            {t('applicantMemory.appApplicantIdMemoryComparePage.openTheCase')}
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.openTheCase')}
           </Link>
         </div>
       </article>
@@ -274,55 +278,55 @@ function SideFacts({
   const t = getServerT(applicantMemoryCatalog);
   return (
     <dl className="then-now-facts">
-      <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.value')}</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.value')}</dt>
       <dd className="then-now-value">
         {hidden
-          ? t('applicantMemory.appApplicantIdMemoryComparePage.hiddenHereToKeepItPrivate')
-          : (side.value ?? t('applicantMemory.appApplicantIdMemoryComparePage.notRecorded'))}
+          ? t.node('applicantMemory.appApplicantIdMemoryComparePage.hiddenHereToKeepItPrivate')
+          : (side.value ?? t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded'))}
       </dd>
       {amount ? (
         <>
-          <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.currency')}</dt>
+          <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.currency')}</dt>
           <dd>
-            {side.currency ?? t('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
+            {side.currency ?? t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
           </dd>
-          <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.beforeOrAfterTax')}</dt>
+          <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.beforeOrAfterTax')}</dt>
           <dd>
             {side.basis
               ? AMOUNT_BASIS_LABELS[side.basis]
-              : t('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
+              : t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
           </dd>
         </>
       ) : null}
-      <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.trueFrom')}</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.trueFrom')}</dt>
       <dd>
         {side.effectiveFrom
           ? formatDateOnly(side.effectiveFrom)
-          : t('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
+          : t.node('applicantMemory.appApplicantIdMemoryComparePage.notRecorded')}
       </dd>
-      <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.savedOn')}</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.savedOn')}</dt>
       <dd>{formatTimestampDate(side.recordedAt)}</dd>
-      <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.asOf')}</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.asOf')}</dt>
       <dd>{asOf}</dd>
-      <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.howItWasSaved')}</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.howItWasSaved')}</dt>
       <dd>{fieldStatusWords(side.status)}</dd>
-      <dt>{t('applicantMemory.appApplicantIdMemoryComparePage.noteSavedWithIt')}</dt>
+      <dt>{t.node('applicantMemory.appApplicantIdMemoryComparePage.noteSavedWithIt')}</dt>
       <dd>
         {hidden ? (
           noteSaved ? (
-            t('applicantMemory.appApplicantIdMemoryComparePage.aNoteWasSavedHiddenHere')
+            t.node('applicantMemory.appApplicantIdMemoryComparePage.aNoteWasSavedHiddenHere')
           ) : (
-            t('applicantMemory.appApplicantIdMemoryComparePage.none')
+            t.node('applicantMemory.appApplicantIdMemoryComparePage.none')
           )
         ) : side.explanation ? (
           <>
             <q>{side.explanation}</q>
             <span className="then-now-assertion">
-              {t('applicantMemory.appApplicantIdMemoryComparePage.whatWasWrittenAtTheTime')}
+              {t.node('applicantMemory.appApplicantIdMemoryComparePage.whatWasWrittenAtTheTime')}
             </span>
           </>
         ) : (
-          t('applicantMemory.appApplicantIdMemoryComparePage.none')
+          t.node('applicantMemory.appApplicantIdMemoryComparePage.none')
         )}
       </dd>
     </dl>
@@ -362,21 +366,21 @@ function DetailView({
 
       <section className="card then-now-result" aria-labelledby="then-now-result-heading">
         <h3 className="then-now-kicker" id="then-now-result-heading">
-          {t('applicantMemory.appApplicantIdMemoryComparePage.result')}
+          {t.node('applicantMemory.appApplicantIdMemoryComparePage.result')}
         </h3>
         <p className="then-now-result-line">
           <StatusBadge tone={RESULT_TONES[comparison.result]}>{comparison.label}</StatusBadge>
           <span>{comparison.reasonText}</span>
         </p>
         <p className="then-now-note">
-          {t('applicantMemory.appApplicantIdMemoryComparePage.thisComparesWhatWasRecordedIt')}
+          {t.node('applicantMemory.appApplicantIdMemoryComparePage.thisComparesWhatWasRecordedIt')}
         </p>
       </section>
 
       <div className="then-now-sides">
         <article className="card then-now-side" aria-labelledby="then-now-then">
           <h3 className="card-title" id="then-now-then">
-            {t('applicantMemory.appApplicantIdMemoryComparePage.inSnapshotVersion', {
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.inSnapshotVersion', {
               version: snapshot.version,
             })}
           </h3>
@@ -390,7 +394,7 @@ function DetailView({
         </article>
         <article className="card then-now-side" aria-labelledby="then-now-now">
           <h3 className="card-title" id="then-now-now">
-            {t('applicantMemory.appApplicantIdMemoryComparePage.today')}
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.today')}
           </h3>
           <SideFacts
             side={comparison.current}
@@ -404,7 +408,7 @@ function DetailView({
 
       <section className="card then-now-next" aria-labelledby="then-now-next-heading">
         <h3 className="card-title" id="then-now-next-heading">
-          {t('applicantMemory.appApplicantIdMemoryComparePage.whatToDoNext')}
+          {t.node('applicantMemory.appApplicantIdMemoryComparePage.whatToDoNext')}
         </h3>
         <p className="then-now-review">{reviewSentence(snapshot.version, review)}</p>
         <p>{next.text}</p>
@@ -414,20 +418,23 @@ function DetailView({
               className="btn btn-primary"
               href={profileSectionHref(applicantId, comparison.fieldKey)}
             >
-              {t('applicantMemory.appApplicantIdMemoryComparePage.updateThisDetail')}
+              {t.node('applicantMemory.appApplicantIdMemoryComparePage.updateThisDetail')}
             </Link>
           ) : null}
           <Link
             className={next.updateDetail ? 'btn btn-secondary' : 'btn btn-primary'}
             href={`/app/mission/${snapshot.missionId}#snapshots`}
           >
-            {t('applicantMemory.appApplicantIdMemoryComparePage.openTheCase')}
+            {t.node('applicantMemory.appApplicantIdMemoryComparePage.openTheCase')}
           </Link>
         </div>
         <p className="then-now-note">
-          {t('applicantMemory.appApplicantIdMemoryComparePage.snapshotVersionKeepsExactlyWhatIt', {
-            version: snapshot.version,
-          })}
+          {t.node(
+            'applicantMemory.appApplicantIdMemoryComparePage.snapshotVersionKeepsExactlyWhatIt',
+            {
+              version: snapshot.version,
+            },
+          )}
         </p>
       </section>
     </>

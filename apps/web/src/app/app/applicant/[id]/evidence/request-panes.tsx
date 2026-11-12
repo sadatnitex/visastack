@@ -138,7 +138,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
       </p>
       {req.dueDate ? (
         <p className="case-row-meta">
-          {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.neededByFormatdateonly', {
+          {t.node('applicantEvidence.appApplicantIdEvidenceRequestPanes.neededByFormatdateonly', {
             formatDateOnly: formatDateOnly(req.dueDate),
           })}
         </p>
@@ -162,9 +162,12 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
       <p className="case-row-meta">{item.guidance}</p>
       {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
         <p className="case-row-meta">
-          {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.youSentThisOnFormatmoment', {
-            formatMoment: formatMoment(req.respondedAt, timeZone),
-          })}
+          {t.node(
+            'applicantEvidence.appApplicantIdEvidenceRequestPanes.youSentThisOnFormatmoment',
+            {
+              formatMoment: formatMoment(req.respondedAt, timeZone),
+            },
+          )}
         </p>
       ) : null}
       <RequestThread thread={thread} viewer="traveller" timeZone={timeZone} />
@@ -200,7 +203,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
             className="btn btn-primary evidence-add-link"
             href={`/app/applicant/${id}/documents/add`}
           >
-            {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.addDocuments')}
+            {t.node('applicantEvidence.appApplicantIdEvidenceRequestPanes.addDocuments')}
             <span className="sr-only">: {itemName}</span>
           </Link>
         ) : null
@@ -208,15 +211,18 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
       {questions.length > 0 ? (
         <div className="request-questions lc-questions">
           <p className="request-questions-title lc-questions-title u-m-0">
-            {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.yourQuestions')}
+            {t.node('applicantEvidence.appApplicantIdEvidenceRequestPanes.yourQuestions')}
           </p>
           <ul className="request-questions-list">
             {questions.map((question) => (
               <li key={question.askedAt.toISOString()}>
                 <span className="case-row-meta">
-                  {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment', {
-                    formatMoment: formatMoment(question.askedAt, timeZone),
-                  })}
+                  {t.node(
+                    'applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment',
+                    {
+                      formatMoment: formatMoment(question.askedAt, timeZone),
+                    },
+                  )}
                 </span>
                 <span className="request-question-text">{question.text}</span>
               </li>
@@ -224,7 +230,9 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           </ul>
           {req.missionId ? (
             <Link href={`/app/mission/${req.missionId}#notes`} className="request-questions-link">
-              {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.readRepliesInTheCaseNotes')}
+              {t.node(
+                'applicantEvidence.appApplicantIdEvidenceRequestPanes.readRepliesInTheCaseNotes',
+              )}
               <span className="sr-only">: {itemName}</span>
             </Link>
           ) : null}
@@ -233,14 +241,16 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
       {canAsk && req.missionId ? (
         questions.length >= REQUEST_QUESTION_LIMIT ? (
           <p className="case-row-meta" {...(unusableFile ? {} : atLevel('everything'))}>
-            {t(
+            {t.node(
               'applicantEvidence.appApplicantIdEvidenceRequestPanes.youHaveAskedSeveralQuestionsAbout',
             )}
           </p>
         ) : (
           <details className="request-ask lc-ask" {...(unusableFile ? {} : atLevel('everything'))}>
             <summary className="request-ask-toggle">
-              {t('applicantEvidence.appApplicantIdEvidenceRequestPanes.askTheAgencyAboutThisItem')}
+              {t.node(
+                'applicantEvidence.appApplicantIdEvidenceRequestPanes.askTheAgencyAboutThisItem',
+              )}
               <span className="sr-only">: {itemName}</span>
             </summary>
             <AskAboutItemForm

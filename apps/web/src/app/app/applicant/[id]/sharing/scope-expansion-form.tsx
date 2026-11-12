@@ -37,7 +37,7 @@ export function ScopeExpansionForm({
   return (
     <div className="notice lc-scope-expansion">
       <p className="u-m-0">
-        {t(
+        {t.node(
           'applicantSharing.appApplicantIdSharingScopeExpansionForm.lengthNewDocumentsNowMatchThis',
           { length: candidates.length },
         )}

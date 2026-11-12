@@ -63,7 +63,7 @@ export function MemoryCaseList({
                 {item.destination ? (
                   <DestinationLabel destination={item.destination} />
                 ) : (
-                  t('applicantMemory.appApplicantIdMemoryMemoryCaseList.case')
+                  t.node('applicantMemory.appApplicantIdMemoryMemoryCaseList.case')
                 )}
               </p>
               <h3 className="card-title">
@@ -82,14 +82,14 @@ export function MemoryCaseList({
               ) : null}
               {item.removed ? (
                 <p className="memory-case-note">
-                  {t(
+                  {t.node(
                     'applicantMemory.appApplicantIdMemoryMemoryCaseList.thisCaseSFilesWereRemoved',
                   )}
                 </p>
               ) : null}
               {item.events.length === 0 ? (
                 <p className="memory-case-note">
-                  {t(
+                  {t.node(
                     'applicantMemory.appApplicantIdMemoryMemoryCaseList.nothingHasBeenPreparedForThis',
                   )}
                 </p>
@@ -122,7 +122,7 @@ export function MemoryCaseList({
                                 className="btn btn-secondary"
                                 href={`/app/mission/${item.missionId}/snapshots/${event.snapshotId}`}
                               >
-                                {t(
+                                {t.node(
                                   'applicantMemory.appApplicantIdMemoryMemoryCaseList.viewSnapshotSnapshotversion',
                                   { snapshotVersion: event.snapshotVersion },
                                 )}
@@ -131,7 +131,7 @@ export function MemoryCaseList({
                                 className="btn btn-secondary"
                                 href={`/app/applicant/${applicantId}/memory/compare?snapshot=${event.snapshotId}`}
                               >
-                                {t(
+                                {t.node(
                                   'applicantMemory.appApplicantIdMemoryMemoryCaseList.compareWithToday',
                                 )}
                               </Link>

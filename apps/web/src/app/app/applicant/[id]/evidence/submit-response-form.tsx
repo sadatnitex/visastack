@@ -133,7 +133,7 @@ export function SubmitResponseForm({
   if (kind === 'DOCUMENT' && !documentsRead) {
     return (
       <p className="notice notice-warn u-m-0" role="alert">
-        {t(
+        {t.node(
           'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.yourDocumentsCouldNotBeLoaded',
         )}
       </p>
@@ -143,11 +143,13 @@ export function SubmitResponseForm({
     return (
       <div className="request-response">
         <p className="muted u-fs-085 u-m-0">
-          {t('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.noCopyOfThisDocumentType')}
+          {t.node(
+            'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.noCopyOfThisDocumentType',
+          )}
         </p>
         <div className="request-response-actions">
           <a className="btn btn-secondary" href={`/app/applicant/${applicantId}/documents`}>
-            {t('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.openDocuments')}
+            {t.node('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.openDocuments')}
           </a>
         </div>
       </div>
@@ -184,8 +186,12 @@ export function SubmitResponseForm({
           tabIndex={-1}
         >
           {kind === 'FIELD'
-            ? t('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheDetailToSend')
-            : t('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheCopyToSend')}
+            ? t.node(
+                'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheDetailToSend',
+              )
+            : t.node(
+                'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheCopyToSend',
+              )}
         </legend>
         {kind === 'FIELD'
           ? candidateFacts.map((f) => (
@@ -217,7 +223,7 @@ export function SubmitResponseForm({
                 <span className="evidence-pick-text">
                   <span className="evidence-pick-name lc-pick-name">{choice.name}</span>
                   <span className="evidence-pick-meta">
-                    {t(
+                    {t.node(
                       'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.kindlabelAddedAddedlabelScanlabel',
                       {
                         kindLabel: choice.kindLabel,
@@ -228,13 +234,13 @@ export function SubmitResponseForm({
                   </span>
                   {choice.sentBack ? (
                     <span className="evidence-pick-tag evidence-pick-tag-warn">
-                      {t(
+                      {t.node(
                         'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.sentBackByTheAgency',
                       )}
                     </span>
                   ) : choice.newest ? (
                     <span className="evidence-pick-tag">
-                      {t('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.newest')}
+                      {t.node('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.newest')}
                     </span>
                   ) : null}
                   {!choice.usable ? (

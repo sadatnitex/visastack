@@ -66,7 +66,7 @@ async function render(
 ): Promise<{ html: string; text: string }> {
   state.holder = null;
   state.locale = locale;
-  const html = await renderServer(
+  const marked = await renderServer(
     CalendarPage({
       params: Promise.resolve({ id: 'a1' }),
       searchParams: Promise.resolve(query),
@@ -76,7 +76,9 @@ async function render(
       </I18nProvider>
     )),
   );
-  return { html, text: textOf(html) };
+  // Bengali on a page marked English carries its own language; the checks below read the words.
+  const html = marked.replace(/<span lang="bn">([^<]*)<\/span>/g, '$1');
+  return { html, marked, text: textOf(html) };
 }
 
 const listing = (items = CALENDAR_ITEMS) => ({
@@ -96,7 +98,8 @@ afterEach(() => {
 
 describe('calendar page under Bengali', () => {
   it('the choose-dates state shows the Bengali headings and labels and keeps the held lines in English', async () => {
-    const { html, text } = await render('bn');
+    const { html, marked, text } = await render('bn');
+    expect(marked).toContain('<span lang="bn">');
     for (const key of [
       'calendar',
       'addDatesToMyCalendar',

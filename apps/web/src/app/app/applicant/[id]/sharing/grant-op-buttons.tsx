@@ -60,7 +60,7 @@ export function GrantOpButtons({
                       className="btn btn-secondary u-btn-sm"
                       onClick={() => setConfirming(null)}
                     >
-                      {t('applicantSharing.appApplicantIdSharingGrantOpButtons.keepAccess')}
+                      {t.node('applicantSharing.appApplicantIdSharingGrantOpButtons.keepAccess')}
                     </button>
                   </div>
                 </div>

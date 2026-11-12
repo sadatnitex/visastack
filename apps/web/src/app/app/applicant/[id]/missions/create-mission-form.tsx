@@ -153,7 +153,10 @@ export function CreateMissionForm({
           defaultValue={values.purpose ?? ''}
           {...control}
         >
-          <option value="">
+          <option
+            {...t.lang('applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet')}
+            value=""
+          >
             {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet')}
           </option>
           {purposes.map((group) => (
@@ -171,7 +174,9 @@ export function CreateMissionForm({
         summary={t('applicantMissions.appApplicantIdMissionsCreateMissionForm.aboutChecklists')}
       >
         <p className="muted u-fs-085 u-m-0">
-          {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.withACountryAndAPurpose')}
+          {t.node(
+            'applicantMissions.appApplicantIdMissionsCreateMissionForm.withACountryAndAPurpose',
+          )}
         </p>
       </AboutDisclosure>
       <Disclosure
@@ -224,12 +229,14 @@ export function CreateMissionForm({
         ))}
         <fieldset className="fieldset case-date-range">
           <legend className="field-label">
-            {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional')}
+            {t.node(
+              'applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional',
+            )}
           </legend>
           <div className="case-date-pair">
             <div>
               <label className="field-label" htmlFor={`${baseId}-travelStartDate`}>
-                {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.startDate')}
+                {t.node('applicantMissions.appApplicantIdMissionsCreateMissionForm.startDate')}
               </label>
               <input
                 id={`${baseId}-travelStartDate`}
@@ -243,7 +250,7 @@ export function CreateMissionForm({
             </div>
             <div>
               <label className="field-label" htmlFor={`${baseId}-travelEndDate`}>
-                {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.endDate')}
+                {t.node('applicantMissions.appApplicantIdMissionsCreateMissionForm.endDate')}
               </label>
               <input
                 id={`${baseId}-travelEndDate`}

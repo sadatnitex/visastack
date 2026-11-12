@@ -129,11 +129,13 @@ export function PrepareAgainForm({
       {/* Drawn afresh after each refused attempt, so each box shows what was sent. */}
       <section key={state.attempt ?? 0} className="card" aria-labelledby="prepare-again-details">
         <h2 className="card-title" id="prepare-again-details">
-          {t('applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.newCaseDetails')}
+          {t.node(
+            'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.newCaseDetails',
+          )}
         </h2>
         <div className="field-row">
           <label className="field-label" htmlFor="prepare-again-title">
-            {t(
+            {t.node(
               'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.whatIsThisCaseFor',
             )}
           </label>
@@ -150,7 +152,9 @@ export function PrepareAgainForm({
         </div>
         <div className="field-row">
           <span className="field-label" id="prepare-again-dates">
-            {t('applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional')}
+            {t.node(
+              'applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional',
+            )}
           </span>
           <div className="field-inline">
             <input
@@ -179,7 +183,7 @@ export function PrepareAgainForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="prepare-again-deadline">
-            {t(
+            {t.node(
               'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.targetDeadlineOptional',
             )}
           </label>
@@ -201,7 +205,7 @@ export function PrepareAgainForm({
           whether its group is open or not. */}
       <section className="card" aria-labelledby="prepare-again-records">
         <h2 className="card-title" id="prepare-again-records">
-          {t(
+          {t.node(
             'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.recordsFromTheLastCase',
           )}
         </h2>
@@ -219,7 +223,7 @@ export function PrepareAgainForm({
                 <p className="muted">{group.hint}</p>
                 {group.items.length === 0 ? (
                   <p className="muted u-m-0">
-                    {t(
+                    {t.node(
                       'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.nothingHere',
                     )}
                   </p>
@@ -231,7 +235,7 @@ export function PrepareAgainForm({
                           <legend className="row-key">
                             {item.label}
                             {item.optional
-                              ? t(
+                              ? t.node(
                                   'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.optional',
                                 )
                               : ''}
@@ -271,20 +275,20 @@ export function PrepareAgainForm({
 
       <section className="card" aria-labelledby="prepare-again-sharing">
         <h2 className="card-title" id="prepare-again-sharing">
-          {t(
+          {t.node(
             'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.whoCanSeeThisCase',
           )}
         </h2>
         {sharingQuestions.length === 0 ? (
           <p className="muted u-m-0">
-            {t(
+            {t.node(
               'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.nobodyHasAccessToAllYour',
             )}
           </p>
         ) : (
           <fieldset className="fieldset u-m-0">
             <legend className="muted">
-              {t(
+              {t.node(
                 'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.thesePeopleAndAgenciesCanSee',
               )}
             </legend>
@@ -299,7 +303,7 @@ export function PrepareAgainForm({
                   <span>
                     {q.recipient}
                     {q.pending
-                      ? t(
+                      ? t.node(
                           'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.notAcceptedYet',
                         )
                       : ''}

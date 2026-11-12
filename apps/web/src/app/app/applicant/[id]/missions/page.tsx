@@ -173,13 +173,13 @@ export default async function MissionsPage({
       />
       {justDeleted ? (
         <output className="notice u-mb-100">
-          {t('applicantMissions.appApplicantIdMissionsPage.caseDeleted')}
+          {t.node('applicantMissions.appApplicantIdMissionsPage.caseDeleted')}
         </output>
       ) : null}
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What a case is, one tap away. */}
       <AboutDisclosure summary={t('applicantMissions.appApplicantIdMissionsPage.aboutCases')}>
-        <p>{t('applicantMissions.appApplicantIdMissionsPage.aCaseChecksThisTravellerS')}</p>
+        <p>{t.node('applicantMissions.appApplicantIdMissionsPage.aCaseChecksThisTravellerS')}</p>
       </AboutDisclosure>
 
       <DepthScope family="cases" depth={depth}>
@@ -192,9 +192,9 @@ export default async function MissionsPage({
               {caseStatus(active.state).word}
             </>
           ) : data.missionsRead ? (
-            t('applicantMissions.appApplicantIdMissionsPage.noActiveCaseYet')
+            t.node('applicantMissions.appApplicantIdMissionsPage.noActiveCaseYet')
           ) : (
-            t('applicantMissions.appApplicantIdMissionsPage.yourCasesCouldNotBeLoaded')
+            t.node('applicantMissions.appApplicantIdMissionsPage.yourCasesCouldNotBeLoaded')
           )}
         </p>
 
@@ -209,14 +209,16 @@ export default async function MissionsPage({
             >
               <div data-case-group="active">
                 <h2 className="case-section-title">
-                  {t('applicantMissions.appApplicantIdMissionsPage.activeLength', {
+                  {t.node('applicantMissions.appApplicantIdMissionsPage.activeLength', {
                     length: activeCases.length,
                   })}
                 </h2>
                 {!data.missionsRead ? (
                   // A failed read never claims there are no cases: that invites a duplicate case.
                   <p className="notice notice-warn u-mt-050">
-                    {t('applicantMissions.appApplicantIdMissionsPage.yourCasesCouldNotBeLoaded')}
+                    {t.node(
+                      'applicantMissions.appApplicantIdMissionsPage.yourCasesCouldNotBeLoaded',
+                    )}
                   </p>
                 ) : hasNoCase ? (
                   <EmptyState
@@ -226,11 +228,11 @@ export default async function MissionsPage({
                     why="Once a checklist is attached, you see how many items are ready and what is still missing."
                     action={{ href: startHref, label: startLabel }}
                   >
-                    {t('applicantMissions.appApplicantIdMissionsPage.aCaseChecksThisPersonS')}
+                    {t.node('applicantMissions.appApplicantIdMissionsPage.aCaseChecksThisPersonS')}
                   </EmptyState>
                 ) : activeCases.length === 0 ? (
                   <p className="muted u-mt-050">
-                    {t('applicantMissions.appApplicantIdMissionsPage.noCaseIsBeingWorkedOn')}{' '}
+                    {t.node('applicantMissions.appApplicantIdMissionsPage.noCaseIsBeingWorkedOn')}{' '}
                     <Link href={startHref}>{startLabel}</Link>
                   </p>
                 ) : (
@@ -241,7 +243,7 @@ export default async function MissionsPage({
               {pastCases.length > 0 ? (
                 <details className="case-past-fold" data-case-group="past">
                   <summary>
-                    {t('applicantMissions.appApplicantIdMissionsPage.pastTripsLength', {
+                    {t.node('applicantMissions.appApplicantIdMissionsPage.pastTripsLength', {
                       length: pastCases.length,
                     })}
                   </summary>
@@ -258,15 +260,17 @@ export default async function MissionsPage({
             // not tucked away.
             {...atLevel(data.missionsRead && activeCases.length === 0 ? 'browse' : 'everything')}
           >
-            <p className="card-kicker">{t('applicantMissions.appApplicantIdMissionsPage.new')}</p>
+            <p className="card-kicker">
+              {t.node('applicantMissions.appApplicantIdMissionsPage.new')}
+            </p>
             <h2 className="card-title">{startLabel}</h2>
             {data.coreGranted ? (
               <>
                 <p className="card-body">
-                  {t('applicantMissions.appApplicantIdMissionsPage.sayWhereYouAreGoingAnd')}
+                  {t.node('applicantMissions.appApplicantIdMissionsPage.sayWhereYouAreGoingAnd')}
                 </p>
                 <Link className="btn btn-primary" href={startHref}>
-                  {t('applicantMissions.appApplicantIdMissionsPage.startATrip')}
+                  {t.node('applicantMissions.appApplicantIdMissionsPage.startATrip')}
                 </Link>
                 <AboutDisclosure
                   summary={t('applicantMissions.appApplicantIdMissionsPage.notSureWhereYetAddA')}
@@ -291,10 +295,10 @@ export default async function MissionsPage({
 
         <div className="action-row u-mt-150" {...atLevel('everything')}>
           <Link className="btn btn-secondary" href={`/app/applicant/${id}/outputs`}>
-            {t('applicantMissions.appApplicantIdMissionsPage.prepareASummary')}
+            {t.node('applicantMissions.appApplicantIdMissionsPage.prepareASummary')}
           </Link>
           <Link className="btn btn-secondary" href={`/app/applicant/${id}/memory`}>
-            {t('applicantMissions.appApplicantIdMissionsPage.caseHistory')}
+            {t.node('applicantMissions.appApplicantIdMissionsPage.caseHistory')}
           </Link>
         </div>
       </DepthScope>

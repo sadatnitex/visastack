@@ -124,7 +124,7 @@ function ChangeAccess({
           { clientName: item.clientName },
         )}
       >
-        {t('applicantSharing.appApplicantIdSharingAiConnections.changeAccess')}
+        {t.node('applicantSharing.appApplicantIdSharingAiConnections.changeAccess')}
       </summary>
       <ChangeAccessForm
         applicantId={applicantId}
@@ -170,27 +170,27 @@ function Details({
   return (
     <dl className="ai-connection-facts">
       <div>
-        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.connected')}</dt>
+        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.connected')}</dt>
         <dd>{formatTimestampDate(item.connectedAt)}</dd>
       </div>
       <div>
-        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.canRead')}</dt>
+        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.canRead')}</dt>
         <dd>
           {access.length > 0
             ? access.join(', ')
-            : t('applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord')}
+            : t.node('applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord')}
         </dd>
       </div>
       <div>
-        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.cases')}</dt>
+        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.cases')}</dt>
         <dd>{aiCaseLine(item)}</dd>
       </div>
       <div>
         <dt>{AI_FULL_NUMBERS_LABEL}</dt>
         <dd>
           {item.revealIdentifiers
-            ? t('applicantSharing.appApplicantIdSharingAiConnections.yes')
-            : t('applicantSharing.appApplicantIdSharingAiConnections.no')}
+            ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
+            : t.node('applicantSharing.appApplicantIdSharingAiConnections.no')}
         </dd>
       </div>
       {ticked.length > 0 ? (
@@ -199,7 +199,7 @@ function Details({
           <dd>
             {files?.view.available
               ? aiFilesLine(ticked)
-              : t(
+              : t.node(
                   'applicantSharing.appApplicantIdSharingAiConnections.aifileslineButTurnedOffRightNow',
                   { aiFilesLine: aiFilesLine(ticked) },
                 )}
@@ -211,25 +211,27 @@ function Details({
           <dt>{AI_SUGGEST_CHANGES_LABEL}</dt>
           <dd>
             {suggestionsAvailable
-              ? t('applicantSharing.appApplicantIdSharingAiConnections.yes')
-              : t('applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow')}
+              ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
+              : t.node(
+                  'applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow',
+                )}
           </dd>
         </div>
       ) : null}
       <div>
-        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.ends')}</dt>
+        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.ends')}</dt>
         <dd>
           {item.expiresAt
             ? formatTimestamp(item.expiresAt)
-            : t('applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff')}
+            : t.node('applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff')}
         </dd>
       </div>
       <div>
-        <dt>{t('applicantSharing.appApplicantIdSharingAiConnections.lastUsed')}</dt>
+        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.lastUsed')}</dt>
         <dd>
           {item.lastUsedAt
             ? formatTimestamp(item.lastUsedAt)
-            : t('applicantSharing.appApplicantIdSharingAiConnections.notUsedYet')}
+            : t.node('applicantSharing.appApplicantIdSharingAiConnections.notUsedYet')}
         </dd>
       </div>
     </dl>
@@ -289,18 +291,20 @@ export function AiConnectionsSection({
       aria-labelledby="ai-connections-title"
     >
       <p className="card-kicker">
-        {t('applicantSharing.appApplicantIdSharingAiConnections.aiApps')}
+        {t.node('applicantSharing.appApplicantIdSharingAiConnections.aiApps')}
       </p>
       <h2 className="card-title" id="ai-connections-title">
-        {t('applicantSharing.appApplicantIdSharingAiConnections.aiConnections')}
+        {t.node('applicantSharing.appApplicantIdSharingAiConnections.aiConnections')}
       </h2>
       {list.active.some((item) => aiAllowsSuggestions(item.scopes)) ? (
         <p className="card-body">
-          {t('applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis')}
+          {t.node('applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis')}
         </p>
       ) : (
         <p className="card-body">
-          {t('applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis12cecd')}
+          {t.node(
+            'applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis12cecd',
+          )}
         </p>
       )}
       {accessOff !== undefined && list.active.length > 0 ? (
@@ -309,17 +313,21 @@ export function AiConnectionsSection({
       {notice ? (
         <output className="notice ai-connections-notice">
           {notice === 'off'
-            ? t('applicantSharing.appApplicantIdSharingAiConnections.turnedOffThatAppCanNo')
-            : t('applicantSharing.appApplicantIdSharingAiConnections.accessChangedTheAppGetsThe')}
+            ? t.node('applicantSharing.appApplicantIdSharingAiConnections.turnedOffThatAppCanNo')
+            : t.node(
+                'applicantSharing.appApplicantIdSharingAiConnections.accessChangedTheAppGetsThe',
+              )}
         </output>
       ) : null}
       {onlyNotice ? null : !list.available ? (
         <p className="card-body muted">
-          {t('applicantSharing.appApplicantIdSharingAiConnections.aiConnectionsCannotBeShownRight')}
+          {t.node(
+            'applicantSharing.appApplicantIdSharingAiConnections.aiConnectionsCannotBeShownRight',
+          )}
         </p>
       ) : list.active.length === 0 ? (
         <p className="card-body muted">
-          {t('applicantSharing.appApplicantIdSharingAiConnections.noAiAppsAreConnectedTo')}
+          {t.node('applicantSharing.appApplicantIdSharingAiConnections.noAiAppsAreConnectedTo')}
         </p>
       ) : (
         <ul className="ai-connection-list">
@@ -360,7 +368,7 @@ export function AiConnectionsSection({
       {connectorOn && list.recentlyEnded.length > 0 ? (
         <details className="ai-connections-ended">
           <summary>
-            {t('applicantSharing.appApplicantIdSharingAiConnections.recentlyTurnedOffLength', {
+            {t.node('applicantSharing.appApplicantIdSharingAiConnections.recentlyTurnedOffLength', {
               length: list.recentlyEnded.length,
             })}
           </summary>

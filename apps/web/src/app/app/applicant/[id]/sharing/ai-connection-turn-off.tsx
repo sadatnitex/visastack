@@ -48,7 +48,7 @@ export function AiConnectionTurnOff({
       {confirming ? (
         <div className="notice" role="alert" ref={question} tabIndex={-1}>
           <p className="u-m-0">
-            {t(
+            {t.node(
               'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppnameFromItsNext',
               { appName },
             )}
@@ -61,7 +61,7 @@ export function AiConnectionTurnOff({
               className="btn btn-danger"
             />
             <button type="button" className="btn btn-secondary" onClick={() => ask(false)}>
-              {t('applicantSharing.appApplicantIdSharingAiConnectionTurnOff.keepItOn')}
+              {t.node('applicantSharing.appApplicantIdSharingAiConnectionTurnOff.keepItOn')}
             </button>
           </div>
         </div>
@@ -76,7 +76,7 @@ export function AiConnectionTurnOff({
           )}
           onClick={() => ask(true)}
         >
-          {t('applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOff')}
+          {t.node('applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOff')}
         </button>
       )}
       <FormMessage result={state} pending={pending} pendingText="Turning off…" />

@@ -49,7 +49,7 @@ export function AskAboutItemForm({
       <input type="hidden" name="requestId" value={requestId} />
       <div className="field-row">
         <label htmlFor={fieldId} className="field-label">
-          {t('applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.yourQuestion')}
+          {t.node('applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.yourQuestion')}
         </label>
         <textarea
           id={fieldId}
@@ -61,7 +61,7 @@ export function AskAboutItemForm({
           className="input"
         />
         <p id={noteId} className="muted u-fs-085 request-ask-note">
-          {t(
+          {t.node(
             'applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.everyoneWhoCanReadTheShared',
             { maxLength },
           )}

@@ -91,7 +91,7 @@ function StepList({ step }: { readonly step: OutputStep }) {
           </span>
           <span>
             <span className="sr-only">
-              {t('applicantOutputs.appApplicantIdOutputsPage.stepNumberOf3', { number })}{' '}
+              {t.node('applicantOutputs.appApplicantIdOutputsPage.stepNumberOf3', { number })}{' '}
             </span>
             {label}
           </span>
@@ -115,7 +115,8 @@ function ViewSections({ view }: { readonly view: OutputView }) {
           <h4 className="output-section-title">{section.heading}</h4>
           {section.rows.length === 0 ? (
             <p className="muted u-m-0">
-              {section.emptyNote ?? t('applicantOutputs.appApplicantIdOutputsPage.nothingToShow')}
+              {section.emptyNote ??
+                t.node('applicantOutputs.appApplicantIdOutputsPage.nothingToShow')}
             </p>
           ) : (
             <dl className="output-rows">
@@ -135,7 +136,7 @@ function ViewSections({ view }: { readonly view: OutputView }) {
       {view.unknowns.length > 0 ? (
         <section className="output-section">
           <h4 className="output-section-title">
-            {t('applicantOutputs.appApplicantIdOutputsPage.stillUnknownOrNeedsALook')}
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.stillUnknownOrNeedsALook')}
           </h4>
           <ul className="output-unknowns">
             {view.unknowns.map((line, index) => (
@@ -209,7 +210,7 @@ export default async function OutputsPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          {t('applicantOutputs.appApplicantIdOutputsPage.showingFullNumbersNeedsAnExtra')}
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.showingFullNumbersNeedsAnExtra')}
         </p>
       </>
     );
@@ -219,7 +220,7 @@ export default async function OutputsPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          {t('applicantOutputs.appApplicantIdOutputsPage.weCouldNotPrepareThisSummary')}
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.weCouldNotPrepareThisSummary')}
         </p>
       </>
     );
@@ -250,23 +251,23 @@ export default async function OutputsPage({
       {header}
       <div className="notice u-mb-150 output-noprint">
         <p className="u-m-0">
-          {t('applicantOutputs.appApplicantIdOutputsPage.aSummaryIsAOneTime')}
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.aSummaryIsAOneTime')}
         </p>
       </div>
 
       {request.error === 'changed' ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          {t('applicantOutputs.appApplicantIdOutputsPage.yourRecordOrYourChoicesChanged')}
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.yourRecordOrYourChoicesChanged')}
         </p>
       ) : null}
       {request.error === 'failed' ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          {t('applicantOutputs.appApplicantIdOutputsPage.weCouldNotMakeTheFile')}
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.weCouldNotMakeTheFile')}
         </p>
       ) : null}
       {request.error === 'nothing' ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          {t('applicantOutputs.appApplicantIdOutputsPage.thereIsNothingToDownloadFor')}
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.thereIsNothingToDownloadFor')}
         </p>
       ) : null}
 
@@ -305,7 +306,7 @@ export default async function OutputsPage({
                           className="badge badge-neutral output-template-selected"
                           aria-hidden="true"
                         >
-                          {t('applicantOutputs.appApplicantIdOutputsPage.selected')}
+                          {t.node('applicantOutputs.appApplicantIdOutputsPage.selected')}
                         </span>
                       ) : null}
                     </Link>
@@ -323,7 +324,7 @@ export default async function OutputsPage({
         aria-labelledby="output-choose-heading"
       >
         <h3 className="card-title" id="output-choose-heading">
-          {t('applicantOutputs.appApplicantIdOutputsPage.chooseWhatToInclude')}
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.chooseWhatToInclude')}
         </h3>
         {/* Step 2. Folded once a preview shows, so the preview is near the top; it opens again. */}
         <CollapsibleGroup
@@ -337,7 +338,7 @@ export default async function OutputsPage({
             {showCasePicker ? (
               <div className="field-row">
                 <label className="field-label" htmlFor="output-case">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.case')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.case')}
                 </label>
                 <select
                   id="output-case"
@@ -346,7 +347,10 @@ export default async function OutputsPage({
                   defaultValue={ready.missionId ?? ''}
                 >
                   {template.needsCase ? null : (
-                    <option value="">
+                    <option
+                      {...t.lang('applicantOutputs.appApplicantIdOutputsPage.noCase')}
+                      value=""
+                    >
                       {t('applicantOutputs.appApplicantIdOutputsPage.noCase')}
                     </option>
                   )}
@@ -362,7 +366,7 @@ export default async function OutputsPage({
 
             <fieldset className="fieldset">
               <legend className="field-label">
-                {t('applicantOutputs.appApplicantIdOutputsPage.partsOfYourRecord')}
+                {t.node('applicantOutputs.appApplicantIdOutputsPage.partsOfYourRecord')}
               </legend>
               <div className="checks">
                 {CATALOGUE_LAYERS.filter((layer) => template.layersOffered.includes(layer.key)).map(
@@ -383,7 +387,7 @@ export default async function OutputsPage({
                         <span>{layer.label}</span>
                         <span className="muted u-fs-075">
                           {CAREFUL_LAYERS.has(layer.key)
-                            ? t(
+                            ? t.node(
                                 'applicantOutputs.appApplicantIdOutputsPage.descriptionSensitiveIncludeItOnlyIf',
                                 { description: layer.description },
                               )
@@ -399,7 +403,7 @@ export default async function OutputsPage({
             {template.offersDocumentList ? (
               <fieldset className="fieldset">
                 <legend className="field-label">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.documents')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.documents')}
                 </legend>
                 <label className="check output-check" htmlFor="output-docs">
                   <input
@@ -411,10 +415,14 @@ export default async function OutputsPage({
                   />
                   <span className="output-check-text">
                     <span>
-                      {t('applicantOutputs.appApplicantIdOutputsPage.includeTheListOfMyDocuments')}
+                      {t.node(
+                        'applicantOutputs.appApplicantIdOutputsPage.includeTheListOfMyDocuments',
+                      )}
                     </span>
                     <span className="muted u-fs-075">
-                      {t('applicantOutputs.appApplicantIdOutputsPage.kindDatesAndStatusOnlyNo')}
+                      {t.node(
+                        'applicantOutputs.appApplicantIdOutputsPage.kindDatesAndStatusOnlyNo',
+                      )}
                     </span>
                   </span>
                 </label>
@@ -424,10 +432,10 @@ export default async function OutputsPage({
             {template.offersDocumentText ? (
               <fieldset className="fieldset">
                 <legend className="field-label">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.textReadFromMyDocuments')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.textReadFromMyDocuments')}
                 </legend>
                 <p className="muted u-fs-075 u-m-0" id="output-text-note">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.addsTheWordsReadFromYour')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.addsTheWordsReadFromYour')}
                 </p>
                 <div className="checks">
                   {CATALOGUE_DOCUMENT_GROUPS.map((group) => (
@@ -454,7 +462,7 @@ export default async function OutputsPage({
             {template.offersDepth ? (
               <fieldset className="fieldset">
                 <legend className="field-label">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.howMuchDetail')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.howMuchDetail')}
                 </legend>
                 <div className="checks">
                   {DEPTH_CHOICES.map(([value, label, note]) => (
@@ -483,7 +491,7 @@ export default async function OutputsPage({
             {template.offersFullNumbers ? (
               <fieldset className="fieldset">
                 <legend className="field-label">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.numbers')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.numbers')}
                 </legend>
                 <label className="check output-check" htmlFor="output-numbers">
                   <input
@@ -496,10 +504,12 @@ export default async function OutputsPage({
                   />
                   <span className="output-check-text">
                     <span>
-                      {t('applicantOutputs.appApplicantIdOutputsPage.showFullDocumentNumbers')}
+                      {t.node('applicantOutputs.appApplicantIdOutputsPage.showFullDocumentNumbers')}
                     </span>
                     <span className="muted u-fs-075" id="output-numbers-note">
-                      {t('applicantOutputs.appApplicantIdOutputsPage.passportAndIdNumbersShowOnly')}
+                      {t.node(
+                        'applicantOutputs.appApplicantIdOutputsPage.passportAndIdNumbersShowOnly',
+                      )}
                     </span>
                   </span>
                 </label>
@@ -509,7 +519,7 @@ export default async function OutputsPage({
             {template.offersQuestion ? (
               <div className="field-row">
                 <label className="field-label" htmlFor="output-question">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.whatYouWantHelpWithOptional')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.whatYouWantHelpWithOptional')}
                 </label>
                 <input
                   id="output-question"
@@ -526,11 +536,13 @@ export default async function OutputsPage({
             {template.offersFieldPicker && ready.candidates.length > 0 ? (
               <fieldset className="fieldset">
                 <legend className="field-label">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.detailsToInclude')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.detailsToInclude')}
                 </legend>
                 <input type="hidden" name="picked" value="1" />
                 <p className="muted u-fs-075 u-m-0">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.theseAreTheConfirmedDetailsIn')}
+                  {t.node(
+                    'applicantOutputs.appApplicantIdOutputsPage.theseAreTheConfirmedDetailsIn',
+                  )}
                 </p>
                 {/* Folded away by default (WP-SB4): every box keeps its tick and is sent either way. */}
                 <CollapsibleGroup
@@ -567,11 +579,11 @@ export default async function OutputsPage({
               label={t('applicantOutputs.appApplicantIdOutputsPage.previewYourSummary')}
             >
               <button type="submit" className="btn btn-primary">
-                {t('applicantOutputs.appApplicantIdOutputsPage.preview')}
+                {t.node('applicantOutputs.appApplicantIdOutputsPage.preview')}
               </button>
               {request.previewed ? (
                 <Link href={`${pageHref}?output=${request.template}`} className="btn btn-secondary">
-                  {t('applicantOutputs.appApplicantIdOutputsPage.startAgain')}
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.startAgain')}
                 </Link>
               ) : null}
             </StickyActionBar>
@@ -582,7 +594,7 @@ export default async function OutputsPage({
       {ready.needsCase ? (
         ready.cases.some((item) => item.current) ? (
           <p className="notice u-mb-150">
-            {t('applicantOutputs.appApplicantIdOutputsPage.chooseACaseAboveThenPress')}
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.chooseACaseAboveThenPress')}
           </p>
         ) : (
           <EmptyState
@@ -606,12 +618,12 @@ export default async function OutputsPage({
           aria-labelledby="output-preview-heading"
         >
           <h3 className="card-title" id="output-preview-heading">
-            {t('applicantOutputs.appApplicantIdOutputsPage.previewLabel', {
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.previewLabel', {
               label: template.label,
             })}
           </h3>
           <p className="muted">
-            {t('applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly', {
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly', {
               longDay: longDay(output.preparedOn),
             })}
           </p>
@@ -633,12 +645,14 @@ export default async function OutputsPage({
           />
           {output.selection.documentList ? (
             <p className="muted u-fs-075">
-              {t('applicantOutputs.appApplicantIdOutputsPage.documentsTheListOnlyNoDocument')}
+              {t.node('applicantOutputs.appApplicantIdOutputsPage.documentsTheListOnlyNoDocument')}
             </p>
           ) : null}
           {output.selection.revealIdentifiers ? (
             <p className="notice notice-warn">
-              {t('applicantOutputs.appApplicantIdOutputsPage.fullDocumentNumbersAreIncludedShare')}
+              {t.node(
+                'applicantOutputs.appApplicantIdOutputsPage.fullDocumentNumbersAreIncludedShare',
+              )}
             </p>
           ) : null}
 
@@ -650,7 +664,7 @@ export default async function OutputsPage({
                 ))}
               </ul>
               <p className="card-body">
-                {t('applicantOutputs.appApplicantIdOutputsPage.thisIsTheExactTextAn')}
+                {t.node('applicantOutputs.appApplicantIdOutputsPage.thisIsTheExactTextAn')}
               </p>
               <textarea
                 readOnly
@@ -689,13 +703,13 @@ export default async function OutputsPage({
                 className="btn btn-secondary output-action"
               >
                 {format === 'csv'
-                  ? t('applicantOutputs.appApplicantIdOutputsPage.downloadSpreadsheetFile')
-                  : t('applicantOutputs.appApplicantIdOutputsPage.downloadTextFile')}
+                  ? t.node('applicantOutputs.appApplicantIdOutputsPage.downloadSpreadsheetFile')
+                  : t.node('applicantOutputs.appApplicantIdOutputsPage.downloadTextFile')}
               </button>
             ))}
           </form>
           <p className="muted u-fs-075">
-            {t('applicantOutputs.appApplicantIdOutputsPage.theFileIsMadeAgainWhen')}
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.theFileIsMadeAgainWhen')}
           </p>
         </section>
       ) : null}
@@ -703,10 +717,10 @@ export default async function OutputsPage({
       {output && whatsapp?.ok ? (
         <section className="card output-noprint" aria-labelledby="output-whatsapp-heading">
           <h3 className="card-title" id="output-whatsapp-heading">
-            {t('applicantOutputs.appApplicantIdOutputsPage.tellThemOnWhatsapp')}
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.tellThemOnWhatsapp')}
           </h3>
           <p className="card-body">
-            {t('applicantOutputs.appApplicantIdOutputsPage.aShortMessageYouCanSend')}
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.aShortMessageYouCanSend')}
           </p>
           <textarea
             readOnly

@@ -63,10 +63,10 @@ export default async function ApplicationMemoryPage({
       {memory.recordShares.length > 0 ? (
         <article className="card memory-shares" aria-labelledby="memory-shares-heading">
           <h3 className="card-title" id="memory-shares-heading">
-            {t('applicantMemory.appApplicantIdMemoryPage.sharedOutsideACase')}
+            {t.node('applicantMemory.appApplicantIdMemoryPage.sharedOutsideACase')}
           </h3>
           <p className="memory-case-meta">
-            {t('applicantMemory.appApplicantIdMemoryPage.theseSharesAreOfThisPerson')}
+            {t.node('applicantMemory.appApplicantIdMemoryPage.theseSharesAreOfThisPerson')}
           </p>
           <ol className="memory-timeline">
             {memory.recordShares.map((share) => {
@@ -81,7 +81,7 @@ export default async function ApplicationMemoryPage({
             })}
           </ol>
           <Link className="case-changes-all" href={`/app/applicant/${id}/sharing`}>
-            {t('applicantMemory.appApplicantIdMemoryPage.openSharing')}
+            {t.node('applicantMemory.appApplicantIdMemoryPage.openSharing')}
           </Link>
         </article>
       ) : null}
@@ -93,7 +93,7 @@ export default async function ApplicationMemoryPage({
             title={t('applicantMemory.appApplicantIdMemoryPage.noCasesYet')}
             action={{ href: `/app/applicant/${id}/missions`, label: 'Open Cases' }}
           >
-            {t('applicantMemory.appApplicantIdMemoryPage.whenYouPrepareACaseEach')}
+            {t.node('applicantMemory.appApplicantIdMemoryPage.whenYouPrepareACaseEach')}
           </EmptyState>
         </article>
       ) : (

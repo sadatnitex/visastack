@@ -63,14 +63,16 @@ const BENGALI = /[ঀ-৿]/;
 async function cases(locale: 'en' | 'bn') {
   current.holder = null;
   current.locale = locale;
-  const html = await renderServer(CasesPage({ params: Promise.resolve({ id: 'person' }) }));
-  return { html, text: textOf(html) };
+  const marked = await renderServer(CasesPage({ params: Promise.resolve({ id: 'person' }) }));
+  // Bengali on a page marked English carries its own language; the checks below read the words.
+  const html = marked.replace(/<span lang="bn">([^<]*)<\/span>/g, '$1');
+  return { html, marked, text: textOf(html) };
 }
 
 async function again(locale: 'en' | 'bn') {
   current.holder = null;
   current.locale = locale;
-  const html = await renderServer(
+  const marked = await renderServer(
     PrepareAgainPage({
       params: Promise.resolve({ id: 'person' }),
       searchParams: Promise.resolve({ from: 'm1' }),
@@ -80,7 +82,9 @@ async function again(locale: 'en' | 'bn') {
       </I18nProvider>
     )),
   );
-  return { html, text: textOf(html) };
+  // Bengali on a page marked English carries its own language; the checks below read the words.
+  const html = marked.replace(/<span lang="bn">([^<]*)<\/span>/g, '$1');
+  return { html, marked, text: textOf(html) };
 }
 
 const client = (locale: 'en' | 'bn', node: React.ReactNode) =>
@@ -127,7 +131,8 @@ afterEach(() => {
 
 describe('the Cases page under Bengali', () => {
   it('with a case being worked on it shows the Bengali title, About Cases and start card, and keeps the case lines in English', async () => {
-    const { html, text } = await cases('bn');
+    const { html, marked, text } = await cases('bn');
+    expect(marked).toContain('<span lang="bn">');
     expect(text).toContain(bn[`${PAGE}cases`]);
     expect(text).toContain(bn[`${PAGE}aboutCases`]);
     expect(text).toContain(bn[`${PAGE}new`]);

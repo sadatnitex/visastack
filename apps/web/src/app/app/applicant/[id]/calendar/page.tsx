@@ -84,10 +84,10 @@ export default async function CalendarExportPage({
   const notes = (
     <div className="notice notice-stack u-mb-150">
       <p className="u-m-0">
-        {t('applicantCalendar.appApplicantIdCalendarPage.thisIsAOneTimeCopy')}
+        {t.node('applicantCalendar.appApplicantIdCalendarPage.thisIsAOneTimeCopy')}
       </p>
       <p className="u-m-0">
-        {t('applicantCalendar.appApplicantIdCalendarPage.datesWithoutATimeAreAdded', {
+        {t.node('applicantCalendar.appApplicantIdCalendarPage.datesWithoutATimeAreAdded', {
           CALENDAR_PAST_DAYS,
         })}
       </p>
@@ -98,7 +98,7 @@ export default async function CalendarExportPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          {t('applicantCalendar.appApplicantIdCalendarPage.weCouldNotLoadYourDates')}
+          {t.node('applicantCalendar.appApplicantIdCalendarPage.weCouldNotLoadYourDates')}
         </p>
         {subscribe}
       </>
@@ -137,7 +137,9 @@ export default async function CalendarExportPage({
           title={t('applicantCalendar.appApplicantIdCalendarPage.noDatesToAdd')}
           icon="calendar"
         >
-          {t('applicantCalendar.appApplicantIdCalendarPage.appointmentsDueDatesAndDocumentExpiry')}
+          {t.node(
+            'applicantCalendar.appApplicantIdCalendarPage.appointmentsDueDatesAndDocumentExpiry',
+          )}
         </EmptyState>
         {subscribe}
       </>
@@ -151,22 +153,22 @@ export default async function CalendarExportPage({
 
       {nothingChosen ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          {t('applicantCalendar.appApplicantIdCalendarPage.chooseAtLeastOneDateFirst')}
+          {t.node('applicantCalendar.appApplicantIdCalendarPage.chooseAtLeastOneDateFirst')}
         </p>
       ) : null}
       {failed ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          {t('applicantCalendar.appApplicantIdCalendarPage.weCouldNotMakeTheFile')}
+          {t.node('applicantCalendar.appApplicantIdCalendarPage.weCouldNotMakeTheFile')}
         </p>
       ) : null}
 
       {preview && preview.events.length > 0 ? (
         <section className="card u-mb-150" aria-labelledby="calendar-preview-heading">
           <h3 className="card-title" id="calendar-preview-heading">
-            {t('applicantCalendar.appApplicantIdCalendarPage.preview')}
+            {t.node('applicantCalendar.appApplicantIdCalendarPage.preview')}
           </h3>
           <p className="card-body">
-            {t('applicantCalendar.appApplicantIdCalendarPage.theFileWillHoldPluralAs', {
+            {t.node('applicantCalendar.appApplicantIdCalendarPage.theFileWillHoldPluralAs', {
               plural: plural(preview.events.length, 'event'),
             })}
           </p>
@@ -185,7 +187,7 @@ export default async function CalendarExportPage({
           </p>
           {preview.leftOut > 0 ? (
             <p className="muted">
-              {t('applicantCalendar.appApplicantIdCalendarPage.oneFileHoldsUpToCalendar', {
+              {t.node('applicantCalendar.appApplicantIdCalendarPage.oneFileHoldsUpToCalendar', {
                 leftOut: preview.leftOut,
                 CALENDAR_EXPORT_LIMIT,
                 plural: plural(preview.leftOut, 'date'),
@@ -205,7 +207,7 @@ export default async function CalendarExportPage({
               <input key={`${name}=${value}`} type="hidden" name={name} value={value} />
             ))}
             <button type="submit" className="btn btn-primary">
-              {t('applicantCalendar.appApplicantIdCalendarPage.downloadCalendarFile')}
+              {t.node('applicantCalendar.appApplicantIdCalendarPage.downloadCalendarFile')}
             </button>
           </form>
         </section>
@@ -213,13 +215,13 @@ export default async function CalendarExportPage({
 
       <section className="card" aria-labelledby="calendar-choose-heading">
         <h3 className="card-title" id="calendar-choose-heading">
-          {t('applicantCalendar.appApplicantIdCalendarPage.chooseDates')}
+          {t.node('applicantCalendar.appApplicantIdCalendarPage.chooseDates')}
         </h3>
         <form method="get" action={pageHref} className="calendar-form">
           <input type="hidden" name="preview" value="1" />
           <fieldset className="fieldset">
             <legend className="field-label">
-              {t('applicantCalendar.appApplicantIdCalendarPage.datesToAdd')}
+              {t.node('applicantCalendar.appApplicantIdCalendarPage.datesToAdd')}
             </legend>
             <CalendarDateGroups
               items={items.map((item) => ({
@@ -233,7 +235,7 @@ export default async function CalendarExportPage({
             />
             {truncated ? (
               <p className="muted u-m-0">
-                {t(
+                {t.node(
                   'applicantCalendar.appApplicantIdCalendarPage.onlyTheEarliestCalendarSourceLimit',
                   { CALENDAR_SOURCE_LIMIT },
                 )}
@@ -242,7 +244,7 @@ export default async function CalendarExportPage({
           </fieldset>
           <fieldset className="fieldset">
             <legend className="field-label">
-              {t('applicantCalendar.appApplicantIdCalendarPage.titles')}
+              {t.node('applicantCalendar.appApplicantIdCalendarPage.titles')}
             </legend>
             <label className="check calendar-date" htmlFor="calendar-case-names">
               <input
@@ -253,15 +255,15 @@ export default async function CalendarExportPage({
                 defaultChecked={options.titleStyle === 'withCaseNames'}
                 aria-describedby="calendar-case-names-note"
               />
-              <span>{t('applicantCalendar.appApplicantIdCalendarPage.addCaseNames')}</span>
+              <span>{t.node('applicantCalendar.appApplicantIdCalendarPage.addCaseNames')}</span>
             </label>
             <p id="calendar-case-names-note" className="muted u-fs-075 u-m-0">
-              {t('applicantCalendar.appApplicantIdCalendarPage.addsTheCaseNameAfterThe')}
+              {t.node('applicantCalendar.appApplicantIdCalendarPage.addsTheCaseNameAfterThe')}
             </p>
           </fieldset>
           <fieldset className="fieldset">
             <legend className="field-label">
-              {t('applicantCalendar.appApplicantIdCalendarPage.remindMe')}
+              {t.node('applicantCalendar.appApplicantIdCalendarPage.remindMe')}
             </legend>
             <div className="checks">
               {REMINDER_CHOICES.map(([value, label]) => (
@@ -289,11 +291,11 @@ export default async function CalendarExportPage({
               type="submit"
               className={`btn ${preview && preview.events.length > 0 ? 'btn-secondary' : 'btn-primary'}`}
             >
-              {t('applicantCalendar.appApplicantIdCalendarPage.preview')}
+              {t.node('applicantCalendar.appApplicantIdCalendarPage.preview')}
             </button>
             {wantsPreview ? (
               <Link href={pageHref} className="btn btn-secondary">
-                {t('applicantCalendar.appApplicantIdCalendarPage.clearChoices')}
+                {t.node('applicantCalendar.appApplicantIdCalendarPage.clearChoices')}
               </Link>
             ) : null}
           </StickyActionBar>

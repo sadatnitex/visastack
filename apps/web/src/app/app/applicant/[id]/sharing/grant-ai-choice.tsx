@@ -33,7 +33,7 @@ export function GrantAiChoice({
       <input type="hidden" name="grantId" value={grantId} />
       <fieldset className="fieldset">
         <legend className="field-label">
-          {t('applicantSharing.appApplicantIdSharingGrantAiChoice.aiTools')}
+          {t.node('applicantSharing.appApplicantIdSharingGrantAiChoice.aiTools')}
         </legend>
         <div className="checks">
           <label className="check" htmlFor={`${id}-allow`}>

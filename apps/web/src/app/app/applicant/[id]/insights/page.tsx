@@ -62,7 +62,7 @@ function MoreOnItsPage({
   return (
     <p className="insights-more">
       <span className="insights-note">
-        {t('applicantInsights.appApplicantIdInsightsPage.showingShownOfTotalNoun', {
+        {t.node('applicantInsights.appApplicantIdInsightsPage.showingShownOfTotalNoun', {
           shown,
           total,
           noun,
@@ -177,7 +177,7 @@ export default async function DocumentInsightsPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          {t('applicantInsights.appApplicantIdInsightsPage.weCouldNotPutThisSummary')}
+          {t.node('applicantInsights.appApplicantIdInsightsPage.weCouldNotPutThisSummary')}
         </p>
       </>
     );
@@ -320,12 +320,12 @@ export default async function DocumentInsightsPage({
               icon="check"
               title={t('applicantInsights.appApplicantIdInsightsPage.nothingToCheck')}
             >
-              {t('applicantInsights.appApplicantIdInsightsPage.noSavedDetailDiffersFromWhat')}
+              {t.node('applicantInsights.appApplicantIdInsightsPage.noSavedDetailDiffersFromWhat')}
             </EmptyState>
           ) : (
             <>
               <p className="insights-note">
-                {t('applicantInsights.appApplicantIdInsightsPage.weOnlySayThatTwoDetails')}
+                {t.node('applicantInsights.appApplicantIdInsightsPage.weOnlySayThatTwoDetails')}
               </p>
               <AttentionList items={toCheck.slice(0, CARD_ROWS)} />
               <MoreOnItsPage
@@ -360,7 +360,7 @@ export default async function DocumentInsightsPage({
               icon="calendar"
               title={t('applicantInsights.appApplicantIdInsightsPage.noExpiryDatesYet')}
             >
-              {t('applicantInsights.appApplicantIdInsightsPage.documentsWithAnEndDateSuch')}
+              {t.node('applicantInsights.appApplicantIdInsightsPage.documentsWithAnEndDateSuch')}
             </EmptyState>
           ) : (
             <ol className="insights-list insights-timeline">
@@ -383,14 +383,14 @@ export default async function DocumentInsightsPage({
           )}
           {insights.expiry.length > CARD_ROWS ? (
             <p className="insights-note">
-              {t('applicantInsights.appApplicantIdInsightsPage.showingCardRowsOfLengthDates', {
+              {t.node('applicantInsights.appApplicantIdInsightsPage.showingCardRowsOfLengthDates', {
                 CARD_ROWS,
                 length: insights.expiry.length,
               })}
             </p>
           ) : null}
           <Link className="btn btn-secondary insights-action" href={`/app/applicant/${id}/expiry`}>
-            {t('applicantInsights.appApplicantIdInsightsPage.openDatesExpiry')}
+            {t.node('applicantInsights.appApplicantIdInsightsPage.openDatesExpiry')}
           </Link>
         </InsightsCard>
 
@@ -410,7 +410,7 @@ export default async function DocumentInsightsPage({
               title={t('applicantInsights.appApplicantIdInsightsPage.noOpenCases')}
               action={{ href: `/app/applicant/${id}/missions#start-case`, label: 'Start a Case' }}
             >
-              {t('applicantInsights.appApplicantIdInsightsPage.eachVisaApplicationIsACase')}
+              {t.node('applicantInsights.appApplicantIdInsightsPage.eachVisaApplicationIsACase')}
             </EmptyState>
           ) : (
             <ul className="insights-list">
@@ -457,7 +457,9 @@ export default async function DocumentInsightsPage({
           open={false}
         >
           <p className="insights-note">
-            {t('applicantInsights.appApplicantIdInsightsPage.embassiesUsuallyWantTheseHandedIn')}
+            {t.node(
+              'applicantInsights.appApplicantIdInsightsPage.embassiesUsuallyWantTheseHandedIn',
+            )}
           </p>
           {insights.originals.cases.length > 0 ? (
             originalCases.map((entry) => (
@@ -485,7 +487,7 @@ export default async function DocumentInsightsPage({
                             </span>
                             {item.optional ? (
                               <span className="insights-row-detail">
-                                {t(
+                                {t.node(
                                   'applicantInsights.appApplicantIdInsightsPage.optionalForThisCase',
                                 )}
                               </span>
@@ -498,7 +500,7 @@ export default async function DocumentInsightsPage({
                                 className="btn btn-secondary insights-action"
                                 href={uploadHref(item.kind)}
                               >
-                                {t('applicantInsights.appApplicantIdInsightsPage.upload')}
+                                {t.node('applicantInsights.appApplicantIdInsightsPage.upload')}
                                 <span className="sr-only"> {documentTypeLabel(item.kind)}</span>
                               </Link>
                             ) : null}
@@ -525,7 +527,7 @@ export default async function DocumentInsightsPage({
                 <li key={ref.id} className="insights-row">
                   <span className="insights-row-label">{documentName(ref)}</span>
                   <StatusBadge tone="neutral">
-                    {t('applicantInsights.appApplicantIdInsightsPage.usuallyOriginal')}
+                    {t.node('applicantInsights.appApplicantIdInsightsPage.usuallyOriginal')}
                   </StatusBadge>
                 </li>
               ))}
@@ -535,7 +537,7 @@ export default async function DocumentInsightsPage({
               icon="file"
               title={t('applicantInsights.appApplicantIdInsightsPage.noOriginalsListedYet')}
             >
-              {t('applicantInsights.appApplicantIdInsightsPage.onceACaseListsItsDocuments')}
+              {t.node('applicantInsights.appApplicantIdInsightsPage.onceACaseListsItsDocuments')}
             </EmptyState>
           )}
           {insights.originals.cases.length > 0 ? (
@@ -572,20 +574,23 @@ export default async function DocumentInsightsPage({
               icon="folder"
               title={t('applicantInsights.appApplicantIdInsightsPage.noSectionsToBackYet')}
             >
-              {t('applicantInsights.appApplicantIdInsightsPage.openAProfileSectionThatA')}
+              {t.node('applicantInsights.appApplicantIdInsightsPage.openAProfileSectionThatA')}
             </EmptyState>
           ) : (
             <>
               <p className="insights-note">
-                {t('applicantInsights.appApplicantIdInsightsPage.coveredOfPluralHaveASupporting', {
-                  covered: insights.coverage.covered,
-                  plural: plural(insights.coverage.sections.length, 'open section'),
-                })}
+                {t.node(
+                  'applicantInsights.appApplicantIdInsightsPage.coveredOfPluralHaveASupporting',
+                  {
+                    covered: insights.coverage.covered,
+                    plural: plural(insights.coverage.sections.length, 'open section'),
+                  },
+                )}
               </p>
               {missingSections.length > 0 ? (
                 <div className="insights-group">
                   <h4 className="insights-group-title">
-                    {t('applicantInsights.appApplicantIdInsightsPage.noDocumentYet')}
+                    {t.node('applicantInsights.appApplicantIdInsightsPage.noDocumentYet')}
                   </h4>
                   <ul className="insights-list">
                     {missingSections.slice(0, CARD_ROWS).map((section) => {
@@ -610,7 +615,7 @@ export default async function DocumentInsightsPage({
                               className="btn btn-secondary insights-action"
                               href={uploadHref(first.kind)}
                             >
-                              {t('applicantInsights.appApplicantIdInsightsPage.upload')}
+                              {t.node('applicantInsights.appApplicantIdInsightsPage.upload')}
                               <span className="sr-only"> {documentTypeLabel(first.kind)}</span>
                             </Link>
                           ) : null}
@@ -623,7 +628,7 @@ export default async function DocumentInsightsPage({
               {coveredSections.length > 0 ? (
                 <div className="insights-group">
                   <h4 className="insights-group-title">
-                    {t('applicantInsights.appApplicantIdInsightsPage.backed')}
+                    {t.node('applicantInsights.appApplicantIdInsightsPage.backed')}
                   </h4>
                   <ul className="insights-list">
                     {coveredSections.slice(0, CARD_ROWS).map((section) => (
@@ -638,7 +643,7 @@ export default async function DocumentInsightsPage({
                           </span>
                         </span>
                         <StatusBadge tone="success">
-                          {t('applicantInsights.appApplicantIdInsightsPage.backed')}
+                          {t.node('applicantInsights.appApplicantIdInsightsPage.backed')}
                         </StatusBadge>
                       </li>
                     ))}
@@ -675,7 +680,7 @@ export default async function DocumentInsightsPage({
               title={t('applicantInsights.appApplicantIdInsightsPage.noDocumentsYet')}
               action={{ href: `${documentsHref}/add`, label: 'Add a Document' }}
             >
-              {t('applicantInsights.appApplicantIdInsightsPage.addADocumentAndAcceptWhat')}
+              {t.node('applicantInsights.appApplicantIdInsightsPage.addADocumentAndAcceptWhat')}
             </EmptyState>
           ) : (
             <ul className="insights-list">
@@ -687,31 +692,36 @@ export default async function DocumentInsightsPage({
                       <>
                         {' '}
                         <StatusBadge tone="neutral">
-                          {t('applicantInsights.appApplicantIdInsightsPage.protected')}
+                          {t.node('applicantInsights.appApplicantIdInsightsPage.protected')}
                         </StatusBadge>
                       </>
                     ) : null}
                   </span>
                   <span className="insights-row-detail">
                     {entry.backedCount === 0
-                      ? t('applicantInsights.appApplicantIdInsightsPage.backsNoSavedDetailsYet')
+                      ? t.node(
+                          'applicantInsights.appApplicantIdInsightsPage.backsNoSavedDetailsYet',
+                        )
                       : entry.backedFieldKeys.length > 0
-                        ? t('applicantInsights.appApplicantIdInsightsPage.backsPluralJoin', {
+                        ? t.node('applicantInsights.appApplicantIdInsightsPage.backsPluralJoin', {
                             plural: plural(entry.backedCount, 'saved detail'),
                             join: entry.backedFieldKeys.map(detailName).join(', '),
                           })
                         : entry.backedSections.length > 0
-                          ? t('applicantInsights.appApplicantIdInsightsPage.backsPluralInJoin', {
-                              plural: plural(entry.backedCount, 'saved detail'),
-                              join: entry.backedSections.map((s) => s.label).join(', '),
-                            })
-                          : t('applicantInsights.appApplicantIdInsightsPage.backsPlural', {
+                          ? t.node(
+                              'applicantInsights.appApplicantIdInsightsPage.backsPluralInJoin',
+                              {
+                                plural: plural(entry.backedCount, 'saved detail'),
+                                join: entry.backedSections.map((s) => s.label).join(', '),
+                              },
+                            )
+                          : t.node('applicantInsights.appApplicantIdInsightsPage.backsPlural', {
                               plural: plural(entry.backedCount, 'saved detail'),
                             })}
                   </span>
                   {entry.canBackSections.length > 0 ? (
                     <span className="insights-row-detail">
-                      {t('applicantInsights.appApplicantIdInsightsPage.canBackJoin', {
+                      {t.node('applicantInsights.appApplicantIdInsightsPage.canBackJoin', {
                         join: entry.canBackSections.map((s) => s.label).join(', '),
                       })}
                     </span>

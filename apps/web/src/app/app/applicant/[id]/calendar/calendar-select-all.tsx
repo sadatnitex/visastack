@@ -78,7 +78,7 @@ export function CalendarSelectAll({
         }}
       />
       <span>
-        {t('applicantCalendar.appApplicantIdCalendarCalendarSelectAll.selectAll')}
+        {t.node('applicantCalendar.appApplicantIdCalendarCalendarSelectAll.selectAll')}
         <span className="sr-only"> {groupLabel}</span>
       </span>
     </label>
