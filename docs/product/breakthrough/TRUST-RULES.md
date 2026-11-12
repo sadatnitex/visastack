@@ -58,3 +58,22 @@ The sequences file is well under the four-minute budget; every database-building
 - `packages/services/src/trust-rules/trust-rules.test-support.ts`: shared set-up (synthetic people and agencies, notice and audit counts, the AI app connection, the seeded generator). It reuses the helpers of `evidence-submissions.test-support.ts` and copies none.
 - `packages/services/src/trust-rules/trust-rules.test.ts`: the seven rules, the findings and the probe.
 - `packages/services/src/trust-rules/trust-sequences.test.ts`: the randomized sequences.
+
+## The new step's own guards (Answer From Your Records)
+
+`packages/services/src/evidence-answer-plan.test.ts` holds 16 tests against the real services. Each
+guard below was proven able to fail the same way: one break in `evidence-answer-plan.ts`, the named
+test goes red, the file is restored from a copy and compared byte for byte.
+
+| Break made in the real code | Test that went red | Failing assertion |
+|---|---|---|
+| The owner check removed (any genuine proof accepted) | refuses an agency member holding a genuine proof exactly as it refuses a stranger | `expected null to match object { code: 'not_found' }` |
+| The plan not worked out again at the moment of sending | never sends a copy the person did not review | `expected ... to match object { sent: 0, changed: 1 }` |
+| Expiry ignored | sends nothing that is expired, replaced, sent back, of another kind, or not safe | `expected [ 'SENT', 'CHANGED' ] to deeply equal [ 'CHANGED', 'CHANGED' ]` |
+| The request no longer tied to the named agency | sends nothing to any agency but the one named | outcomes differ: another agency's request was sent |
+| A repeat no longer recognised | sends exactly the reviewed copies, pins them, and a repeat sends nothing twice | `expected ... to match object { sent: 0, alreadySent: 2 }` |
+| An ended share ignored | says an agency whose access ended can receive nothing | `expected true to be false` |
+| An uncertain date treated as ready | never ticks in advance a copy whose saved dates disagree | `expected 'READY' to be 'CHECK_DATE'` |
+| The receipt no longer tied to the agency | gives the same empty receipt for an unknown key, another agency and another traveller | receipts differ |
+| A replaced document offered | leaves out replaced documents, holds back unchecked files and the copy that was sent back | `expected 'CHOOSE' to be 'READY'` |
+| The sent-back copy offered again | same test | `expected 'READY' to be 'NEEDS_NEW_COPY'` |
