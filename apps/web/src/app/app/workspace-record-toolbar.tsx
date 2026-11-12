@@ -9,8 +9,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
+import { useT } from '../../components/i18n-provider';
 import { Icon } from '../../components/icons';
 import { ShortcutHint } from '../../components/shortcut-hint';
+import { appHomeCatalog } from '../../i18n/app-home';
 import { countLabel } from '../../lib/count-label';
 import type { WorkspaceAccess, WorkspaceNavigation } from '../../lib/workspace-navigation';
 import { AccountMenu } from './account-menu';
@@ -33,6 +35,7 @@ export function WorkspaceRecordToolbar({
   /** WP-X3: who you are acting as, shown in the phone top bar so it is visible without opening More. */
   readonly contextChip?: ReactNode;
 }) {
+  const t = useT(appHomeCatalog);
   const pathname = usePathname();
   const [query, setQuery] = useState('');
   const [mobileSearch, setMobileSearch] = useState(false);
@@ -136,9 +139,15 @@ export function WorkspaceRecordToolbar({
       className="workspace-toolbar record-toolbar"
       data-search-open={mobileSearch ? 'true' : 'false'}
     >
-      <Link href="/" className="brand workspace-brand" aria-label="VisaStack home">
+      <Link
+        href="/"
+        className="brand workspace-brand"
+        aria-label={t('appHome.appWorkspaceRecordToolbar.visastackHome')}
+      >
         <BrandMark />
-        <span className="record-brand-label">VisaStack</span>
+        <span className="record-brand-label">
+          {t('appHome.appWorkspaceRecordToolbar.visastack')}
+        </span>
       </Link>
       {contextChip}
       {staff ? null : (
@@ -147,7 +156,7 @@ export function WorkspaceRecordToolbar({
             type="button"
             ref={toggle}
             className="record-search-toggle"
-            aria-label="Search accessible records"
+            aria-label={t('appHome.appWorkspaceRecordToolbar.searchAccessibleRecords')}
             aria-expanded={mobileSearch}
             aria-controls={searchId}
             onClick={() => {
@@ -161,7 +170,7 @@ export function WorkspaceRecordToolbar({
           <search
             id={searchId}
             className="record-search"
-            aria-label="Accessible record search"
+            aria-label={t('appHome.appWorkspaceRecordToolbar.accessibleRecordSearch')}
             ref={search}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
@@ -188,7 +197,7 @@ export function WorkspaceRecordToolbar({
           >
             <Icon name="search" size={19} />
             <label className="sr-only" htmlFor={inputId}>
-              Search Accessible Profiles, Cases and Document Names
+              {t('appHome.appWorkspaceRecordToolbar.searchAccessibleProfilesCasesAndDocument')}
             </label>
             <input
               id={inputId}
@@ -196,10 +205,10 @@ export function WorkspaceRecordToolbar({
               type="search"
               placeholder={
                 !scope
-                  ? 'Choose an Available Workspace'
+                  ? t('appHome.appWorkspaceRecordToolbar.chooseAnAvailableWorkspace')
                   : selectedOrg
-                    ? 'Search accessible cases and clients...'
-                    : 'Search profiles, cases, documents...'
+                    ? t('appHome.appWorkspaceRecordToolbar.searchAccessibleCasesAndClients')
+                    : t('appHome.appWorkspaceRecordToolbar.searchProfilesCasesDocuments')
               }
               value={query}
               maxLength={80}
@@ -210,21 +219,26 @@ export function WorkspaceRecordToolbar({
             <ShortcutHint keyName="K" />
             <div id={resultsId} className="record-search-results" hidden={!query.trim()}>
               {result.status === 'loading' ? (
-                <output aria-live="polite">Searching...</output>
+                <output aria-live="polite">
+                  {t('appHome.appWorkspaceRecordToolbar.searching')}
+                </output>
               ) : null}
               {result.status === 'error' ? (
                 <p role="alert">
-                  Search is unavailable. Try again, or sign in again if your session ended.
+                  {t('appHome.appWorkspaceRecordToolbar.searchIsUnavailableTryAgainOr')}
                 </p>
               ) : null}
-              {result.status === 'idle' ? <p>Type at least two characters.</p> : null}
+              {result.status === 'idle' ? (
+                <p>{t('appHome.appWorkspaceRecordToolbar.typeAtLeastTwoCharacters')}</p>
+              ) : null}
               {result.status === 'ready' && !result.rows.length ? (
                 <output aria-live="polite">
-                  {result.notice ?? 'No accessible records match this search.'}
+                  {result.notice ??
+                    t('appHome.appWorkspaceRecordToolbar.noAccessibleRecordsMatchThisSearch')}
                 </output>
               ) : null}
               {result.status === 'ready' && result.rows.length ? (
-                <nav aria-label="Search results">
+                <nav aria-label={t('appHome.appWorkspaceRecordToolbar.searchResults')}>
                   <ul>
                     {result.rows.map((item) => (
                       <li key={`${item.category}:${item.id}`}>
@@ -244,16 +258,25 @@ export function WorkspaceRecordToolbar({
       <span className="record-toolbar-spacer" />
       {staff ? null : (
         <Link className="record-plan-badge" href={planHref}>
-          {planLabel || 'Plan Information'}
+          {planLabel || t('appHome.appWorkspaceRecordToolbar.planInformation')}
         </Link>
       )}
-      <nav className="record-toolbar-shortcuts" aria-label="Help and notifications">
-        <Link href="/app/help" aria-label="Help and Support">
+      <nav
+        className="record-toolbar-shortcuts"
+        aria-label={t('appHome.appWorkspaceRecordToolbar.helpAndNotifications')}
+      >
+        <Link href="/app/help" aria-label={t('appHome.appWorkspaceRecordToolbar.helpAndSupport')}>
           <Icon name="alert" size={20} />
         </Link>
         <Link
           href="/app/notifications"
-          aria-label={state ? `Notifications, ${state.unread} unread` : 'Notifications'}
+          aria-label={
+            state
+              ? t('appHome.appWorkspaceRecordToolbar.notificationsUnreadUnread', {
+                  unread: state.unread,
+                })
+              : t('appHome.appWorkspaceRecordToolbar.notifications')
+          }
         >
           <Icon name="bell" size={20} />
           {state && state.unread > 0 ? (

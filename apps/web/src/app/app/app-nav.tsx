@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
+import { useT } from '../../components/i18n-provider';
 import { Icon, type IconName } from '../../components/icons';
 import { LinkPending } from '../../components/link-pending';
 import { ShortcutHint } from '../../components/shortcut-hint';
+import { appHomeCatalog } from '../../i18n/app-home';
 import { countLabel } from '../../lib/count-label';
 import { type NavAction, type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
@@ -153,6 +155,7 @@ export function AppNav({
   /** The switch controls (Agency, Admin, Sign out), supplied by the server layout. */
   readonly children?: ReactNode;
 }) {
+  const t = useT(appHomeCatalog);
   const pathname = usePathname();
   const [hash, setHash] = useState('');
   const [open, setOpen] = useState(false);
@@ -250,7 +253,11 @@ export function AppNav({
       <Link
         key={item.href}
         href={item.href}
-        aria-label={badge ? `${item.label}, ${badge.spoken} new` : item.label}
+        aria-label={
+          badge
+            ? t('appHome.appAppNav.labelSpokenNew', { label: item.label, spoken: badge.spoken })
+            : item.label
+        }
         onClick={() => setOpen(false)}
         aria-current={
           (
@@ -285,7 +292,7 @@ export function AppNav({
       <div className="app-sidebar-heading">
         <Link className="brand" href="/">
           <BrandMark />
-          VisaStack
+          {t('appHome.appAppNav.visastack')}
         </Link>
         {onToggleSidebar ? (
           // Laptop and larger only (the stylesheet hides it on a phone). One button in both states,
@@ -295,7 +302,9 @@ export function AppNav({
             className="app-sidebar-toggle"
             aria-expanded={!sidebarCollapsed}
             aria-controls={navId}
-            aria-label={sidebarCollapsed ? 'Show Menu' : 'Hide Menu'}
+            aria-label={
+              sidebarCollapsed ? t('appHome.appAppNav.showMenu') : t('appHome.appAppNav.hideMenu')
+            }
             onClick={onToggleSidebar}
           >
             <Icon name="sidebar" size={20} />
@@ -308,23 +317,23 @@ export function AppNav({
           <span>
             <b>
               {pathname.startsWith('/app/admin')
-                ? 'Platform Workspace'
+                ? t('appHome.appAppNav.platformWorkspace')
                 : pathname.startsWith('/app/agency')
-                  ? 'Agency Workspace'
-                  : 'Personal Workspace'}
+                  ? t('appHome.appAppNav.agencyWorkspace')
+                  : t('appHome.appAppNav.personalWorkspace')}
             </b>
-            <small>{accountLabel ?? 'Account Details'}</small>
+            <small>{accountLabel ?? t('appHome.appAppNav.accountDetails')}</small>
           </span>
         </Link>
       )}
-      <p className="app-sidebar-context">Workspace</p>
+      <p className="app-sidebar-context">{t('appHome.appAppNav.workspace')}</p>
       <div
         className="app-bar"
         style={
           { '--mobile-nav-count': Math.max(1, Math.min(links.length, BAR_LINKS)) } as CSSProperties
         }
       >
-        <nav className="app-shell-links" aria-label="Workspace">
+        <nav className="app-shell-links" aria-label={t('appHome.appAppNav.workspace')}>
           {links.slice(0, BAR_LINKS).map(entry)}
         </nav>
         <button
@@ -336,16 +345,16 @@ export function AppNav({
           onClick={() => setOpen((value) => !value)}
         >
           <Icon name={open ? 'close' : 'more'} size={20} />
-          <span className="app-link-label">More</span>
+          <span className="app-link-label">{t('appHome.appAppNav.more')}</span>
         </button>
       </div>
       <div className="app-more" id={panelId} ref={panelRef}>
         <div className="app-more-heading">
-          <strong>Workspace Navigation</strong>
+          <strong>{t('appHome.appAppNav.workspaceNavigation')}</strong>
           <button
             type="button"
             className="btn btn-secondary"
-            aria-label="Close navigation"
+            aria-label={t('appHome.appAppNav.closeNavigation')}
             onClick={() => {
               setOpen(false);
               toggleRef.current?.focus();
@@ -358,19 +367,25 @@ export function AppNav({
         {actions.length ? (
           // On a phone the bar has no room for tasks, so they lead the More panel. The sidebar
           // shows each under its destination instead, so this list is hidden there.
-          <nav className="app-shell-links app-nav-actions" aria-label="Quick actions">
+          <nav
+            className="app-shell-links app-nav-actions"
+            aria-label={t('appHome.appAppNav.quickActions')}
+          >
             {actions.map((action) => actionLink(action, 'row'))}
           </nav>
         ) : null}
         <nav
           className="app-shell-links app-shell-links-more"
-          aria-label="More workspace destinations"
+          aria-label={t('appHome.appAppNav.moreWorkspaceDestinations')}
         >
           {links.slice(BAR_LINKS).map(entry)}
         </nav>
         {children}
         {secondaryLinks.length ? (
-          <nav className="app-shell-links workspace-bottom-links" aria-label="Settings and support">
+          <nav
+            className="app-shell-links workspace-bottom-links"
+            aria-label={t('appHome.appAppNav.settingsAndSupport')}
+          >
             {secondaryLinks.map(link)}
           </nav>
         ) : null}
@@ -388,6 +403,7 @@ export function WorkspaceToolbar({
   readonly accountLabel?: string;
   readonly isAdmin?: boolean;
 }) {
+  const t = useT(appHomeCatalog);
   const pathname = usePathname();
   const [query, setQuery] = useState('');
   const finder = useRef<HTMLInputElement>(null);
@@ -422,18 +438,18 @@ export function WorkspaceToolbar({
     <header className="workspace-toolbar">
       <Link href="/" className="brand workspace-brand">
         <BrandMark />
-        VisaStack
+        {t('appHome.appAppNav.visastack')}
       </Link>
       <div className="workspace-finder">
         <Icon name="search" size={19} />
         <label className="sr-only" htmlFor={finderId}>
-          Find a Page
+          {t('appHome.appAppNav.findAPage')}
         </label>
         <input
           id={finderId}
           ref={finder}
           type="search"
-          placeholder="Find a page..."
+          placeholder={t('appHome.appAppNav.findAPage6ae3fa')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
@@ -442,7 +458,10 @@ export function WorkspaceToolbar({
         />
         <ShortcutHint keyName="K" className="workspace-finder-key" />
         {query.trim() ? (
-          <nav className="workspace-finder-results" aria-label="Matching pages">
+          <nav
+            className="workspace-finder-results"
+            aria-label={t('appHome.appAppNav.matchingPages')}
+          >
             {matches.length ? (
               matches.map((item) => (
                 <Link key={item.href} href={item.href} onClick={() => setQuery('')}>
@@ -450,20 +469,20 @@ export function WorkspaceToolbar({
                 </Link>
               ))
             ) : (
-              <p>No pages match. Try another name.</p>
+              <p>{t('appHome.appAppNav.noPagesMatchTryAnotherName')}</p>
             )}
           </nav>
         ) : null}
       </div>
       <p className="workspace-context">{context}</p>
-      <nav aria-label="Workspace shortcuts" className="workspace-shortcuts">
-        <Link href="/status" aria-label="Help and service status">
+      <nav aria-label={t('appHome.appAppNav.workspaceShortcuts')} className="workspace-shortcuts">
+        <Link href="/status" aria-label={t('appHome.appAppNav.helpAndServiceStatus')}>
           <Icon name="alert" size={20} />
         </Link>
-        <Link href="/app/notifications" aria-label="Notifications">
+        <Link href="/app/notifications" aria-label={t('appHome.appAppNav.notifications')}>
           <Icon name="bell" size={20} />
         </Link>
-        <Link href="/app/account" aria-label="Your Account">
+        <Link href="/app/account" aria-label={t('appHome.appAppNav.yourAccount')}>
           <Icon name="user" size={20} />
           {accountLabel ? <span className="workspace-identity">{accountLabel}</span> : null}
         </Link>

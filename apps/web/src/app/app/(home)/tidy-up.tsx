@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { atLevel } from '../../../components/depth';
 import { Icon } from '../../../components/icons';
+import { appHomeCatalog } from '../../../i18n/app-home';
+import { getServerT } from '../../../lib/i18n-server';
 import { plural } from '../../../lib/plural';
 
 /*
@@ -61,6 +63,7 @@ export function TidyUpCard({
   readonly short?: string;
   readonly href: string;
 }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <section
       className="home-tidy u-mb-150"
@@ -71,13 +74,17 @@ export function TidyUpCard({
         <Icon name="folder" size={20} />
       </span>
       <h2 className="sr-only" id="home-tidy-up-heading">
-        Tidy Up
+        {t('appHome.appTidyUp.tidyUp')}
       </h2>
       <p className="home-tidy-line">{short ?? line}</p>
       {/* The whole sentence, with its promise that nothing changes until the person chooses, for a screen reader. */}
       {short ? <p className="sr-only">{line}</p> : null}
-      <Link className="btn home-tidy-button plain-link" href={href} aria-label="Tidy Up Documents">
-        Tidy Up
+      <Link
+        className="btn home-tidy-button plain-link"
+        href={href}
+        aria-label={t('appHome.appTidyUp.tidyUpDocuments')}
+      >
+        {t('appHome.appTidyUp.tidyUp')}
       </Link>
     </section>
   );

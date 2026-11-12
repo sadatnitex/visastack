@@ -7,6 +7,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../components/form-feedback';
+import { useT } from '../../components/i18n-provider';
+import { appHomeCatalog } from '../../i18n/app-home';
 import { type ActionState, createApplicantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -42,6 +44,7 @@ type ManagedKind = 'FAMILY_MEMBER' | 'MINOR_GUARDIAN';
  * question and the authority confirmation show only for Someone I Manage, by style alone.
  */
 function FirstRunApplicantForm() {
+  const t = useT(appHomeCatalog);
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
   const [whoFor, setWhoFor] = useState<WhoFor>('SELF');
   const [managedKind, setManagedKind] = useState<ManagedKind | null>(null);
@@ -52,7 +55,9 @@ function FirstRunApplicantForm() {
   return (
     <form ref={formRef} action={formAction} className="first-run-form">
       <fieldset className="first-run-choice">
-        <legend className="field-label">Who is this record for?</legend>
+        <legend className="field-label">
+          {t('appHome.appAddApplicantForm.whoIsThisRecordFor')}
+        </legend>
         <label>
           <input
             type="radio"
@@ -62,8 +67,8 @@ function FirstRunApplicantForm() {
             onChange={() => setWhoFor('SELF')}
           />
           <span>
-            <b>Me</b>
-            <small>My own papers</small>
+            <b>{t('appHome.appAddApplicantForm.me')}</b>
+            <small>{t('appHome.appAddApplicantForm.myOwnPapers')}</small>
           </span>
         </label>
         <label>
@@ -78,14 +83,16 @@ function FirstRunApplicantForm() {
             }}
           />
           <span>
-            <b>Someone I Manage</b>
-            <small>A family member</small>
+            <b>{t('appHome.appAddApplicantForm.someoneIManage')}</b>
+            <small>{t('appHome.appAddApplicantForm.aFamilyMember')}</small>
           </span>
         </label>
       </fieldset>
       <div className="first-run-managed">
         <fieldset className="first-run-choice">
-          <legend className="field-label">How are they related to you?</legend>
+          <legend className="field-label">
+            {t('appHome.appAddApplicantForm.howAreTheyRelatedToYou')}
+          </legend>
           <label>
             <input
               type="radio"
@@ -96,8 +103,8 @@ function FirstRunApplicantForm() {
               {...fieldProblem(state, 'managedKind', messageId)}
             />
             <span>
-              <b>Family Member</b>
-              <small>Adult relative</small>
+              <b>{t('appHome.appAddApplicantForm.familyMember')}</b>
+              <small>{t('appHome.appAddApplicantForm.adultRelative')}</small>
             </span>
           </label>
           <label>
@@ -109,15 +116,15 @@ function FirstRunApplicantForm() {
               onChange={() => setManagedKind('MINOR_GUARDIAN')}
             />
             <span>
-              <b>Minor (Guardian)</b>
-              <small>A child in my care</small>
+              <b>{t('appHome.appAddApplicantForm.minorGuardian')}</b>
+              <small>{t('appHome.appAddApplicantForm.aChildInMyCare')}</small>
             </span>
           </label>
         </fieldset>
       </div>
       <div>
         <label className="field-label" htmlFor="displayName">
-          Name as on the Passport
+          {t('appHome.appAddApplicantForm.nameAsOnThePassport')}
         </label>
         <input
           id="displayName"
@@ -143,13 +150,14 @@ function FirstRunApplicantForm() {
       <SubmitButton pending={pending} idle="Continue" busy="Saving…" className="btn btn-primary" />
       <FormMessage id={messageId} result={state} />
       <p className="muted first-run-note">
-        You can change this later. Nothing is shared with anyone.
+        {t('appHome.appAddApplicantForm.youCanChangeThisLaterNothing')}
       </p>
     </form>
   );
 }
 
 function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
+  const t = useT(appHomeCatalog);
   const [state, formAction, pending] = useActionState(createApplicantAction, INITIAL);
   const [relationship, setRelationship] = useState(selfAdded ? 'FAMILY_MEMBER' : 'SELF');
   // Once a record for yourself exists (for example the one just added), the next one is for
@@ -172,12 +180,12 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
     >
       <div>
         <label className="field-label" htmlFor="displayName">
-          Full Name
+          {t('appHome.appAddApplicantForm.fullName')}
         </label>
         <input
           id="displayName"
           name="displayName"
-          placeholder="Full Name"
+          placeholder={t('appHome.appAddApplicantForm.fullName')}
           required
           className="input"
           {...fieldProblem(state, 'displayName', messageId)}
@@ -186,7 +194,7 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
       </div>
       <div>
         <label className="field-label" htmlFor="relationship">
-          Relationship
+          {t('appHome.appAddApplicantForm.relationship')}
         </label>
         <select
           id="relationship"
@@ -197,14 +205,17 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
           style={{ width: '100%', marginTop: '0.35rem' }}
           aria-describedby={secondSelf ? selfNoteId : undefined}
         >
-          <option value="SELF">{selfAdded ? 'Myself (Already Added)' : 'Myself'}</option>
-          <option value="FAMILY_MEMBER">Family Member</option>
-          <option value="MINOR_GUARDIAN">Minor (Guardian)</option>
+          <option value="SELF">
+            {selfAdded
+              ? t('appHome.appAddApplicantForm.myselfAlreadyAdded')
+              : t('appHome.appAddApplicantForm.myself')}
+          </option>
+          <option value="FAMILY_MEMBER">{t('appHome.appAddApplicantForm.familyMember')}</option>
+          <option value="MINOR_GUARDIAN">{t('appHome.appAddApplicantForm.minorGuardian')}</option>
         </select>
         {secondSelf ? (
           <p className="field-hint" id={selfNoteId}>
-            You already have a record for yourself. Choosing Myself again adds a second, separate
-            record; your details and documents are not copied into it.
+            {t('appHome.appAddApplicantForm.youAlreadyHaveARecordFor')}
           </p>
         ) : null}
       </div>

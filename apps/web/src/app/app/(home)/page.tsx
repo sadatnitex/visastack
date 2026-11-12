@@ -39,11 +39,13 @@ import {
   StatusBadge,
 } from '../../../components/ui';
 import { AboutDisclosure } from '../../../components/ui-lift';
+import { appHomeCatalog } from '../../../i18n/app-home';
 import { holdsPlatformRole } from '../../../lib/admin';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { countryNameOf, countryStartData, parseCountryParam } from '../../../lib/country-start';
 import { COUNTRY_STEP_DONE } from '../../../lib/country-start-links';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import {
   ATTENTION_TIER_LABELS,
   CONSENT_PLAIN,
@@ -371,6 +373,7 @@ function CalendarLinks({
 }: {
   readonly people: readonly { readonly id: string; readonly displayName: string }[];
 }) {
+  const t = getServerT(appHomeCatalog);
   const [only] = people;
   if (!only) return null;
   const href = (id: string) => `/app/applicant/${id}/calendar`;
@@ -378,7 +381,7 @@ function CalendarLinks({
     return (
       <div className="do-next-action">
         <Link href={href(only.id)} className="btn btn-secondary">
-          Add Dates to My Calendar
+          {t('appHome.appPage.addDatesToMyCalendar')}
         </Link>
       </div>
     );
@@ -388,7 +391,7 @@ function CalendarLinks({
       Add dates to my calendar for{' '}
       {people.map((person, index) => (
         <span key={person.id}>
-          {index === 0 ? '' : index === people.length - 1 ? ' or ' : ', '}
+          {index === 0 ? '' : index === people.length - 1 ? t('appHome.appPage.or') : ', '}
           <Link href={href(person.id)}>{person.displayName}</Link>
         </span>
       ))}
@@ -433,6 +436,7 @@ function returnTask(value: string | string[] | undefined): string | null {
 export default async function AppPage({
   searchParams,
 }: { readonly searchParams?: Promise<SearchParams> }) {
+  await primeLocale();
   const params: SearchParams = (await searchParams) ?? {};
   const locale = await getLocale();
   const t = createTranslator(locale);

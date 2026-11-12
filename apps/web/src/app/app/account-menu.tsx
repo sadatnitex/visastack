@@ -12,7 +12,9 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useT } from '../../components/i18n-provider';
 import { Icon, type IconName } from '../../components/icons';
+import { appHomeCatalog } from '../../i18n/app-home';
 import { placePopover } from '../../lib/popover-placement';
 import { useCloseOnOutsidePress } from '../../lib/use-popover';
 
@@ -86,6 +88,7 @@ export function AccountMenu({
   /** The existing server action form; the menu only places and styles it. */
   readonly signOut: ReactNode;
 }) {
+  const t = useT(appHomeCatalog);
   const pathname = usePathname();
   const account = useRef<HTMLDetailsElement>(null);
   const panel = useRef<HTMLElement>(null);
@@ -218,12 +221,15 @@ export function AccountMenu({
       onBlur={onBlur}
       onToggle={onToggle}
     >
-      <summary aria-label={`${name}, Account Menu`} aria-controls={panelId}>
+      <summary
+        aria-label={t('appHome.appAccountMenu.nameAccountMenu', { name })}
+        aria-controls={panelId}
+      >
         <b className="account-name-desktop" dir="auto">
           {name}
         </b>
         <b className="account-name-mobile" dir="auto">
-          {name.trim().split(/\s+/)[0] || 'Account'}
+          {name.trim().split(/\s+/)[0] || t('appHome.appAccountMenu.account')}
         </b>
         {/* WP-X3: on the narrowest phones the account shows as an icon, leaving room for the context chip. */}
         <span className="account-icon-mobile" aria-hidden="true">
@@ -235,7 +241,7 @@ export function AccountMenu({
         id={panelId}
         className="account-menu-panel"
         ref={panel}
-        aria-label="Account Menu"
+        aria-label={t('appHome.appAccountMenu.accountMenu')}
         onClickCapture={(event) => {
           if ((event.target as HTMLElement).closest('a')) close(false);
         }}
@@ -257,7 +263,7 @@ export function AccountMenu({
           <button
             type="button"
             className="account-menu-close"
-            aria-label="Close Account Menu"
+            aria-label={t('appHome.appAccountMenu.closeAccountMenu')}
             onClick={() => close(true)}
           >
             <Icon name="close" size={20} />
@@ -266,12 +272,12 @@ export function AccountMenu({
         <div className="account-menu-plan">
           {plan ? (
             <p className="account-menu-plan-name">
-              <span className="sr-only">Your plan: </span>
+              <span className="sr-only">{t('appHome.appAccountMenu.yourPlan')} </span>
               <span className="account-menu-chip">{plan.name}</span>
             </p>
           ) : null}
           <Link className="account-menu-plan-link" href={plan?.href ?? '/app/account/plan'}>
-            View Plan
+            {t('appHome.appAccountMenu.viewPlan')}
             <Icon name="chevron" size={16} />
           </Link>
         </div>

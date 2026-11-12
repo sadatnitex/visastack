@@ -4,7 +4,9 @@ import { DestinationLabel } from '../../../../components/destination-label';
 import { SearchableList } from '../../../../components/list-pattern';
 import { PageHeader } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift';
+import { appTripsCatalog } from '../../../../i18n/app-trips';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { loadJoinedTrips, loadTripList } from '../trip-data';
 
@@ -18,11 +20,16 @@ function TripItem({
 }: {
   readonly trip: { readonly id: string; readonly title: string; readonly travellerCount: number };
 }) {
+  const t = getServerT(appTripsCatalog);
   return (
     <li>
       <Link href={`/app/trips/${trip.id}`}>{trip.title}</Link>{' '}
       <span className="muted u-fs-085">
-        {trip.travellerCount === 1 ? '1 Traveller' : `${trip.travellerCount} Travellers`}
+        {trip.travellerCount === 1
+          ? t('appTrips.appTripsPage.1Traveller')
+          : t('appTrips.appTripsPage.travellercountTravellers', {
+              travellerCount: trip.travellerCount,
+            })}
       </span>
     </li>
   );
@@ -30,6 +37,8 @@ function TripItem({
 
 /** UMPE P5: the account holder's group trips. */
 export default async function TripsPage() {
+  await primeLocale();
+  const t = getServerT(appTripsCatalog);
   const { list, joined } = await withSession(async ({ db, accountId }) => ({
     list: await loadTripList(db, accountId),
     // Empty unless travelling with someone else is on and this account joined a trip or was invited.
@@ -39,20 +48,17 @@ export default async function TripsPage() {
   return (
     <>
       <PageHeader
-        title="Group Trips"
+        title={t('appTrips.appTripsPage.groupTrips')}
         actions={
           hasTravellers ? (
             <Link className="btn btn-primary" href="/app/trips/new">
-              Start a Group Trip
+              {t('appTrips.appTripsPage.startAGroupTrip')}
             </Link>
           ) : null
         }
       />
-      <AboutDisclosure summary="About Group Trips">
-        <p>
-          Plan one trip for several travellers. Each traveller keeps their own case, documents and
-          privacy.
-        </p>
+      <AboutDisclosure summary={t('appTrips.appTripsPage.aboutGroupTrips')}>
+        <p>{t('appTrips.appTripsPage.planOneTripForSeveralTravellers')}</p>
       </AboutDisclosure>
       <article className="card">
         {trips.length > 0 ? (
@@ -74,7 +80,7 @@ export default async function TripsPage() {
             </ul>
           </SearchableList>
         ) : hasTravellers ? (
-          <p className="u-m-0">No group trips yet.</p>
+          <p className="u-m-0">{t('appTrips.appTripsPage.noGroupTripsYet')}</p>
         ) : (
           <p className="u-m-0">
             Add a traveller first, then start a trip. <Link href="/app">Go to Home</Link>
@@ -84,7 +90,7 @@ export default async function TripsPage() {
       {joined.length > 0 ? (
         <section className="card trip-section" aria-labelledby="trips-joined-title">
           <h2 id="trips-joined-title" className="card-title">
-            Trips You Joined
+            {t('appTrips.appTripsPage.tripsYouJoined')}
           </h2>
           <ul className="trip-list">
             {joined.map((trip) => (
@@ -98,7 +104,9 @@ export default async function TripsPage() {
                   <DestinationLabel destination={trip.destination} />
                   {trip.joined
                     ? ''
-                    : `. Invitation ends ${formatTimestampDate(trip.endsAt)}. Open the link in your email to answer.`}
+                    : t('appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink', {
+                        formatTimestampDate: formatTimestampDate(trip.endsAt),
+                      })}
                 </span>
               </li>
             ))}

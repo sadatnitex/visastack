@@ -7,6 +7,7 @@ import {
 import { CountryFlag } from '../../../components/country-flag';
 import { SourceNote } from '../../../components/source-note';
 import { EmptyState, PageHeader, StatusBadge } from '../../../components/ui';
+import { appCountriesCatalog } from '../../../i18n/app-countries';
 import {
   ENTRY_LABEL,
   THIN_LIST,
@@ -16,6 +17,7 @@ import {
   stayLabel,
 } from '../../../lib/country-view';
 import { humanizeCode } from '../../../lib/format-code';
+import { getServerT } from '../../../lib/i18n-server';
 
 const HOW_TO_APPLY: Readonly<Record<string, string>> = {
   E_VISA_PORTAL: 'Online, on the official e-visa site',
@@ -42,21 +44,39 @@ function Fact({ label, children }: { readonly label: string; readonly children: 
 }
 
 function Requirement({ item }: { readonly item: DestinationRequirement }) {
+  const t = getServerT(appCountriesCatalog);
   const warn = needsChecking(item.source) || isUnofficial(item.source);
   return (
     <li>
       <span>{item.text}</span>
-      {item.optional ? <span className="muted"> (optional)</span> : null}
-      {item.onlyWhen ? <span className="muted"> Only when: {item.onlyWhen}</span> : null}
-      {item.maxAgeDays !== null ? (
-        <span className="muted"> Must be dated within {item.maxAgeDays} days.</span>
+      {item.optional ? (
+        <span className="muted"> {t('appCountries.appCountriesCountryView.optional')}</span>
       ) : null}
-      {warn ? <span className="badge badge-warning">Needs Checking</span> : null}
+      {item.onlyWhen ? (
+        <span className="muted">
+          {' '}
+          {t('appCountries.appCountriesCountryView.onlyWhenOnlywhen', { onlyWhen: item.onlyWhen })}
+        </span>
+      ) : null}
+      {item.maxAgeDays !== null ? (
+        <span className="muted">
+          {' '}
+          {t('appCountries.appCountriesCountryView.mustBeDatedWithinMaxagedaysDays', {
+            maxAgeDays: item.maxAgeDays,
+          })}
+        </span>
+      ) : null}
+      {warn ? (
+        <span className="badge badge-warning">
+          {t('appCountries.appCountriesCountryView.needsChecking')}
+        </span>
+      ) : null}
     </li>
   );
 }
 
 function RouteCard({ route }: { readonly route: DestinationRoute }) {
+  const t = getServerT(appCountriesCatalog);
   const fee = moneyLabel(route.fee);
   return (
     <article className="card country-route">
@@ -64,30 +84,30 @@ function RouteCard({ route }: { readonly route: DestinationRoute }) {
       <h3 className="card-title">{route.name}</h3>
       {route.description ? <p className="card-body">{route.description}</p> : null}
       <dl className="country-facts">
-        {fee ? <Fact label="Fee">{fee}</Fact> : null}
+        {fee ? <Fact label={t('appCountries.appCountriesCountryView.fee')}>{fee}</Fact> : null}
         {route.channelUrl ? (
-          <Fact label="Where to Apply">
+          <Fact label={t('appCountries.appCountriesCountryView.whereToApply')}>
             <a href={route.channelUrl} target="_blank" rel="noopener noreferrer">
               {route.channelName ?? route.channelUrl}
             </a>
           </Fact>
         ) : null}
         {route.rulesTakeEffectOn ? (
-          <Fact label="Rules Take Effect">{route.rulesTakeEffectOn}</Fact>
+          <Fact label={t('appCountries.appCountriesCountryView.rulesTakeEffect')}>
+            {route.rulesTakeEffectOn}
+          </Fact>
         ) : null}
         {route.fraudReportingUrl ? (
-          <Fact label="Report a Scam">
+          <Fact label={t('appCountries.appCountriesCountryView.reportAScam')}>
             <a href={route.fraudReportingUrl} target="_blank" rel="noopener noreferrer">
-              Official Reporting Page
+              {t('appCountries.appCountriesCountryView.officialReportingPage')}
             </a>
           </Fact>
         ) : null}
       </dl>
       <SourceNote source={route.source} />
       {route.requirements.length === 0 ? (
-        <p className="muted">
-          No list of what to submit has been added for this route yet. Check the official page.
-        </p>
+        <p className="muted">{t('appCountries.appCountriesCountryView.noListOfWhatToSubmit')}</p>
       ) : (
         <>
           {KIND_ORDER.map((kind) => {
@@ -106,8 +126,7 @@ function RouteCard({ route }: { readonly route: DestinationRoute }) {
           })}
           {route.requirements.length < THIN_LIST ? (
             <p className="muted">
-              This list may not be complete. Check the official page for everything you need to
-              submit.
+              {t('appCountries.appCountriesCountryView.thisListMayNotBeComplete')}
             </p>
           ) : null}
         </>
@@ -117,38 +136,43 @@ function RouteCard({ route }: { readonly route: DestinationRoute }) {
 }
 
 function Facts({ destination }: { readonly destination: Destination }) {
+  const t = getServerT(appCountriesCatalog);
   const fee = moneyLabel(destination.fee);
   const stay = stayLabel(destination.maximumStayDays);
   return (
     <article className="card">
-      <p className="card-kicker">The Short Version</p>
+      <p className="card-kicker">{t('appCountries.appCountriesCountryView.theShortVersion')}</p>
       <h2 className="card-title">{ENTRY_LABEL[destination.entryStatus]}</h2>
       <dl className="country-facts">
         {stay || destination.stayPeriodRule ? (
-          <Fact label="How long you can stay">
+          <Fact label={t('appCountries.appCountriesCountryView.howLongYouCanStay')}>
             {[stay, destination.stayPeriodRule].filter(Boolean).join(' - ')}
           </Fact>
         ) : null}
         {destination.passportValidityRule ? (
-          <Fact label="Passport">{destination.passportValidityRule}</Fact>
+          <Fact label={t('appCountries.appCountriesCountryView.passport')}>
+            {destination.passportValidityRule}
+          </Fact>
         ) : null}
         {destination.howToApply ? (
-          <Fact label="How to Apply">
+          <Fact label={t('appCountries.appCountriesCountryView.howToApply')}>
             {HOW_TO_APPLY[destination.howToApply] ?? humanizeCode(destination.howToApply)}
             {destination.applyUrl ? (
               <>
                 {' '}
                 <a href={destination.applyUrl} target="_blank" rel="noopener noreferrer">
-                  Official Page
+                  {t('appCountries.appCountriesCountryView.officialPage')}
                 </a>
               </>
             ) : null}
           </Fact>
         ) : null}
         {destination.bangladeshLocation ? (
-          <Fact label="Where to Submit in Bangladesh">{destination.bangladeshLocation}</Fact>
+          <Fact label={t('appCountries.appCountriesCountryView.whereToSubmitInBangladesh')}>
+            {destination.bangladeshLocation}
+          </Fact>
         ) : null}
-        {fee ? <Fact label="Fee">{fee}</Fact> : null}
+        {fee ? <Fact label={t('appCountries.appCountriesCountryView.fee')}>{fee}</Fact> : null}
       </dl>
       <SourceNote source={destination.source} />
     </article>
@@ -163,16 +187,19 @@ export function CountryView({
   readonly destination: Destination;
   readonly backHref: string;
 }) {
+  const t = getServerT(appCountriesCatalog);
   const routes = routesForDestination(destination);
 
   return (
     <>
       <PageHeader
         back={{ href: backHref, label: 'All Countries' }}
-        eyebrow="Country"
+        eyebrow={t('appCountries.appCountriesCountryView.country')}
         lead={<CountryFlag iso2={destination.iso2} name={destination.country} size="lg" />}
         title={destination.country}
-        description="For an ordinary Bangladeshi passport. Rules change, so confirm on the official page before you apply."
+        description={t(
+          'appCountries.appCountriesCountryView.forAnOrdinaryBangladeshiPassportRules',
+        )}
         meta={
           <StatusBadge tone={destination.researched ? 'neutral' : 'warning'}>
             {ENTRY_LABEL[destination.entryStatus]}
@@ -182,7 +209,10 @@ export function CountryView({
       {destination.researched ? (
         <Facts destination={destination} />
       ) : (
-        <EmptyState icon="search" title="Not Yet Researched">
+        <EmptyState
+          icon="search"
+          title={t('appCountries.appCountriesCountryView.notYetResearched')}
+        >
           We have not collected the rules for {destination.country} yet. That does not mean no visa
           is needed.
           {destination.source ? (
@@ -197,10 +227,14 @@ export function CountryView({
           ) : null}
         </EmptyState>
       )}
-      <h2 className="country-routes-heading">Visa Types</h2>
+      <h2 className="country-routes-heading">
+        {t('appCountries.appCountriesCountryView.visaTypes')}
+      </h2>
       {routes.length === 0 ? (
         <p className="muted">
-          The visa types for {destination.country} have not been added yet. Check the official page.
+          {t('appCountries.appCountriesCountryView.theVisaTypesForCountryHave', {
+            country: destination.country,
+          })}
         </p>
       ) : (
         <div className="country-routes">
