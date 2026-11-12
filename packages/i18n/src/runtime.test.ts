@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogTranslator, defineCatalog } from './catalog';
+import { catalogResolve, catalogTranslator, defineCatalog } from './catalog';
 import { formatDate, formatMoney, formatNumber, localeTag } from './format';
 import { formatMessage } from './icu';
 import { BN, EN } from './messages';
@@ -126,5 +126,28 @@ describe('plural number marker', () => {
 
   it('keeps # literal outside a plural', () => {
     expect(formatMessage('Case #{id}', { id: 7 }, 'en-GB')).toBe('Case #7');
+  });
+});
+
+describe('catalogResolve', () => {
+  const c = defineCatalog({
+    en: { 'x.both': 'Both', 'x.only': 'Only English' },
+    bn: { 'x.both': 'দুটোই' },
+  });
+  it('reports the language actually used', () => {
+    expect(catalogResolve(c, 'bn', 'x.both')).toEqual({ text: 'দুটোই', lang: 'bn' });
+    expect(catalogResolve(c, 'bn', 'x.only')).toEqual({ text: 'Only English', lang: 'en' });
+    expect(catalogResolve(c, 'en', 'x.both')).toEqual({ text: 'Both', lang: 'en' });
+  });
+  it('formats an English fallback with Latin digits under bn', () => {
+    const n = defineCatalog({
+      en: { 'x.files': '{n, plural, one {# file} other {# files}}' },
+      bn: {},
+    });
+    expect(catalogResolve(n, 'bn', 'x.files', { n: 1234 })).toEqual({
+      text: '1,234 files',
+      lang: 'en',
+    });
+    expect(catalogTranslator(n, 'bn')('x.files', { n: 1234 })).toBe('1,234 files');
   });
 });
