@@ -4,7 +4,9 @@ import {
   type Locale,
   catalogTranslator,
 } from '@visastack/i18n';
-import { type ServiceError, serviceMessages } from '@visastack/services';
+import type { ServiceError } from '@visastack/services';
+// The catalogue has its own entry point: the services index pulls in the database and server code.
+import { serviceMessages } from '@visastack/services/i18n';
 
 /** What a refusal needs to be worded: its English message and, when it has one, its key. */
 export type WordableServiceError = Pick<ServiceError, 'message' | 'messageKey' | 'params'>;

@@ -1,5 +1,6 @@
 import { catalogTranslator, defineCatalog } from '@visastack/i18n';
-import { keyedErrorWith, serviceError, serviceMessages } from '@visastack/services';
+import { keyedErrorWith, serviceError } from '@visastack/services';
+import { serviceMessages } from '@visastack/services/i18n';
 import { describe, expect, it } from 'vitest';
 import { serviceErrorText, serviceErrorTranslator } from './service-error-text';
 

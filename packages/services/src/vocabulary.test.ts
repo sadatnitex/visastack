@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { serviceMessages } from './i18n';
 
 /**
  * Commercial V1 Part 9 UX-01: internal implementation vocabulary must not reach
@@ -33,41 +34,12 @@ function serviceErrorMessages(): Message[] {
   return found;
 }
 
-/** The text of every `en` value in a catalogue source: `'key': 'sentence'` inside the `en` block. */
-function catalogueEnValues(source: string): string[] {
-  const start = source.search(/\ben\s*:\s*\{/);
-  if (start === -1) return [];
-  const open = source.indexOf('{', start);
-  let depth = 0;
-  let close = open;
-  for (let i = open; i < source.length; i += 1) {
-    if (source[i] === '{') depth += 1;
-    else if (source[i] === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        close = i;
-        break;
-      }
-    }
-  }
-  const value = /:\s*(['"`])((?:\\.|(?!\1).)*)\1/gs;
-  return [...source.slice(open, close).matchAll(value)].map((m) => m[2] ?? '');
+/** Messages that live in the catalogue: the same words, so the same rules (the real object, not a scrape). */
+function catalogueMessages(en: Readonly<Record<string, string>>): Message[] {
+  return Object.entries(en).map(([key, text]) => ({ file: `i18n/${key}`, text }));
 }
 
-/** Messages that live in a catalogue under `i18n/`: the same words, so the same rules. */
-function catalogueMessages(): Message[] {
-  const dir = `${SRC}i18n/`;
-  const found: Message[] = [];
-  for (const file of readdirSync(dir)) {
-    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
-    for (const text of catalogueEnValues(readFileSync(`${dir}${file}`, 'utf8'))) {
-      found.push({ file: `i18n/${file}`, text });
-    }
-  }
-  return found;
-}
-
-const messages = [...serviceErrorMessages(), ...catalogueMessages()];
+const messages = [...serviceErrorMessages(), ...catalogueMessages(serviceMessages.en)];
 const describeHits = (hits: readonly Message[]) =>
   hits.map((m) => `${m.file}: ${JSON.stringify(m.text)}`).join('\n');
 
@@ -97,18 +69,9 @@ describe('service error messages use product words', () => {
 });
 
 describe('the catalogue scan itself', () => {
-  it('reads the en values and nothing from bn', () => {
-    const sample = `defineCatalog({
-      en: { 'a.b': 'Open a mission', c: "Say \\"hi\\"", d: \`Cost {n}\` },
-      bn: { 'a.b': 'bangla only' },
-    })`;
-    expect(catalogueEnValues(sample)).toEqual(['Open a mission', 'Say \\"hi\\"', 'Cost {n}']);
-  });
-
-  it('finds a catalogue sentence that breaks a vocabulary rule', () => {
-    const hits = catalogueEnValues("en: { x: 'This mission failed' }").filter((t) =>
-      /\bmissions?\b/i.test(t),
-    );
-    expect(hits).toHaveLength(1);
+  it('reads every en value and finds a sentence that breaks a vocabulary rule', () => {
+    const sample = catalogueMessages({ 'a.b': 'This mission failed', c: 'Fine' });
+    expect(sample.map((m) => m.text)).toEqual(['This mission failed', 'Fine']);
+    expect(sample.filter((m) => /\bmissions?\b/i.test(m.text))).toHaveLength(1);
   });
 });

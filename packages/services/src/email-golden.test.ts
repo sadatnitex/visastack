@@ -8,11 +8,13 @@ import {
 
 /**
  * Email golden (i18n plumbing, PR0). Emails stay English by owner decision, so the exact words and
- * markup every kind of email sends are pinned here: the plain text and the html for each kind,
- * plus the variants that change the wording (task and invoice timing, the replace link, a guest
- * code, and a kind with no words of its own). The snapshot was taken on the code before any
- * message catalogue reached services, and every later change must leave it untouched. Update it
- * only for an intended wording change, never to make a conversion pass.
+ * markup around every kind of notification email (NOTIFICATION_EMAIL_COPY and the shared design)
+ * are pinned here: the plain text and the html for each kind, plus the variants that change the
+ * wording (task and invoice timing, the replace link, a guest code, a kind with no words of its
+ * own, an agency brand). The subjects and facts each sender builds are covered by
+ * english-golden.test.ts. The snapshot was taken on the code before any message catalogue reached
+ * services, and every later change must leave it untouched. Update it only for an intended
+ * wording change, never to make a conversion pass.
  */
 
 const CONTEXT = { baseUrl: 'https://vs.example.test', recipient: 'person@example.test' } as const;

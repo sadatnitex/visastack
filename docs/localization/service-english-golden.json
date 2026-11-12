@@ -2447,8 +2447,7 @@
   "packages/services/src/access/collection-response-access.ts": [
     "(not exists (select 1 from agency_collection_response_withdrawals w where w.response_id = {id}) and exists (select 1 from agency_collection_requests r where r.id = {requestId} and r.status <> 'REVOKED'))",
     "(select v.decision from agency_collection_reviews v where v.response_id = agency_collection_responses.id and v.organization_id = agency_collection_responses.organization_id order by v.decided_at desc, v.id desc limit 1)",
-    "no such response",
-    "{mint({ accountId: scope.accountId, organizationId: scope.organizationId, requestId: row.requestId, responseId, applicantId: row.applicantId, })}"
+    "no such response"
   ],
   "packages/services/src/access/collection-scope.ts": [
     "REQUEST_DOCUMENTS",
@@ -2492,8 +2491,7 @@
     "export artifact is not ready or has expired",
     "no key management port was configured",
     "that export was not found",
-    "this export is not available to download, please request a new one",
-    "{uniqueZipEntryName(usedNames, `photos/${base}`, 'jpg')}"
+    "this export is not available to download, please request a new one"
   ],
   "packages/services/src/account-retention.ts": [
     "We haven't seen you sign in for {months} months. If you don't sign in within 30 days, we'll begin the account deletion process (with its own final review period before anything is actually deleted). Sign in any time to cancel this.",
@@ -2690,12 +2688,7 @@
     "Invoice {ref} was due on {dueDay} and is still unpaid {dayCount} after its due date.{next}",
     "Invoice {ref} was due on {dueDay} and is still unpaid.",
     "MANAGE",
-    "New Invoice",
-    "{agencyLine(name, `Invoice ${invoiceRef} is ready. It is due on ${due}.`)}",
-    "{line( `Invoice ${ref} was due on ${dueDay} and is still unpaid ${dayCount(-daysUntilDue)} after its due date.${next}`, )}",
-    "{line(`Invoice ${ref} is due on ${dueDay}.`)}",
-    "{line(`Invoice ${ref} is due today, ${dueDay}.`)}",
-    "{line(`Invoice ${ref} was due on ${dueDay} and is still unpaid.`)}"
+    "New Invoice"
   ],
   "packages/services/src/billing-documents.ts": [
     "Agency Code {agencyCode}",
@@ -2753,7 +2746,6 @@
     "billing rules are not available yet",
     "changing billing rules requires reauthentication"
   ],
-  "packages/services/src/billing-standing.ts": ["({periodStart}", "{start})"],
   "packages/services/src/billing.ts": [
     "Enter the amount received above zero, for example 2,500.00.",
     "Enter the three-letter currency code you received.",
@@ -2856,8 +2848,7 @@
   "packages/services/src/channels/whatsapp-inbox.ts": [
     "A WhatsApp{ending} was connected to your VisaStack account. If this was not you, disconnect it and change your password.",
     "FAILED",
-    "WhatsApp connected to your VisaStack account",
-    "{lead} {menuBody}"
+    "WhatsApp connected to your VisaStack account"
   ],
   "packages/services/src/channels/whatsapp-link.ts": [
     "Agree to receive VisaStack messages on WhatsApp first.",
@@ -3237,7 +3228,6 @@
     "PENDING",
     "SAFE_COPY_REMOVAL"
   ],
-  "packages/services/src/error-report.ts": ["at"],
   "packages/services/src/evidence-request-groups.ts": [
     "NEEDS_REPLACEMENT",
     "OPEN",
@@ -3285,9 +3275,7 @@
   "packages/services/src/intake.ts": [
     "Expires {expiryDate}",
     "document version not found",
-    "stored object missing",
-    "{`content-limits check threw: ${error instanceof Error ? error.message : String(error)}`.slice( 0, 2000, )}",
-    "{`scan threw: ${error instanceof Error ? error.message : String(error)}`.slice( 0, 2000, )}"
+    "stored object missing"
   ],
   "packages/services/src/invitation-email.ts": [
     "/collect?step=guest",
@@ -4149,9 +4137,7 @@
     "invoice not found",
     "payment not found",
     "recording a refund requires reauthentication",
-    "refund not found",
-    "{agencyLine( name, `A refund was made on invoice ${invoiceRef}. Open your invoices to see what it shows now.`, )}",
-    "{agencyLine( name, `An earlier payment was applied to invoice ${invoice.invoiceRef}. Open your invoices to see what is left to pay.`, )}"
+    "refund not found"
   ],
   "packages/services/src/request-items.ts": [
     "Keep your question under {REQUEST_QUESTION_MAX_LENGTH} characters. You can add more in a second question.",
@@ -4256,11 +4242,7 @@
     "You, to copy from",
     "summaries are available to the owner only",
     "the record of this summary could not be saved",
-    "{[ document.referenceCode, document.documentDate ? `Dated ${longDay(document.documentDate)}` : null, expiresNote(document), ] .filter(Boolean) .join('. ')}",
-    "{kind}, {toLowerCase}",
-    "{name}, version {version}",
-    "{renderAiContext(output, { question: choice.question })}",
-    "{satisfiedCount} of {requiredCount}"
+    "{name}, version {version}"
   ],
   "packages/services/src/selected-output.ts": [
     "A masked value shows only its last three characters. Do not ask for the rest unless the person offers it.",
@@ -4300,8 +4282,7 @@
     "unknown case choice in the selection",
     "unknown depth in the selection",
     "unknown document group in the selection",
-    "unknown layer in the selection",
-    "{output.documentText.map((d) => ({ ...d, untrusted: true }))}"
+    "unknown layer in the selection"
   ],
   "packages/services/src/sharing-invitations.ts": [
     "Confirm account and sharing consent before accepting.",
@@ -4428,8 +4409,7 @@
     "Starter list: {reference}",
     "a checklist with this key exists and is not a starter list",
     "that is not a starter checklist",
-    "{key}: this checklist has a draft open. Publish or discard it first.",
-    "{key}: {message}"
+    "{key}: this checklist has a draft open. Publish or discard it first."
   ],
   "packages/services/src/submissions.ts": [
     "a case must be submission-ready before a submission can be recorded",
@@ -4693,8 +4673,7 @@
     "Wait until every file has been checked, then submit.",
     "You can add up to {GUEST_MAX_FILES} files to one request. Remove some first.",
     "Your documents were just sent. Reload to see them.",
-    "no such document request",
-    "{(entry as { note: string }).note}"
+    "no such document request"
   ],
   "packages/services/src/umpe-insights-service.ts": [
     "({evidenceBasis} = 'DOCUMENT_SUPPLIED' and {evidencePresentSql})",
@@ -4778,10 +4757,7 @@
     "Version not found.",
     "{ruleChangeSentence} Review it before you share anything. Nothing in your trip was changed."
   ],
-  "packages/services/src/umpe-trip-companion-case.ts": [
-    "Core processing consent is required",
-    "{`${destination} - ${purpose}`.slice(0, TITLE_MAX)}"
-  ],
+  "packages/services/src/umpe-trip-companion-case.ts": ["Core processing consent is required"],
   "packages/services/src/umpe-trip-companion-email.ts": ["That person is not on this trip."],
   "packages/services/src/umpe-trip-companion-papers.ts": [
     "Choose Travel Bookings first.",
@@ -4870,10 +4846,7 @@
     "This agency workspace is unavailable.",
     "This traveller workspace is unavailable.",
     "Use between 2 and 80 characters.",
-    "{reference} Evidence Request",
-    "{reference} {name}",
-    "{reference} {title}",
-    "{reference} {value}"
+    "{reference} Evidence Request"
   ],
   "packages/services/src/workspace-toolbar.ts": [
     "EVIDENCE_REPLACEMENT_REQUESTED",

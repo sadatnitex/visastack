@@ -146,7 +146,10 @@ export function serviceError(code: ServiceErrorCode, message: string): ServiceEr
   return { code, message };
 }
 
-/** A refusal worded from a catalogue; `message` is the catalogue's English. */
+/**
+ * A refusal worded from a catalogue; `message` is the catalogue's English. Services use
+ * `keyedError`; this generic form exists so tests can bring their own catalogue.
+ */
 export function keyedErrorWith<K extends string>(
   catalog: Catalog<K>,
   code: ServiceErrorCode,

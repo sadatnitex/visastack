@@ -46,6 +46,18 @@ function parseCsv(text) {
   return rows;
 }
 
+/** The text outside every (possibly nested) {placeholder}, trimmed. */
+function fixedText(english) {
+  let depth = 0;
+  let text = '';
+  for (const char of english) {
+    if (char === '{') depth += 1;
+    else if (char === '}' && depth > 0) depth -= 1;
+    else if (depth === 0) text += char;
+  }
+  return text.trim();
+}
+
 const rows = parseCsv(fs.readFileSync(CSV, 'utf8'));
 const head = rows[0];
 const col = (name) => head.indexOf(name);
@@ -54,8 +66,8 @@ for (const r of rows.slice(1)) {
   const file = r[col('file')];
   if (!/^packages\/(services|core)\//.test(file) || r[col('audience')] !== 'person') continue;
   const english = r[col('english')];
-  // A value that is only a placeholder carries no words to keep.
-  if (!english || /^(\{[^}]*\})+$/.test(english.trim())) continue;
+  // A value that is only placeholders (or code in braces) carries no words to keep.
+  if (!english || fixedText(english).length < 3) continue;
   if (!byFile[file]) byFile[file] = new Set();
   byFile[file].add(english);
 }
@@ -63,6 +75,6 @@ const out = {};
 for (const file of Object.keys(byFile).sort()) out[file] = [...byFile[file]].sort();
 fs.writeFileSync(OUT, `${JSON.stringify(out)}\n`);
 // The repository formatter owns the layout of every committed file.
-execFileSync('pnpm', ['exec', 'biome', 'format', '--write', OUT], { cwd: ROOT, stdio: 'ignore' });
+execFileSync('pnpm', ['exec', 'biome', 'format', '--write', OUT], { cwd: ROOT, stdio: 'inherit' });
 const count = Object.values(out).reduce((n, l) => n + l.length, 0);
 console.info(`${Object.keys(out).length} files, ${count} strings, ${fs.statSync(OUT).size} bytes`);
