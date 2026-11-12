@@ -13,7 +13,7 @@ The language switch (`LANGUAGE_CHOICE_ENABLED` in `apps/web/src/lib/language-cho
 ## Using a catalogue
 
 - Server component that is `async`: `const t = await getT(catalog)`.
-- Sync server component: `const t = getServerT(catalog)`. This needs the locale to be read first. Layouts and pages render in parallel, so every `page.tsx` default export must `await primeLocale()` before it returns. Without it `getServerT` throws in development and test, and quietly uses English in production.
+- Sync server component: `const t = getServerT(catalog)`. This needs the locale to be read first. Layouts and pages render in parallel, so every `page.tsx` default export must `await primeLocale()` before it returns. Without it `getServerT` throws under `next dev` and quietly uses English elsewhere (unit tests included). A test (`apps/web/src/lib/i18n-prime-guard.test.ts`) fails the build if a page that reaches `getServerT` does not await `primeLocale()`.
 - Client component: `const t = useT(catalog)`; `useLocale()` gives the locale. The root layout wraps the page in `I18nProvider`, so no setup is needed per page.
 
 ## Checks that run
