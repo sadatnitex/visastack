@@ -4,10 +4,12 @@ import type { ReactElement, ReactNode } from 'react';
 import { Icon } from '../../components/icons';
 import { InvitingAgency } from '../../components/inviting-agency';
 import { StatusBadge } from '../../components/ui';
+import { invitationCatalog } from '../../i18n/invitation';
 import {
   type ClientInvitationTerms,
   invitationExpiryBadge,
 } from '../../lib/client-invitation-terms';
+import { getServerT } from '../../lib/i18n-server';
 import { type InvitationKind, invitationAcceptHref, invitationReturnPath } from './accept-paths';
 import { StickyInvitationActions } from './sticky-invitation-actions';
 import { SwitchInvitationAccount } from './switch-account';
@@ -21,9 +23,13 @@ import { SwitchInvitationAccount } from './switch-account';
 
 /** The three steps, on one line, with the one the visitor is on marked for sight and for speech. */
 export function InvitationSteps({ signedIn }: { readonly signedIn: boolean }) {
+  const t = getServerT(invitationCatalog);
   const current = signedIn ? 1 : 0;
   return (
-    <ol className="invitation-steps" aria-label="What Happens Next">
+    <ol
+      className="invitation-steps"
+      aria-label={t('invitation.invitationClientInvitationOffer.whatHappensNext')}
+    >
       {['Sign In', 'Review', 'Decide'].map((step, index) => (
         <li
           key={step}
@@ -34,7 +40,9 @@ export function InvitationSteps({ signedIn }: { readonly signedIn: boolean }) {
             {index < current ? <Icon name="check" size={14} /> : index + 1}
           </span>
           {step}
-          {index < current ? <span className="sr-only"> (Done)</span> : null}
+          {index < current ? (
+            <span className="sr-only"> {t('invitation.invitationClientInvitationOffer.done')}</span>
+          ) : null}
         </li>
       ))}
     </ol>
@@ -55,21 +63,22 @@ export function InvitationActions({
   readonly token: string;
   readonly signedIn: boolean;
 }) {
+  const t = getServerT(invitationCatalog);
   const next = invitationReturnPath(kind, token);
   return (
     <>
       <StickyInvitationActions>
         {signedIn ? (
           <Link className="btn btn-primary" href={invitationAcceptHref(kind, token)}>
-            Review Your Invitation
+            {t('invitation.invitationClientInvitationOffer.reviewYourInvitation')}
           </Link>
         ) : (
           <>
             <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
-              Create an Account to Review
+              {t('invitation.invitationClientInvitationOffer.createAnAccountToReview')}
             </Link>
             <Link className="btn btn-secondary" href={`/auth/sign-in?next=${next}`}>
-              Sign In
+              {t('invitation.invitationClientInvitationOffer.signIn')}
             </Link>
           </>
         )}
@@ -81,9 +90,10 @@ export function InvitationActions({
 
 /** The one quiet line under the main buttons. */
 export function InvitationReassurance() {
+  const t = getServerT(invitationCatalog);
   return (
     <p className="invitation-reassure">
-      Opening this link accepts nothing. You decide after you review.
+      {t('invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou')}
     </p>
   );
 }
@@ -101,26 +111,25 @@ export function InvitationHelp({
   readonly token: string;
   readonly signedIn: boolean;
 }) {
+  const t = getServerT(invitationCatalog);
   return (
     <section className="invitation-help" aria-labelledby="invitation-help-title">
       <h2 className="card-title" id="invitation-help-title">
-        Before You Start
+        {t('invitation.invitationClientInvitationOffer.beforeYouStart')}
       </h2>
       <ul className="invitation-list">
         {signedIn ? (
-          <li>Use the email address that received this invitation.</li>
+          <li>{t('invitation.invitationClientInvitationOffer.useTheEmailAddressThatReceived')}</li>
         ) : (
           <>
-            <li>
-              Create an account or sign in with the email address that received this invitation.
-            </li>
+            <li>{t('invitation.invitationClientInvitationOffer.createAnAccountOrSignIn')}</li>
             <li>
               Already signed in?{' '}
               <Link href={invitationAcceptHref(kind, token)}>Review Your Invitation</Link>
             </li>
           </>
         )}
-        <li>If you reset your password, open this invitation link again afterwards.</li>
+        <li>{t('invitation.invitationClientInvitationOffer.ifYouResetYourPasswordOpen')}</li>
       </ul>
     </section>
   );
@@ -166,6 +175,7 @@ export function ClientInvitationOffer({
   /** Whether the visitor already has a session; a failed check counts as signed out. */
   readonly signedIn?: boolean;
 }) {
+  const t = getServerT(invitationCatalog);
   const logoUrl =
     view.logoVersion === null
       ? null
@@ -174,9 +184,15 @@ export function ClientInvitationOffer({
     <section className="section container invitation-page invitation-offer">
       <div className="invitation-hero">
         <InvitingAgency name={view.agencyName} accentColor={view.accentColor} logoUrl={logoUrl} />
-        <h1 className="section-title invitation-title">{view.agencyName} Invited You</h1>
+        <h1 className="section-title invitation-title">
+          {t('invitation.invitationClientInvitationOffer.agencynameInvitedYou', {
+            agencyName: view.agencyName,
+          })}
+        </h1>
         <p className="invitation-promise">
-          {view.agencyName} wants to work on your visa case with you.
+          {t('invitation.invitationClientInvitationOffer.agencynameWantsToWorkOnYour', {
+            agencyName: view.agencyName,
+          })}
         </p>
         <p className="invitation-expiry">
           <StatusBadge tone="neutral">
@@ -192,24 +208,25 @@ export function ClientInvitationOffer({
 
       <div className="invitation-details">
         <p className="invitation-intro">
-          An administrator at {view.agencyName} invited you to share part of your VisaStack record
-          with them. If you accept:
+          {t('invitation.invitationClientInvitationOffer.anAdministratorAtAgencynameInvitedYou', {
+            agencyName: view.agencyName,
+          })}
         </p>
         <div className="invitation-terms">
           <section className="invitation-term" aria-labelledby="invitation-can-title">
             <h2 className="card-title" id="invitation-can-title">
-              They Could
+              {t('invitation.invitationClientInvitationOffer.theyCould')}
             </h2>
             <MarkedList items={terms.agencyCan} mark="check" />
           </section>
           {terms.withheld.length > 0 ? (
             <section className="invitation-term" aria-labelledby="invitation-cannot-title">
               <h2 className="card-title" id="invitation-cannot-title">
-                They Could Not
+                {t('invitation.invitationClientInvitationOffer.theyCouldNot')}
               </h2>
               <MarkedList items={terms.withheld} mark="close" />
               <p className="invitation-term-note">
-                Each of these would need a separate choice from you.
+                {t('invitation.invitationClientInvitationOffer.eachOfTheseWouldNeedA')}
               </p>
             </section>
           ) : null}
@@ -217,20 +234,19 @@ export function ClientInvitationOffer({
 
         <section className="invitation-control" aria-labelledby="invitation-control-title">
           <h2 className="card-title" id="invitation-control-title">
-            You Stay in Control
+            {t('invitation.invitationClientInvitationOffer.youStayInControl')}
           </h2>
           <ul className="invitation-list">
-            <li>You choose which of your profiles this applies to, or start a new one.</li>
-            <li>Nothing is shared until you accept.</li>
-            <li>You can stop sharing at any time.</li>
+            <li>{t('invitation.invitationClientInvitationOffer.youChooseWhichOfYourProfiles')}</li>
+            <li>{t('invitation.invitationClientInvitationOffer.nothingIsSharedUntilYouAccept')}</li>
+            <li>{t('invitation.invitationClientInvitationOffer.youCanStopSharingAtAny')}</li>
           </ul>
         </section>
 
         <InvitationHelp kind="client" token={token} signedIn={signedIn} />
 
         <p className="invitation-legal">
-          A complete checklist, or a file marked ready, is not an approval. Only the embassy or visa
-          office decides.
+          {t('invitation.invitationClientInvitationOffer.aCompleteChecklistOrAFile')}
         </p>
       </div>
     </section>
@@ -252,9 +268,12 @@ export function InvitationMessage({
   readonly action: ReactElement | null;
   readonly after?: ReactNode;
 }) {
+  const t = getServerT(invitationCatalog);
   return (
     <section className="section container invitation-page invitation-message">
-      <span className="eyebrow">VisaStack Invitation</span>
+      <span className="eyebrow">
+        {t('invitation.invitationClientInvitationOffer.visastackInvitation')}
+      </span>
       <h1 className="section-title invitation-title">{title}</h1>
       <p className="invitation-promise">{sentence}</p>
       {action ? <div className="invitation-actions">{action}</div> : null}
@@ -270,13 +289,14 @@ export function InvitationMessage({
  * The link stays good, so it works once the review is complete.
  */
 export function AgencyNotReviewed({ agencyName }: { readonly agencyName: string }) {
+  const t = getServerT(invitationCatalog);
   return (
     <InvitationMessage
-      title="This Agency Is Still Being Reviewed"
+      title={t('invitation.invitationClientInvitationOffer.thisAgencyIsStillBeingReviewed')}
       sentence={
         <>
-          <strong>{agencyName}</strong> invited you to work together on VisaStack. VisaStack has not
-          finished reviewing them, so you cannot accept yet.
+          <strong>{agencyName}</strong>{' '}
+          {t('invitation.invitationClientInvitationOffer.invitedYouToWorkTogetherOn')}
         </>
       }
       action={null}
@@ -291,13 +311,14 @@ export function AgencyNotReviewed({ agencyName }: { readonly agencyName: string 
  * because asking the agency again would only start a second case.
  */
 export function ClosedInvitation() {
+  const t = getServerT(invitationCatalog);
   return (
     <InvitationMessage
-      title="This Invitation Is No Longer Open"
+      title={t('invitation.invitationClientInvitationOffer.thisInvitationIsNoLongerOpen')}
       sentence="It may have expired, been withdrawn or already been used."
       action={
         <Link className="btn btn-primary" href="/auth/sign-in?next=%2Fapp">
-          Sign In
+          {t('invitation.invitationClientInvitationOffer.signIn')}
         </Link>
       }
       after="If you already accepted it, sign in to find your case. If not, ask the agency that invited you to send a new one."

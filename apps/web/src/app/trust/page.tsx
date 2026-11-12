@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { PublicTrustStory } from '../../components/public-trust-story';
 import { ShowMore } from '../../components/show-more';
 import { TrustUnavailable } from '../../components/trust-unavailable';
+import { primeLocale } from '../../lib/i18n-server';
 import { type SearchParamsRecord, firstParam, nextShow, parseShow } from '../../lib/paging';
 import { withPublicDb } from '../../lib/public-db';
 import { reportServerError } from '../../lib/server-error';
@@ -56,6 +57,8 @@ export default function PublicTrustCatalogPage(props: TrustCatalogProps): Promis
 export default async function PublicTrustCatalogPage(
   props?: TrustCatalogProps,
 ): Promise<ReactElement> {
+  // The trust story and the unavailable notice read the visitor's language.
+  await primeLocale();
   const params: SearchParamsRecord = (await props?.searchParams) ?? {};
   let routes: PublicTrustRoute[];
   try {

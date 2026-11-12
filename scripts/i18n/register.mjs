@@ -35,6 +35,112 @@ export const HOLDBACK = new Map([
     'SG-361e0c20',
     'Terms: a legal document name, held English like Privacy until the owner signs off.',
   ],
+  [
+    'SG-57e8fee4',
+    'Free-at-your-own-risk notice (virus scanning not yet on): a risk notice, waits for the owner sign-off.',
+  ],
+  [
+    'SG-8939253f',
+    'Privacy heading (how information is treated): privacy wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-fe6d2f71',
+    'Sharing flow description that mentions agreeing to share: consent wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-cda9a1ac',
+    'Sharing starts with permission: a consent promise, waits for the owner sign-off.',
+  ],
+  [
+    'SG-461caf20',
+    'Trust page disclaimer (no approval guarantees): legal-style disclaimer, waits for the owner sign-off.',
+  ],
+  ['SG-b6f48122', 'Private by Design: a privacy claim, waits for the owner sign-off.'],
+  [
+    'SG-f92f9f0f',
+    'Not Currently Verified: status of official visa information, waits for the owner sign-off.',
+  ],
+  [
+    'SG-8e79eb73',
+    'Official Channel: points to official visa sources, waits for the owner sign-off.',
+  ],
+  [
+    'SG-7d8d7a57',
+    'Invitation terms of sharing (what happens if you accept): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-c26f3e5b',
+    'Invitation consent statement (nothing shared until you accept): owner sign-off.',
+  ],
+  [
+    'SG-1fec77cc',
+    'Invitation acceptance statement (opening the link accepts nothing): owner sign-off.',
+  ],
+  [
+    'SG-f5a73aec',
+    'Invitation consent withdrawal statement (stop sharing at any time): owner sign-off.',
+  ],
+  ['SG-f8a50812', 'Invitation expiry rule (7 days) and revocation: a stated rule, owner sign-off.'],
+  [
+    'SG-57b3157f',
+    'Agency invitation promise on the home page (you approve it, you can stop it): consent wording, owner sign-off.',
+  ],
+  [
+    'SG-58fc0338',
+    'Your records belong to you, choose the recipient: a sharing and ownership promise, owner sign-off.',
+  ],
+  [
+    'SG-4bfc56d4',
+    'Review, pause or end future access: a statement about stopping sharing, owner sign-off.',
+  ],
+  [
+    'SG-a5b2278c',
+    'A suggestion stays separate until you approve it: a promise about AI and confirmed facts, owner sign-off.',
+  ],
+  [
+    'SG-2604b090',
+    'AI never changes your profile on its own: a promise about AI behaviour, owner sign-off.',
+  ],
+  [
+    'SG-e956303b',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-0c3f69ec',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-192889ed',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-fbccaafa',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-b5644201',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-c68a7790',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-58cc6dc1',
+    'Document requirement for a country route (how recent a document must be): official visa-rule content stays English.',
+  ],
+  [
+    'SG-50c83703',
+    'Sharing permission statement: wording waits for the owner sign-off with the other sharing and consent text.',
+  ],
+  [
+    'SG-00706ded',
+    'Invitation and sharing choice statement: wording waits for the owner sign-off with the other sharing and consent text.',
+  ],
+  [
+    'SG-9e771a8e',
+    'Joiner word between names (" or "): its spaces carry the layout and the sentence around it is still English.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

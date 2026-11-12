@@ -1,7 +1,9 @@
 'use client';
 
 import { useId, useRef, useState } from 'react';
+import { invitationCatalog } from '../i18n/invitation';
 import type { ShareInput } from '../lib/whatsapp-link';
+import { useT } from './i18n-provider';
 import { useShareMessage } from './share/use-share-message';
 import { WhatsAppShare } from './share/whatsapp-share';
 
@@ -21,6 +23,7 @@ export function InvitationLink({
   readonly url: string;
   readonly purpose: InvitationPurpose;
 }) {
+  const t = useT(invitationCatalog);
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState('');
@@ -37,25 +40,26 @@ export function InvitationLink({
   const shareMessage = useShareMessage(shareInputFor(purpose, url));
   const copyLink = (
     <button type="button" className="btn btn-secondary" onClick={copy}>
-      Copy Link
+      {t('invitation.invitationLink.copyLink')}
     </button>
   );
   return (
     <div className="field-list u-mt-100">
       <label htmlFor={id} className="field-label">
-        Private Invitation Link
+        {t('invitation.invitationLink.privateInvitationLink')}
       </label>
       <input ref={input} id={id} className="input" value={url} readOnly />
       {shareMessage ? (
-        <WhatsAppShare message={shareMessage} title="VisaStack Invitation">
+        <WhatsAppShare
+          message={shareMessage}
+          title={t('invitation.invitationClientInvitationOffer.visastackInvitation')}
+        >
           {copyLink}
         </WhatsAppShare>
       ) : (
         <div className="action-row">{copyLink}</div>
       )}
-      <p className="muted">
-        Share only with your invitee. Revoking the invitation stops this link from working.
-      </p>
+      <p className="muted">{t('invitation.invitationLink.shareOnlyWithYourInviteeRevoking')}</p>
       <output aria-live="polite">{status}</output>
     </div>
   );

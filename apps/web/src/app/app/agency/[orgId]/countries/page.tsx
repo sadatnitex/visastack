@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { primeLocale } from '../../../../../lib/i18n-server';
 import { CountriesView } from '../../../countries/countries-view';
 
 export const metadata: Metadata = { title: 'Agency Country Rules' };
@@ -10,5 +11,6 @@ export default async function AgencyCountriesPage({
   readonly params: Promise<{ orgId: string }>;
 }) {
   const { orgId } = await params;
+  await primeLocale();
   return <CountriesView href={`/app/agency/${orgId}/countries/[code]`} />;
 }

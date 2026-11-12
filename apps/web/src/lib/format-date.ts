@@ -1,3 +1,5 @@
+import { type Locale, formatDate } from '@visastack/i18n';
+
 /**
  * Renders a date-ONLY value — no meaningful time-of-day component, e.g. a
  * mission-fact "effective as of" backdate, or any Master Profile field of
@@ -28,13 +30,12 @@
  * SHOULD render in the viewer's own local timezone; that is correct,
  * expected behavior, not a variant of this same bug.
  */
-export function formatDateOnly(iso: string | Date): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
+export function formatDateOnly(iso: string | Date, locale: Locale = 'en'): string {
+  const options = { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' } as const;
+  // Bengali readers get Bengali digits and month names (docs/localization/data/NUMBER_DATE_FORMAT_RULES.md).
+  // English keeps the exact output it always had.
+  if (locale === 'bn') return formatDate(new Date(iso), locale, options);
+  return new Date(iso).toLocaleDateString(undefined, options);
 }
 
 /**

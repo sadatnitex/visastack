@@ -12,6 +12,7 @@ import {
   clientAccessDurationLine,
   clientInvitationTerms,
 } from '../../../../lib/client-invitation-terms';
+import { primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
@@ -41,6 +42,8 @@ export default async function AcceptClientInvitationPage({
 }: {
   readonly searchParams: Promise<{ readonly token?: string }>;
 }) {
+  // The agency line below reads the visitor's language.
+  await primeLocale();
   const { token } = await searchParams;
 
   if (!token) {

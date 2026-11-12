@@ -21,6 +21,9 @@ vi.mock('../../../lib/public-db', () => ({
   withPublicDb: async (fn: (db: unknown) => Promise<unknown>) => fn({}),
 }));
 vi.mock('next/navigation', () => ({
+  unstable_rethrow: (error: unknown) => {
+    if (error instanceof Error && error.message === 'NEXT_NOT_FOUND') throw error;
+  },
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
   },

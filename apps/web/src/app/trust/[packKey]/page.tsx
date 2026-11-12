@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { TrustUnavailable } from '../../../components/trust-unavailable';
 import { PageHeader } from '../../../components/ui';
+import { trustCatalog } from '../../../i18n/trust';
 import { formatDateOnly } from '../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
 import { formatPrice } from '../../../lib/usage-format';
@@ -58,6 +60,8 @@ export default async function PublicTrustRoutePage({
 }: {
   readonly params: Promise<{ packKey: string }>;
 }) {
+  const locale = await primeLocale();
+  const t = getServerT(trustCatalog);
   const { packKey } = await params;
   const { route, unavailable } = await loadRoute(packKey);
   if (unavailable) return <TrustUnavailable />;
@@ -76,61 +80,63 @@ export default async function PublicTrustRoutePage({
     <section className="section container">
       <PageHeader
         back={{ href: '/trust', label: 'Public Trust' }}
-        eyebrow={`Public Trust · v${route.version}`}
+        eyebrow={t('trust.trustPackkeyPage.publicTrustVVersion', { version: route.version })}
         title={route.packName}
         description={[route.jurisdiction, route.route, route.purpose].filter(Boolean).join(' · ')}
       />
 
       <div className="notice" style={{ marginBottom: '2rem' }}>
-        This page describes the official process only. It is not an embassy or government service,
-        does not guarantee approval, and does not endorse any particular agency. Anyone may use this
-        route directly, with no agency at all.
+        {t('trust.trustPackkeyPage.thisPageDescribesTheOfficialProcess')}
       </div>
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Route</p>
-          <h2 className="card-title">What This Route Is</h2>
+          <p className="card-kicker">{t('trust.trustPackkeyPage.route')}</p>
+          <h2 className="card-title">{t('trust.trustPackkeyPage.whatThisRouteIs')}</h2>
           <p className="card-body">{route.routeDescription}</p>
           {route.effectiveDate ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
-              In effect since {formatDateOnly(route.effectiveDate)}
+              {t('trust.trustPackkeyPage.inEffectSinceFormatdateonly', {
+                formatDateOnly: formatDateOnly(route.effectiveDate, locale),
+              })}
             </p>
           ) : null}
           {route.nextReviewDate ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.25rem' }}>
-              Next reviewed {formatDateOnly(route.nextReviewDate)}
+              {t('trust.trustPackkeyPage.nextReviewedFormatdateonly', {
+                formatDateOnly: formatDateOnly(route.nextReviewDate, locale),
+              })}
             </p>
           ) : null}
         </article>
 
         <article className="card">
-          <p className="card-kicker">Official Fee</p>
-          <h2 className="card-title">What the Government Charges</h2>
+          <p className="card-kicker">{t('trust.trustPackkeyPage.officialFee')}</p>
+          <h2 className="card-title">{t('trust.trustPackkeyPage.whatTheGovernmentCharges')}</h2>
           {route.officialFee ? (
             <>
               <p className="card-body" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 {formatPrice(route.officialFee.minorUnits, route.officialFee.currency)}
               </p>
               <p className="muted u-fs-085">
-                The official government fee only. Any agency you choose to work with charges its own
-                service fee separately - never included here.
+                {t('trust.trustPackkeyPage.theOfficialGovernmentFeeOnlyAny')}
               </p>
             </>
           ) : (
             <>
-              <span className="badge badge-warning">Not Currently Verified</span>
+              <span className="badge badge-warning">
+                {t('trust.trustPackkeyPage.notCurrentlyVerified')}
+              </span>
               <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.5rem' }}>
-                We do not show a fee amount here unless it is currently verified. Confirm the exact,
-                current fee at the official channel below before paying anyone.
+                {t('trust.trustPackkeyPage.weDoNotShowAFee')}
               </p>
             </>
           )}
         </article>
 
         <article className="card">
-          <p className="card-kicker">Official Channel</p>
-          <h2 className="card-title">Where to Actually Apply</h2>
+          <p className="card-kicker">{t('trust.trustPackkeyPage.officialChannel')}</p>
+          <h2 className="card-title">{t('trust.trustPackkeyPage.whereToActuallyApply')}</h2>
           {officialChannelUrl ? (
             <a
               className="btn btn-primary"
@@ -138,22 +144,24 @@ export default async function PublicTrustRoutePage({
               target="_blank"
               rel="noreferrer"
             >
-              {route.officialChannelName ?? 'Official application channel'} ↗
+              {route.officialChannelName ?? t('trust.trustPackkeyPage.officialApplicationChannel')}{' '}
+              ↗
             </a>
           ) : (
-            <p className="card-body">Not yet on file for this route.</p>
+            <p className="card-body">{t('trust.trustPackkeyPage.notYetOnFileForThis')}</p>
           )}
           <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
-            The only channel that actually decides your case. VisaStack and any agency you work with
-            only help you prepare for it.
+            {t('trust.trustPackkeyPage.theOnlyChannelThatActuallyDecides')}
           </p>
         </article>
 
         <article className="card">
-          <p className="card-kicker">Official Source</p>
-          <h2 className="card-title">Where This Information Comes From</h2>
+          <p className="card-kicker">{t('trust.trustPackkeyPage.officialSource')}</p>
+          <h2 className="card-title">
+            {t('trust.trustPackkeyPage.whereThisInformationComesFrom')}
+          </h2>
           {officialSources.length === 0 ? (
-            <p className="card-body">Not yet on file for this route.</p>
+            <p className="card-body">{t('trust.trustPackkeyPage.notYetOnFileForThis')}</p>
           ) : (
             <div className="rows u-mt-050">
               {officialSources.map(({ source, href }) => (
@@ -164,7 +172,7 @@ export default async function PublicTrustRoutePage({
                 >
                   <span className="row-key">
                     {[source.publisher, source.sourceTitle].filter(Boolean).join(' · ') ||
-                      'Official Source'}
+                      t('trust.trustPackkeyPage.officialSource')}
                   </span>
                   {href ? (
                     <a href={href} target="_blank" rel="noreferrer" className="u-fs-085">
@@ -179,11 +187,10 @@ export default async function PublicTrustRoutePage({
       </div>
 
       <article className="card u-mt-150">
-        <p className="card-kicker">Scam Awareness</p>
-        <h2 className="card-title">Warning Signs to Watch For</h2>
+        <p className="card-kicker">{t('trust.trustPackkeyPage.scamAwareness')}</p>
+        <h2 className="card-title">{t('trust.trustPackkeyPage.warningSignsToWatchFor')}</h2>
         <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}>
-          General guidance, the same for every route - not specific to this one, and never an
-          accusation against any named person or agency.
+          {t('trust.trustPackkeyPage.generalGuidanceTheSameForEvery')}
         </p>
         <ul className="pill-list" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
           {SCAM_WARNING_SIGNS.map((sign) => (
