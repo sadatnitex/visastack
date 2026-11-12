@@ -88,7 +88,7 @@ async function render(locale: 'en' | 'bn', node: () => Promise<string> | string,
 }
 
 function client(locale: 'en' | 'bn', node: React.ReactNode): string {
-  return textOf(renderToStaticMarkup(<I18nProvider locale={locale}>{node}</I18nProvider>));
+  return textOf(renderToStaticMarkup(<I18nProvider locale={locale} pageLang="en">{node}</I18nProvider>));
 }
 
 const PENDING = '00000000-0000-4000-8000-0000000000a1';
@@ -162,13 +162,13 @@ describe('the team page under Bengali', () => {
 describe('agency forms and headings under Bengali', () => {
   it('translates the organization form placeholder', () => {
     const html = renderToStaticMarkup(
-      <I18nProvider locale="bn">
+      <I18nProvider locale="bn" pageLang="en">
         <CreateOrgForm />
       </I18nProvider>,
     );
     expect(html).toContain(`placeholder="${bn[k('appAgencyCreateOrgForm.organizationName')]}"`);
     const enHtml = renderToStaticMarkup(
-      <I18nProvider locale="en">
+      <I18nProvider locale="en" pageLang="en">
         <CreateOrgForm />
       </I18nProvider>,
     );
@@ -204,14 +204,14 @@ describe('agency forms and headings under Bengali', () => {
       <EvidenceTray items={items} onRemove={() => undefined} onClear={() => undefined} />,
     );
     // The count is passed as a raw number: the runtime formats it for the language that shows.
-    expect(full).toMatch(/বাছাই করা \([৩3]\)/);
+    expect(full).toContain('বাছাই করা (৩)');
     expect(full).toContain(bn[k('appAgencyOrgidEvidenceTray.remove')]);
     const empty = client(
       'bn',
       <EvidenceTray items={[]} onRemove={() => undefined} onClear={() => undefined} />,
     );
     expect(empty).toContain(bn[k('appAgencyOrgidEvidenceTray.nothingSelectedYetTickWhatYou')]);
-    expect(empty).toMatch(/বাছাই করা \([০0]\)/);
+    expect(empty).toContain('বাছাই করা (০)');
     expect(
       client(
         'en',
