@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { saveWordingAction } from './edits-actions';
 
 const INITIAL = { ok: true, message: '' };
@@ -29,6 +31,7 @@ export function WordingEditor({
   readonly current: string;
   readonly maxLength: number;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, action, pending] = useActionState(saveWordingAction, INITIAL);
   const id = `wording-${packRequirementId}`;
   return (
@@ -59,7 +62,7 @@ export function WordingEditor({
           pending={pending}
           idle="Save Wording"
           busy="Saving"
-          label={`Save Wording for ${itemName}`}
+          label={t('appMission.appMissionIdWordingEditor.saveWordingForItemname', { itemName })}
           className="btn btn-secondary"
         />
         {current ? (
@@ -67,7 +70,9 @@ export function WordingEditor({
             pending={pending}
             idle="Back to Original Wording"
             busy="Restoring"
-            label={`Back to Original Wording for ${itemName}`}
+            label={t('appMission.appMissionIdWordingEditor.backToOriginalWordingForItemname', {
+              itemName,
+            })}
             name="intent"
             value="original"
             className="btn btn-secondary"

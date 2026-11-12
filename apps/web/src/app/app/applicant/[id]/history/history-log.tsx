@@ -1,4 +1,6 @@
 import { ActivityLog, type ActivityLogEntry } from '../../../../../components/activity-log';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
+import { getServerT } from '../../../../../lib/i18n-server';
 
 /** The id the log lands on after Show Older Entries or Show Newest Entries. */
 export const HISTORY_LOG_ID = 'profile-history-log';
@@ -28,13 +30,16 @@ export function HistoryLog({
   readonly olderHref?: string;
   readonly newestHref?: string;
 }) {
+  const t = getServerT(appApplicantCatalog);
   return (
     <article className="card">
       <form className="history-part-form" method="get" action={pathname}>
         <label className="history-part-field" htmlFor="history-part">
-          <span className="field-label">Part of the Profile</span>
+          <span className="field-label">
+            {t('appApplicant.appApplicantIdHistoryHistoryLog.partOfTheProfile')}
+          </span>
           <select id="history-part" name="section" className="input" defaultValue={section ?? ''}>
-            <option value="">Every Part</option>
+            <option value="">{t('appApplicant.appApplicantIdHistoryHistoryLog.everyPart')}</option>
             {parts.map((part) => (
               <option key={part.key} value={part.key}>
                 {part.label}
@@ -43,7 +48,7 @@ export function HistoryLog({
           </select>
         </label>
         <button type="submit" className="btn btn-secondary u-btn-sm">
-          Show This Part
+          {t('appApplicant.appApplicantIdHistoryHistoryLog.showThisPart')}
         </button>
       </form>
       {entries.length === 0 ? (
@@ -53,7 +58,7 @@ export function HistoryLog({
       ) : (
         <ActivityLog
           id={HISTORY_LOG_ID}
-          label="Profile History Entries"
+          label={t('appApplicant.appApplicantIdHistoryHistoryLog.profileHistoryEntries')}
           entries={entries}
           totalLabel={`${total.toLocaleString('en-US')} saved ${total === 1 ? 'version' : 'versions'} in all${partLabel ? ` in ${partLabel}` : ''}.`}
           {...(olderHref ? { olderHref } : {})}

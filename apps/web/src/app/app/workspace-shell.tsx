@@ -159,11 +159,11 @@ function WorkspaceSelector({
         )}
       </summary>
       <nav id={id} aria-label={t('appHome.appWorkspaceShell.availableWorkspaces')}>
-        <p>{t('appHome.appWorkspaceShell.personalSpace')}</p>
+        <p>{t.node('appHome.appWorkspaceShell.personalSpace')}</p>
         {/* Staff mode keeps traveller names off platform screens (owner list item 18): one way
             back to the account's own overview, where the travellers are listed. */}
         {staff ? (
-          <Link href="/app">{t('appHome.appWorkspaceShell.accountOverview')}</Link>
+          <Link href="/app">{t.node('appHome.appWorkspaceShell.accountOverview')}</Link>
         ) : (
           access.travellers.map((person) => (
             <Link key={person.id} href={`/app/applicant/${person.id}`}>
@@ -171,14 +171,14 @@ function WorkspaceSelector({
             </Link>
           ))
         )}
-        {access.agencies.length ? <p>{t('appHome.appWorkspaceShell.agencies')}</p> : null}
+        {access.agencies.length ? <p>{t.node('appHome.appWorkspaceShell.agencies')}</p> : null}
         {access.agencies.map((agency) => (
           <Link key={agency.id} href={`/app/agency/${agency.id}`}>
             {agency.name}
           </Link>
         ))}
         {access.platform ? (
-          <Link href="/app/admin">{t('appHome.appWorkspaceShell.platformOperations')}</Link>
+          <Link href="/app/admin">{t.node('appHome.appWorkspaceShell.platformOperations')}</Link>
         ) : null}
       </nav>
     </details>
@@ -200,7 +200,7 @@ function StaffModeBanner() {
         people&apos;s accounts.
       </p>
       <Link className="staff-mode-leave" href="/app">
-        {t('appHome.appWorkspaceShell.leaveStaffMode')}
+        {t.node('appHome.appWorkspaceShell.leaveStaffMode')}
       </Link>
     </section>
   );
@@ -394,16 +394,20 @@ export function WorkspaceShell({
               <p className="workspace-assurance">
                 <Icon name="lock" size={18} />
                 <span>
-                  <b>{t('appHome.appWorkspaceShell.staffMode')}</b>
-                  <small>{t('appHome.appWorkspaceShell.platformToolsForVisastackStaff')}</small>
+                  <b>{t.node('appHome.appWorkspaceShell.staffMode')}</b>
+                  <small>
+                    {t.node('appHome.appWorkspaceShell.platformToolsForVisastackStaff')}
+                  </small>
                 </span>
               </p>
             ) : (
               <p className="workspace-assurance">
                 <Icon name="shield" size={18} />
                 <span>
-                  <b>{t('appHome.appWorkspaceShell.youControlAccess')}</b>
-                  <small>{t('appHome.appWorkspaceShell.sharingFollowsYourSavedPermissions')}</small>
+                  <b>{t.node('appHome.appWorkspaceShell.youControlAccess')}</b>
+                  <small>
+                    {t.node('appHome.appWorkspaceShell.sharingFollowsYourSavedPermissions')}
+                  </small>
                 </span>
               </p>
             )

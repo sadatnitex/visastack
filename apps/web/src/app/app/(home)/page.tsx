@@ -380,7 +380,7 @@ function CalendarLinks({
     return (
       <div className="do-next-action">
         <Link href={href(only.id)} className="btn btn-secondary">
-          {t('appHome.appPage.addDatesToMyCalendar')}
+          {t.node('appHome.appPage.addDatesToMyCalendar')}
         </Link>
       </div>
     );
@@ -390,7 +390,7 @@ function CalendarLinks({
       Add dates to my calendar for{' '}
       {people.map((person, index) => (
         <span key={person.id}>
-          {index === 0 ? '' : index === people.length - 1 ? t('appHome.appPage.or') : ', '}
+          {index === 0 ? '' : index === people.length - 1 ? t.node('appHome.appPage.or') : ', '}
           <Link href={href(person.id)}>{person.displayName}</Link>
         </span>
       ))}

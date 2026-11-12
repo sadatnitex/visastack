@@ -1,6 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { useT } from '../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { isCurrentPath } from '../../../../lib/navigation';
 import { recordSections } from '../../../../lib/workspace-navigation';
 import { SubNav } from '../../subnav';
@@ -12,8 +14,15 @@ import { SubNav } from '../../subnav';
  * person's workspace (Home, Cases, Sharing, Evidence Requests) do not show it.
  */
 export function RecordSections({ applicantId }: { readonly applicantId: string }) {
+  const t = useT(appApplicantCatalog);
   const pathname = usePathname();
   const sections = recordSections(applicantId);
   if (!sections.some((section) => isCurrentPath(pathname, section))) return null;
-  return <SubNav links={sections} label="Record Sections" fit />;
+  return (
+    <SubNav
+      links={sections}
+      label={t('appApplicant.appApplicantIdRecordSections.recordSections')}
+      fit
+    />
+  );
 }

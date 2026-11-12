@@ -27,11 +27,11 @@ export function RecentActivity({
       {...atLevel('browse')}
     >
       <h2 className="home-block-title" id="home-activity-heading">
-        {t('appHome.appRecentActivity.recentActivity')}
+        {t.node('appHome.appRecentActivity.recentActivity')}
       </h2>
       {entries.length === 0 ? (
         <p className="muted home-activity-empty">
-          {t('appHome.appRecentActivity.nothingYetEachTimeYourRecord')}
+          {t.node('appHome.appRecentActivity.nothingYetEachTimeYourRecord')}
         </p>
       ) : (
         <>
@@ -48,7 +48,9 @@ export function RecentActivity({
                   </time>
                 </span>
                 {entry.blocked ? (
-                  <StatusBadge tone="danger">{t('appHome.appRecentActivity.blocked')}</StatusBadge>
+                  <StatusBadge tone="danger">
+                    {t.node('appHome.appRecentActivity.blocked')}
+                  </StatusBadge>
                 ) : (
                   <span className="home-activity-who">{entry.who}</span>
                 )}
@@ -56,7 +58,7 @@ export function RecentActivity({
             ))}
           </ol>
           <Link className="btn btn-secondary home-activity-all" href={seeAllHref}>
-            {t('appHome.appRecentActivity.seeAll')}
+            {t.node('appHome.appRecentActivity.seeAll')}
           </Link>
         </>
       )}

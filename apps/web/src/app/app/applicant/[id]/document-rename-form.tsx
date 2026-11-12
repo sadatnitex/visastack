@@ -8,6 +8,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { type ActionState, renameDocumentAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -29,6 +31,7 @@ interface DocumentRenameFormProps {
  * including after a refused save, so nothing has to be typed twice.
  */
 export function DocumentRenameForm({ applicantId, documentId, name }: DocumentRenameFormProps) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(renameDocumentAction, INITIAL);
   const [typed, setTyped] = useState(name);
   const [listedName, setListedName] = useState(name);
@@ -47,7 +50,7 @@ export function DocumentRenameForm({ applicantId, documentId, name }: DocumentRe
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="documentId" value={documentId} />
       <label className="field-label" htmlFor={inputId}>
-        Document Name
+        {t('appApplicant.appApplicantIdDocumentRenameForm.documentName')}
       </label>
       <div className="field-inline">
         <input

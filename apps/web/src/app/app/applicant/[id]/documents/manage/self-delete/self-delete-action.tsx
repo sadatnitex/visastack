@@ -1,6 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useT } from '../../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { type SelfDeletePreviewResult, selfDeleteAction, selfDeletePreviewAction } from './actions';
 import { BACKUP_NOTE, SIGN_IN_AGAIN, TYPE_THE_WORD, WHAT_HAPPENS, impactLines } from './messages';
@@ -20,6 +22,7 @@ export function SelfDeleteAction({
   documentName,
   onClose,
 }: ManageActionProps) {
+  const t = useT(appApplicantCatalog);
   const router = useRouter();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [typed, setTyped] = useState('');
@@ -90,7 +93,7 @@ export function SelfDeleteAction({
     return (
       <div ref={root} className="lc-selfdelete" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-selfdelete-heading">
-          File Deleted
+          {t('appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.fileDeleted')}
         </h3>
         <output className="lc-selfdelete-result">{result}</output>
         <div className="lc-selfdelete-actions">
@@ -102,7 +105,7 @@ export function SelfDeleteAction({
               router.refresh();
             }}
           >
-            Done
+            {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
           </button>
         </div>
       </div>
@@ -113,14 +116,23 @@ export function SelfDeleteAction({
   return (
     <div ref={root} className="lc-selfdelete" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-selfdelete-heading">
-        Delete {documentName} Now?
+        {t(
+          'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.deleteDocumentnameNow',
+          { documentName },
+        )}
       </h3>
       {problem ? (
         <p id={problemId} className="lc-selfdelete-problem" role="alert">
           {problem}
         </p>
       ) : null}
-      {!preview && !problem ? <output>Checking this file</output> : null}
+      {!preview && !problem ? (
+        <output>
+          {t(
+            'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.checkingThisFile',
+          )}
+        </output>
+      ) : null}
       {preview ? (
         <>
           <p>{WHAT_HAPPENS}</p>
@@ -134,7 +146,11 @@ export function SelfDeleteAction({
           {preview.needsFreshSignIn ? <p className="lc-selfdelete-note">{SIGN_IN_AGAIN}</p> : null}
           <p className="lc-selfdelete-note">{BACKUP_NOTE}</p>
           <div className="lc-selfdelete-field">
-            <label htmlFor={fieldId}>Type DELETE to Confirm</label>
+            <label htmlFor={fieldId}>
+              {t(
+                'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.typeDeleteToConfirm',
+              )}
+            </label>
             <input
               id={fieldId}
               type="text"
@@ -157,7 +173,11 @@ export function SelfDeleteAction({
               aria-disabled={busy || undefined}
               onClick={remove}
             >
-              {busy ? 'Deleting' : 'Delete File Now'}
+              {busy
+                ? t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleting')
+                : t(
+                    'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.deleteFileNow',
+                  )}
             </button>
             <button
               type="button"
@@ -167,7 +187,7 @@ export function SelfDeleteAction({
                 if (!busy) onClose();
               }}
             >
-              Cancel
+              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </>
@@ -175,7 +195,7 @@ export function SelfDeleteAction({
       {problem && !preview ? (
         <div className="lc-selfdelete-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       ) : null}

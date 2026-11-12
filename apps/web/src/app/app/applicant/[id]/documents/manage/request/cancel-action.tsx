@@ -1,6 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
+import { useT } from '../../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { cancelRemovalRequestAction } from './actions';
 
@@ -14,6 +16,7 @@ export function CancelRemovalRequestAction({
   documentName,
   onClose,
 }: ManageActionProps) {
+  const t = useT(appApplicantCatalog);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -53,7 +56,7 @@ export function CancelRemovalRequestAction({
     return (
       <div ref={root} className="lc-request">
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-          Request Cancelled
+          {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.requestCancelled')}
         </h3>
         <output className="lc-request-result">{result}</output>
         <div className="lc-request-actions">
@@ -65,7 +68,7 @@ export function CancelRemovalRequestAction({
               router.refresh();
             }}
           >
-            Done
+            {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.done')}
           </button>
         </div>
       </div>
@@ -75,11 +78,13 @@ export function CancelRemovalRequestAction({
   return (
     <div ref={root} className="lc-request">
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-        Removal Requested
+        {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.removalRequested')}
       </h3>
       <p className="lc-request-note">
-        You asked us to remove {documentName}. Our support team is checking the request. You can
-        cancel it until they decide.
+        {t(
+          'appApplicant.appApplicantIdDocumentsManageRequestCancelAction.youAskedUsToRemoveDocumentname',
+          { documentName },
+        )}
       </p>
       {problem ? (
         <p className="lc-request-problem" role="alert">
@@ -93,10 +98,12 @@ export function CancelRemovalRequestAction({
           aria-disabled={busy || undefined}
           onClick={cancel}
         >
-          {busy ? 'Cancelling' : 'Cancel Request'}
+          {busy
+            ? t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.cancelling')
+            : t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.cancelRequest')}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Keep Request
+          {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.keepRequest')}
         </button>
       </div>
     </div>

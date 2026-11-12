@@ -1,6 +1,8 @@
 'use client';
 import type { DocumentAction } from '@visastack/services';
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
+import { useT } from '../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../i18n/app-applicant';
 import { MANAGE_ACTIONS, type ManageActionEntry, registeredActions } from './registry';
 
 /**
@@ -29,6 +31,7 @@ export function ManageMenu({
   readonly initialAction?: DocumentAction;
   readonly registry?: Readonly<Partial<Record<DocumentAction, ManageActionEntry>>>;
 }) {
+  const t = useT(appApplicantCatalog);
   const items = registeredActions(actions, registry);
   const startAction =
     initialAction && items.some((item) => item.action === initialAction) ? initialAction : null;
@@ -122,11 +125,15 @@ export function ManageMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={`Manage ${documentName}`}
+        aria-label={t('appApplicant.appApplicantIdDocumentsManageManageMenu.manageDocumentname', {
+          documentName,
+        })}
         onClick={() => (open ? closeMenu(false) : openAt(0))}
         onKeyDown={onButtonKey}
       >
-        <span className="lc-manage-text">Manage</span>
+        <span className="lc-manage-text">
+          {t('appApplicant.appApplicantIdDocumentsManageManageMenu.manage')}
+        </span>
         <svg
           className="lc-manage-dots"
           aria-hidden="true"
@@ -144,7 +151,9 @@ export function ManageMenu({
         <div
           id={menuId}
           role="menu"
-          aria-label={`Manage ${documentName}`}
+          aria-label={t('appApplicant.appApplicantIdDocumentsManageManageMenu.manageDocumentname', {
+            documentName,
+          })}
           className="lc-manage-menu"
         >
           {items.map((item, index) => (

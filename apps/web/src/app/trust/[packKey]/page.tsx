@@ -86,24 +86,24 @@ export default async function PublicTrustRoutePage({
       />
 
       <div className="notice" style={{ marginBottom: '2rem' }}>
-        {t('trust.trustPackkeyPage.thisPageDescribesTheOfficialProcess')}
+        {t.node('trust.trustPackkeyPage.thisPageDescribesTheOfficialProcess')}
       </div>
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">{t('trust.trustPackkeyPage.route')}</p>
-          <h2 className="card-title">{t('trust.trustPackkeyPage.whatThisRouteIs')}</h2>
+          <p className="card-kicker">{t.node('trust.trustPackkeyPage.route')}</p>
+          <h2 className="card-title">{t.node('trust.trustPackkeyPage.whatThisRouteIs')}</h2>
           <p className="card-body">{route.routeDescription}</p>
           {route.effectiveDate ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
-              {t('trust.trustPackkeyPage.inEffectSinceFormatdateonly', {
+              {t.node('trust.trustPackkeyPage.inEffectSinceFormatdateonly', {
                 formatDateOnly: formatDateOnly(route.effectiveDate, locale),
               })}
             </p>
           ) : null}
           {route.nextReviewDate ? (
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.25rem' }}>
-              {t('trust.trustPackkeyPage.nextReviewedFormatdateonly', {
+              {t.node('trust.trustPackkeyPage.nextReviewedFormatdateonly', {
                 formatDateOnly: formatDateOnly(route.nextReviewDate, locale),
               })}
             </p>
@@ -111,32 +111,34 @@ export default async function PublicTrustRoutePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">{t('trust.trustPackkeyPage.officialFee')}</p>
-          <h2 className="card-title">{t('trust.trustPackkeyPage.whatTheGovernmentCharges')}</h2>
+          <p className="card-kicker">{t.node('trust.trustPackkeyPage.officialFee')}</p>
+          <h2 className="card-title">
+            {t.node('trust.trustPackkeyPage.whatTheGovernmentCharges')}
+          </h2>
           {route.officialFee ? (
             <>
               <p className="card-body" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 {formatPrice(route.officialFee.minorUnits, route.officialFee.currency)}
               </p>
               <p className="muted u-fs-085">
-                {t('trust.trustPackkeyPage.theOfficialGovernmentFeeOnlyAny')}
+                {t.node('trust.trustPackkeyPage.theOfficialGovernmentFeeOnlyAny')}
               </p>
             </>
           ) : (
             <>
               <span className="badge badge-warning">
-                {t('trust.trustPackkeyPage.notCurrentlyVerified')}
+                {t.node('trust.trustPackkeyPage.notCurrentlyVerified')}
               </span>
               <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.5rem' }}>
-                {t('trust.trustPackkeyPage.weDoNotShowAFee')}
+                {t.node('trust.trustPackkeyPage.weDoNotShowAFee')}
               </p>
             </>
           )}
         </article>
 
         <article className="card">
-          <p className="card-kicker">{t('trust.trustPackkeyPage.officialChannel')}</p>
-          <h2 className="card-title">{t('trust.trustPackkeyPage.whereToActuallyApply')}</h2>
+          <p className="card-kicker">{t.node('trust.trustPackkeyPage.officialChannel')}</p>
+          <h2 className="card-title">{t.node('trust.trustPackkeyPage.whereToActuallyApply')}</h2>
           {officialChannelUrl ? (
             <a
               className="btn btn-primary"
@@ -144,24 +146,25 @@ export default async function PublicTrustRoutePage({
               target="_blank"
               rel="noreferrer"
             >
-              {route.officialChannelName ?? t('trust.trustPackkeyPage.officialApplicationChannel')}{' '}
+              {route.officialChannelName ??
+                t.node('trust.trustPackkeyPage.officialApplicationChannel')}{' '}
               ↗
             </a>
           ) : (
-            <p className="card-body">{t('trust.trustPackkeyPage.notYetOnFileForThis')}</p>
+            <p className="card-body">{t.node('trust.trustPackkeyPage.notYetOnFileForThis')}</p>
           )}
           <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.75rem' }}>
-            {t('trust.trustPackkeyPage.theOnlyChannelThatActuallyDecides')}
+            {t.node('trust.trustPackkeyPage.theOnlyChannelThatActuallyDecides')}
           </p>
         </article>
 
         <article className="card">
-          <p className="card-kicker">{t('trust.trustPackkeyPage.officialSource')}</p>
+          <p className="card-kicker">{t.node('trust.trustPackkeyPage.officialSource')}</p>
           <h2 className="card-title">
-            {t('trust.trustPackkeyPage.whereThisInformationComesFrom')}
+            {t.node('trust.trustPackkeyPage.whereThisInformationComesFrom')}
           </h2>
           {officialSources.length === 0 ? (
-            <p className="card-body">{t('trust.trustPackkeyPage.notYetOnFileForThis')}</p>
+            <p className="card-body">{t.node('trust.trustPackkeyPage.notYetOnFileForThis')}</p>
           ) : (
             <div className="rows u-mt-050">
               {officialSources.map(({ source, href }) => (
@@ -172,7 +175,7 @@ export default async function PublicTrustRoutePage({
                 >
                   <span className="row-key">
                     {[source.publisher, source.sourceTitle].filter(Boolean).join(' · ') ||
-                      t('trust.trustPackkeyPage.officialSource')}
+                      t.node('trust.trustPackkeyPage.officialSource')}
                   </span>
                   {href ? (
                     <a href={href} target="_blank" rel="noreferrer" className="u-fs-085">
@@ -187,10 +190,10 @@ export default async function PublicTrustRoutePage({
       </div>
 
       <article className="card u-mt-150">
-        <p className="card-kicker">{t('trust.trustPackkeyPage.scamAwareness')}</p>
-        <h2 className="card-title">{t('trust.trustPackkeyPage.warningSignsToWatchFor')}</h2>
+        <p className="card-kicker">{t.node('trust.trustPackkeyPage.scamAwareness')}</p>
+        <h2 className="card-title">{t.node('trust.trustPackkeyPage.warningSignsToWatchFor')}</h2>
         <p className="muted" style={{ margin: '0.35rem 0 1rem', fontSize: 'var(--text-small)' }}>
-          {t('trust.trustPackkeyPage.generalGuidanceTheSameForEvery')}
+          {t.node('trust.trustPackkeyPage.generalGuidanceTheSameForEvery')}
         </p>
         <ul className="pill-list" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
           {SCAM_WARNING_SIGNS.map((sign) => (

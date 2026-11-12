@@ -41,7 +41,10 @@ export function InvitationSteps({ signedIn }: { readonly signedIn: boolean }) {
           </span>
           {step}
           {index < current ? (
-            <span className="sr-only"> {t('invitation.invitationClientInvitationOffer.done')}</span>
+            <span className="sr-only">
+              {' '}
+              {t.node('invitation.invitationClientInvitationOffer.done')}
+            </span>
           ) : null}
         </li>
       ))}
@@ -70,15 +73,15 @@ export function InvitationActions({
       <StickyInvitationActions>
         {signedIn ? (
           <Link className="btn btn-primary" href={invitationAcceptHref(kind, token)}>
-            {t('invitation.invitationClientInvitationOffer.reviewYourInvitation')}
+            {t.node('invitation.invitationClientInvitationOffer.reviewYourInvitation')}
           </Link>
         ) : (
           <>
             <Link className="btn btn-primary" href={`/auth/sign-up?next=${next}`}>
-              {t('invitation.invitationClientInvitationOffer.createAnAccountToReview')}
+              {t.node('invitation.invitationClientInvitationOffer.createAnAccountToReview')}
             </Link>
             <Link className="btn btn-secondary" href={`/auth/sign-in?next=${next}`}>
-              {t('invitation.invitationClientInvitationOffer.signIn')}
+              {t.node('invitation.invitationClientInvitationOffer.signIn')}
             </Link>
           </>
         )}
@@ -93,7 +96,7 @@ export function InvitationReassurance() {
   const t = getServerT(invitationCatalog);
   return (
     <p className="invitation-reassure">
-      {t('invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou')}
+      {t.node('invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou')}
     </p>
   );
 }
@@ -115,21 +118,23 @@ export function InvitationHelp({
   return (
     <section className="invitation-help" aria-labelledby="invitation-help-title">
       <h2 className="card-title" id="invitation-help-title">
-        {t('invitation.invitationClientInvitationOffer.beforeYouStart')}
+        {t.node('invitation.invitationClientInvitationOffer.beforeYouStart')}
       </h2>
       <ul className="invitation-list">
         {signedIn ? (
-          <li>{t('invitation.invitationClientInvitationOffer.useTheEmailAddressThatReceived')}</li>
+          <li>
+            {t.node('invitation.invitationClientInvitationOffer.useTheEmailAddressThatReceived')}
+          </li>
         ) : (
           <>
-            <li>{t('invitation.invitationClientInvitationOffer.createAnAccountOrSignIn')}</li>
+            <li>{t.node('invitation.invitationClientInvitationOffer.createAnAccountOrSignIn')}</li>
             <li>
               Already signed in?{' '}
               <Link href={invitationAcceptHref(kind, token)}>Review Your Invitation</Link>
             </li>
           </>
         )}
-        <li>{t('invitation.invitationClientInvitationOffer.ifYouResetYourPasswordOpen')}</li>
+        <li>{t.node('invitation.invitationClientInvitationOffer.ifYouResetYourPasswordOpen')}</li>
       </ul>
     </section>
   );
@@ -185,12 +190,12 @@ export function ClientInvitationOffer({
       <div className="invitation-hero">
         <InvitingAgency name={view.agencyName} accentColor={view.accentColor} logoUrl={logoUrl} />
         <h1 className="section-title invitation-title">
-          {t('invitation.invitationClientInvitationOffer.agencynameInvitedYou', {
+          {t.node('invitation.invitationClientInvitationOffer.agencynameInvitedYou', {
             agencyName: view.agencyName,
           })}
         </h1>
         <p className="invitation-promise">
-          {t('invitation.invitationClientInvitationOffer.agencynameWantsToWorkOnYour', {
+          {t.node('invitation.invitationClientInvitationOffer.agencynameWantsToWorkOnYour', {
             agencyName: view.agencyName,
           })}
         </p>
@@ -208,25 +213,28 @@ export function ClientInvitationOffer({
 
       <div className="invitation-details">
         <p className="invitation-intro">
-          {t('invitation.invitationClientInvitationOffer.anAdministratorAtAgencynameInvitedYou', {
-            agencyName: view.agencyName,
-          })}
+          {t.node(
+            'invitation.invitationClientInvitationOffer.anAdministratorAtAgencynameInvitedYou',
+            {
+              agencyName: view.agencyName,
+            },
+          )}
         </p>
         <div className="invitation-terms">
           <section className="invitation-term" aria-labelledby="invitation-can-title">
             <h2 className="card-title" id="invitation-can-title">
-              {t('invitation.invitationClientInvitationOffer.theyCould')}
+              {t.node('invitation.invitationClientInvitationOffer.theyCould')}
             </h2>
             <MarkedList items={terms.agencyCan} mark="check" />
           </section>
           {terms.withheld.length > 0 ? (
             <section className="invitation-term" aria-labelledby="invitation-cannot-title">
               <h2 className="card-title" id="invitation-cannot-title">
-                {t('invitation.invitationClientInvitationOffer.theyCouldNot')}
+                {t.node('invitation.invitationClientInvitationOffer.theyCouldNot')}
               </h2>
               <MarkedList items={terms.withheld} mark="close" />
               <p className="invitation-term-note">
-                {t('invitation.invitationClientInvitationOffer.eachOfTheseWouldNeedA')}
+                {t.node('invitation.invitationClientInvitationOffer.eachOfTheseWouldNeedA')}
               </p>
             </section>
           ) : null}
@@ -234,19 +242,23 @@ export function ClientInvitationOffer({
 
         <section className="invitation-control" aria-labelledby="invitation-control-title">
           <h2 className="card-title" id="invitation-control-title">
-            {t('invitation.invitationClientInvitationOffer.youStayInControl')}
+            {t.node('invitation.invitationClientInvitationOffer.youStayInControl')}
           </h2>
           <ul className="invitation-list">
-            <li>{t('invitation.invitationClientInvitationOffer.youChooseWhichOfYourProfiles')}</li>
-            <li>{t('invitation.invitationClientInvitationOffer.nothingIsSharedUntilYouAccept')}</li>
-            <li>{t('invitation.invitationClientInvitationOffer.youCanStopSharingAtAny')}</li>
+            <li>
+              {t.node('invitation.invitationClientInvitationOffer.youChooseWhichOfYourProfiles')}
+            </li>
+            <li>
+              {t.node('invitation.invitationClientInvitationOffer.nothingIsSharedUntilYouAccept')}
+            </li>
+            <li>{t.node('invitation.invitationClientInvitationOffer.youCanStopSharingAtAny')}</li>
           </ul>
         </section>
 
         <InvitationHelp kind="client" token={token} signedIn={signedIn} />
 
         <p className="invitation-legal">
-          {t('invitation.invitationClientInvitationOffer.aCompleteChecklistOrAFile')}
+          {t.node('invitation.invitationClientInvitationOffer.aCompleteChecklistOrAFile')}
         </p>
       </div>
     </section>
@@ -263,7 +275,7 @@ export function InvitationMessage({
   action,
   after,
 }: {
-  readonly title: string;
+  readonly title: ReactNode;
   readonly sentence: ReactNode;
   readonly action: ReactElement | null;
   readonly after?: ReactNode;
@@ -272,7 +284,7 @@ export function InvitationMessage({
   return (
     <section className="section container invitation-page invitation-message">
       <span className="eyebrow">
-        {t('invitation.invitationClientInvitationOffer.visastackInvitation')}
+        {t.node('invitation.invitationClientInvitationOffer.visastackInvitation')}
       </span>
       <h1 className="section-title invitation-title">{title}</h1>
       <p className="invitation-promise">{sentence}</p>
@@ -292,11 +304,11 @@ export function AgencyNotReviewed({ agencyName }: { readonly agencyName: string 
   const t = getServerT(invitationCatalog);
   return (
     <InvitationMessage
-      title={t('invitation.invitationClientInvitationOffer.thisAgencyIsStillBeingReviewed')}
+      title={t.node('invitation.invitationClientInvitationOffer.thisAgencyIsStillBeingReviewed')}
       sentence={
         <>
           <strong>{agencyName}</strong>{' '}
-          {t('invitation.invitationClientInvitationOffer.invitedYouToWorkTogetherOn')}
+          {t.node('invitation.invitationClientInvitationOffer.invitedYouToWorkTogetherOn')}
         </>
       }
       action={null}
@@ -314,11 +326,11 @@ export function ClosedInvitation() {
   const t = getServerT(invitationCatalog);
   return (
     <InvitationMessage
-      title={t('invitation.invitationClientInvitationOffer.thisInvitationIsNoLongerOpen')}
+      title={t.node('invitation.invitationClientInvitationOffer.thisInvitationIsNoLongerOpen')}
       sentence="It may have expired, been withdrawn or already been used."
       action={
         <Link className="btn btn-primary" href="/auth/sign-in?next=%2Fapp">
-          {t('invitation.invitationClientInvitationOffer.signIn')}
+          {t.node('invitation.invitationClientInvitationOffer.signIn')}
         </Link>
       }
       after="If you already accepted it, sign in to find your case. If not, ask the agency that invited you to send a new one."

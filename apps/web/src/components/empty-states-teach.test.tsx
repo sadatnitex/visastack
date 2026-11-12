@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { componentsCatalog } from '../i18n/components';
+import { catalogueEnglishByKey } from '../lib/catalogue-en.test-support';
 import { EmptyState } from './ui';
 
 /**
@@ -11,18 +11,35 @@ import { EmptyState } from './ui';
  */
 
 const root = join(__dirname, '..');
-const read = (path: string) => readFileSync(join(root, path), 'utf8');
+// A `t('key')` call stands for its English catalogue text, so a title or line that moved out of a
+// page into a message catalogue is still read in the place it appears.
+const CATALOGUE_TEXT = catalogueEnglishByKey();
+const read = (path: string) =>
+  readFileSync(join(root, path), 'utf8').replace(
+    /\bt\(\s*'([^']+)'\s*(?:,\s*\{[^}]*\})?\s*\)/g,
+    (call, key: string) => CATALOGUE_TEXT.get(key) ?? call,
+  );
 
-/** The text of the `<EmptyState ...>...</EmptyState>` that carries this title. */
+/** The catalogue keys whose English message is this title (a converted page names its title by key). */
+function keysFor(title: string): string[] {
+  const dir = join(root, 'i18n');
+  const keys: string[] = [];
+  for (const file of readdirSync(dir).filter((name) => name.endsWith('.ts'))) {
+    const text = readFileSync(join(dir, file), 'utf8');
+    for (const match of text.matchAll(/'([A-Za-z0-9.]+)':\s*'([^']*)'/g)) {
+      if (match[2] === title && match[1]) keys.push(match[1]);
+    }
+  }
+  return keys;
+}
+
+/** The text of the `<EmptyState ...>...</EmptyState>` that carries this title, or its catalogue key. */
 function stateWithTitle(source: string, title: string): string {
   const parts = source.split('<EmptyState');
-  // A title moved into the message catalogue is found by its key; its English text is the same.
-  const keys = Object.entries(componentsCatalog.en)
-    .filter(([, english]) => english === title)
-    .map(([key]) => `t('${key}')`);
+  const needles = [title, ...keysFor(title).map((key) => `t('${key}')`)];
   const found = parts.find((part) => {
-    const block = part.slice(0, part.indexOf('</EmptyState>'));
-    return block.includes(title) || keys.some((key) => block.includes(key));
+    const head = part.slice(0, part.indexOf('</EmptyState>'));
+    return needles.some((needle) => head.includes(needle));
   });
   if (!found) throw new Error(`no empty state titled "${title}"`);
   return found.slice(0, found.indexOf('</EmptyState>'));

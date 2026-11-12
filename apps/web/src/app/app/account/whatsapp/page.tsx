@@ -2,7 +2,9 @@ import { getWhatsAppConnection } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
+import { appAccountCatalog } from '../../../../i18n/app-account';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { readWhatsAppConfig } from '../../../../lib/whatsapp';
 import { disconnectWhatsAppAction } from './actions';
@@ -17,6 +19,8 @@ export const dynamic = 'force-dynamic';
  * nothing in VisaStack depends on it, and losing the phone never locks anyone out.
  */
 export default async function WhatsAppPage() {
+  const locale = await primeLocale();
+  const t = getServerT(appAccountCatalog);
   const available = readWhatsAppConfig() !== null;
   const connection = await withSession(({ db, accountId }) => getWhatsAppConnection(db, accountId));
   const ready = available && connection.available;
@@ -26,73 +30,84 @@ export default async function WhatsAppPage() {
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Account"
-        title="WhatsApp"
-        description="Ask about your cases from WhatsApp. Everything else stays in VisaStack."
+        eyebrow={t('appAccount.appAccountPage.account')}
+        title={t('appAccount.appAccountPage.whatsapp')}
+        description={t('appAccount.appAccountWhatsappPage.askAboutYourCasesFromWhatsapp')}
       />
       <div className="grid">
         {showConnected ? (
           <article className="card">
-            <p className="card-kicker">Connected</p>
-            <h2 className="card-title">Your WhatsApp Is Connected</h2>
+            <p className="card-kicker">{t('appAccount.appAccountWhatsappPage.connected')}</p>
+            <h2 className="card-title">
+              {t('appAccount.appAccountWhatsappPage.yourWhatsappIsConnected')}
+            </h2>
             <div className="rows rows-grid u-mt-050">
               {connection.maskedNumber ? (
                 <p className="row">
-                  <span className="row-key">Number</span>
+                  <span className="row-key">{t('appAccount.appAccountWhatsappPage.number')}</span>
                   <span className="row-val">{connection.maskedNumber}</span>
                 </p>
               ) : null}
               {connection.connectedAt ? (
                 <p className="row">
-                  <span className="row-key">Connected On</span>
-                  <span className="row-val">{formatDateOnly(connection.connectedAt)}</span>
+                  <span className="row-key">
+                    {t('appAccount.appAccountWhatsappPage.connectedOn')}
+                  </span>
+                  <span className="row-val">{formatDateOnly(connection.connectedAt, locale)}</span>
                 </p>
               ) : null}
               <p className="row">
-                <span className="row-key">Messages</span>
+                <span className="row-key">{t('appAccount.appAccountWhatsappPage.messages')}</span>
                 <span className="row-val">
-                  {connection.messagesOff ? 'Off (send START to turn them on)' : 'On'}
+                  {connection.messagesOff
+                    ? t('appAccount.appAccountWhatsappPage.offSendStartToTurnThem')
+                    : t('appAccount.appAccountWhatsappPage.on')}
                 </span>
               </p>
             </div>
             <p className="card-body u-mt-050">
-              Send MENU in WhatsApp to see what you can ask. Send STOP to turn messages off.
+              {t('appAccount.appAccountWhatsappPage.sendMenuInWhatsappToSee')}
             </p>
             <form action={disconnectWhatsAppAction}>
               <button type="submit" className="btn btn-secondary">
-                Disconnect WhatsApp
+                {t('appAccount.appAccountWhatsappPage.disconnectWhatsapp')}
               </button>
             </form>
           </article>
         ) : !ready ? (
           <article className="card">
-            <h2 className="card-title">WhatsApp Is Not Available Yet</h2>
-            <p className="card-body">You can use everything in VisaStack without WhatsApp.</p>
+            <h2 className="card-title">
+              {t('appAccount.appAccountWhatsappPage.whatsappIsNotAvailableYet')}
+            </h2>
+            <p className="card-body">
+              {t('appAccount.appAccountWhatsappPage.youCanUseEverythingInVisastack')}
+            </p>
           </article>
         ) : (
           <article className="card">
-            <p className="card-kicker">Not Connected</p>
-            <h2 className="card-title">Connect WhatsApp</h2>
+            <p className="card-kicker">{t('appAccount.appAccountWhatsappPage.notConnected')}</p>
+            <h2 className="card-title">{t('appAccount.appAccountWhatsappPage.connectWhatsapp')}</h2>
             <p className="card-body u-mb-125">
-              Get a one-time code here, then send it from your WhatsApp. Only you can connect it,
-              because the code comes from your signed-in account.
+              {t('appAccount.appAccountWhatsappPage.getAOneTimeCodeHere')}
             </p>
             <ConnectWhatsAppForm />
           </article>
         )}
 
         <article className="card">
-          <p className="card-kicker">Privacy</p>
-          <h2 className="card-title">What Happens in WhatsApp</h2>
+          <p className="card-kicker">{t('appAccount.appAccountPage.privacy')}</p>
+          <h2 className="card-title">
+            {t('appAccount.appAccountWhatsappPage.whatHappensInWhatsapp')}
+          </h2>
           <ul className="card-body">
-            <li>You can ask where your cases stand, what is missing and what expires soon.</li>
-            <li>VisaStack never asks for passport, ID or bank details in WhatsApp.</li>
-            <li>
-              Documents are added in VisaStack, not in chat, so they stay private and checked.
-            </li>
-            <li>Messages pass through WhatsApp, which is run by Meta.</li>
+            <li>{t('appAccount.appAccountWhatsappPage.youCanAskWhereYourCases')}</li>
+            <li>{t('appAccount.appAccountWhatsappPage.visastackNeverAsksForPassportId')}</li>
+            <li>{t('appAccount.appAccountWhatsappPage.documentsAreAddedInVisastackNot')}</li>
+            <li>{t('appAccount.appAccountWhatsappPage.messagesPassThroughWhatsappWhichIs')}</li>
           </ul>
-          <Link href="/app/privacy">Privacy and Consent</Link>
+          <Link href="/app/privacy">
+            {t('appAccount.appAccountWhatsappPage.privacyAndConsent')}
+          </Link>
         </article>
       </div>
     </section>

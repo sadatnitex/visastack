@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useActionState, useEffect, useId, useRef, useState } from 'react';
 import { CountryField } from '../../../components/country-field';
 import {
   FormMessage,
@@ -67,7 +67,7 @@ function TravellerChecklist({
   chosen,
   onToggle,
 }: {
-  readonly legend: string;
+  readonly legend: ReactNode;
   readonly travellers: readonly TripTravellerOption[];
   readonly state: FormResult;
   readonly messageId: string;
@@ -150,15 +150,15 @@ function FamilyMemberFields({
         aria-expanded={false}
         onClick={() => show(true)}
       >
-        {t('appTrips.appTripsTripForms.addAFamilyMember')}
+        {t.node('appTrips.appTripsTripForms.addAFamilyMember')}
       </button>
     );
   }
   return (
     <fieldset className="trip-member-fields">
-      <legend className="label">{t('appTrips.appTripsTripForms.addAFamilyMember')}</legend>
+      <legend className="label">{t.node('appTrips.appTripsTripForms.addAFamilyMember')}</legend>
       <label className="label" htmlFor={`${id}-name`}>
-        {t('appTrips.appTripsTripForms.nameAsOnThePassport')}
+        {t.node('appTrips.appTripsTripForms.nameAsOnThePassport')}
       </label>
       <input
         ref={nameRef}
@@ -171,7 +171,7 @@ function FamilyMemberFields({
         {...fieldProblem(state, 'newName', messageId)}
       />
       <fieldset className="trip-member-kind">
-        <legend className="label">{t('appTrips.appTripsTripForms.relationship')}</legend>
+        <legend className="label">{t.node('appTrips.appTripsTripForms.relationship')}</legend>
         <label className="package-check">
           <input
             type="radio"
@@ -181,7 +181,7 @@ function FamilyMemberFields({
             onChange={() => setKind('FAMILY_MEMBER')}
             {...fieldProblem(state, 'newKind', messageId)}
           />
-          <span>{t('appTrips.appTripsTripForms.familyMember')}</span>
+          <span>{t.node('appTrips.appTripsTripForms.familyMember')}</span>
         </label>
         <label className="package-check">
           <input
@@ -191,7 +191,7 @@ function FamilyMemberFields({
             checked={kind === 'MINOR_GUARDIAN'}
             onChange={() => setKind('MINOR_GUARDIAN')}
           />
-          <span>{t('appTrips.appTripsTripForms.minorGuardian')}</span>
+          <span>{t.node('appTrips.appTripsTripForms.minorGuardian')}</span>
         </label>
       </fieldset>
       <label className="package-check">
@@ -205,7 +205,7 @@ function FamilyMemberFields({
         <span>{AUTHORITY_SENTENCE}</span>
       </label>
       <button type="button" className="btn btn-secondary" onClick={() => show(false)}>
-        {t('appTrips.appTripsTripForms.cancel')}
+        {t.node('appTrips.appTripsTripForms.cancel')}
       </button>
     </fieldset>
   );
@@ -240,19 +240,19 @@ function SomeoneElseFields({
         aria-expanded={false}
         onClick={() => show(true)}
       >
-        {t('appTrips.appTripsTripForms.addSomeoneElse')}
+        {t.node('appTrips.appTripsTripForms.addSomeoneElse')}
       </button>
     );
   }
   const hintId = `${id}-hint`;
   return (
     <fieldset className="trip-member-fields">
-      <legend className="label">{t('appTrips.appTripsTripForms.addSomeoneElse')}</legend>
+      <legend className="label">{t.node('appTrips.appTripsTripForms.addSomeoneElse')}</legend>
       <p id={hintId} className="muted u-fs-085 u-m-0">
-        {t('appTrips.appTripsTripForms.withAnEmailTheyAreInvited')}
+        {t.node('appTrips.appTripsTripForms.withAnEmailTheyAreInvited')}
       </p>
       <label className="label" htmlFor={`${id}-name`}>
-        {t('appTrips.appTripsTripForms.name')}
+        {t.node('appTrips.appTripsTripForms.name')}
       </label>
       <input
         ref={nameRef}
@@ -265,7 +265,7 @@ function SomeoneElseFields({
         {...fieldProblem(state, 'newPersonName', messageId, hintId)}
       />
       <label className="label" htmlFor={`${id}-email`}>
-        {t('appTrips.appTripsTripForms.email')}
+        {t.node('appTrips.appTripsTripForms.email')}
       </label>
       <input
         id={`${id}-email`}
@@ -276,7 +276,7 @@ function SomeoneElseFields({
         {...fieldProblem(state, 'newPersonEmail', messageId, hintId)}
       />
       <button type="button" className="btn btn-secondary" onClick={() => show(false)}>
-        {t('appTrips.appTripsTripForms.cancel')}
+        {t.node('appTrips.appTripsTripForms.cancel')}
       </button>
     </fieldset>
   );
@@ -314,7 +314,7 @@ export function GroupTripStartForm({
   return (
     <form ref={form} action={formAction} className="trip-start-form">
       <label className="label" htmlFor={`${id}-destination`}>
-        {t('appTrips.appTripsTripForms.whereAreYouGoing')}
+        {t.node('appTrips.appTripsTripForms.whereAreYouGoing')}
       </label>
       <CountryField
         id={`${id}-destination`}
@@ -331,7 +331,7 @@ export function GroupTripStartForm({
         problem={fieldProblem(state, 'purpose', messageId)}
       />
       <TravellerChecklist
-        legend={t('appTrips.appTripsTripForms.whoSTravelling')}
+        legend={t.node('appTrips.appTripsTripForms.whoSTravelling')}
         travellers={travellers}
         state={state}
         messageId={messageId}
@@ -357,7 +357,7 @@ export function GroupTripStartForm({
       </div>
       <AboutDisclosure summary={t('appTrips.appTripsTripForms.aboutThis')}>
         <p className="muted u-fs-085 u-m-0">
-          {t('appTrips.appTripsTripForms.eachTravellerKeepsTheirOwnCase')}
+          {t.node('appTrips.appTripsTripForms.eachTravellerKeepsTheirOwnCase')}
         </p>
       </AboutDisclosure>
       <div>
@@ -405,7 +405,7 @@ export function AddTravellersForm({
       <input type="hidden" name="tripId" value={tripId} />
       {travellers.length > 0 ? (
         <TravellerChecklist
-          legend={t('appTrips.appTripsTripForms.whoElseIsTravelling')}
+          legend={t.node('appTrips.appTripsTripForms.whoElseIsTravelling')}
           travellers={travellers}
           state={state}
           messageId={messageId}
@@ -413,7 +413,7 @@ export function AddTravellersForm({
           onToggle={toggle}
         />
       ) : (
-        <p className="u-m-0">{t('appTrips.appTripsTripForms.everyoneYouManageIsAlreadyOn')}</p>
+        <p className="u-m-0">{t.node('appTrips.appTripsTripForms.everyoneYouManageIsAlreadyOn')}</p>
       )}
       <div className="trip-add-more">
         <FamilyMemberFields
@@ -536,7 +536,7 @@ export function RemoveCompanionForm({
       {asking ? (
         <>
           <span className="muted u-fs-085">
-            {t('appTrips.appTripsTripForms.removeNameTheyLoseAccessAt', { name })}
+            {t.node('appTrips.appTripsTripForms.removeNameTheyLoseAccessAt', { name })}
           </span>
           <SubmitButton
             pending={pending}
@@ -546,7 +546,7 @@ export function RemoveCompanionForm({
             label={t('appTrips.appTripsTripForms.yesRemoveName', { name })}
           />
           <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
-            {t('appTrips.appTripsTripForms.keep')}
+            {t.node('appTrips.appTripsTripForms.keep')}
           </button>
         </>
       ) : (
@@ -556,7 +556,7 @@ export function RemoveCompanionForm({
           aria-label={t('appTrips.appTripsTripForms.removeName', { name })}
           onClick={() => setAsking(true)}
         >
-          {t('appTrips.appTripsTripForms.remove')}
+          {t.node('appTrips.appTripsTripForms.remove')}
         </button>
       )}
       <FormMessage id={`${id}-msg`} result={state} />
@@ -587,7 +587,7 @@ export function AddTripEvidenceForm({
     <form ref={form} action={formAction} className="trip-add-form">
       <input type="hidden" name="tripId" value={tripId} />
       <label className="label" htmlFor={`${id}-document`}>
-        {t('appTrips.appTripsTripForms.travelDocument')}
+        {t.node('appTrips.appTripsTripForms.travelDocument')}
       </label>
       <select
         id={`${id}-document`}
@@ -597,7 +597,7 @@ export function AddTripEvidenceForm({
         onChange={(e) => setDocumentId(e.target.value)}
         {...fieldProblem(state, 'documentId', messageId, hintId)}
       >
-        <option value="" disabled>
+        <option {...t.lang('appTrips.appTripsTripForms.chooseADocument')} value="" disabled>
           {t('appTrips.appTripsTripForms.chooseADocument')}
         </option>
         {documents.map((d) => (
@@ -607,7 +607,7 @@ export function AddTripEvidenceForm({
         ))}
       </select>
       <p id={hintId} className="muted u-fs-085 u-m-0">
-        {t('appTrips.appTripsTripForms.onlyBookingsItinerariesInvitationsAndAccommodati')}
+        {t.node('appTrips.appTripsTripForms.onlyBookingsItinerariesInvitationsAndAccommodati')}
       </p>
       <div>
         <SubmitButton pending={pending} idle="Add to Trip" busy="Adding…" />

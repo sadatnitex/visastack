@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useT } from '../../components/i18n-provider';
+import { collectCatalog } from '../../i18n/collect';
 import { formatFileSize } from '../../lib/format-size';
 import { captureDrop, readChosenFiles, readDrop } from '../../lib/import/folder-entries';
 import {
@@ -69,6 +71,7 @@ export function guestCountsText(items: Iterable<ImportItem>): string {
  * server's, refreshed as files settle.
  */
 export function GuestUploader({ pdfAccepted }: { readonly pdfAccepted: boolean }) {
+  const t = useT(collectCatalog);
   const router = useRouter();
   const inputId = useId();
   const statusId = useId();
@@ -121,19 +124,19 @@ export function GuestUploader({ pdfAccepted }: { readonly pdfAccepted: boolean }
   return (
     <section className="collect-upload" aria-labelledby={`${inputId}-title`}>
       <h2 id={`${inputId}-title`} className="collect-step-title">
-        Add Your Files
+        {t('collect.collectGuestUploader.addYourFiles')}
       </h2>
       <div
         className={`collect-drop${drop.dragging ? ' collect-drop-active' : ''}`}
         {...drop.handlers}
       >
-        <p>Drop files or a folder here, or choose them.</p>
+        <p>{t('collect.collectGuestUploader.dropFilesOrAFolderHere')}</p>
         <button
           type="button"
           className="btn btn-secondary"
           onClick={() => filesRef.current?.click()}
         >
-          Choose Files
+          {t('collect.collectGuestUploader.chooseFiles')}
         </button>
         <input
           ref={filesRef}
@@ -142,7 +145,7 @@ export function GuestUploader({ pdfAccepted }: { readonly pdfAccepted: boolean }
           multiple
           tabIndex={-1}
           aria-hidden="true"
-          aria-label="Files to Add"
+          aria-label={t('collect.collectGuestUploader.filesToAdd')}
           accept={`${pdfAccepted ? 'application/pdf,' : ''}image/jpeg,image/png,image/heic,image/heif`}
           onChange={(event) => {
             addFiles(Array.from(event.currentTarget.files ?? []));
@@ -172,7 +175,7 @@ export function GuestUploader({ pdfAccepted }: { readonly pdfAccepted: boolean }
                   className="btn btn-secondary"
                   onClick={() => queue.retry(item.id)}
                 >
-                  Try Again for {item.name}
+                  {t('collect.collectGuestUploader.tryAgainForName', { name: item.name })}
                 </button>
               ) : null}
             </li>

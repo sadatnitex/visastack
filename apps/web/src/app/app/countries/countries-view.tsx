@@ -35,7 +35,7 @@ export function CountriesView({ href }: { readonly href: string }) {
         )}
       />
       <p className="notice">
-        {t('appCountries.appCountriesCountriesView.researchedOfLengthCountriesHaveTheir', {
+        {t.node('appCountries.appCountriesCountriesView.researchedOfLengthCountriesHaveTheir', {
           researched,
           length: items.length,
         })}
