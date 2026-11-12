@@ -68,7 +68,7 @@ export function ChecklistCorrectionForm({
             {...fieldProblem(state, 'packRequirementId', messageId)}
           >
             <option value="">
-              {t.node('components.checklistCorrectionForm.somethingMissingFromTheChecklist')}
+              {t('components.checklistCorrectionForm.somethingMissingFromTheChecklist')}
             </option>
             {items.map((item) => (
               <option key={item.value} value={item.value}>
@@ -92,7 +92,7 @@ export function ChecklistCorrectionForm({
           {...fieldProblem(state, 'category', messageId)}
         >
           <option value="" disabled>
-            {t.node('components.checklistCorrectionForm.chooseOne')}
+            {t('components.checklistCorrectionForm.chooseOne')}
           </option>
           {categories.map((category) => (
             <option key={category.value} value={category.value}>
@@ -112,7 +112,7 @@ export function ChecklistCorrectionForm({
           type="url"
           inputMode="url"
           maxLength={2048}
-          placeholder={t('components.checklistCorrectionForm.https')}
+          placeholder="https://"
           className="input"
           {...fieldProblem(state, 'officialUrl', messageId, linkHint)}
         />

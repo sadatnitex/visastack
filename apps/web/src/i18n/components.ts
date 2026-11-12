@@ -55,7 +55,6 @@ export const componentsCatalog = defineCatalog({
     'components.checklistCorrectionForm.chooseOne': 'Choose One',
     'components.checklistCorrectionForm.doNotIncludeNamesPassportNumbers':
       'Do not include names, passport numbers or other personal details.',
-    'components.checklistCorrectionForm.https': 'https://',
     'components.checklistCorrectionForm.officialPageOptional': 'Official Page (Optional)',
     'components.checklistCorrectionForm.somethingMissingFromTheChecklist':
       'Something Missing from the Checklist',
@@ -72,7 +71,6 @@ export const componentsCatalog = defineCatalog({
     'components.countryBrowser.noCountriesMatch': 'No countries match.',
     'components.countryBrowser.noCountriesMatche4ae64': 'No Countries Match',
     'components.countryBrowser.searchCountries': 'Search Countries',
-    'components.depthSwitch.i': 'i',
     'components.documentReviewPanel.chooseADocument': 'Choose a Document',
     'components.documentReviewPanel.contentsAppearOnlyAfterPermissionAnd':
       'Contents appear only after permission and safety checks.',
@@ -249,13 +247,11 @@ export const componentsCatalog = defineCatalog({
     'components.capturePreview.previewOfWhatYouJustCaptured':
       'আপনি এইমাত্র যা তুলেছেন তার প্রিভিউ, পাঠানোর আগে দেখে নেওয়ার জন্য দেখানো হচ্ছে',
     'components.checklistCorrectionForm.chooseOne': 'একটি বেছে নিন',
-    'components.checklistCorrectionForm.https': 'https://',
     'components.checklistCorrectionForm.whatShouldItSayOptional': 'এতে কী লেখা থাকবে (ঐচ্ছিক)',
     'components.countryBrowser.allCountries': 'সব দেশ',
     'components.countryBrowser.filterByEntryRule': 'প্রবেশের নিয়ম অনুযায়ী ফিল্টার করুন',
     'components.countryBrowser.forExampleJapan': 'যেমন: জাপান',
     'components.countryBrowser.needsChecking': 'দেখে নেওয়া দরকার',
-    'components.depthSwitch.i': 'i',
     'components.documentReviewPanel.chooseADocument': 'একটি ডকুমেন্ট বেছে নিন',
     'components.documentWalletBrowser.aboutThisFile': 'এই ডকুমেন্ট সম্পর্কে',
     'components.documentWalletBrowser.addEachPaperOnce': 'প্রতিটি কাগজ একবারই যোগ করুন।',

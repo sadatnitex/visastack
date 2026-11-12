@@ -48,7 +48,7 @@ export function PurposeSelect({
         {...rest}
       >
         <option value="" disabled>
-          {t.node('components.purposeSelect.chooseAPurpose')}
+          {t('components.purposeSelect.chooseAPurpose')}
         </option>
         {purposes.map((group) => (
           <optgroup key={group.family} label={group.label}>

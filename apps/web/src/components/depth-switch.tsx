@@ -246,7 +246,7 @@ export function DepthSwitch({
           }}
         >
           <summary className="depth-info-toggle" aria-label={copy.info ?? copy.group}>
-            <span aria-hidden="true">{t.node('components.depthSwitch.i')}</span>
+            <span aria-hidden="true">i</span>
           </summary>
           {DEPTH_LEVELS.map((level) => (
             <p key={level} className="depth-note" data-for={level}>

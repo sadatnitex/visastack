@@ -8,13 +8,12 @@ import { describe, expect, it } from 'vitest';
 import { componentsCatalog } from '../i18n/components';
 import { componentsProfilePhotoCatalog } from '../i18n/components-profile-photo';
 import { componentsPwaCatalog } from '../i18n/components-pwa';
-import { componentsShareCatalog } from '../i18n/components-share';
-import { componentsUiLiftCatalog } from '../i18n/components-ui-lift';
 import { I18nProvider } from './i18n-provider';
 import { ProfilePhotoControl } from './profile-photo/profile-photo-control';
 import { InstallAppCard } from './pwa/install-app-card';
 import { ReferenceCode } from './reference-code';
 import { CopyMessageOnly } from './share/whatsapp-share';
+import { TimeZoneSelect } from './time-zone-select';
 import { ProgressMeter } from './ui-lift';
 
 const BENGALI = /[ঀ-৿]/;
@@ -92,21 +91,17 @@ describe('shared client components under Bengali', () => {
     );
   });
 
-  it('CopyMessageOnly keeps English where the share catalogue has no Bengali', () => {
-    expect(Object.keys(componentsShareCatalog.bn)).toEqual([]);
+  it('CopyMessageOnly never shows a raw key, whatever the catalogue holds', () => {
     const doc = render('bn', <CopyMessageOnly text="Hello" />);
     expect(doc.body.textContent).not.toMatch(/componentsShare\./);
     expect(doc.body.textContent).toContain('Copy');
   });
 
   it('ProgressMeter: raw numbers reach the message, and the name keeps Latin digits on its English fallback', () => {
-    expect(Object.keys(componentsUiLiftCatalog.bn)).toEqual([]);
     // The component hands raw numbers to the message and builds no English text of its own: the
     // runtime formats the numbers in the language the message resolves to.
     const source = readFileSync(join(__dirname, 'progress-meter-parts.tsx'), 'utf8');
-    expect(source).toContain(
-      "t('componentsUiLift.progressMeter.meterName', { value, max, label })",
-    );
+    expect(source).toMatch(/meterName',\s*\{\s*value,\s*max,\s*label\s*\}/);
     expect(source).not.toMatch(/`\$\{value\} of \$\{max\}/);
     for (const locale of ['en', 'bn'] as const) {
       const doc = render(
@@ -124,5 +119,20 @@ describe('shared client components under Bengali', () => {
       <ProgressMeter value={1} max={4} label="steps" valueText="One so far" />,
     );
     expect(own.querySelector('.lift-meter-text')?.textContent).toBe('One so far');
+  });
+
+  it('a select option holds plain text, never a language span, under Bengali', () => {
+    const doc = render('bn', <TimeZoneSelect name="zone" label="Time zone" defaultValue="" />);
+    const first = doc.querySelector('option[value=""]');
+    expect(first?.textContent).toBe(
+      componentsCatalog.bn['components.timeZoneSelect.chooseATimeZone'],
+    );
+    // The parser drops a span inside a select, so the raw markup is what shows the problem.
+    const html = renderToStaticMarkup(
+      <I18nProvider locale="bn" pageLang="en">
+        <TimeZoneSelect name="zone" label="Time zone" defaultValue="" />
+      </I18nProvider>,
+    );
+    expect(html.slice(html.indexOf('<select'), html.indexOf('</select>'))).not.toContain('<span');
   });
 });

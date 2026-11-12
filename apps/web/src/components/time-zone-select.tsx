@@ -131,7 +131,7 @@ export function TimeZoneSelect({
       value={value}
       onChange={(event) => setValue(event.target.value)}
     >
-      <option value="">{t.node('components.timeZoneSelect.chooseATimeZone')}</option>
+      <option value="">{t('components.timeZoneSelect.chooseATimeZone')}</option>
       {full ? (
         <>
           <optgroup label={t('components.timeZoneSelect.common')}>
@@ -162,7 +162,7 @@ export function TimeZoneSelect({
             {COMMON_TIME_ZONES.map((zone) => (
               <option key={zone} value={zone}>
                 {zone === 'UTC'
-                  ? t.node('components.timeZoneSelect.utc')
+                  ? t('components.timeZoneSelect.utc')
                   : (zone.split('/').pop() ?? zone).replaceAll('_', ' ')}
               </option>
             ))}
