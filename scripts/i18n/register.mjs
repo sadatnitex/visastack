@@ -441,6 +441,14 @@ export const HOLDBACK = new Map([
     'SG-9d878677',
     'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
   ],
+  [
+    'SG-a7694752',
+    'Applicant screens: Joiner text whose trailing space carries the layout, so its Bengali would run into the next sentence.',
+  ],
+  [
+    'SG-6775fd3b',
+    'Applicant screens: Heading over what automatic reading found (AI processing): waits for the owner sign-off.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

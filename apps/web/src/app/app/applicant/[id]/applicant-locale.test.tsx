@@ -312,6 +312,8 @@ describe('dates and held wording', () => {
       'ProfilePage.theDetailsMostVisaFormsAsk',
       'DocumentsNeedsDecision.removeThisFileLabel',
       'ProfileEditor.noLongerCurrentLabel',
+      'DocumentUploader.notConfirmed',
+      'ReviewPage.whatWeFound',
       'ExpiryPage.expiresInPlural',
       'ExpiryPage.expiredPluralAgo',
       'ProfileEditor.iHaveNoTolowercase',

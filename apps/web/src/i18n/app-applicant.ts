@@ -649,7 +649,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdDocumentUploader.documentsSaved': 'ডকুমেন্ট সংরক্ষণ করা হয়েছে',
     'appApplicant.appApplicantIdDocumentUploader.dropFilesHere': 'ডকুমেন্ট এখানে ছেড়ে দিন',
     'appApplicant.appApplicantIdDocumentUploader.kindOfDocumentOptional': 'ডকুমেন্টের ধরন (ঐচ্ছিক)',
-    'appApplicant.appApplicantIdDocumentUploader.notConfirmed': 'নিশ্চিত করা হয়নি।',
     'appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy': 'এই নতুন কপি সরান',
     'appApplicant.appApplicantIdDocumentUploader.removeThisNewCopyName': 'এই নতুন কপি সরান: {name}',
     'appApplicant.appApplicantIdDocumentUploader.takeAPhoto': 'ছবি তুলুন',
@@ -831,7 +830,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdRemovalRecordsPage.removalRecords': 'সরানোর রেকর্ড',
     'appApplicant.appApplicantIdReviewPage.1FileSaved': '১টি ডকুমেন্ট সংরক্ষণ করা হয়েছে',
     'appApplicant.appApplicantIdReviewPage.lengthFilesSaved': '{length}টি ডকুমেন্ট সংরক্ষণ করা হয়েছে',
-    'appApplicant.appApplicantIdReviewPage.whatWeFound': 'আমরা যা পেয়েছি',
     'appApplicant.appApplicantIdReviewPage.yourFilesAreSaved': 'আপনার ডকুমেন্টগুলো সংরক্ষণ করা হয়েছে',
   },
 });
