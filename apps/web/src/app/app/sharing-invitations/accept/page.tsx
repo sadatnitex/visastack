@@ -8,10 +8,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { appSharingInvitationsCatalog } from '../../../../i18n/app-sharing-invitations';
 import { formatTimestampDate } from '../../../../lib/format-date';
-import { getServerT, primeLocale } from '../../../../lib/i18n-server';
+import { getServerLocale, getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { categoryLabel } from '../../../../lib/master-profile';
 import { recipientPermissionSentence } from '../../../../lib/permission-phrases';
 import { plural } from '../../../../lib/plural';
+import { serviceErrorText, serviceErrorTranslator } from '../../../../lib/service-error-text';
 import { withSession } from '../../../../lib/session';
 import { ConsentGate } from '../../client-invitations/accept/consent-gate';
 import { AcceptSharingInvitationForm } from './accept-form';
@@ -43,7 +44,7 @@ export default async function SharingInvitationPage({
           <h1 className="section-title">
             {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable')}
           </h1>
-          <p>{result.error.message}</p>
+          <p>{serviceErrorText(result.error, serviceErrorTranslator(getServerLocale()))}</p>
           <p>
             {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.askTheSenderForANew')}
           </p>
