@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../components/form-feedback';
+import { useT } from '../../../components/i18n-provider';
+import { appPrivacyCatalog } from '../../../i18n/app-privacy';
 import { type ActionState, requestLargeExportAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -31,10 +33,15 @@ function formatDateTime(iso: string): string {
 }
 
 function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
+  const t = useT(appPrivacyCatalog);
   switch (job.status) {
     case 'PENDING':
     case 'CLAIMED':
-      return <span className="badge badge-neutral">Preparing…</span>;
+      return (
+        <span className="badge badge-neutral">
+          {t('appPrivacy.appPrivacyLargeExportPanel.preparing')}
+        </span>
+      );
     case 'READY':
       return (
         <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -43,17 +50,23 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
             className="btn btn-secondary"
             download
           >
-            Download ZIP
+            {t('appPrivacy.appPrivacyLargeExportPanel.downloadZip')}
           </a>
           {job.expiresAt ? (
-            <span className="muted u-fs-085">expires {formatDateTime(job.expiresAt)}</span>
+            <span className="muted u-fs-085">
+              {t('appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime', {
+                formatDateTime: formatDateTime(job.expiresAt),
+              })}
+            </span>
           ) : null}
         </span>
       );
     case 'FAILED':
       return (
         <span className="export-failed">
-          <span className="badge badge-danger">Could not be made</span>
+          <span className="badge badge-danger">
+            {t('appPrivacy.appPrivacyLargeExportPanel.couldNotBeMade')}
+          </span>
           <span className="muted">
             Your data is safe and nothing was changed. Request it again below. If it fails twice,{' '}
             <a href="/app/help">get help</a>.
@@ -61,7 +74,11 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
         </span>
       );
     case 'EXPIRED':
-      return <span className="badge badge-neutral">Expired</span>;
+      return (
+        <span className="badge badge-neutral">
+          {t('appPrivacy.appPrivacyLargeExportPanel.expired')}
+        </span>
+      );
     default:
       return null;
   }
@@ -69,6 +86,7 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
 
 /** Only the current job matters to a returning visitor - a terminal (FAILED/EXPIRED) history entry is still shown, but never crowds out requesting a fresh one. */
 export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
+  const t = useT(appPrivacyCatalog);
   const [state, action, pending] = useActionState(requestLargeExportAction, INITIAL);
   const active = jobs.find(
     (j) => j.status === 'PENDING' || j.status === 'CLAIMED' || j.status === 'READY',
@@ -83,10 +101,7 @@ export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
           file format check passed, not a virus scan (lib/scan-state.ts), so the sentence never
           says "safe" and says plainly that no virus scan runs yet. Change all three together. */}
       <p className="card-body" style={{ marginBottom: '0.75rem' }}>
-        Need the actual document files too, not just their metadata? Request a large export - a ZIP
-        with every usable document file, including earlier copies, that passed the file format check
-        (files are not scanned for viruses yet) alongside the same manifest and CSV tables above. It
-        takes a few minutes to prepare and stays downloadable for 24 hours.
+        {t('appPrivacy.appPrivacyLargeExportPanel.needTheActualDocumentFilesToo')}
       </p>
       {active ? (
         <StatusLine job={active} />

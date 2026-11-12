@@ -5,10 +5,12 @@ import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
 import { AccountPhotoCard } from '../../../components/profile-photo/account-photo-card';
 import { PageHeader } from '../../../components/ui';
+import { appAccountCatalog } from '../../../i18n/app-account';
 import { holdsPlatformRole } from '../../../lib/admin';
 import { depthCopy, joinParts } from '../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../lib/ccd/depth-words';
 import { readDepth } from '../../../lib/ccd/depth.server';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../../../lib/language-choice';
 import { getLocale } from '../../../lib/locale';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
@@ -22,6 +24,8 @@ export const metadata: Metadata = { title: 'Account' };
 export const dynamic = 'force-dynamic';
 
 export default async function AccountPage() {
+  await primeLocale();
+  const t = getServerT(appAccountCatalog);
   const locale = await getLocale();
   const depth = await readDepth('account');
   const data = await withSession(async ({ db, accountId, email }) => {
@@ -65,8 +69,8 @@ export default async function AccountPage() {
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Account"
-        title="Your Account"
+        eyebrow={t('appAccount.appAccountPage.account')}
+        title={t('appAccount.appAccountPage.yourAccount')}
         description={<span className="depth-email">{data.email}</span>}
       />
 
@@ -75,9 +79,11 @@ export default async function AccountPage() {
 
         <div className="grid">
           <article className="card">
-            <p className="card-kicker">Session</p>
-            <h2 className="card-title">Signed In</h2>
-            <p className="card-body u-mb-125">Sign out of this device.</p>
+            <p className="card-kicker">{t('appAccount.appAccountPage.session')}</p>
+            <h2 className="card-title">{t('appAccount.appAccountPage.signedIn')}</h2>
+            <p className="card-body u-mb-125">
+              {t('appAccount.appAccountPage.signOutOfThisDevice')}
+            </p>
             <form
               action={async () => {
                 'use server';
@@ -85,7 +91,7 @@ export default async function AccountPage() {
               }}
             >
               <button type="submit" className="btn btn-secondary">
-                Sign Out
+                {t('appAccount.appAccountPage.signOut')}
               </button>
             </form>
           </article>
@@ -115,48 +121,50 @@ export default async function AccountPage() {
           ) : null}
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Plan</p>
-            <h2 className="card-title">Plan &amp; Usage</h2>
+            <p className="card-kicker">{t('appAccount.appAccountPage.plan')}</p>
+            <h2 className="card-title">{t('appAccount.appAccountPage.planUsage')}</h2>
             <p className="card-body u-mb-125">
-              Your plan, what it includes and how much of it you have used.
+              {t('appAccount.appAccountPage.yourPlanWhatItIncludesAnd')}
             </p>
             <Link href="/app/account/plan" className="btn btn-secondary">
-              Open Plan &amp; Usage
+              {t('appAccount.appAccountPage.openPlanUsage')}
             </Link>
           </article>
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Data Rights</p>
-            <h2 className="card-title">Privacy</h2>
+            <p className="card-kicker">{t('appAccount.appAccountPage.dataRights')}</p>
+            <h2 className="card-title">{t('appAccount.appAccountPage.privacy')}</h2>
             <p className="card-body u-mb-125">
-              Export your data, review consent history, or delete your account.
+              {t('appAccount.appAccountPage.exportYourDataReviewConsentHistory')}
             </p>
             <Link href="/app/privacy" className="btn btn-secondary">
-              Open Privacy
+              {t('appAccount.appAccountPage.openPrivacy')}
             </Link>
           </article>
 
           {showWhatsApp ? (
             <article className="card" {...atLevel('everything')}>
-              <p className="card-kicker">Optional</p>
-              <h2 className="card-title">WhatsApp</h2>
+              <p className="card-kicker">{t('appAccount.appAccountPage.optional')}</p>
+              <h2 className="card-title">{t('appAccount.appAccountPage.whatsapp')}</h2>
               <p className="card-body u-mb-125">
-                Ask about your cases from WhatsApp. You can disconnect it any time.
+                {t('appAccount.appAccountPage.askAboutYourCasesFromWhatsapp')}
               </p>
               <Link href="/app/account/whatsapp" className="btn btn-secondary">
-                Open WhatsApp Settings
+                {t('appAccount.appAccountPage.openWhatsappSettings')}
               </Link>
             </article>
           ) : null}
 
           {showRoles ? (
             <article className="card" {...atLevel('everything')}>
-              <p className="card-kicker">Roles</p>
-              <h2 className="card-title">Other Areas You Can Access</h2>
+              <p className="card-kicker">{t('appAccount.appAccountPage.roles')}</p>
+              <h2 className="card-title">
+                {t('appAccount.appAccountPage.otherAreasYouCanAccess')}
+              </h2>
               <div className="rows u-mt-050">
                 {data.hasAgencyAccess ? (
                   <Link className="row row-link" href="/app/agency">
-                    <span className="row-key">Agency Desk</span>
+                    <span className="row-key">{t('appAccount.appAccountPage.agencyDesk')}</span>
                     <span className="muted" aria-hidden="true">
                       →
                     </span>
@@ -164,7 +172,9 @@ export default async function AccountPage() {
                 ) : null}
                 {data.isAdmin ? (
                   <Link className="row row-link" href="/app/admin">
-                    <span className="row-key">Platform Administration</span>
+                    <span className="row-key">
+                      {t('appAccount.appAccountPage.platformAdministration')}
+                    </span>
                     <span className="muted" aria-hidden="true">
                       →
                     </span>
