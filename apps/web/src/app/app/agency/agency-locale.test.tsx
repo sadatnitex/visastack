@@ -309,7 +309,12 @@ describe('wording that waits for the owner sign-off stays English', () => {
     'Amount Received',
     'Cannot be accepted',
     'Sent {formatMoment}',
-    '{accepted} Accepted',
+    'Lack of this is not a readiness failure',
+    'No traveller has granted this organization access',
+    'with exactly what they chose to send',
+    'No account or profile is needed yet',
+    'can still act on but that currently have nobody assigned',
+    'Remove {memberEmail}',
   ];
   it.each(held)('has no Bengali for "%s"', (fragment) => {
     const keys = Object.keys(en).filter((key) => en[key]?.includes(fragment));

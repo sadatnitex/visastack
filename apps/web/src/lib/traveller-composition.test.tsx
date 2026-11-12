@@ -31,7 +31,7 @@ vi.mock('next/navigation', () => ({
     throw new Error('NOT_FOUND');
   },
 }));
-vi.mock('../app/app/agency/[orgId]/case-search-form', () => ({ STAGE_LABELS: { DRAFT: 'Draft' } }));
+vi.mock('../app/app/agency/[orgId]/stage-labels', () => ({ STAGE_LABELS: { DRAFT: 'Draft' } }));
 vi.mock('../app/app/applicant/[id]/profile-editor', () => ({
   ProfileEditor: () => <div id="profile-editor">Versioned editor</div>,
 }));

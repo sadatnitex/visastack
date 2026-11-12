@@ -856,14 +856,13 @@ export const appAgencyCatalog = defineCatalog({
       'আপনি আগে থেকে যা জানেন (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.whoItIsForOptional': 'কাদের জন্য (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionLinkPanel.copyLink': 'লিংক কপি করুন',
-    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.noAnswersYetAPersonWho':
-      'এখনো কোনো উত্তর আসেনি। আপনার লিংকের মাধ্যমে কেউ উত্তর দিলে - সাইন ইন করে হোক বা অ্যাকাউন্ট ছাড়াই - তিনি যা পাঠাতে বেছে নিয়েছেন ঠিক তা-সহ এখানে দেখা যাবে।',
     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisAnswerHasChangedSinceIt':
       'পাঠানোর পর এই উত্তর বদলে গেছে, সাধারণত কারণ ব্যক্তিটি তাঁর রেকর্ড থেকে একটি ডকুমেন্ট সরিয়েছেন। তাঁকে আবার উত্তর দিতে বলুন।',
     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisSubmissionNoLongerMatchesWhat':
       'এই জমা আর যা পাঠানো হয়েছিল তার সঙ্গে মিলছে না, তাই এর ডকুমেন্টগুলো দেওয়া হচ্ছে না।',
-    'appAgency.appAgencyOrgidCollectionNewPage.noAccountOrProfileIsNeeded':
-      'এখনো কোনো অ্যাকাউন্ট বা প্রোফাইলের দরকার নেই। কিছু পাঠানোর আগে আপনি চেকলিস্টটি দেখে নিতে পারবেন।',
+    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.titleVersionVersionnumber':
+      '{title}, সংস্করণ {versionNumber}',
+    'appAgency.appAgencyOrgidCollectionPage.acceptedAccepted': '{accepted}টি গ্রহণ করা হয়েছে',
     'appAgency.appAgencyOrgidCollectionPage.for': 'জন্য:',
     'appAgency.appAgencyOrgidCollectionPage.noRequestsMatchBothFiltersTurn':
       'দুটি ফিল্টারের সঙ্গে মেলে এমন কোনো অনুরোধ নেই। আরও দেখতে একটি ফিল্টার বন্ধ করুন।',
@@ -881,8 +880,11 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidDoNextList.overdueTasksOnTheCasesAssigned':
       'আপনাকে দায়িত্ব দেওয়া ভিসা ফাইলের সময় পেরিয়ে যাওয়া কাজ, যেটিতে সবচেয়ে বেশি দেরি হয়েছে সেটি আগে।',
     'appAgency.appAgencyOrgidDoNextList.owner': 'মালিক',
+    'appAgency.appAgencyOrgidDoNextList.pastDueItemsFirstThenRequests':
+      'প্রথমে শেষ তারিখ পেরিয়ে যাওয়া আইটেম, তারপর {CHASE_AFTER_DAYS} দিনের পরও উত্তর না আসা অনুরোধ, পর্যালোচনার অপেক্ষায় থাকা আইটেম, সময় পেরিয়ে যাওয়া কাজ এবং মালিকহীন ভিসা ফাইল।',
     'appAgency.appAgencyOrgidDoNextList.why': 'কেন',
     'appAgency.appAgencyOrgidEvidenceCopies.acceptedCopy': 'গ্রহণ করা কপি',
+    'appAgency.appAgencyOrgidEvidenceCopies.earlierSendsEarliercount': 'আগে পাঠানো ({earlierCount})',
     'appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted':
       'পাওয়া গেছে মানে গ্রহণ করা হয়েছে, এমন নয়।',
     'appAgency.appAgencyOrgidEvidenceCopies.thisSendHasNoExactCopy':
@@ -929,14 +931,11 @@ export const appAgencyCatalog = defineCatalog({
       'যেমন: ভিসা ইন্টারভিউ প্রস্তুতির কল',
     'appAgency.appAgencyOrgidMissionCollaboration.noAppointmentsScheduled':
       'কোনো অ্যাপয়েন্টমেন্ট নির্ধারিত নেই।',
-    'appAgency.appAgencyOrgidMissionCollaboration.noIssuerConfirmedYetLackOf':
-      'এখনো কোনো ইস্যুকারী নিশ্চিত করেননি। শুধু এটি না থাকলে প্রস্তুতিতে ঘাটতি ধরা হয় না।',
     'appAgency.appAgencyOrgidMissionCollaboration.noOpenTasks': 'কোনো খোলা কাজ নেই।',
     'appAgency.appAgencyOrgidMissionCollaboration.notes': 'নোট',
     'appAgency.appAgencyOrgidMissionCollaboration.place': 'স্থান',
     'appAgency.appAgencyOrgidMissionCollaboration.priority': 'অগ্রাধিকার',
     'appAgency.appAgencyOrgidMissionCollaboration.reasonOptional': 'কারণ (ঐচ্ছিক)',
-    'appAgency.appAgencyOrgidMissionCollaboration.removeMemberemail': '{memberEmail} সরান',
     'appAgency.appAgencyOrgidMissionCollaboration.taskDescription': 'কাজের বিবরণ',
     'appAgency.appAgencyOrgidMissionCollaboration.taskDescription9f2652': 'কাজের বিবরণ',
     'appAgency.appAgencyOrgidMissionCollaboration.tasks': 'কাজ',
@@ -944,8 +943,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidMissionCollaboration.timeZone': 'টাইম জোন',
     'appAgency.appAgencyOrgidMissionCollaboration.unassigned': 'দায়িত্বে কেউ নেই',
     'appAgency.appAgencyOrgidPage.aboutThisList': 'এই তালিকা সম্পর্কে',
-    'appAgency.appAgencyOrgidPage.activeCasesThisOrganizationCanStill':
-      'যেসব সক্রিয় ভিসা ফাইলে এই প্রতিষ্ঠান এখনো কাজ করতে পারে কিন্তু বর্তমানে কেউ দায়িত্বে নেই - সাধারণত একমাত্র দায়িত্বপ্রাপ্ত সদস্যকে সরিয়ে দেওয়ায় এমন হয়। ভিসা ফাইল অংশে গিয়ে একটি খুলে কাউকে দায়িত্ব দিন।',
     'appAgency.appAgencyOrgidPage.activeClients': 'সক্রিয় ক্লায়েন্ট',
     'appAgency.appAgencyOrgidPage.agencyOverview': 'এজেন্সির সারসংক্ষেপ',
     'appAgency.appAgencyOrgidPage.assignedCases': 'দায়িত্ব দেওয়া ভিসা ফাইল',
@@ -1003,8 +1000,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidRequestEvidenceForm.forExampleNeededForTheVisa':
       'যেমন: ভিসা ফর্মের জন্য দরকার',
     'appAgency.appAgencyOrgidRequestEvidenceForm.messageOptional': 'বার্তা (ঐচ্ছিক)',
-    'appAgency.appAgencyOrgidRequestEvidenceForm.noTravellerHasGrantedThisOrganization':
-      'এখনো কোনো ভ্রমণকারী এই প্রতিষ্ঠানকে অ্যাক্সেস দেননি। অনুরোধ করার মতো কিছু নেই।',
     'appAgency.appAgencyOrgidRequestEvidenceForm.theMessageAndTheDueDate':
       'প্রতিটি আইটেমের সঙ্গে বার্তা ও শেষ তারিখ যায়।',
     'appAgency.appAgencyOrgidRequestEvidenceForm.traveller': 'ভ্রমণকারী',

@@ -30,7 +30,7 @@ vi.mock('next/navigation', () => ({
     throw new Error('NOT_FOUND');
   },
 }));
-vi.mock('../app/app/agency/[orgId]/case-search-form', () => ({
+vi.mock('../app/app/agency/[orgId]/stage-labels', () => ({
   STAGE_LABELS: { IN_PROGRESS: 'In Progress' },
 }));
 vi.mock('./master-profile', async (importOriginal) => ({

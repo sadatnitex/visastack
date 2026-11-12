@@ -284,24 +284,32 @@ export const HOLDBACK = new Map([
     'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
   ],
   [
-    'SG-33b8fe1c',
-    'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
-  ],
-  [
-    'SG-83c7f25a',
-    'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
-  ],
-  [
-    'SG-35b9ac10',
-    'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
-  ],
-  [
-    'SG-6208b251',
-    'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
-  ],
-  [
     'SG-c87e54e8',
     'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
+  ],
+  [
+    'SG-7a475bd6',
+    'Access: says whether a traveller has granted an organization access; waits for the owner sign-off.',
+  ],
+  [
+    'SG-98b5d44d',
+    'Access: says what the organization can still act on; waits for the owner sign-off.',
+  ],
+  [
+    'SG-576d295d',
+    'Privacy promise: says what a person chose to send; waits for the owner sign-off.',
+  ],
+  [
+    'SG-c60f522e',
+    'Privacy promise: says what is needed and when anything is sent; waits for the owner sign-off.',
+  ],
+  [
+    'SG-e3b1eece',
+    'Issuer confirmation and readiness: states what is confirmed; waits for the owner sign-off.',
+  ],
+  [
+    'SG-d6e09908',
+    'Accessible name must match the visible button, which is still English here; stays English until the button is converted.',
   ],
   [
     'SG-678c621d',

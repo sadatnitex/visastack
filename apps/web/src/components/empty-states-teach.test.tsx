@@ -22,7 +22,10 @@ function stateWithTitle(source: string, title: string): string {
     .map(([key]) => key);
   const found = parts.find((part) => {
     const head = part.slice(0, part.indexOf('</EmptyState>'));
-    return head.includes(title) || keys.some((key) => head.includes(`t('${key}')`));
+    return (
+      head.includes(title) ||
+      keys.some((key) => new RegExp(`t\\(\\s*'${key.replace(/\./g, '\\.')}'`).test(head))
+    );
   });
   if (!found) throw new Error(`no empty state titled "${title}"`);
   return found.slice(0, found.indexOf('</EmptyState>'));
