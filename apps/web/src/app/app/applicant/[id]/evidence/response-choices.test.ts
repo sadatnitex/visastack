@@ -1,9 +1,11 @@
 import type { DocumentSummary } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
+import { formatDateOnly } from '../../../../../lib/format-date';
 import {
   buildDocumentChoices,
   chooseLegendId,
   clearerCopyTarget,
+  expiryDayIsExpired,
   initialChoice,
 } from './response-choices';
 
@@ -109,5 +111,85 @@ describe('what is chosen before the person chooses', () => {
 describe('the heading focus returns to', () => {
   it('is one stable id per request', () => {
     expect(chooseLegendId('r1')).toBe('choose-r1');
+  });
+});
+
+describe('the expiry note on each copy (new)', () => {
+  const NOW = new Date('2026-11-12T09:00:00Z');
+  const noted = (expiresAt: string | null) =>
+    buildDocumentChoices(
+      {
+        documents: [doc('a', { expiresAt })],
+        docType: 'BANK_STATEMENT',
+        everyday: new Set(['a']),
+        scan: new Map(),
+        timeZone: 'Asia/Dhaka',
+        sentBackDocumentId: null,
+      },
+      NOW,
+    )[0];
+
+  it('says when a copy expires, in the plain tone, when the day is still ahead', () => {
+    expect(noted('2031-03-12T00:00:00.000Z')).toMatchObject({
+      dateNote: `Expires ${formatDateOnly('2031-03-12')}`,
+      expired: false,
+    });
+  });
+
+  it('says a copy expired, in the warning tone, when the day has passed', () => {
+    expect(noted('2025-03-12T00:00:00.000Z')).toMatchObject({
+      dateNote: `Expired on ${formatDateOnly('2025-03-12')}`,
+      expired: true,
+    });
+  });
+
+  it('counts the day itself as expired, as the readiness rule does, and tomorrow as not yet', () => {
+    expect(noted('2026-11-12T00:00:00.000Z')?.expired).toBe(true);
+    expect(noted('2026-11-13T00:00:00.000Z')?.expired).toBe(false);
+  });
+
+  it('keeps no note when no expiry date is saved', () => {
+    expect(noted(null)).toMatchObject({ dateNote: null, expired: false });
+    expect(build([doc('a')])[0]).toMatchObject({ dateNote: null, expired: false });
+  });
+
+  it('words the note from the words it is given, so a catalogue can supply them', () => {
+    const [choice] = buildDocumentChoices(
+      {
+        documents: [doc('a', { expiresAt: '2031-03-12T00:00:00.000Z' })],
+        docType: 'BANK_STATEMENT',
+        everyday: new Set(['a']),
+        scan: new Map(),
+        timeZone: null,
+        sentBackDocumentId: null,
+        words: { expires: (date) => `E:${date}`, expired: (date) => `X:${date}` },
+      },
+      NOW,
+    );
+    expect(choice?.dateNote).toBe(`E:${formatDateOnly('2031-03-12')}`);
+  });
+
+  it('does not change which copy is chosen in advance', () => {
+    const only = buildDocumentChoices(
+      {
+        documents: [doc('a', { expiresAt: '2025-03-12T00:00:00.000Z' })],
+        docType: 'BANK_STATEMENT',
+        everyday: new Set(['a']),
+        scan: new Map(),
+        timeZone: null,
+        sentBackDocumentId: null,
+      },
+      NOW,
+    );
+    expect(initialChoice(only)).toBe('a');
+  });
+});
+
+describe('expiryDayIsExpired (new)', () => {
+  it('compares calendar days in UTC', () => {
+    const now = new Date('2026-11-12T23:30:00Z');
+    expect(expiryDayIsExpired('2026-11-11', now)).toBe(true);
+    expect(expiryDayIsExpired('2026-11-12', now)).toBe(true);
+    expect(expiryDayIsExpired('2026-11-13', now)).toBe(false);
   });
 });

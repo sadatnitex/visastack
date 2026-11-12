@@ -104,6 +104,7 @@ vi.mock('../app/app/applicant/[id]/documents/add/actions', standIn);
 vi.mock('../app/app/applicant/[id]/documents/manage/copy/actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
+vi.mock('../app/app/applicant/[id]/evidence/answer/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/actions', standIn);
 vi.mock('../components/grant-expiry/extend-grant-action', standIn);
@@ -208,6 +209,7 @@ const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
 );
 const { AskAboutItemForm } = await import('../app/app/applicant/[id]/evidence/ask-about-item-form');
+const { AnswerSetForm } = await import('../app/app/applicant/[id]/evidence/answer/answer-set-form');
 const { CreateMissionForm } = await import(
   '../app/app/applicant/[id]/missions/create-mission-form'
 );
@@ -853,6 +855,138 @@ const DOCS: readonly Case[] = [
         candidateFacts={[]}
         documentChoices={[]}
         idempotencyKey="a11y-retry-key-0004"
+      />
+    ),
+  },
+  {
+    name: 'answer everything one agency waits for, from saved records',
+    element: () => (
+      <AnswerSetForm
+        applicantId="a1"
+        organizationId="org-1"
+        agencyName="TEST Agency Unrelated"
+        confirmationKey="a11y-confirm-key-000001"
+        timeZone="Asia/Dhaka"
+        review={{
+          ready: [
+            {
+              requestId: 'q1',
+              name: 'Document: Passport',
+              referenceCode: 'R-7K2Q9M',
+              optional: false,
+              readiness: 'READY',
+              copies: [
+                {
+                  documentId: 'd1',
+                  versionId: 'v1',
+                  name: 'Passport.pdf',
+                  versionNumber: 1,
+                  addedLabel: '12 Nov 2026, 10:00 GMT+6',
+                  expiresLabel: '12 Mar 2031',
+                  documentDateLabel: null,
+                  acceptedBefore: { byAgency: 'TEST Agency North' },
+                  uncertainty: null,
+                },
+              ],
+            },
+          ],
+          choose: [
+            {
+              requestId: 'q2',
+              name: 'Document: Photo',
+              referenceCode: null,
+              optional: true,
+              readiness: 'CHOOSE',
+              copies: [
+                {
+                  documentId: 'd2',
+                  versionId: 'v2',
+                  name: 'Photo one.jpg',
+                  versionNumber: 1,
+                  addedLabel: '12 Nov 2026, 10:05 GMT+6',
+                  expiresLabel: null,
+                  documentDateLabel: null,
+                  acceptedBefore: null,
+                  uncertainty: null,
+                },
+                {
+                  documentId: 'd3',
+                  versionId: 'v3',
+                  name: 'Photo two.jpg',
+                  versionNumber: 2,
+                  addedLabel: '12 Nov 2026, 10:06 GMT+6',
+                  expiresLabel: null,
+                  documentDateLabel: null,
+                  acceptedBefore: null,
+                  uncertainty: null,
+                },
+              ],
+            },
+            {
+              requestId: 'q3',
+              name: 'Document: Utility Bill',
+              referenceCode: null,
+              optional: false,
+              readiness: 'CHECK_DATE',
+              copies: [
+                {
+                  documentId: 'd4',
+                  versionId: 'v4',
+                  name: 'Bill.pdf',
+                  versionNumber: 1,
+                  addedLabel: '12 Nov 2026, 10:07 GMT+6',
+                  expiresLabel: null,
+                  documentDateLabel: null,
+                  acceptedBefore: null,
+                  uncertainty: { kind: 'age', days: 90 },
+                },
+              ],
+            },
+          ],
+          other: [
+            {
+              requestId: 'q4',
+              name: 'Document: Employment Letter',
+              referenceCode: null,
+              optional: false,
+              readiness: 'MISSING',
+              copies: [],
+            },
+            {
+              requestId: 'q5',
+              name: 'Detail: Passport Number',
+              referenceCode: null,
+              optional: false,
+              readiness: 'OWN_STEP',
+              copies: [],
+            },
+          ],
+        }}
+      />
+    ),
+  },
+  {
+    name: 'answer from saved records with only requests that are not part of the step',
+    element: () => (
+      <AnswerSetForm
+        applicantId="a1"
+        organizationId="org-1"
+        agencyName="TEST Agency Unrelated"
+        confirmationKey="a11y-confirm-key-000002"
+        review={{
+          ready: [],
+          choose: [],
+          other: [
+            {
+              requestId: 'q6',
+              name: 'Document: National Id',
+              referenceCode: null,
+              optional: false,
+              readiness: 'OUTDATED',
+              copies: [],
+            },
+          ],
+        }}
       />
     ),
   },

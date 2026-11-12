@@ -5,10 +5,11 @@ import {
   listDocumentsDetailed,
   listEvidenceRequestsForApplicant,
   listRequestItemExtras,
+  listWaitingAgencies,
   referenceCodesFor,
   requireAccess,
 } from '@visastack/services';
-import type { RequestItemExtras } from '@visastack/services';
+import type { RequestItemExtras, WaitingAgency } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DepthScope, atLevel } from '../../../../../components/depth';
@@ -29,6 +30,7 @@ import {
   parseShow,
 } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { AnswerFromRecordsCard } from './answer-from-records-card';
 import { choiceBasisFor } from './choice-basis';
 import { AWAITING_SUBMISSION } from './due-label';
 import { OpenRequestFromHash } from './open-request-from-hash';
@@ -51,6 +53,28 @@ const REQUEST_NOUN = { one: 'request', other: 'requests' } as const;
 const ITEM_KEY = 'item';
 /** `done=answered` with `item=<request>` draws the receipt for that request after an answer (F2). */
 const DONE_KEY = 'done';
+
+/** The agencies with a request waiting on the person, or none when they cannot be read. */
+async function readWaitingAgencies(
+  db: Parameters<typeof getApplicant>[0],
+  accountId: string,
+  applicantId: string,
+): Promise<readonly WaitingAgency[]> {
+  try {
+    const manage = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { applicantId },
+      { purpose: 'self' },
+    );
+    if (!manage.ok) return [];
+    const waiting = await listWaitingAgencies(manage.value);
+    return waiting.ok ? waiting.value : [];
+  } catch {
+    return [];
+  }
+}
 
 export default async function EvidencePage({
   params,
@@ -123,8 +147,13 @@ export default async function EvidencePage({
         ),
       ),
     });
+    // Who is waiting, for the card above the list and the "Asked by" line in each request. It needs
+    // the owner's full proof; if that cannot be had, or the read fails, the page simply shows
+    // neither: a card that cannot be drawn must never take the requests down with it.
+    const waitingAgencies = await readWaitingAgencies(db, accountId, id);
     const histories = await historiesRead;
     return {
+      waitingAgencies,
       applicant,
       referenceCodes,
       requests: requestList,
@@ -155,6 +184,8 @@ export default async function EvidencePage({
   const requestsNext = data.moreRequests
     ? nextShow(data.requests.length, { step: TRAVELLER_LIST_STEP, max: REQUEST_SHOW_MAX })
     : null;
+  // The card appears only for an agency that waits on a document: the one thing it can answer.
+  const answerable = data.waitingAgencies.filter((agency) => agency.documents >= 1);
   const timeZone = data.applicant.timezone;
   const depth = await readDepth('evidence-requests');
   const entries: RequestEntry[] = sorted.map((req) => ({
@@ -208,6 +239,11 @@ export default async function EvidencePage({
     extras: data.extras,
     choiceBasis: data.choiceBasis,
     histories: data.histories,
+    askingAgencies: new Map(
+      data.waitingAgencies.map(
+        (agency) => [agency.organizationId, agency.organizationName] as const,
+      ),
+    ),
     ...(answeredId ? { answeredId } : {}),
   });
 
@@ -251,6 +287,10 @@ export default async function EvidencePage({
               }
             />
           </div>
+        ) : null}
+
+        {answerable.length > 0 ? (
+          <AnswerFromRecordsCard applicantId={id} agencies={answerable} />
         ) : null}
 
         {!data.requestsRead ? (
