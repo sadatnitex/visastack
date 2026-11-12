@@ -58,10 +58,9 @@ afterEach(() => {
 describe('the document collection flow under Bengali', () => {
   it('shows Bengali digits and words on every state of the phone summary', async () => {
     const open = await bar('bn', 3, 2, 0);
-    // Numbers go in raw; the runtime formats them by the language the message resolves to. Until
-    // the number-formatting runtime change lands the digit is Latin, after it Bengali: tighten
-    // this to /২টি/ then.
-    expect(open).toMatch(/[2২]টি বাধ্যতামূলক বাকি/);
+    // Numbers go in raw; the runtime formats them by the language the message resolves to, so a
+    // Bengali message shows Bengali digits.
+    expect(open).toContain('২টি বাধ্যতামূলক বাকি');
     expect(open).not.toContain('2 mandatory open');
     expect(await bar('bn', 3, 0, 0)).toContain(
       bn['collect.collectGuestProgress.allMandatoryPlaced'],
