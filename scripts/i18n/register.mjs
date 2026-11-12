@@ -23,6 +23,8 @@ import { readIfExists } from './catalog.mjs';
  * only on that sign-off.
  */
 export const HOLDBACK = new Map([
+  ['SG-066180d4', 'english word inside bengali sentence'],
+  ['SG-103526c4', 'english word inside bengali sentence'],
   [
     'SG-c67c0fbc',
     "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
