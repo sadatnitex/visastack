@@ -26,6 +26,7 @@ R = {
  'grant.status.paused': ('HIGH','WRONG_TERM','"বিরত" means abstained or refrained, not paused.','স্থগিত'),
  'grant.pending': ('HIGH','AMBIGUOUS','Reads as "{recipient} is waiting to receive". English: waiting for {recipient} to accept.','{recipient}-এর গ্রহণের অপেক্ষায়।'),
  'document.quarantined': ('LOW','TERMINOLOGY_INCONSISTENT','Uses "নথি" while the glossary and neighbouring corrected rows use ডকুমেন্ট; one screen would show both words.','এই ডকুমেন্ট চিহ্নিত করা হয়েছে এবং আপনার মনোযোগ দরকার।'),
+ 'mission.readiness.manualOnly': ('LOW','OWNER_DECISION_TERM','Correct meaning. The owner chose ফাইল for "case" on 2026-11-12, so কেস changes.','এই ফাইলটি স্বয়ংক্রিয়ভাবে মূল্যায়ন করা হয় না।'),
  'consent.ai.title': ('MEDIUM','TERMINOLOGY','"নিষ্কাশন" is a technical Sanskritised word with a drainage sense. Plain wording: AI reading information from a document.','ডকুমেন্ট থেকে এআই-এর তথ্য পড়ার সম্মতি'),
  'consent.ocr.title': ('LOW','TERMINOLOGY','"ওসিআর" is jargon. Keep only if the English keeps OCR.','এআই দিয়ে লেখা পড়ার সম্মতি (ওসিআর)'),
  'consent.issuerContact.title': ('LOW','TERMINOLOGY','Reads as a contact between issuers. Clearer: consent to contact the issuing body.','ইস্যুকারী প্রতিষ্ঠানের সঙ্গে যোগাযোগের সম্মতি'),

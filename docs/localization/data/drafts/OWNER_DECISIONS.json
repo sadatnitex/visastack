@@ -1,0 +1,19 @@
+{
+  "decided_on": "2026-11-12",
+  "decided_by": "owner",
+  "decisions": {
+    "case_term": {
+      "english": "case",
+      "bn": "ফাইল",
+      "replaces": "কেস",
+      "note": "Uploaded files are also called ফাইল. Strings that contain both ideas are listed in data/CASE_FILE_COLLISION_REVIEW.csv for the editor."
+    },
+    "digits_in_prose": "bengali",
+    "digits_note": "Prose numbers use Bengali digits. Identifiers the person types or reads back (passport number, document number, codes, email addresses) keep their original characters. Runtime counts, dates, times and amounts use the bn-BD locale formatter, which gives Bengali digits and lakh grouping by default.",
+    "editor": "owner",
+    "legal_reviewer": "owner",
+    "legal_reviewer_note": "Recorded as the owner's own decision. The brief says an owner as editor is not a substitute for a qualified legal reviewer where one is needed; the owner has chosen to act as both. Nothing has been reviewed yet.",
+    "first_language": "bn-BD",
+    "first_language_note": "Bengali ships first. ar, fr, de, es and zh-Hans remain not started and are not justified until the owner names another launch locale."
+  }
+}

@@ -77,14 +77,14 @@ T112,Guardian,অভিভাবক,people,অভিভাবক,,,VISASTACK_REC
 T113,Minor,অপ্রাপ্তবয়স্ক,people,অপ্রাপ্তবয়স্ক,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T114,Agency,এজেন্সি,people,এজেন্সি,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T115,Team member,টিমের সদস্য,people,সদস্য,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
-T116,Case manager,কেস ম্যানেজার,people,ম্যানেজার,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
+T116,Case manager,ফাইল ম্যানেজার,people,ম্যানেজার,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T117,Client,ক্লায়েন্ট,people,ক্লায়েন্ট,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T118,Guest,অতিথি,people,অতিথি,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T119,Contributor,সহযোগী,people,সহযোগী,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T120,Profile,প্রোফাইল,objects,প্রোফাইল,,Proposed wording differs from the attested variants listed; editor to choose.,VISASTACK_RECOMMENDED,"Firefox bn (related strings; same intent word, not always same meaning): নতুন প্রোফাইল [browser/browser/appmenu:appmenu-create-profile.label] | প্রোফাইল সম্পাদনা করুন [browser/browser/appmenu:appmenu-edit-profile.aria-label] | প্রোফাইলের ছবি পরিবর্তন করুন [browser/browser/preferences/preferences:sync-profile-picture-with-alt.tooltiptext +1 more]",UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T121,Document,ডকুমেন্ট,objects,ডকুমেন্ট,দলিল,Everyday word in Bangladesh. 'দলিল' means a deed and must not be used.,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T122,Document wallet,ডকুমেন্ট ওয়ালেট,objects,ওয়ালেট,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
-T123,Case,কেস,objects,কেস,,Open decision: the owner picks between 'কেস' and 'ফাইল' after reviewer feedback. 'Case' is a VisaStack word for one visa preparation.,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
+T123,Case,ফাইল,objects,ফাইল,,Owner decision 2026-11-12. 'Case' is a VisaStack word for one visa preparation. Uploaded files are also ফাইল: see data/CASE_FILE_COLLISION_REVIEW.csv.,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T124,Checklist,চেকলিস্ট,objects,চেকলিস্ট,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T125,Appointment,অ্যাপয়েন্টমেন্ট,objects,অ্যাপয়েন্টমেন্ট,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE
 T126,Reminder,রিমাইন্ডার,objects,রিমাইন্ডার,,,VISASTACK_RECOMMENDED,,UNREVIEWED,DRAFT_NOT_FOR_RELEASE

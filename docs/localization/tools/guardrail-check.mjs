@@ -87,7 +87,6 @@ const CLAIMS = [
 const BANNED_BN = [
   [/দলিল/, '"দলিল" means a deed; the word for document is ডকুমেন্ট'],
   [/নাবালক|নাবালিকা/, 'Gendered word for a minor; use অপ্রাপ্তবয়স্ক'],
-  [/[০-৯]/, 'Bengali digits are not used in drafts (identifiers must keep their shape)'],
   [/\u2014/, 'Em dash character'],
 ];
 
@@ -169,6 +168,16 @@ export function check(enIn, bnIn) {
   // 4. banned wording
   for (const [re, why] of BANNED_BN)
     if (re.test(bn)) f.push({ rule: 'BANNED_WORDING', detail: why });
+  // Owner decision 2026-11-12: Bengali digits in prose. Latin digits are allowed only inside placeholders, tags and code-like tokens.
+  const prose = bn.replace(
+    /\{[^}]*\}|<[^>]*>|[A-Za-z][\w./-]*[0-9][\w./-]*|[0-9][\w./-]*[A-Za-z][\w./-]*/g,
+    ' ',
+  );
+  if (/[0-9]/.test(prose))
+    f.push({
+      rule: 'WARN_LATIN_DIGITS',
+      detail: 'Latin digits in prose; owner decision is Bengali digits',
+    });
   // 5. narrow controls
   const short = en.length <= 24;
   if (short && bn.length > Math.max(14, en.length * 2.4))

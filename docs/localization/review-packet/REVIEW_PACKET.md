@@ -51,14 +51,14 @@ Measured: bn draft swapped 142 of 161 text runs (88%). Sideways overflow in pixe
 |---|---|---|---|
 | Test version. Made-up details only. | পরীক্ষামূলক রূপ। শুধু বানানো তথ্য। | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
 | Invite-Only Pilot | শুধু আমন্ত্রিতদের জন্য পাইলট | G5_share_lifecycle | GLOSSARY_TERM_MISSING: "Invite" needs আমন্ত্রণ (T068) |
-| One personal record. Separate cases. Explicit sharing. | একটি ব্যক্তিগত রেকর্ড। আলাদা আলাদা কেস। স্পষ্ট শেয়ারিং। | G8_data_action | PASS |
+| One personal record. Separate cases. Explicit sharing. | একটি ব্যক্তিগত রেকর্ড। আলাদা আলাদা ফাইল। স্পষ্ট শেয়ারিং। | G8_data_action | PASS |
 | Ready for |  | G1_state_word | no draft |
 | Sharing | শেয়ারিং | G8_data_action | PASS |
-| Current record · Version 2 | বর্তমান রেকর্ড · কপি 2 | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
+| Current record · Version 2 | বর্তমান রেকর্ড · কপি ২ | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
 | Newer copy requested | আরও নতুন কপি চাওয়া হয়েছে | G6_copy_version | PASS |
 | ◯ Sharing | ◯ শেয়ারিং | G8_data_action | PASS |
 | Previous Version Kept | আগের কপি রাখা হয়েছে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
-| Access Ends 30 November | 30 নভেম্বর অ্যাক্সেস শেষ হবে | G5_share_lifecycle | PASS |
+| Access Ends 30 November | ৩০ নভেম্বর অ্যাক্সেস শেষ হবে | G5_share_lifecycle | PASS |
 
 ### Screen: public__trust
 
@@ -470,7 +470,7 @@ Measured: bn draft swapped 477 of 681 text runs (70%). Sideways overflow in pixe
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| You have not confirmed this case yet | আপনি এখনো এই কেস নিশ্চিত করেননি | G1_state_word | PASS |
+| You have not confirmed this case yet | আপনি এখনো এই ফাইল নিশ্চিত করেননি | G1_state_word | PASS |
 | Some required items are missing, out of date or do not match. | কিছু আবশ্যক আইটেম অনুপস্থিত, পুরোনো বা মিলছে না। | G3_requirement_level | PASS |
 | Not Applicable | প্রযোজ্য নয় | G3_requirement_level | PASS |
 | Optional Not Provided | ঐচ্ছিক, দেওয়া হয়নি | G3_requirement_level | PASS |
@@ -761,8 +761,8 @@ Measured: bn draft swapped 143 of 170 text runs (84%). Sideways overflow in pixe
 | Ready for Review | পর্যালোচনার জন্য প্রস্তুত | G1_state_word | PASS |
 | Ready to Export | এক্সপোর্টের জন্য প্রস্তুত | G1_state_word, G8_data_action | PASS |
 | Destination | গন্তব্য | G7_country_role | PASS |
-| No cases are reachable yet - a traveller must grant this organization access to a specific case. | পৌঁছানো যায় এমন কোনো কেস এখনো নেই - কোনো ভ্রমণকারীকে নির্দিষ্ট একটি কেসে এই প্রতিষ্ঠানকে অ্যাক্সেস দিতে হবে। | G4_who_is_asking | PASS |
-| Once a client accepts, their cases appear here with how many checklist items are ready. | ক্লায়েন্ট গ্রহণ করলে তাঁদের কেস এখানে দেখা যাবে, সঙ্গে চেকলিস্টের কয়টি আইটেম প্রস্তুত তা-ও থাকবে। | G1_state_word | PASS |
+| No cases are reachable yet - a traveller must grant this organization access to a specific case. | পৌঁছানো যায় এমন কোনো ফাইল এখনো নেই - কোনো ভ্রমণকারীকে নির্দিষ্ট একটি ফাইলে এই প্রতিষ্ঠানকে অ্যাক্সেস দিতে হবে। | G4_who_is_asking | PASS |
+| Once a client accepts, their cases appear here with how many checklist items are ready. | ক্লায়েন্ট গ্রহণ করলে তাঁদের ফাইল এখানে দেখা যাবে, সঙ্গে চেকলিস্টের কয়টি আইটেম প্রস্তুত তা-ও থাকবে। | G1_state_word | PASS |
 | About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
 
 Human review sign-off (to be completed by the editor and, for legal wording, a qualified reviewer):
@@ -812,7 +812,7 @@ Measured: bn draft swapped 107 of 205 text runs (52%). Sideways overflow in pixe
 | English on screen | bn-BD draft | Guardrail tags | Automated check |
 |---|---|---|---|
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
-| Assign a team member and leave case notes on any case this organization has a grant for. | যে কেসে এই প্রতিষ্ঠানের অ্যাক্সেস-অনুমতি আছে, সেখানে টিমের একজন সদস্যকে দায়িত্ব দিন এবং কেসের নোট রাখুন। | G4_who_is_asking | PASS |
+| Assign a team member and leave case notes on any case this organization has a grant for. | যে ফাইলে এই প্রতিষ্ঠানের অ্যাক্সেস-অনুমতি আছে, সেখানে টিমের একজন সদস্যকে দায়িত্ব দিন এবং ফাইলের নোট রাখুন। | G4_who_is_asking | PASS |
 | About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |
@@ -1020,7 +1020,7 @@ Measured: bn draft swapped 66 of 98 text runs (67%). Sideways overflow in pixels
 | Sharing | শেয়ারিং | G8_data_action | PASS |
 | Sharing follows your saved permissions. | শেয়ারিং আপনার সংরক্ষিত অনুমতি অনুসারে চলে। | G1_state_word, G8_data_action | PASS |
 | Removal Records | সরানোর রেকর্ড | G8_data_action | PASS |
-| Removed from VisaStack. Backup copies expire within 90 days and are never brought back. | VisaStack থেকে সরানো হয়েছে। ব্যাকআপ কপির মেয়াদ 90 দিনের মধ্যে শেষ হয়ে যায় এবং সেগুলো কখনো ফিরিয়ে আনা হয় না। | G5_share_lifecycle, G9_claim_strength | PASS |
+| Removed from VisaStack. Backup copies expire within 90 days and are never brought back. | VisaStack থেকে সরানো হয়েছে। ব্যাকআপ কপির মেয়াদ ৯০ দিনের মধ্যে শেষ হয়ে যায় এবং সেগুলো কখনো ফিরিয়ে আনা হয় না। | G5_share_lifecycle, G9_claim_strength | PASS |
 | About This Version | এই কপি সম্পর্কে | G6_copy_version | VERSION_CONCEPT_REVIEW: English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm |
 | Skip to Content | মূল বিষয়বস্তুতে যান |  | PASS |
 | VisaStack |  |  |  |

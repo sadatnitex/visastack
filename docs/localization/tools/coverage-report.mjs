@@ -533,6 +533,10 @@ add(
   `${evText.length} evidence rows. Product-attested rows are Firefox string files only (\`OFFICIAL_STRING_RESOURCE\`): ${evCount.attested}, of which ${evCount.bnBD} are locale \`bn-BD\` and ${evCount.bnGeneric} are generic \`bn\`. Every one was re-fetched and its Bengali text found in the source file. There are no \`DIRECT_SCREEN\` or \`BILINGUAL_OFFICIAL_PAGE\` rows: Google Bengali pages were read by the research helper but could not be reproduced on re-check, so those rows are downgraded to \`UNVERIFIED\`. Facebook, bKash, myGov, e-Passport, Pathao and the Microsoft terminology search were unreachable from this environment (blocked or no usable page), so they are \`UNVERIFIED\` or \`CONTEXTUAL_ANALOGY\` with the reason recorded. No Bangladeshi government, bank or ride app is attested. Glossary terms marked \`OFFICIAL_STRING_RESOURCE\` are only those whose exact proposed form appears in the evidence.`,
   '',
 );
+add(
+  'Owner decisions applied (2026-11-12, `data/drafts/OWNER_DECISIONS.json`): Bengali first; case is ফাইল; Bengali digits in prose; the owner is editor and legal reviewer.',
+  '',
+);
 add('## 10. Independent review and what was done about it', '');
 add(
   'A separate session re-checked the census, the report and the drafts (`data/INDEPENDENT_REVIEW.md`, rows in `data/independent-review-sample.csv`). Actions taken are in `data/REVIEW_RESPONSE.md`. Headline: census precision 92.5 percent on its sample; drafts 110 OK, 5 minor, 5 error of 120. Its five most serious findings and their status: (1) about 900 service error messages were missing from the census: now extracted as `ERROR_CALL` rows; (2) this report was stale: regenerated, with counts computed by script; (3) the no-version rule was applied to real versions: the checker now flags dropped versions for an editor and bans version words only where English means a copy, and the five error drafts were corrected in `data/drafts/bn-BD.corrections.jsonl`; (4) no qualified reviewer is assigned: still open, queue in `data/QUALIFIED_REVIEW_QUEUE.csv`; (5) platform evidence was overclaimed: wording corrected above.',
@@ -559,11 +563,17 @@ add(
         'Platform evidence from Bangladeshi products',
         'Not met: unreachable from this environment; needs network access or a person with the products',
       ],
-      ['Qualified legal review', 'Not started: no reviewer exists; queue prepared'],
-      ['Human editor review of any Bengali', 'Not started: every draft is DRAFT_NOT_FOR_RELEASE'],
+      [
+        'Qualified legal review',
+        'Owner assigned self as legal reviewer (2026-11-12); not a claim of legal qualification; not started; queue prepared',
+      ],
+      [
+        'Human editor review of any Bengali',
+        'Owner assigned as editor (2026-11-12); not started: every draft is DRAFT_NOT_FOR_RELEASE',
+      ],
       [
         'ar, fr, de, es, zh-Hans',
-        'Research notes only, by design; no drafts until the owner picks a launch locale',
+        'Research notes only, by design. Bengali ships first by owner decision; no other draft until another launch locale is named',
       ],
       [
         'Research kit (workbook with 189 terms, 54 phrases, 46 keys, and three CSV files)',

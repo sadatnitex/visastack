@@ -74,7 +74,8 @@ A draft with any of these must not be released. Each has an automated check wher
 - Documents are ডকুমেন্ট (never দলিল, which means a deed). Files, upload, download, account, profile, password keep the common loanword forms.
 - Sign in is সাইন ইন (Firefox and Google Bengali use it; see the platform evidence file). Create account is অ্যাকাউন্ট তৈরি করুন.
 - Blame free errors: "কিছু একটা সমস্যা হয়েছে". Google Bengali uses "কিছু ভুল হয়েছে"; the editor may keep that, but never "আপনি ভুল করেছেন".
-- Digits: Latin digits 0-9 in drafts, so passport and document numbers keep their shape. Whether to show Bengali digits in prose is an owner decision.
+- Digits (owner decision 2026-11-12): Bengali digits in prose. Identifiers a person types or reads back (passport number, document number, codes, email addresses) keep their original characters. Counts, dates, times and amounts come from the bn-BD locale formatter, which gives Bengali digits and lakh grouping by default. The checker warns on Latin digits in prose (`WARN_LATIN_DIGITS`).
+- The word for a case (owner decision 2026-11-12) is ফাইল. Uploaded files are also ফাইল. Where one sentence holds both ideas, keep the case as ফাইল and call the upload ডকুমেন্ট or আপলোড করা ফাইল; such strings are listed in `data/CASE_FILE_COLLISION_REVIEW.csv`.
 - Sentence end: the danda "।". No letter-spacing, no forced capitals, no italic or faux bold. Allow line height of at least 1.6 for Bengali matras and conjuncts, and never cut text inside a conjunct.
 - The English display rule of Title Case Terms and sentence case sentences does not apply to Bengali (no letter case); the product's title-casing function must be skipped for Bengali.
 
@@ -87,7 +88,7 @@ A draft with any of these must not be released. Each has an automated check wher
 
 ## 6. Review standards
 
-- Legal, consent, privacy, terms, billing and official-rule text (register column `qualified_review_required`) needs a qualified reviewer. A model draft and the account owner's editorial approval are not a substitute.
+- Reviewers (owner decision 2026-11-12): the owner is both editor and legal reviewer. Legal, consent, privacy, terms, billing and official-rule text (register column `qualified_review_required`) is flagged because the brief asks for a qualified reviewer where one is needed; an owner as editor is not by itself a substitute. The decision is recorded as the owner's own, nothing has been reviewed yet, and the owner should sign legal text off explicitly knowing that.
 - Drafts are `DRAFT_NOT_FOR_RELEASE`. A string becomes releasable only after: editor sign-off, automated checks passing, review of the string in context on a screenshot at phone width, and screen reader name check. Nothing is released by this work.
 
 ## 7. Locale research notes (not drafts)
@@ -96,7 +97,7 @@ These notes are for the owner's later launch decision. No translation into these
 
 | Locale | Direction and script | Plural categories (CLDR) | Politeness and gender | Typography and layout | Numbers and dates |
 |---|---|---|---|---|---|
-| bn-BD | LTR, Bengali | one, other | আপনি; gender neutral | Noto Sans Bengali; line height 1.6+; no italics; text is about 10 to 25 percent longer than English | Gregorian; Bengali digits or Latin (decide); lakh grouping 12,34,567; BDT ৳ |
+| bn-BD | LTR, Bengali | one, other (0 and 1 are both `one`) | আপনি; gender neutral | Noto Sans Bengali; line height 1.6+; no italics; text is about 10 to 25 percent longer than English | Gregorian; Bengali digits (owner decision); lakh grouping; BDT ৳. Verified on this machine's ICU: `1234567.5` formats as `১২,৩৪,৫৬৭.৫`, `25000 BDT` as `২৫,০০০.০০৳`, a date as `১২ নভেম্বর, ২০২৬` |
 | ar | RTL, Arabic | zero, one, two, few, many, other | Formal standard Arabic; gender agreement affects verbs and adjectives, so use neutral phrasing | Mirror layout and directional icons; isolate Latin runs; no letter-spacing; Arabic punctuation ، ؟ | Digits depend on region (Latin common in the Gulf and Maghreb; Arabic-Indic in others); decide per market |
 | fr | LTR | one (0 and 1), many (millions), other | "vous"; gender agreement (prêt/prête) so use neutral wording | Narrow no-break space before ; : ? ! and inside « »; text about 15 to 20 percent longer | 1 234,56 with narrow no-break space; dd/MM/yyyy |
 | de | LTR | one, other | "Sie"; avoid gender stars; use neutral nouns | Long compounds need hyphenation rules and wider buttons (about 30 percent longer); all nouns capitalised | 1.234,56; dd.MM.yyyy |

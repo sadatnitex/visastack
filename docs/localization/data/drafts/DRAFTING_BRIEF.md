@@ -1,5 +1,7 @@
 # Drafting brief: bn-BD proposals for the VisaStack interface
 
+> SUPERSEDED IN PART by `OWNER_DECISIONS.json` (2026-11-12): the case word is ফাইল (this brief says কেস) and prose digits are Bengali (this brief says Latin). The register applies both automatically; the drafts in this folder were written under the older rules and are not rewritten.
+
 You draft proposed Bangladesh Bengali (bn-BD) wording for English interface strings. English is canonical. Your drafts are proposals for a human editor; they are never released automatically.
 
 ## Files

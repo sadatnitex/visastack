@@ -39,6 +39,22 @@ for (const f of fs
     }
   }
 }
+const decisions = JSON.parse(
+  fs.readFileSync(path.join(draftDir, 'OWNER_DECISIONS.json'), 'utf8'),
+).decisions;
+const BN_DIGITS = '০১২৩৪৫৬৭৮৯';
+const KEEP_TOKEN =
+  /(\{[^}]*\}|<[^>]*>|[A-Za-z][\w./-]*[0-9][\w./-]*|[0-9][\w./-]*[A-Za-z][\w./-]*)/;
+/** Owner decisions 2026-11-12: the case word is ফাইল; prose digits are Bengali (codes, placeholders and tags are left alone). */
+function applyOwnerDecisions(text) {
+  let out = text.split(decisions.case_term.replaces).join(decisions.case_term.bn);
+  if (decisions.digits_in_prose === 'bengali')
+    out = out
+      .split(KEEP_TOKEN)
+      .map((part, i) => (i % 2 ? part : part.replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)])))
+      .join('');
+  return out;
+}
 const glossary = loadGlossary();
 const glossHits = (en) =>
   glossary
@@ -112,7 +128,9 @@ const COLS = [
   'glossary_terms',
   'provenance',
   'qualified_review_required',
+  'assigned_reviewer',
   'human_reviewer',
+  'review_state',
   'release_state',
   'other_locales',
 ];
@@ -132,6 +150,7 @@ const stats = {
   ownerDecision: 0,
 };
 const flaggedList = [];
+const collisions = [];
 const queue = [];
 stats.qualified = { total: 0, drafted: 0 };
 stats.versionReview = 0;
@@ -149,7 +168,7 @@ for (const g of [...groups.values()].sort(
   let note = '';
   let prov = 'NOT_DRAFTED';
   if (d?.bn) {
-    bn = d.bn;
+    bn = applyOwnerDecisions(d.bn);
     conf = d.conf ?? '';
     note = d.note ?? '';
     const all = check(g.english, bn);
@@ -160,7 +179,7 @@ for (const g of [...groups.values()].sort(
       : warn.length
         ? `PASS (${warn.map((x) => x.rule).join(',')})`
         : 'PASS';
-    prov = `VISASTACK_RECOMMENDED (model draft, batch ${d.part}); glossary-guided`;
+    prov = `VISASTACK_RECOMMENDED (model draft, batch ${d.part}); glossary-guided; owner decisions applied (case=ফাইল, Bengali digits)`;
     stats.drafted++;
     stats.byConf[conf] = (stats.byConf[conf] ?? 0) + 1;
     if (f.length) {
@@ -178,11 +197,32 @@ for (const g of [...groups.values()].sort(
     g.rc !== 'STANDARD_UI' || /LEGAL_REVIEW|OFFICIAL_RULE|BILLING_REVIEW/.test(note)
       ? `YES (${g.rc !== 'STANDARD_UI' ? g.rc : note})`
       : '';
+  if (bn && /\bcases?\b/i.test(g.english) && /\b(files?|uploads?|uploaded)\b/i.test(g.english))
+    collisions.push(
+      [
+        g.sg,
+        g.english,
+        bn,
+        'English has both case and file; Bengali uses ফাইল for both. Editor: keep the case as ফাইল and call the upload ডকুমেন্ট or আপলোড করা ফাইল',
+      ]
+        .map(q)
+        .join(','),
+    );
   if (legal) {
     stats.qualified.total++;
     if (bn) stats.qualified.drafted++;
     queue.push(
-      [g.sg, g.rc, g.domain, g.english, bn, checks, 'REVIEWER_NOT_ASSIGNED'].map(q).join(','),
+      [
+        g.sg,
+        g.rc,
+        g.domain,
+        g.english,
+        bn,
+        checks,
+        'OWNER_ASSIGNED_BY_OWNER_DECISION (not asserted to be a qualified legal reviewer; nothing reviewed yet)',
+      ]
+        .map(q)
+        .join(','),
     );
   }
   if (checks.includes('VERSION_CONCEPT_REVIEW')) stats.versionReview++;
@@ -209,15 +249,22 @@ for (const g of [...groups.values()].sort(
       glossHits(g.english).join(' '),
       prov,
       legal,
+      bn ? 'owner (decision 2026-11-12)' : '',
       '',
+      bn ? 'ASSIGNED_NOT_REVIEWED' : '',
       'DRAFT_NOT_FOR_RELEASE',
-      'ar fr de es zh-Hans: NOT_STARTED (not justified until the owner decides a launch locale)',
+      'ar fr de es zh-Hans: NOT_STARTED (Bengali ships first by owner decision; no other locale is justified until the owner names one)',
     ]
       .map(q)
       .join(','),
   );
 }
 fs.writeFileSync(path.join(LOC, 'VISASTACK_TRANSLATION_REGISTER.csv'), `${out.join('\n')}\n`);
+fs.writeFileSync(
+  path.join(LOC, 'data/CASE_FILE_COLLISION_REVIEW.csv'),
+  `${['semantic_group,english,bn_BD_draft,note', ...collisions].join('\n')}\n`,
+);
+stats.caseFileCollisions = collisions.length;
 fs.writeFileSync(
   path.join(LOC, 'data/QUALIFIED_REVIEW_QUEUE.csv'),
   `${['semantic_group,review_class,domain,english,bn_BD_draft,automated_checks,reviewer_state', ...queue].join('\n')}\n`,

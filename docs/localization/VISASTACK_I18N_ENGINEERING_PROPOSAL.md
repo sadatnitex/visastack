@@ -86,12 +86,20 @@ Evidence base: `VISASTACK_COVERAGE_REPORT.md` (counts and gaps), `VISASTACK_UI_S
 | Emails and PDF | medium | Font embedding and template restructuring |
 | Staff screens | optional | Low value |
 
-## 8. Decisions the owner must make
+## 8. Decisions
 
-1. Which locale ships first and for which roles (the census suggests traveller and guest first).
-2. Bengali digits or Latin digits in prose, and lakh grouping for amounts.
-3. The word for "case" (কেস or ফাইল), and "document" (ডকুমেন্ট is proposed).
-4. Who is the editorial reviewer, and who is the qualified legal reviewer for consent, privacy, terms and billing text.
-5. Whether to keep Google-attested "কিছু ভুল হয়েছে" or the blame-free "কিছু একটা সমস্যা হয়েছে".
-6. Whether the language choice should later be saved on the account (needs a migration) or stay a cookie.
-7. Whether platform staff screens are translated at all.
+Made by the owner on 2026-11-12 (recorded in `data/drafts/OWNER_DECISIONS.json` and applied to the register):
+
+| Decision | Choice | Consequence |
+|---|---|---|
+| First language | Bengali (bn-BD) | Slices in Section 3.3 run for Bengali only; ar, fr, de, es and zh-Hans stay not started |
+| Word for "case" | ফাইল | 206 drafts changed from কেস. Uploaded files are also ফাইল; 2 drafts hold both ideas and are listed for the editor in `data/CASE_FILE_COLLISION_REVIEW.csv`. The glossary term for case manager becomes ফাইল ম্যানেজার |
+| Digits in prose | Bengali | Static prose digits in drafts converted (63 drafts). Runtime numbers need the locale formatter: with `bn-BD` the platform's own `Intl` already gives Bengali digits and lakh grouping, so the helper in Section 3.4 must pass the locale and must not force Latin digits. Typed identifiers (passport and document numbers, codes, emails) stay as typed, so inputs and read-back values need an explicit Latin-digit rule |
+| Editor and legal reviewer | The owner, for both | Recorded as the owner's own decision. The brief notes an owner as editor does not by itself replace a qualified legal reviewer; the queue (`data/QUALIFIED_REVIEW_QUEUE.csv`, 1,779 groups) is assigned to the owner and nothing is reviewed yet |
+
+Still open:
+
+1. Whether to keep Google-attested "কিছু ভুল হয়েছে" or the blame-free "কিছু একটা সমস্যা হয়েছে".
+2. Whether the language choice should later be saved on the account (needs a migration) or stay a cookie.
+3. Whether platform staff screens are translated at all.
+4. The Bengali unit for file sizes ("MB" is left in Latin letters in drafts).
