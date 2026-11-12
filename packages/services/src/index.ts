@@ -1912,6 +1912,7 @@ export {
   setDocumentExpiry,
 } from './document-expiry';
 export type { ExpiryOrigin, ExpiryState } from './document-expiry-rules';
+export { expiryDay, expiryDayCountsAsExpired } from './document-expiry-rules';
 export { CONVERTED_FROM_HEIC_SOURCE, type RegisteredDocumentWithVersion } from './documents';
 export { type GrowUploadReservationInput, growUploadReservation } from './uploads';
 export {
@@ -3167,7 +3168,6 @@ export {
   listRequestHistoriesForOwner,
 } from './evidence-request-histories';
 export {
-  ANSWER_PLAN_REQUEST_LIMIT,
   MAX_ANSWERS_PER_CONFIRMATION,
   type AnswerAgencyGroup,
   type AnswerCopy,
