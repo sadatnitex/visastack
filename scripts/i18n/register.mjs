@@ -35,6 +35,46 @@ export const HOLDBACK = new Map([
     'SG-361e0c20',
     'Terms: a legal document name, held English like Privacy until the owner signs off.',
   ],
+  [
+    'SG-e956303b',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-0c3f69ec',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-192889ed',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-fbccaafa',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-b5644201',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-c68a7790',
+    'Consent button or consent explanation (AI reading, sharing, marketing, processing): wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-58cc6dc1',
+    'Document requirement for a country route (how recent a document must be): official visa-rule content stays English.',
+  ],
+  [
+    'SG-50c83703',
+    'Sharing permission statement: wording waits for the owner sign-off with the other sharing and consent text.',
+  ],
+  [
+    'SG-00706ded',
+    'Invitation and sharing choice statement: wording waits for the owner sign-off with the other sharing and consent text.',
+  ],
+  [
+    'SG-9e771a8e',
+    'Joiner word between names (" or "): its spaces carry the layout and the sentence around it is still English.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

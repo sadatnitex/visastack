@@ -2,9 +2,11 @@ import type { Locale } from '@visastack/i18n';
 import Link from 'next/link';
 import { CountryChecklistPicker } from '../../components/country-checklist-picker';
 import { DestinationLabel } from '../../components/destination-label';
+import { appHomeCatalog } from '../../i18n/app-home';
 import { CONFIRMED_LINE } from '../../lib/confirmed-landing';
 import type { StartData } from '../../lib/country-start';
 import { appHrefForCountry, permissionStepHref } from '../../lib/country-start-links';
+import { getServerT } from '../../lib/i18n-server';
 import { AddApplicantForm } from './add-applicant-form';
 import { ConsentButton } from './consent-button';
 
@@ -25,11 +27,10 @@ export const SETUP_LATER_HREF = '/app?setup=later';
 
 /** Step `current` of `total`. With the country step there are three; without it, two. */
 function Steps({ current, total }: { readonly current: number; readonly total: 2 | 3 }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <>
-      <p className="eyebrow">
-        Step {current} of {total}
-      </p>
+      <p className="eyebrow">{t('appHome.appFirstRun.stepCurrentOfTotal', { current, total })}</p>
       <ol className="first-run-steps" aria-hidden="true">
         {Array.from({ length: total }, (_, at) => (
           <li key={`step-${at + 1}`} className={at < current ? 'on' : undefined} />
@@ -44,6 +45,7 @@ function ChosenCountry({
   name,
   changeHref,
 }: { readonly name: string | null; readonly changeHref?: string }) {
+  const t = getServerT(appHomeCatalog);
   if (!name) return null;
   return (
     <p className="first-run-country">
@@ -54,7 +56,7 @@ function ChosenCountry({
       {changeHref ? (
         <>
           {' '}
-          <Link href={changeHref}>Change</Link>
+          <Link href={changeHref}>{t('appHome.appFirstRun.change')}</Link>
         </>
       ) : null}
     </p>
@@ -75,6 +77,7 @@ export function FirstRunCountry({
   /** Records the confirmed choice, then moves on to the permission screen. */
   readonly action: (formData: FormData) => void | Promise<void>;
 }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <section
       className="section container first-run first-run-wide"
@@ -89,12 +92,10 @@ export function FirstRunCountry({
       <h1 className="section-title" id="first-run-title">
         Where do you want <em>to go?</em>
       </h1>
-      <p className="card-body">
-        Pick a country and see what is usually asked for, right away. You can change it any time.
-      </p>
+      <p className="card-body">{t('appHome.appFirstRun.pickACountryAndSeeWhat')}</p>
       <CountryChecklistPicker variant="first-run" data={data} initialIso2={iso2} action={action} />
       <p className="first-run-later">
-        <Link href={permissionStepHref(iso2)}>Skip for Now</Link>
+        <Link href={permissionStepHref(iso2)}>{t('appHome.appFirstRun.skipForNow')}</Link>
       </p>
     </section>
   );
@@ -114,6 +115,7 @@ export function FirstRunConsent({
   readonly countryName?: string | null;
   readonly countryIso2?: string | null;
 }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
       <Steps current={hasCountryStep ? 2 : 1} total={hasCountryStep ? 3 : 2} />
@@ -124,21 +126,16 @@ export function FirstRunConsent({
         name={countryName}
         {...(hasCountryStep && countryIso2 ? { changeHref: appHrefForCountry(countryIso2) } : {})}
       />
-      <p className="card-body">
-        This is needed before anything can be saved. You can turn it off at any time.
-      </p>
-      <p className="first-run-notice">
-        This does not turn on AI reading, sharing with an agency or marketing. Those stay off until
-        you choose them.
-      </p>
+      <p className="card-body">{t('appHome.appFirstRun.thisIsNeededBeforeAnythingCan')}</p>
+      <p className="first-run-notice">{t('appHome.appFirstRun.thisDoesNotTurnOnAi')}</p>
       <ConsentButton
         type="CORE_PROCESSING"
         granted={false}
         locale={locale}
-        text="Let VisaStack Process My Details"
+        text={t('appHome.appFirstRun.letVisastackProcessMyDetails')}
       />
       <p className="first-run-later">
-        <Link href={laterHref}>Not Now</Link>
+        <Link href={laterHref}>{t('appHome.appFirstRun.notNow')}</Link>
       </p>
       <p className="muted first-run-note">
         Without it you can still browse countries and read help.{' '}
@@ -157,6 +154,7 @@ export function FirstRunName({
   readonly hasCountryStep?: boolean;
   readonly countryName?: string | null;
 }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
       <Steps current={hasCountryStep ? 3 : 2} total={hasCountryStep ? 3 : 2} />
@@ -166,7 +164,7 @@ export function FirstRunName({
       <ChosenCountry name={countryName} />
       <AddApplicantForm firstRun />
       <p className="first-run-later">
-        <Link href={laterHref}>Not Now</Link>
+        <Link href={laterHref}>{t('appHome.appFirstRun.notNow')}</Link>
       </p>
     </section>
   );
@@ -200,6 +198,7 @@ export function FirstRunTask({
   documentsHref = null,
   tripHref = null,
 }: FirstRunTaskProps) {
+  const t = getServerT(appHomeCatalog);
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
       <h1 className="section-title" id="first-run-title">
@@ -209,52 +208,52 @@ export function FirstRunTask({
         {countryName && countryHref ? (
           <li>
             <Link href={countryHref}>
-              <b>See Your {countryName} Checklist</b>
-              <span>What is usually asked for, and where each fact came from</span>
+              <b>{t('appHome.appFirstRun.seeYourCountrynameChecklist', { countryName })}</b>
+              <span>{t('appHome.appFirstRun.whatIsUsuallyAskedForAnd')}</span>
             </Link>
           </li>
         ) : null}
         {requestHref ? (
           <li>
             <Link href={requestHref}>
-              <b>Complete a Request</b>
-              <span>An agency asked you for something</span>
+              <b>{t('appHome.appFirstRun.completeARequest')}</b>
+              <span>{t('appHome.appFirstRun.anAgencyAskedYouForSomething')}</span>
             </Link>
           </li>
         ) : null}
         {documentsHref ? (
           <li>
             <Link href={documentsHref}>
-              <b>Add Documents</b>
-              <span>Upload a passport page or any file now; details can come later</span>
+              <b>{t('appHome.appFirstRun.addDocuments')}</b>
+              <span>{t('appHome.appFirstRun.uploadAPassportPageOrAny')}</span>
             </Link>
           </li>
         ) : null}
         {tripHref ? (
           <li>
             <Link href={tripHref}>
-              <b>Start a Trip</b>
-              <span>Say where and why, and see what to prepare</span>
+              <b>{t('appHome.appFirstRun.startATrip')}</b>
+              <span>{t('appHome.appFirstRun.sayWhereAndWhyAndSee')}</span>
             </Link>
           </li>
         ) : null}
         {briefHref ? (
           <li>
             <Link href={briefHref}>
-              <b>Prepare a Summary</b>
-              <span>Choose what goes in, then copy or download it</span>
+              <b>{t('appHome.appFirstRun.prepareASummary')}</b>
+              <span>{t('appHome.appFirstRun.chooseWhatGoesInThenCopy')}</span>
             </Link>
           </li>
         ) : null}
         <li>
           <Link href={recordsHref}>
-            <b>Update or Find My Records</b>
-            <span>Documents, details and dates</span>
+            <b>{t('appHome.appFirstRun.updateOrFindMyRecords')}</b>
+            <span>{t('appHome.appFirstRun.documentsDetailsAndDates')}</span>
           </Link>
         </li>
       </ul>
       <p className="first-run-later">
-        <Link href="/app">Skip for Now</Link>
+        <Link href="/app">{t('appHome.appFirstRun.skipForNow')}</Link>
       </p>
     </section>
   );

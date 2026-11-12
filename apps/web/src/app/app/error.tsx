@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useT } from '../../components/i18n-provider';
+import { appHomeCatalog } from '../../i18n/app-home';
 
 /**
  * Error screen for a signed-in page. Because it lives inside the signed-in area, the menu stays
@@ -17,24 +19,22 @@ export default function WorkspaceError({
   readonly error: Error & { digest?: string };
   readonly reset: () => void;
 }) {
+  const t = useT(appHomeCatalog);
   useEffect(() => {
     console.error(error);
   }, [error]);
 
   return (
     <section className="section container center">
-      <span className="eyebrow">Something Went Wrong</span>
-      <h1 className="section-title error-title">This page did not load</h1>
-      <p className="section-sub error-body">
-        The problem is on our side. Everything you already saved is safe. If you were typing
-        something, you may need to enter it again.
-      </p>
+      <span className="eyebrow">{t('appHome.appError.somethingWentWrong')}</span>
+      <h1 className="section-title error-title">{t('appHome.appError.thisPageDidNotLoad')}</h1>
+      <p className="section-sub error-body">{t('appHome.appError.theProblemIsOnOurSide')}</p>
       <div className="cta-row cta-row-center">
         <button type="button" className="btn btn-primary" onClick={() => reset()}>
-          Try Again
+          {t('appHome.appError.tryAgain')}
         </button>
         <a className="btn btn-secondary" href="/app">
-          Go to Your Overview
+          {t('appHome.appError.goToYourOverview')}
         </a>
       </div>
       <p className="muted error-reference">

@@ -1,17 +1,20 @@
 import { CountryBrowser } from '../../../components/country-browser';
 import { PageHeader } from '../../../components/ui';
+import { appCountriesCatalog } from '../../../i18n/app-countries';
 import {
   ENTRY_LABEL,
   ENTRY_ORDER,
   ENTRY_SHORT_LABEL,
   countryListItems,
 } from '../../../lib/country-view';
+import { getServerT } from '../../../lib/i18n-server';
 
 /**
  * The country list. `href` is the address of a country's own page in the workspace this list is shown in,
  * written like the route itself with `[code]` where the country's two-letter code goes.
  */
 export function CountriesView({ href }: { readonly href: string }) {
+  const t = getServerT(appCountriesCatalog);
   const items = countryListItems().map((item) => ({
     ...item,
     href: href.replace('[code]', item.iso2.toLowerCase()),
@@ -25,15 +28,17 @@ export function CountriesView({ href }: { readonly href: string }) {
   return (
     <>
       <PageHeader
-        eyebrow="Countries"
-        title="Visa Rules for a Bangladeshi Passport"
-        description="What an ordinary Bangladeshi passport needs to enter each country. Every fact shows where it came from and when it was checked."
+        eyebrow={t('appCountries.appCountriesCountriesView.countries')}
+        title={t('appCountries.appCountriesCountriesView.visaRulesForABangladeshiPassport')}
+        description={t(
+          'appCountries.appCountriesCountriesView.whatAnOrdinaryBangladeshiPassportNeeds',
+        )}
       />
       <p className="notice">
-        {researched} of {items.length} countries have their rules filled in. The rest are marked
-        "Not Yet Researched", which does not mean no visa is needed. Rules change, so always confirm
-        on the official page before you apply. This is guidance, not legal advice, and the
-        destination decides your application.
+        {t('appCountries.appCountriesCountriesView.researchedOfLengthCountriesHaveTheir', {
+          researched,
+          length: items.length,
+        })}
       </p>
       <CountryBrowser items={items} filters={filters} />
     </>
