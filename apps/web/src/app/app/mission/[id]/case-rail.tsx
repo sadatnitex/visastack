@@ -270,9 +270,7 @@ function PackCard({
       }
       pill={
         mission.packVersionId && packInfo?.reviewed ? (
-          <StatusPill tone="success">
-            {t('appMission.appMissionIdCaseRail.reviewed')}
-          </StatusPill>
+          <StatusPill tone="success">{t('appMission.appMissionIdCaseRail.reviewed')}</StatusPill>
         ) : undefined
       }
       open={!mission.packVersionId}
