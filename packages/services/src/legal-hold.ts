@@ -3,10 +3,12 @@ import { and, asc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-o
 import { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { serverErrorEvent } from './error-report';
 import { type ServiceError, serviceError } from './errors';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { missionsSelectingDocument } from './material-revision';
 import { enqueueNotificationBothChannels } from './notifications';
+import { formatObservabilityLine } from './observability-format';
 import {
   type Page,
   type PageRequest,
@@ -277,7 +279,7 @@ export async function releaseLegalHold(
 
   return db.transaction(async (tx) => {
     // Lock order, the same everywhere in this codebase: the applicant row, then the applicant's
-    // parked erasure jobs (by id), and only then anything that writes an audit event (which takes
+    // parked erasure jobs (by stored file, then id), and only then anything that writes an audit event (which takes
     // the one global audit lock). An admin retry locks a job row and only later the audit lock, so
     // writing audit events before the job rows are locked would deadlock with it.
     await lockApplicant(tx, hold.applicantId);
@@ -568,19 +570,15 @@ export async function requeueUncoveredParkedJobs(
       // Keep going with the other applicants, but never lose the reason: it reaches the logs.
       failed += 1;
       console.error(
-        '[requeueUncoveredParkedJobs] could not re-queue the parked jobs of one applicant',
-        describeFailure(error),
+        formatObservabilityLine(
+          serverErrorEvent('requeueUncoveredParkedJobs', error, {
+            step: 'one applicant could not be re-queued',
+          }),
+        ),
       );
     }
   }
   return { requeued, failed };
-}
-
-/** The reason for the log: the database's own message when there is one (the wrapper's text repeats the whole statement and its values). */
-function describeFailure(error: unknown): string {
-  const cause = error instanceof Error ? error.cause : undefined;
-  if (cause instanceof Error) return cause.message;
-  return error instanceof Error ? error.message : String(error);
 }
 
 export async function listLegalHolds(db: Db, applicantId: string): Promise<LegalHold[]> {

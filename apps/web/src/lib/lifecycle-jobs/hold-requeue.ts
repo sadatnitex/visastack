@@ -6,7 +6,7 @@ import { connectJobPool } from './purge';
 /*
  * The daily backstop for deletion jobs parked by a legal hold that no longer stands (owner decision
  * D2). Called from the erasure job route after the erasure worker has run, with a time budget, so a
- * slow sweep can never push the run past its limit; a job put back in the queue is worked in the
+ * slow sweep stops starting new work; a job put back in the queue is worked in the
  * next run (or sooner, when a release wakes the worker). The scope comes from that route (only job routes may make one).
  */
 

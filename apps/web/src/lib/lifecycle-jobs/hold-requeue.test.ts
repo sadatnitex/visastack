@@ -16,8 +16,18 @@ describe('runHeldJobRequeue', () => {
       connect: () => ({ db: {} as never, end }),
     });
     expect(result).toEqual({ requeued: 3, failed: 0 });
-    expect(sweep).toHaveBeenCalledWith({}, scope);
+    expect(sweep).toHaveBeenCalledWith({}, scope, {});
     expect(end).toHaveBeenCalledOnce();
+  });
+
+  it('passes the time budget on to the sweep', async () => {
+    const sweep = vi.fn(async () => ({ requeued: 0, failed: 0 }));
+    await runHeldJobRequeue(scope, {
+      stopAt: 12345,
+      sweep: sweep as never,
+      connect: () => ({ db: {} as never, end: async () => undefined }),
+    });
+    expect(sweep).toHaveBeenCalledWith({}, scope, { stopAt: 12345 });
   });
 
   it('never throws, so the erasure worker still runs after a failed sweep', async () => {

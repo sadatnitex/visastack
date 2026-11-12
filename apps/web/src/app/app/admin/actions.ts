@@ -163,7 +163,7 @@ export async function releaseLegalHoldAction(
     }
     if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     // The release and the re-queue are one step: if the re-queue fails, the release is rolled back
-    // and the hold stays on. Say so here, on the same screen, rather than on the error page.
+    // and the hold stays on. Say so here, on the same screen, rather than on the error page; whatever the cause, the person is told to check the list.
     // (The sign-in redirect above is outside this try, so it is never swallowed.)
     let released: Awaited<ReturnType<typeof releaseLegalHold>>;
     try {
@@ -177,7 +177,7 @@ export async function releaseLegalHoldAction(
       return {
         ok: false,
         message:
-          'The hold was not released because the removal step failed. It is still on. Please try again.',
+          'The hold could not be released just now. Check the list of holds, then try again.',
       } satisfies ActionState;
     }
     if (!released.ok) return { ok: false, message: released.error.message } satisfies ActionState;

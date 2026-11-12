@@ -349,9 +349,9 @@ describe('the audit cause of a re-queued job', () => {
 
     const byJob = new Map((await retryEvents(db)).map((e) => [e.resourceId, e.metadata]));
     expect(byJob.get(covered.id)).toMatchObject({ cause: 'HOLD_RELEASED', holdId: hold.value.id });
-    const strandedMeta = byJob.get(stranded.id) as Record<string, unknown>;
-    expect(strandedMeta['cause']).toBe('HOLD_NO_LONGER_ACTIVE');
-    expect(strandedMeta['holdId']).toBeUndefined();
+    const strandedMeta = byJob.get(stranded.id) as { cause?: string; holdId?: string };
+    expect(strandedMeta.cause).toBe('HOLD_NO_LONGER_ACTIVE');
+    expect(strandedMeta.holdId).toBeUndefined();
   });
 });
 
@@ -360,7 +360,7 @@ describe('release lock order', () => {
     // PGlite runs one transaction at a time, so a real deadlock cannot be reproduced here. What
     // this proves is the statement order the deadlock fix depends on: every row lock comes before
     // the first audit write (the audit write takes the one global audit lock), and the parked
-    // jobs are locked in id order. An admin retry locks a job row and only then the audit lock.
+    // jobs are locked in stored-file order (then id). An admin retry locks a job row and only then the audit lock.
     const queries: string[] = [];
     const client = await createMigratedPglite();
     const logged = drizzle(client, {
@@ -457,7 +457,7 @@ describe('the daily sweep for jobs parked with no hold behind them', () => {
     try {
       expect(await requeueUncoveredParkedJobs(db, scope)).toEqual({ requeued: 0, failed: 1 });
       expect(logged).toHaveBeenCalledTimes(1);
-      expect(String(logged.mock.calls[0]?.[1])).toContain('simulated re-queue failure');
+      expect(String(logged.mock.calls[0]?.[0])).toContain('requeueUncoveredParkedJobs');
     } finally {
       logged.mockRestore();
     }
