@@ -32,9 +32,7 @@ export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
 
-  // Jobs parked by a hold that has since ended (a release normally re-queues them at once; this
-  // catches a release that raced the worker, older parked jobs, and holds ended by a backup repair).
-  const heldRequeue = await runHeldJobRequeue(systemPrincipal('process-erasure'));
+  const startedAt = Date.now();
   // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
   // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
   const recentlyDeleted = await runRecentlyDeletedPurge(systemPrincipal('process-erasure'));
@@ -49,6 +47,15 @@ export async function GET(request: Request): Promise<Response> {
     totalFailed += result.failed;
     if (result.processed + result.blocked + result.failed < BATCH_SIZE) break; // caught up
   }
+
+  // Jobs parked by a hold that has since ended (a release normally re-queues them at once; this
+  // catches a release that raced the worker, older parked jobs, and holds ended by a backup repair).
+  // After the worker so its own work always runs first, and with a time budget (at least a few
+  // seconds, at most until 40 seconds into the run) because this route stops at 60 seconds. What it
+  // puts back is worked by the next run.
+  const heldRequeue = await runHeldJobRequeue(systemPrincipal('process-erasure'), {
+    stopAt: Math.max(startedAt + 40_000, Date.now() + 5_000),
+  });
 
   // UMPE P9, after the erasure worker so its daily safety net always runs first: guest answers to
   // agency requests whose chosen period ended (never under a legal hold), and desk sessions that

@@ -5,8 +5,9 @@ import { connectJobPool } from './purge';
 
 /*
  * The daily backstop for deletion jobs parked by a legal hold that no longer stands (owner decision
- * D2). Called from the erasure job route before the erasure worker runs, so a job put back in the
- * queue is worked in the same run. The scope comes from that route (only job routes may make one).
+ * D2). Called from the erasure job route after the erasure worker has run, with a time budget, so a
+ * slow sweep can never push the run past its limit; a job put back in the queue is worked in the
+ * next run (or sooner, when a release wakes the worker). The scope comes from that route (only job routes may make one).
  */
 
 type ErasureScope = Parameters<typeof requeueUncoveredParkedJobs>[1];
@@ -19,6 +20,8 @@ const NOTHING: SweepResult = { requeued: 0, failed: 0 };
 export async function runHeldJobRequeue(
   scope: ErasureScope,
   options: {
+    /** Stop starting new applicants after this time (milliseconds since 1970). */
+    readonly stopAt?: number;
     readonly sweep?: typeof requeueUncoveredParkedJobs;
     readonly connect?: () => { readonly db: SweepDb; readonly end: () => Promise<void> } | null;
   } = {},
@@ -29,7 +32,9 @@ export async function runHeldJobRequeue(
     return NOTHING;
   }
   try {
-    const result = await (options.sweep ?? requeueUncoveredParkedJobs)(connection.db, scope);
+    const result = await (options.sweep ?? requeueUncoveredParkedJobs)(connection.db, scope, {
+      ...(options.stopAt !== undefined ? { stopAt: options.stopAt } : {}),
+    });
     if (result.failed > 0) {
       reportServerError('runHeldJobRequeue', new Error('some parked jobs could not be re-queued'), {
         step: 'sweep pass',

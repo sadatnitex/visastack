@@ -282,6 +282,9 @@ export async function releaseLegalHold(
     // writing audit events before the job rows are locked would deadlock with it.
     await lockApplicant(tx, hold.applicantId);
     const parked = await lockParkedJobs(tx, hold.applicantId);
+    // Which parked jobs a hold covers now, before this one is released: of those put back after,
+    // the ones in this set were kept by this hold; the rest were already uncovered.
+    const heldBefore = await heldJobIds(tx, hold.applicantId, parked);
     // Checked again under the lock: of two releases at once, only one gets through.
     const updated = first(
       await tx
@@ -306,11 +309,16 @@ export async function releaseLegalHold(
       resourceType: 'legal_hold',
       resourceId: updated.id,
     });
-    await auditRequeuedJobs(tx, hold.applicantId, requeued, {
-      actorAccountId: input.actorAccountId,
-      cause: 'HOLD_RELEASED',
-      holdId: updated.id,
-    });
+    await auditRequeuedJobs(
+      tx,
+      hold.applicantId,
+      requeued.map((job) =>
+        heldBefore.has(job.id)
+          ? { job, cause: 'HOLD_RELEASED' as const, holdId: updated.id }
+          : { job, cause: 'HOLD_NO_LONGER_ACTIVE' as const },
+      ),
+      input.actorAccountId,
+    );
     return ok({ ...updated, requeuedJobs: requeued.length });
   });
 }
@@ -321,16 +329,28 @@ type ParkedJob = {
   readonly reason: typeof schema.erasureJobs.$inferSelect.reason;
 };
 
-/** The applicant row lock the worker's own hold recheck and `placeLegalHold` also take. */
+/**
+ * The applicant row lock the worker's own hold recheck and `placeLegalHold` also take. It is the
+ * weaker "no key update" form on purpose: it still excludes every other `for update` taker, but it
+ * does not block `for key share`, which a notification insert takes on the applicant. The hold
+ * review reminder sweep holds a hold row and then inserts notifications; a full `for update` here
+ * would make a release (applicant, then hold row) and that sweep (hold row, then applicant) wait on
+ * each other.
+ */
 async function lockApplicant(tx: Db, applicantId: string): Promise<void> {
   await tx
     .select({ id: schema.applicants.id })
     .from(schema.applicants)
     .where(eq(schema.applicants.id, applicantId))
-    .for('update');
+    .for('no key update');
 }
 
-/** Lock an applicant's jobs parked by a hold, in id order (no two callers can wait on each other). */
+/**
+ * Lock an applicant's jobs parked by a hold, in stored-file order (no two callers can wait on each
+ * other). That is the order in which a document's files are queued for removal (retention purge
+ * and document removal both go through the files by id), so a sweep that meets a half-queued
+ * multi-file document waits behind it instead of crossing it.
+ */
 async function lockParkedJobs(tx: Db, applicantId: string): Promise<ParkedJob[]> {
   return tx
     .select({
@@ -345,8 +365,44 @@ async function lockParkedJobs(tx: Db, applicantId: string): Promise<ParkedJob[]>
         eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
       ),
     )
-    .orderBy(asc(schema.erasureJobs.id))
+    .orderBy(asc(schema.erasureJobs.storageObjectId), asc(schema.erasureJobs.id))
     .for('update');
+}
+
+/**
+ * The only parked jobs that go back in the queue by themselves: the ones a person asked for (a
+ * document they asked to remove), which is what the product promised ("removed once that ends").
+ * A retention purge job is not here on purpose: the retention rules may have changed while the hold
+ * stood, and only the retention purge pass re-checks whether a document is still due, so it stays
+ * parked for that pass. Other reasons were never promised and keep the manual retry.
+ */
+const REQUEUED_BY_HOLD_RELEASE: readonly ParkedJob['reason'][] = ['DOCUMENT_REMOVAL'];
+
+/** The ids of the jobs (of the kinds this module puts back) that an active hold still covers. */
+async function heldJobIds(
+  tx: Db,
+  applicantId: string,
+  jobs: readonly ParkedJob[],
+): Promise<Set<string>> {
+  const held = new Set<string>();
+  const heldByDocument = new Map<string, boolean>();
+  let heldApplicantWide: boolean | undefined;
+  for (const job of jobs) {
+    if (!REQUEUED_BY_HOLD_RELEASE.includes(job.reason)) continue;
+    let stillHeld: boolean;
+    if (job.documentId) {
+      const known = heldByDocument.get(job.documentId);
+      stillHeld =
+        known ??
+        (await documentBlockedByLegalHold(tx, { applicantId, documentId: job.documentId }));
+      heldByDocument.set(job.documentId, stillHeld);
+    } else {
+      heldApplicantWide ??= await hasActiveLegalHold(tx, applicantId);
+      stillHeld = heldApplicantWide;
+    }
+    if (stillHeld) held.add(job.id);
+  }
+  return held;
 }
 
 /**
@@ -367,21 +423,9 @@ async function requeueUncoveredJobs(
   jobs: readonly ParkedJob[],
 ): Promise<ParkedJob[]> {
   const requeued: ParkedJob[] = [];
-  const heldByDocument = new Map<string, boolean>();
-  let heldApplicantWide: boolean | undefined;
+  const held = await heldJobIds(tx, applicantId, jobs);
   for (const job of jobs) {
-    let stillHeld: boolean;
-    if (job.documentId) {
-      const known = heldByDocument.get(job.documentId);
-      stillHeld =
-        known ??
-        (await documentBlockedByLegalHold(tx, { applicantId, documentId: job.documentId }));
-      heldByDocument.set(job.documentId, stillHeld);
-    } else {
-      heldApplicantWide ??= await hasActiveLegalHold(tx, applicantId);
-      stillHeld = heldApplicantWide;
-    }
-    if (stillHeld) continue;
+    if (!REQUEUED_BY_HOLD_RELEASE.includes(job.reason) || held.has(job.id)) continue;
     const updated = await tx
       .update(schema.erasureJobs)
       .set({
@@ -433,17 +477,17 @@ async function unblockRemovalRecord(tx: Db, job: ParkedJob): Promise<void> {
 async function auditRequeuedJobs(
   tx: Db,
   applicantId: string,
-  jobs: readonly ParkedJob[],
-  audit: {
-    readonly actorAccountId: string | null;
+  entries: readonly {
+    readonly job: ParkedJob;
     readonly cause: 'HOLD_RELEASED' | 'HOLD_NO_LONGER_ACTIVE';
     readonly holdId?: string;
-  },
+  }[],
+  actorAccountId: string | null,
 ): Promise<void> {
-  for (const job of jobs) {
+  for (const { job, cause, holdId } of entries) {
     await appendAuditEvent(tx, {
       eventType: 'ERASURE_JOB_RETRIED',
-      actorAccountId: audit.actorAccountId,
+      actorAccountId,
       applicantId,
       resourceType: 'erasure_job',
       resourceId: job.id,
@@ -452,8 +496,8 @@ async function auditRequeuedJobs(
       metadata: {
         outcome: 'REQUEUED',
         was: 'BLOCKED_BY_HOLD',
-        cause: audit.cause,
-        ...(audit.holdId ? { holdId: audit.holdId } : {}),
+        cause,
+        ...(holdId ? { holdId } : {}),
       },
     });
   }
@@ -473,7 +517,7 @@ const REQUEUE_SWEEP_APPLICANT_LIMIT = 100;
 export async function requeueUncoveredParkedJobs(
   db: Db,
   scope: SystemScope<'process-erasure'>,
-  options: { readonly limit?: number } = {},
+  options: { readonly limit?: number; readonly stopAt?: number } = {},
 ): Promise<{ readonly requeued: number; readonly failed: number }> {
   if (!SystemScope.isGenuine(scope) || scope.job !== 'process-erasure') {
     throw new Error('the parked job sweep needs the scope of the erasure job');
@@ -488,6 +532,7 @@ export async function requeueUncoveredParkedJobs(
     .where(
       and(
         eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
+        inArray(schema.erasureJobs.reason, [...REQUEUED_BY_HOLD_RELEASE]),
         isNotNull(schema.erasureJobs.applicantId),
         sql`not exists (
           select 1 from legal_holds lh
@@ -503,22 +548,39 @@ export async function requeueUncoveredParkedJobs(
   let failed = 0;
   for (const { applicantId } of applicants) {
     if (!applicantId) continue;
+    // A time budget from the caller (the job route has a fixed run time): what is left waits for
+    // the next run, picked at random again.
+    if (options.stopAt !== undefined && Date.now() >= options.stopAt) break;
     try {
       requeued += await db.transaction(async (tx) => {
         await lockApplicant(tx, applicantId);
         const parked = await lockParkedJobs(tx, applicantId);
         const requeuedJobs = await requeueUncoveredJobs(tx, applicantId, parked);
-        await auditRequeuedJobs(tx, applicantId, requeuedJobs, {
-          actorAccountId: null,
-          cause: 'HOLD_NO_LONGER_ACTIVE',
-        });
+        await auditRequeuedJobs(
+          tx,
+          applicantId,
+          requeuedJobs.map((job) => ({ job, cause: 'HOLD_NO_LONGER_ACTIVE' as const })),
+          null,
+        );
         return requeuedJobs.length;
       });
-    } catch {
+    } catch (error) {
+      // Keep going with the other applicants, but never lose the reason: it reaches the logs.
       failed += 1;
+      console.error(
+        '[requeueUncoveredParkedJobs] could not re-queue the parked jobs of one applicant',
+        describeFailure(error),
+      );
     }
   }
   return { requeued, failed };
+}
+
+/** The reason for the log: the database's own message when there is one (the wrapper's text repeats the whole statement and its values). */
+function describeFailure(error: unknown): string {
+  const cause = error instanceof Error ? error.cause : undefined;
+  if (cause instanceof Error) return cause.message;
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function listLegalHolds(db: Db, applicantId: string): Promise<LegalHold[]> {
