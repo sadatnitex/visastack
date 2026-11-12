@@ -63,7 +63,13 @@ const K = 'appApplicant.appApplicantId';
 
 /** A client component under a locale, the way the root layout wraps every page. */
 const client = (locale: 'en' | 'bn', node: React.ReactElement) =>
-  textOf(renderToStaticMarkup(<I18nProvider locale={locale}>{node}</I18nProvider>));
+  textOf(
+    renderToStaticMarkup(
+      <I18nProvider locale={locale} pageLang={locale}>
+        {node}
+      </I18nProvider>,
+    ),
+  );
 
 /** A server component under a locale, with the locale read once as a page does. */
 async function server(locale: 'en' | 'bn', build: () => unknown | Promise<unknown>) {
@@ -122,7 +128,7 @@ describe('the record tabs and list under Bengali', () => {
   it('shows the Bengali tab label only on a record page', () => {
     navigationState.pathname = '/app/applicant/p1/record';
     const html = renderToStaticMarkup(
-      <I18nProvider locale="bn">
+      <I18nProvider locale="bn" pageLang="bn">
         <RecordSections applicantId="p1" />
       </I18nProvider>,
     );
