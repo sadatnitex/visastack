@@ -1,6 +1,8 @@
 'use client';
 
+import { formatNumber } from '@visastack/i18n';
 import { type ReactNode, useState } from 'react';
+import { useLocale } from '../../../../../components/i18n-provider';
 import type { IconName } from '../../../../../components/icons';
 import type { RowNoun } from '../../../../../components/show-more';
 import { ActionRow } from '../../../../../components/ui-lift';
@@ -29,6 +31,7 @@ export function FormGroup({
   readonly icon?: IconName;
   readonly children: ReactNode;
 }) {
+  const locale = useLocale();
   const [initiallyOpen] = useState(openAtFirst);
   const words = noun ?? { one: 'item', other: 'items' };
   return (
@@ -43,7 +46,7 @@ export function FormGroup({
               pill: (
                 <>
                   <span className="collapsible-group-count" aria-hidden="true">
-                    {count}
+                    {formatNumber(count, locale)}
                   </span>
                   <span className="sr-only">{`, ${count} ${count === 1 ? words.one : words.other}`}</span>
                 </>

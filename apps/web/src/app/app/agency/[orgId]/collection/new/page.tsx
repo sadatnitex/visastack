@@ -2,7 +2,9 @@ import { agencyCollectionPrincipal } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { appAgencyCatalog } from '../../../../../../i18n/app-agency';
 import { caseCountryOptions, casePurposeGroups } from '../../../../../../lib/case-choices';
+import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { withSession } from '../../../../../../lib/session';
 import { NewRequestForm } from '../collection-forms';
 
@@ -15,6 +17,8 @@ export default async function NewCollectionRequestPage({
 }: {
   readonly params: Promise<{ orgId: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const allowed = await withSession(
     async ({ db, accountId }) => (await agencyCollectionPrincipal(db, accountId, orgId)).ok,
@@ -23,11 +27,14 @@ export default async function NewCollectionRequestPage({
   return (
     <div className="stack">
       <Link href={`/app/agency/${orgId}/collection`} className="page-back">
-        <span aria-hidden="true">{'←'}</span> Document Requests
+        <span aria-hidden="true">{'←'}</span>{' '}
+        {t('appAgency.appAgencyOrgidCollectionNewPage.documentRequests')}
       </Link>
-      <h1 className="page-title">New Document Request</h1>
+      <h1 className="page-title">
+        {t('appAgency.appAgencyOrgidCollectionNewPage.newDocumentRequest')}
+      </h1>
       <p className="page-description">
-        No account or profile is needed yet. You review the checklist before anything is sent.
+        {t('appAgency.appAgencyOrgidCollectionNewPage.noAccountOrProfileIsNeeded')}
       </p>
       <NewRequestForm
         organizationId={orgId}

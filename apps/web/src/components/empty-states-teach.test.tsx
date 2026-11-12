@@ -36,10 +36,12 @@ function keysFor(title: string): string[] {
 /** The text of the `<EmptyState ...>...</EmptyState>` that carries this title, or its catalogue key. */
 function stateWithTitle(source: string, title: string): string {
   const parts = source.split('<EmptyState');
-  const needles = [title, ...keysFor(title).map((key) => `t('${key}')`)];
+  const needles = [title, ...keysFor(title).map((key) => `t('${key}'`)];
   const found = parts.find((part) => {
     const head = part.slice(0, part.indexOf('</EmptyState>'));
-    return needles.some((needle) => head.includes(needle));
+    // The formatter may wrap a long call onto several lines, so compare without whitespace too.
+    const squeezed = head.replace(/\s+/g, '');
+    return needles.some((needle) => head.includes(needle) || squeezed.includes(needle));
   });
   if (!found) throw new Error(`no empty state titled "${title}"`);
   return found.slice(0, found.indexOf('</EmptyState>'));

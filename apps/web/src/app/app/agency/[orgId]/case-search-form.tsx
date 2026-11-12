@@ -1,3 +1,6 @@
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
+import { getServerT } from '../../../../lib/i18n-server';
+import { STAGE_LABELS } from './stage-labels';
 /**
  * CAS-02: "Search only authorised clients/cases using name, case reference,
  * stage, destination and assignee." A plain GET form -- no client JS, no
@@ -14,22 +17,6 @@
  * rather than forcing the user to pick which one they're typing.
  */
 
-export const STAGE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  INTAKE: 'Intake',
-  IN_REVIEW: 'In Review',
-  AWAITING_APPLICANT: 'Awaiting Traveller',
-  SUBMISSION_READY: 'Submission Ready',
-  SUBMITTED: 'Submitted',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_REVIEW: 'Ready for Review',
-  UNDER_REVIEW: 'Under Review',
-  READY_TO_EXPORT: 'Ready to Export',
-  LOCKED: 'Locked',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-};
-
 export function CaseSearchForm({
   orgId,
   members,
@@ -45,6 +32,7 @@ export function CaseSearchForm({
   readonly destination: string;
   readonly assignee: string;
 }) {
+  const t = getServerT(appAgencyCatalog);
   const hasFilters =
     query.length > 0 || stage.length > 0 || destination.length > 0 || assignee.length > 0;
   return (
@@ -52,7 +40,7 @@ export function CaseSearchForm({
       <div className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor="q">
-            Search
+            {t('appAgency.appAgencyOrgidCaseSearchForm.search')}
           </label>
           <input
             id="q"
@@ -60,15 +48,15 @@ export function CaseSearchForm({
             type="text"
             defaultValue={query}
             className="input"
-            placeholder="Client name, case title, or case ID"
+            placeholder={t('appAgency.appAgencyOrgidCaseSearchForm.clientNameCaseTitleOrCase')}
           />
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="stage">
-            Stage
+            {t('appAgency.appAgencyOrgidCaseSearchForm.stage')}
           </label>
           <select id="stage" name="stage" defaultValue={stage} className="input">
-            <option value="">Any Stage</option>
+            <option value="">{t('appAgency.appAgencyOrgidCaseSearchForm.anyStage')}</option>
             {Object.entries(STAGE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -78,7 +66,7 @@ export function CaseSearchForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="destination">
-            Destination
+            {t('appAgency.appAgencyOrgidCaseSearchForm.destination')}
           </label>
           <input
             id="destination"
@@ -90,10 +78,10 @@ export function CaseSearchForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="assignee">
-            Assignee
+            {t('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
           </label>
           <select id="assignee" name="assignee" defaultValue={assignee} className="input">
-            <option value="">Anyone</option>
+            <option value="">{t('appAgency.appAgencyOrgidCaseSearchForm.anyone')}</option>
             {members.map((m) => (
               <option key={m.accountId} value={m.accountId}>
                 {m.email}
@@ -104,11 +92,11 @@ export function CaseSearchForm({
       </div>
       <div className="page-actions">
         <button type="submit" className="btn btn-secondary">
-          Search
+          {t('appAgency.appAgencyOrgidCaseSearchForm.search')}
         </button>
         {hasFilters ? (
           <a href={`/app/agency/${orgId}`} className="muted u-fs-085">
-            Clear
+            {t('appAgency.appAgencyOrgidCaseSearchForm.clear')}
           </a>
         ) : null}
       </div>

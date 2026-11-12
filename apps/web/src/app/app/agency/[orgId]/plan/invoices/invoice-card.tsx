@@ -9,6 +9,8 @@ import {
 import { type AgencyInvoiceView, PAYMENT_METHOD_OFF } from '@visastack/services';
 import Link from 'next/link';
 import { StatusBadge } from '../../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../../i18n/app-agency';
+import { getServerT } from '../../../../../../lib/i18n-server';
 import {
   ATTEMPT_STATUS_LABELS,
   CLAIM_METHOD_LABELS,
@@ -115,6 +117,7 @@ export function InvoiceCard({
    */
   readonly inRow?: boolean;
 }) {
+  const t = getServerT(appAgencyCatalog);
   // A refunded invoice is never owed again (S18, D2): it has no Pay button and no report form.
   // Decided from the money itself, not from the state, so a payment held for a check (which
   // outranks the refunded states) can never bring back a way to pay a refunded invoice.
@@ -162,38 +165,52 @@ export function InvoiceCard({
       )}
       <p className="invoice-note">
         {INVOICE_STATE_HINTS[invoice.state]}
-        {invoice.partlyPaid && invoice.state === 'OPEN' ? ' Part of it has been paid.' : ''}
-        {due?.label === 'Overdue' ? ` It was due on ${formatBillingDate(invoice.dueDate)}.` : ''}
-        {due?.label === 'Due Today' ? ' It is due today.' : ''}
+        {invoice.partlyPaid && invoice.state === 'OPEN'
+          ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.partOfItHasBeenPaid')
+          : ''}
+        {due?.label === 'Overdue'
+          ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.itWasDueOnFormatbillingdate', {
+              formatBillingDate: formatBillingDate(invoice.dueDate),
+            })
+          : ''}
+        {due?.label === 'Due Today'
+          ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.itIsDueToday')
+          : ''}
       </p>
       {invoice.creditMinorUnits > 0 ? (
         <p className="invoice-note">
-          Credit from an earlier payment: {plainAmount(invoice.creditMinorUnits, invoice.currency)}{' '}
-          of an online payment VisaStack held for a check was counted towards this invoice.
+          {t(
+            'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.creditFromAnEarlierPaymentPlainamount',
+            { plainAmount: plainAmount(invoice.creditMinorUnits, invoice.currency) },
+          )}
         </p>
       ) : null}
       <dl className="invoice-facts">
         <div>
-          <dt>Invoiced</dt>
+          <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.invoiced')}</dt>
           <dd>{plainAmount(invoice.invoicedAmountMinorUnits, invoice.currency)}</dd>
         </div>
         <div>
-          <dt>{refunded ? 'Kept After Refunds' : 'Paid So Far'}</dt>
+          <dt>
+            {refunded
+              ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.keptAfterRefunds')
+              : t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paidSoFar')}
+          </dt>
           <dd>{plainAmount(invoice.collectedAmountMinorUnits, invoice.currency)}</dd>
         </div>
         {invoice.refundedMinorUnits > 0 ? (
           <div>
-            <dt>Refunded</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.refunded')}</dt>
             <dd>{plainAmount(invoice.refundedMinorUnits, invoice.currency)}</dd>
           </div>
         ) : null}
         <div>
-          <dt>Still Owed</dt>
+          <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.stillOwed')}</dt>
           <dd>{plainAmount(invoice.outstandingMinorUnits, invoice.currency)}</dd>
         </div>
         {refunded ? null : (
           <div>
-            <dt>Due</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.due')}</dt>
             <dd className={due ? `billing-due-${due.tone}` : undefined}>
               {formatBillingDate(invoice.dueDate)}
             </dd>
@@ -204,7 +221,9 @@ export function InvoiceCard({
       {open ? (
         <section
           className="invoice-actions"
-          aria-label={`Pay ${invoice.invoiceRef}`}
+          aria-label={t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.payInvoiceref', {
+            invoiceRef: invoice.invoiceRef,
+          })}
           {...(showTestHint ? { 'aria-describedby': `${headingId}-test-mode` } : {})}
         >
           {showTestHint ? (
@@ -235,8 +254,12 @@ export function InvoiceCard({
           {reported ? (
             <p className="invoice-note">
               {onlineOffered
-                ? 'Payment Reported: we are checking it. Once it is decided you can pay online or report another payment.'
-                : 'Payment Reported: we are checking it. We will update this invoice once it is checked.'}
+                ? t(
+                    'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReportedWeAreCheckingIt',
+                  )
+                : t(
+                    'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReportedWeAreCheckingIt7bdaca',
+                  )}
             </p>
           ) : (
             <ClaimForm
@@ -253,22 +276,36 @@ export function InvoiceCard({
       {invoice.claims.length > 0 ? (
         <section
           className="invoice-section"
-          aria-label={`Payment reports for ${invoice.invoiceRef}`}
+          aria-label={t(
+            'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReportsForInvoiceref',
+            { invoiceRef: invoice.invoiceRef },
+          )}
         >
-          <h4 className="invoice-subhead">Payment Reports</h4>
+          <h4 className="invoice-subhead">
+            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReports')}
+          </h4>
           <ul className="invoice-list">
             {invoice.claims.map((claim) => (
               <li key={claim.id} className="invoice-list-item">
                 <span>
-                  {CLAIM_METHOD_LABELS[claim.method]},{' '}
-                  {plainAmount(claim.amountMinorUnits, claim.currency)}, paid{' '}
-                  {formatBillingDate(claim.paidOn)}
+                  {t(
+                    'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.claimMethodLabelsPlainamountPaidFormatbillingdat',
+                    {
+                      CLAIM_METHOD_LABELS: CLAIM_METHOD_LABELS[claim.method],
+                      plainAmount: plainAmount(claim.amountMinorUnits, claim.currency),
+                      formatBillingDate: formatBillingDate(claim.paidOn),
+                    },
+                  )}
                 </span>
                 <StatusBadge tone={CLAIM_STATUS_TONES[claim.status]}>
                   {CLAIM_STATUS_LABELS[claim.status]}
                 </StatusBadge>
                 {claim.status === 'REJECTED' && claim.decisionReason ? (
-                  <span className="invoice-note">Reason: {claim.decisionReason}</span>
+                  <span className="invoice-note">
+                    {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.reasonDecisionreason', {
+                      decisionReason: claim.decisionReason,
+                    })}
+                  </span>
                 ) : null}
                 {claim.hasProofFile ? (
                   <a
@@ -276,7 +313,7 @@ export function InvoiceCard({
                     href={`/api/billing/proof/${organizationId}/${claim.id}`}
                     download
                   >
-                    Download Proof
+                    {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadProof')}
                   </a>
                 ) : null}
               </li>
@@ -288,15 +325,27 @@ export function InvoiceCard({
       {invoice.attempts.length > 0 ? (
         <section
           className="invoice-section"
-          aria-label={`Online payments for ${invoice.invoiceRef}`}
+          aria-label={t(
+            'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.onlinePaymentsForInvoiceref',
+            { invoiceRef: invoice.invoiceRef },
+          )}
         >
-          <h4 className="invoice-subhead">Online Payments</h4>
+          <h4 className="invoice-subhead">
+            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.onlinePayments')}
+          </h4>
           <ul className="invoice-list">
             {invoice.attempts.map((attempt) => (
               <li key={attempt.id} className="invoice-list-item">
                 <span>
-                  {plainAmount(attempt.amountMinorUnits, attempt.currency)}, started{' '}
-                  {formatBillingDateTime(attempt.redirectedAt ?? attempt.createdAt)}
+                  {t(
+                    'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.plainamountStartedFormatbillingdatetime',
+                    {
+                      plainAmount: plainAmount(attempt.amountMinorUnits, attempt.currency),
+                      formatBillingDateTime: formatBillingDateTime(
+                        attempt.redirectedAt ?? attempt.createdAt,
+                      ),
+                    },
+                  )}
                 </span>
                 <StatusBadge
                   tone={
@@ -319,8 +368,15 @@ export function InvoiceCard({
       ) : null}
 
       {invoice.receipts.length > 0 ? (
-        <section className="invoice-section" aria-label={`Receipts for ${invoice.invoiceRef}`}>
-          <h4 className="invoice-subhead">Receipts</h4>
+        <section
+          className="invoice-section"
+          aria-label={t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receiptsForInvoiceref', {
+            invoiceRef: invoice.invoiceRef,
+          })}
+        >
+          <h4 className="invoice-subhead">
+            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receipts')}
+          </h4>
           <ul className="invoice-list">
             {invoice.receipts.map((receipt) => (
               <li key={receipt.id} className="invoice-list-item">
@@ -328,11 +384,18 @@ export function InvoiceCard({
                   className="invoice-link"
                   href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}`}
                 >
-                  {`Receipt ${receipt.number}`}
+                  {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receiptNumber', {
+                    number: receipt.number,
+                  })}
                 </Link>
                 <span>
-                  {plainAmount(receipt.amountMinorUnits, receipt.currency)} on{' '}
-                  {formatBillingDate(receipt.issuedAt)}
+                  {t(
+                    'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.plainamountOnFormatbillingdate',
+                    {
+                      plainAmount: plainAmount(receipt.amountMinorUnits, receipt.currency),
+                      formatBillingDate: formatBillingDate(receipt.issuedAt),
+                    },
+                  )}
                 </span>
                 {receipt.mode === 'TEST' ? (
                   <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
@@ -341,7 +404,7 @@ export function InvoiceCard({
                   className="invoice-link"
                   href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}/pdf`}
                 >
-                  Download Receipt (PDF)
+                  {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadReceiptPdf')}
                   <span className="sr-only"> {receipt.number}</span>
                 </a>
               </li>
@@ -355,7 +418,7 @@ export function InvoiceCard({
           className="btn btn-secondary"
           href={`/app/agency/${organizationId}/plan/invoices/${invoice.id}/pdf`}
         >
-          Download Invoice (PDF)
+          {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadInvoicePdf')}
           <span className="sr-only"> {invoice.invoiceRef}</span>
         </a>
       </div>

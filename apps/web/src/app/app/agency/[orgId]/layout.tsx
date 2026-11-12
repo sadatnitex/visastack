@@ -2,11 +2,13 @@ import { getOrganizationBrandingForDisplay } from '@visastack/services';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { StatusBadge, type Tone } from '../../../../components/ui';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { agencyBrand } from '../../../../lib/agency-brand';
 import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../lib/capabilities';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { loadOrgAccess } from './console-data';
 import { ORG_STATUS } from './console-format';
@@ -26,6 +28,8 @@ export default async function AgencyConsoleLayout({
   readonly children: ReactNode;
   readonly params: Promise<{ orgId: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const capabilities = getPlatformCapabilities();
 
@@ -67,10 +71,7 @@ export default async function AgencyConsoleLayout({
         </>
       ) : (
         <article className="card">
-          <p className="card-body">
-            You don't have a role in this organization. Ask an owner or admin to add you as a
-            member.
-          </p>
+          <p className="card-body">{t('appAgency.appAgencyOrgidLayout.youDonTHaveARole')}</p>
         </article>
       )}
     </section>

@@ -1,6 +1,8 @@
 import { evidenceRequestTriageGroup } from '@visastack/services';
 import { RequestThread } from '../../../../components/request-thread/request-thread';
 import { buildThread, toThreadSendList } from '../../../../components/request-thread/thread-model';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
+import { getServerT } from '../../../../lib/i18n-server';
 import type { EvidenceRequestRow } from './console-data';
 import type { EvidenceCopies as EvidenceCopiesData } from './evidence-copies-data';
 
@@ -21,6 +23,7 @@ export function RequestConversation({
   /** A sent copy exists to show for this request (a document request with an answer). */
   readonly hasCopies: boolean;
 }) {
+  const t = getServerT(appAgencyCatalog);
   const group = evidenceRequestTriageGroup(req, req.respondingDocumentState);
   const thread = buildThread({
     viewer: 'agency',
@@ -42,7 +45,7 @@ export function RequestConversation({
   });
   return (
     <details className="request-conversation">
-      <summary>Conversation</summary>
+      <summary>{t('appAgency.appAgencyOrgidRequestConversation.conversation')}</summary>
       <RequestThread
         thread={thread}
         viewer="agency"

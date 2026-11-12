@@ -8,6 +8,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import {
   type CollectionActionState,
   choosePackAction,
@@ -49,6 +51,7 @@ export function NewRequestForm({
     readonly options: readonly { readonly key: string; readonly label: string }[];
   }[];
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(createRequestAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -57,11 +60,11 @@ export function NewRequestForm({
     <form ref={form} action={formAction} className="field-list form-narrow">
       <Hidden organizationId={organizationId} />
       <fieldset className="form-section">
-        <legend>Where and Why</legend>
+        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionForms.whereAndWhy')}</legend>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="collection-destination">
-              Destination
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.destination')}
             </label>
             <select
               id="collection-destination"
@@ -72,7 +75,7 @@ export function NewRequestForm({
               {...fieldProblem(state, 'destination', messageId)}
             >
               <option value="" disabled>
-                Choose a Country
+                {t('appAgency.appAgencyOrgidCollectionCollectionForms.chooseACountry')}
               </option>
               {countries.map((country) => (
                 <option key={country.iso2} value={country.iso2}>
@@ -84,7 +87,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-purpose">
-              Purpose
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}
             </label>
             <select
               id="collection-purpose"
@@ -93,7 +96,9 @@ export function NewRequestForm({
               defaultValue=""
               {...fieldProblem(state, 'purpose', messageId, 'collection-purpose-hint')}
             >
-              <option value="">Not Sure Yet</option>
+              <option value="">
+                {t('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
+              </option>
               {purposeGroups.map((group) => (
                 <optgroup key={group.label} label={group.label}>
                   {group.options.map((option) => (
@@ -105,14 +110,15 @@ export function NewRequestForm({
               ))}
             </select>
             <p id="collection-purpose-hint" className="muted u-fs-085">
-              With a purpose, the published official checklist that fits is proposed. Not Sure Yet
-              starts your agency's own checklist.
+              {t(
+                'appAgency.appAgencyOrgidCollectionCollectionForms.withAPurposeThePublishedOfficial',
+              )}
             </p>
             <FieldError result={state} field="purpose" />
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor="collection-route">
-              Specific Route (Optional)
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.specificRouteOptional')}
             </label>
             <input
               id="collection-route"
@@ -124,24 +130,26 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-from">
-              Travel from (Optional)
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.travelFromOptional')}
             </label>
             <input id="collection-from" name="travelFrom" type="date" className="input" />
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-to">
-              Travel to (Optional)
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.travelToOptional')}
             </label>
             <input id="collection-to" name="travelTo" type="date" className="input" />
           </div>
         </div>
       </fieldset>
       <fieldset className="form-section">
-        <legend>What You Already Know (Optional)</legend>
+        <legend>
+          {t('appAgency.appAgencyOrgidCollectionCollectionForms.whatYouAlreadyKnowOptional')}
+        </legend>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="collection-nationality">
-              Nationality
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.nationality')}
             </label>
             <input
               id="collection-nationality"
@@ -153,7 +161,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-residence">
-              Country of Residence
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.countryOfResidence')}
             </label>
             <input
               id="collection-residence"
@@ -165,7 +173,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-place">
-              Where They Apply
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.whereTheyApply')}
             </label>
             <input
               id="collection-place"
@@ -177,7 +185,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-due">
-              Due Date
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.dueDate')}
             </label>
             <input
               id="collection-due"
@@ -191,14 +199,14 @@ export function NewRequestForm({
         </div>
       </fieldset>
       <fieldset className="form-section">
-        <legend>Who It Is for (Optional)</legend>
+        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionForms.whoItIsForOptional')}</legend>
         <p className="muted u-fs-085">
-          For your own reference only. Nothing here is shown to anyone who opens the link.
+          {t('appAgency.appAgencyOrgidCollectionCollectionForms.forYourOwnReferenceOnlyNothing')}
         </p>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="collection-name">
-              Name
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.name')}
             </label>
             <input
               id="collection-name"
@@ -210,7 +218,7 @@ export function NewRequestForm({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="collection-email">
-              Email
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.email')}
             </label>
             <input
               id="collection-email"
@@ -237,6 +245,7 @@ export function AddItemForm({
   readonly requestId: string;
   readonly necessities: readonly NecessityOption[];
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(editDraftAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -248,7 +257,7 @@ export function AddItemForm({
       <div className="form-grid">
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={`add-item-label-${requestId}`}>
-            Item Your Agency Needs
+            {t('appAgency.appAgencyOrgidCollectionCollectionForms.itemYourAgencyNeeds')}
           </label>
           <input
             id={`add-item-label-${requestId}`}
@@ -263,7 +272,7 @@ export function AddItemForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor={`add-item-necessity-${requestId}`}>
-            How Necessary
+            {t('appAgency.appAgencyOrgidCollectionCollectionForms.howNecessary')}
           </label>
           <select
             id={`add-item-necessity-${requestId}`}
@@ -280,7 +289,7 @@ export function AddItemForm({
         </div>
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={`add-item-note-${requestId}`}>
-            Note to the Person (Optional)
+            {t('appAgency.appAgencyOrgidCollectionCollectionForms.noteToThePersonOptional')}
           </label>
           <input
             id={`add-item-note-${requestId}`}
@@ -326,6 +335,7 @@ export function ItemEditForm({
   readonly removable: boolean;
   readonly necessities: readonly NecessityOption[];
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(editDraftAction, INITIAL);
   const noteId = `item-note-${item.id}`;
   const necessityId = `item-necessity-${item.id}`;
@@ -336,7 +346,9 @@ export function ItemEditForm({
       <div className="form-grid">
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={noteId}>
-            Note: {item.label}
+            {t('appAgency.appAgencyOrgidCollectionCollectionForms.noteLabel', {
+              label: item.label,
+            })}
           </label>
           <input
             id={noteId}
@@ -350,7 +362,9 @@ export function ItemEditForm({
         {item.agency ? (
           <div className="field-row">
             <label className="field-label" htmlFor={necessityId}>
-              How Necessary: {item.label}
+              {t('appAgency.appAgencyOrgidCollectionCollectionForms.howNecessaryLabel', {
+                label: item.label,
+              })}
             </label>
             <select
               id={necessityId}
@@ -375,7 +389,9 @@ export function ItemEditForm({
           idle="Save Note"
           busy="Saving…"
           className="btn btn-secondary"
-          label={`Save Note: ${item.label}`}
+          label={t('appAgency.appAgencyOrgidCollectionCollectionForms.saveNoteLabel', {
+            label: item.label,
+          })}
         />
         {item.agency ? (
           <SubmitButton
@@ -385,7 +401,9 @@ export function ItemEditForm({
             idle="Save Necessity"
             busy="Saving…"
             className="btn btn-secondary"
-            label={`Save Necessity: ${item.label}`}
+            label={t('appAgency.appAgencyOrgidCollectionCollectionForms.saveNecessityLabel', {
+              label: item.label,
+            })}
           />
         ) : null}
         {first ? null : (
@@ -396,7 +414,9 @@ export function ItemEditForm({
             idle="Move Up"
             busy="Moving…"
             className="btn btn-secondary"
-            label={`Move Up: ${item.label}`}
+            label={t('appAgency.appAgencyOrgidCollectionCollectionForms.moveUpLabel', {
+              label: item.label,
+            })}
           />
         )}
         {last ? null : (
@@ -407,7 +427,9 @@ export function ItemEditForm({
             idle="Move Down"
             busy="Moving…"
             className="btn btn-secondary"
-            label={`Move Down: ${item.label}`}
+            label={t('appAgency.appAgencyOrgidCollectionCollectionForms.moveDownLabel', {
+              label: item.label,
+            })}
           />
         )}
         {removable ? (
@@ -418,7 +440,9 @@ export function ItemEditForm({
             idle="Remove"
             busy="Removing…"
             className="btn btn-secondary"
-            label={`Remove: ${item.label}`}
+            label={t('appAgency.appAgencyOrgidCollectionCollectionForms.removeLabel', {
+              label: item.label,
+            })}
           />
         ) : null}
       </div>
@@ -441,12 +465,13 @@ export function PackChoiceForm({
   }[];
   readonly current: string | null;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(choosePackAction, INITIAL);
   return (
     <form action={formAction} className="field-list">
       <Hidden organizationId={organizationId} requestId={requestId} />
       <fieldset className="form-section">
-        <legend>Checklist to Follow</legend>
+        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionForms.checklistToFollow')}</legend>
         {choices.map((choice) => (
           <label key={choice.packVersionId} className="check">
             <input
@@ -467,7 +492,7 @@ export function PackChoiceForm({
             value=""
             defaultChecked={current === null}
           />{' '}
-          Your Agency's Own Checklist
+          {t('appAgency.appAgencyOrgidCollectionCollectionForms.yourAgencySOwnChecklist')}
         </label>
       </fieldset>
       <SubmitButton
@@ -542,6 +567,7 @@ export function EmailLinkForm({
   readonly requestId: string;
   readonly defaultEmail: string | null;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(emailLinkAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -552,7 +578,7 @@ export function EmailLinkForm({
       <Hidden organizationId={organizationId} requestId={requestId} />
       <div className="field-row">
         <label className="field-label" htmlFor={inputId}>
-          Email Address
+          {t('appAgency.appAgencyOrgidCollectionCollectionForms.emailAddress')}
         </label>
         <input
           id={inputId}
@@ -565,8 +591,7 @@ export function EmailLinkForm({
           {...fieldProblem(state, 'email', messageId, `${inputId}-hint`)}
         />
         <p id={`${inputId}-hint`} className="muted u-fs-085">
-          The email names your agency only once VisaStack has reviewed it, and never the route, the
-          documents or the person.
+          {t('appAgency.appAgencyOrgidCollectionCollectionForms.theEmailNamesYourAgencyOnly')}
         </p>
         <FieldError result={state} field="email" />
       </div>

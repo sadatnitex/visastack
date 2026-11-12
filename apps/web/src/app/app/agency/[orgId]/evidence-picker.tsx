@@ -1,6 +1,8 @@
 'use client';
 
 import { type RefObject, useId, useMemo, useState } from 'react';
+import { useT } from '../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import type {
   MissingForCase,
   MissingRow,
@@ -67,6 +69,7 @@ export function EvidencePicker({
   /** The ids "Ask for All Missing" ticks (required items, never provided, not already asked). */
   readonly missingIds: readonly string[];
 }) {
+  const t = useT(appAgencyCatalog);
   const uid = useId();
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [shown, setShown] = useState<ReadonlyMap<string, number>>(new Map());
@@ -154,7 +157,7 @@ export function EvidencePicker({
     <div className="ask-picker">
       <div className="field-row">
         <label className="field-label" htmlFor={searchId}>
-          Search Documents and Details
+          {t('appAgency.appAgencyOrgidEvidencePicker.searchDocumentsAndDetails')}
         </label>
         <input
           id={searchId}
@@ -162,7 +165,9 @@ export function EvidencePicker({
           type="search"
           className="input"
           autoComplete="off"
-          placeholder="For example: NID, trade licence, solvency"
+          placeholder={t(
+            'appAgency.appAgencyOrgidEvidencePicker.forExampleNidTradeLicenceSolvency',
+          )}
           aria-describedby={hintId}
           value={query}
           onChange={(event) => onQuery(event.target.value)}
@@ -172,22 +177,30 @@ export function EvidencePicker({
           }}
         />
         <small className="muted" id={hintId}>
-          Choose as many as you need, then send them together.
+          {t('appAgency.appAgencyOrgidEvidencePicker.chooseAsManyAsYouNeed')}
         </small>
         <output className="sr-only">
-          {searching ? (total === 0 ? 'No matches.' : `${total} matches.`) : ''}
+          {searching
+            ? total === 0
+              ? t('appAgency.appAgencyOrgidEvidencePicker.noMatches')
+              : t('appAgency.appAgencyOrgidEvidencePicker.totalMatches', { total })
+            : ''}
         </output>
       </div>
 
       {searching && total === 0 ? (
         <p className="ask-empty">
-          Nothing matches “{query.trim()}”. Not in the list? Choose Other Document and explain in
-          the message.
+          {t('appAgency.appAgencyOrgidEvidencePicker.nothingMatchesTrimNotInThe', {
+            trim: query.trim(),
+          })}
         </p>
       ) : null}
 
       {missing && !searching ? (
-        <section className="ask-group ask-missing" aria-label="Missing for This Case">
+        <section
+          className="ask-group ask-missing"
+          aria-label={t('appAgency.appAgencyOrgidEvidencePicker.missingForThisCase')}
+        >
           <div className="ask-group-head">
             <button
               type="button"
@@ -205,12 +218,16 @@ export function EvidencePicker({
               <>
                 {missingIds.length > 0 ? (
                   <button type="button" className="btn btn-secondary" onClick={onAskAllMissing}>
-                    {`Ask for All Missing (${missingIds.length})`}
+                    {t('appAgency.appAgencyOrgidEvidencePicker.askForAllMissingLength', {
+                      length: missingIds.length,
+                    })}
                   </button>
                 ) : null}
                 {missingIds.length > MAX_ASK_ITEMS ? (
                   <p className="muted u-fs-085">
-                    {`Only the first ${MAX_ASK_ITEMS} are ticked. Send these, then ask for the rest.`}
+                    {t('appAgency.appAgencyOrgidEvidencePicker.onlyTheFirstMaxAskItems', {
+                      MAX_ASK_ITEMS,
+                    })}
                   </p>
                 ) : null}
                 <ul className="ask-list">{missing.rows.map(missingRow)}</ul>
@@ -222,9 +239,11 @@ export function EvidencePicker({
                     <legend>
                       {missing.anyOf.length > 1
                         ? `Any One of These (${index + 1})`
-                        : 'Any One of These'}
+                        : t('appAgency.appAgencyOrgidEvidencePicker.anyOneOfThese')}
                     </legend>
-                    <p className="muted u-fs-085">The traveller needs only one of these.</p>
+                    <p className="muted u-fs-085">
+                      {t('appAgency.appAgencyOrgidEvidencePicker.theTravellerNeedsOnlyOneOf')}
+                    </p>
                     <ul className="ask-list">{members.map(missingRow)}</ul>
                   </fieldset>
                 ))}
@@ -265,9 +284,15 @@ export function EvidencePicker({
                         {' '}
                         (
                         {searching
-                          ? `${matches.length} of ${view.entries.length}`
+                          ? t('appAgency.appAgencyOrgidEvidencePicker.lengthOfLength2', {
+                              length: matches.length,
+                              length2: view.entries.length,
+                            })
                           : view.entries.length}
-                        {picked > 0 ? `, ${picked} selected` : ''})
+                        {picked > 0
+                          ? t('appAgency.appAgencyOrgidEvidencePicker.pickedSelected', { picked })
+                          : ''}
+                        )
                       </span>
                     </button>
                   </div>

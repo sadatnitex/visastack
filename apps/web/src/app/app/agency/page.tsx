@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 import { EmptyState, PageHeader } from '../../../components/ui';
+import { appAgencyCatalog } from '../../../i18n/app-agency';
 import { humanizeCode } from '../../../lib/format-code';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { withSession } from '../../../lib/session';
 import { withdrawOrganizationApplicationAction } from './actions';
 import { CreateOrgForm } from './create-org-form';
@@ -44,6 +46,8 @@ export default async function AgencyPage(props: AgencyPageProps): Promise<ReactE
 export default async function AgencyPage({
   searchParams,
 }: AgencyPageProps = {}): Promise<ReactElement> {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const query = (await searchParams) ?? {};
   const orgs = await withSession(async ({ db, accountId }) =>
     listMembershipsForAccount(db, accountId),
@@ -62,9 +66,9 @@ export default async function AgencyPage({
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Agency"
-        title="Organizations"
-        description="Agencies collaborate on cases and request evidence. Membership never grants record access on its own - access is always an accepted grant."
+        eyebrow={t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.agency')}
+        title={t('appAgency.appAgencyPage.organizations')}
+        description={t('appAgency.appAgencyPage.agenciesCollaborateOnCasesAndRequest')}
       />
 
       {withdrawalMessage ? (
@@ -73,12 +77,11 @@ export default async function AgencyPage({
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Your Organizations</p>
-          <h2 className="card-title">Memberships</h2>
+          <p className="card-kicker">{t('appAgency.appAgencyPage.yourOrganizations')}</p>
+          <h2 className="card-title">{t('appAgency.appAgencyPage.memberships')}</h2>
           {orgs.length === 0 ? (
-            <EmptyState icon="building" title="No Organizations Yet">
-              Apply to register your agency here. You become its owner, and a platform administrator
-              must verify it before it can work with clients.
+            <EmptyState icon="building" title={t('appAgency.appAgencyPage.noOrganizationsYet')}>
+              {t('appAgency.appAgencyPage.applyToRegisterYourAgencyHere')}
             </EmptyState>
           ) : (
             <div className="rows u-mt-050">
@@ -117,7 +120,7 @@ export default async function AgencyPage({
                     {link}
                     <details className="lc-g3-withdraw">
                       <summary className="btn btn-secondary lc-g3-withdraw-open">
-                        Withdraw Application
+                        {t('appAgency.appAgencyPage.withdrawApplication')}
                       </summary>
                       <form
                         action={withdrawOrganizationApplicationAction}
@@ -125,16 +128,16 @@ export default async function AgencyPage({
                       >
                         <input type="hidden" name="organizationId" value={m.organization.id} />
                         <p id={confirmId} className="lc-g3-confirm-text">
-                          Withdraw the application for {m.organization.name}? It will no longer be
-                          reviewed, and anyone you added to it loses access. You can apply again at
-                          any time.
+                          {t('appAgency.appAgencyPage.withdrawTheApplicationForNameIt', {
+                            name: m.organization.name,
+                          })}
                         </p>
                         <button
                           type="submit"
                           className="btn btn-danger"
                           aria-describedby={confirmId}
                         >
-                          Withdraw Application
+                          {t('appAgency.appAgencyPage.withdrawApplication')}
                         </button>
                       </form>
                     </details>
@@ -146,11 +149,10 @@ export default async function AgencyPage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">New</p>
-          <h2 className="card-title">Apply to Register an Agency</h2>
+          <p className="card-kicker">{t('appAgency.appAgencyPage.new')}</p>
+          <h2 className="card-title">{t('appAgency.appAgencyPage.applyToRegisterAnAgency')}</h2>
           <p className="card-body u-mb-125">
-            You become the owner. New organizations start pending verification by a platform
-            administrator.
+            {t('appAgency.appAgencyPage.youBecomeTheOwnerNewOrganizations')}
           </p>
           <CreateOrgForm />
         </article>

@@ -1,4 +1,5 @@
 import { CANONICAL_CASE_STATES, LEGACY_ONLY_MISSION_STATES } from '@visastack/core';
+import { type Locale, formatNumber } from '@visastack/i18n';
 import { isWaitingOnTraveller } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -9,17 +10,19 @@ import { DestinationLabel } from '../../../../components/destination-label';
 import { ShowMore } from '../../../../components/show-more';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift/about-disclosure';
+import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { depthCopy } from '../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { type SearchParamsRecord, nextShow, parseShow } from '../../../../lib/paging';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { BillingStatusNotice, loadBillingNotice } from './billing-status-notice';
 import { agencyCaseHref } from './case-anchor';
-import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
+import { CaseSearchForm } from './case-search-form';
 import {
   loadApplicants,
   loadCases,
@@ -32,15 +35,18 @@ import {
 import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
 import { buildDoNextList } from './do-next';
 import { DoNextList } from './do-next-list';
+import { STAGE_LABELS } from './stage-labels';
 
 function Stat({
   label,
   value,
+  locale,
   tone,
   note,
 }: {
   readonly label: string;
   readonly value: number;
+  readonly locale: Locale;
   readonly tone?: 'warning' | 'danger';
   /** A second line under the number. */
   readonly note?: string | undefined;
@@ -49,7 +55,7 @@ function Stat({
   return (
     <div className={`stat${state}`}>
       <span className="stat-label">{label}</span>
-      <span className="stat-value">{value}</span>
+      <span className="stat-value">{formatNumber(value, locale)}</span>
       {note ? (
         <span className="stat-note" data-value>
           {note}
@@ -96,6 +102,8 @@ export default async function AgencyDashboardPage({
     readonly queue?: string;
   }>;
 }) {
+  const locale = await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const query = await searchParams;
   const {
@@ -323,9 +331,17 @@ export default async function AgencyDashboardPage({
     <DepthScope family="agency-home" depth={depth}>
       <BillingStatusNotice notice={data.billingStatus} admin={data.admin} organizationId={orgId} />
       <DepthSwitch family="agency-home" initial={depth} copy={depthWords} notesBehindInfo />
-      <section className="agency-reference-metrics" aria-label="Agency overview">
+      <section
+        className="agency-reference-metrics"
+        aria-label={t('appAgency.appAgencyOrgidPage.agencyOverview')}
+      >
         <Stat
-          label={data.admin ? 'Active Clients' : 'Clients you can work with'}
+          locale={locale}
+          label={
+            data.admin
+              ? t('appAgency.appAgencyOrgidPage.activeClients')
+              : t('appAgency.appAgencyOrgidPage.clientsYouCanWorkWith')
+          }
           value={
             data.admin
               ? data.clients.length
@@ -333,58 +349,74 @@ export default async function AgencyDashboardPage({
           }
         />
         <Stat
-          label="Open Cases"
+          locale={locale}
+          label={t('appAgency.appAgencyOrgidPage.openCases')}
           value={
             data.missions.filter((mission) => !['CLOSED', 'CANCELLED'].includes(mission.state))
               .length
           }
         />
         <Stat
-          label="Pending Requests"
+          locale={locale}
+          label={t('appAgency.appAgencyOrgidPage.pendingRequests')}
           value={summary.pendingRequests.pending}
           note={
             data.admin
-              ? `${summary.pendingRequests.waitingOnTravellers} waiting on ${summary.pendingRequests.waitingOnTravellers === 1 ? 'a traveller' : 'travellers'}, ${summary.pendingRequests.waitingOnAgency} waiting on you`
+              ? t('appAgency.appAgencyOrgidPage.waitingontravellersWaitingOnTravellersWaitingona', {
+                  waitingOnTravellers: summary.pendingRequests.waitingOnTravellers,
+                  waitingOnAgency: summary.pendingRequests.waitingOnAgency,
+                })
               : undefined
           }
         />
         {data.admin ? (
           <Stat
-            label="Team Members"
+            locale={locale}
+            label={t('appAgency.appAgencyOrgidPage.teamMembers')}
             value={data.members.filter((member) => member.active).length}
           />
         ) : (
-          <Stat label="Assigned Cases" value={data.missions.length} />
+          <Stat
+            locale={locale}
+            label={t('appAgency.appAgencyOrgidPage.assignedCases')}
+            value={data.missions.length}
+          />
         )}
       </section>
       {data.clientsJoined ? (
         <section
           className="agency-clients-joined"
-          aria-label="Clients joined"
+          aria-label={t('appAgency.appAgencyOrgidPage.clientsJoined')}
           {...atLevel('everything')}
         >
-          <Stat label="Clients Joined" value={data.clientsJoined.total} />
-          <Stat label="Joined in the Last 30 Days" value={data.clientsJoined.last30Days} />
+          <Stat
+            locale={locale}
+            label={t('appAgency.appAgencyOrgidPage.clientsJoinedd73060')}
+            value={data.clientsJoined.total}
+          />
+          <Stat
+            locale={locale}
+            label={t('appAgency.appAgencyOrgidPage.joinedInTheLast30Days')}
+            value={data.clientsJoined.last30Days}
+          />
         </section>
       ) : null}
       {data.admin && setupSteps.some((step) => !step.done) ? (
         // Shown only while setup is unfinished, and then it is the next thing to do: every level.
         <details className="agency-setup-disclosure">
           <summary>
-            Finish agency setup: {setupSteps.filter((step) => step.done).length} of{' '}
-            {setupSteps.length} complete
+            {t('appAgency.appAgencyOrgidPage.finishAgencySetupLengthOfLength2', {
+              length: setupSteps.filter((step) => step.done).length,
+              length2: setupSteps.length,
+            })}
           </summary>
-          <Checklist title="Set Up Your Agency" items={setupSteps} />
+          <Checklist title={t('appAgency.appAgencyOrgidPage.setUpYourAgency')} items={setupSteps} />
         </details>
       ) : null}
 
       {!data.admin ? (
         <article className="card u-mb-150" {...atLevel('browse')}>
-          <p className="card-body">
-            You're a member of this organization but not an administrator. Requesting evidence, bulk
-            export, and member management are admin-only - you can still collaborate on cases you're
-            assigned to in the Cases section.
-          </p>
+          <p className="card-body">{t('appAgency.appAgencyOrgidPage.youReAMemberOfThis')}</p>
         </article>
       ) : null}
 
@@ -405,7 +437,7 @@ export default async function AgencyDashboardPage({
               {...(listLevel ? atLevel(listLevel) : {})}
             >
               <h2 className="card-title" id="pipeline-heading">
-                Case Pipeline
+                {t('appAgency.appAgencyOrgidPage.casePipeline')}
               </h2>
               <p className="sr-only">{pipelineSummary}</p>
               <div className="agency-pipeline-stages">
@@ -416,7 +448,7 @@ export default async function AgencyDashboardPage({
                     href={`${base}?stage=${segment.state}`}
                   >
                     <span>{STAGE_LABELS[segment.state] ?? humanizeCode(segment.state)}</span>
-                    <strong>{segment.count}</strong>
+                    <strong>{formatNumber(segment.count, locale)}</strong>
                     <progress
                       max={data.missions.length}
                       value={segment.count}
@@ -433,24 +465,31 @@ export default async function AgencyDashboardPage({
               {...(listLevel ? atLevel(listLevel) : {})}
             >
               <h2 className="card-title" id="pipeline-heading">
-                Case Pipeline
+                {t('appAgency.appAgencyOrgidPage.casePipeline')}
               </h2>
-              <EmptyState icon="briefcase" title="No Case Stages to Show">
-                Actual stage counts appear when a case is shared and visible to you.
+              <EmptyState
+                icon="briefcase"
+                title={t('appAgency.appAgencyOrgidPage.noCaseStagesToShow')}
+              >
+                {t('appAgency.appAgencyOrgidPage.actualStageCountsAppearWhenA')}
               </EmptyState>
-              <Link href={`${base}/cases`}>Open Cases</Link>
+              <Link href={`${base}/cases`}>{t('appAgency.appAgencyOrgidPage.openCases')}</Link>
             </section>
           )}
 
           <section className="card" aria-labelledby="inbox-heading">
             <h2 className="card-title" id="inbox-heading">
-              Cases and Attention
+              {t('appAgency.appAgencyOrgidPage.casesAndAttention')}
             </h2>
-            <AboutDisclosure summary="About This List" className="u-mb-100">
-              <p className="card-body">Cases that need action come first.</p>
+            <AboutDisclosure
+              summary={t('appAgency.appAgencyOrgidPage.aboutThisList')}
+              className="u-mb-100"
+            >
               <p className="card-body">
-                Search covers only the cases you are already allowed to see, by traveller, case
-                title, reference, destination or stage.
+                {t('appAgency.appAgencyOrgidPage.casesThatNeedActionComeFirst')}
+              </p>
+              <p className="card-body">
+                {t('appAgency.appAgencyOrgidPage.searchCoversOnlyTheCasesYou')}
               </p>
             </AboutDisclosure>
             <div className="depth-item" {...(filtered ? {} : atLevel('everything'))}>
@@ -464,13 +503,17 @@ export default async function AgencyDashboardPage({
               />
             </div>
             {data.missions.length > 0 ? (
-              <nav className="quick-views u-mt-100" aria-label="Quick views of the case list">
+              <nav
+                className="quick-views u-mt-100"
+                aria-label={t('appAgency.appAgencyOrgidPage.quickViewsOfTheCaseList')}
+              >
                 <Link
                   href={quickHref('')}
                   className={`quick-view${activeQuick ? '' : ' quick-view-on'}`}
                   aria-current={activeQuick ? undefined : 'true'}
                 >
-                  All <span className="muted">{searchedAll.length}</span>
+                  {t('appAgency.appAgencyOrgidClientsPage.all')}{' '}
+                  <span className="muted">{searchedAll.length}</span>
                 </Link>
                 {quickViews.map((view) => (
                   <Link
@@ -488,7 +531,7 @@ export default async function AgencyDashboardPage({
             {data.missions.length === 0 ? (
               <div className="u-mt-100">
                 <EmptyState
-                  title="No Cases Yet"
+                  title={t('appAgency.appAgencyOrgidCasesPage.noCasesYet')}
                   icon="briefcase"
                   why="Once a client accepts, their cases appear here with how many checklist items are ready."
                   {...(data.admin
@@ -496,24 +539,30 @@ export default async function AgencyDashboardPage({
                     : {})}
                 >
                   {data.admin
-                    ? 'No cases are reachable yet - a traveller must grant this organization access to a specific case.'
-                    : "You aren't assigned to any cases yet. An owner or admin of this organization can assign you to one."}
+                    ? t('appAgency.appAgencyOrgidCasesPage.noCasesAreReachableYetA')
+                    : t('appAgency.appAgencyOrgidCasesPage.youArenTAssignedToAny')}
                 </EmptyState>
               </div>
             ) : searched.length === 0 ? (
-              <p className="card-body u-mt-100">No cases match that search.</p>
+              <p className="card-body u-mt-100">
+                {t('appAgency.appAgencyOrgidPage.noCasesMatchThatSearch')}
+              </p>
             ) : (
               <table className="data-table agency-case-table u-mt-100">
-                <caption className="sr-only">Cases, Most Urgent First</caption>
+                <caption className="sr-only">
+                  {t('appAgency.appAgencyOrgidPage.casesMostUrgentFirst')}
+                </caption>
                 <thead>
                   <tr>
-                    <th scope="col">Case</th>
-                    <th scope="col">Stage</th>
-                    <th scope="col">Readiness</th>
-                    <th scope="col">Deadline</th>
-                    <th scope="col">Needs Attention</th>
-                    <th scope="col">Assigned</th>
-                    <th scope="col">Traveller Confirmed</th>
+                    <th scope="col">{t('appAgency.appAgencyOrgidPage.case')}</th>
+                    <th scope="col">{t('appAgency.appAgencyOrgidCaseSearchForm.stage')}</th>
+                    <th scope="col">{t('appAgency.appAgencyOrgidPage.readiness')}</th>
+                    <th scope="col">{t('appAgency.appAgencyOrgidPage.deadline')}</th>
+                    <th scope="col">{t('appAgency.appAgencyOrgidPage.needsAttention')}</th>
+                    <th scope="col">
+                      {t('appAgency.appAgencyOrgidMissionCollaboration.assigned')}
+                    </th>
+                    <th scope="col">{t('appAgency.appAgencyOrgidPage.travellerConfirmed')}</th>
                   </tr>
                 </thead>
                 <tbody id="agency-case-table-rows">
@@ -538,8 +587,10 @@ export default async function AgencyDashboardPage({
                             </span>
                           ) : null}
                         </th>
-                        <td data-label="Stage">{STAGE_LABELS[mission.state] ?? mission.state}</td>
-                        <td data-label="Readiness">
+                        <td data-label={t('appAgency.appAgencyOrgidCaseSearchForm.stage')}>
+                          {STAGE_LABELS[mission.state] ?? mission.state}
+                        </td>
+                        <td data-label={t('appAgency.appAgencyOrgidPage.readiness')}>
                           <StatusBadge
                             tone={
                               mission.manualMode
@@ -550,14 +601,14 @@ export default async function AgencyDashboardPage({
                             }
                           >
                             {mission.manualMode
-                              ? 'Manual Mode'
+                              ? t('appAgency.appAgencyOrgidPage.manualMode')
                               : !mission.packVersionId
-                                ? 'No Pack Attached'
+                                ? t('appAgency.appAgencyOrgidPage.noPackAttached')
                                 : mission.readiness
                                   ? mission.readiness.ready
-                                    ? 'Ready'
+                                    ? t('appAgency.appAgencyOrgidPage.ready')
                                     : `${required - satisfied} missing`
-                                  : 'Readiness Unavailable'}
+                                  : t('appAgency.appAgencyOrgidPage.readinessUnavailable')}
                           </StatusBadge>
                           {mission.manualMode ? null : (
                             <span className="progress-ring-row">
@@ -573,35 +624,42 @@ export default async function AgencyDashboardPage({
                             </span>
                           )}
                         </td>
-                        <td data-label="Deadline">
+                        <td data-label={t('appAgency.appAgencyOrgidPage.deadline')}>
                           {mission.targetDeadline ? (
-                            formatDateOnly(mission.targetDeadline)
+                            formatDateOnly(mission.targetDeadline, locale)
                           ) : (
                             <span className="muted" data-value>
-                              Not set
+                              {t('appAgency.appAgencyOrgidPage.notSet')}
                             </span>
                           )}
                         </td>
-                        <td data-label="Needs Attention">
+                        <td data-label={t('appAgency.appAgencyOrgidPage.needsAttention')}>
                           <span className="case-row-badges">
                             {row.openRequests > 0 ? (
                               <StatusBadge tone="warning">
-                                {row.openRequests} open request{row.openRequests === 1 ? '' : 's'}
+                                {t('appAgency.appAgencyOrgidPage.openrequestsOpenRequests', {
+                                  openRequests: row.openRequests,
+                                })}
                               </StatusBadge>
                             ) : null}
                             {row.reviewIssues > 0 ? (
                               <StatusBadge tone="warning">
-                                {row.reviewIssues} needs replacement
+                                {t('appAgency.appAgencyOrgidPage.reviewissuesNeedsReplacement', {
+                                  reviewIssues: row.reviewIssues,
+                                })}
                               </StatusBadge>
                             ) : null}
                             {row.overdueTasks > 0 ? (
                               <StatusBadge tone="danger">
-                                {row.overdueTasks} overdue task{row.overdueTasks === 1 ? '' : 's'}
+                                {t('appAgency.appAgencyOrgidPage.overduetasksOverdueTasks', {
+                                  overdueTasks: row.overdueTasks,
+                                })}
                               </StatusBadge>
                             ) : null}
                             {row.approaching ? (
                               <StatusBadge tone="warning">
-                                {row.approaching.label} {formatDateOnly(row.approaching.date)}
+                                {row.approaching.label}{' '}
+                                {formatDateOnly(row.approaching.date, locale)}
                               </StatusBadge>
                             ) : null}
                             {row.openRequests +
@@ -610,29 +668,37 @@ export default async function AgencyDashboardPage({
                               (row.approaching ? 1 : 0) ===
                             0 ? (
                               <span className="muted" data-value>
-                                Nothing
+                                {t('appAgency.appAgencyOrgidPage.nothing')}
                               </span>
                             ) : null}
                           </span>
                         </td>
-                        <td data-label="Assigned">
+                        <td data-label={t('appAgency.appAgencyOrgidMissionCollaboration.assigned')}>
                           {row.assignedToMe ? (
-                            <StatusBadge tone="neutral">Assigned to You</StatusBadge>
+                            <StatusBadge tone="neutral">
+                              {t('appAgency.appAgencyOrgidPage.assignedToYou')}
+                            </StatusBadge>
                           ) : null}
                           {mission.assignments.length === 0 ? (
-                            <StatusBadge tone="warning">Needs Assignment</StatusBadge>
+                            <StatusBadge tone="warning">
+                              {t('appAgency.appAgencyOrgidPage.needsAssignment')}
+                            </StatusBadge>
                           ) : (
                             <span className="cell-sub">
                               {mission.assignments.map((a) => a.memberEmail).join(', ')}
                             </span>
                           )}
                         </td>
-                        <td data-label="Traveller Confirmed">
+                        <td data-label={t('appAgency.appAgencyOrgidPage.travellerConfirmed')}>
                           {/* TRU-02 (Part 7 section 3): the applicant's own live sign-off status, not a
                           reviewer's. This org can see whether it exists, never act on it. */}
                           {mission.liveAcknowledgementAt
-                            ? `Acknowledged ${formatTimestampDate(mission.liveAcknowledgementAt)}`
-                            : 'Not yet acknowledged'}
+                            ? t('appAgency.appAgencyOrgidPage.acknowledgedFormattimestampdate', {
+                                formatTimestampDate: formatTimestampDate(
+                                  mission.liveAcknowledgementAt,
+                                ),
+                              })
+                            : t('appAgency.appAgencyOrgidPage.notYetAcknowledged')}
                         </td>
                       </tr>
                     );
@@ -647,7 +713,9 @@ export default async function AgencyDashboardPage({
                   id="agency-case-table-all"
                   className="agency-case-table-toggle-input"
                   // A stable spoken name with the checked state; the visible words switch.
-                  aria-label={`Show All ${Math.min(casesShown, searched.length)} Cases`}
+                  aria-label={t('appAgency.appAgencyOrgidPage.showAllMinCases', {
+                    min: Math.min(casesShown, searched.length),
+                  })}
                 />
                 <label htmlFor="agency-case-table-all" className="btn btn-secondary u-btn-sm">
                   <span className="agency-case-table-toggle-closed">
@@ -656,7 +724,9 @@ export default async function AgencyDashboardPage({
                       return `Show the Other ${others} ${others === 1 ? 'Case' : 'Cases'}`;
                     })()}
                   </span>
-                  <span className="agency-case-table-toggle-open">Show Fewer Cases</span>
+                  <span className="agency-case-table-toggle-open">
+                    {t('appAgency.appAgencyOrgidPage.showFewerCases')}
+                  </span>
                 </label>
               </div>
             ) : null}
@@ -676,7 +746,7 @@ export default async function AgencyDashboardPage({
                   noun={{ one: 'case', other: 'cases' }}
                 />
                 <Link href={`${base}/cases`} className="btn btn-secondary u-btn-sm">
-                  View All Cases
+                  {t('appAgency.appAgencyOrgidPage.viewAllCases')}
                 </Link>
               </div>
             ) : null}
@@ -684,12 +754,10 @@ export default async function AgencyDashboardPage({
 
           {data.admin && data.unassignedQueue.length > 0 ? (
             <article className="card u-mb-150" {...atLevel('everything')}>
-              <p className="card-kicker">Needs Attention</p>
-              <h2 className="card-title">Reassignment Queue</h2>
+              <p className="card-kicker">{t('appAgency.appAgencyOrgidPage.needsAttention')}</p>
+              <h2 className="card-title">{t('appAgency.appAgencyOrgidPage.reassignmentQueue')}</h2>
               <p className="card-body u-mb-125">
-                Active cases this organization can still act on but that currently have nobody
-                assigned - most often because the only assigned member was removed. Open one to
-                assign someone in the Cases section.
+                {t('appAgency.appAgencyOrgidPage.activeCasesThisOrganizationCanStill')}
               </p>
               <div className="rows" id="agency-reassignment-rows">
                 {data.unassignedQueue.slice(0, queueShown).map((m) => (
@@ -723,27 +791,38 @@ export default async function AgencyDashboardPage({
         </div>
         <aside
           className="agency-context-rail"
-          aria-label="Requests and team"
+          aria-label={t('appAgency.appAgencyOrgidPage.requestsAndTeam')}
           {...atLevel('browse')}
         >
           {data.admin ? (
             <>
               <article className="card">
-                <h2 className="card-title">Evidence Requests</h2>
-                <p className="card-body">Recent requests available to your administrator role.</p>
+                <h2 className="card-title">
+                  {t('appAgency.appAgencyOrgidClientsPage.evidenceRequests')}
+                </h2>
+                <p className="card-body">
+                  {t('appAgency.appAgencyOrgidPage.recentRequestsAvailableToYourAdministrator')}
+                </p>
                 {data.requests.length ? (
                   <ul className="agency-request-list">
                     {data.requests.slice(0, 5).map((request) => (
                       <li key={request.id}>
                         <Link href={`${base}/clients#agency-evidence-requests`}>
                           <strong>
-                            {request.docType ?? request.fieldKey ?? 'Evidence Request'}
+                            {request.docType ??
+                              request.fieldKey ??
+                              t('appAgency.appAgencyOrgidPage.evidenceRequest')}
                           </strong>
                           <span>
-                            {request.applicantName ?? 'Traveller'} · {humanizeCode(request.status)}
+                            {request.applicantName ?? t('appAgency.appAgencyOrgidPage.traveller')} ·{' '}
+                            {humanizeCode(request.status)}
                           </span>
                           {request.dueDate ? (
-                            <small>Due {formatTimestampDate(request.dueDate)}</small>
+                            <small>
+                              {t('appAgency.appAgencyOrgidPage.dueFormattimestampdate', {
+                                formatTimestampDate: formatTimestampDate(request.dueDate),
+                              })}
+                            </small>
                           ) : null}
                           {/* Plain text inside the link: a Copy button cannot sit inside a link. */}
                           {request.referenceCode ? (
@@ -754,20 +833,21 @@ export default async function AgencyDashboardPage({
                     ))}
                   </ul>
                 ) : (
-                  <p className="muted">No evidence requests yet.</p>
+                  <p className="muted">{t('appAgency.appAgencyOrgidPage.noEvidenceRequestsYet')}</p>
                 )}
                 <Link
                   href={`${base}/clients#agency-evidence-requests`}
                   className="btn btn-secondary"
                 >
-                  Manage Requests
+                  {t('appAgency.appAgencyOrgidPage.manageRequests')}
                 </Link>
               </article>
               <article className="card">
-                <h2 className="card-title">Your Team</h2>
+                <h2 className="card-title">{t('appAgency.appAgencyOrgidPage.yourTeam')}</h2>
                 <p className="card-body">
-                  {data.members.filter((member) => member.active).length} active members. Inactive
-                  memberships remain available in team management.
+                  {t('appAgency.appAgencyOrgidPage.lengthActiveMembersInactiveMembershipsRemain', {
+                    length: data.members.filter((member) => member.active).length,
+                  })}
                 </p>
                 <ul className="agency-request-list">
                   {data.members
@@ -781,60 +861,75 @@ export default async function AgencyDashboardPage({
                     ))}
                 </ul>
                 <Link href={`${base}/team`} className="btn btn-secondary">
-                  Manage Team
+                  {t('appAgency.appAgencyOrgidPage.manageTeam')}
                 </Link>
               </article>
             </>
           ) : (
             <article className="card">
-              <h2 className="card-title">Your Case Work</h2>
+              <h2 className="card-title">{t('appAgency.appAgencyOrgidPage.yourCaseWork')}</h2>
               <p className="card-body">
-                Requests and team management belong to agency administrators. Your assigned case
-                tools remain available.
+                {t('appAgency.appAgencyOrgidPage.requestsAndTeamManagementBelongTo')}
               </p>
-              <Link href={`${base}/cases`}>Open Assigned Cases</Link>
+              <Link href={`${base}/cases`}>
+                {t('appAgency.appAgencyOrgidPage.openAssignedCases')}
+              </Link>
             </article>
           )}
           <article className="card" {...atLevel('everything')}>
-            <h2 className="card-title">Case Activity</h2>
+            <h2 className="card-title">{t('appAgency.appAgencyOrgidActivityPage.caseActivity')}</h2>
             <p className="card-body">
-              Recent notes from cases you can currently access. This is not the full organization
-              audit log.
+              {t('appAgency.appAgencyOrgidPage.recentNotesFromCasesYouCan')}
             </p>
-            <Link href={`${base}/activity`}>View Accessible Case Activity</Link>
+            <Link href={`${base}/activity`}>
+              {t('appAgency.appAgencyOrgidPage.viewAccessibleCaseActivity')}
+            </Link>
           </article>
         </aside>
       </div>
       <details className="agency-attention-disclosure" {...atLevel('everything')}>
         <summary>
-          Attention Details: {plural(needsYou, 'item')} {agree(needsYou, 'needs', 'need')} a
-          response
+          {t('appAgency.appAgencyOrgidPage.attentionDetailsPluralAgreeAResponse', {
+            plural: plural(needsYou, 'item'),
+            agree: agree(needsYou, 'needs', 'need'),
+          })}
         </summary>
         <section aria-labelledby="today-heading" className="stat-section">
           <h2 className="section-label" id="today-heading">
-            What Needs You First
+            {t('appAgency.appAgencyOrgidPage.whatNeedsYouFirst')}
           </h2>
           <div className="stat-strip">
-            <Stat label="Overdue Tasks" value={summary.overdueTasks} tone="danger" />
+            <Stat
+              locale={locale}
+              label={t('appAgency.appAgencyOrgidPage.overdueTasks')}
+              value={summary.overdueTasks}
+              tone="danger"
+            />
             {summary.needAssignment !== null ? (
               <Stat
-                label="Cases with Nobody Assigned"
+                locale={locale}
+                label={t('appAgency.appAgencyOrgidPage.casesWithNobodyAssigned')}
                 value={summary.needAssignment}
                 tone="warning"
               />
             ) : null}
             {summary.openRequests !== null ? (
               <Stat
-                label="Evidence Requests Waiting on the Traveller"
+                locale={locale}
+                label={t('appAgency.appAgencyOrgidPage.evidenceRequestsWaitingOnTheTraveller')}
                 value={summary.openRequests}
                 tone="warning"
               />
             ) : null}
-            <Stat label="Cases you can see" value={summary.cases} />
+            <Stat
+              locale={locale}
+              label={t('appAgency.appAgencyOrgidPage.casesYouCanSee')}
+              value={summary.cases}
+            />
           </div>
           {needsYou === 0 && doNext.length === 0 ? (
             <p className="stat-note">
-              Nothing is overdue, unassigned or waiting on a traveller right now.
+              {t('appAgency.appAgencyOrgidPage.nothingIsOverdueUnassignedOrWaiting')}
             </p>
           ) : null}
         </section>

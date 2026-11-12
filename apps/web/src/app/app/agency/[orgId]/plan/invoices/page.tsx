@@ -9,7 +9,9 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../../i18n/app-agency';
 import { isPlatformOwnerAccount } from '../../../../../../lib/admin';
+import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import type { SearchParamsRecord } from '../../../../../../lib/paging';
 import { type OnlineOffers, onlineOffers } from '../../../../../../lib/payment-providers';
 import { paymentPorts } from '../../../../../../lib/providers';
@@ -122,6 +124,8 @@ export default async function AgencyInvoicesPage({
   readonly params: Promise<{ orgId: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const query = (await searchParams) ?? {};
   // Scroll Budget (WP-SB9): the newest 10 invoices, then Show More. One extra row is read only to
@@ -167,21 +171,23 @@ export default async function AgencyInvoicesPage({
   return (
     <>
       <PageHeader
-        eyebrow="Usage &amp; Billing"
-        title="Invoices"
-        description="Pay an invoice online or tell us about a payment you made another way. Your receipts are kept here."
+        eyebrow={t('appAgency.appAgencyOrgidPlanInvoicesPage.usageBilling')}
+        title={t('appAgency.appAgencyOrgidPlanInvoicesPage.invoices')}
+        description={t('appAgency.appAgencyOrgidPlanInvoicesPage.payAnInvoiceOnlineOrTell')}
         back={{ href: `/app/agency/${orgId}/plan`, label: 'Plan & Usage' }}
         as="h2"
       />
       <BillingStatusNotice notice={data.status} admin organizationId={orgId} showAction={false} />
       {!data.allowed ? (
         <article className="card">
-          <p className="card-body">Only owners and admins can see and pay invoices.</p>
+          <p className="card-body">
+            {t('appAgency.appAgencyOrgidPlanInvoicesPage.onlyOwnersAndAdminsCanSee')}
+          </p>
         </article>
       ) : invoices.length === 0 ? (
         <article className="card">
           <p className="card-body">
-            No invoices yet. When VisaStack issues an invoice for your plan it appears here.
+            {t('appAgency.appAgencyOrgidPlanInvoicesPage.noInvoicesYetWhenVisastackIssues')}
           </p>
         </article>
       ) : (

@@ -5,6 +5,7 @@ import {
   getOrganizationBrandingForDisplay,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import {
   AGENCY_AI_ADMINS_ONLY,
   AGENCY_AI_NOT_YET,
@@ -14,6 +15,7 @@ import {
   capabilityUnavailableMessage,
   getPlatformCapabilities,
 } from '../../../../../lib/capabilities';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
 import { AgencyAiSettingForm } from '../agency-ai-setting-form';
 import { BrandingForm } from '../branding-form';
@@ -34,6 +36,8 @@ export default async function AgencySettingsPage({
 }: {
   readonly params: Promise<{ orgId: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const capabilities = getPlatformCapabilities();
 
@@ -53,7 +57,7 @@ export default async function AgencySettingsPage({
       <>
         <article className="card u-mb-150">
           <p className="card-body">
-            Settings are limited to this organization's owners and admins.
+            {t('appAgency.appAgencyOrgidSettingsPage.settingsAreLimitedToThisOrganization')}
           </p>
         </article>
         {data.ai ? <AgencyAiCard organizationId={orgId} name={null} ai={data.ai} /> : null}
@@ -66,8 +70,8 @@ export default async function AgencySettingsPage({
       {data.ai ? <AgencyAiCard organizationId={orgId} name={data.org.name} ai={data.ai} /> : null}
 
       <article className="card u-mb-150">
-        <p className="card-kicker">Settings</p>
-        <h2 className="card-title">Review Policy</h2>
+        <p className="card-kicker">{t('appAgency.appAgencyOrgidSettingsPage.settings')}</p>
+        <h2 className="card-title">{t('appAgency.appAgencyOrgidSettingsPage.reviewPolicy')}</h2>
         <div className="row">
           <span className="row-key" style={{ maxWidth: '32rem' }}>
             Require a Different Reviewer
@@ -84,12 +88,10 @@ export default async function AgencySettingsPage({
       </article>
 
       <article className="card u-mb-150">
-        <p className="card-kicker">Settings</p>
-        <h2 className="card-title">Branding</h2>
+        <p className="card-kicker">{t('appAgency.appAgencyOrgidSettingsPage.settings')}</p>
+        <h2 className="card-title">{t('appAgency.appAgencyOrgidSettingsPage.branding')}</h2>
         <p className="card-body u-mb-125">
-          Your logo, your agency name and one accent colour. They show across this workspace and on
-          the invitations you send. "Powered by VisaStack" always stays beside them, and your
-          branding never appears in another agency's workspace.
+          {t('appAgency.appAgencyOrgidSettingsPage.yourLogoYourAgencyNameAnd')}
         </p>
         <BrandingForm
           organizationId={orgId}
@@ -100,11 +102,10 @@ export default async function AgencySettingsPage({
       </article>
 
       <article className="card">
-        <p className="card-kicker">Export</p>
-        <h2 className="card-title">Bulk Export</h2>
+        <p className="card-kicker">{t('appAgency.appAgencyOrgidSettingsPage.export')}</p>
+        <h2 className="card-title">{t('appAgency.appAgencyOrgidSettingsPage.bulkExport')}</h2>
         <p className="card-body u-mb-125">
-          Download the profiles of every traveller who granted this organization an accepted export
-          grant. Each traveller is re-checked by the policy engine at export time.
+          {t('appAgency.appAgencyOrgidSettingsPage.downloadTheProfilesOfEveryTraveller')}
         </p>
         {capabilities.bulkExport === 'available' ? (
           <a
@@ -112,12 +113,12 @@ export default async function AgencySettingsPage({
             className="btn btn-primary"
             download
           >
-            Download Bulk Export
+            {t('appAgency.appAgencyOrgidSettingsPage.downloadBulkExport')}
           </a>
         ) : (
           <>
             <button type="button" className="btn btn-primary" disabled>
-              Download Bulk Export
+              {t('appAgency.appAgencyOrgidSettingsPage.downloadBulkExport')}
             </button>
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.6rem' }}>
               {capabilityUnavailableMessage('bulkExport')}
@@ -144,28 +145,34 @@ function AgencyAiCard({
   readonly name: string | null;
   readonly ai: OrganizationAiSetting;
 }) {
+  const t = getServerT(appAgencyCatalog);
   return (
     <article className="card u-mb-150" aria-labelledby="agency-ai-title">
-      <p className="card-kicker">AI Tools</p>
+      <p className="card-kicker">{t('appAgency.appAgencyOrgidAiConnectionsPage.aiTools')}</p>
       <h2 className="card-title" id="agency-ai-title">
         {AGENCY_AI_SETTING_TITLE}
       </h2>
-      <p className="card-body">
-        When this is on, an owner or admin can connect an AI app, such as ChatGPT or Claude, that
-        reads only what each traveller allowed this agency’s AI tools to read. Off by default.
-      </p>
+      <p className="card-body">{t('appAgency.appAgencyOrgidSettingsPage.whenThisIsOnAnOwner')}</p>
       {!ai.available ? (
         <p className="muted">{AGENCY_AI_NOT_YET}</p>
       ) : (
         <>
           <div className="row">
-            <span className="row-key">Status</span>
-            <span>{ai.enabled ? 'On' : 'Off'}</span>
+            <span className="row-key">{t('appAgency.appAgencyOrgidSettingsPage.status')}</span>
+            <span>
+              {ai.enabled
+                ? t('appAgency.appAgencyOrgidSettingsPage.on')
+                : t('appAgency.appAgencyOrgidSettingsPage.off')}
+            </span>
           </div>
           {ai.feature.available ? null : (
             <p className="notice notice-warn">
-              {aiFeatureOffSentence('ai_agency_tools', ai.feature.reason)} Connected apps read
-              nothing until it works again.
+              {t(
+                'appAgency.appAgencyOrgidSettingsPage.aifeatureoffsentenceConnectedAppsReadNothingUnti',
+                {
+                  aiFeatureOffSentence: aiFeatureOffSentence('ai_agency_tools', ai.feature.reason),
+                },
+              )}
             </p>
           )}
           {ai.canChange && name !== null ? (
@@ -180,7 +187,7 @@ function AgencyAiCard({
                   className="btn btn-secondary"
                   href={`/app/agency/${organizationId}/ai-connections`}
                 >
-                  Manage AI Connections
+                  {t('appAgency.appAgencyOrgidSettingsPage.manageAiConnections')}
                 </a>
               </p>
             </>

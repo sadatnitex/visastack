@@ -3,6 +3,8 @@ import { getReceipt } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../../../../components/ui';
+import { appAgencyCatalog } from '../../../../../../../../i18n/app-agency';
+import { getServerT, primeLocale } from '../../../../../../../../lib/i18n-server';
 import { receiptKindLabel } from '../../../../../../../../lib/invoice-labels';
 import { withSession } from '../../../../../../../../lib/session';
 
@@ -22,6 +24,8 @@ export default async function ReceiptPage({
 }: {
   readonly params: Promise<{ orgId: string; receiptId: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId, receiptId } = await params;
   if (!ID.test(orgId) || !ID.test(receiptId)) notFound();
 
@@ -38,16 +42,20 @@ export default async function ReceiptPage({
   return (
     <>
       <PageHeader
-        eyebrow="Usage &amp; Billing"
-        title={`Receipt ${receipt.number}`}
-        description="VisaStack recorded this payment against your invoice."
+        eyebrow={t('appAgency.appAgencyOrgidPlanInvoicesPage.usageBilling')}
+        title={t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receiptNumber', {
+          number: receipt.number,
+        })}
+        description={t(
+          'appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.visastackRecordedThisPaymentAgainstYour',
+        )}
         back={{ href: `/app/agency/${orgId}/plan/invoices`, label: 'Invoices' }}
         actions={
           <a
             className="btn btn-secondary"
             href={`/app/agency/${orgId}/plan/invoices/receipts/${receiptId}/pdf`}
           >
-            Download Receipt (PDF)
+            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadReceiptPdf')}
           </a>
         }
         as="h2"
@@ -55,41 +63,42 @@ export default async function ReceiptPage({
       <article className="card receipt-card">
         <dl className="invoice-facts receipt-facts">
           <div>
-            <dt>Receipt Number</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.receiptNumber')}</dt>
             <dd>{receipt.number}</dd>
           </div>
           <div>
-            <dt>Agency</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.agency')}</dt>
             <dd>{receipt.organizationName}</dd>
           </div>
           <div>
-            <dt>Invoice</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.invoice')}</dt>
             <dd>{receipt.invoiceRef}</dd>
           </div>
           <div>
-            <dt>Amount Received</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.amountReceived')}</dt>
             <dd>{formatMoney(receipt.amountMinorUnits, receipt.currency)}</dd>
           </div>
           <div>
-            <dt>How It Was Paid</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.howItWasPaid')}</dt>
             <dd>{receiptKindLabel(receipt.kind)}</dd>
           </div>
           <div>
-            <dt>Payment Date</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.paymentDate')}</dt>
             <dd>{formatBillingDate(receipt.collectedDate)}</dd>
           </div>
           <div>
-            <dt>Payment Reference</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.paymentReference')}</dt>
             <dd>{receipt.reference}</dd>
           </div>
           <div>
-            <dt>Receipt Issued</dt>
+            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.receiptIssued')}</dt>
             <dd>{formatBillingDateTime(receipt.issuedAt)}</dd>
           </div>
         </dl>
         <p className="invoice-note">
-          This receipt shows that a payment was recorded against the invoice named above. It is not
-          a tax document.
+          {t(
+            'appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.thisReceiptShowsThatAPayment',
+          )}
         </p>
       </article>
     </>

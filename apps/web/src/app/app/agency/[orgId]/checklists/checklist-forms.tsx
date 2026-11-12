@@ -2,6 +2,8 @@
 
 import { useActionState, useId } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import {
   type ChecklistActionState,
   addItemAction,
@@ -25,6 +27,7 @@ export function CopyListButton({
   readonly packVersionId: string;
   readonly name: string;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, action, pending] = useActionState(copyListAction, INITIAL);
   return (
     <form action={action} className="field-list">
@@ -34,7 +37,7 @@ export function CopyListButton({
         pending={pending}
         idle="Make It Our Own"
         busy="Copying"
-        label={`Make It Our Own: ${name}`}
+        label={t('appAgency.appAgencyOrgidChecklistsChecklistForms.makeItOurOwnName', { name })}
         className="btn btn-secondary"
       />
       <FormMessage result={state} pending={pending} pendingText="Copying" />
@@ -89,6 +92,7 @@ export function ItemEditor({
   readonly wording: string | null;
   readonly appliesWhen: string | null;
 }) {
+  const t = useT(appAgencyCatalog);
   const [saved, saveAction, saving] = useActionState(saveItemAction, INITIAL);
   const [removed, removeAction, removing] = useActionState(removeItemAction, INITIAL);
   const id = `item-${requirementId}`;
@@ -103,7 +107,7 @@ export function ItemEditor({
         <input type="hidden" name="requirementId" value={requirementId} />
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={`${id}-wording`}>
-            What the Traveller Reads
+            {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whatTheTravellerReads')}
           </label>
           <input
             id={`${id}-wording`}
@@ -117,7 +121,7 @@ export function ItemEditor({
         {kind === 'DOCUMENT' ? (
           <div className="field-row">
             <label className="field-label" htmlFor={`${id}-type`}>
-              Document Type
+              {t('appAgency.appAgencyOrgidChecklistsChecklistForms.documentType')}
             </label>
             <input
               id={`${id}-type`}
@@ -132,18 +136,24 @@ export function ItemEditor({
         {necessity === 'CONDITIONAL' ? null : (
           <div className="field-row">
             <label className="field-label" htmlFor={`${id}-necessity`}>
-              How Necessary
+              {t('appAgency.appAgencyOrgidChecklistsChecklistForms.howNecessary')}
             </label>
             <select id={`${id}-necessity`} name="necessity" className="input" defaultValue={plain}>
-              <option value="MANDATORY">Required</option>
-              <option value="RECOMMENDED">Recommended</option>
-              <option value="OPTIONAL">Optional</option>
+              <option value="MANDATORY">
+                {t('appAgency.appAgencyOrgidChecklistsChecklistForms.required')}
+              </option>
+              <option value="RECOMMENDED">
+                {t('appAgency.appAgencyOrgidChecklistsChecklistForms.recommended')}
+              </option>
+              <option value="OPTIONAL">
+                {t('appAgency.appAgencyOrgidChecklistsChecklistForms.optional')}
+              </option>
             </select>
           </div>
         )}
         <div className="field-row">
           <label className="field-label" htmlFor={`${id}-applies`}>
-            Who It Is For
+            {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whoItIsFor')}
           </label>
           <input
             id={`${id}-applies`}
@@ -188,6 +198,7 @@ export function AddItemForm({
   readonly packId: string;
   readonly packVersionId: string;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, action, pending] = useActionState(addItemAction, INITIAL);
   const id = useId();
   return (
@@ -197,7 +208,7 @@ export function AddItemForm({
       <input type="hidden" name="packVersionId" value={packVersionId} />
       <div className="field-row field-wide">
         <label className="field-label" htmlFor={`${id}-wording`}>
-          What the Traveller Reads
+          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whatTheTravellerReads')}
         </label>
         <input
           id={`${id}-wording`}
@@ -210,7 +221,7 @@ export function AddItemForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-type`}>
-          Document Type
+          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.documentType')}
         </label>
         <input
           id={`${id}-type`}
@@ -223,7 +234,7 @@ export function AddItemForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-necessity`}>
-          How Necessary
+          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.howNecessary')}
         </label>
         <select
           id={`${id}-necessity`}
@@ -231,14 +242,20 @@ export function AddItemForm({
           className="input"
           defaultValue="RECOMMENDED"
         >
-          <option value="MANDATORY">Required</option>
-          <option value="RECOMMENDED">Recommended</option>
-          <option value="OPTIONAL">Optional</option>
+          <option value="MANDATORY">
+            {t('appAgency.appAgencyOrgidChecklistsChecklistForms.required')}
+          </option>
+          <option value="RECOMMENDED">
+            {t('appAgency.appAgencyOrgidChecklistsChecklistForms.recommended')}
+          </option>
+          <option value="OPTIONAL">
+            {t('appAgency.appAgencyOrgidChecklistsChecklistForms.optional')}
+          </option>
         </select>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-applies`}>
-          Who It Is For
+          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whoItIsFor')}
         </label>
         <input
           id={`${id}-applies`}

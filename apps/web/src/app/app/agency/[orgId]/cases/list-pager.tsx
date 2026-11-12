@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
+import { useT } from '../../../../../components/i18n-provider';
 import { type RowNoun, ShowMore } from '../../../../../components/show-more';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { type SearchParamsRecord, nextShow, pagingHref } from '../../../../../lib/paging';
 import type { ListKeys, ListWindow } from './list-window';
 
@@ -113,6 +115,7 @@ function OlderPage({
   readonly count: string;
   readonly newestLabel: string;
 }) {
+  const t = useT(appAgencyCatalog);
   // The same landing rule as Show More: when the address points at the list, focus moves there.
   const lastCount = useRef(count);
   useEffect(() => {
@@ -137,7 +140,7 @@ function OlderPage({
       <output className="show-more-count muted u-fs-085">{count}</output>
       {olderHref ? (
         <Link className="btn btn-secondary u-btn-sm show-more-link" href={olderHref}>
-          Show Older Entries
+          {t('appAgency.appAgencyOrgidCasesListPager.showOlderEntries')}
         </Link>
       ) : null}
       <Link className="show-more-newest" href={newestHref}>

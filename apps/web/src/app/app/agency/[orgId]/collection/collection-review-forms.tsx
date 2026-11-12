@@ -8,6 +8,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import {
   type ReviewActionState,
   guestHoldAction,
@@ -34,6 +36,7 @@ export function ReviewAnswerForm({
   readonly answerId: string;
   readonly items: readonly { readonly id: string; readonly label: string }[];
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(reviewAnswerAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -51,7 +54,7 @@ export function ReviewAnswerForm({
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? messageId : undefined}
       >
-        <legend>Your Decision</legend>
+        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.yourDecision')}</legend>
         <div className="collection-review-options">
           {(
             [
@@ -68,11 +71,15 @@ export function ReviewAnswerForm({
         </div>
       </fieldset>
       <details className="collection-review-notes">
-        <summary>Add Notes for the Person</summary>
+        <summary>
+          {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.addNotesForThePerson')}
+        </summary>
         {items.map((item) => (
           <div key={item.id} className="field-row">
             <label className="field-label" htmlFor={`${base}-note-${item.id}`}>
-              Note on {item.label}
+              {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.noteOnLabel', {
+                label: item.label,
+              })}
             </label>
             <textarea
               id={`${base}-note-${item.id}`}
@@ -85,7 +92,7 @@ export function ReviewAnswerForm({
         ))}
         <div className="field-row">
           <label className="field-label" htmlFor={`${base}-note`}>
-            General Note
+            {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.generalNote')}
           </label>
           <textarea id={`${base}-note`} name="note" className="input" rows={2} maxLength={1000} />
         </div>
@@ -111,6 +118,7 @@ export function GuestHoldForm({
   readonly requestId: string;
   readonly held: boolean;
 }) {
+  const t = useT(appAgencyCatalog);
   const [state, formAction, pending] = useActionState(guestHoldAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -123,7 +131,7 @@ export function GuestHoldForm({
       {held ? null : (
         <div className="field-row">
           <label className="field-label" htmlFor="guest-hold-reason">
-            Reason for the Hold
+            {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.reasonForTheHold')}
           </label>
           <textarea
             id="guest-hold-reason"

@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure, SectionCard } from '../../../../../components/ui-lift';
+import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { type SearchParamsRecord, firstParam, pagingHref } from '../../../../../lib/paging';
 import { buildRequestPicker } from '../../../../../lib/request-picker';
 import { withSession } from '../../../../../lib/session';
@@ -79,6 +81,8 @@ export default async function AgencyClientsPage({
   readonly params: Promise<{ orgId: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const invitePage = listWindow(query, INVITE_KEYS, AGENCY_LIST_SIZES);
@@ -152,8 +156,7 @@ export default async function AgencyClientsPage({
     return (
       <article className="card">
         <p className="card-body">
-          Inviting clients and requesting evidence are limited to this organization's owners and
-          admins.
+          {t('appAgency.appAgencyOrgidClientsPage.invitingClientsAndRequestingEvidenceAre')}
         </p>
       </article>
     );
@@ -179,17 +182,15 @@ export default async function AgencyClientsPage({
     <>
       <OpenRequestFromLink />
       <div className="agency-add-card lc-empty-host">
-        <SectionCard heading="Add People and Requests">
+        <SectionCard heading={t('appAgency.appAgencyOrgidClientsPage.addPeopleAndRequests')}>
           <section className="agency-add-part" aria-labelledby="agency-add-clients">
-            <p className="card-kicker">Intake</p>
+            <p className="card-kicker">{t('appAgency.appAgencyOrgidClientsPage.intake')}</p>
             <h3 className="agency-add-title" id="agency-add-clients">
-              Clients
+              {t('appAgency.appAgencyOrgidClientsPage.clients')}
             </h3>
-            <AboutDisclosure summary="About Invitations">
+            <AboutDisclosure summary={t('appAgency.appAgencyOrgidClientsPage.aboutInvitations')}>
               <p className="card-body">
-                Invite a traveller as a new client. They alone choose which of their own traveller
-                profiles the resulting case attaches to, and their acceptance is what actually
-                grants this organization access, never the invitation itself.
+                {t('appAgency.appAgencyOrgidClientsPage.inviteATravellerAsANew')}
               </p>
             </AboutDisclosure>
             {invitations.total > 0 ? (
@@ -197,7 +198,7 @@ export default async function AgencyClientsPage({
               // the Newest Invitations), so a link into the list never folds it shut.
               <FormGroup
                 id="client-invitations"
-                title="Pending Invitations"
+                title={t('appAgency.appAgencyOrgidClientsPage.pendingInvitations')}
                 icon="mail"
                 count={invitations.total}
                 noun={{ one: 'pending invitation', other: 'pending invitations' }}
@@ -217,16 +218,23 @@ export default async function AgencyClientsPage({
                           // Saved without a valid email address before invitations became email-only:
                           // nobody can accept it.
                           <span className="badge badge-danger">
-                            Cannot be accepted &middot; revoke and invite again by email
+                            {t(
+                              'appAgency.appAgencyOrgidClientsPage.cannotBeAcceptedRevokeAndInvite',
+                            )}
                           </span>
                         ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
                           <span className="badge badge-neutral">
-                            Expired {formatTimestampDate(invitation.expiresAt)} &middot; invite
-                            again
+                            {t(
+                              'appAgency.appAgencyOrgidClientsPage.expiredFormattimestampdateInviteAgain',
+                              { formatTimestampDate: formatTimestampDate(invitation.expiresAt) },
+                            )}
                           </span>
                         ) : (
                           <span className="badge badge-warning">
-                            Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
+                            {t(
+                              'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
+                              { formatTimestampDate: formatTimestampDate(invitation.expiresAt) },
+                            )}
                           </span>
                         )}
                         <ClientInvitationRevokeButton
@@ -256,20 +264,19 @@ export default async function AgencyClientsPage({
               <div className="u-mb-150">
                 <EmptyState
                   icon="users"
-                  title="No Clients Invited Yet"
+                  title={t('appAgency.appAgencyOrgidClientsPage.noClientsInvitedYet')}
                   fold
                   why="You see each client's progress here once they accept."
                   action={{ href: '#invite-client', label: 'Invite a Client' }}
                 >
-                  This is where you invite the people you help. Each one gets a link, creates their
-                  file, and chooses what to share with you. Start with the form below.
+                  {t('appAgency.appAgencyOrgidClientsPage.thisIsWhereYouInviteThe')}
                 </EmptyState>
               </div>
             )}
             {/* Opens on its own while nobody is invited yet, and for a link to #invite-client. */}
             <FormGroup
               id="invite-client"
-              title="Invite a Client"
+              title={t('appAgency.appAgencyOrgidClientsPage.inviteAClient')}
               icon="users"
               openAtFirst={invitations.total === 0}
             >
@@ -286,20 +293,22 @@ export default async function AgencyClientsPage({
           </section>
 
           <section className="agency-add-part" aria-labelledby="agency-add-evidence">
-            <p className="card-kicker">Collect</p>
+            <p className="card-kicker">{t('appAgency.appAgencyOrgidClientsPage.collect')}</p>
             <h3 className="agency-add-title" id="agency-add-evidence">
-              Request Evidence
+              {t('appAgency.appAgencyOrgidClientsPage.requestEvidence')}
             </h3>
-            <p className="muted u-fs-085">For people who are already your clients.</p>
-            <AboutDisclosure summary="About Requests">
+            <p className="muted u-fs-085">
+              {t('appAgency.appAgencyOrgidClientsPage.forPeopleWhoAreAlreadyYour')}
+            </p>
+            <AboutDisclosure summary={t('appAgency.appAgencyOrgidClientsPage.aboutRequests')}>
               <p className="card-body">
-                Ask a traveller for a specific detail or document. They decide whether to fulfil it.
+                {t('appAgency.appAgencyOrgidClientsPage.askATravellerForASpecific')}
               </p>
             </AboutDisclosure>
             {/* Opens on its own while no request exists yet, and for a link to #ask-for-evidence. */}
             <FormGroup
               id="ask-for-evidence"
-              title="Ask for a Document or Detail"
+              title={t('appAgency.appAgencyOrgidCasesPage.askForADocumentOrDetail')}
               icon="clipboard"
               openAtFirst={requests.viewCounts.all === 0}
             >
@@ -319,33 +328,33 @@ export default async function AgencyClientsPage({
       </div>
 
       <article className="card lc-empty-host">
-        <p className="card-kicker">Activity</p>
+        <p className="card-kicker">{t('appAgency.appAgencyOrgidClientsPage.activity')}</p>
         <h2 className="card-title" id="agency-evidence-requests">
-          Evidence Requests
+          {t('appAgency.appAgencyOrgidClientsPage.evidenceRequests')}
         </h2>
         {requests.viewCounts.all === 0 ? (
           <EmptyState
             icon="clipboard"
-            title="No Evidence Requests Yet"
+            title={t('appAgency.appAgencyOrgidClientsPage.noEvidenceRequestsYet')}
             fold
             why="Clients reply from their own documents, so you get the right paper without chasing."
             action={{ href: '#ask-for-evidence', label: 'Request Evidence' }}
           >
-            This is where you ask a client for a specific document or detail. You will see here when
-            it arrives and when it is overdue.
+            {t('appAgency.appAgencyOrgidClientsPage.thisIsWhereYouAskA')}
           </EmptyState>
         ) : (
           <>
             <nav
               className="quick-views lift-segments u-mt-050"
-              aria-label="Evidence requests by status"
+              aria-label={t('appAgency.appAgencyOrgidClientsPage.evidenceRequestsByStatus')}
             >
               <Link
                 href={viewHref(null)}
                 className={`quick-view${view ? '' : ' quick-view-on'}`}
                 aria-current={view ? undefined : 'true'}
               >
-                All <span className="muted">{requests.viewCounts.all}</span>
+                {t('appAgency.appAgencyOrgidClientsPage.all')}{' '}
+                <span className="muted">{requests.viewCounts.all}</span>
               </Link>
               {REQUEST_VIEWS.map((option) => (
                 <Link
@@ -359,7 +368,10 @@ export default async function AgencyClientsPage({
               ))}
             </nav>
             {data.linkedRequest ? (
-              <div className="rows u-mt-050" aria-label="The request you followed a link to">
+              <div
+                className="rows u-mt-050"
+                aria-label={t('appAgency.appAgencyOrgidClientsPage.theRequestYouFollowedALink')}
+              >
                 <RequestRow
                   orgId={orgId}
                   req={data.linkedRequest}
@@ -369,7 +381,9 @@ export default async function AgencyClientsPage({
               </div>
             ) : null}
             {requests.items.length === 0 ? (
-              <p className="card-body u-mt-100">No requests in this view.</p>
+              <p className="card-body u-mt-100">
+                {t('appAgency.appAgencyOrgidClientsPage.noRequestsInThisView')}
+              </p>
             ) : (
               <>
                 <div className="rows u-mt-050" id="agency-evidence-request-list">
@@ -401,7 +415,7 @@ export default async function AgencyClientsPage({
             )}
           </>
         )}
-        <AboutDisclosure summary="About Cases">
+        <AboutDisclosure summary={t('appAgency.appAgencyOrgidCasesPage.aboutCases')}>
           <p className="muted lc-small-note">
             Each request belongs to a case. To work on a case, open it in{' '}
             <Link href={`/app/agency/${orgId}/cases`}>Cases</Link>.
@@ -425,6 +439,7 @@ function RequestRow({
   readonly copies: EvidenceCopiesData | undefined;
   readonly fileUnavailable: boolean;
 }) {
+  const t = getServerT(appAgencyCatalog);
   const rb = REQ_STATUS[req.status] ?? { label: req.status, tone: 'badge-neutral' };
   const target = requestItemLabel(req);
   // A document request with something sent shows that exact copy. If it could not be read, no
@@ -439,7 +454,10 @@ function RequestRow({
     >
       <div className="request-row-head">
         <span className="row-key">
-          {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target}
+          {req.kind === 'FIELD'
+            ? t('appAgency.appAgencyOrgidClientsPage.field')
+            : t('appAgency.appAgencyOrgidClientsPage.document')}
+          : {target}
         </span>
         <span className={`badge ${rb.tone}${req.status === 'RECEIVED' ? ' lift-pill-info' : ''}`}>
           {rb.label}
@@ -447,9 +465,16 @@ function RequestRow({
       </div>
       <span className="muted u-fs-085">
         {req.applicantName}
-        {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
+        {req.dueDate
+          ? t('appAgency.appAgencyOrgidClientsPage.dueFormatdateonly', {
+              formatDateOnly: formatDateOnly(req.dueDate),
+            })
+          : ''}
       </span>
-      <ReferenceCode code={req.referenceCode} label="Request Reference" />
+      <ReferenceCode
+        code={req.referenceCode}
+        label={t('appAgency.appAgencyOrgidClientsPage.requestReference')}
+      />
       <RequestConversation req={req} copies={copies} hasCopies={hasCopies} />
       {hasCopies ? (
         <EvidenceCopies
