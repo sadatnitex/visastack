@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { catalogueEnglishByKey } from '../lib/catalogue-en.test-support';
 import { EmptyState } from './ui';
 
 /**
@@ -10,7 +11,14 @@ import { EmptyState } from './ui';
  */
 
 const root = join(__dirname, '..');
-const read = (path: string) => readFileSync(join(root, path), 'utf8');
+// A `t('key')` call stands for its English catalogue text, so a title or line that moved out of a
+// page into a message catalogue is still read in the place it appears.
+const CATALOGUE_TEXT = catalogueEnglishByKey();
+const read = (path: string) =>
+  readFileSync(join(root, path), 'utf8').replace(
+    /\bt\(\s*'([^']+)'\s*(?:,\s*\{[^}]*\})?\s*\)/g,
+    (call, key: string) => CATALOGUE_TEXT.get(key) ?? call,
+  );
 
 /** The text of the `<EmptyState ...>...</EmptyState>` that carries this title. */
 function stateWithTitle(source: string, title: string): string {
