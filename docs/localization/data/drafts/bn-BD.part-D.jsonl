@@ -1,0 +1,150 @@
+{"sg": "SG-5b13921f", "bn": "{percent} ({reminded}-এর মধ্যে {replacedWithin14Days})", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-ca2dfc29", "bn": "অ্যাক্সেস, এক্সপোর্ট ও মুছে ফেলা", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-0eb53d16", "bn": "অ্যাকাউন্ট নিবন্ধনের সময় আপনার নাম, ইমেইল ঠিকানা ও সাইন ইনের তথ্য ব্যবহার করা হয়। এর উদ্দেশ্য আপনার অ্যাকাউন্ট তৈরি ও সুরক্ষিত রাখা এবং নিশ্চিতকরণ বা পুনরুদ্ধারের বার্তা পাঠানো। নিরাপত্তা ব্যবস্থায় নিবন্ধনের চেষ্টা ও নোটিশের সংস্করণ রেকর্ড করা হয়। বিনামূল্যের পাবলিক বিটা চলাকালে আপনি নিজের ঝুঁকিতে নিজের তথ্য ও ডকুমেন্ট যোগ করতে পারেন; আপলোড করা ফাইলের ভাইরাস স্ক্যানের মতো কিছু সুরক্ষা এখনো চালু করা হয়নি।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED; VERSION_WORDING: \"notice versions\" is about the policy notice, not a document copy; editor to confirm সংস্করণ is acceptable here"}
+{"sg": "SG-e38ca3f4", "bn": "এই নোটিশ পড়েছেন বলে জানালে মার্কেটিংয়ের অনুমতি দেওয়া হয় না, ঐচ্ছিক এআই প্রক্রিয়াকরণ চালু হয় না এবং কোনো এজেন্সির সঙ্গে রেকর্ড শেয়ার করা হয় না। শেয়ার করা ও ঐচ্ছিক প্রক্রিয়াকরণের জন্য আলাদা পছন্দ এবং প্রযোজ্য অনুমতি লাগে। নিবন্ধনের সময় আমরা মার্কেটিংয়ের সম্মতি চাই না।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-39303114", "bn": "আজ এআই-এর ব্যবহার", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-2fc3e71c", "bn": "সম্মতির ইতিহাস", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-1267b7e2", "bn": "সম্মতির ইতিহাসের এন্ট্রি", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-d5eb6533", "bn": "আপনার অ্যাকাউন্ট মুছে ফেলুন", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-c3018512", "bn": "মুছে ফেলার সিদ্ধান্ত 7 দিনের অনুগ্রহ সময়ের মধ্যে ফিরিয়ে আনা যায়, এরপর তা স্থায়ী হয়ে যায়। আপনার অডিট ট্রেইল সংরক্ষিত থাকে এবং পরিচয় গোপন করা হয়। আইনি কারণে সংরক্ষণ রাখার নির্দেশ চালু থাকলে তা তুলে না নেওয়া পর্যন্ত মুছে ফেলা যায় না।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-14e00305", "bn": "আপনার অ্যাকাউন্টের একটি সম্পূর্ণ ও কাঠামোবদ্ধ কপি ডাউনলোড করুন: পরিচয়, সম্মতি, ভ্রমণকারী, সম্পূর্ণ ইতিহাসসহ মাস্টার প্রোফাইলের তথ্য, ডকুমেন্টের মেটাডেটা এবং আপনার অডিট ট্রেইল।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-df4ae9fc", "bn": "এক্সপোর্ট ডাউনলোড করুন (CSV/ZIP)", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-8d730501", "bn": "এক্সপোর্ট ডাউনলোড করুন (JSON)", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-addb876a", "bn": "আপনার এক্সপোর্ট ডাউনলোড করুন", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-a5969851", "bn": "স্থায়ীভাবে মুছে ফেলা", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-150cef4b", "bn": "সবকিছু এক্সপোর্ট করুন, আপনার সম্মতির ইতিহাস দেখুন, অথবা আপনার অ্যাকাউন্ট মুছে ফেলুন।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-529d695c", "bn": "আপনার ডেটা এক্সপোর্ট করুন", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-51753f4c", "bn": "এক নজরে: আপনার তিনটি অধিকার, প্রতিটি মাত্র এক ট্যাপ দূরে, এবং এক্সপোর্ট ডাউনলোড।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-d1e04e65", "bn": "দেওয়া হয়েছে", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-64083da5", "bn": "আমাদের উন্নতিতে সাহায্য করে - আবশ্যক নয়", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-a73edff1", "bn": "আজ আপনি প্রতিটি এআই ফিচার কতবার ব্যবহার করেছেন। শুধু সংখ্যাটি রাখা হয়, কী পড়া হয়েছে তা কখনো রাখা হয় না। এই ফিচারগুলো ছাড়াও VisaStack-এর সবকিছু কাজ করে।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-e7e2efa2", "bn": "স্বাধীন ব্যাকআপ ও পুনরুদ্ধারের সুরক্ষা এখনো সম্পূর্ণ করা হচ্ছে। গুরুত্বপূর্ণ রেকর্ডের একমাত্র কপি হিসেবে এই পাইলট ব্যবহার করবেন না। বাস্তব তথ্যের সুরক্ষা ও তার পরীক্ষা সম্পূর্ণ না হওয়া পর্যন্ত নিজের মূল ফাইলগুলো নিজের কাছে রাখুন।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-c65a1419", "bn": "তথ্য ও উদ্দেশ্য", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-94636f21", "bn": "শুধু মেটাডেটা নয়, আসল ডকুমেন্ট ফাইলও দরকার? একটি বড় এক্সপোর্টের অনুরোধ করুন - এটি একটি ZIP, যাতে উপরের একই ম্যানিফেস্ট ও CSV টেবিলের সঙ্গে প্রতিটি বর্তমান ও নিরাপদ ডকুমেন্ট ফাইল থাকে। প্রস্তুত হতে কয়েক মিনিট লাগে এবং 24 ঘণ্টা ডাউনলোডের জন্য থাকে।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-f229b451", "bn": "গোপনীয়তা খুলুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-2e193dd2", "bn": "হোমে আপনার নিয়ন্ত্রণে থাকা অনুমতি", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-9c7d6ee0", "bn": "ডেটা পোর্টেবিলিটি", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-e0e720e4", "bn": "গোপনীয়তা", "conf": "HIGH", "note": ""}
+{"sg": "SG-24b30457", "bn": "গোপনীয়তা ও সম্মতি", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-173ca489", "bn": "গোপনীয়তা ও নিয়ন্ত্রণ", "conf": "HIGH", "note": ""}
+{"sg": "SG-4fa1082f", "bn": "গোপনীয়তা নিয়ন্ত্রণ", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-26149f4d", "bn": "গোপনীয়তা নোটিশ", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-81494c50", "bn": "ব্যবহারের শর্তাবলি পড়ুন", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-3a144529", "bn": "অ্যাকাউন্ট মুছে ফেলার অনুরোধ করুন", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-fd3b8956", "bn": "ফাইলসহ বড় এক্সপোর্টের অনুরোধ করুন", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-937ef42c", "bn": "অ্যাকাউন্ট তৈরির ধাপে ফিরে যান", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-881da04d", "bn": "আপনার সম্মতির ইতিহাস পর্যালোচনা করুন", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-19fff572", "bn": "আলাদা আলাদা পছন্দ", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-dcd858fe", "bn": "যেসব সেবা তথ্য প্রক্রিয়া করে", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-a11ab319", "bn": "সংরক্ষণ ও পুনরুদ্ধার", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-9a799cf5", "bn": "এতে আপনার পুরো অ্যাকাউন্ট মুছে যাবে।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-7739b95f", "bn": "স্বচ্ছতা", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-d4cc824c", "bn": "Vercel অ্যাপ্লিকেশনটি হোস্ট করে। {fileStorage} ব্যক্তিগত ফাইল সংরক্ষণ করে। ব্যাকআপ কনফিগার করা থাকলে Cloudflare R2 এনক্রিপ্ট করা ব্যাকআপ আর্কাইভ সংরক্ষণ করে। Neon অ্যাপ্লিকেশনের রেকর্ড সংরক্ষণ করে। Neon Auth সাইন ইন পরিচালনা করে। কনফিগার করা থাকলে Resend অ্যাপ্লিকেশনের ইমেইল পরিচালনা করে। অথেনটিকেশনের ইমেইল কনফিগার করা সাইন ইন সেবার মেইল সেবা ব্যবহার করে। এই সেবাগুলো আপনার দেশের বাইরেও তথ্য প্রক্রিয়া করতে পারে। এই নোটিশ কোনো নির্দিষ্ট ডেটা অবস্থানের কথা বলে না, এবং কমপ্লায়েন্স পর্যালোচনা সম্পূর্ণ হয়েছে এমন দাবিও করে না।", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-8be28114", "bn": "আপনার অধিকার", "conf": "LOW", "note": "LEGAL_REVIEW_REQUIRED"}
+{"sg": "SG-4aca6e62", "bn": "{choice} <Link>আপনার প্রোফাইল থেকে সেগুলো খুলুন</Link>, যখন সেগুলো আপনার জন্য প্রযোজ্য হবে।", "conf": "MEDIUM", "note": "ENGLISH_FRAGMENT: {choice} is a whole English sentence (\"N more profile sections are closed.\"); needs its own translated pair"}
+{"sg": "SG-1dc8de38", "bn": "{choice} আপনার সংরক্ষিত তথ্য থেকে আলাদা", "conf": "MEDIUM", "note": "ENGLISH_FRAGMENT: {choice} is an English noun phrase with article built in code; needs its own translated pair"}
+{"sg": "SG-7df46e12", "bn": "{choice} সংরক্ষণ করা হয়েছে, নাম দেওয়া হয়েছে এবং পড়া হয়েছে। আপনার জন্য কিছু অপেক্ষায় নেই।", "conf": "MEDIUM", "note": "ENGLISH_FRAGMENT: {choice} is a subject phrase with verb (\"Your file is\" / \"All N files are\") built in English"}
+{"sg": "SG-6d1eae05", "bn": "আরও {closedSections}টি প্রোফাইল অংশ বন্ধ আছে।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-e0a4cc98", "bn": "{count}টি তথ্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-f22cca12", "bn": "{kindLabel} · যোগ করা হয়েছে {addedLabel} · {scanLabel}", "conf": "HIGH", "note": ""}
+{"sg": "SG-e9f74a08", "bn": "{length}টি ফাইল সংরক্ষণ করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-76d5a28d", "bn": "{missionTitle}: {version} নম্বর কপিতে এই তথ্য যেভাবে রেকর্ড করা ছিল, আজ ব্যবহৃত কপির পাশে।", "conf": "MEDIUM", "note": "VERSION_WORDING: \"snapshot {version}\" and \"version in use today\" written as কপি"}
+{"sg": "SG-afed0db1", "bn": "{missionTitle}: {formatTimestampDate} তারিখে নেওয়া {version} নম্বর কপির তুলনায় আজ কোন তথ্যগুলো আলাদা। শুধু নাম দেখানো হয়েছে; তুলনা করতে কোনো তথ্য খুলুন।", "conf": "MEDIUM", "note": "VERSION_WORDING: \"snapshot {version}\" written as {version} নম্বর কপি"}
+{"sg": "SG-d5319908", "bn": "{plural} একবার দেখে নেওয়া দরকার।", "conf": "MEDIUM", "note": "{agree} dropped (English verb agreement)"}
+{"sg": "SG-6a416804", "bn": "{plural} এই মুহূর্তে তুলনা করা যায়নি। <Link>ডকুমেন্ট পৃষ্ঠায়</Link> গিয়ে দেখে নিন।", "conf": "MEDIUM", "note": "{choice} dropped (English it/them)"}
+{"sg": "SG-d0ddc9f6", "bn": "{plural} পাওয়া গেছে {plural} থেকে। যেগুলো স্পষ্ট সেগুলো একসঙ্গে গ্রহণ করতে পারেন, অথবা একটি একটি করে। আইডি নম্বরের মতো সংবেদনশীল তথ্য সবসময় একটি একটি করে ঠিক করতে হয়।", "conf": "MEDIUM", "note": "Both {plural} are English count phrases; order may need review"}
+{"sg": "SG-5f23d806", "bn": "আপনার ওয়ালেটে থাকা {plural}", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-e6123c0d", "bn": "আপনার এআই অ্যাপগুলো আপনার প্রোফাইলের জন্য {plural} প্রস্তাব করেছে। আপনি গ্রহণ না করা পর্যন্ত কিছুই সংরক্ষণ হবে না। প্রতিটি দেখে নিন: কোনো অ্যাপ ভুলও করতে পারে।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-bb2d37f8", "bn": "{rowCount}টি আইটেম মিলেছে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-d8aa95c6", "bn": "{requiredCount}টি আবশ্যক আইটেমের মধ্যে {satisfiedRequired}টি সংরক্ষিত আছে", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-bb411f1c", "bn": "{title}: লক্ষ্যমাত্রার শেষ তারিখ", "conf": "HIGH", "note": ""}
+{"sg": "SG-08ea4b6a", "bn": "{title}: ভ্রমণ শুরু", "conf": "HIGH", "note": ""}
+{"sg": "SG-c28ad5fe", "bn": "সব মিলিয়ে {toLocaleString}টি কপি সংরক্ষিত আছে{choice}।", "conf": "LOW", "note": "VERSION_WORDING: English says \"saved version(s)\", written as কপি. First {choice} (version/versions) dropped; second {choice} is an English fragment \" in <part>\" and needs its own translated string"}
+{"sg": "SG-f9667433", "bn": "1টি তথ্য এখনো এই কপিতে যেভাবে ছিল সেভাবেই আছে।", "conf": "MEDIUM", "note": "VERSION_WORDING"}
+{"sg": "SG-b47a9e54", "bn": "1টি ফাইল সংরক্ষণ করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-b08c4520", "bn": "কেস হলো সেই জায়গা যেখানে একটি ভিসা আবেদনের সব প্রস্তুতি একসঙ্গে থাকে। আপনি যে রুটের পরিকল্পনা করছেন তার জন্য একটি কেস শুরু করুন, তাহলে আপনার সংরক্ষিত ডকুমেন্টগুলো এর চেকলিস্টের সঙ্গে মিলিয়ে দেখা হবে।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-1eb89ec4", "bn": "যে ইতিহাস আপনি দেখে নিতে পারেন", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-fd86bb23", "bn": "একটি নোট সংরক্ষণ করা হয়েছে (গোপনীয়তার জন্য এখানে লুকানো আছে)", "conf": "HIGH", "note": ""}
+{"sg": "SG-f07aea90", "bn": "আপনার সংরক্ষিত ডকুমেন্ট ও প্রোফাইলের সারসংক্ষেপ। এতে মূল তথ্যগুলো কখনো দেখানো হয় না, আর এখানে কিছুই আপনার প্রোফাইল বদলায় না।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-ef041959", "bn": "অনুরোধ সম্পর্কে", "conf": "HIGH", "note": ""}
+{"sg": "SG-4bec27a8", "bn": "পাঠানো সম্পর্কে", "conf": "HIGH", "note": ""}
+{"sg": "SG-80dcc575", "bn": "এই তারিখগুলো সম্পর্কে", "conf": "HIGH", "note": ""}
+{"sg": "SG-f4cc1412", "bn": "এই মোট সংখ্যাগুলো সম্পর্কে", "conf": "HIGH", "note": ""}
+{"sg": "SG-0a61a99b", "bn": "গ্রহণ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-14e286d2", "bn": "{length}টি স্পষ্ট তথ্য গ্রহণ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-bab8944d", "bn": "রেকর্ড অনুসন্ধান", "conf": "HIGH", "note": ""}
+{"sg": "SG-545ad080", "bn": "চলমান কেস", "conf": "HIGH", "note": ""}
+{"sg": "SG-52354318", "bn": "চালু শেয়ারিং অ্যাক্সেস: {choice}", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-cd0907e2", "bn": "ডকুমেন্ট যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-0eec3e1b", "bn": "একটি ডকুমেন্ট যোগ করুন এবং তাতে যা পাওয়া গেছে তা গ্রহণ করুন, তাহলে এখানে দেখা যাবে ডকুমেন্টটি কোন কোন তথ্যের উৎস।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-ba4f79c3", "bn": "একটি পাসপোর্ট যোগ করুন, তাহলে এর মেয়াদ শেষের তারিখ এখানে দেখা যাবে, যাতে সমস্যা হওয়ার আগেই আপনি জানতে পারেন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-7a92a527", "bn": "কেসের নাম যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-d1961937", "bn": "আমার ক্যালেন্ডারে তারিখ যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-7ffad23c", "bn": "তথ্যগুলো নিজে যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-ae70d5f6", "bn": "এক ট্যাপেই সেগুলো আপনার প্রোফাইলে যোগ করুন। আপনি গ্রহণ না করা পর্যন্ত কিছুই যোগ করা হয় না।", "conf": "HIGH", "note": ""}
+{"sg": "SG-100460ae", "bn": "ভ্রমণকারী যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-5a2afc13", "bn": "আপনার প্রয়োজনীয় তথ্য যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-4169aa17", "bn": "প্রথমে নিজেকে যোগ করুন। আপনার পাসপোর্টের তথ্য ও ডকুমেন্ট একবারই দিতে হয় এবং প্রতিটি আবেদনে আবার ব্যবহার করা হয়।", "conf": "HIGH", "note": ""}
+{"sg": "SG-4d33f713", "bn": "সব কেস →", "conf": "HIGH", "note": ""}
+{"sg": "SG-b89e595b", "bn": "সব বিভাগ", "conf": "HIGH", "note": ""}
+{"sg": "SG-99cc37d7", "bn": "সব তথ্য সংরক্ষণ করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-2960bc82", "bn": "সব রেকর্ড", "conf": "HIGH", "note": ""}
+{"sg": "SG-3176ea77", "bn": "সব ভ্রমণকারী", "conf": "HIGH", "note": ""}
+{"sg": "SG-1741082c", "bn": "একটি এজেন্সি আপনার কাছে এটি চাইছে। এটি সরকারি নিয়ম নয়।", "conf": "HIGH", "note": ""}
+{"sg": "SG-0eab99d4", "bn": "এজেন্সির অনুরোধ মানে সেই প্রতিষ্ঠান আপনার কাছে কিছু চাইছে; এটি নিজে কখনো ভিসার সরকারি শর্ত নয়। কী জমা দেবেন তা আপনি ঠিক করেন, এবং আপনার ওয়ালেটে আগে থেকে থাকা যেকোনো কিছু আবার ব্যবহার করতে পারেন।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-6eb59a5e", "bn": "অ্যাপয়েন্টমেন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-a90c7773", "bn": "অনুমোদিত", "conf": "HIGH", "note": ""}
+{"sg": "SG-e1a1ae1b", "bn": "আর্কাইভ", "conf": "HIGH", "note": ""}
+{"sg": "SG-7ffcb8ed", "bn": "ভ্রমণকারীকে আর্কাইভ করুন", "conf": "MEDIUM", "note": "English is a label_map_value but reads as an action; confirm whether it is a status or a button"}
+{"sg": "SG-a8c80aa5", "bn": "অনুরোধের তালিকায় ফিরে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-554ff162", "bn": "এখনো কোনো সংরক্ষিত তথ্যের উৎস নয়।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-f8daffe2", "bn": "ব্যাংক স্টেটমেন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-7c1816cb", "bn": "ঘুরে দেখুন: কী অপেক্ষায় আছে, আপনার রেকর্ড এবং আপনার চলমান কাজ।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-1e625b2b", "bn": "ক্যালেন্ডার", "conf": "HIGH", "note": ""}
+{"sg": "SG-e6c4bf76", "bn": "ম্যাকের ক্যালেন্ডারে: File বেছে নিন, তারপর New Calendar Subscription বেছে নিন এবং লিংকটি পেস্ট করুন।", "conf": "MEDIUM", "note": "Menu names kept in English because they are the operating system's own labels"}
+{"sg": "SG-95b94b88", "bn": "ব্যবহার করা যাবে না", "conf": "HIGH", "note": ""}
+{"sg": "SG-20882cf5", "bn": "কেসের ইতিহাস", "conf": "HIGH", "note": ""}
+{"sg": "SG-0b0be836", "bn": "কেস শুরু হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-c278c7d5", "bn": "কেস আপডেট হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-0016aa98", "bn": "গ্রহণ করার আগে এটি ঠিক না হলে বদলে নিন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-b5ee3fb4", "bn": "একটি ভিসা রুটের সঙ্গে আপনার ডকুমেন্ট মিলিয়ে দেখুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-f7fd849b", "bn": "চেকলিস্টের অগ্রগতি", "conf": "HIGH", "note": ""}
+{"sg": "SG-53e07bd3", "bn": "তারিখ বেছে নিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-ba6f13f6", "bn": "পাঠানোর জন্য কপি বেছে নিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-6075a7cf", "bn": "আপনার পছন্দের তারিখগুলো বেছে নিন, প্রিভিউ দেখে নিন, তারপর আপনার ক্যালেন্ডার অ্যাপে খোলার জন্য একটি ফাইল ডাউনলোড করুন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-cbdfdf34", "bn": "পাঠানোর জন্য তথ্য বেছে নিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-18f4188c", "bn": "আপনার প্রোফাইল ও ডকুমেন্ট সংরক্ষণ করা যাবে কি না তা ঠিক করুন। এই অনুমতি আপনি প্রত্যাহার করতে পারবেন।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-785cde04", "bn": "হুবহু কপি বেছে নেওয়ার সুবিধা এখনো নেই", "conf": "MEDIUM", "note": "VERSION_WORDING: \"exact version\" written as হুবহু কপি"}
+{"sg": "SG-9eb09ca5", "bn": "বন্ধ ও বাতিল কেস বাদ দেওয়া হয়েছে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-7d71f456", "bn": "সামনে আসছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-66f87a10", "bn": "তথ্য সম্পূর্ণ হলেও তা পরিচয় যাচাই করে না।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-0213b991", "bn": "এই রেকর্ড তৈরি করার অধিকার আপনার আছে, তা নিশ্চিত করুন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-1ddd03a6", "bn": "নিশ্চিতকরণের তারিখ", "conf": "HIGH", "note": ""}
+{"sg": "SG-5ed3e18e", "bn": "ইস্যুকারীর কাছ থেকে নিশ্চিতকরণ", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-9670b237", "bn": "{snapshotName} নিশ্চিত করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-70dccc1b", "bn": "চালিয়ে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-79111441", "bn": "কেস চালিয়ে যান →", "conf": "HIGH", "note": ""}
+{"sg": "SG-2430797a", "bn": "প্রোফাইল চালিয়ে যান →", "conf": "HIGH", "note": ""}
+{"sg": "SG-689c163e", "bn": "যেখানে থামিয়েছিলেন সেখান থেকে চালিয়ে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-bec3a8fc", "bn": "লিংক কপি করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-2594fc37", "bn": "বর্তমান", "conf": "HIGH", "note": ""}
+{"sg": "SG-b33a6698", "bn": "বর্তমান কপি", "conf": "HIGH", "note": "VERSION_WORDING"}
+{"sg": "SG-24b2871c", "bn": "বর্তমান কপি মানে এটি আপনার সংরক্ষিত সবচেয়ে নতুন কপি। এর মানে এই নয় যে কেউ যাচাই করেছেন এটি আসল, বা এটি সব আবেদনের জন্য উপযুক্ত। যেসব ফাইল এখনো পরীক্ষা করা হচ্ছে, প্রত্যাখ্যান করা হয়েছে, মেয়াদ শেষ হয়েছে বা প্রতিস্থাপন করা হয়েছে, সেগুলো কখনো ব্যবহারের জন্য প্রস্তুত হিসেবে দেখানো হয় না।", "conf": "MEDIUM", "note": "VERSION_WORDING"}
+{"sg": "SG-fad2cafa", "bn": "তারিখ", "conf": "HIGH", "note": ""}
+{"sg": "SG-30fa0d28", "bn": "তারিখ ও মেয়াদ", "conf": "HIGH", "note": ""}
+{"sg": "SG-50cb2203", "bn": "যোগ করার তারিখ", "conf": "HIGH", "note": ""}
+{"sg": "SG-672c202e", "bn": "সময়সীমার ঘড়ি", "conf": "HIGH", "note": ""}
+{"sg": "SG-f09d90e2", "bn": "তথ্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-24776023", "bn": "আপনার ডকুমেন্ট থেকে আমরা যে তথ্য পড়েছি। আপনি গ্রহণ না করা পর্যন্ত আপনার প্রোফাইলে কিছুই যোগ করা হয় না।", "conf": "HIGH", "note": ""}
+{"sg": "SG-b2807ceb", "bn": "{snapshotName} গ্রহণ করা হয়নি", "conf": "HIGH", "note": ""}
+{"sg": "SG-cd835be7", "bn": "ডকুমেন্ট যোগ করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-6a72d738", "bn": "ডকুমেন্টের মেয়াদ", "conf": "HIGH", "note": ""}
+{"sg": "SG-25d59a1e", "bn": "ডকুমেন্টের মেয়াদ শেষের তারিখ", "conf": "HIGH", "note": ""}
+{"sg": "SG-921bbaac", "bn": "ডকুমেন্ট আপলোড করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-b160e723", "bn": "আপনার ওয়ালেটের ডকুমেন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-4fcbb5a7", "bn": "পর্যালোচনা দরকার এমন ডকুমেন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-38a60fe5", "bn": "প্রতিটি ভিসা আবেদন একটি কেস। আপনি একটি শুরু করলে এর প্রস্তুতির অবস্থা এখানে দেখা যাবে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-ad36e94f", "bn": "দূতাবাস সাধারণত এগুলো মূল কাগজে জমা দেওয়া চায়। ফাইলে রাখা ডিজিটাল কপি আপনার আবেদন প্রস্তুত রাখে; মূল কাগজটি নিরাপদে রাখুন।", "conf": "MEDIUM", "note": "English \"scan\" means a scanned image of the paper original, not an antivirus scan, so the word স্ক্যান is avoided on purpose"}
+{"sg": "SG-6bbbc4a4", "bn": "দূতাবাস বা কনস্যুলেটের পোর্টাল", "conf": "HIGH", "note": ""}
+{"sg": "SG-7b91acec", "bn": "চাকরির প্রত্যয়নপত্র", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-ad2c0902", "bn": "প্রয়োজনীয় তথ্য যোগ করা হয়েছে", "conf": "HIGH", "note": ""}
