@@ -51,6 +51,7 @@ import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantRowLine } from '../../../../../lib/grant-row-line';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
+import { primeLocale } from '../../../../../lib/i18n-server';
 import { getLocale } from '../../../../../lib/locale';
 import { newCategoriesWithData } from '../../../../../lib/master-profile';
 import { nextShow, pagingHref, parseCursor, parseShow } from '../../../../../lib/paging';
@@ -114,6 +115,7 @@ export default async function SharingPage({
    */
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await primeLocale();
   const { id } = await params;
   const search = (await searchParams) ?? {};
   const one = (name: string) => {
