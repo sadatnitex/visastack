@@ -24,7 +24,7 @@ import { AuthorizedApplicant, SystemScope } from './access';
 import { READER_VERSION, aiReadingIdempotencyKey } from './ai-reading-job';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, serviceError, keyedError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
@@ -545,9 +545,9 @@ export async function changeRecognisedKind(
     proof.actor.kind !== 'applicant_owner' ||
     proof.resource.kind !== 'document'
   ) {
-    return err(serviceError('forbidden', 'only the owner can change this'));
+    return err(keyedError('forbidden', 'umpe_document_recognition.only_the_owner_can_change_this'));
   }
-  const notFound = err(serviceError('not_found', 'placement not found'));
+  const notFound = err(keyedError('not_found', 'umpe_document_recognition.placement_not_found'));
   const db = proof.tx;
   if (!(await autoPlacementsTablePresent(db))) return notFound;
   const documentId = proof.resource.document.id;
@@ -595,7 +595,7 @@ export async function changeRecognisedKind(
     );
     if (!placement) return notFound;
     if (document.docType !== placement.appliedDocType) {
-      return err(serviceError('stale', 'this file was changed since it was recognised'));
+      return err(keyedError('stale', 'umpe_document_recognition.this_file_was_changed_since_it'));
     }
     // The name goes back only while it is still the one the recognition gave.
     const restoreName =

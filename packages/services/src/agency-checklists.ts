@@ -6,7 +6,7 @@ import {
 } from './access/agency-checklist-scope';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, serviceError, keyedError } from './errors';
 import { isUuid } from './lifecycle/foundation/ids';
 import {
   type DraftRequirementPatch,
@@ -43,11 +43,11 @@ import {
  * another agency's lists, and a published version is never edited: a change is a new draft.
  */
 
-const NOT_FOUND_WORDS = 'checklist not found';
-const COPIED_WORDS = 'Your agency already has a copy of this list.';
-const WAITING_WORDS = 'A change is waiting to be published. Publish it first.';
+
+
+
 const PUBLISH_FAILED_WORDS = 'This list could not be published. Reload the page and try again.';
-const NO_ITEMS_WORDS = 'Add at least one item before you publish.';
+
 /** A year: the agency decides when its own list needs another look. */
 const OWN_LIST_REVIEW_DAYS = 365;
 const OWN_LIST_REVIEW_REASON = 'The agency reviews its own checklist when it changes it.';
@@ -190,7 +190,7 @@ export async function makeAgencyCopy(
 ): Promise<Result<{ readonly packId: string; readonly draftVersionId: string }, ServiceError>> {
   const denied = agencyChecklistScopeProblem(scope);
   if (denied) return err(denied);
-  if (!isUuid(input.fromPackVersionId)) return err(serviceError('not_found', NOT_FOUND_WORDS));
+  if (!isUuid(input.fromPackVersionId)) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   return db.transaction(async (tx) => {
@@ -207,7 +207,7 @@ export async function makeAgencyCopy(
       source.version.status === 'PUBLISHED' &&
       source.pack.ownerOrganizationId === null &&
       (source.pack.authoritative || isStarterPackKey(source.pack.key));
-    if (!source || !shared) return err(serviceError('not_found', NOT_FOUND_WORDS));
+    if (!source || !shared) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
 
     const key = ownKey(scope.organizationId, source.pack.key);
     // The key is unique, so two copies made at the same moment cannot both succeed: the second gets
@@ -230,7 +230,7 @@ export async function makeAgencyCopy(
         .onConflictDoNothing({ target: schema.packs.key })
         .returning(),
     );
-    if (!inserted) return err(serviceError('invalid', COPIED_WORDS));
+    if (!inserted) return err(keyedError('invalid', 'agency_checklists.your_agency_already_has_a_copy'));
     const pack = inserted as Pack;
     await appendAuditEvent(tx, {
       eventType: 'PACK_CREATED',
@@ -294,7 +294,7 @@ export async function getAgencyListDetail(
 ): Promise<Result<AgencyListDetail, ServiceError>> {
   const denied = agencyChecklistScopeProblem(scope);
   if (denied) return err(denied);
-  if (!isUuid(input.packId)) return err(serviceError('not_found', NOT_FOUND_WORDS));
+  if (!isUuid(input.packId)) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
   const pack = first(
     await db
       .select()
@@ -307,7 +307,7 @@ export async function getAgencyListDetail(
       )
       .limit(1),
   );
-  if (!pack) return err(serviceError('not_found', NOT_FOUND_WORDS));
+  if (!pack) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
   const versions = await db
     .select()
     .from(schema.packVersions)
@@ -317,7 +317,7 @@ export async function getAgencyListDetail(
   const waiting = versions.find((v) => v.status === 'APPROVED');
   const published = versions.find((v) => v.status === 'PUBLISHED');
   const shown = draft ?? waiting ?? published;
-  if (!shown) return err(serviceError('not_found', NOT_FOUND_WORDS));
+  if (!shown) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
   return ok({
     packId: pack.id,
     name: pack.name,
@@ -335,7 +335,7 @@ async function ownVersion(
   scope: AgencyChecklistScope,
   packVersionId: string,
 ): Promise<Result<PackVersion, ServiceError>> {
-  if (!isUuid(packVersionId)) return err(serviceError('not_found', NOT_FOUND_WORDS));
+  if (!isUuid(packVersionId)) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
   const row = first(
     await db
       .select({ version: schema.packVersions })
@@ -349,7 +349,7 @@ async function ownVersion(
       )
       .limit(1),
   );
-  return row ? ok(row.version as PackVersion) : err(serviceError('not_found', NOT_FOUND_WORDS));
+  return row ? ok(row.version as PackVersion) : err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
 }
 
 /** Starts an update of the agency's published list: a draft copy of it. */
@@ -360,7 +360,7 @@ export async function startAgencyListUpdate(
 ): Promise<Result<PackVersion, ServiceError>> {
   const denied = agencyChecklistScopeProblem(scope);
   if (denied) return err(denied);
-  if (!isUuid(input.packId)) return err(serviceError('not_found', NOT_FOUND_WORDS));
+  if (!isUuid(input.packId)) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
   const published = first(
     await db
       .select({ id: schema.packVersions.id })
@@ -376,7 +376,7 @@ export async function startAgencyListUpdate(
       .orderBy(desc(schema.packVersions.version))
       .limit(1),
   );
-  if (!published) return err(serviceError('not_found', NOT_FOUND_WORDS));
+  if (!published) return err(keyedError('not_found', 'agency_checklists.checklist_not_found'));
   const waiting = first(
     await db
       .select({ id: schema.packVersions.id })
@@ -389,7 +389,7 @@ export async function startAgencyListUpdate(
       )
       .limit(1),
   );
-  if (waiting) return err(serviceError('invalid', WAITING_WORDS));
+  if (waiting) return err(keyedError('invalid', 'agency_checklists.a_change_is_waiting_to_be'));
   return cloneVersionToDraft(db, scope, { fromPackVersionId: published.id });
 }
 
@@ -434,13 +434,13 @@ export async function addAgencyItem(
   const wording = input.wording.trim();
   const appliesWhen = input.appliesWhen?.trim() ?? '';
   if (wording === '') {
-    return err(serviceError('invalid', 'write the item as a traveller should read it'));
+    return err(keyedError('invalid', 'agency_checklists.write_the_item_as_a_traveller'));
   }
   if (wording.length > MAX_WORDING_LENGTH || appliesWhen.length > MAX_AUDIENCE_LENGTH) {
-    return err(serviceError('invalid', 'the wording is too long, or the note on who it is for is'));
+    return err(keyedError('invalid', 'agency_checklists.the_wording_is_too_long_or'));
   }
   if (input.docType.trim() === '') {
-    return err(serviceError('invalid', 'a document item needs a document type'));
+    return err(keyedError('invalid', 'agency_checklists.a_document_item_needs_a_document'));
   }
   return addRequirement(db, {
     actorAccountId: scope.accountId,
@@ -472,11 +472,11 @@ export async function publishAgencyDraft(
   const owned = await ownVersion(db, scope, input.packVersionId);
   if (!owned.ok) return owned;
   if (owned.value.status !== 'DRAFT' && owned.value.status !== 'APPROVED') {
-    return err(serviceError('invalid', 'only a draft can be published'));
+    return err(keyedError('invalid', 'agency_checklists.only_a_draft_can_be_published'));
   }
   if (owned.value.status === 'DRAFT') {
     if ((await listRequirements(db, input.packVersionId)).length === 0) {
-      return err(serviceError('invalid', NO_ITEMS_WORDS));
+      return err(keyedError('invalid', 'agency_checklists.add_at_least_one_item_before'));
     }
     const approved = await approvePackVersion(db, {
       actorAccountId: scope.accountId,
@@ -529,7 +529,7 @@ export async function discardAgencyDraft(
         .for('update'),
     );
     if (!version || version.status !== 'DRAFT') {
-      return err(serviceError('invalid', 'only a draft can be discarded'));
+      return err(keyedError('invalid', 'agency_checklists.only_a_draft_can_be_discarded'));
     }
     const all = await tx
       .select({ id: schema.packVersions.id })

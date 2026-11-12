@@ -27,7 +27,7 @@ import {
   isDocumentVersionUsable,
   registerDocumentWithVersion,
 } from './documents';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, serviceError, keyedError } from './errors';
 import { enqueueIntakeJob } from './jobs';
 import {
   everydayApplicantCondition,
@@ -100,31 +100,13 @@ export interface CopiedDocument {
   readonly title: string | null;
 }
 
-const NOT_FOUND = serviceError('not_found', 'We could not find this document.');
-const CHECKING = serviceError(
-  'invalid',
-  'This document is still being checked for safety. Try again in a moment.',
-);
-const NOT_USABLE = serviceError(
-  'invalid',
-  'This document did not pass its checks, so it cannot be copied.',
-);
-const BEING_REMOVED = serviceError(
-  'invalid',
-  'This document is being removed, so it cannot be copied.',
-);
-const REPLACED = serviceError(
-  'invalid',
-  'This document was replaced by a newer one. Copy the newer one instead.',
-);
-const CASE_ONLY = serviceError(
-  'invalid',
-  'This document was handed in for one case only, so it cannot be copied.',
-);
-const CANNOT_VERIFY = serviceError(
-  'upstream_error',
-  'This document could not be checked against what was stored, so no copy was made.',
-);
+const NOT_FOUND = keyedError('not_found', 'umpe_document_copies.we_could_not_find_this_document');
+const CHECKING = keyedError('invalid', 'umpe_document_copies.this_document_is_still_being_checked');
+const NOT_USABLE = keyedError('invalid', 'umpe_document_copies.this_document_did_not_pass_its');
+const BEING_REMOVED = keyedError('invalid', 'umpe_document_copies.this_document_is_being_removed_so');
+const REPLACED = keyedError('invalid', 'umpe_document_copies.this_document_was_replaced_by_a');
+const CASE_ONLY = keyedError('invalid', 'umpe_document_copies.this_document_was_handed_in_for');
+const CANNOT_VERIFY = keyedError('upstream_error', 'umpe_document_copies.this_document_could_not_be_checked');
 
 /** States in which a file is still on its way to being usable (the same words replace uses). */
 const IN_FLIGHT_SAFETY: ReadonlySet<string> = new Set(['PENDING', 'SCANNING']);
@@ -189,12 +171,12 @@ export async function copyDocumentToPerson(
   const owner = ownerOf(sourceProof, 'MANAGE');
   const targetOwner = ownerOf(targetProof, 'MANAGE');
   if (!owner || !targetOwner || owner !== targetOwner) {
-    return err(serviceError('forbidden', 'You can keep a copy only between your own people.'));
+    return err(keyedError('forbidden', 'umpe_document_copies.you_can_keep_a_copy_only'));
   }
   const sourceId = sourceProof.applicant.id;
   const targetId = targetProof.applicant.id;
   if (sourceId === targetId) {
-    return err(serviceError('invalid', 'Choose a different person for the copy.'));
+    return err(keyedError('invalid', 'umpe_document_copies.choose_a_different_person_for_the'));
   }
   const db = sourceProof.tx;
   const documents = schema.documents;
@@ -211,7 +193,7 @@ export async function copyDocumentToPerson(
         lifecycle ? presentApplicantCondition() : undefined,
       ),
     );
-  if (people.length !== 2) return err(serviceError('not_found', 'We could not find that person.'));
+  if (people.length !== 2) return err(keyedError('not_found', 'umpe_document_copies.we_could_not_find_that_person'));
 
   const source = first(
     await db
@@ -241,10 +223,7 @@ export async function copyDocumentToPerson(
   if (!source) return err(NOT_FOUND);
   if (!isSharedBetweenPeopleKind(source.docType)) {
     return err(
-      serviceError(
-        'invalid',
-        'A copy for another person is kept only for a document that belongs to two people, such as a marriage certificate.',
-      ),
+      keyedError('invalid', 'umpe_document_copies.a_copy_for_another_person_is'),
     );
   }
   // Only what the person keeps in their own documents (CAS-08): a file handed in for one case
@@ -348,10 +327,7 @@ export async function copyDocumentToPerson(
     if (!stored) {
       await discard('source file not readable');
       return err(
-        serviceError(
-          'upstream_error',
-          'We could not read this document just now. Try again in a minute.',
-        ),
+        keyedError('upstream_error', 'umpe_document_copies.we_could_not_read_this_document'),
       );
     }
     const hash = sha256Of(stored.bytes);
@@ -371,7 +347,7 @@ export async function copyDocumentToPerson(
     if (!check || sha256Of(check.bytes) !== hash) {
       await discard('copy failed verification immediately after write');
       return err(
-        serviceError('upstream_error', 'The copy could not be stored. Try again in a minute.'),
+        keyedError('upstream_error', 'umpe_document_copies.the_copy_could_not_be_stored'),
       );
     }
     created = await db.transaction(async (tx: Db) => {
@@ -452,7 +428,7 @@ export async function copyDocumentToPerson(
     await discard(error instanceof CopyRefused ? 'copy refused' : 'copy failed');
     if (error instanceof CopyRefused) return err(error.serviceError);
     return err(
-      serviceError('upstream_error', 'The copy could not be made. Try again in a minute.'),
+      keyedError('upstream_error', 'umpe_document_copies.the_copy_could_not_be_made'),
     );
   }
   return ok({ documentId: created.version.documentId, title: created.document.approvedName });

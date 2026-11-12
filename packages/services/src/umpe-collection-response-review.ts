@@ -11,7 +11,7 @@ import {
 import { guestUploadsPresent, liveGuestSubmission } from './access/guest-submission-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, serviceError, keyedError } from './errors';
 import { isUuid } from './lifecycle/foundation/ids';
 import { parseItems } from './umpe-collection-request-items';
 import { queueGuestCorrectionNotice } from './umpe-guest-correction-notice';
@@ -36,7 +36,7 @@ export const REVIEW_GENERAL_NOTE_LIMIT = 1000;
 const MAX_ITEM_NOTES = 120;
 
 function missing(): ServiceError {
-  return serviceError('not_found', 'no such answer');
+  return keyedError('not_found', 'umpe_collection_response_review.no_such_answer');
 }
 
 function isDecision(value: unknown): value is CollectionReviewDecision {
@@ -88,7 +88,7 @@ export async function recordCollectionReview(
   const problem = agencyCollectionScopeProblem(scope);
   if (problem) return err(problem);
   if (!isUuid(input.answerId) || !(await guestUploadsPresent(db))) return err(missing());
-  if (!isDecision(input.decision)) return err(serviceError('invalid', 'Choose a decision.'));
+  if (!isDecision(input.decision)) return err(keyedError('invalid', 'umpe_collection_response_review.choose_a_decision'));
   const general = typeof input.note === 'string' ? input.note.trim() : '';
   if (general.length > REVIEW_GENERAL_NOTE_LIMIT) {
     return err(
@@ -145,7 +145,7 @@ export async function recordCollectionReview(
   if (typeof notes === 'string') return err(serviceError('invalid', notes));
   if (input.decision === 'NEEDS_CORRECTION' && notes.length === 0 && general.length === 0) {
     return err(
-      serviceError('invalid', 'Say what needs correcting: add a note to at least one item.'),
+      keyedError('invalid', 'umpe_collection_response_review.say_what_needs_correcting_add_a'),
     );
   }
   const reviews = schema.agencyCollectionReviews;

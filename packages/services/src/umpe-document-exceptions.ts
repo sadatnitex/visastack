@@ -19,7 +19,7 @@ import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { setDocumentType } from './documents';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, serviceError, keyedError } from './errors';
 import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { replaceDocument } from './lifecycle/replace/replace';
@@ -410,15 +410,15 @@ export async function decideDocumentRelation(
   input: { readonly proposalId: string; readonly decision: RelationDecision },
 ): Promise<Result<RelationDecisionOutcome, ServiceError>> {
   if (!AuthorizedApplicant.isGenuine(proof, 'MANAGE')) {
-    return err(serviceError('forbidden', 'not authorized'));
+    return err(keyedError('forbidden', 'umpe_document_exceptions.not_authorized'));
   }
   if (proof.actor.kind !== 'applicant_owner') {
-    return err(serviceError('forbidden', 'only the traveller can decide this'));
+    return err(keyedError('forbidden', 'umpe_document_exceptions.only_the_traveller_can_decide_this'));
   }
   if (!isRelationDecision(input.decision)) {
-    return err(serviceError('invalid', 'choose Confirm or Keep Separate'));
+    return err(keyedError('invalid', 'umpe_document_exceptions.choose_confirm_or_keep_separate'));
   }
-  const notFound = err(serviceError('not_found', 'suggestion not found'));
+  const notFound = err(keyedError('not_found', 'umpe_document_exceptions.suggestion_not_found'));
   if (!(await relationProposalsTablePresent(proof.tx))) return notFound;
   const db = proof.tx;
   const actorAccountId = proof.applicant.ownerAccountId;
@@ -519,12 +519,12 @@ export async function dismissIntakeException(
   input: { readonly exceptionId: string },
 ): Promise<Result<{ readonly kind: string }, ServiceError>> {
   if (!AuthorizedApplicant.isGenuine(proof, 'MANAGE')) {
-    return err(serviceError('forbidden', 'not authorized'));
+    return err(keyedError('forbidden', 'umpe_document_exceptions.not_authorized'));
   }
   if (proof.actor.kind !== 'applicant_owner') {
-    return err(serviceError('forbidden', 'only the traveller can decide this'));
+    return err(keyedError('forbidden', 'umpe_document_exceptions.only_the_traveller_can_decide_this'));
   }
-  const notFound = err(serviceError('not_found', 'finding not found'));
+  const notFound = err(keyedError('not_found', 'umpe_document_exceptions.finding_not_found'));
   const db = proof.tx;
   if (!(await intakeExceptionsTablePresent(db))) return notFound;
   const actorAccountId = proof.applicant.ownerAccountId;

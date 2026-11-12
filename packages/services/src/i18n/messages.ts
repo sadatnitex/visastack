@@ -1,4 +1,5 @@
 import { type CatalogKey, defineCatalog } from '@visastack/i18n';
+import { caseFlowBBn, caseFlowBEn } from './case-flow-b';
 
 /**
  * The words behind service refusals that carry a `messageKey` (see `keyedError` in errors.ts).
@@ -11,8 +12,8 @@ import { type CatalogKey, defineCatalog } from '@visastack/i18n';
  * never come here.
  */
 export const serviceMessages = defineCatalog({
-  en: {},
-  bn: {},
+  en: { ...caseFlowBEn },
+  bn: { ...caseFlowBBn },
 });
 
 export type ServiceMessageKey = CatalogKey<typeof serviceMessages>;
