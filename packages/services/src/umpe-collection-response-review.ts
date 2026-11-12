@@ -11,7 +11,7 @@ import {
 import { guestUploadsPresent, liveGuestSubmission } from './access/guest-submission-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { isUuid } from './lifecycle/foundation/ids';
 import { parseItems } from './umpe-collection-request-items';
 import { queueGuestCorrectionNotice } from './umpe-guest-correction-notice';
@@ -88,7 +88,8 @@ export async function recordCollectionReview(
   const problem = agencyCollectionScopeProblem(scope);
   if (problem) return err(problem);
   if (!isUuid(input.answerId) || !(await guestUploadsPresent(db))) return err(missing());
-  if (!isDecision(input.decision)) return err(keyedError('invalid', 'umpe_collection_response_review.choose_a_decision'));
+  if (!isDecision(input.decision))
+    return err(keyedError('invalid', 'umpe_collection_response_review.choose_a_decision'));
   const general = typeof input.note === 'string' ? input.note.trim() : '';
   if (general.length > REVIEW_GENERAL_NOTE_LIMIT) {
     return err(

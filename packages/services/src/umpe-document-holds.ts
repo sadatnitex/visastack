@@ -30,7 +30,7 @@ import { appendAuditEvent } from './audit';
 import { findTd3Block } from './classification';
 import { type Db, first, schema } from './db';
 import { CONVERTED_FROM_HEIC_SOURCE, registerDocumentWithVersion } from './documents';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { enqueueIntakeJob } from './jobs';
@@ -835,7 +835,8 @@ export async function fileHeldFile(
         })
         .where(and(eq(holds.id, claimed.id), eq(holds.status, 'FILING')))
         .returning({ id: holds.id });
-      if (marked.length === 0) throw new FilingRefused(keyedError('not_found', 'umpe_document_holds.file_not_found'));
+      if (marked.length === 0)
+        throw new FilingRefused(keyedError('not_found', 'umpe_document_holds.file_not_found'));
       // The file's own name moves to the person's upload receipt, where the reading finds it for
       // a suggested title; it stays private to this account and goes with the document.
       if (await uploadReceiptsTablePresent(tx)) {
@@ -1305,9 +1306,7 @@ export async function returnAutoFiledHold(
       only.bucket !== 'QUARANTINE' ||
       (await documentInUse(tx, document.id, only.id))
     ) {
-      return err(
-        keyedError('stale', 'umpe_document_holds.this_file_is_already_in_use'),
-      );
+      return err(keyedError('stale', 'umpe_document_holds.this_file_is_already_in_use'));
     }
     // The file's own name came to the person's upload receipt when it was filed: it goes back.
     const receipt = (await uploadReceiptsTablePresent(tx))

@@ -25,7 +25,7 @@ import { AuthorizedApplicant } from './access';
 import { snapshotRecordedVersions } from './application-memory';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import {
   ATTEMPT_CHANNELS,
@@ -49,9 +49,6 @@ type EventRow = typeof schema.umpeOutcomeEvents.$inferSelect;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-
-
 
 function ownerMission<A extends 'VIEW_METADATA' | 'MANAGE'>(
   proof: AuthorizedApplicant<A>,
@@ -393,7 +390,10 @@ export async function recordOutcomeAttempt(
   const owned = ownerMission(proof, 'MANAGE', input.missionId);
   if (!owned.ok) return owned;
   const db = proof.tx;
-  if (!(await outcomeTablesPresent(db))) return err(keyedError('invalid', 'umpe_outcome_service.recording_attempts_is_not_available_yet'));
+  if (!(await outcomeTablesPresent(db)))
+    return err(
+      keyedError('invalid', 'umpe_outcome_service.recording_attempts_is_not_available_yet'),
+    );
   if (!(ATTEMPT_CHANNELS as readonly string[]).includes(input.channel)) {
     return err(keyedError('invalid', 'umpe_outcome_service.choose_how_it_was_sent'));
   }
@@ -403,7 +403,8 @@ export async function recordOutcomeAttempt(
     return err(keyedError('invalid', 'umpe_outcome_service.enter_the_day_it_was_sent'));
   return db.transaction(async (tx) => {
     const mission = await lockedMission(tx, proof.applicant.id, input.missionId);
-    if (!mission || mission.purgedAt) return err(keyedError('not_found', 'umpe_outcome_service.this_case_is_not_available'));
+    if (!mission || mission.purgedAt)
+      return err(keyedError('not_found', 'umpe_outcome_service.this_case_is_not_available'));
     const reports = await tx
       .select({ id: schema.missionSubmissions.id, tracked: schema.umpeOutcomeAttempts.id })
       .from(schema.missionSubmissions)
@@ -420,9 +421,7 @@ export async function recordOutcomeAttempt(
       );
     }
     if (reports.length === 0) {
-      return err(
-        keyedError('invalid', 'umpe_outcome_service.report_the_first_submission_of_this'),
-      );
+      return err(keyedError('invalid', 'umpe_outcome_service.report_the_first_submission_of_this'));
     }
     let evidenceVersionId: string | null = null;
     if (input.evidenceDocumentVersionId) {
@@ -431,7 +430,10 @@ export async function recordOutcomeAttempt(
         proof.applicant.id,
         input.evidenceDocumentVersionId,
       );
-      if (!evidenceVersionId) return err(keyedError('not_found', 'umpe_outcome_service.that_document_is_not_available_for'));
+      if (!evidenceVersionId)
+        return err(
+          keyedError('not_found', 'umpe_outcome_service.that_document_is_not_available_for'),
+        );
     }
     const binding = await bindingFor(tx, mission.id, submittedOn, timeZone, null);
     const row = await insertAttempt(tx, mission, proof.applicant.ownerAccountId, {
@@ -456,13 +458,19 @@ export async function trackSubmissionAsAttempt(
   const owned = ownerMission(proof, 'MANAGE', input.missionId);
   if (!owned.ok) return owned;
   const db = proof.tx;
-  if (!(await outcomeTablesPresent(db))) return err(keyedError('invalid', 'umpe_outcome_service.recording_attempts_is_not_available_yet'));
+  if (!(await outcomeTablesPresent(db)))
+    return err(
+      keyedError('invalid', 'umpe_outcome_service.recording_attempts_is_not_available_yet'),
+    );
   if (!UUID.test(input.missionSubmissionId)) {
-    return err(keyedError('not_found', 'umpe_outcome_service.that_submission_report_is_not_available'));
+    return err(
+      keyedError('not_found', 'umpe_outcome_service.that_submission_report_is_not_available'),
+    );
   }
   return db.transaction(async (tx) => {
     const mission = await lockedMission(tx, proof.applicant.id, input.missionId);
-    if (!mission || mission.purgedAt) return err(keyedError('not_found', 'umpe_outcome_service.this_case_is_not_available'));
+    if (!mission || mission.purgedAt)
+      return err(keyedError('not_found', 'umpe_outcome_service.this_case_is_not_available'));
     const report = first(
       await tx
         .select()
@@ -475,7 +483,10 @@ export async function trackSubmissionAsAttempt(
         )
         .limit(1),
     );
-    if (!report) return err(keyedError('not_found', 'umpe_outcome_service.that_submission_report_is_not_available'));
+    if (!report)
+      return err(
+        keyedError('not_found', 'umpe_outcome_service.that_submission_report_is_not_available'),
+      );
     const already = first(
       await tx
         .select({
@@ -529,7 +540,10 @@ export async function recordAttemptEvent(
   const owned = ownerMission(proof, 'MANAGE', input.missionId);
   if (!owned.ok) return owned;
   const db = proof.tx;
-  if (!(await outcomeTablesPresent(db))) return err(keyedError('invalid', 'umpe_outcome_service.recording_attempts_is_not_available_yet'));
+  if (!(await outcomeTablesPresent(db)))
+    return err(
+      keyedError('invalid', 'umpe_outcome_service.recording_attempts_is_not_available_yet'),
+    );
   const kind = input.kind as AttemptEventKind;
   let decision: AttemptDecision | null = null;
   let requestSource: AuthorityRequestSource | null = null;
@@ -547,10 +561,14 @@ export async function recordAttemptEvent(
     const keys = new Set<string>();
     for (const name of input.requestedDocTypes ?? []) {
       const known = resolveDocumentType(name);
-      if (!known) return err(keyedError('invalid', 'umpe_outcome_service.choose_the_documents_from_the_list'));
+      if (!known)
+        return err(
+          keyedError('invalid', 'umpe_outcome_service.choose_the_documents_from_the_list'),
+        );
       keys.add(known.key);
     }
-    if (keys.size === 0) return err(keyedError('invalid', 'umpe_outcome_service.choose_at_least_one_document'));
+    if (keys.size === 0)
+      return err(keyedError('invalid', 'umpe_outcome_service.choose_at_least_one_document'));
     if (keys.size > MAX_REQUESTED_DOC_TYPES) {
       return err(serviceError('invalid', `Choose at most ${MAX_REQUESTED_DOC_TYPES} documents.`));
     }
@@ -563,7 +581,8 @@ export async function recordAttemptEvent(
     return err(keyedError('invalid', 'umpe_outcome_service.enter_the_day_it_happened_not'));
   return db.transaction(async (tx) => {
     const mission = await lockedMission(tx, proof.applicant.id, input.missionId);
-    if (!mission || mission.purgedAt) return err(keyedError('not_found', 'umpe_outcome_service.this_case_is_not_available'));
+    if (!mission || mission.purgedAt)
+      return err(keyedError('not_found', 'umpe_outcome_service.this_case_is_not_available'));
     const attempt = UUID.test(input.attemptId)
       ? first(
           await tx
@@ -578,11 +597,10 @@ export async function recordAttemptEvent(
             .limit(1),
         )
       : undefined;
-    if (!attempt) return err(keyedError('not_found', 'umpe_outcome_service.that_attempt_is_not_available'));
+    if (!attempt)
+      return err(keyedError('not_found', 'umpe_outcome_service.that_attempt_is_not_available'));
     if (occurredOn < attempt.submittedOn) {
-      return err(
-        keyedError('invalid', 'umpe_outcome_service.this_cannot_be_earlier_than_the'),
-      );
+      return err(keyedError('invalid', 'umpe_outcome_service.this_cannot_be_earlier_than_the'));
     }
     let evidenceVersionId: string | null = null;
     if (input.evidenceDocumentVersionId) {
@@ -591,7 +609,10 @@ export async function recordAttemptEvent(
         proof.applicant.id,
         input.evidenceDocumentVersionId,
       );
-      if (!evidenceVersionId) return err(keyedError('not_found', 'umpe_outcome_service.that_document_is_not_available_for'));
+      if (!evidenceVersionId)
+        return err(
+          keyedError('not_found', 'umpe_outcome_service.that_document_is_not_available_for'),
+        );
     }
     const basis: EvidenceBasis = evidenceVersionId ? 'DOCUMENT_SUPPLIED' : 'SELF_REPORTED';
     const [row] = await tx

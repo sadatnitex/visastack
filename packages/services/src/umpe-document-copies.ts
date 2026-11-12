@@ -27,7 +27,7 @@ import {
   isDocumentVersionUsable,
   registerDocumentWithVersion,
 } from './documents';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { enqueueIntakeJob } from './jobs';
 import {
   everydayApplicantCondition,
@@ -103,10 +103,16 @@ export interface CopiedDocument {
 const NOT_FOUND = keyedError('not_found', 'umpe_document_copies.we_could_not_find_this_document');
 const CHECKING = keyedError('invalid', 'umpe_document_copies.this_document_is_still_being_checked');
 const NOT_USABLE = keyedError('invalid', 'umpe_document_copies.this_document_did_not_pass_its');
-const BEING_REMOVED = keyedError('invalid', 'umpe_document_copies.this_document_is_being_removed_so');
+const BEING_REMOVED = keyedError(
+  'invalid',
+  'umpe_document_copies.this_document_is_being_removed_so',
+);
 const REPLACED = keyedError('invalid', 'umpe_document_copies.this_document_was_replaced_by_a');
 const CASE_ONLY = keyedError('invalid', 'umpe_document_copies.this_document_was_handed_in_for');
-const CANNOT_VERIFY = keyedError('upstream_error', 'umpe_document_copies.this_document_could_not_be_checked');
+const CANNOT_VERIFY = keyedError(
+  'upstream_error',
+  'umpe_document_copies.this_document_could_not_be_checked',
+);
 
 /** States in which a file is still on its way to being usable (the same words replace uses). */
 const IN_FLIGHT_SAFETY: ReadonlySet<string> = new Set(['PENDING', 'SCANNING']);
@@ -193,7 +199,8 @@ export async function copyDocumentToPerson(
         lifecycle ? presentApplicantCondition() : undefined,
       ),
     );
-  if (people.length !== 2) return err(keyedError('not_found', 'umpe_document_copies.we_could_not_find_that_person'));
+  if (people.length !== 2)
+    return err(keyedError('not_found', 'umpe_document_copies.we_could_not_find_that_person'));
 
   const source = first(
     await db
@@ -222,9 +229,7 @@ export async function copyDocumentToPerson(
   );
   if (!source) return err(NOT_FOUND);
   if (!isSharedBetweenPeopleKind(source.docType)) {
-    return err(
-      keyedError('invalid', 'umpe_document_copies.a_copy_for_another_person_is'),
-    );
+    return err(keyedError('invalid', 'umpe_document_copies.a_copy_for_another_person_is'));
   }
   // Only what the person keeps in their own documents (CAS-08): a file handed in for one case
   // only is never turned into a reusable copy.
@@ -346,9 +351,7 @@ export async function copyDocumentToPerson(
       : await deps.storage.getObject(intent.objectKey);
     if (!check || sha256Of(check.bytes) !== hash) {
       await discard('copy failed verification immediately after write');
-      return err(
-        keyedError('upstream_error', 'umpe_document_copies.the_copy_could_not_be_stored'),
-      );
+      return err(keyedError('upstream_error', 'umpe_document_copies.the_copy_could_not_be_stored'));
     }
     created = await db.transaction(async (tx: Db) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`copy:${targetId}:${hash}`}))`);
@@ -427,9 +430,7 @@ export async function copyDocumentToPerson(
     // reservation. The reason is fixed text: a person's name is never written to the log.
     await discard(error instanceof CopyRefused ? 'copy refused' : 'copy failed');
     if (error instanceof CopyRefused) return err(error.serviceError);
-    return err(
-      keyedError('upstream_error', 'umpe_document_copies.the_copy_could_not_be_made'),
-    );
+    return err(keyedError('upstream_error', 'umpe_document_copies.the_copy_could_not_be_made'));
   }
   return ok({ documentId: created.version.documentId, title: created.document.approvedName });
 }

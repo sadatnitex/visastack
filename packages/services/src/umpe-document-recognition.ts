@@ -24,7 +24,7 @@ import { AuthorizedApplicant, SystemScope } from './access';
 import { READER_VERSION, aiReadingIdempotencyKey } from './ai-reading-job';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';

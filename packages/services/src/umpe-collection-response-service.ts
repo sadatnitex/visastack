@@ -18,7 +18,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import {
   everydayDocumentCondition,
   presentDocumentCondition,
@@ -400,10 +400,17 @@ export async function submitCollectionResponse(
   }
   const accountId = person.applicant.ownerAccountId;
   if (input.consentVersion !== RESPONSE_CONSENT_VERSION) {
-    return err(keyedError('invalid', 'umpe_collection_response_service.agree_to_share_before_you_submit'));
+    return err(
+      keyedError('invalid', 'umpe_collection_response_service.agree_to_share_before_you_submit'),
+    );
   }
   if (!(await collectionResponsesPresent(db))) {
-    return err(keyedError('upstream_error', 'umpe_collection_response_service.answering_requests_is_not_available_yet'));
+    return err(
+      keyedError(
+        'upstream_error',
+        'umpe_collection_response_service.answering_requests_is_not_available_yet',
+      ),
+    );
   }
   const applicantId = person.applicant.id;
   return db.transaction(async (tx) => {
@@ -423,7 +430,12 @@ export async function submitCollectionResponse(
       );
     }
     if (!desk.agencyReviewed) {
-      return err(keyedError('forbidden', 'umpe_collection_response_service.this_agency_has_not_been_reviewed'));
+      return err(
+        keyedError(
+          'forbidden',
+          'umpe_collection_response_service.this_agency_has_not_been_reviewed',
+        ),
+      );
     }
     const organizationId = desk.organizationId;
     const evidence = await personEvidence(tx, applicantId, desk.items, undefined);
@@ -460,7 +472,10 @@ export async function submitCollectionResponse(
     ]);
     if (!limited.allowed) {
       return err(
-        keyedError('rate_limited', 'umpe_collection_response_service.too_many_answers_were_sent_just'),
+        keyedError(
+          'rate_limited',
+          'umpe_collection_response_service.too_many_answers_were_sent_just',
+        ),
       );
     }
     const responses = schema.agencyCollectionResponses;
@@ -888,7 +903,8 @@ export async function readCollectionResponse(
       )
       .limit(1),
   );
-  if (!response) return err(keyedError('not_found', 'umpe_collection_response_service.no_such_response'));
+  if (!response)
+    return err(keyedError('not_found', 'umpe_collection_response_service.no_such_response'));
   const revision = first(
     await db
       .select()

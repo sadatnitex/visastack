@@ -25,10 +25,10 @@ import {
 import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { isUuid } from './lifecycle/foundation/ids';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
-import { CORRECTIONS_NOT_READY, correctionTablesPresent } from './umpe-correction-tables';
+import { correctionTablesPresent } from './umpe-correction-tables';
 
 export const CORRECTION_CATEGORIES = [
   'MISSING',
@@ -74,9 +74,6 @@ export const CORRECTION_DETAIL_MAX = 1000;
 export const CORRECTION_URL_MAX = 2048;
 export const CORRECTION_QUEUE_LIMIT = 100;
 const DECIDED_LIST_LIMIT = 20;
-
-
-
 
 // Control characters other than tab and line breaks, and the bidirectional overrides that can
 // make a link or a note read differently from what it holds. Built from code points.
@@ -144,7 +141,8 @@ interface CleanCorrection {
 }
 
 function cleanInput(input: CorrectionInput): CleanCorrection | ServiceError {
-  if (!isCategory(input.category)) return keyedError('invalid', 'umpe_correction_service.choose_what_looks_wrong');
+  if (!isCategory(input.category))
+    return keyedError('invalid', 'umpe_correction_service.choose_what_looks_wrong');
   if (input.packRequirementId !== null && !isUuid(input.packRequirementId)) {
     return keyedError('not_found', 'umpe_correction_service.this_item_is_not_on_this');
   }
@@ -233,7 +231,10 @@ async function storeCorrection(
       .where(eq(schema.packVersions.id, packVersionId))
       .limit(1),
   );
-  if (!version) return err(keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'));
+  if (!version)
+    return err(
+      keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'),
+    );
   const row = first(
     await tx
       .insert(c)
@@ -250,7 +251,8 @@ async function storeCorrection(
       })
       .returning({ id: c.id }),
   );
-  if (!row) return err(keyedError('stale', 'umpe_correction_service.the_suggestion_was_not_saved_try'));
+  if (!row)
+    return err(keyedError('stale', 'umpe_correction_service.the_suggestion_was_not_saved_try'));
   await appendAuditEvent(tx, {
     eventType: 'CHECKLIST_CORRECTION_SUGGESTED',
     actorAccountId: submitter.accountId,
@@ -290,12 +292,16 @@ export async function suggestCaseChecklistCorrection(
     resource.mission.id !== input.missionId ||
     resource.mission.applicantId !== proof.applicant.id
   ) {
-    return err(keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'));
+    return err(
+      keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'),
+    );
   }
   const clean = cleanInput(input);
   if ('code' in clean) return err(clean);
   if (!(await correctionTablesPresent(proof.tx))) {
-    return err(keyedError('stale', 'umpe_correction_service.checklist_corrections_can_be_used_once'));
+    return err(
+      keyedError('stale', 'umpe_correction_service.checklist_corrections_can_be_used_once'),
+    );
   }
   return proof.tx.transaction(async (tx) => {
     // The case as it is now, inside this transaction, scoped to the proof's person.
@@ -312,7 +318,10 @@ export async function suggestCaseChecklistCorrection(
         )
         .limit(1),
     );
-    if (!mission) return err(keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'));
+    if (!mission)
+      return err(
+        keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'),
+      );
     if (!mission.packVersionId) {
       return err(keyedError('invalid', 'umpe_correction_service.this_case_has_no_checklist_yet'));
     }
@@ -342,11 +351,16 @@ export async function suggestAgencyChecklistCorrection(
 ): Promise<Result<SuggestedCorrection, ServiceError>> {
   const problem = agencyCollectionScopeProblem(scope);
   if (problem) return err(problem);
-  if (!isUuid(input.requestId)) return err(keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'));
+  if (!isUuid(input.requestId))
+    return err(
+      keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'),
+    );
   const clean = cleanInput(input);
   if ('code' in clean) return err(clean);
   if (!(await correctionTablesPresent(db)))
-    return err(keyedError('stale', 'umpe_correction_service.checklist_corrections_can_be_used_once'));
+    return err(
+      keyedError('stale', 'umpe_correction_service.checklist_corrections_can_be_used_once'),
+    );
   return db.transaction(async (tx) => {
     const request = first(
       await tx
@@ -363,7 +377,10 @@ export async function suggestAgencyChecklistCorrection(
         )
         .limit(1),
     );
-    if (!request) return err(keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'));
+    if (!request)
+      return err(
+        keyedError('not_found', 'umpe_correction_service.this_checklist_is_not_available_to'),
+      );
     const revisions = await tx
       .select({ packVersionId: schema.agencyCollectionRequestRevisions.packVersionId })
       .from(schema.agencyCollectionRequestRevisions)
@@ -378,15 +395,14 @@ export async function suggestAgencyChecklistCorrection(
     ];
     const primary = versions[0];
     if (!primary) {
-      return err(
-        keyedError('invalid', 'umpe_correction_service.this_request_uses_your_agency_s'),
-      );
+      return err(keyedError('invalid', 'umpe_correction_service.this_request_uses_your_agency_s'));
     }
     const packVersionId =
       clean.packRequirementId === null
         ? primary
         : await requirementVersion(tx, clean.packRequirementId, versions);
-    if (!packVersionId) return err(keyedError('not_found', 'umpe_correction_service.this_item_is_not_on_this'));
+    if (!packVersionId)
+      return err(keyedError('not_found', 'umpe_correction_service.this_item_is_not_on_this'));
     return storeCorrection(tx, clean, packVersionId, {
       kind: 'AGENCY',
       accountId: scope.accountId,
@@ -581,17 +597,21 @@ export async function reviewChecklistCorrection(
 ): Promise<Result<{ readonly id: string; readonly status: CorrectionStatus }, ServiceError>> {
   const problem = staffProblem(staff);
   if (problem) return err(problem);
-  if (!isUuid(input.correctionId)) return err(keyedError('not_found', 'umpe_correction_service.suggestion_not_found'));
+  if (!isUuid(input.correctionId))
+    return err(keyedError('not_found', 'umpe_correction_service.suggestion_not_found'));
   const allowedFrom = (ALLOWED_FROM as Readonly<Record<string, readonly CorrectionStatus[]>>)[
     input.decision
   ];
-  if (!allowedFrom) return err(keyedError('invalid', 'umpe_collection_response_review.choose_a_decision'));
+  if (!allowedFrom)
+    return err(keyedError('invalid', 'umpe_collection_response_review.choose_a_decision'));
   const note = cleanDetail(input.note);
   if (note !== null && typeof note === 'object') {
     return err(keyedError('invalid', 'umpe_correction_service.keep_the_note_under_1_000'));
   }
   if (!(await correctionTablesPresent(db)))
-    return err(keyedError('stale', 'umpe_correction_service.checklist_corrections_can_be_used_once'));
+    return err(
+      keyedError('stale', 'umpe_correction_service.checklist_corrections_can_be_used_once'),
+    );
   return db.transaction(async (tx) => {
     const c = schema.umpeChecklistCorrections;
     const row = first(
@@ -608,7 +628,9 @@ export async function reviewChecklistCorrection(
         .returning({ id: c.id }),
     );
     if (!row) {
-      return err(keyedError('stale', 'umpe_correction_service.this_suggestion_was_already_decided_refresh'));
+      return err(
+        keyedError('stale', 'umpe_correction_service.this_suggestion_was_already_decided_refresh'),
+      );
     }
     await appendAuditEvent(tx, {
       eventType: 'CHECKLIST_CORRECTION_REVIEWED',

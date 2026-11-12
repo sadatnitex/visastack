@@ -19,7 +19,7 @@ import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { setDocumentType } from './documents';
-import { type ServiceError, serviceError, keyedError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { replaceDocument } from './lifecycle/replace/replace';
@@ -413,7 +413,9 @@ export async function decideDocumentRelation(
     return err(keyedError('forbidden', 'umpe_document_exceptions.not_authorized'));
   }
   if (proof.actor.kind !== 'applicant_owner') {
-    return err(keyedError('forbidden', 'umpe_document_exceptions.only_the_traveller_can_decide_this'));
+    return err(
+      keyedError('forbidden', 'umpe_document_exceptions.only_the_traveller_can_decide_this'),
+    );
   }
   if (!isRelationDecision(input.decision)) {
     return err(keyedError('invalid', 'umpe_document_exceptions.choose_confirm_or_keep_separate'));
@@ -522,7 +524,9 @@ export async function dismissIntakeException(
     return err(keyedError('forbidden', 'umpe_document_exceptions.not_authorized'));
   }
   if (proof.actor.kind !== 'applicant_owner') {
-    return err(keyedError('forbidden', 'umpe_document_exceptions.only_the_traveller_can_decide_this'));
+    return err(
+      keyedError('forbidden', 'umpe_document_exceptions.only_the_traveller_can_decide_this'),
+    );
   }
   const notFound = err(keyedError('not_found', 'umpe_document_exceptions.finding_not_found'));
   const db = proof.tx;
