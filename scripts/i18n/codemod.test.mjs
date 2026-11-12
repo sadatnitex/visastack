@@ -338,29 +338,38 @@ describe('holdback list', () => {
     }).lookup({ file: 'a.tsx', line: 1, censusText: 'Terms', english: 'Terms' });
 
   // The exact list, so deleting a held group (which would let its Bengali ship) turns this red.
-  // Adding a held group means adding it here too, in the same change. Wave B (#521) adds its own
-  // groups to this list when it lands.
+  // Adding a held group means adding it here too, in the same change. This is the union of waves A and B.
   const EXPECTED_HELD = [
+    'SG-00706ded',
+    'SG-0c3f69ec',
     'SG-0f9d5b37',
+    'SG-192889ed',
     'SG-1fec77cc',
     'SG-22bda9c8',
     'SG-2604b090',
     'SG-361e0c20',
     'SG-461caf20',
     'SG-4bfc56d4',
+    'SG-50c83703',
     'SG-57b3157f',
     'SG-57e8fee4',
+    'SG-58cc6dc1',
     'SG-58fc0338',
     'SG-7d8d7a57',
     'SG-8939253f',
     'SG-8e79eb73',
+    'SG-9e771a8e',
     'SG-a5b2278c',
+    'SG-b5644201',
     'SG-b6f48122',
     'SG-c26f3e5b',
+    'SG-c68a7790',
     'SG-cda9a1ac',
+    'SG-e956303b',
     'SG-f5a73aec',
     'SG-f8a50812',
     'SG-f92f9f0f',
+    'SG-fbccaafa',
     'SG-fe6d2f71',
   ];
 

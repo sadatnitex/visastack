@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { catalogueEnglishByKey } from './catalogue-en.test-support';
 import { CONSENT_PLAIN } from './labels';
 import { isTitleCase, toTitleCase } from './title-case';
 
@@ -130,8 +131,27 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+/**
+ * English wording held in the message catalogues. A `t('key')` call stands for its English text,
+ * so a name that moved out of a page into a catalogue is judged in the same place as before.
+ */
+const CATALOGUE_TEXT = catalogueEnglishByKey();
+
 /** The plain strings an expression can produce: a literal, either side of a choice, or JSX text. */
 function literals(node: ts.Node): string[] {
+  if (
+    ts.isCallExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === 't' &&
+    node.arguments.length >= 1
+  ) {
+    const key = node.arguments[0];
+    const text =
+      key && (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key))
+        ? CATALOGUE_TEXT.get(key.text)
+        : undefined;
+    return text === undefined ? [] : [text];
+  }
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
   if (ts.isJsxExpression(node) && node.expression) return literals(node.expression);
   if (ts.isParenthesizedExpression(node)) return literals(node.expression);
@@ -292,6 +312,21 @@ function offenders(file: string): string[] {
   visit(sf);
   return found;
 }
+
+describe('the catalogue follow-through', () => {
+  it('reads the English of the catalogues and resolves t() calls to it', () => {
+    expect(CATALOGUE_TEXT.size).toBeGreaterThan(200);
+    const code = "const x = <h2>{t('appHome.appAccountMenu.accountMenu')}</h2>;";
+    const sf = ts.createSourceFile('x.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const call: ts.Node[] = [];
+    const walk = (n: ts.Node) => {
+      if (ts.isCallExpression(n)) call.push(n);
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
+    expect(literals(call[0] as ts.Node)).toEqual(['Account Menu']);
+  });
+});
 
 describe('interface terms use Title Case', () => {
   it('has no heading, card title, field label, menu item, button, tile or tab name in sentence case', () => {

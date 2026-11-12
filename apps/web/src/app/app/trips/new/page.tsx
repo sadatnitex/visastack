@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift';
+import { appTripsCatalog } from '../../../../i18n/app-trips';
 import { caseCountryOptions, casePurposeGroups } from '../../../../lib/case-choices';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { GroupTripStartForm } from '../trip-forms';
 
@@ -13,6 +15,8 @@ export const dynamic = 'force-dynamic';
 
 /** UMPE P5: start one trip for several travellers the account holder manages. */
 export default async function GroupTripStartPage() {
+  await primeLocale();
+  const t = getServerT(appTripsCatalog);
   const { travellers, ready, companionsOn } = await withSession(async ({ db, accountId }) => ({
     travellers: (await listApplicants(db, accountId)).map((a) => ({
       applicantId: a.id,
@@ -23,12 +27,12 @@ export default async function GroupTripStartPage() {
   }));
   return (
     <>
-      <PageHeader title="Start a Group Trip" back={{ href: '/app/trips', label: 'Group Trips' }} />
-      <AboutDisclosure summary="About Group Trips">
-        <p>
-          Tell us where you are going, why, and who is travelling. Each traveller gets their own
-          case, and the trip keeps them together.
-        </p>
+      <PageHeader
+        title={t('appTrips.appTripsPage.startAGroupTrip')}
+        back={{ href: '/app/trips', label: 'Group Trips' }}
+      />
+      <AboutDisclosure summary={t('appTrips.appTripsPage.aboutGroupTrips')}>
+        <p>{t('appTrips.appTripsNewPage.tellUsWhereYouAreGoing')}</p>
       </AboutDisclosure>
       <article className="card">
         {!ready ? (

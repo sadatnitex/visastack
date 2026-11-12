@@ -176,3 +176,25 @@ describe('actual toolbar component behavior, without provider-backed acceptance 
     expect(container.querySelector('.record-account form button')?.textContent).toBe('Sign Out');
   });
 });
+
+describe('bell count digits', () => {
+  it('shows the unread count in Latin digits under English and Bengali digits under Bengali', async () => {
+    const { I18nProvider } = await import('../../components/i18n-provider');
+    const badge = () => container.querySelector('.record-unread')?.textContent;
+    expect(badge()).toBe('3');
+    act(() =>
+      root.render(
+        <I18nProvider locale="bn">
+          <WorkspaceRecordToolbar
+            accountName="Synthetic Self"
+            access={access}
+            navigation={workspaceNavigation(`/app/applicant/${person}`, access)}
+            state={{ unread: 120, personalPlan: null, agencyPlans: [] }}
+            signOut={<span />}
+          />
+        </I18nProvider>,
+      ),
+    );
+    expect(badge()).toBe('৯৯+');
+  });
+});

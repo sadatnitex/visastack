@@ -2,6 +2,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../../../components/icons';
 import { StatusBadge } from '../../../components/ui';
+import { appHomeCatalog } from '../../../i18n/app-home';
+import { getServerT } from '../../../lib/i18n-server';
 
 /*
  * The cards on Home after Start Here (UX18): a person is a face with two numbers and one chip, a
@@ -38,6 +40,7 @@ export function PersonCard({
   readonly requests: number;
   readonly actionNeeded: boolean;
 }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <li className="home-person">
       <Link className="home-person-link plain-link" href={href}>
@@ -48,9 +51,9 @@ export function PersonCard({
           <span className="home-person-head">
             <span className="home-person-name">{name}</span>
             {actionNeeded ? (
-              <StatusBadge tone="warning">Action Needed</StatusBadge>
+              <StatusBadge tone="warning">{t('appHome.appHomeCards.actionNeeded')}</StatusBadge>
             ) : documents === 0 ? (
-              <StatusBadge tone="neutral">Add a Document</StatusBadge>
+              <StatusBadge tone="neutral">{t('appHome.appHomeCards.addADocument')}</StatusBadge>
             ) : null}
           </span>
           <span className="home-stats">
@@ -101,10 +104,11 @@ export function CaseCard({
 
 /** The open slot at the end of the cases: one tap to start the next. */
 export function StartCaseTile({ href }: { readonly href: string }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <Link className="home-start-tile plain-link" href={href}>
       <Icon name="plus" size={24} />
-      Start a Case
+      {t('appHome.appHomeCards.startACase')}
     </Link>
   );
 }

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { catalogueEnglish } from './catalogue-en.test-support';
 import { sourceFiles, visibleText } from './visible-text.test-support';
 
 /**
@@ -53,12 +54,22 @@ describe('visibleText (the scanner itself)', () => {
 
 describe('visible text uses product words (directive Part 9 UX-01)', () => {
   const files = sourceFiles(join(WEB_SRC, 'app')).concat(sourceFiles(join(WEB_SRC, 'components')));
-  const all = files.flatMap((file) => visibleText(file, readFileSync(file, 'utf8')));
+  // Text that moved into a message catalogue is still text a person reads: scan its English too.
+  const catalogue = catalogueEnglish();
+  const all = [
+    ...files.flatMap((file) => visibleText(file, readFileSync(file, 'utf8'))),
+    ...catalogue.map((entry) => ({ file: entry.file, line: entry.line, text: entry.text })),
+  ];
 
   it('actually scans the pages it is meant to check', () => {
     expect(files.length).toBeGreaterThan(80);
     expect(all.length).toBeGreaterThan(500);
     expect(all.some((v) => v.text.includes('Active cases'))).toBe(true);
+  });
+
+  it('also scans the English of every message catalogue', () => {
+    expect(catalogue.length).toBeGreaterThan(200);
+    expect(all.some((v) => v.file.endsWith('app-home.ts'))).toBe(true);
   });
 
   for (const { pattern, why } of FORBIDDEN) {

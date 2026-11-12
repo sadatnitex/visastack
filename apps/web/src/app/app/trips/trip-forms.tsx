@@ -10,8 +10,10 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
+import { useT } from '../../../components/i18n-provider';
 import { PurposeChoice } from '../../../components/purpose-choice';
 import { AboutDisclosure } from '../../../components/ui-lift';
+import { appTripsCatalog } from '../../../i18n/app-trips';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../lib/case-choices';
 import { AUTHORITY_SENTENCE } from '../add-applicant-form';
 import {
@@ -131,6 +133,7 @@ function FamilyMemberFields({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT(appTripsCatalog);
   const { nameRef, toggleRef, show } = useOpenSection(open, onOpenChange);
   const [kind, setKind] = useState<'FAMILY_MEMBER' | 'MINOR_GUARDIAN'>('FAMILY_MEMBER');
   const id = useId();
@@ -147,15 +150,15 @@ function FamilyMemberFields({
         aria-expanded={false}
         onClick={() => show(true)}
       >
-        Add a Family Member
+        {t('appTrips.appTripsTripForms.addAFamilyMember')}
       </button>
     );
   }
   return (
     <fieldset className="trip-member-fields">
-      <legend className="label">Add a Family Member</legend>
+      <legend className="label">{t('appTrips.appTripsTripForms.addAFamilyMember')}</legend>
       <label className="label" htmlFor={`${id}-name`}>
-        Name as on the Passport
+        {t('appTrips.appTripsTripForms.nameAsOnThePassport')}
       </label>
       <input
         ref={nameRef}
@@ -168,7 +171,7 @@ function FamilyMemberFields({
         {...fieldProblem(state, 'newName', messageId)}
       />
       <fieldset className="trip-member-kind">
-        <legend className="label">Relationship</legend>
+        <legend className="label">{t('appTrips.appTripsTripForms.relationship')}</legend>
         <label className="package-check">
           <input
             type="radio"
@@ -178,7 +181,7 @@ function FamilyMemberFields({
             onChange={() => setKind('FAMILY_MEMBER')}
             {...fieldProblem(state, 'newKind', messageId)}
           />
-          <span>Family Member</span>
+          <span>{t('appTrips.appTripsTripForms.familyMember')}</span>
         </label>
         <label className="package-check">
           <input
@@ -188,7 +191,7 @@ function FamilyMemberFields({
             checked={kind === 'MINOR_GUARDIAN'}
             onChange={() => setKind('MINOR_GUARDIAN')}
           />
-          <span>Minor (Guardian)</span>
+          <span>{t('appTrips.appTripsTripForms.minorGuardian')}</span>
         </label>
       </fieldset>
       <label className="package-check">
@@ -202,7 +205,7 @@ function FamilyMemberFields({
         <span>{AUTHORITY_SENTENCE}</span>
       </label>
       <button type="button" className="btn btn-secondary" onClick={() => show(false)}>
-        Cancel
+        {t('appTrips.appTripsTripForms.cancel')}
       </button>
     </fieldset>
   );
@@ -225,6 +228,7 @@ function SomeoneElseFields({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT(appTripsCatalog);
   const { nameRef, toggleRef, show } = useOpenSection(open, onOpenChange);
   const id = useId();
   if (!open) {
@@ -236,19 +240,19 @@ function SomeoneElseFields({
         aria-expanded={false}
         onClick={() => show(true)}
       >
-        Add Someone Else
+        {t('appTrips.appTripsTripForms.addSomeoneElse')}
       </button>
     );
   }
   const hintId = `${id}-hint`;
   return (
     <fieldset className="trip-member-fields">
-      <legend className="label">Add Someone Else</legend>
+      <legend className="label">{t('appTrips.appTripsTripForms.addSomeoneElse')}</legend>
       <p id={hintId} className="muted u-fs-085 u-m-0">
-        With an email, they are invited to join and choose what to share with you.
+        {t('appTrips.appTripsTripForms.withAnEmailTheyAreInvited')}
       </p>
       <label className="label" htmlFor={`${id}-name`}>
-        Name
+        {t('appTrips.appTripsTripForms.name')}
       </label>
       <input
         ref={nameRef}
@@ -261,7 +265,7 @@ function SomeoneElseFields({
         {...fieldProblem(state, 'newPersonName', messageId, hintId)}
       />
       <label className="label" htmlFor={`${id}-email`}>
-        Email
+        {t('appTrips.appTripsTripForms.email')}
       </label>
       <input
         id={`${id}-email`}
@@ -272,7 +276,7 @@ function SomeoneElseFields({
         {...fieldProblem(state, 'newPersonEmail', messageId, hintId)}
       />
       <button type="button" className="btn btn-secondary" onClick={() => show(false)}>
-        Cancel
+        {t('appTrips.appTripsTripForms.cancel')}
       </button>
     </fieldset>
   );
@@ -294,6 +298,7 @@ export function GroupTripStartForm({
   /** Whether adding someone else is on. Decided by the page on the server; off (or missing) hides it. */
   readonly companionsOn?: boolean;
 }) {
+  const t = useT(appTripsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     startGroupTripAction,
     NO_RESULT,
@@ -309,13 +314,13 @@ export function GroupTripStartForm({
   return (
     <form ref={form} action={formAction} className="trip-start-form">
       <label className="label" htmlFor={`${id}-destination`}>
-        Where Are You Going?
+        {t('appTrips.appTripsTripForms.whereAreYouGoing')}
       </label>
       <CountryField
         id={`${id}-destination`}
         countries={countries}
-        placeholder="For example: Japan"
-        hint="Type a name or open the list."
+        placeholder={t('appTrips.appTripsTripForms.forExampleJapan')}
+        hint={t('appTrips.appTripsTripForms.typeANameOrOpenThe')}
         problem={fieldProblem(state, 'destination', messageId)}
       />
       <PurposeChoice
@@ -326,7 +331,7 @@ export function GroupTripStartForm({
         problem={fieldProblem(state, 'purpose', messageId)}
       />
       <TravellerChecklist
-        legend="Who's Travelling?"
+        legend={t('appTrips.appTripsTripForms.whoSTravelling')}
         travellers={travellers}
         state={state}
         messageId={messageId}
@@ -350,10 +355,9 @@ export function GroupTripStartForm({
           />
         ) : null}
       </div>
-      <AboutDisclosure summary="About This">
+      <AboutDisclosure summary={t('appTrips.appTripsTripForms.aboutThis')}>
         <p className="muted u-fs-085 u-m-0">
-          Each traveller keeps their own case, documents and privacy. Nothing is shared between
-          travellers unless you choose it.
+          {t('appTrips.appTripsTripForms.eachTravellerKeepsTheirOwnCase')}
         </p>
       </AboutDisclosure>
       <div>
@@ -379,6 +383,7 @@ export function AddTravellersForm({
   /** Whether adding someone else is on. Decided by the page on the server; off (or missing) hides it. */
   readonly companionsOn?: boolean;
 }) {
+  const t = useT(appTripsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     addTravellersAction,
     NO_RESULT,
@@ -400,7 +405,7 @@ export function AddTravellersForm({
       <input type="hidden" name="tripId" value={tripId} />
       {travellers.length > 0 ? (
         <TravellerChecklist
-          legend="Who Else Is Travelling?"
+          legend={t('appTrips.appTripsTripForms.whoElseIsTravelling')}
           travellers={travellers}
           state={state}
           messageId={messageId}
@@ -408,7 +413,7 @@ export function AddTravellersForm({
           onToggle={toggle}
         />
       ) : (
-        <p className="u-m-0">Everyone you manage is already on this trip.</p>
+        <p className="u-m-0">{t('appTrips.appTripsTripForms.everyoneYouManageIsAlreadyOn')}</p>
       )}
       <div className="trip-add-more">
         <FamilyMemberFields
@@ -451,6 +456,7 @@ export function RemoveTravellerForm({
   readonly applicantId: string;
   readonly name: string;
 }) {
+  const t = useT(appTripsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     removeTravellerAction,
     NO_RESULT,
@@ -465,7 +471,7 @@ export function RemoveTravellerForm({
         idle="Remove from Trip"
         busy="Removing…"
         className="btn btn-secondary"
-        label={`Remove from Trip: ${name}`}
+        label={t('appTrips.appTripsTripForms.removeFromTripName', { name })}
       />
       <FormMessage id={`${id}-msg`} result={state} />
     </form>
@@ -482,6 +488,7 @@ export function ResendCompanionForm({
   readonly companionId: string;
   readonly name: string;
 }) {
+  const t = useT(appTripsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     resendCompanionAction,
     NO_RESULT,
@@ -496,7 +503,7 @@ export function ResendCompanionForm({
         idle="Send Again"
         busy="Sending…"
         className="btn btn-secondary"
-        label={`Send Again: ${name}`}
+        label={t('appTrips.appTripsTripForms.sendAgainName', { name })}
       />
       <FormMessage id={`${id}-msg`} result={state} />
     </form>
@@ -513,6 +520,7 @@ export function RemoveCompanionForm({
   readonly companionId: string;
   readonly name: string;
 }) {
+  const t = useT(appTripsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     removeCompanionAction,
     NO_RESULT,
@@ -527,26 +535,28 @@ export function RemoveCompanionForm({
       <input type="hidden" name="companionId" value={companionId} />
       {asking ? (
         <>
-          <span className="muted u-fs-085">Remove {name}? They lose access at once.</span>
+          <span className="muted u-fs-085">
+            {t('appTrips.appTripsTripForms.removeNameTheyLoseAccessAt', { name })}
+          </span>
           <SubmitButton
             pending={pending}
             idle="Yes, Remove"
             busy="Removing…"
             className="btn btn-secondary"
-            label={`Yes, Remove: ${name}`}
+            label={t('appTrips.appTripsTripForms.yesRemoveName', { name })}
           />
           <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
-            Keep
+            {t('appTrips.appTripsTripForms.keep')}
           </button>
         </>
       ) : (
         <button
           type="button"
           className="btn btn-secondary"
-          aria-label={`Remove: ${name}`}
+          aria-label={t('appTrips.appTripsTripForms.removeName', { name })}
           onClick={() => setAsking(true)}
         >
-          Remove
+          {t('appTrips.appTripsTripForms.remove')}
         </button>
       )}
       <FormMessage id={`${id}-msg`} result={state} />
@@ -562,6 +572,7 @@ export function AddTripEvidenceForm({
   readonly tripId: string;
   readonly documents: readonly TripDocumentOption[];
 }) {
+  const t = useT(appTripsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     addTripEvidenceAction,
     NO_RESULT,
@@ -576,7 +587,7 @@ export function AddTripEvidenceForm({
     <form ref={form} action={formAction} className="trip-add-form">
       <input type="hidden" name="tripId" value={tripId} />
       <label className="label" htmlFor={`${id}-document`}>
-        Travel Document
+        {t('appTrips.appTripsTripForms.travelDocument')}
       </label>
       <select
         id={`${id}-document`}
@@ -587,7 +598,7 @@ export function AddTripEvidenceForm({
         {...fieldProblem(state, 'documentId', messageId, hintId)}
       >
         <option value="" disabled>
-          Choose a Document
+          {t('appTrips.appTripsTripForms.chooseADocument')}
         </option>
         {documents.map((d) => (
           <option key={d.documentId} value={d.documentId}>
@@ -596,8 +607,7 @@ export function AddTripEvidenceForm({
         ))}
       </select>
       <p id={hintId} className="muted u-fs-085 u-m-0">
-        Only bookings, itineraries, invitations and accommodation papers can be shared across a
-        trip. Passports, bank papers and medical papers never are.
+        {t('appTrips.appTripsTripForms.onlyBookingsItinerariesInvitationsAndAccommodati')}
       </p>
       <div>
         <SubmitButton pending={pending} idle="Add to Trip" busy="Adding…" />
@@ -662,6 +672,7 @@ export function RemoveTripEvidenceForm({
   readonly applicantId: string;
   readonly documentName: string;
 }) {
+  const t = useT(appTripsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     removeTripEvidenceAction,
     NO_RESULT,
@@ -677,7 +688,7 @@ export function RemoveTripEvidenceForm({
         idle="Stop Sharing"
         busy="Saving…"
         className="btn btn-secondary"
-        label={`Stop Sharing: ${documentName}`}
+        label={t('appTrips.appTripsTripForms.stopSharingDocumentname', { documentName })}
       />
       <FormMessage id={`${id}-msg`} result={state} />
     </form>
