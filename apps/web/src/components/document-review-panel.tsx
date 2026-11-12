@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 import { Icon } from './icons';
 import { StatusBadge, type Tone } from './ui';
 
@@ -23,6 +25,7 @@ export function DocumentReviewPanel({
   readonly documents: readonly DocumentReviewEntry[];
   readonly previewAction: (form: FormData) => Promise<void>;
 }) {
+  const t = useT(componentsCatalog);
   const [selectedId, setSelectedId] = useState(documents[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const matches = documents.filter((document) =>
@@ -30,13 +33,16 @@ export function DocumentReviewPanel({
   );
   const selected = matches.find((document) => document.id === selectedId) ?? matches[0];
   return (
-    <aside className="card document-review-panel" aria-label="Document details">
-      <p className="card-kicker">Your Document</p>
-      <h2 className="card-title">Review and Preview</h2>
+    <aside
+      className="card document-review-panel"
+      aria-label={t('components.documentReviewPanel.documentDetails')}
+    >
+      <p className="card-kicker">{t.node('components.documentReviewPanel.yourDocument')}</p>
+      <h2 className="card-title">{t.node('components.documentReviewPanel.reviewAndPreview')}</h2>
       {documents.length ? (
         <>
           <label className="field-label" htmlFor="review-document-search">
-            Find a Document
+            {t.node('components.documentReviewPanel.findADocument')}
           </label>
           <input
             className="input"
@@ -50,7 +56,7 @@ export function DocumentReviewPanel({
       {selected ? (
         <>
           <label className="field-label" htmlFor="review-document">
-            Choose a Document
+            {t.node('components.documentReviewPanel.chooseADocument')}
           </label>
           <select
             className="input"
@@ -66,8 +72,10 @@ export function DocumentReviewPanel({
           </select>
           <div className="document-preview-placeholder">
             <Icon name="folder" size={40} />
-            <p>Private document</p>
-            <p className="card-body">Contents appear only after permission and safety checks.</p>
+            <p>{t.node('components.documentReviewPanel.privateDocument')}</p>
+            <p className="card-body">
+              {t.node('components.documentReviewPanel.contentsAppearOnlyAfterPermissionAnd')}
+            </p>
           </div>
           <h3 className="document-review-name">{selected.name}</h3>
           <div className="document-review-status">
@@ -81,20 +89,20 @@ export function DocumentReviewPanel({
               <input type="hidden" name="applicantId" value={applicantId} />
               <input type="hidden" name="documentId" value={selected.id} />
               <button type="submit" className="btn btn-primary">
-                Open Secure Preview
+                {t.node('components.documentReviewPanel.openSecurePreview')}
               </button>
             </form>
           ) : (
             <p className="notice">
-              This document is not available to preview. Review its status in the document list.
+              {t.node('components.documentReviewPanel.thisDocumentIsNotAvailableTo')}
             </p>
           )}
         </>
       ) : (
         <p className="card-body">
           {documents.length
-            ? 'No documents match. Try another name or clear your search.'
-            : 'Upload a document to review its details here.'}
+            ? t.node('components.documentReviewPanel.noDocumentsMatchTryAnotherName')
+            : t.node('components.documentReviewPanel.uploadADocumentToReviewIts')}
         </p>
       )}
     </aside>

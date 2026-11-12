@@ -3,6 +3,7 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ActivityLog, type ActivityLogEntry } from './activity-log';
+import { I18nProvider } from './i18n-provider';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -241,5 +242,30 @@ describe('the activity log', () => {
       root.render(<ActivityLog entries={[...entries].reverse()} label="Access Log Entries" />),
     );
     expect(box.scrollTop).toBe(120);
+  });
+
+  it('shows Bengali filter labels under bn, and English inside an English override', () => {
+    const BENGALI = /[\u0980-\u09FF]/;
+    const render = (tree: React.ReactNode) => {
+      act(() => root.render(tree));
+      return [...host.querySelectorAll('label')].map((l) => l.textContent ?? '').join(' ');
+    };
+    const log = <ActivityLog entries={entries} label="Access Log Entries" />;
+    expect(
+      render(
+        <I18nProvider locale="bn" pageLang="bn">
+          {log}
+        </I18nProvider>,
+      ),
+    ).toMatch(BENGALI);
+    expect(
+      render(
+        <I18nProvider locale="bn" pageLang="bn">
+          <I18nProvider locale="en" pageLang="en">
+            {log}
+          </I18nProvider>
+        </I18nProvider>,
+      ),
+    ).not.toMatch(BENGALI);
   });
 });

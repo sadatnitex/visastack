@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { componentsPwaCatalog } from '../../i18n/components-pwa';
 import {
   getInstallPrompt,
   promptInstall,
   subscribeInstallPrompt,
 } from '../../lib/pwa/install-prompt';
 import { isStandalone } from '../../lib/pwa/runtime';
+import { useT } from '../i18n-provider';
 
 /**
  * The Help page's install card. Chromium browsers get a real Install VisaStack button once the
@@ -14,6 +16,7 @@ import { isStandalone } from '../../lib/pwa/runtime';
  * The privacy line matters as much as the button: installing never copies records to the phone.
  */
 export function InstallAppCard() {
+  const t = useT(componentsPwaCatalog);
   const offer = useSyncExternalStore(subscribeInstallPrompt, getInstallPrompt, () => null);
   const [installed, setInstalled] = useState(false);
   const [declined, setDeclined] = useState(false);
@@ -31,32 +34,25 @@ export function InstallAppCard() {
   return (
     <article className="card" aria-labelledby="install-app-title">
       <h2 className="card-title" id="install-app-title">
-        Use VisaStack on Your Phone
+        {t.node('componentsPwa.pwaInstallAppCard.useVisastackOnYourPhone')}
       </h2>
       {installed ? (
-        <p>VisaStack is installed on this device. Open it from your home screen or app list.</p>
+        <p>{t.node('componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice')}</p>
       ) : (
         <>
-          <p>
-            Add VisaStack to your home screen to open it like an app, with the same sign-in and the
-            same records as this website.
-          </p>
+          <p>{t.node('componentsPwa.pwaInstallAppCard.addVisastackToYourHomeScreen')}</p>
           {offer ? (
             <button type="button" className="btn btn-primary" onClick={install}>
-              Install VisaStack
+              {t.node('componentsPwa.pwaInstallAppCard.installVisastack')}
             </button>
           ) : null}
-          {declined ? <p>You can install it any time from this page.</p> : null}
-          <p>
-            On iPhone or iPad, open VisaStack in Safari, tap Share, then Add to Home Screen. On
-            Android, open the browser menu and choose Install App or Add to Home Screen.
-          </p>
+          {declined ? (
+            <p>{t.node('componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime')}</p>
+          ) : null}
+          <p>{t.node('componentsPwa.pwaInstallAppCard.onIphoneOrIpadOpenVisastack')}</p>
         </>
       )}
-      <p>
-        Installing does not download your records. Your details and documents stay protected on
-        VisaStack and open only after you sign in.
-      </p>
+      <p>{t.node('componentsPwa.pwaInstallAppCard.installingDoesNotDownloadYourRecords')}</p>
     </article>
   );
 }

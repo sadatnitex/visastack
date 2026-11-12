@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import type { CasePurposeGroup, CasePurposeOption } from '../lib/case-choices';
 import { COMMON_PURPOSE_KEYS } from '../lib/common-purposes';
 import { type ItemMark, purposeMark } from '../lib/item-icons';
+import { useT } from './i18n-provider';
 import { MarkTile } from './mark-tile';
 import { PurposeSelect } from './purpose-select';
 
@@ -56,6 +58,7 @@ export function PurposeChoice({
   readonly problem?: Problem;
   readonly legend?: string;
 }) {
+  const t = useT(componentsCatalog);
   const common = commonPurposes(purposes);
   const [more, setMore] = useState(false);
   const group = useRef<HTMLFieldSetElement>(null);
@@ -93,7 +96,7 @@ export function PurposeChoice({
               setMore(false);
             }}
           >
-            Show Common Purposes
+            {t.node('components.purposeChoice.showCommonPurposes')}
           </button>
         ) : null}
       </div>
@@ -130,7 +133,9 @@ export function PurposeChoice({
         >
           <span className="purpose-tile-face">
             <MarkTile mark={MORE_MARK} size="lg" />
-            <span className="purpose-tile-word">More Purposes</span>
+            <span className="purpose-tile-word">
+              {t.node('components.purposeChoice.morePurposes')}
+            </span>
           </span>
         </button>
       </div>

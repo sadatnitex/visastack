@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { componentsLifecycleCatalog } from '../../i18n/components-lifecycle';
+import { useT } from '../i18n-provider';
 
 /** How long Undo stays offered (PROGRAMME section 3.4). */
 export const UNDO_WINDOW_MS = 10_000;
@@ -24,6 +26,7 @@ export function UndoStatus({
   readonly failedMessage?: string;
   readonly windowMs?: number;
 }) {
+  const t = useT(componentsLifecycleCatalog);
   const [phase, setPhase] = useState<'offered' | 'working' | 'failed' | 'undone' | 'expired'>(
     'offered',
   );
@@ -65,7 +68,7 @@ export function UndoStatus({
           aria-disabled={phase === 'working'}
           onClick={phase === 'working' ? undefined : undo}
         >
-          Undo
+          {t.node('componentsLifecycle.lifecycleUndoStatus.undo')}
         </button>
       ) : null}
     </output>

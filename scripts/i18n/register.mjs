@@ -731,6 +731,54 @@ export const HOLDBACK = new Map([
     'SG-07369aca',
     'Client invitation cannot be shown, ask the agency to send it again: invitation recovery wording waits for the owner sign-off.',
   ],
+  [
+    'SG-8e9d31bd',
+    'Completeness is not an approval probability: a no-guarantee disclaimer, waits for the owner sign-off.',
+  ],
+  [
+    'SG-af6e7d3f',
+    'Readiness is completeness, never an approval likelihood: a no-guarantee disclaimer, waits for the owner sign-off.',
+  ],
+  [
+    'SG-5431e93a',
+    'How the evidence bar is counted (readiness explanation tied to the no-guarantee disclaimer): waits for the owner sign-off.',
+  ],
+  [
+    'SG-bf823720',
+    'Privacy instruction on what not to enter in a correction: privacy wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-237c256a',
+    'Review sharing permissions: sharing permission wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-e4aa566a',
+    'Secure preview and permission re-check: access control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-5f2daee2',
+    'File format verification statement: a safety claim, waits for the owner sign-off.',
+  ],
+  [
+    'SG-24e6815a',
+    'What a safe copy is and who sees it: redaction and sharing promise, waits for the owner sign-off.',
+  ],
+  [
+    'SG-41ac0866',
+    'Visa photo checks cannot confirm acceptance: official-requirements disclaimer, waits for the owner sign-off.',
+  ],
+  [
+    'SG-742d2250',
+    'Access end date and extension by the traveller: access control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-718c2cbe',
+    'Profile photo visibility and never used as a visa photo: a privacy promise, waits for the owner sign-off.',
+  ],
+  [
+    'SG-0f35e0ea',
+    'Offline notice that promises secure handling and unsaved data: a security promise, waits for the owner sign-off.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

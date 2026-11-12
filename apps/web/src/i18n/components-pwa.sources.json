@@ -1,0 +1,18 @@
+{
+  "componentsPwa.pwaInstallAppCard.addVisastackToYourHomeScreen": "SG-bfb1a891",
+  "componentsPwa.pwaInstallAppCard.installVisastack": "SG-f2561310",
+  "componentsPwa.pwaInstallAppCard.installingDoesNotDownloadYourRecords": "SG-b0a90679",
+  "componentsPwa.pwaInstallAppCard.onIphoneOrIpadOpenVisastack": "SG-fe3b77df",
+  "componentsPwa.pwaInstallAppCard.useVisastackOnYourPhone": "SG-5e562356",
+  "componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice": "SG-b8b83444",
+  "componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime": "SG-746ddb69",
+  "componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs": "SG-4df4a534",
+  "componentsPwa.pwaPwaRuntime.appUpdate": "SG-377212e3",
+  "componentsPwa.pwaPwaRuntime.browserTip": "SG-30c5626a",
+  "componentsPwa.pwaPwaRuntime.dismiss": "SG-4c400017",
+  "componentsPwa.pwaPwaRuntime.later": "SG-be1ee232",
+  "componentsPwa.pwaPwaRuntime.reloadNow": "SG-8f1553b0",
+  "componentsPwa.pwaPwaRuntime.reloading": "SG-4557c323",
+  "componentsPwa.pwaPwaRuntime.youAreBackOnline": "SG-d25b44e8",
+  "componentsPwa.pwaPwaRuntime.youAreOfflineReconnectToContinue": "SG-0f35e0ea"
+}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ProgressMeterFigure, ProgressMeterWords } from '../progress-meter-parts';
 
 export interface ProgressMeterProps {
   /** How many are done. */
@@ -26,21 +27,11 @@ export function meterPercent(value: number, max: number): number {
  */
 export function ProgressMeter({ value, max, label, size = 10, valueText }: ProgressMeterProps) {
   const percent = meterPercent(value, max);
-  const words = valueText === undefined ? `${value} of ${max}` : valueText;
+  const words =
+    valueText === undefined ? <ProgressMeterWords value={value} max={max} /> : valueText;
   return (
     <div className={`lift-meter lift-meter-${size}`}>
-      <svg
-        className="lift-meter-svg"
-        role="img"
-        aria-label={`${value} of ${max} ${label}`}
-        width="100%"
-        height={size}
-        viewBox="0 0 100 10"
-        preserveAspectRatio="none"
-      >
-        <rect className="lift-meter-track" x="0" y="0" width="100" height="10" />
-        <rect className="lift-meter-fill" x="0" y="0" width={percent} height="10" />
-      </svg>
+      <ProgressMeterFigure value={value} max={max} label={label} size={size} percent={percent} />
       {words === null ? null : (
         // The drawing's name already says the numbers in full, so this copy is for the eyes only.
         <span className="lift-meter-text" aria-hidden="true">

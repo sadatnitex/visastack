@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { ActivityLog, type ActivityLogEntry } from '../../../components/activity-log';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
+import { I18nProvider } from '../../../components/i18n-provider';
 import { EmptyState, PageHeader } from '../../../components/ui';
 import { AboutDisclosure } from '../../../components/ui-lift';
 import { appPrivacyCatalog } from '../../../i18n/app-privacy';
@@ -219,31 +220,34 @@ export default async function PrivacyPage({
             </EmptyState>
           ) : (
             <div className="u-mt-050">
-              <ActivityLog
-                id={CONSENT_LOG_ID}
-                label={t('appPrivacy.appPrivacyPage.consentHistoryEntries')}
-                entries={data.history}
-                {...(data.historyOlder
-                  ? {
-                      olderHref: pagingHref(
-                        PATHNAME,
-                        query,
-                        { consentBefore: data.historyOlder },
-                        CONSENT_LOG_ID,
-                      ),
-                    }
-                  : {})}
-                {...(consentBefore
-                  ? {
-                      newestHref: pagingHref(
-                        PATHNAME,
-                        query,
-                        { consentBefore: null },
-                        CONSENT_LOG_ID,
-                      ),
-                    }
-                  : {})}
-              />
+              {/* The consent history carries the approved legal wording: it stays English under every language. */}
+              <I18nProvider locale="en" pageLang="en">
+                <ActivityLog
+                  id={CONSENT_LOG_ID}
+                  label={t('appPrivacy.appPrivacyPage.consentHistoryEntries')}
+                  entries={data.history}
+                  {...(data.historyOlder
+                    ? {
+                        olderHref: pagingHref(
+                          PATHNAME,
+                          query,
+                          { consentBefore: data.historyOlder },
+                          CONSENT_LOG_ID,
+                        ),
+                      }
+                    : {})}
+                  {...(consentBefore
+                    ? {
+                        newestHref: pagingHref(
+                          PATHNAME,
+                          query,
+                          { consentBefore: null },
+                          CONSENT_LOG_ID,
+                        ),
+                      }
+                    : {})}
+                />
+              </I18nProvider>
             </div>
           )}
         </article>

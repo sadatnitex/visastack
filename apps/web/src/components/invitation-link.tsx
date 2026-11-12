@@ -40,13 +40,13 @@ export function InvitationLink({
   const shareMessage = useShareMessage(shareInputFor(purpose, url));
   const copyLink = (
     <button type="button" className="btn btn-secondary" onClick={copy}>
-      {t('invitation.invitationLink.copyLink')}
+      {t.node('invitation.invitationLink.copyLink')}
     </button>
   );
   return (
     <div className="field-list u-mt-100">
       <label htmlFor={id} className="field-label">
-        {t('invitation.invitationLink.privateInvitationLink')}
+        {t.node('invitation.invitationLink.privateInvitationLink')}
       </label>
       <input ref={input} id={id} className="input" value={url} readOnly />
       {shareMessage ? (
@@ -59,7 +59,9 @@ export function InvitationLink({
       ) : (
         <div className="action-row">{copyLink}</div>
       )}
-      <p className="muted">{t('invitation.invitationLink.shareOnlyWithYourInviteeRevoking')}</p>
+      <p className="muted">
+        {t.node('invitation.invitationLink.shareOnlyWithYourInviteeRevoking')}
+      </p>
       <output aria-live="polite">{status}</output>
     </div>
   );

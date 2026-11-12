@@ -105,7 +105,7 @@ export function CountryChecklistPicker({
     <div className={`country-pick country-pick-${variant}`}>
       <div className="country-pick-field">
         <label htmlFor={inputId} className="country-pick-label">
-          {t('home.countryChecklistPicker.whichCountryDoYouWantTo')}
+          {t.node('home.countryChecklistPicker.whichCountryDoYouWantTo')}
         </label>
         <input
           id={inputId}
@@ -126,6 +126,7 @@ export function CountryChecklistPicker({
           enterKeyHint="done"
           placeholder={t('home.countryChecklistPicker.forExampleJapan')}
           aria-describedby={`${hintId} ${statusId}`}
+          {...t.lang('home.countryChecklistPicker.forExampleJapan')}
         />
         <datalist id={listId}>
           {data.countries.map((entry) => (
@@ -133,7 +134,7 @@ export function CountryChecklistPicker({
           ))}
         </datalist>
         <p className="muted country-pick-hint" id={hintId}>
-          {t('home.countryChecklistPicker.typeANameOrOpenThe', {
+          {t.node('home.countryChecklistPicker.typeANameOrOpenThe', {
             withChecklist: data.withChecklist,
             length: data.countries.length,
           })}
@@ -155,11 +156,11 @@ export function CountryChecklistPicker({
             </span>
           </div>
           <p className="muted">
-            {t('home.countryChecklistPicker.forAnOrdinaryBangladeshiPassportThis')}
+            {t.node('home.countryChecklistPicker.forAnOrdinaryBangladeshiPassportThis')}
           </p>
           {routeKeys.length > 1 ? (
             <div className="country-pick-route">
-              <label htmlFor={routeId}>{t('home.countryChecklistPicker.visaType')}</label>
+              <label htmlFor={routeId}>{t.node('home.countryChecklistPicker.visaType')}</label>
               <select
                 id={routeId}
                 className="input"
@@ -197,12 +198,12 @@ export function CountryChecklistPicker({
                             {item.optional ? (
                               <span className="muted">
                                 {' '}
-                                {t('home.countryChecklistPicker.optional')}
+                                {t.node('home.countryChecklistPicker.optional')}
                               </span>
                             ) : null}
                             {item.check ? (
                               <span className="badge badge-warning">
-                                {t('home.countryChecklistPicker.needsChecking')}
+                                {t.node('home.countryChecklistPicker.needsChecking')}
                               </span>
                             ) : null}
                             {conditions.map((line) => (
@@ -218,7 +219,9 @@ export function CountryChecklistPicker({
                 </div>
               ))}
               {route.thin ? (
-                <p className="muted">{t('home.countryChecklistPicker.thisListMayNotBeComplete')}</p>
+                <p className="muted">
+                  {t.node('home.countryChecklistPicker.thisListMayNotBeComplete')}
+                </p>
               ) : null}
             </div>
           ) : (
@@ -233,7 +236,7 @@ export function CountryChecklistPicker({
           {country.officialUrl ? (
             <p className="country-pick-official">
               <a href={country.officialUrl} target="_blank" rel="noopener noreferrer">
-                {t('home.countryChecklistPicker.openTheOfficialPage')}
+                {t.node('home.countryChecklistPicker.openTheOfficialPage')}
               </a>
             </p>
           ) : null}
@@ -245,25 +248,29 @@ export function CountryChecklistPicker({
                 href={startHrefForCountry(country.iso2, signUpOpen)}
               >
                 {signUpOpen
-                  ? t('home.countryChecklistPicker.createFreeAccountForName', {
+                  ? t.node('home.countryChecklistPicker.createFreeAccountForName', {
                       name: country.name,
                     })
-                  : t('home.countryChecklistPicker.signInToStartWithName', { name: country.name })}
+                  : t.node('home.countryChecklistPicker.signInToStartWithName', {
+                      name: country.name,
+                    })}
               </Link>
-              <p className="muted">{t('home.countryChecklistPicker.weKeepYourCountryForThe')}</p>
+              <p className="muted">
+                {t.node('home.countryChecklistPicker.weKeepYourCountryForThe')}
+              </p>
             </div>
           ) : action ? (
             <form className="country-pick-action" action={action}>
               <input type="hidden" name="country" value={country.iso2} />
               <button type="submit" className="btn btn-primary">
-                {t('home.countryChecklistPicker.continueWithName', { name: country.name })}
+                {t.node('home.countryChecklistPicker.continueWithName', { name: country.name })}
               </button>
             </form>
           ) : null}
         </section>
       ) : (
         <p className="country-pick-empty">
-          {t('home.countryChecklistPicker.yourChecklistAppearsHereAsSoon')}
+          {t.node('home.countryChecklistPicker.yourChecklistAppearsHereAsSoon')}
         </p>
       )}
     </div>
