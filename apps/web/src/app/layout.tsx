@@ -8,12 +8,10 @@ import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
-import { primeLocale } from '../lib/i18n-server';
+import { primePage } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
-import { pageLanguage } from '../lib/page-language';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
-import { requestedPath } from '../lib/request-path';
 import { isSignedIn } from '../lib/signed-in';
 import { hasSeenVersionNotice } from '../lib/version-notice-state';
 import { setLocaleAction } from './actions';
@@ -62,9 +60,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // writes cookies during render and defaults to
   // signed-out if the read fails, so a hiccup never breaks the whole shell.
   const signedIn = await isSignedIn();
-  const locale = await primeLocale();
+  const { locale, pageLang: htmlLang } = await primePage();
   // The page is marked Bangla only where its words are Bangla (WCAG 3.1.2), not for every page.
-  const htmlLang = pageLanguage(locale, await requestedPath());
   const deploymentMode = getDeploymentMode();
   const serviceWorker = isServiceWorkerEnabled((name) => process.env[name]);
   // A visitor sees the notice about this version in full once; after that every page keeps a
@@ -76,7 +73,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   return (
     <html lang={htmlLang} data-locale={locale} className={`${inter.variable} ${bengali.variable}`}>
       <body>
-        <I18nProvider locale={locale}>
+        <I18nProvider locale={locale} pageLang={htmlLang}>
           <a className="skip-link" href="#main">
             Skip to Content
           </a>

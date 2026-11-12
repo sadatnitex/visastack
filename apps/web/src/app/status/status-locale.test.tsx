@@ -20,7 +20,7 @@ const ready: ProbeResult = {
 function render(locale: 'en' | 'bn', updatedAt = '14:05:09'): string {
   return textOf(
     renderToStaticMarkup(
-      <I18nProvider locale={locale}>
+      <I18nProvider locale={locale} pageLang="en">
         <StatusView
           live={live}
           ready={ready}

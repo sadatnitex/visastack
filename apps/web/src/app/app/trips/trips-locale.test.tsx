@@ -37,7 +37,7 @@ afterEach(() => {
 function show(locale: 'en' | 'bn') {
   act(() =>
     root.render(
-      <I18nProvider locale={locale}>
+      <I18nProvider locale={locale} pageLang="en">
         <GroupTripStartForm
           countries={[]}
           purposes={[]}
