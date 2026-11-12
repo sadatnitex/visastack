@@ -1,3 +1,5 @@
+'use client';
+
 import { useT } from '../../components/i18n-provider';
 import type { VersionNoticeCopy } from '../../components/version-notice';
 import { statusCatalog } from '../../i18n/status';

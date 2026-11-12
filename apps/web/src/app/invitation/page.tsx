@@ -68,12 +68,10 @@ export default async function InvitationPage({
 }: {
   readonly searchParams: Promise<{ readonly kind?: string; readonly token?: string }>;
 }) {
-  // The language is settled alongside the lookups, so it adds no wait of its own.
-  const primed = primeLocale();
+  await primeLocale();
+  const t = getServerT(invitationCatalog);
   const { kind, token } = await searchParams;
   if (!isInvitationKind(kind) || !token || !INVITATION_TOKEN_PATTERN.test(token)) {
-    await primed;
-    const t = getServerT(invitationCatalog);
     return (
       <InvitationMessage
         title={t('invitation.invitationPage.incompleteInvitationLink')}
@@ -90,9 +88,7 @@ export default async function InvitationPage({
   const [page, signedIn] = await Promise.all([
     kind === 'client' ? loadClientInvitationPage(token) : null,
     isSignedIn(),
-    primed,
   ]);
-  const t = getServerT(invitationCatalog);
   if (page?.state === 'closed') return <ClosedInvitation />;
   if (page?.state === 'open') {
     if (!page.view.verified) return <AgencyNotReviewed agencyName={page.view.agencyName} />;

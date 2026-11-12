@@ -55,7 +55,7 @@ function route(): PublicTrustRoute {
     officialChannelUrl: 'https://www.gov.uk/apply-uk-visa',
     officialReportingUrl: null,
     officialSources: [],
-  } as PublicTrustRoute;
+  } as unknown as PublicTrustRoute;
 }
 
 async function render(locale: 'en' | 'bn', which: 'catalog' | 'pack') {
