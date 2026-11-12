@@ -43,12 +43,18 @@ export function formatMessage(
   template: string,
   params: MessageParams | undefined,
   localeTag: string,
+  pound?: string,
 ): string {
   if (!params && !template.includes('{')) return template;
   let out = '';
   let i = 0;
   while (i < template.length) {
     const char = template[i] as string;
+    if (char === '#' && pound !== undefined) {
+      out += pound;
+      i += 1;
+      continue;
+    }
     if (char !== '{') {
       out += char;
       i += 1;
@@ -71,7 +77,7 @@ export function formatMessage(
           branches.get(new Intl.PluralRules(localeTag).select(value)) ??
           (branches.get('other') as string);
         const number = new Intl.NumberFormat(localeTag).format(value);
-        out += formatMessage(body, params, localeTag).replaceAll('#', number);
+        out += formatMessage(body, params, localeTag, number);
       } else {
         out += whole;
       }

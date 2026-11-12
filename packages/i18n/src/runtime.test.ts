@@ -108,3 +108,23 @@ describe('catalog quality', () => {
     });
   }
 });
+
+describe('plural number marker', () => {
+  it('leaves a # inside a parameter value unchanged', () => {
+    const message = '{count, plural, one {# file from {name}} other {# files from {name}}}';
+    expect(formatMessage(message, { count: 2, name: 'Invoice #12' }, 'en-GB')).toBe(
+      '2 files from Invoice #12',
+    );
+  });
+
+  it('uses the inner count in a nested plural', () => {
+    const message =
+      '{outer, plural, other {# groups, {inner, plural, one {# item} other {# items}}}}';
+    expect(formatMessage(message, { outer: 3, inner: 1 }, 'en-GB')).toBe('3 groups, 1 item');
+    expect(formatMessage(message, { outer: 3, inner: 5 }, 'en-GB')).toBe('3 groups, 5 items');
+  });
+
+  it('keeps # literal outside a plural', () => {
+    expect(formatMessage('Case #{id}', { id: 7 }, 'en-GB')).toBe('Case #7');
+  });
+});
