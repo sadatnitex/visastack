@@ -498,3 +498,333 @@
 {"sg": "SG-41461a13", "bn": "অ্যাকাউন্ট মেনু", "conf": "HIGH", "note": ""}
 {"sg": "SG-fb6a58a1", "bn": "অ্যাকাউন্টের সারসংক্ষেপ", "conf": "HIGH", "note": ""}
 {"sg": "SG-b12435a3", "bn": "কিছু করা দরকার", "conf": "HIGH", "note": ""}
+{"sg": "SG-8535c61f", "bn": "ভ্রমণকারী যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-eeb9e64a", "bn": "আমার ক্যালেন্ডারে তারিখ যোগ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-146cfbb7", "bn": "অ্যাডমিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-6a6df6f1", "bn": "আরও অপেক্ষায় আছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-c8c485de", "bn": "যেকোনো ফলাফল", "conf": "HIGH", "note": ""}
+{"sg": "SG-bdcb7482", "bn": "যেকোনো সময়", "conf": "HIGH", "note": ""}
+{"sg": "SG-6ceb5197", "bn": "যে কেউ", "conf": "HIGH", "note": ""}
+{"sg": "SG-540b0abc", "bn": "উপলব্ধ ওয়ার্কস্পেস", "conf": "HIGH", "note": ""}
+{"sg": "SG-8de61a0a", "bn": "হোমে ফিরে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-c8f3a3d4", "bn": "ব্যাংক স্টেটমেন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-5663b7c6", "bn": "পরীক্ষা করা হচ্ছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-b4043026", "bn": "ব্রাউজ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-8a34e684", "bn": "ব্রাউজ: {parts}।", "conf": "HIGH", "note": ""}
+{"sg": "SG-abe62092", "bn": "ব্রাউজ: খোঁজা ও বিভাগ যোগ করে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-88f9ca1d", "bn": "ব্রাউজ: পড়া ও সম্পাদনার জন্য তথ্যগুলো, অংশ ধরে ধরে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-9f38ec4d", "bn": "ব্রাউজ: নতুন কী আছে এবং আপনার পড়া সাম্প্রতিকগুলো।", "conf": "HIGH", "note": ""}
+{"sg": "SG-dbcfd815", "bn": "খুলতে পারেন", "conf": "HIGH", "note": ""}
+{"sg": "SG-3deff634", "bn": "দেখতে পারেন", "conf": "HIGH", "note": ""}
+{"sg": "SG-122ac34a", "bn": "আপনার নিশ্চিত করার পর বদলেছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-81974c9b", "bn": "হাতে পরীক্ষা করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-8f61e974", "bn": "টাইম জোন বেছে নিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-461caf20", "bn": "স্পষ্ট সীমা। মানুষের নিয়ন্ত্রণ। অনুমোদনের কোনো নিশ্চয়তা নেই।", "conf": "MEDIUM", "note": "CLAIM_STRENGTH: kept as literal as English; 'approval' presumably means visa approval, not approval of an AI suggestion. Editor to confirm."}
+{"sg": "SG-8d4e32cd", "bn": "অ্যাকাউন্ট মেনু বন্ধ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-0212486d", "bn": "আসন্ন", "conf": "HIGH", "note": ""}
+{"sg": "SG-cad3fce1", "bn": "মন্তব্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-90da2dba", "bn": "নিশ্চিত করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-810256a5", "bn": "প্রসঙ্গভিত্তিক টুল", "conf": "HIGH", "note": ""}
+{"sg": "SG-29aa373c", "bn": "চালিয়ে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-969bc69e", "bn": "নিয়ন্ত্রিত পাইলট", "conf": "HIGH", "note": ""}
+{"sg": "SG-9bcb7e93", "bn": "কপি করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-fe968961", "bn": "বার্তা কপি করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-cbcf931d", "bn": "রেফারেন্স {code} কপি করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-48dec856", "bn": "খুলতে পারত", "conf": "HIGH", "note": ""}
+{"sg": "SG-30a88b55", "bn": "দেখতে পারত", "conf": "HIGH", "note": ""}
+{"sg": "SG-a499719a", "bn": "Ctrl {key}", "conf": "HIGH", "note": ""}
+{"sg": "SG-9b86192c", "bn": "তথ্যের অধিকার", "conf": "HIGH", "note": ""}
+{"sg": "SG-82ac1c35", "bn": "তারিখ জানা নেই", "conf": "HIGH", "note": ""}
+{"sg": "SG-4290cd11", "bn": "গুরুত্বপূর্ণ তারিখ", "conf": "HIGH", "note": ""}
+{"sg": "SG-32750510", "bn": "নিরাপদ কপি ডাউনলোড করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-2af53365", "bn": "সময় ঘনিয়ে আসছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-1f5c06ce", "bn": "চাকরির সনদ", "conf": "HIGH", "note": ""}
+{"sg": "SG-784c1359", "bn": "শেষ হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-5e303120", "bn": "শেষ হবে", "conf": "HIGH", "note": ""}
+{"sg": "SG-52d32855", "bn": "সবকিছু", "conf": "HIGH", "note": ""}
+{"sg": "SG-d2ddf545", "bn": "আপনি যা বেছে নেননি, তা গোপনই থাকে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-936f3db9", "bn": "সবকিছু: এই পর্দার সব কিছু।", "conf": "HIGH", "note": ""}
+{"sg": "SG-69128922", "bn": "সবকিছু: এই পর্দায় আর কিছু নেই।", "conf": "HIGH", "note": ""}
+{"sg": "SG-8801bc01", "bn": "সবকিছু: আপনার পড়া পুরোনোগুলো।", "conf": "HIGH", "note": ""}
+{"sg": "SG-1ba6d0df", "bn": "নমুনা ভ্রমণকারী", "conf": "HIGH", "note": ""}
+{"sg": "SG-2902f6be", "bn": "মেয়াদ শেষ হয়ে আসছে বা শেষ হয়ে গেছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-099866dd", "bn": "বৈশিষ্ট্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-70d338ab", "bn": "কার্যকলাপ খুঁজুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-28e4a888", "bn": "এজেন্সির জন্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-7dc9b006", "bn": "কতটা হালনাগাদ জানা নেই", "conf": "HIGH", "note": ""}
+{"sg": "SG-28163d3c", "bn": "শুরু করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-3c948b99", "bn": "এক নজরে", "conf": "HIGH", "note": ""}
+{"sg": "SG-7f72ae24", "bn": "এক নজরে: পরবর্তী তারিখগুলো।", "conf": "HIGH", "note": ""}
+{"sg": "SG-77b5b6f8", "bn": "এক নজরে: এখন আপনার যে একটি কাজ বাকি।", "conf": "HIGH", "note": ""}
+{"sg": "SG-53daa27d", "bn": "এক নজরে: নতুন কী আছে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-39a7805f", "bn": "এক নজরে: আপনার জন্য কী অপেক্ষা করছে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-0f12739f", "bn": "এক নজরে: আপনি কার পরিচয়ে সাইন ইন করেছেন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-bc477fed", "bn": "এক নজরে: আপনার সংখ্যাগুলো এবং প্রথম করণীয়।", "conf": "HIGH", "note": ""}
+{"sg": "SG-d88399bb", "bn": "ওয়ার্কস্পেসে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-36862619", "bn": "সহায়তা ও সাপোর্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-3ba219d8", "bn": "সহায়তা ও সাপোর্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-a1c2c7de", "bn": "এই নোটিশ লুকান", "conf": "HIGH", "note": ""}
+{"sg": "SG-4d42f283", "bn": "হোমে {length} জনের মধ্যে প্রথম {length} জন দেখানো হচ্ছে। <Link>সব ভ্রমণকারী দেখুন</Link>", "conf": "MEDIUM", "note": "PLACEHOLDER_REUSED: English uses {length} twice (shown count and total); the developer should give them different names"}
+{"sg": "SG-56ae628e", "bn": "এটি যেভাবে কাজ করে", "conf": "HIGH", "note": ""}
+{"sg": "SG-38a66bbf", "bn": "কতটা দেখানো হবে", "conf": "HIGH", "note": ""}
+{"sg": "SG-51d71d3c", "bn": "i", "conf": "HIGH", "note": ""}
+{"sg": "SG-d9b622c3", "bn": "আমি পাঠিয়ে দিয়েছি", "conf": "HIGH", "note": ""}
+{"sg": "SG-9a5052d0", "bn": "বানানো তথ্যসহ উদাহরণ চিত্র", "conf": "HIGH", "note": ""}
+{"sg": "SG-0bb6983e", "bn": "কে কী দেখতে পারে তা জানুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-4380feb8", "bn": "গত 24 ঘণ্টা", "conf": "HIGH", "note": ""}
+{"sg": "SG-4d1e8d10", "bn": "গত 30 দিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-237176e8", "bn": "গত 7 দিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-cb3783f5", "bn": "আমাকে অন্যদের সঙ্গে শেয়ার করতে দিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-1a8a758f", "bn": "ভ্রমণকারীদের ম্যানেজ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-161f06c1", "bn": "কপি করার বার্তা", "conf": "HIGH", "note": ""}
+{"sg": "SG-3b87e80f", "bn": "নেই", "conf": "MEDIUM", "note": "CONTEXT_UNCLEAR"}
+{"sg": "SG-5b790cfc", "bn": "আরও উদ্দেশ্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-ea4de104", "bn": "আরও টুল", "conf": "HIGH", "note": ""}
+{"sg": "SG-8341f802", "bn": "আমার পরবর্তী যাত্রা", "conf": "HIGH", "note": ""}
+{"sg": "SG-a4c82286", "bn": "কিছু সংরক্ষণ করার আগে এটি দরকার। আপনি যেকোনো সময় এটি বন্ধ করতে পারেন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-b6f457e7", "bn": "শেয়ার করতে দরকার", "conf": "HIGH", "note": ""}
+{"sg": "SG-9048eb45", "bn": "কিছু করা দরকার", "conf": "HIGH", "note": ""}
+{"sg": "SG-07a54577", "bn": "আপনার সাড়া দরকার", "conf": "HIGH", "note": ""}
+{"sg": "SG-f5fa94bc", "bn": "পরবর্তী ধাপ", "conf": "HIGH", "note": ""}
+{"sg": "SG-ee23d377", "bn": "আর বর্তমান নয়", "conf": "HIGH", "note": ""}
+{"sg": "SG-a9cafcfa", "bn": "কোনো আবশ্যক বিষয় নেই", "conf": "HIGH", "note": ""}
+{"sg": "SG-1c2a3652", "bn": "এখনও কোনো ভ্রমণকারী নেই", "conf": "HIGH", "note": ""}
+{"sg": "SG-4cb6b45f", "bn": "গ্রহণ করা হয়নি", "conf": "HIGH", "note": ""}
+{"sg": "SG-296ffc56", "bn": "প্রযোজ্য নয়", "conf": "HIGH", "note": ""}
+{"sg": "SG-89529ae7", "bn": "অনুমোদিত নয়", "conf": "HIGH", "note": ""}
+{"sg": "SG-76fdb9bb", "bn": "যোগ্য নয়", "conf": "HIGH", "note": ""}
+{"sg": "SG-a8a0e42a", "bn": "পর্যালোচনার জন্য প্রস্তুত নয়", "conf": "HIGH", "note": ""}
+{"sg": "SG-bd6c2e35", "bn": "আপনার জন্য কিছুই অপেক্ষা করছে না।", "conf": "HIGH", "note": ""}
+{"sg": "SG-5a3cdb0f", "bn": "নভেম্বর", "conf": "HIGH", "note": ""}
+{"sg": "SG-5dfb50b3", "bn": "এখন: {now}", "conf": "HIGH", "note": ""}
+{"sg": "SG-fc726dd6", "bn": "অক্টোবর", "conf": "HIGH", "note": ""}
+{"sg": "SG-8f2d52b6", "bn": "বন্ধ", "conf": "HIGH", "note": ""}
+{"sg": "SG-1a3a9baa", "bn": "চালু", "conf": "HIGH", "note": ""}
+{"sg": "SG-f809d282", "bn": "সেদিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-ea785410", "bn": "ঐচ্ছিক", "conf": "HIGH", "note": ""}
+{"sg": "SG-615f862f", "bn": "\"ঐচ্ছিক\" ও \"প্রযোজ্য নয়\" দুটোর অর্থই হলো, ব্যক্তির কাছে কিছু চাওয়া হচ্ছে না", "conf": "HIGH", "note": ""}
+{"sg": "SG-9e771a8e", "bn": "অথবা", "conf": "HIGH", "note": ""}
+{"sg": "SG-32d0acb5", "bn": "অথবা একটি ফিল্টার সরান", "conf": "HIGH", "note": ""}
+{"sg": "SG-5437d4c2", "bn": "হালনাগাদ নয়", "conf": "MEDIUM", "note": "CONTEXT_UNCLEAR: 'Out of Date' (stale), not 'Expired'"}
+{"sg": "SG-9eaf2719", "bn": "মালিক", "conf": "HIGH", "note": ""}
+{"sg": "SG-11318fa3", "bn": "সময় পেরিয়ে গেছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-4f723767", "bn": "গ্রহণের অপেক্ষায়", "conf": "HIGH", "note": ""}
+{"sg": "SG-f995f955", "bn": "ব্যক্তি", "conf": "HIGH", "note": ""}
+{"sg": "SG-eca2fb5e", "bn": "ব্যক্তিগত জায়গা", "conf": "HIGH", "note": ""}
+{"sg": "SG-523a3feb", "bn": "আপনি এইমাত্র যা তুলেছেন তার প্রিভিউ, পাঠানোর আগে দেখে নেওয়ার জন্য দেখানো হচ্ছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-b6f48122", "bn": "ডিজাইনেই গোপনীয়", "conf": "HIGH", "note": ""}
+{"sg": "SG-a7e2f146", "bn": "প্রোডাক্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-53dae7fc", "bn": "সম্পাদনার প্রস্তাব দিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-c1f08b9e", "bn": "জনগণের আস্থা", "conf": "HIGH", "note": ""}
+{"sg": "SG-517fa76a", "bn": "অ্যাক্সেস আবার শেয়ার করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-a50aad39", "bn": "পর্যালোচনার জন্য প্রস্তুত", "conf": "HIGH", "note": ""}
+{"sg": "SG-316ba9a8", "bn": "জমা দেওয়ার জন্য প্রস্তুত", "conf": "HIGH", "note": ""}
+{"sg": "SG-7635c1ff", "bn": "পাওয়া গেছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-827850ab", "bn": "পাওয়া গেছে বা নিশ্চিতকরণের অপেক্ষায়", "conf": "HIGH", "note": ""}
+{"sg": "SG-ce86bcfb", "bn": "সাম্প্রতিক কার্যকলাপ", "conf": "HIGH", "note": ""}
+{"sg": "SG-b1e70e88", "bn": "ফিল্টার সরান", "conf": "HIGH", "note": ""}
+{"sg": "SG-3e198aa6", "bn": "প্রতিস্থাপিত", "conf": "HIGH", "note": ""}
+{"sg": "SG-4162538d", "bn": "ফলাফল", "conf": "HIGH", "note": ""}
+{"sg": "SG-ffff12f5", "bn": "পর্যালোচনা করা হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-0faea54c", "bn": "পর্যালোচক", "conf": "HIGH", "note": ""}
+{"sg": "SG-696209a4", "bn": "এই লগে খুঁজুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-6fa81a5c", "bn": "সব তারিখ দেখুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-b5007e5f", "bn": "কী অপেক্ষা করছে দেখুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-559c8333", "bn": "নির্বাচিত বিষয়, সীমিত সময়ের জন্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-1146d60c", "bn": "একটি প্রতিস্থাপন পাঠান", "conf": "HIGH", "note": ""}
+{"sg": "SG-2b30551c", "bn": "আমাকে খবর ও অফার পাঠান", "conf": "HIGH", "note": ""}
+{"sg": "SG-00056f87", "bn": "ঠিক করার জন্য ফেরত পাঠানো হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-98811b16", "bn": "সেবার অবস্থা", "conf": "HIGH", "note": ""}
+{"sg": "SG-b3c60d70", "bn": "আরও দেখান", "conf": "HIGH", "note": ""}
+{"sg": "SG-55eb4876", "bn": "পুরোনো এন্ট্রি দেখান", "conf": "HIGH", "note": ""}
+{"sg": "SG-a6f3b0fd", "bn": "{length}-এর মধ্যে {length}টি দেখানো হচ্ছে। বাকিগুলো প্রত্যেক ব্যক্তির নিজের পাতায় আছে। <Link>সব ভ্রমণকারী দেখুন</Link>", "conf": "MEDIUM", "note": "PLACEHOLDER_REUSED: English uses {length} twice (shown count and total); the developer should give them different names"}
+{"sg": "SG-17e97cb0", "bn": "সাইন আউট করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-785780c3", "bn": "এই ডিভাইস থেকে সাইন আউট করুন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-f07bb0f5", "bn": "সাইন ইন করা আছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-42607d0f", "bn": "এখান থেকে শুরু করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-78fda7b6", "bn": "এখনও খোলা", "conf": "HIGH", "note": ""}
+{"sg": "SG-2e43a64f", "bn": "জমা দেওয়া হয়েছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-abfe06c9", "bn": "সাপোর্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-385c948c", "bn": "শর্তাবলি", "conf": "HIGH", "note": ""}
+{"sg": "SG-c560ca23", "bn": "", "conf": "LOW", "note": "NEEDS_OWNER_DECISION: sentence assembled from English-only parts ({which}, {choice}, {reach}, {total}) with English plural and verb agreement; needs a Bengali sentence design, not word-for-word translation"}
+{"sg": "SG-37bdebc7", "bn": "সমস্যাটি আমাদের দিকে। আপনি আগে যা সংরক্ষণ করেছেন তা নিরাপদ আছে। কিছু লিখতে থাকলে হয়তো আবার লিখতে হতে পারে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-406097b5", "bn": "আস্থার কাঠামো", "conf": "HIGH", "note": ""}
+{"sg": "SG-14860107", "bn": "তারা করতে পারেন", "conf": "HIGH", "note": ""}
+{"sg": "SG-fa7d2f23", "bn": "তারা করতে পারতেন", "conf": "HIGH", "note": ""}
+{"sg": "SG-471b2baf", "bn": "তারা একটি অ্যাকাউন্ট তৈরি করেন বা সাইন ইন করেন, তারপর আপনার বেছে নেওয়া বিষয়গুলো পর্যালোচনা করে গ্রহণ করেন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-c68a7790", "bn": "কিছু সংরক্ষণ করার আগে এটি দরকার। আপনি যেকোনো সময় এটি বন্ধ করতে পারেন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-056ff2bb", "bn": "এটি আমাদের দিকের সমস্যা, আপনার নয়। আপনি আগে যা সংরক্ষণ করেছেন তা নিরাপদ আছে। কিছু লিখতে থাকলে হয়তো আবার লিখতে হতে পারে। একটু পরে আবার চেষ্টা করুন; সমস্যা চলতে থাকলে সাইন আউট করে আবার সাইন ইন করুন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-a7c24692", "bn": "এই তালিকায় {length} জনের মধ্যে প্রথম {length} জন আছেন। <Link>সব ভ্রমণকারী দেখুন</Link>", "conf": "MEDIUM", "note": "PLACEHOLDER_REUSED: English uses {length} twice (shown count and total); the developer should give them different names"}
+{"sg": "SG-072628ea", "bn": "গুছিয়ে নিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-e87d1e0b", "bn": "টাইম জোন", "conf": "HIGH", "note": ""}
+{"sg": "SG-81221383", "bn": "নিশ্চিত করতে হবে", "conf": "HIGH", "note": ""}
+{"sg": "SG-affc656e", "bn": "বাকি?", "conf": "MEDIUM", "note": "FRAGMENT: lowercase fragment of a longer English phrase; context needed"}
+{"sg": "SG-ed064215", "bn": "টাইপ করে দেওয়া", "conf": "HIGH", "note": ""}
+{"sg": "SG-0d8e442a", "bn": "জানা নেই", "conf": "HIGH", "note": ""}
+{"sg": "SG-3559bd42", "bn": "UTC", "conf": "HIGH", "note": ""}
+{"sg": "SG-14f2e38a", "bn": "আপনার উত্তরের অপেক্ষায়", "conf": "HIGH", "note": ""}
+{"sg": "SG-eacac922", "bn": "আবার স্বাগতম, {firstName}", "conf": "HIGH", "note": ""}
+{"sg": "SG-36397ce9", "bn": "প্রতিটি স্তরে কী দেখা যায়", "conf": "HIGH", "note": ""}
+{"sg": "SG-538d2610", "bn": "কী ঘটেছে", "conf": "HIGH", "note": ""}
+{"sg": "SG-25a4fcd9", "bn": "কখন", "conf": "HIGH", "note": ""}
+{"sg": "SG-a29426b5", "bn": "কে", "conf": "HIGH", "note": ""}
+{"sg": "SG-d9c7183f", "bn": "এই ধাপ কেন", "conf": "HIGH", "note": ""}
+{"sg": "SG-f3a2354d", "bn": "এক সপ্তাহের মধ্যে", "conf": "HIGH", "note": ""}
+{"sg": "SG-70f94137", "bn": "উৎস থেকে কপি করা শব্দ", "conf": "HIGH", "note": ""}
+{"sg": "SG-809d83a7", "bn": "ওয়ার্কস্পেস", "conf": "HIGH", "note": ""}
+{"sg": "SG-0f35e0ea", "bn": "আপনি অফলাইনে আছেন। নিরাপদে চালিয়ে যেতে আবার সংযুক্ত হন। এখনও পাঠানো হয়নি এমন কিছু সংরক্ষণ করা হয়নি।", "conf": "HIGH", "note": ""}
+{"sg": "SG-27475680", "bn": "আপনি বেছে নেন", "conf": "HIGH", "note": ""}
+{"sg": "SG-664fe83e", "bn": "অ্যাক্সেস আপনার নিয়ন্ত্রণে", "conf": "HIGH", "note": ""}
+{"sg": "SG-ac7408b4", "bn": "আপনার অ্যাকাউন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-ab5bd3d6", "bn": "আপনার কোড প্রস্তুত।", "conf": "HIGH", "note": ""}
+{"sg": "SG-1729d563", "bn": "আপনার সিদ্ধান্ত।", "conf": "HIGH", "note": ""}
+{"sg": "SG-0707775d", "bn": "আপনার ইমেইল নিশ্চিত করা হয়েছে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-e732ade3", "bn": "{label}, {spoken}টি নতুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-a2f1ac54", "bn": "কার্যকলাপ", "conf": "HIGH", "note": ""}
+{"sg": "SG-91135018", "bn": "এজেন্সির সেটিংস", "conf": "HIGH", "note": ""}
+{"sg": "SG-6ba64487", "bn": "এজেন্সি ওয়ার্কস্পেস", "conf": "HIGH", "note": ""}
+{"sg": "SG-23041ca0", "bn": "সব রেকর্ড", "conf": "HIGH", "note": ""}
+{"sg": "SG-3ed4fa31", "bn": "সব ভ্রমণকারী", "conf": "HIGH", "note": ""}
+{"sg": "SG-780b405d", "bn": "এজেন্সির কাছে উত্তর", "conf": "HIGH", "note": ""}
+{"sg": "SG-25005a6a", "bn": "কেসের কার্যকলাপ", "conf": "HIGH", "note": ""}
+{"sg": "SG-30c8769f", "bn": "কেস ওয়ার্কস্পেস", "conf": "HIGH", "note": ""}
+{"sg": "SG-b665ff95", "bn": "একজন ভ্রমণকারী বেছে নিন", "conf": "HIGH", "note": ""}
+{"sg": "SG-d498ff95", "bn": "ক্লায়েন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-977997ac", "bn": "নেভিগেশন বন্ধ করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-5bd3d5ac", "bn": "দেশ", "conf": "HIGH", "note": ""}
+{"sg": "SG-013b0371", "bn": "তারিখ ও মেয়াদ", "conf": "HIGH", "note": ""}
+{"sg": "SG-dbef4398", "bn": "ডকুমেন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-d13c28ea", "bn": "প্রমাণ", "conf": "HIGH", "note": ""}
+{"sg": "SG-c9cb83bd", "bn": "প্রমাণের অনুরোধ", "conf": "HIGH", "note": ""}
+{"sg": "SG-53112dd6", "bn": "ফুটার", "conf": "HIGH", "note": ""}
+{"sg": "SG-a4c42406", "bn": "নিজের ঝুঁকিতে বিনামূল্যে ব্যবহার করুন। আপলোডে ভাইরাস স্ক্যানের মতো কিছু সুরক্ষা এখনও চালু করা হয়নি।", "conf": "HIGH", "note": ""}
+{"sg": "SG-68741fe6", "bn": "মেনু লুকান", "conf": "HIGH", "note": ""}
+{"sg": "SG-94155715", "bn": "শুধু আমন্ত্রিতদের জন্য পরীক্ষামূলক রূপ। অনুগ্রহ করে বানানো তথ্য ব্যবহার করুন, অথবা এমন ডকুমেন্ট ব্যবহার করুন যার সব ব্যক্তিগত তথ্য স্থায়ীভাবে কালো করে ঢেকে দেওয়া হয়েছে।", "conf": "MEDIUM", "note": "VERSION_WORDING: 'test version' of the product avoids সংস্করণ per brief; editor to confirm"}
+{"sg": "SG-886297bf", "bn": "ম্যানেজ করা ভ্রমণকারী", "conf": "HIGH", "note": ""}
+{"sg": "SG-6a501e17", "bn": "আরও", "conf": "HIGH", "note": ""}
+{"sg": "SG-e9564b9d", "bn": "ওয়ার্কস্পেসের আরও গন্তব্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-fe32af9d", "bn": "আমার ডকুমেন্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-7d9dfa81", "bn": "আমার প্রোফাইল", "conf": "HIGH", "note": ""}
+{"sg": "SG-dd2649c2", "bn": "আমার ভ্রমণ", "conf": "HIGH", "note": ""}
+{"sg": "SG-19d3b1bf", "bn": "নোটিফিকেশন", "conf": "HIGH", "note": ""}
+{"sg": "SG-0c17fb35", "bn": "ওভারভিউ", "conf": "HIGH", "note": ""}
+{"sg": "SG-db3c03c3", "bn": "ব্যক্তিগত জায়গা", "conf": "HIGH", "note": ""}
+{"sg": "SG-871651c9", "bn": "প্ল্যান ও ব্যবহার", "conf": "HIGH", "note": ""}
+{"sg": "SG-ac22c871", "bn": "প্রোফাইল", "conf": "HIGH", "note": ""}
+{"sg": "SG-f56d03d2", "bn": "দ্রুত কাজ", "conf": "HIGH", "note": ""}
+{"sg": "SG-de7b1741", "bn": "অপসারণের অনুরোধ", "conf": "HIGH", "note": ""}
+{"sg": "SG-8aff2c12", "bn": "অনুরোধ", "conf": "HIGH", "note": ""}
+{"sg": "SG-e9fbcd54", "bn": "সেটিংস ও সাপোর্ট", "conf": "HIGH", "note": ""}
+{"sg": "SG-a72df861", "bn": "আমার সঙ্গে শেয়ার করা", "conf": "HIGH", "note": ""}
+{"sg": "SG-61ddf99e", "bn": "শেয়ারিং", "conf": "HIGH", "note": ""}
+{"sg": "SG-9e9d2ff7", "bn": "শেয়ারিং ও অনুরোধ", "conf": "HIGH", "note": ""}
+{"sg": "SG-834b766a", "bn": "সাইট", "conf": "HIGH", "note": ""}
+{"sg": "SG-0db34fe3", "bn": "এখনকার জন্য এড়িয়ে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-ea39de83", "bn": "মূল বিষয়বস্তুতে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-0fb142d1", "bn": "টিম", "conf": "HIGH", "note": ""}
+{"sg": "SG-b9398c95", "bn": "পরীক্ষামূলক রূপ। শুধু বানানো তথ্য।", "conf": "MEDIUM", "note": "VERSION_WORDING: 'test version' of the product avoids সংস্করণ per brief"}
+{"sg": "SG-8e32726c", "bn": "ভ্রমণকারী", "conf": "HIGH", "note": ""}
+{"sg": "SG-9f47227e", "bn": "ভ্রমণ", "conf": "HIGH", "note": ""}
+{"sg": "SG-2b47f0d5", "bn": "ভিসা কেস", "conf": "HIGH", "note": ""}
+{"sg": "SG-5c746f82", "bn": "VisaStack", "conf": "HIGH", "note": ""}
+{"sg": "SG-f746eb40", "bn": "VisaStack প্রাইভেট পাইলট", "conf": "HIGH", "note": ""}
+{"sg": "SG-d57272f4", "bn": "ওয়ার্কস্পেস", "conf": "HIGH", "note": ""}
+{"sg": "SG-f9dca26e", "bn": "ওয়ার্কস্পেস নেভিগেশন", "conf": "HIGH", "note": ""}
+{"sg": "SG-0f95f037", "bn": "হোমে যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-a0202788", "bn": "সব পড়া হয়েছে চিহ্নিত করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-335102d6", "bn": "পড়া হয়েছে চিহ্নিত করুন", "conf": "HIGH", "note": ""}
+{"sg": "SG-48ec0cec", "bn": "মনোযোগ দরকার", "conf": "HIGH", "note": ""}
+{"sg": "SG-a0b51ac7", "bn": "এখনও কোনো নোটিফিকেশন নেই", "conf": "HIGH", "note": ""}
+{"sg": "SG-4ea48f6f", "bn": "নোটিফিকেশনের তালিকা", "conf": "HIGH", "note": ""}
+{"sg": "SG-50de643b", "bn": "নোটিফিকেশন", "conf": "HIGH", "note": ""}
+{"sg": "SG-18314c96", "bn": "এখানে শুধু সেই পরিবর্তনগুলো দেখানো হয় যেগুলোতে আপনার সাড়া দরকার। আগের প্রতিটি পরিবর্তন <Link>নোটিফিকেশন</Link> অংশে রাখা আছে।", "conf": "HIGH", "note": ""}
+{"sg": "SG-b67fd892", "bn": "VisaStack এখানে আপনাকে জানায় কীসে আপনার সাড়া দরকার: এজেন্সির একটি অনুরোধ, মেয়াদ শেষের কাছাকাছি একটি ডকুমেন্ট, বা এগিয়ে যাওয়া একটি কেস। এই মুহূর্তে আপনার কিছু করার নেই।", "conf": "HIGH", "note": ""}
+{"sg": "SG-7c01b599", "bn": "কী বদলেছে তা জানতে আপনাকে প্রতিটি কেস খুলতে হয় না।", "conf": "HIGH", "note": ""}
+{"sg": "SG-04e75ab2", "bn": "{AI_DAY_BOUNDARY_NOTE} এআই সুবিধা চালু বা বন্ধ করুন <Link>হোমে আপনার নিয়ন্ত্রণে থাকা অনুমতি</Link> থেকে।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-c63d2de2", "bn": "{choice} নতুন সীমা সেই দিন থেকে প্রযোজ্য হবে। কিছুই মুছে ফেলা হয় না।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-aeff30b3", "bn": "{formatBillingDate} তারিখে {formatMoney}", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-49b97cdb", "bn": "{TEST_PAYMENT_LABEL}, প্রকৃত অর্থ পাওয়া যায়নি", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-466a35a4", "bn": "এজেন্সি", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-2ddba05f", "bn": "এজেন্সি", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-0006fab9", "bn": "এআই সুবিধা", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-11f4fd8f", "bn": "পাওয়া অঙ্ক", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-5d18d455", "bn": "উত্তর পাঠানো হয়েছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-95027f41", "bn": "যেসব ভ্রমণকারী তাদের রেকর্ড আপনার এজেন্সির সঙ্গে শেয়ার করেন, তাদের জন্য গত {days} দিনে স্বয়ংক্রিয় ডকুমেন্ট পড়া ব্যবহার করা হয়েছে।", "conf": "MEDIUM", "note": ""}
+{"sg": "SG-a0bb4b91", "bn": "অনুরোধে ফিরে যান", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-58beae8b", "bn": "BDT", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-9f5146e7", "bn": "এখন দেখুন", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-f7012c57", "bn": "পাবলিক বিটা চলাকালে বিনামূল্যে। কোনো পেমেন্ট পদ্ধতি লাগে না। ন্যায্য ব্যবহারের সুরক্ষা এবং ব্যক্তিগত রেকর্ডের অনুমতি এখনও প্রযোজ্য। স্টোরেজ ও প্রক্রিয়াকরণ উপলব্ধ সক্ষমতার ওপর নির্ভরশীল থাকে।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-f86300fe", "bn": "পাবলিক বিটা চলাকালে বিনামূল্যে। কোনো পেমেন্ট পদ্ধতি লাগে না। ন্যায্য ব্যবহারের সুরক্ষা এবং আপনার গোপনীয়তার অনুমতি এখনও প্রযোজ্য।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-ac576948", "bn": "নিশ্চিত করা হয়েছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-b3edb4f6", "bn": "আগের পেমেন্ট থেকে ক্রেডিট: একটি অনলাইন পেমেন্টের {plainAmount}, যা VisaStack পরীক্ষার জন্য ধরে রেখেছিল, এই ইনভয়েসে গণনা করা হয়েছে।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-3b7e172b", "bn": "বর্তমান প্ল্যান", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-ae34ed07", "bn": "ঢাকা", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-01aeac1c", "bn": "আপনি যে প্রত্যেক ব্যক্তির রেকর্ড রাখেন, তার রেকর্ডে সর্বোচ্চ {mbLabel} রাখা যায়। কোনো এজেন্সির সঙ্গে রেকর্ড শেয়ার করলে সেই এজেন্সির নিজের প্ল্যানও তাতে আর কতটা যোগ করা যাবে তা সীমিত করতে পারে।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-5e451d92", "bn": "শূন্যের বেশি প্রাপ্ত অঙ্ক দিন, যেমন 2,500.00।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-31614ae0", "bn": "প্রতিটি ডকুমেন্টের প্রতিটি সংরক্ষিত কপি গণনা হয়। প্রতিটি ফাইল সর্বোচ্চ {uploadLimitLabel} পর্যন্ত হতে পারে।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED; VERSION_WORDING: saved version rendered as কপি"}
+{"sg": "SG-f5daf612", "bn": "জন্য", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-cd93dd64", "bn": "{invoiceRef}-এর জন্য", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-44f40225", "bn": "প্রস্তুত করা হচ্ছে…", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-86ed8de5", "bn": "ওয়ার্কস্পেসে যান", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-cef3af07", "bn": "সার্বিক অবস্থা", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED; CONTEXT_UNCLEAR: 'Health' of the payment system"}
+{"sg": "SG-cb34ae65", "bn": "সহায়তা ও সাপোর্ট", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-29931b95", "bn": "পেমেন্ট পাতা থেকে নিশ্চিত হওয়া পর্যন্ত একটি পেমেন্টে কত সময় লাগে, গত 7 দিনের অর্ধেক পেমেন্টের জন্য।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-3f18615f", "bn": "আপনার প্ল্যানে আছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-259e63c9", "bn": "লাইভ", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-8264c469", "bn": "মনোযোগ দরকার", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-42723512", "bn": "কিছু নেই", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-58de24bc", "bn": "গ্রহণ করা হয়নি", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-04033af1", "bn": "নোট (ঐচ্ছিক)", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-9fb66d62", "bn": "কিছুই না", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-a104e7e5", "bn": "এখন:", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-20f3aa34", "bn": "এই কয়েক দিনে যেসব পেমেন্ট করা হয়েছে, তার মধ্যে পরে ফেরত দেওয়া অংশ।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-03a6d811", "bn": "এই কয়েক দিনে শুরু হওয়া ক্রয়ের মধ্যে যেগুলোর অর্থ পরিশোধ হয়েছে, তার অংশ।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-04047ac8", "bn": "এই কয়েক দিনে করা নবায়নের মধ্যে যেগুলোর অর্থ পরিশোধ হয়েছে, তার অংশ।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-12692a59", "bn": "গত একদিনে শুরু হয়ে শেষ হওয়া ভ্রমণকারীদের চেকআউটের মধ্যে যেখানে টাকা নেওয়া হয়েছে, তার অংশ।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-6fd9fc90", "bn": "ঠিক আছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-6cfcd6ff", "bn": "চালু", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-edb483b5", "bn": "বকেয়া", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-f7b567be", "bn": "ভ্রমণকারীদের জন্য পেইড প্ল্যান এখনও দেওয়া হচ্ছে না, তাই বেছে নেওয়ার বা আপগ্রেড করার কিছু নেই।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-48b62e6e", "bn": "পেমেন্ট পাওয়া গেছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-a32a26d8", "bn": "পেমেন্ট জানানো হয়েছে: আমরা এটি পরীক্ষা করে দেখছি। দেখা শেষ হলে আমরা এই ইনভয়েস হালনাগাদ করব।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-5367c24d", "bn": "পাওয়া পেমেন্ট", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-637b491f", "bn": "হোমে আপনার নিয়ন্ত্রণে থাকা অনুমতি", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-c4883177", "bn": "প্ল্যান", "conf": "HIGH", "note": ""}
+{"sg": "SG-fdc12380", "bn": "প্ল্যান ও ব্যবহার", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-73f7ada8", "bn": "পেমেন্টের প্রমাণ (ঐচ্ছিক)", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-221d5657", "bn": "পাওয়া গেছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-04e98a42", "bn": "রেফারেন্স", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-e2939ed9", "bn": "জানানো পেমেন্ট, নিশ্চিত করা হয়েছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-7784781d", "bn": "অনুরোধের রেফারেন্স", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-e5ab29f5", "bn": "সংরক্ষণ করুন", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-afcc2767", "bn": "সংরক্ষণ করা হয়েছে। অবস্থার সংকেতগুলো এখন এই সীমার সঙ্গে মিলিয়ে দেখা হবে।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-dd589b55", "bn": "পাঠানো হয়েছে (নিশ্চিতকরণের অপেক্ষায়)", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-54c50e63", "bn": "সবচেয়ে নতুন {length}টি {other} দেখানো হচ্ছে। পুরোনো {other} এখানে তালিকাভুক্ত নয়।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED; PLURAL_NOTE: {other} is an English noun supplied at runtime and cannot take a Bengali count form"}
+{"sg": "SG-d6105bb0", "bn": "অবস্থা", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-ada95c92", "bn": "স্টোরেজ", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-d57af5b3", "bn": "জমা দেওয়া হয়েছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-04560390", "bn": "টিমের সদস্য", "conf": "HIGH", "note": ""}
+{"sg": "SG-cf34cb90", "bn": "লিংকটির মেয়াদ শেষ হয়ে থাকতে পারে। আপনার পেমেন্টের সর্বশেষ অবস্থা দেখতে VisaStack খুলুন।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-7f42f3a1", "bn": "সীমাগুলো সংরক্ষণ করা যায়নি। পাতাটি আবার লোড করে চেষ্টা করুন।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-c9fa1fdd", "bn": "এগুলো আপনি যে আপনিই তা নিশ্চিত করার আগে লেখা সংখ্যা। এখনও সংরক্ষণ করা হয়নি: সংরক্ষণ করতে \"সীমা সংরক্ষণ করুন\" চাপুন।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-7926c5a7", "bn": "এই পেমেন্ট লিংকটি আর পাওয়া যাচ্ছে না", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-ded37f70", "bn": "এই রিফান্ড আবার পাঠানো যাবে না: দ্বিতীয়বার পাঠানোর পর পেমেন্ট প্রদানকারী \"ব্যর্থ\" উত্তর দিয়েছে। পেমেন্ট প্রদানকারীর মার্চেন্ট প্যানেল দেখুন, তারপর \"সম্পন্ন হয়েছে\" বা \"সম্পন্ন হয়নি\" বেছে নিন।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-d88d7ff9", "bn": "জানতে চাইলে <Link>সহায়তা ও সাপোর্ট</Link> থেকে VisaStack-এর সঙ্গে যোগাযোগ করুন এবং {invoiceRef} উল্লেখ করুন।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-7d85ba76", "bn": "ভ্রমণকারী", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-a0c3525a", "bn": "ভ্রমণকারীদের পেমেন্ট এখন পর্যন্ত, প্রতিটি তার সতর্কতা সীমার সঙ্গে মিলিয়ে দেখা। শুধু প্রকৃত অর্থ।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-81945c5b", "bn": "ভ্রমণকারী", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-b644781a", "bn": "সর্বোচ্চ {limitText}।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-8347865f", "bn": "আমরা আপনার পেমেন্ট পেয়েছি। ধন্যবাদ।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-d6d9d6fc", "bn": "আমরা আপনার পেমেন্ট পেয়েছি, কিন্তু গণনা করার আগে তা পরীক্ষা করতে হবে। আমরা আপনার সঙ্গে যোগাযোগ করব। আপনাকে আবার পেমেন্ট করতে হবে না।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-1fa10c7a", "bn": "আপনার প্ল্যানে যা আছে", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-4209ef37", "bn": "কখন", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-e895e1a9", "bn": "আপনার প্ল্যানে প্রতিটি সুবিধা আছে কি না, এখন তা কাজ করছে কি না, এবং আজ আপনি কতটা ব্যবহার করেছেন। শুধু সংখ্যাটি রাখা হয়, কী পড়া হয়েছে তা কখনো নয়। এই সুবিধাগুলো ছাড়াও VisaStack-এর সবকিছু কাজ করে।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-7e211d41", "bn": "কেন", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-71245f65", "bn": "আপনার অ্যাকাউন্ট", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-9adbe2d0", "bn": "আপনার এজেন্সির স্টোরেজ ভরে গেছে। আর দরকার নেই এমন ফাইল সরান, অথবা বড় প্ল্যানের জন্য VisaStack-কে জিজ্ঞাসা করুন।", "conf": "MEDIUM", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-ed43675e", "bn": "আপনার আগের পেমেন্ট এমন একটি পেমেন্ট পদ্ধতিতে শুরু হয়েছিল যা এখন বন্ধ করা আছে। দুইবার টাকা কাটা এড়াতে আবার পেমেন্ট করার আগে আমাদের সঙ্গে যোগাযোগ করুন।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-1a8155da", "bn": "আপনার পেমেন্ট এখনও নিশ্চিত করা হচ্ছে। এতে সাধারণত এক মিনিট লাগে: একটু পরে \"আবার দেখুন\" বেছে নিন। আপনার টাকা কাটা হয়ে থাকলে আবার পেমেন্ট করতে হবে না।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-7f0e5288", "bn": "আপনার পেমেন্ট পাওয়া গেছে। ধন্যবাদ।", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
+{"sg": "SG-2c5af3e3", "bn": "আপনার প্ল্যান, তাতে কী আছে এবং আপনি তার কতটা ব্যবহার করেছেন।", "conf": "HIGH", "note": ""}
+{"sg": "SG-968fcdff", "bn": "আপনার প্ল্যান:", "conf": "HIGH", "note": ""}
+{"sg": "SG-28b0849e", "bn": "আপনার পুরো অ্যাকাউন্ট", "conf": "LOW", "note": "BILLING_REVIEW_REQUIRED"}
