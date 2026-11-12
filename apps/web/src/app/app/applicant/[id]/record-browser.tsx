@@ -1,9 +1,7 @@
 'use client';
-
-import { formatNumber } from '@visastack/i18n';
 import Link from 'next/link';
 import { useId, useState } from 'react';
-import { useLocale, useT } from '../../../../components/i18n-provider';
+import { useT } from '../../../../components/i18n-provider';
 import { StatusBadge } from '../../../../components/ui';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import {
@@ -35,7 +33,6 @@ export function RecordBrowser({
   readonly documentsLoaded?: boolean;
 }) {
   const t = useT(appApplicantCatalog);
-  const locale = useLocale();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('all');
   const [filter, setFilter] = useState<RecordFilter>('all');
@@ -129,7 +126,7 @@ export function RecordBrowser({
         {rowCount === 1
           ? t('appApplicant.appApplicantIdRecordBrowser.1ItemMatches')
           : t('appApplicant.appApplicantIdRecordBrowser.rowcountItemsMatch', {
-              rowCount: formatNumber(rowCount, locale),
+              rowCount: rowCount,
             })}
         {pageCount > 1 ? ` Page ${activePage + 1} of ${pageCount}.` : null}
       </output>

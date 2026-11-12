@@ -1,5 +1,4 @@
 import { resolveDocumentType } from '@visastack/core/catalogue';
-import { formatNumber } from '@visastack/i18n';
 import {
   type FactAssuranceView,
   accountPrincipal,
@@ -315,8 +314,8 @@ export default async function ApplicantProfilePage({
             <span>{t('appApplicant.appApplicantIdProfilePage.essentialsAdded')}</span>
             <strong>
               {t('appApplicant.appApplicantIdProfilePage.answeredOfTotal', {
-                answered: formatNumber(essentials.answered, locale),
-                total: formatNumber(essentials.total, locale),
+                answered: essentials.answered,
+                total: essentials.total,
               })}
             </strong>
             <div className="meter" aria-hidden="true">
@@ -332,7 +331,7 @@ export default async function ApplicantProfilePage({
                   ? t(
                       'appApplicant.appApplicantIdProfilePage.fullProfileCompletenessOfTheDetails',
                       {
-                        completeness: formatNumber(completeness, locale),
+                        completeness: completeness,
                         plural: plural(view.openSections, 'open section'),
                       },
                     )

@@ -1,4 +1,3 @@
-import { formatNumber } from '@visastack/i18n';
 import {
   computeReadiness,
   getApplicant,
@@ -457,8 +456,8 @@ export default async function ApplicantOverviewPage({
                     {pathDone === 0
                       ? t('appApplicant.appApplicantIdPage.threeStepsToGetReady')
                       : t('appApplicant.appApplicantIdPage.pathdoneOfLengthStepsDoneKeep', {
-                          pathDone: formatNumber(pathDone, locale),
-                          length: formatNumber(pathSteps.length, locale),
+                          pathDone: pathDone,
+                          length: pathSteps.length,
                         })}
                   </h3>
                   <ol

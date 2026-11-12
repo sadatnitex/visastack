@@ -645,7 +645,7 @@ export function ImportPanel({
       <p className="uploader-limits" id={limitsId}>
         {t('appApplicant.appApplicantIdImportImportPanel.uploadlimitstextUpToMaxImportFiles', {
           uploadLimitsText: uploadLimitsText(limitLabel, pdfAccepted, true),
-          MAX_IMPORT_FILES: formatNumber(MAX_IMPORT_FILES, locale),
+          MAX_IMPORT_FILES: MAX_IMPORT_FILES,
         })}
       </p>
       {remembered > 0 ? (
@@ -781,7 +781,7 @@ export function ImportPanel({
         <p className="field-hint">
           {t('appApplicant.appApplicantIdImportImportPanel.thisFolderHoldsMoreThanTolocalestring', {
             toLocaleString: formatNumber(MAX_ENTRIES_LOOKED_AT, locale),
-            MAX_IMPORT_FILES: formatNumber(MAX_IMPORT_FILES, locale),
+            MAX_IMPORT_FILES: MAX_IMPORT_FILES,
           })}
         </p>
       ) : null}
@@ -861,7 +861,7 @@ export function ImportPanel({
           {showAll
             ? t('appApplicant.appApplicantIdImportImportPanel.showFewer')
             : t('appApplicant.appApplicantIdImportImportPanel.showAllLength', {
-                length: formatNumber(items.length, locale),
+                length: items.length,
               })}
         </button>
       ) : null}

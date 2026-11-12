@@ -1,6 +1,6 @@
 'use client';
 
-import { type Locale, formatDate as formatLocaleDate, formatNumber } from '@visastack/i18n';
+import { type Locale, formatDate as formatLocaleDate } from '@visastack/i18n';
 import Link from 'next/link';
 import {
   createContext,
@@ -1022,7 +1022,6 @@ function SectionCard({
   readonly search: string;
 }) {
   const t = useT(appApplicantCatalog);
-  const locale = useLocale();
   const headingId = useId();
   const searching = search.trim() !== '';
   return (
@@ -1055,8 +1054,8 @@ function SectionCard({
         <>
           <p className="muted profile-section-progress">
             {t('appApplicant.appApplicantIdProfileEditor.answeredOfTotalDetailsCounted', {
-              answered: formatNumber(section.answered, locale),
-              total: formatNumber(section.total, locale),
+              answered: section.answered,
+              total: section.total,
             })}
           </p>
           <SectionDocuments
@@ -1230,7 +1229,6 @@ function EssentialsFirst({
   readonly onToggle: () => void;
 }) {
   const t = useT(appApplicantCatalog);
-  const locale = useLocale();
   const headingId = useId();
   const { essentials } = view;
   // The count and bar sit in the banner above; this block only says what to do.
@@ -1250,10 +1248,10 @@ function EssentialsFirst({
       {showAll ? (
         <p className="muted">
           {t('appApplicant.appApplicantIdProfileEditor.fullProfileAnsweredOfTotalDetails', {
-            answered: formatNumber(view.answered, locale),
-            total: formatNumber(view.total, locale),
+            answered: view.answered,
+            total: view.total,
             plural: plural(view.openSections, 'open section'),
-            percent: formatNumber(view.percent, locale),
+            percent: view.percent,
           })}
         </p>
       ) : (
@@ -1347,7 +1345,6 @@ export function ProfileEditor({
   endedRecords,
 }: ProfileEditorProps) {
   const t = useT(appApplicantCatalog);
-  const locale = useLocale();
   const editor = useRef<HTMLDivElement>(null);
   // Essentials First leads until every essential is added; a profile with no essentials list
   // (nothing to show) opens on all sections. A link to one section always opens all sections.
@@ -1583,8 +1580,8 @@ export function ProfileEditor({
                           'appApplicant.appApplicantIdProfileEditor.descriptionOpencountOfLengthSectionsOpen',
                           {
                             description: layer.description,
-                            openCount: formatNumber(layer.openCount, locale),
-                            length: formatNumber(layer.sections.length, locale),
+                            openCount: layer.openCount,
+                            length: layer.sections.length,
                           },
                         )}
                       </p>

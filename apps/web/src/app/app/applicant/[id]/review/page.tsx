@@ -1,4 +1,3 @@
-import { formatNumber } from '@visastack/i18n';
 import {
   DEFAULT_DOCUMENT_PROTECTION,
   accountPrincipal,
@@ -60,7 +59,7 @@ export default async function WhatWeFoundPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<{ batch?: string | string[] }>;
 }) {
-  const locale = await primeLocale();
+  await primeLocale();
   const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   // The files just added, when a person arrives from an import: followed one by one below.
@@ -215,7 +214,7 @@ export default async function WhatWeFoundPage({
               {rows.length === 1
                 ? t('appApplicant.appApplicantIdReviewPage.1FileSaved')
                 : t('appApplicant.appApplicantIdReviewPage.lengthFilesSaved', {
-                    length: formatNumber(rows.length, locale),
+                    length: rows.length,
                   })}
             </h2>
             <ul className="flow-files">
