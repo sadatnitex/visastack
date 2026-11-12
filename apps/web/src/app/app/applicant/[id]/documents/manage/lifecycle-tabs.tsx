@@ -67,7 +67,7 @@ export function LifecycleTabs({
         {removalRecordsHref ? (
           <li>
             <Link className="lc-tab lc-tab-records plain-link" href={removalRecordsHref}>
-              {t('appApplicant.appApplicantIdDocumentsManageLifecycleTabs.removalRecords')}
+              {t.node('appApplicant.appApplicantIdDocumentsManageLifecycleTabs.removalRecords')}
             </Link>
           </li>
         ) : null}

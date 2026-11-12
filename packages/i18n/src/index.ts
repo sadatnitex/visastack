@@ -32,5 +32,10 @@ export {
   defineCatalog,
   type ResolvedMessage,
 } from './catalog';
+export {
+  type MessageDescriptor,
+  messageDescriptor,
+  renderDescriptor,
+} from './descriptor';
 export { formatDate, formatMoney, formatNumber, localeTag } from './format';
 export { formatMessage } from './icu';

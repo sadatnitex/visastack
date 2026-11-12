@@ -1,6 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../lib/bengali-marked.test-support';
 
 vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => ({
@@ -309,5 +310,16 @@ describe('a button name and its visible text share one language', () => {
       expect(BENGALI.test(b.getAttribute('aria-label') ?? '')).toBe(
         BENGALI.test(b.textContent ?? ''),
       );
+  });
+});
+
+describe('open invitation states, language of parts', () => {
+  it('the client invitation marks its Bengali lang="bn" on an English page', async () => {
+    svc.previewClientInvitation.mockResolvedValue(notFound);
+    svc.getConsents.mockResolvedValue({});
+    const doc = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
+    const r = bengaliMarking(doc.body.innerHTML);
+    expect(r.unmarked).toEqual([]);
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

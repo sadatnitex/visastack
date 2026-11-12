@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../../lib/bengali-marked.test-support';
 vi.mock('server-only', () => ({}));
+vi.mock('./[id]/actions', () => ({
+  transitionMissionAction: vi.fn(),
+  snapshotMissionAction: vi.fn(),
+  deleteCancelledCaseAction: vi.fn(),
+}));
 // The language switch is off in the product, so the locale is set here directly.
 const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
 vi.mock('../../../lib/locale', () => ({ getLocale: async () => current.locale }));
@@ -15,10 +21,12 @@ vi.mock('react', async (importOriginal) => ({
   },
 }));
 
+import { I18nProvider } from '../../../components/i18n-provider';
 import { appMissionCatalog } from '../../../i18n/app-mission';
 import { primeLocale } from '../../../lib/i18n-server';
 import { CaseMobileBar } from './[id]/case-mobile-bar';
 import type { CaseAttentionItem } from './[id]/case-model';
+import { CaseMoreMenu } from './[id]/case-more-menu';
 
 const BENGALI = /[ঀ-৿]/;
 const bn = appMissionCatalog.bn as Record<string, string>;
@@ -107,5 +115,19 @@ describe('the case screens under English', () => {
     const html = await bar('en', { done: 6, total: 12 });
     expect(html).not.toMatch(BENGALI);
     expect(html).toContain('6 of 12');
+  });
+});
+
+describe('the case screens, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', () => {
+    const r = bengaliMarking(
+      renderToStaticMarkup(
+        <I18nProvider locale="bn" pageLang="en">
+          <CaseMoreMenu missionId="case-1" applicantId="person-1" canCancel canDelete={false} />
+        </I18nProvider>,
+      ),
+    );
+    expect(r.unmarked).toEqual([]);
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

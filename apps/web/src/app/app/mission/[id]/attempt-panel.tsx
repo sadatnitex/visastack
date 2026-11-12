@@ -66,16 +66,16 @@ export function AttemptPanel({
   const canAdd = view.attempts.length > 0 || view.untrackedReports.length > 0;
   return (
     <article className="card attempt-panel" aria-labelledby="attempts-title">
-      <p className="card-kicker">{t('appMission.appMissionIdAttemptPanel.afterSubmission')}</p>
+      <p className="card-kicker">{t.node('appMission.appMissionIdAttemptPanel.afterSubmission')}</p>
       <h2 className="card-title" id="attempts-title">
-        {t('appMission.appMissionIdAttemptPanel.applicationAttempts')}
+        {t.node('appMission.appMissionIdAttemptPanel.applicationAttempts')}
       </h2>
       <p className="card-body u-mb-100">
-        {t('appMission.appMissionIdAttemptPanel.eachTimeThisApplicationGoesTo')}
+        {t.node('appMission.appMissionIdAttemptPanel.eachTimeThisApplicationGoesTo')}
       </p>
       {!view.available ? (
         <p className="card-body">
-          {t('appMission.appMissionIdAttemptPanel.attemptsCanBeRecordedHereSoon')}
+          {t.node('appMission.appMissionIdAttemptPanel.attemptsCanBeRecordedHereSoon')}
         </p>
       ) : (
         <>
@@ -98,7 +98,7 @@ export function AttemptPanel({
           ) : null}
           {view.attempts.length === 0 && view.untrackedReports.length === 0 ? (
             <p className="card-body">
-              {t('appMission.appMissionIdAttemptPanel.nothingRecordedYetReportTheSubmission')}
+              {t.node('appMission.appMissionIdAttemptPanel.nothingRecordedYetReportTheSubmission')}
             </p>
           ) : null}
           <ol className="attempt-list">
@@ -106,7 +106,7 @@ export function AttemptPanel({
               <li className="attempt-item" key={attempt.id}>
                 <div className="attempt-head">
                   <h3 className="attempt-title">
-                    {t('appMission.appMissionIdAttemptPanel.attemptAttemptno', {
+                    {t.node('appMission.appMissionIdAttemptPanel.attemptAttemptno', {
                       attemptNo: attempt.attemptNo,
                     })}
                   </h3>
@@ -115,11 +115,11 @@ export function AttemptPanel({
                       className={`badge ${ATTEMPT_DECISION_TONES[attempt.standing.decision] ?? 'badge-neutral'}`}
                     >
                       {ATTEMPT_DECISION_LABELS[attempt.standing.decision] ??
-                        t('appMission.appMissionIdAttemptPanel.otherDecision')}
+                        t.node('appMission.appMissionIdAttemptPanel.otherDecision')}
                     </span>
                   ) : (
                     <span className="badge badge-neutral">
-                      {t('appMission.appMissionIdAttemptPanel.noDecisionRecorded')}
+                      {t.node('appMission.appMissionIdAttemptPanel.noDecisionRecorded')}
                     </span>
                   )}
                 </div>
@@ -132,10 +132,13 @@ export function AttemptPanel({
                 <p className="muted attempt-meta">{receiptLine(attempt)}</p>
                 {attempt.standing.kind === 'DECIDED' ? (
                   <p className="muted attempt-meta">
-                    {t('appMission.appMissionIdAttemptPanel.decisionOnFormatdateonlyBasislabel', {
-                      formatDateOnly: formatDateOnly(attempt.standing.occurredOn),
-                      basisLabel: basisLabel(attempt.standing.documentSupplied),
-                    })}
+                    {t.node(
+                      'appMission.appMissionIdAttemptPanel.decisionOnFormatdateonlyBasislabel',
+                      {
+                        formatDateOnly: formatDateOnly(attempt.standing.occurredOn),
+                        basisLabel: basisLabel(attempt.standing.documentSupplied),
+                      },
+                    )}
                   </p>
                 ) : null}
                 {attempt.events.length > 0 ? (
@@ -145,14 +148,14 @@ export function AttemptPanel({
                         <span className="row-key">{formatDateOnly(event.occurredOn)}</span>{' '}
                         {event.kind === 'DECISION'
                           ? (ATTEMPT_DECISION_LABELS[event.decision ?? ''] ??
-                            t('appMission.appMissionIdAttemptForms.decision'))
+                            t.node('appMission.appMissionIdAttemptForms.decision'))
                           : ATTEMPT_EVENT_LABELS[event.kind]}
                         {event.kind === 'AUTHORITY_REQUEST' ? (
                           <>
                             {' '}
                             (
                             {AUTHORITY_SOURCE_LABELS[event.requestSource ?? ''] ??
-                              t('appMission.appMissionIdAttemptPanel.officialOffice')}
+                              t.node('appMission.appMissionIdAttemptPanel.officialOffice')}
                             ):{' '}
                             {event.requestedDocTypes
                               .map((k) => documentKinds.find((d) => d.value === k)?.label ?? k)
@@ -165,7 +168,7 @@ export function AttemptPanel({
                   </ul>
                 ) : null}
                 <details className="attempt-details">
-                  <summary>{t('appMission.appMissionIdAttemptPanel.addWhatHappened')}</summary>
+                  <summary>{t.node('appMission.appMissionIdAttemptPanel.addWhatHappened')}</summary>
                   <AttemptEventForm
                     missionId={missionId}
                     attemptId={attempt.id}
@@ -181,9 +184,11 @@ export function AttemptPanel({
           </ol>
           {canAdd ? (
             <details className="attempt-details u-mt-100">
-              <summary>{t('appMission.appMissionIdAttemptPanel.recordAnotherAttempt')}</summary>
+              <summary>
+                {t.node('appMission.appMissionIdAttemptPanel.recordAnotherAttempt')}
+              </summary>
               <p className="card-body">
-                {t('appMission.appMissionIdAttemptPanel.forAResubmissionANewApplication')}
+                {t.node('appMission.appMissionIdAttemptPanel.forAResubmissionANewApplication')}
               </p>
               <RecordAttemptForm
                 missionId={missionId}

@@ -84,7 +84,7 @@ export function TripStartForm({
     <form ref={form} action={formAction} className="trip-start-form">
       <div className="lc-step">
         <label className="label" htmlFor={`${id}-destination`}>
-          {t('appMission.appMissionStartStartForm.whereAreYouGoing')}
+          {t.node('appMission.appMissionStartStartForm.whereAreYouGoing')}
         </label>
         <CountryField
           id={`${id}-destination`}
@@ -104,7 +104,9 @@ export function TripStartForm({
         />
       </div>
       <fieldset className="trip-start-travellers lc-step">
-        <legend className="label">{t('appMission.appMissionStartStartForm.whoSTravelling')}</legend>
+        <legend className="label">
+          {t.node('appMission.appMissionStartStartForm.whoSTravelling')}
+        </legend>
         {travellers.map((t, index) => (
           <label key={t.applicantId} className="package-check">
             <input
@@ -121,7 +123,7 @@ export function TripStartForm({
       </fieldset>
       <AboutDisclosure summary={t('appMission.appMissionIdCaseWelcome.aboutThis')}>
         <p className="muted u-fs-085 u-m-0 lc-help">
-          {t('appMission.appMissionStartStartForm.eachTravellerGetsTheirOwnCase')}
+          {t.node('appMission.appMissionStartStartForm.eachTravellerGetsTheirOwnCase')}
         </p>
       </AboutDisclosure>
       <StickyActionBar label={t('appMission.appMissionStartStartForm.startTheTrip')}>
@@ -139,10 +141,12 @@ export function TripStartForm({
             <li key={c.missionId}>
               <Link href={`/app/mission/${c.missionId}#trip-package`}>
                 {c.existing
-                  ? t('appMission.appMissionStartStartForm.openTheExistingCaseForName', {
+                  ? t.node('appMission.appMissionStartStartForm.openTheExistingCaseForName', {
                       name: c.name,
                     })
-                  : t('appMission.appMissionStartStartForm.openTheCaseForName', { name: c.name })}
+                  : t.node('appMission.appMissionStartStartForm.openTheCaseForName', {
+                      name: c.name,
+                    })}
               </Link>
             </li>
           ))}

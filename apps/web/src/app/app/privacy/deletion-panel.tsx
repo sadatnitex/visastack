@@ -161,7 +161,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
           htmlFor="del-reason"
           style={{ display: 'block', marginBottom: '0.4rem' }}
         >
-          {t('appPrivacy.appPrivacyDeletionPanel.reasonOptional')}
+          {t.node('appPrivacy.appPrivacyDeletionPanel.reasonOptional')}
         </label>
         <input
           id="del-reason"
@@ -174,7 +174,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
         {confirming ? (
           <div className="notice" role="alert">
             <p className="u-m-0">
-              {t('appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount')}
+              {t.node('appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount')}
             </p>
             <div className="cta-row u-mt-050">
               <SubmitButton
@@ -188,13 +188,13 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
                 className="btn btn-secondary"
                 onClick={() => setConfirming(false)}
               >
-                {t('appPrivacy.appPrivacyDeletionPanel.keepMyAccount')}
+                {t.node('appPrivacy.appPrivacyDeletionPanel.keepMyAccount')}
               </button>
             </div>
           </div>
         ) : (
           <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
-            {t('appPrivacy.appPrivacyDeletionPanel.requestAccountDeletion')}
+            {t.node('appPrivacy.appPrivacyDeletionPanel.requestAccountDeletion')}
           </button>
         )}
         <FormMessage result={reqState} />

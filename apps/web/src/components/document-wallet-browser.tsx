@@ -229,14 +229,19 @@ export function DocumentWalletBrowser({
                     setPage(0);
                   }}
                 >
-                  <option value="all">{t('components.documentWalletBrowser.allCategories')}</option>
+                  <option {...t.lang('components.documentWalletBrowser.allCategories')} value="all">
+                    {t('components.documentWalletBrowser.allCategories')}
+                  </option>
                   {categories.map((value) => (
                     <option key={value} value={value}>
                       {value}
                     </option>
                   ))}
                   {notSorted > 0 ? (
-                    <option value={NOT_SORTED}>
+                    <option
+                      {...t.lang('components.documentWalletBrowser.notSetYet')}
+                      value={NOT_SORTED}
+                    >
                       {t('components.documentWalletBrowser.notSetYet')}
                     </option>
                   ) : null}

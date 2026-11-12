@@ -350,7 +350,7 @@ export function CaseNoChecklistSummary({
             : t('appMission.appMissionIdCaseStatusPanel.whatIsAChecklist')
         }
       >
-        <p>{t('appMission.appMissionIdCaseStatusPanel.aChecklistListsThePapersThis')}</p>
+        <p>{t.node('appMission.appMissionIdCaseStatusPanel.aChecklistListsThePapersThis')}</p>
         {!welcomeShown && packOptionCount === 0 && noChecklistLine ? (
           <p>{noChecklistLine}</p>
         ) : null}

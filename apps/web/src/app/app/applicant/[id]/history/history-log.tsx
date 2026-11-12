@@ -36,10 +36,12 @@ export function HistoryLog({
       <form className="history-part-form" method="get" action={pathname}>
         <label className="history-part-field" htmlFor="history-part">
           <span className="field-label">
-            {t('appApplicant.appApplicantIdHistoryHistoryLog.partOfTheProfile')}
+            {t.node('appApplicant.appApplicantIdHistoryHistoryLog.partOfTheProfile')}
           </span>
           <select id="history-part" name="section" className="input" defaultValue={section ?? ''}>
-            <option value="">{t('appApplicant.appApplicantIdHistoryHistoryLog.everyPart')}</option>
+            <option {...t.lang('appApplicant.appApplicantIdHistoryHistoryLog.everyPart')} value="">
+              {t('appApplicant.appApplicantIdHistoryHistoryLog.everyPart')}
+            </option>
             {parts.map((part) => (
               <option key={part.key} value={part.key}>
                 {part.label}
@@ -48,7 +50,7 @@ export function HistoryLog({
           </select>
         </label>
         <button type="submit" className="btn btn-secondary u-btn-sm">
-          {t('appApplicant.appApplicantIdHistoryHistoryLog.showThisPart')}
+          {t.node('appApplicant.appApplicantIdHistoryHistoryLog.showThisPart')}
         </button>
       </form>
       {entries.length === 0 ? (

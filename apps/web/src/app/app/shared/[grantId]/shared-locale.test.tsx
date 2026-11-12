@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../../../lib/bengali-marked.test-support';
 import { renderServer, stub, textOf } from '../../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -147,5 +148,18 @@ describe('shared workspace under Bengali', () => {
     expect(shown).toContain('Shared Workspace');
     expect(shown).toContain('Shared Documents');
     expect(shown).toContain('Safe Copy: Not Prepared Yet');
+  });
+});
+
+describe('shared workspace, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', async () => {
+    state.locale = 'bn';
+    state.generation += 1;
+    state.workspace = workspace({});
+    const r = bengaliMarking(
+      await renderServer(SharedWorkspacePage({ params: Promise.resolve({ grantId: 'grant-1' }) })),
+    );
+    // Text handed to a component prop stays unmarked for now (skipped item component_prop).
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

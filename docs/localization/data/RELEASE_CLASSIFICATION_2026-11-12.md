@@ -6,7 +6,7 @@ Owner decisions of 2026-11-12, recorded in `drafts/OWNER_DECISIONS.json` (key `r
 - The Bengali word for box: "same, box", read as বক্স (never বাক্স). See glossary term T133.
 - Earlier decisions kept: official visa rules stay English with a Bengali note; invoice and receipt record content stays English with a Bengali note. Review queue 04 stays refused.
 
-Counts: released with a PASS draft 541, released with no PASS draft yet (English stays) 22, kept in English 103.
+Counts: released with a PASS draft 541, released with no PASS draft yet (English stays) 22, kept in English 105.
 
 The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The register and queue approval state is derived from it by `tools/release-state.mjs` (used by `tools/build-register.mjs` and, for the committed files, `tools/apply-release-state.mjs`); `scripts/i18n/release-state.test.mjs` checks that the derivation and the CSVs agree.
 
@@ -59,14 +59,16 @@ The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The regis
 - SG-f974eb5d: document requirement for minors  English: Parental travel consent for applicants under 18.
 - SG-ff7d2a1c: what most visa forms ask for first  English: The details most visa forms ask for first.
 
-## KEPT: technical (66)
+## KEPT: technical (68)
 
 - SG-01aeac1c: English-only size label (mbLabel) filled into the sentence  English: Each person you keep a record for can hold up to {mbLabel}. When you share a record with a
 - SG-02122e22: English-only consent label filled into the sentence (label in name)  English: Turn On: {label}
 - SG-02a56416: Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.  English: (Not Accepted Yet)
+- SG-066180d4: english word inside bengali sentence  English: {quietHidden} more {agree} had no reply
 - SG-0a12f492: Accessible name must match the visible button, which is still English here (Remove); stays English until the button is converted.  English: Remove: {label}
 - SG-0b6663fd: English-only upload notice filled into the sentence  English: {uploadCheckNotice} iPhone photos (HEIC) are saved as JPG copies so they open anywhere.
 - SG-0c3da2e7: A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.  English: Needed by {formatDateOnly}
+- SG-103526c4: english word inside bengali sentence  English: Backs {plural}.
 - SG-153f9777: Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.  English: {removedInLine}. Restore it to bring it back to your documents. Cases that moved to the id
 - SG-19b168cd: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: Keep As It Is: {title}
 - SG-1f2c844a: Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.  English: Due {due}

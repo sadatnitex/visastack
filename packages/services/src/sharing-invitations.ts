@@ -12,7 +12,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { isEmailAddress } from './email-address';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
@@ -32,7 +32,7 @@ export async function createSharingInvitation(
   Result<{ readonly invitation: SharingInvitation; readonly rawToken: string }, ServiceError>
 > {
   const email = input.email.trim().toLowerCase();
-  if (!isEmailAddress(email)) return err(serviceError('invalid', 'Enter a valid recipient email.'));
+  if (!isEmailAddress(email)) return err(keyedError('invalid', 'sharing.inviteEmailInvalid'));
   const account = first(
     await db
       .select()
@@ -41,7 +41,7 @@ export async function createSharingInvitation(
       .limit(1),
   );
   if (!account || account.email?.toLowerCase() === email)
-    return err(serviceError('invalid', 'You cannot share with yourself.'));
+    return err(keyedError('invalid', 'sharing.cannotShareSelf'));
   return db.transaction(async (tx) => {
     const allCases = !input.missionId;
     // An all-cases invitation takes the person's sharing lock first, like an
@@ -111,7 +111,7 @@ export async function previewSharingInvitation(
   input: { readonly actorAccountId: string; readonly rawToken: string },
 ): Promise<Result<SharingInvitation, ServiceError>> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(input.rawToken))
-    return err(serviceError('not_found', 'Invitation unavailable.'));
+    return err(keyedError('not_found', 'sharing.inviteUnavailable'));
   const invite = first(
     await db
       .select()
@@ -127,26 +127,18 @@ export async function previewSharingInvitation(
       .limit(1),
   );
   if (!invite || !account || invite.email !== account.email?.toLowerCase())
-    return err(serviceError('forbidden', 'Use the email address that received this invitation.'));
+    return err(keyedError('forbidden', 'sharing.inviteWrongEmail'));
   if (invite.status !== 'PENDING' || invite.expiresAt.getTime() <= Date.now())
-    return err(
-      serviceError(
-        'invalid',
-        'This invitation has expired, was revoked or has already been accepted.',
-      ),
-    );
+    return err(keyedError('invalid', 'sharing.inviteNotUsable'));
   const applicant = await getApplicant(db, invite.applicantId);
   if (!applicant || applicant.ownerAccountId !== invite.invitedByAccountId)
-    return err(serviceError('forbidden', 'Invitation unavailable.'));
+    return err(keyedError('forbidden', 'sharing.inviteUnavailable'));
   // Documents the owner moved to Recently Deleted after inviting are no longer part of the share
   // (LC-A2), so the recipient is shown, and given, only what is still there; archived ones stay
   // (D6). An invitation whose named documents are all gone offers nothing and is refused here.
   if (invite.documentIds?.length) {
     const documentIds = await stillPresentDocumentIds(db, invite.documentIds);
-    if (documentIds.length === 0)
-      return err(
-        serviceError('invalid', 'The documents in this invitation are no longer available.'),
-      );
+    if (documentIds.length === 0) return err(keyedError('invalid', 'sharing.inviteDocumentsGone'));
     return ok({ ...invite, documentIds });
   }
   return ok(invite);
@@ -237,9 +229,7 @@ export async function acceptSharingInvitation(
         !(await hasConsent(tx, input.actorAccountId, 'CORE_PROCESSING')) ||
         !(await hasConsent(tx, input.actorAccountId, 'SHARING'))
       )
-        return err(
-          serviceError('consent_required', 'Confirm account and sharing consent before accepting.'),
-        );
+        return err(keyedError('consent_required', 'sharing.inviteConsent'));
       const claimed = await tx
         .update(schema.sharingInvitations)
         .set({ status: 'ACCEPTED', updatedAt: new Date() })
@@ -251,8 +241,7 @@ export async function acceptSharingInvitation(
           ),
         )
         .returning();
-      if (!claimed.length)
-        return err(serviceError('invalid', 'This invitation is no longer pending.'));
+      if (!claimed.length) return err(keyedError('invalid', 'sharing.inviteNotPending'));
       // The preview already left out documents in Recently Deleted (LC-A2); how many is recorded.
       const documentsLeftOut =
         (claimed[0]?.documentIds?.length ?? 0) - (invite.documentIds?.length ?? 0);
@@ -402,7 +391,7 @@ export async function listInvitationCaseExceptions(
     !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
     proof.actor.kind !== 'applicant_owner'
   ) {
-    return err(serviceError('forbidden', 'Only the owner of this record can see this.'));
+    return err(keyedError('forbidden', 'sharing.ownerOnlySee'));
   }
   const exceptions = await listCaseExclusionsForApplicant(proof.tx, proof.applicant.id);
   return ok(
@@ -436,7 +425,7 @@ export async function revokeSharingInvitation(
     );
     const applicant = invite && (await getApplicant(tx, invite.applicantId));
     if (!invite || applicant?.ownerAccountId !== actorAccountId)
-      return err(serviceError('forbidden', 'Only the owner can revoke this invitation.'));
+      return err(keyedError('forbidden', 'sharing.ownerOnlyRevoke'));
     const changed = await tx
       .update(schema.sharingInvitations)
       .set({ status: 'REVOKED', updatedAt: new Date() })
@@ -447,13 +436,7 @@ export async function revokeSharingInvitation(
         ),
       )
       .returning();
-    if (!changed.length)
-      return err(
-        serviceError(
-          'invalid',
-          'Invitation is no longer pending. Manage accepted access in Sharing.',
-        ),
-      );
+    if (!changed.length) return err(keyedError('invalid', 'sharing.inviteNotPendingManage'));
     await appendAuditEvent(tx, {
       eventType: 'SHARING_INVITATION_REVOKED',
       actorAccountId,

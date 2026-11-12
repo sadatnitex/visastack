@@ -201,7 +201,7 @@ export default async function AddDocumentsPage({
           {data.needsAnswer > 0 ? (
             <p className="add-answer">
               <Link href={`/app/applicant/${id}/documents#needs-decision`}>
-                {t('appApplicant.appApplicantIdDocumentsAddPage.pluralOneAnswer', {
+                {t.node('appApplicant.appApplicantIdDocumentsAddPage.pluralOneAnswer', {
                   plural: plural(data.needsAnswer, 'File Needs', 'Files Need'),
                 })}
               </Link>
@@ -221,7 +221,7 @@ export default async function AddDocumentsPage({
             />
             <details className="add-more" open={initialKind ? true : undefined}>
               <summary className="add-more-summary">
-                {t('appApplicant.appApplicantIdDocumentsAddPage.takeAPhotoOrSayWhat')}
+                {t.node('appApplicant.appApplicantIdDocumentsAddPage.takeAPhotoOrSayWhat')}
               </summary>
               <DocumentUploader
                 key={initialKind}
@@ -243,7 +243,7 @@ export default async function AddDocumentsPage({
           </article>
           <section className="add-next" aria-labelledby="add-next-title">
             <h2 id="add-next-title" className="card-title">
-              {t('appApplicant.appApplicantIdDocumentsAddPage.whatHappensNext')}
+              {t.node('appApplicant.appApplicantIdDocumentsAddPage.whatHappensNext')}
             </h2>
             <ol className="add-next-list">
               {nextSteps(data.reading.reads, data.virusScanning).map((step) => (
@@ -254,7 +254,7 @@ export default async function AddDocumentsPage({
               ))}
             </ol>
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/documents`}>
-              {t('appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments')}
+              {t.node('appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments')}
             </Link>
           </section>
         </>

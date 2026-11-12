@@ -58,7 +58,9 @@ function AnswerChips({ summary }: { readonly summary: CollectionAnswerSummary | 
     return (
       <>
         <span aria-hidden="true">-</span>
-        <span className="sr-only">{t('appAgency.appAgencyOrgidCollectionPage.noAnswersYet')}</span>
+        <span className="sr-only">
+          {t.node('appAgency.appAgencyOrgidCollectionPage.noAnswersYet')}
+        </span>
       </>
     );
   }
@@ -67,21 +69,21 @@ function AnswerChips({ summary }: { readonly summary: CollectionAnswerSummary | 
       <span className="request-answers-total">{plural(summary.answers, 'Answer', 'Answers')}</span>
       {summary.waiting > 0 ? (
         <StatusBadge tone="warning">
-          {t('appAgency.appAgencyOrgidCollectionPage.waitingWaitingForReview', {
+          {t.node('appAgency.appAgencyOrgidCollectionPage.waitingWaitingForReview', {
             waiting: summary.waiting,
           })}
         </StatusBadge>
       ) : null}
       {summary.needsCorrection > 0 ? (
         <StatusBadge tone="danger">
-          {t('appAgency.appAgencyOrgidCollectionPage.needscorrectionNeedsCorrection', {
+          {t.node('appAgency.appAgencyOrgidCollectionPage.needscorrectionNeedsCorrection', {
             needsCorrection: summary.needsCorrection,
           })}
         </StatusBadge>
       ) : null}
       {summary.accepted > 0 ? (
         <StatusBadge tone="success">
-          {t('appAgency.appAgencyOrgidCollectionPage.acceptedAccepted', {
+          {t.node('appAgency.appAgencyOrgidCollectionPage.acceptedAccepted', {
             accepted: summary.accepted,
           })}
         </StatusBadge>
@@ -150,20 +152,20 @@ export default async function CollectionRequestsPage({
         description={t('appAgency.appAgencyOrgidCollectionPage.forPeopleWhoAreNotYour')}
         actions={
           <Link className="btn btn-primary" href={`${base}/new`}>
-            {t('appAgency.appAgencyOrgidCollectionPage.newRequest')}
+            {t.node('appAgency.appAgencyOrgidCollectionPage.newRequest')}
           </Link>
         }
       />
       {requests.length >= COLLECTION_LIST_LIMIT ? (
         <p className="notice notice-warn">
-          {t('appAgency.appAgencyOrgidCollectionPage.showingYourNewestCollectionListLimit', {
+          {t.node('appAgency.appAgencyOrgidCollectionPage.showingYourNewestCollectionListLimit', {
             COLLECTION_LIST_LIMIT,
           })}
         </p>
       ) : null}
       {requests.length === 0 ? (
         <EmptyState title={t('appAgency.appAgencyOrgidCollectionPage.noDocumentRequestsYet')}>
-          {t('appAgency.appAgencyOrgidCollectionPage.startOneWithNewRequestYou')}
+          {t.node('appAgency.appAgencyOrgidCollectionPage.startOneWithNewRequestYou')}
         </EmptyState>
       ) : (
         <>
@@ -176,7 +178,7 @@ export default async function CollectionRequestsPage({
               href={listHref(base, null, waiting)}
               {...(wanted === null ? { 'aria-current': 'page' as const } : {})}
             >
-              {t('appAgency.appAgencyOrgidClientsPage.all')}{' '}
+              {t.node('appAgency.appAgencyOrgidClientsPage.all')}{' '}
               <span className="request-filter-count">{formatNumber(requests.length, locale)}</span>
             </Link>
             {counts.map((entry) => (
@@ -201,38 +203,38 @@ export default async function CollectionRequestsPage({
                 href={listHref(base, wanted, false)}
                 {...(!waiting ? { 'aria-current': 'page' as const } : {})}
               >
-                {t('appAgency.appAgencyOrgidCollectionPage.allAnswers')}
+                {t.node('appAgency.appAgencyOrgidCollectionPage.allAnswers')}
               </Link>
               <Link
                 className="request-filter"
                 href={listHref(base, wanted, true)}
                 {...(waiting ? { 'aria-current': 'page' as const } : {})}
               >
-                {t('appAgency.appAgencyOrgidCollectionPage.waitingForReview')}{' '}
+                {t.node('appAgency.appAgencyOrgidCollectionPage.waitingForReview')}{' '}
                 <span className="request-filter-count">{formatNumber(waitingCount, locale)}</span>
               </Link>
             </nav>
           ) : null}
           <table className="data-table request-table">
             <caption className="sr-only">
-              {t('appAgency.appAgencyOrgidCollectionPage.documentRequestsNewestFirst')}
+              {t.node('appAgency.appAgencyOrgidCollectionPage.documentRequestsNewestFirst')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">{t('appAgency.appAgencyOrgidCollectionPage.for')}</th>
+                <th scope="col">{t.node('appAgency.appAgencyOrgidCollectionPage.for')}</th>
                 <th scope="col">
-                  {t('appAgency.appAgencyOrgidCollectionCollectionForms.destination')}
+                  {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.destination')}
                 </th>
                 <th scope="col">
-                  {t('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}
+                  {t.node('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}
                 </th>
-                <th scope="col">{t('appAgency.appAgencyOrgidCollectionPage.status')}</th>
+                <th scope="col">{t.node('appAgency.appAgencyOrgidCollectionPage.status')}</th>
                 {answers ? (
                   <th scope="col">
-                    {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.answers')}
+                    {t.node('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.answers')}
                   </th>
                 ) : null}
-                <th scope="col">{t('appAgency.appAgencyOrgidCollectionPage.created')}</th>
+                <th scope="col">{t.node('appAgency.appAgencyOrgidCollectionPage.created')}</th>
               </tr>
             </thead>
             <tbody>
@@ -241,7 +243,7 @@ export default async function CollectionRequestsPage({
                   <td data-label={t('appAgency.appAgencyOrgidCollectionPage.for')}>
                     <Link className="request-link" href={`${base}/request?id=${request.id}`}>
                       {request.recipientNameHint ??
-                        t('appAgency.appAgencyOrgidCollectionPage.notNamedYet')}
+                        t.node('appAgency.appAgencyOrgidCollectionPage.notNamedYet')}
                     </Link>
                   </td>
                   <td
@@ -251,7 +253,7 @@ export default async function CollectionRequestsPage({
                   </td>
                   <td data-label={t('appAgency.appAgencyOrgidCollectionCollectionForms.purpose')}>
                     {request.purpose ??
-                      t('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
+                      t.node('appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet')}
                   </td>
                   <td data-label={t('appAgency.appAgencyOrgidCollectionPage.status')}>
                     <StatusBadge tone={STATUS_TONES[request.status]}>
@@ -276,12 +278,12 @@ export default async function CollectionRequestsPage({
           </table>
           {query?.review === WAITING_FILTER && answers && waitingCount === 0 ? (
             <p className="notice">
-              {t('appAgency.appAgencyOrgidCollectionPage.nothingIsWaitingForReviewNow')}
+              {t.node('appAgency.appAgencyOrgidCollectionPage.nothingIsWaitingForReviewNow')}
             </p>
           ) : null}
           {shown.length === 0 ? (
             <p className="notice">
-              {t('appAgency.appAgencyOrgidCollectionPage.noRequestsMatchBothFiltersTurn')}
+              {t.node('appAgency.appAgencyOrgidCollectionPage.noRequestsMatchBothFiltersTurn')}
             </p>
           ) : null}
         </>

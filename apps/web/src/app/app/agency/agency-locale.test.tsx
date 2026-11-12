@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../../lib/bengali-marked.test-support';
 import { navigationState, renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -350,5 +351,19 @@ describe('wording signed off by the owner on 2026-11-12 is Bengali, the rest sta
     const keys = Object.keys(en).filter((key) => en[key]?.includes(fragment));
     expect(keys.length).toBeGreaterThan(0);
     for (const key of keys) expect(key in bn, key).toBe(false);
+  });
+});
+
+describe('the agencies list, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', async () => {
+    mocks.listMembershipsForAccount.mockResolvedValue([
+      membership(PENDING, 'PENDING_VERIFICATION'),
+      membership(ACTIVE, 'ACTIVE'),
+    ]);
+    current.holder = null;
+    current.locale = 'bn';
+    const r = bengaliMarking(await renderServer(AgencyPage({ searchParams: Promise.resolve({}) })));
+    // Text handed to a component prop stays unmarked for now (skipped item component_prop).
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

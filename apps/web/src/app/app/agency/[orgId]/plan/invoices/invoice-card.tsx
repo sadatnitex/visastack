@@ -166,20 +166,20 @@ export function InvoiceCard({
       <p className="invoice-note">
         {INVOICE_STATE_HINTS[invoice.state]}
         {invoice.partlyPaid && invoice.state === 'OPEN'
-          ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.partOfItHasBeenPaid')
+          ? t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.partOfItHasBeenPaid')
           : ''}
         {due?.label === 'Overdue'
-          ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.itWasDueOnFormatbillingdate', {
+          ? t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.itWasDueOnFormatbillingdate', {
               formatBillingDate: formatBillingDate(invoice.dueDate),
             })
           : ''}
         {due?.label === 'Due Today'
-          ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.itIsDueToday')
+          ? t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.itIsDueToday')
           : ''}
       </p>
       {invoice.creditMinorUnits > 0 ? (
         <p className="invoice-note">
-          {t(
+          {t.node(
             'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.creditFromAnEarlierPaymentPlainamount',
             { plainAmount: plainAmount(invoice.creditMinorUnits, invoice.currency) },
           )}
@@ -187,30 +187,30 @@ export function InvoiceCard({
       ) : null}
       <dl className="invoice-facts">
         <div>
-          <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.invoiced')}</dt>
+          <dt>{t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.invoiced')}</dt>
           <dd>{plainAmount(invoice.invoicedAmountMinorUnits, invoice.currency)}</dd>
         </div>
         <div>
           <dt>
             {refunded
-              ? t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.keptAfterRefunds')
-              : t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paidSoFar')}
+              ? t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.keptAfterRefunds')
+              : t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paidSoFar')}
           </dt>
           <dd>{plainAmount(invoice.collectedAmountMinorUnits, invoice.currency)}</dd>
         </div>
         {invoice.refundedMinorUnits > 0 ? (
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.refunded')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.refunded')}</dt>
             <dd>{plainAmount(invoice.refundedMinorUnits, invoice.currency)}</dd>
           </div>
         ) : null}
         <div>
-          <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.stillOwed')}</dt>
+          <dt>{t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.stillOwed')}</dt>
           <dd>{plainAmount(invoice.outstandingMinorUnits, invoice.currency)}</dd>
         </div>
         {refunded ? null : (
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.due')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.due')}</dt>
             <dd className={due ? `billing-due-${due.tone}` : undefined}>
               {formatBillingDate(invoice.dueDate)}
             </dd>
@@ -254,10 +254,10 @@ export function InvoiceCard({
           {reported ? (
             <p className="invoice-note">
               {onlineOffered
-                ? t(
+                ? t.node(
                     'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReportedWeAreCheckingIt',
                   )
-                : t(
+                : t.node(
                     'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReportedWeAreCheckingIt7bdaca',
                   )}
             </p>
@@ -282,13 +282,13 @@ export function InvoiceCard({
           )}
         >
           <h4 className="invoice-subhead">
-            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReports')}
+            {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.paymentReports')}
           </h4>
           <ul className="invoice-list">
             {invoice.claims.map((claim) => (
               <li key={claim.id} className="invoice-list-item">
                 <span>
-                  {t(
+                  {t.node(
                     'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.claimMethodLabelsPlainamountPaidFormatbillingdat',
                     {
                       CLAIM_METHOD_LABELS: CLAIM_METHOD_LABELS[claim.method],
@@ -302,9 +302,12 @@ export function InvoiceCard({
                 </StatusBadge>
                 {claim.status === 'REJECTED' && claim.decisionReason ? (
                   <span className="invoice-note">
-                    {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.reasonDecisionreason', {
-                      decisionReason: claim.decisionReason,
-                    })}
+                    {t.node(
+                      'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.reasonDecisionreason',
+                      {
+                        decisionReason: claim.decisionReason,
+                      },
+                    )}
                   </span>
                 ) : null}
                 {claim.hasProofFile ? (
@@ -313,7 +316,7 @@ export function InvoiceCard({
                     href={`/api/billing/proof/${organizationId}/${claim.id}`}
                     download
                   >
-                    {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadProof')}
+                    {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadProof')}
                   </a>
                 ) : null}
               </li>
@@ -331,13 +334,13 @@ export function InvoiceCard({
           )}
         >
           <h4 className="invoice-subhead">
-            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.onlinePayments')}
+            {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.onlinePayments')}
           </h4>
           <ul className="invoice-list">
             {invoice.attempts.map((attempt) => (
               <li key={attempt.id} className="invoice-list-item">
                 <span>
-                  {t(
+                  {t.node(
                     'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.plainamountStartedFormatbillingdatetime',
                     {
                       plainAmount: plainAmount(attempt.amountMinorUnits, attempt.currency),
@@ -375,7 +378,7 @@ export function InvoiceCard({
           })}
         >
           <h4 className="invoice-subhead">
-            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receipts')}
+            {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receipts')}
           </h4>
           <ul className="invoice-list">
             {invoice.receipts.map((receipt) => (
@@ -384,12 +387,12 @@ export function InvoiceCard({
                   className="invoice-link"
                   href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}`}
                 >
-                  {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receiptNumber', {
+                  {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.receiptNumber', {
                     number: receipt.number,
                   })}
                 </Link>
                 <span>
-                  {t(
+                  {t.node(
                     'appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.plainamountOnFormatbillingdate',
                     {
                       plainAmount: plainAmount(receipt.amountMinorUnits, receipt.currency),
@@ -404,7 +407,7 @@ export function InvoiceCard({
                   className="invoice-link"
                   href={`/app/agency/${organizationId}/plan/invoices/receipts/${receipt.id}/pdf`}
                 >
-                  {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadReceiptPdf')}
+                  {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadReceiptPdf')}
                   <span className="sr-only"> {receipt.number}</span>
                 </a>
               </li>
@@ -418,7 +421,7 @@ export function InvoiceCard({
           className="btn btn-secondary"
           href={`/app/agency/${organizationId}/plan/invoices/${invoice.id}/pdf`}
         >
-          {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadInvoicePdf')}
+          {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadInvoicePdf')}
           <span className="sr-only"> {invoice.invoiceRef}</span>
         </a>
       </div>

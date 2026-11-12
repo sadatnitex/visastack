@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../../lib/axe.test-support';
+import { bengaliMarking } from '../../../lib/bengali-marked.test-support';
 import { renderServer, stub, textOf } from '../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -208,5 +209,13 @@ describe('plan page under Bengali', () => {
     expect(shown).toContain(bn['appAccount.appAccountPlanPage.inYourPlan']);
     expect(shown).toContain(bn['appAccount.appAccountPlanPage.now']);
     expect(textOf(await plan('en'))).not.toMatch(BENGALI);
+  });
+});
+
+describe('the account page, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', async () => {
+    const r = bengaliMarking(await account('bn'));
+    // Text handed to a component prop stays unmarked for now (skipped item component_prop).
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

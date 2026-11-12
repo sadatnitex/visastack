@@ -245,7 +245,7 @@ function opensReplace(input: NotificationEmailInput): boolean {
  * count the event does not carry. Keyed by every kind of email the product sends, so a new kind
  * without its own words does not compile; anything else still gets the full design.
  */
-type EmailEventType =
+export type EmailEventType =
   | NotificationEventType
   | 'INACTIVE_ACCOUNT_NOTICE'
   | 'LEGAL_HOLD_REVIEW_REMINDER'

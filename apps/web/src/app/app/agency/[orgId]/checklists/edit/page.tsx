@@ -60,14 +60,17 @@ export default async function AgencyChecklistPage({
         meta={
           <StatusBadge tone={editing || waiting ? 'warning' : 'success'}>
             {editing
-              ? t('appAgency.appAgencyOrgidChecklistsEditPage.draftVersionVersion', {
+              ? t.node('appAgency.appAgencyOrgidChecklistsEditPage.draftVersionVersion', {
                   version: detail.version.version,
                 })
               : waiting
-                ? t('appAgency.appAgencyOrgidChecklistsEditPage.readyToPublishVersionVersion', {
-                    version: detail.version.version,
-                  })
-                : t('appAgency.appAgencyOrgidChecklistsEditPage.publishedVersionVersion', {
+                ? t.node(
+                    'appAgency.appAgencyOrgidChecklistsEditPage.readyToPublishVersionVersion',
+                    {
+                      version: detail.version.version,
+                    },
+                  )
+                : t.node('appAgency.appAgencyOrgidChecklistsEditPage.publishedVersionVersion', {
                     version: detail.version.version,
                   })}
           </StatusBadge>
@@ -76,10 +79,10 @@ export default async function AgencyChecklistPage({
       <DocumentTypeDatalist />
       <section className="stack" aria-labelledby="items">
         <h2 id="items" className="section-title">
-          {t('appAgency.appAgencyOrgidChecklistsEditPage.items')}
+          {t.node('appAgency.appAgencyOrgidChecklistsEditPage.items')}
         </h2>
         {detail.items.length === 0 ? (
-          <p>{t('appAgency.appAgencyOrgidChecklistsEditPage.thisListHasNoItemsYet')}</p>
+          <p>{t.node('appAgency.appAgencyOrgidChecklistsEditPage.thisListHasNoItemsYet')}</p>
         ) : null}
         <ul className="field-list">
           {detail.items.map((item) => {
@@ -111,7 +114,7 @@ export default async function AgencyChecklistPage({
                     </StatusBadge>
                     {item.interpretation ? (
                       <p>
-                        {t('appAgency.appAgencyOrgidChecklistsEditPage.forInterpretation', {
+                        {t.node('appAgency.appAgencyOrgidChecklistsEditPage.forInterpretation', {
                           interpretation: item.interpretation,
                         })}
                       </p>
@@ -130,13 +133,13 @@ export default async function AgencyChecklistPage({
         <>
           <section className="stack" aria-labelledby="add-item">
             <h2 id="add-item" className="section-title">
-              {t('appAgency.appAgencyOrgidChecklistsEditPage.addAnItem')}
+              {t.node('appAgency.appAgencyOrgidChecklistsEditPage.addAnItem')}
             </h2>
             <AddItemForm organizationId={orgId} packId={packId} packVersionId={detail.version.id} />
           </section>
           <section className="stack" aria-labelledby="finish">
             <h2 id="finish" className="section-title">
-              {t('appAgency.appAgencyOrgidChecklistsEditPage.finish')}
+              {t.node('appAgency.appAgencyOrgidChecklistsEditPage.finish')}
             </h2>
             <PublishButton
               organizationId={orgId}

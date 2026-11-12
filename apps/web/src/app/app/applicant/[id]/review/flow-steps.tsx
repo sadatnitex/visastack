@@ -37,10 +37,10 @@ export function FlowSteps({ current }: { readonly current: FlowStep | 'done' }) 
               {step.label}
               <span className="sr-only">
                 {state === 'done'
-                  ? t('appApplicant.appApplicantIdReviewFlowSteps.done')
+                  ? t.node('appApplicant.appApplicantIdReviewFlowSteps.done')
                   : state === 'current'
-                    ? t('appApplicant.appApplicantIdReviewFlowSteps.now')
-                    : t('appApplicant.appApplicantIdReviewFlowSteps.next')}
+                    ? t.node('appApplicant.appApplicantIdReviewFlowSteps.now')
+                    : t.node('appApplicant.appApplicantIdReviewFlowSteps.next')}
               </span>
             </span>
           </li>

@@ -17,7 +17,7 @@ export function AcceptSharingInvitationForm({ token }: { readonly token: string 
       <input type="hidden" name="token" value={token} />
       <label>
         <input type="checkbox" name="confirm" value="true" required />{' '}
-        {t(
+        {t.node(
           'appSharingInvitations.appSharingInvitationsAcceptAcceptForm.iHaveReviewedThePurposePermissions',
         )}
       </label>

@@ -55,11 +55,11 @@ export function TripChecksPanel({ checks }: { readonly checks: readonly TripChec
     >
       {checks === null ? (
         <p className="muted lift-rail-line">
-          {t('appMission.appMissionIdTripChecksPanel.weCouldNotCheckYourDates')}
+          {t.node('appMission.appMissionIdTripChecksPanel.weCouldNotCheckYourDates')}
         </p>
       ) : checks.length === 0 ? (
         <p className="muted lift-rail-line">
-          {t('appMission.appMissionIdTripChecksPanel.noDateChecksApplyYet')}
+          {t.node('appMission.appMissionIdTripChecksPanel.noDateChecksApplyYet')}
         </p>
       ) : (
         <ul
@@ -82,10 +82,10 @@ export function TripChecksPanel({ checks }: { readonly checks: readonly TripChec
         </ul>
       )}
       <details className="lift-help">
-        <summary>{t('appMission.appMissionIdTripChecksPanel.aboutTheseChecks')}</summary>
+        <summary>{t.node('appMission.appMissionIdTripChecksPanel.aboutTheseChecks')}</summary>
         <div className="lift-help-body">
           <p className="muted">
-            {t('appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates')}
+            {t.node('appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates')}
           </p>
         </div>
       </details>

@@ -75,25 +75,28 @@ export function DocumentExpiryForm({
         <input type="hidden" name="confirmPastDate" value={state.confirmPastDate} />
       ) : null}
       <label className="field-label" htmlFor={inputId}>
-        {t('appApplicant.appApplicantIdDocumentExpiryForm.expiryDate')}
+        {t.node('appApplicant.appApplicantIdDocumentExpiryForm.expiryDate')}
       </label>
       <p id={hintId} className="muted u-fs-075-m0">
         {origin === 'READ' && savedLabel
-          ? t('appApplicant.appApplicantIdDocumentExpiryForm.savedlabelReadFromTheDocument', {
+          ? t.node('appApplicant.appApplicantIdDocumentExpiryForm.savedlabelReadFromTheDocument', {
               savedLabel,
             })
           : origin === 'TYPED' && savedLabel
-            ? t('appApplicant.appApplicantIdDocumentExpiryForm.savedlabelEnteredByYou', {
+            ? t.node('appApplicant.appApplicantIdDocumentExpiryForm.savedlabelEnteredByYou', {
                 savedLabel,
               })
-            : t('appApplicant.appApplicantIdDocumentExpiryForm.noExpiryDateYetEnterThe')}
+            : t.node('appApplicant.appApplicantIdDocumentExpiryForm.noExpiryDateYetEnterThe')}
       </p>
       {mismatch && savedLabel && typedLabel ? (
         <p className="muted u-fs-075-m0">
-          {t('appApplicant.appApplicantIdDocumentExpiryForm.youEnteredTypedlabelTheDocumentSays', {
-            typedLabel,
-            savedLabel,
-          })}
+          {t.node(
+            'appApplicant.appApplicantIdDocumentExpiryForm.youEnteredTypedlabelTheDocumentSays',
+            {
+              typedLabel,
+              savedLabel,
+            },
+          )}
         </p>
       ) : null}
       <div className="field-inline">

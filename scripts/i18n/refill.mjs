@@ -24,10 +24,13 @@ export function listSurfaces(root) {
 }
 
 /**
- * @param {{ root: string, register?: Register, surfaces?: string[], dryRun?: boolean, format?: (root: string, rels: string[]) => void }} o
+ * With `groups`, only keys of those register groups are filled: a release of named groups (the
+ * owner's sign-off of a set of rows) fills nothing else, even where a draft now exists.
+ *
+ * @param {{ root: string, register?: Register, surfaces?: string[], groups?: ReadonlySet<string>, dryRun?: boolean, format?: (root: string, rels: string[]) => void }} o
  * @returns {{ surface: string, filled: string[] }[]}
  */
-export function refillBengali({ root, register, surfaces, dryRun = false, format }) {
+export function refillBengali({ root, register, surfaces, groups, dryRun = false, format }) {
   const reg = register ?? Register.load(root);
   const out = [];
   const written = [];
@@ -40,6 +43,7 @@ export function refillBengali({ root, register, surfaces, dryRun = false, format
     for (const key of Object.keys(catalog.en).sort()) {
       const group = sources[key];
       if (typeof group !== 'string' || group.includes('|')) continue;
+      if (groups && !groups.has(group)) continue;
       const r = reg.resolveGroup(group, catalog.en[key]);
       if (bn[key] !== undefined) continue;
       if (!r.bn) continue;

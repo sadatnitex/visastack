@@ -139,23 +139,25 @@ export function CollectionResponsesPanel({
     >
       <div className="card-body stack">
         <h2 id="collection-responses-title">
-          {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.answers')}
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.answers')}
         </h2>
         <p className="muted u-fs-085">
-          {t(
+          {t.node(
             'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.eachAnswerHoldsOnlyWhatThe',
           )}
         </p>
         {fileUnavailable ? (
           <p className="notice notice-warn" role="alert">
-            {t(
+            {t.node(
               'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thatFileCannotBeDownloadedRight',
             )}
           </p>
         ) : null}
         {responses.length === 0 && extras.guest.length === 0 ? (
           <p className="muted">
-            {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.noAnswersYetAPersonWho')}
+            {t.node(
+              'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.noAnswersYetAPersonWho',
+            )}
           </p>
         ) : (
           responses.map((response) => (
@@ -176,7 +178,7 @@ export function CollectionResponsesPanel({
                         </p>
                         {line.missing ? (
                           <p className="collect-response-missing u-fs-085">
-                            {t(
+                            {t.node(
                               'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.stillMissing',
                             )}
                           </p>
@@ -198,13 +200,13 @@ export function CollectionResponsesPanel({
                                 value={document.documentVersionId}
                               />
                               <span>
-                                {t(
+                                {t.node(
                                   'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.titleVersionVersionnumber',
                                   { title: document.title, versionNumber: document.versionNumber },
                                 )}
                               </span>{' '}
                               <button type="submit" className="btn btn-secondary">
-                                {t(
+                                {t.node(
                                   'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.downloadTitle',
                                   { title: document.title },
                                 )}
@@ -216,7 +218,7 @@ export function CollectionResponsesPanel({
                           .map((detail, index) => (
                             <p key={`${line.itemId}-${index}`} className="u-fs-085">
                               {detail.value ??
-                                t(
+                                t.node(
                                   'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.protectedDetail',
                                 )}
                             </p>
@@ -246,7 +248,7 @@ export function CollectionResponsesPanel({
                 </>
               ) : (
                 <p className="notice notice-warn">
-                  {t(
+                  {t.node(
                     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisAnswerHasChangedSinceIt',
                   )}
                 </p>
@@ -257,7 +259,7 @@ export function CollectionResponsesPanel({
         {extras.guest.map((submission) => (
           <article key={submission.id} className="collection-response">
             <h3>
-              {t(
+              {t.node(
                 'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.withoutAnAccountGuestGuestnoSubmission',
                 { guestNo: submission.guestNo, submissionNo: submission.submissionNo },
               )}
@@ -278,7 +280,7 @@ export function CollectionResponsesPanel({
                       </p>
                       {line.missing ? (
                         <p className="collect-response-missing u-fs-085">
-                          {t(
+                          {t.node(
                             'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.stillMissing',
                           )}
                         </p>
@@ -290,10 +292,10 @@ export function CollectionResponsesPanel({
                             <span>
                               {file.title}, {formatFileSize(file.sizeBytes)},{' '}
                               {file.virusScanned
-                                ? t(
+                                ? t.node(
                                     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.checkedForViruses',
                                   )
-                                : t(
+                                : t.node(
                                     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.fileCheckedNotScannedForViruses',
                                   )}
                             </span>{' '}
@@ -302,7 +304,7 @@ export function CollectionResponsesPanel({
                               href={`/app/agency/${encodeURIComponent(organizationId)}/collection/guest-file?request=${encodeURIComponent(requestId)}&submission=${encodeURIComponent(submission.id)}&file=${encodeURIComponent(file.fileId)}`}
                               rel="nofollow noreferrer"
                             >
-                              {t(
+                              {t.node(
                                 'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.downloadTitle',
                                 { title: file.title },
                               )}
@@ -322,7 +324,7 @@ export function CollectionResponsesPanel({
               </>
             ) : (
               <p className="notice notice-warn">
-                {t(
+                {t.node(
                   'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisSubmissionNoLongerMatchesWhat',
                 )}
               </p>
@@ -332,15 +334,17 @@ export function CollectionResponsesPanel({
         {extras.guest.length > 0 || extras.hold ? (
           <section className="collection-guest-hold" aria-labelledby="collection-guest-hold-title">
             <h3 id="collection-guest-hold-title">
-              {t('appAgency.appAgencyOrgidCollectionCollectionResponsePanel.keepingGuestFiles')}
+              {t.node(
+                'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.keepingGuestFiles',
+              )}
             </h3>
             <p className="muted u-fs-085">
               {extras.hold
-                ? t(
+                ? t.node(
                     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.aLegalHoldKeepsTheGuest',
                     { reason: extras.hold.reason },
                   )
-                : t(
+                : t.node(
                     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.guestFilesAreDeletedWhenThe',
                   )}
             </p>

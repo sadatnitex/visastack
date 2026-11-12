@@ -6,7 +6,7 @@
  *   node scripts/i18n/codemod.mjs --surface documents --files apps/web/src/app/(app)/documents/page.tsx ...
  *   node scripts/i18n/codemod.mjs --surface documents --dry-run --files ...
  *   node scripts/i18n/codemod.mjs --all --dry-run          # counts per default surface (reports only)
- *   node scripts/i18n/codemod.mjs --refill-bn [--dry-run]  # refill Bengali in every catalogue
+ *   node scripts/i18n/codemod.mjs --refill-bn [--groups-from <classification.json>] [--dry-run]  # refill Bengali in every catalogue
  *
  * Writes the edited files, apps/web/src/i18n/<surface>.ts, apps/web/src/i18n/<surface>.sources.json
  * and a report of everything not converted and why (default
@@ -360,6 +360,12 @@ export function runCodemod({
   return reports;
 }
 
+/** The groups a release classification file (docs/localization/data/RELEASE_CLASSIFICATION_*.json) released. */
+function releasedGroupsOf(file) {
+  const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  return new Set(parsed.groups.filter((g) => g.state === 'RELEASED').map((g) => g.group));
+}
+
 function parseArgs(argv) {
   const a = { files: [], dryRun: false, format: true, all: false };
   for (let i = 0; i < argv.length; i++) {
@@ -369,6 +375,7 @@ function parseArgs(argv) {
     else if (x === '--no-format') a.format = false;
     else if (x === '--all') a.all = true;
     else if (x === '--refill-bn') a.refill = true;
+    else if (x === '--groups-from') a.groupsFrom = path.resolve(argv[++i]);
     else if (x === '--report-dir') a.reportDir = path.resolve(argv[++i]);
     else if (x === '--files') {
       while (argv[i + 1] && !argv[i + 1].startsWith('--')) a.files.push(argv[++i]);
@@ -384,6 +391,7 @@ function main() {
     const done = refillBengali({
       root: REPO_ROOT,
       dryRun: a.dryRun,
+      ...(a.groupsFrom ? { groups: releasedGroupsOf(a.groupsFrom) } : {}),
       format: a.format ? biomeFormat : undefined,
     });
     say('surface\tbn_filled');

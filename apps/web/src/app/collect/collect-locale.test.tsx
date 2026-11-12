@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../lib/bengali-marked.test-support';
 vi.mock('server-only', () => ({}));
 // The language switch is off in the product, so the locale is set here directly.
 const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
@@ -106,5 +107,13 @@ describe('the document collection flow under English', () => {
       expect(html).not.toMatch(BENGALI);
     expect(await bar('en', 3, 2, 0)).toContain('2 mandatory open');
     expect(await bar('en', 1, 2, 0)).toContain('1 File Placed');
+  });
+});
+
+describe('the document collection flow, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', async () => {
+    const r = bengaliMarking(await bar('bn', 3, 2, 0));
+    expect(r.unmarked).toEqual([]);
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

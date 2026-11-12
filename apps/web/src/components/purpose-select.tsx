@@ -47,7 +47,7 @@ export function PurposeSelect({
         onChange={(e) => onChange(e.target.value)}
         {...rest}
       >
-        <option value="" disabled>
+        <option {...t.lang('components.purposeSelect.chooseAPurpose')} value="" disabled>
           {t('components.purposeSelect.chooseAPurpose')}
         </option>
         {purposes.map((group) => (

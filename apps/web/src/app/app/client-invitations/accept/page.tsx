@@ -53,7 +53,7 @@ export default async function AcceptClientInvitationPage({
       <section className="section container">
         <article className="card">
           <p className="card-body">
-            {t(
+            {t.node(
               'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsMissingIts',
             )}
           </p>
@@ -83,17 +83,17 @@ export default async function AcceptClientInvitationPage({
     <section className="section container">
       <div className="u-mb-150">
         <span className="eyebrow">
-          {t('appClientInvitations.appClientInvitationsAcceptPage.invitation')}
+          {t.node('appClientInvitations.appClientInvitationsAcceptPage.invitation')}
         </span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          {t('appClientInvitations.appClientInvitationsAcceptPage.workWithAnAgency')}
+          {t.node('appClientInvitations.appClientInvitationsAcceptPage.workWithAnAgency')}
         </h1>
       </div>
       <article className="card">
         {!data.preview.ok ? (
           <p className="card-body">
             {data.preview.error.code === 'not_found'
-              ? t(
+              ? t.node(
                   'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsNotValid',
                 )
               : data.preview.error.message}
@@ -115,7 +115,7 @@ export default async function AcceptClientInvitationPage({
               .
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
-              {t('appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe')}
+              {t.node('appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe')}
             </p>
             {terms ? (
               <>
@@ -133,7 +133,7 @@ export default async function AcceptClientInvitationPage({
               </>
             ) : (
               <p className="card-body">
-                {t(
+                {t.node(
                   'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight',
                 )}
               </p>
@@ -142,7 +142,7 @@ export default async function AcceptClientInvitationPage({
             {!terms ? null : !coreGranted || !sharingGranted ? (
               <>
                 <p className="card-body">
-                  {t(
+                  {t.node(
                     'appClientInvitations.appClientInvitationsAcceptPage.turnTheseOnBeforeAcceptingBoth',
                   )}
                 </p>

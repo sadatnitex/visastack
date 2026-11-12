@@ -1,6 +1,6 @@
 # Bengali Runtime: How It Works
 
-The language switch (`LANGUAGE_CHOICE_ENABLED` in `apps/web/src/lib/language-choice.ts`) is off, so every visitor sees English. Everything below is built and tested but shows no Bengali until the switch is turned on.
+Bengali localization is in progress by owner decision (2026-11-12); see docs/localization/ and docs/localization/data/drafts/OWNER_DECISIONS.json. The language switch (`LANGUAGE_CHOICE_ENABLED` in `apps/web/src/lib/language-choice.ts`) is on since PR #516: a visitor who picks Bengali sees every converted screen in Bengali, and anything not converted yet, or held back, stays English.
 
 ## Adding a catalogue for a surface
 
@@ -84,3 +84,21 @@ The marking pass is `scripts/i18n/mark-parts.mjs` (tests in `mark-parts.test.mjs
 
 - The ICU `#` now follows the same rule as a `{token}` number: under resolved `en` it is exactly `String(n)` (`1000`, not `1,000`), so English matches the original code. Bengali is unchanged (Bengali digits with locale grouping).
 - No merged message catalogue uses `#` outside tests, so no English output on a screen changes today; the Wave E part 2 message `{notSorted, plural, one {# Needs a Kind} other {# Need a Kind}}` now prints `1000 Need a Kind`.
+
+## Service error descriptors (12 Nov 2026, plumbing only, no domain error converted yet)
+
+Text produced in `packages/services` reaches the screen as `ServiceError.message`. To translate it without changing anything that reads that string, a refusal can now carry a descriptor:
+
+- `ServiceError` gains optional `messageKey` and `params`. `message` stays the English sentence, rendered from the services `en` catalogue (`packages/services/src/i18n/messages.ts`), so logs, stored text, code that compares message strings and the existing test assertions see exactly what they saw before.
+- Build one with `keyedError(code, key, params)`. Pass numbers raw (`{ count: 3 }`, not a formatted string): the screen formats them by the language it resolves, the same rule as a `{token}` number above.
+- The web calls `serviceErrorText(error, serviceErrorTranslator(locale))` (`apps/web/src/lib/service-error-text.ts`). A keyed refusal is worded in the visitor's language; no key, or a key the translator does not know, shows `error.message`. A key with no Bangla value falls back to English like any other catalogue.
+- `@visastack/i18n` gains `MessageDescriptor`, `messageDescriptor` and `renderDescriptor` for any code that hands a message up to be worded later.
+- The services catalogue is empty on purpose. Each later change converts one area of domain errors and moves its sentence into `en` word for word.
+
+Owner decisions in force: emails stay English (no per-account language), staff and admin text stays English, and legal, payment and official-rule text stays English; none of these get keys.
+
+Guards that every later change must pass unedited:
+
+- `packages/services/src/english-golden.test.ts` with `docs/localization/service-english-golden.json`: every person-facing English string the census found in services and core (AI prompt and tool text excluded) still appears word for word, as a source literal or an `en` catalogue value. Rebuild the data only with `node docs/localization/tools/build-service-golden.mjs` when the census is regenerated.
+- `packages/services/src/email-golden.test.ts` and its snapshot: the text and html of every kind of email, plus the variants that change wording.
+- `packages/services/src/vocabulary.test.ts` now also reads the catalogue `en` values, so the product-word rules apply to keyed messages too.

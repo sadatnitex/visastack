@@ -44,6 +44,7 @@ export const HOLDBACK = new Map([
     'SG-04e98a42',
     'Invoice and receipt record content stays English with a Bengali note (owner decision 2026-11-12): receipt reference (receipt record content).',
   ],
+  ['SG-066180d4', 'english word inside bengali sentence'],
   [
     'SG-0a12f492',
     'Accessible name must match the visible button, which is still English here (Remove); stays English until the button is converted.',
@@ -64,6 +65,7 @@ export const HOLDBACK = new Map([
     'SG-0e9f785b',
     'Official visa rule content stays English with a Bengali note (owner decision 2026-11-12): official visa fee wording.',
   ],
+  ['SG-103526c4', 'english word inside bengali sentence'],
   [
     'SG-11f4fd8f',
     'Invoice and receipt record content stays English with a Bengali note (owner decision 2026-11-12): receipt amount line (receipt record content).',

@@ -37,12 +37,12 @@ export default async function AgencyAiConnectionsPage({
 
   return (
     <article className="card" aria-labelledby="agency-ai-connections-title">
-      <p className="card-kicker">{t('appAgency.appAgencyOrgidAiConnectionsPage.aiTools')}</p>
+      <p className="card-kicker">{t.node('appAgency.appAgencyOrgidAiConnectionsPage.aiTools')}</p>
       <h2 className="card-title" id="agency-ai-connections-title">
-        {t('appAgency.appAgencyOrgidAiConnectionsPage.aiConnections')}
+        {t.node('appAgency.appAgencyOrgidAiConnectionsPage.aiConnections')}
       </h2>
       <p className="card-body">
-        {t('appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase')}
+        {t.node('appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase')}
       </p>
       {!data.allowed ? (
         <p className="muted">{AGENCY_AI_ADMINS_ONLY}</p>
@@ -53,7 +53,7 @@ export default async function AgencyAiConnectionsPage({
           icon="shield"
           title={t('appAgency.appAgencyOrgidAiConnectionsPage.noAiAppsConnected')}
         >
-          {t('appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect')}
+          {t.node('appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect')}
         </EmptyState>
       ) : (
         <ul className="rows">

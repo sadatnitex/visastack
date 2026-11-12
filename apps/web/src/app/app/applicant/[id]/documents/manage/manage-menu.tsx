@@ -132,7 +132,7 @@ export function ManageMenu({
         onKeyDown={onButtonKey}
       >
         <span className="lc-manage-text">
-          {t('appApplicant.appApplicantIdDocumentsManageManageMenu.manage')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageManageMenu.manage')}
         </span>
         <svg
           className="lc-manage-dots"

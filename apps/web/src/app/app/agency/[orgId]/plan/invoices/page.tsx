@@ -181,13 +181,13 @@ export default async function AgencyInvoicesPage({
       {!data.allowed ? (
         <article className="card">
           <p className="card-body">
-            {t('appAgency.appAgencyOrgidPlanInvoicesPage.onlyOwnersAndAdminsCanSee')}
+            {t.node('appAgency.appAgencyOrgidPlanInvoicesPage.onlyOwnersAndAdminsCanSee')}
           </p>
         </article>
       ) : invoices.length === 0 ? (
         <article className="card">
           <p className="card-body">
-            {t('appAgency.appAgencyOrgidPlanInvoicesPage.noInvoicesYetWhenVisastackIssues')}
+            {t.node('appAgency.appAgencyOrgidPlanInvoicesPage.noInvoicesYetWhenVisastackIssues')}
           </p>
         </article>
       ) : (

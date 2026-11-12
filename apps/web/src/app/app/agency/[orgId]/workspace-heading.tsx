@@ -53,7 +53,7 @@ export function AgencyWorkspaceHeading({
         {!overview ? (
           <Link href={base} className="page-back">
             <span aria-hidden="true">{'←'}</span>{' '}
-            {t('appAgency.appAgencyOrgidWorkspaceHeading.agencyOverview')}
+            {t.node('appAgency.appAgencyOrgidWorkspaceHeading.agencyOverview')}
           </Link>
         ) : null}
         {pageName ? (
@@ -65,13 +65,13 @@ export function AgencyWorkspaceHeading({
           <p className="page-title">{brand.name}</p>
         )}
         <p className="agency-hero-attribution" data-value>
-          {t('appAgency.appAgencyOrgidBrandingForm.poweredByVisastack')}
+          {t.node('appAgency.appAgencyOrgidBrandingForm.poweredByVisastack')}
         </p>
       </div>
       <div className="page-actions">
         {overview && admin ? (
           <Link className="btn btn-primary" href={`${base}/clients`}>
-            {t('appAgency.appAgencyOrgidClientsPage.inviteAClient')}
+            {t.node('appAgency.appAgencyOrgidClientsPage.inviteAClient')}
           </Link>
         ) : null}
         {status}

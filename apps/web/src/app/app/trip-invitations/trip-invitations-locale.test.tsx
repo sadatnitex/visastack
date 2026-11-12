@@ -13,6 +13,7 @@ import {
 } from '@visastack/services';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../../lib/bengali-marked.test-support';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 import {
   COMPANION_NAME,
@@ -170,5 +171,13 @@ describe('trip invitation pages under Bengali', () => {
     expect(html).toContain('aria-label="Remove: Tokyo hotel.pdf"');
     expect(await joined('en')).toContain('aria-label="Remove: Tokyo hotel.pdf"');
     expect(textOf(html)).toContain(bn[key('IdJoinedTripForms', 'whatYouShareWithTheOrganiser')]);
+  });
+});
+
+describe('trip invitation pages, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', async () => {
+    const r = bengaliMarking(await accept('bn', 'N'.repeat(43)));
+    expect(r.unmarked).toEqual([]);
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

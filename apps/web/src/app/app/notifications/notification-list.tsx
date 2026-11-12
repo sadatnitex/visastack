@@ -55,7 +55,7 @@ export function NotificationList({
       {anyUnread ? (
         <form className="notifications-mark-all" action={markAllReadAction}>
           <button type="submit" className="btn btn-secondary u-btn-sm">
-            {t('appNotifications.appNotificationsNotificationList.markAllRead')}
+            {t.node('appNotifications.appNotificationsNotificationList.markAllRead')}
           </button>
         </form>
       ) : null}
@@ -78,7 +78,7 @@ export function NotificationList({
                   {n.subject}
                   {!n.read ? (
                     <span className="badge badge-warning notification-new">
-                      {t('appNotifications.appNotificationsNotificationList.new')}
+                      {t.node('appNotifications.appNotificationsNotificationList.new')}
                     </span>
                   ) : null}
                 </span>
@@ -95,13 +95,13 @@ export function NotificationList({
               <p className="muted notification-summary">{n.summary}</p>
               <div className="notification-actions">
                 <Link href={n.deepLinkPath} className="btn btn-secondary u-btn-sm">
-                  {t('appNotifications.appNotificationsNotificationList.open')}
+                  {t.node('appNotifications.appNotificationsNotificationList.open')}
                 </Link>
                 {!n.read ? (
                   <form action={markReadAction}>
                     <input type="hidden" name="notificationId" value={n.id} />
                     <button type="submit" className="btn btn-secondary u-btn-sm">
-                      {t('appNotifications.appNotificationsNotificationList.markRead')}
+                      {t.node('appNotifications.appNotificationsNotificationList.markRead')}
                     </button>
                   </form>
                 ) : null}
