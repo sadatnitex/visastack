@@ -14,6 +14,8 @@ import {
   EmptyPanel,
   NextStepPanel,
 } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
+import { getServerT } from '../../../../lib/i18n-server';
 import {
   ATTENTION_ICON,
   type CaseAttentionItem,
@@ -327,9 +329,10 @@ export function CaseNoChecklistSummary({
   readonly noChecklistLine: string | null;
   readonly welcomeShown: boolean;
 }) {
+  const t = getServerT(appMissionCatalog);
   return (
     <EmptyPanel
-      title="No Checklist Yet"
+      title={t('appMission.appMissionIdCaseStatusPanel.noChecklistYet')}
       // The welcome note offers the same way forward in its own words, so it is not offered twice.
       {...(welcomeShown
         ? {}
@@ -343,14 +346,11 @@ export function CaseNoChecklistSummary({
       <AboutDisclosure
         summary={
           !welcomeShown && packOptionCount === 0 && noChecklistLine
-            ? 'Why Is There No Checklist?'
-            : 'What Is a Checklist?'
+            ? t('appMission.appMissionIdCaseStatusPanel.whyIsThereNoChecklist')
+            : t('appMission.appMissionIdCaseStatusPanel.whatIsAChecklist')
         }
       >
-        <p>
-          A checklist lists the papers this visa route asks for and shows which ones you already
-          have on file.
-        </p>
+        <p>{t('appMission.appMissionIdCaseStatusPanel.aChecklistListsThePapersThis')}</p>
         {!welcomeShown && packOptionCount === 0 && noChecklistLine ? (
           <p>{noChecklistLine}</p>
         ) : null}

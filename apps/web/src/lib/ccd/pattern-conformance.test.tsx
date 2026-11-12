@@ -189,7 +189,7 @@ describe('the rows and panels the kit draws (rendered)', () => {
     expect(long?.querySelector('a[data-pane-open]')?.getAttribute('aria-label')).toContain(
       'two blank pages',
     );
-  }, 120_000);
+  }, 120_000); // Draws every case row and panel: about 15 s alone, so it needs more than the 30 s default when a whole shard runs.
 
   it('names every folder in Title Case with its count, and draws a folder only when it has rows', async () => {
     const doc = parse(await draw());

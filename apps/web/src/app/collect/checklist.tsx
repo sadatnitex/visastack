@@ -6,6 +6,8 @@ import {
 } from '@visastack/core';
 import type { GuestChecklistItem, GuestFileView } from '@visastack/services';
 import { Icon } from '../../components/icons';
+import { collectCatalog } from '../../i18n/collect';
+import { getServerT } from '../../lib/i18n-server';
 import { Fold } from './fold';
 
 /**
@@ -186,6 +188,7 @@ function ItemLine({
   readonly view?: ItemView | undefined;
   readonly section: string;
 }) {
+  const t = getServerT(collectCatalog);
   const meta = metaWords(item, section, view !== undefined);
   return (
     <>
@@ -209,7 +212,9 @@ function ItemLine({
           {view.files.map((file) => (
             <span key={file.id} className="collect-item-file">
               {file.name}
-              {file.mapping === 'proposed' ? ' (suggested from its name: check it)' : ''}
+              {file.mapping === 'proposed'
+                ? t('collect.collectChecklist.suggestedFromItsNameCheckIt')
+                : ''}
             </span>
           ))}
         </span>

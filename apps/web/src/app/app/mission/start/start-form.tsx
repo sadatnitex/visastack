@@ -9,9 +9,11 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
 import { PurposeChoice } from '../../../../components/purpose-choice';
 import { StickyActionBar } from '../../../../components/sticky-action-bar';
 import { AboutDisclosure } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../lib/case-choices';
 import { type TripStartState, startTripAction } from './actions';
 
@@ -52,6 +54,7 @@ export function TripStartForm({
   /** A traveller to tick on arrival (for example from the Cases list); only used when listed above. */
   readonly initialTravellerId?: string;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(startTripAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -81,13 +84,13 @@ export function TripStartForm({
     <form ref={form} action={formAction} className="trip-start-form">
       <div className="lc-step">
         <label className="label" htmlFor={`${id}-destination`}>
-          Where Are You Going?
+          {t('appMission.appMissionStartStartForm.whereAreYouGoing')}
         </label>
         <CountryField
           id={`${id}-destination`}
           countries={countries}
-          placeholder="For example: Japan"
-          hint="Type a name or open the list."
+          placeholder={t('appMission.appMissionStartStartForm.forExampleJapan')}
+          hint={t('appMission.appMissionStartStartForm.typeANameOrOpenThe')}
           problem={fieldProblem(state, 'destination', messageId)}
         />
       </div>
@@ -101,7 +104,7 @@ export function TripStartForm({
         />
       </div>
       <fieldset className="trip-start-travellers lc-step">
-        <legend className="label">Who&apos;s Travelling?</legend>
+        <legend className="label">{t('appMission.appMissionStartStartForm.whoSTravelling')}</legend>
         {travellers.map((t, index) => (
           <label key={t.applicantId} className="package-check">
             <input
@@ -116,13 +119,12 @@ export function TripStartForm({
           </label>
         ))}
       </fieldset>
-      <AboutDisclosure summary="About This">
+      <AboutDisclosure summary={t('appMission.appMissionIdCaseWelcome.aboutThis')}>
         <p className="muted u-fs-085 u-m-0 lc-help">
-          Each traveller gets their own case. We ask for dates or other details only when the
-          checklist needs them.
+          {t('appMission.appMissionStartStartForm.eachTravellerGetsTheirOwnCase')}
         </p>
       </AboutDisclosure>
-      <StickyActionBar label="Start the Trip">
+      <StickyActionBar label={t('appMission.appMissionStartStartForm.startTheTrip')}>
         <SubmitButton pending={pending} idle="Start Trip" busy="Starting…" />
       </StickyActionBar>
       <FormMessage id={messageId} result={state} />
@@ -137,8 +139,10 @@ export function TripStartForm({
             <li key={c.missionId}>
               <Link href={`/app/mission/${c.missionId}#trip-package`}>
                 {c.existing
-                  ? `Open the Existing Case for ${c.name}`
-                  : `Open the Case for ${c.name}`}
+                  ? t('appMission.appMissionStartStartForm.openTheExistingCaseForName', {
+                      name: c.name,
+                    })
+                  : t('appMission.appMissionStartStartForm.openTheCaseForName', { name: c.name })}
               </Link>
             </li>
           ))}

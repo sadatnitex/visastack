@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { type ActionState, attachPackAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -21,6 +23,7 @@ export function AttachPackForm({
   /** False when another action on the page is the one primary button (the next step). */
   readonly primary?: boolean;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(attachPackAction, INITIAL);
 
   // Nothing to pick: the case page says so and why, in its own words (VS-006).
@@ -34,10 +37,10 @@ export function AttachPackForm({
         className="input"
         defaultValue=""
         required
-        aria-label="Requirement Pack"
+        aria-label={t('appMission.appMissionIdAttachPackForm.requirementPack')}
       >
         <option value="" disabled>
-          Choose a requirement pack…
+          {t('appMission.appMissionIdAttachPackForm.chooseARequirementPack')}
         </option>
         {options.map((opt) => (
           <option key={opt.packVersionId} value={opt.packVersionId}>

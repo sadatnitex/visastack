@@ -2,6 +2,8 @@
 
 import { type ReactNode, useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { complaintStatusLabel } from '../../../../lib/labels';
 import {
@@ -53,6 +55,7 @@ export function ComplaintPanel({
   /** WP-SB2: the Show More control under the list, when the page capped it. */
   readonly more?: ReactNode;
 }) {
+  const t = useT(appMissionCatalog);
   const [fileState, fileAction, filePending] = useActionState(fileComplaintAction, INITIAL);
   const [withdrawState, withdrawAction, withdrawPending] = useActionState(
     withdrawComplaintAction,
@@ -61,11 +64,12 @@ export function ComplaintPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">Oversight</p>
-      <h2 className="card-title">Case Complaint</h2>
+      <p className="card-kicker">{t('appMission.appMissionIdComplaintFeedbackPanel.oversight')}</p>
+      <h2 className="card-title">
+        {t('appMission.appMissionIdComplaintFeedbackPanel.caseComplaint')}
+      </h2>
       <p className="card-body u-mb-100">
-        Reviewed only by authorized quality staff - the agency working this case never sees a
-        complaint filed against it.
+        {t('appMission.appMissionIdComplaintFeedbackPanel.reviewedOnlyByAuthorizedQualityStaff')}
       </p>
       {complaints.length > 0 ? (
         <div className="rows u-mb-125">
@@ -87,7 +91,9 @@ export function ComplaintPanel({
               </p>
               {c.resolution ? (
                 <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  Resolution: {c.resolution}
+                  {t('appMission.appMissionIdComplaintFeedbackPanel.resolutionResolution', {
+                    resolution: c.resolution,
+                  })}
                 </p>
               ) : null}
               {c.events.length > 0 ? (
@@ -98,8 +104,12 @@ export function ComplaintPanel({
                       className="muted"
                       style={{ fontSize: 'var(--text-caption)', margin: 0 }}
                     >
-                      {e.fromStatus ? `${e.fromStatus} → ${e.toStatus}` : `Filed (${e.toStatus})`} ·{' '}
-                      {formatTimestampDate(e.createdAt)}
+                      {e.fromStatus
+                        ? `${e.fromStatus} → ${e.toStatus}`
+                        : t('appMission.appMissionIdComplaintFeedbackPanel.filedTostatus', {
+                            toStatus: e.toStatus,
+                          })}{' '}
+                      · {formatTimestampDate(e.createdAt)}
                       {e.note ? ` · ${e.note}` : ''}
                     </p>
                   ))}
@@ -127,14 +137,16 @@ export function ComplaintPanel({
         <input type="hidden" name="missionId" value={missionId} />
         <div className="field-row">
           <label className="field-label" htmlFor="complaint-description">
-            File a New Complaint
+            {t('appMission.appMissionIdComplaintFeedbackPanel.fileANewComplaint')}
           </label>
           <textarea
             id="complaint-description"
             name="description"
             className="input"
             rows={3}
-            placeholder="Describe the issue with how this case was handled"
+            placeholder={t(
+              'appMission.appMissionIdComplaintFeedbackPanel.describeTheIssueWithHowThis',
+            )}
           />
         </div>
         <div>
@@ -173,15 +185,17 @@ export function FeedbackPanel({
   /** WP-SB2: the Show More control under the list, when the page capped it. */
   readonly more?: ReactNode;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(submitFeedbackAction, INITIAL);
 
   return (
     <article className="card">
-      <p className="card-kicker">Oversight</p>
-      <h2 className="card-title">Private Feedback</h2>
+      <p className="card-kicker">{t('appMission.appMissionIdComplaintFeedbackPanel.oversight')}</p>
+      <h2 className="card-title">
+        {t('appMission.appMissionIdComplaintFeedbackPanel.privateFeedback')}
+      </h2>
       <p className="card-body u-mb-100">
-        Only you and authorized quality staff ever see this - never the agency, and never published
-        as a public review or ranking.
+        {t('appMission.appMissionIdComplaintFeedbackPanel.onlyYouAndAuthorizedQualityStaff')}
       </p>
       {feedback.length > 0 ? (
         <div className="rows u-mb-125">
@@ -204,7 +218,7 @@ export function FeedbackPanel({
           <input type="hidden" name="missionId" value={missionId} />
           <div className="field-row">
             <label className="field-label" htmlFor="feedback-comments">
-              Share feedback on how this case was handled
+              {t('appMission.appMissionIdComplaintFeedbackPanel.shareFeedbackOnHowThisCase')}
             </label>
             <textarea id="feedback-comments" name="comments" className="input" rows={3} />
           </div>
@@ -220,7 +234,7 @@ export function FeedbackPanel({
         </form>
       ) : (
         <p className="muted u-fs-085">
-          Feedback becomes available once this case is closed or cancelled.
+          {t('appMission.appMissionIdComplaintFeedbackPanel.feedbackBecomesAvailableOnceThisCase')}
         </p>
       )}
     </article>

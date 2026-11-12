@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
 import { Icon } from '../../../../components/icons';
 import { SectionCard, StatusPill } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { memoryHref } from '../../../../lib/application-memory-labels';
 import { CASE_STATE_LABELS } from '../../../../lib/case-stages';
 import { officialPageForDestination } from '../../../../lib/country-start';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { getServerLocale, getServerT } from '../../../../lib/i18n-server';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import type { CaseSourceRow } from './case-model';
 import { CaseDetailsForm, ItineraryForm, TransitionButtons } from './mission-buttons';
@@ -67,6 +69,7 @@ const ADD_DATES_HINT =
 
 /** The Trip Date Checks card (`#trip-checks`), or the hint to add travel dates. */
 export function CaseTripChecks({ view, checks }: CaseTripChecksProps) {
+  const t = getServerT(appMissionCatalog);
   if (view === 'checks') {
     const summary = tripChecksSummary(checks);
     return (
@@ -74,7 +77,7 @@ export function CaseTripChecks({ view, checks }: CaseTripChecksProps) {
         id="trip-checks"
         level="browse"
         icon="calendar"
-        title="Trip Date Checks"
+        title={t('appMission.appMissionIdCaseRail.tripDateChecks')}
         meta={summary.meta}
         // A check that needs a look is the point of the card, so a phone shows it already open.
         open={summary.status?.tone === 'danger' || summary.status?.tone === 'warning'}
@@ -132,10 +135,11 @@ export interface CaseRailProps {
 
 /** The pages the checklist cites, with when each was last read. */
 function RailSources({ sources }: { readonly sources: readonly CaseSourceRow[] }) {
+  const t = getServerT(appMissionCatalog);
   return (
     <section className="case-sources lift-rail-sources" aria-labelledby="case-sources-heading">
       <h3 id="case-sources-heading" className="lift-rail-subhead">
-        Sources for This Checklist
+        {t('appMission.appMissionIdCaseChecklist.sourcesForThisChecklist')}
       </h3>
       <ul className="case-sources-list lift-source-list">
         {sources.map((source) => (
@@ -152,8 +156,7 @@ function RailSources({ sources }: { readonly sources: readonly CaseSourceRow[] }
         ))}
       </ul>
       <p className="muted lift-rail-note">
-        Checked is when VisaStack last read the page. Always confirm the final requirements with the
-        official authority or your agency.
+        {t('appMission.appMissionIdCaseChecklist.checkedIsWhenVisastackLastRead')}
       </p>
     </section>
   );
@@ -173,15 +176,26 @@ function CaseDetailsCard({
   readonly mission: Mission;
   readonly showAddDatesHint: boolean;
 }) {
+  const t = getServerT(appMissionCatalog);
+  const locale = getServerLocale();
   return (
-    <RailFold level="browse" icon="briefcase" title="Case Details" meta={datesLine(mission)}>
-      <SectionCard kicker="Case" heading="Case Details" tone="blue">
+    <RailFold
+      level="browse"
+      icon="briefcase"
+      title={t('appMission.appMissionIdCaseRail.caseDetails')}
+      meta={datesLine(mission)}
+    >
+      <SectionCard
+        kicker={t('appMission.appMissionIdCaseRail.case')}
+        heading={t('appMission.appMissionIdCaseRail.caseDetails')}
+        tone="blue"
+      >
         <p className={`lift-fact${mission.jurisdiction ? ' lift-fact-lead' : ''}`}>
           <span className="lift-fact-icon">
             <Icon name="briefcase" size={18} />
           </span>
           <span>
-            {mission.jurisdiction || 'Embassy or visa centre not set'}
+            {mission.jurisdiction || t('appMission.appMissionIdCaseRail.embassyOrVisaCentreNotSet')}
             {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
           </span>
         </p>
@@ -196,7 +210,11 @@ function CaseDetailsCard({
             <span className="lift-fact-icon">
               <Icon name="clock" size={18} />
             </span>
-            <span>Target deadline: {formatDateOnly(mission.targetDeadline)}</span>
+            <span>
+              {t('appMission.appMissionIdCaseRail.targetDeadlineFormatdateonly', {
+                formatDateOnly: formatDateOnly(mission.targetDeadline, locale),
+              })}
+            </span>
           </p>
         ) : null}
         {showAddDatesHint ? <p className="muted lift-rail-note">{ADD_DATES_HINT}</p> : null}
@@ -205,7 +223,7 @@ function CaseDetailsCard({
           <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
         ) : (
           <details className="case-details-edit lift-rail-edit">
-            <summary>Edit Case Details</summary>
+            <summary>{t('appMission.appMissionIdCaseRail.editCaseDetails')}</summary>
             <CaseDetailsForm
               missionId={mission.id}
               jurisdiction={mission.jurisdiction}
@@ -233,6 +251,7 @@ function PackCard({
   CaseRailProps,
   'mission' | 'packInfo' | 'packOptions' | 'noChecklistLines' | 'primaryAttach'
 > & { readonly sources: readonly CaseSourceRow[] }) {
+  const t = getServerT(appMissionCatalog);
   // The official page for the place the case travels to: a stand-in where no checklist exists.
   const officialPage = officialPageForDestination(mission.destination);
   return (
@@ -240,7 +259,7 @@ function PackCard({
       id="pack"
       level="browse"
       icon="shield"
-      title="Requirement Pack"
+      title={t('appMission.appMissionIdAttachPackForm.requirementPack')}
       meta={
         mission.packVersionId && packInfo
           ? packInfo.name
@@ -250,12 +269,16 @@ function PackCard({
       }
       pill={
         mission.packVersionId && packInfo?.reviewed ? (
-          <StatusPill tone="success">Reviewed</StatusPill>
+          <StatusPill tone="success">{t('appMission.appMissionIdCaseRail.reviewed')}</StatusPill>
         ) : undefined
       }
       open={!mission.packVersionId}
     >
-      <SectionCard kicker="Requirements" heading="Requirement Pack" tone="violet">
+      <SectionCard
+        kicker={t('appMission.appMissionIdCaseRail.requirements')}
+        heading={t('appMission.appMissionIdAttachPackForm.requirementPack')}
+        tone="violet"
+      >
         {mission.packVersionId && packInfo ? (
           <>
             <div className="lift-pack-head">
@@ -268,14 +291,18 @@ function PackCard({
             {packInfo.notice ? <p className="muted lift-rail-line">{packInfo.notice}</p> : null}
             {packInfo.effectiveDate ? (
               <p className="muted lift-rail-note">
-                In effect since {formatDateOnly(packInfo.effectiveDate)}
+                {t('appMission.appMissionIdCaseRail.inEffectSinceFormatdateonly', {
+                  formatDateOnly: formatDateOnly(packInfo.effectiveDate),
+                })}
               </p>
             ) : null}
           </>
         ) : (
           <>
             {isInactiveCaseState(mission.state) ? (
-              <p className="lift-rail-line">No checklist was linked to this case.</p>
+              <p className="lift-rail-line">
+                {t('appMission.appMissionIdCaseRail.noChecklistWasLinkedToThis')}
+              </p>
             ) : packOptions.length === 0 ? (
               // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
               <>
@@ -300,8 +327,7 @@ function PackCard({
               </>
             ) : (
               <p className="lift-rail-line">
-                Pick a checklist: attach a published requirement pack to see how many items are
-                ready.
+                {t('appMission.appMissionIdCaseRail.pickAChecklistAttachAPublished')}
               </p>
             )}
             {isInactiveCaseState(mission.state) ? (
@@ -328,17 +354,22 @@ function SnapshotsCard({
   snapshots,
   moreSnapshots,
 }: Pick<CaseRailProps, 'mission' | 'applicantId' | 'snapshots' | 'moreSnapshots'>) {
+  const t = getServerT(appMissionCatalog);
   return (
     <RailFold
       id="snapshots"
       level="everything"
       icon="file"
-      title="Snapshots"
+      title={t('appMission.appMissionIdCaseRail.snapshots')}
       meta={
         snapshots.length === 0 ? 'None yet' : `${snapshots.length}${moreSnapshots ? '+' : ''} saved`
       }
     >
-      <SectionCard kicker="History" heading="Snapshots" tone="teal">
+      <SectionCard
+        kicker={t('appMission.appMissionIdCaseRail.history')}
+        heading={t('appMission.appMissionIdCaseRail.snapshots')}
+        tone="teal"
+      >
         <p className="lift-rail-line case-memory-link">
           Each snapshot keeps exactly what it held.{' '}
           <Link href={memoryHref(applicantId)}>Open Case History</Link> to see every case for this
@@ -346,7 +377,7 @@ function SnapshotsCard({
         </p>
         {snapshots.length === 0 ? (
           <p className="lift-rail-line">
-            No snapshots yet. Capture one to freeze this case's evidence and checksum.
+            {t('appMission.appMissionIdCaseRail.noSnapshotsYetCaptureOneTo')}
           </p>
         ) : (
           <div className="lift-snap-list">
@@ -365,7 +396,9 @@ function SnapshotsCard({
                     <span className="row-key lift-snap-name">
                       Version {snap.version}
                       {isPacket ? (
-                        <span className="badge badge-success lift-ml-050">Application Packet</span>
+                        <span className="badge badge-success lift-ml-050">
+                          {t('appMission.appMissionIdCaseRail.applicationPacket')}
+                        </span>
                       ) : null}
                     </span>
                     <span className="lift-snap-sum" title={snap.checksum}>
@@ -382,7 +415,9 @@ function SnapshotsCard({
         )}
         {moreSnapshots ? (
           <p className="lift-rail-line">
-            <Link href={`/app/mission/${mission.id}/snapshots`}>See All Snapshots</Link>
+            <Link href={`/app/mission/${mission.id}/snapshots`}>
+              {t('appMission.appMissionIdCaseRail.seeAllSnapshots')}
+            </Link>
           </p>
         ) : null}
       </SectionCard>
@@ -394,20 +429,24 @@ function ItineraryCard({
   mission,
   linkedMissions,
 }: Pick<CaseRailProps, 'mission' | 'linkedMissions'>) {
+  const t = getServerT(appMissionCatalog);
   return (
     <RailFold
       level="everything"
       icon="users"
-      title="Itinerary Reference"
+      title={t('appMission.appMissionIdCaseRail.itineraryReference')}
       meta={mission.itineraryRef ? `Linked: ${mission.itineraryRef}` : 'Not linked'}
     >
-      <SectionCard kicker="Family Trip" heading="Itinerary Reference" tone="violet">
+      <SectionCard
+        kicker={t('appMission.appMissionIdCaseRail.familyTrip')}
+        heading={t('appMission.appMissionIdCaseRail.itineraryReference')}
+        tone="violet"
+      >
         <p className="lift-rail-line">
-          An optional label linking this case to another family member's, purely for display. Access
-          and permissions stay entirely separate per case.
+          {t('appMission.appMissionIdCaseRail.anOptionalLabelLinkingThisCase')}
         </p>
         <details className="lift-help lift-rail-edit" open={Boolean(mission.itineraryRef)}>
-          <summary>Link to a Family Trip</summary>
+          <summary>{t('appMission.appMissionIdCaseRail.linkToAFamilyTrip')}</summary>
           <div className="lift-help-body">
             <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
           </div>
@@ -451,8 +490,13 @@ export function CaseRail({
   tripChecks,
   sources,
 }: CaseRailProps) {
+  const t = getServerT(appMissionCatalog);
   return (
-    <aside className="split-rail lift-rail" aria-label="About this case" {...atLevel('browse')}>
+    <aside
+      className="split-rail lift-rail"
+      aria-label={t('appMission.appMissionIdCaseRail.aboutThisCase')}
+      {...atLevel('browse')}
+    >
       <OpenFoldOnLink />
       <CaseDetailsCard mission={mission} showAddDatesHint={tripChecks?.view === 'add-dates'} />
       {tripChecks?.view === 'checks' ? <CaseTripChecks {...tripChecks} /> : null}
@@ -467,19 +511,23 @@ export function CaseRail({
       <RailFold
         level={selfReviewed ? 'everything' : 'browse'}
         icon="arrow"
-        title="Advance the Case"
+        title={t('appMission.appMissionIdCaseRail.advanceTheCase')}
         meta={
           stageStates[0]
             ? `Next: ${CASE_STATE_LABELS[stageStates[0]]}`
             : 'No further stage from here'
         }
       >
-        <SectionCard kicker="Workflow" heading="Advance the Case" tone="blue">
+        <SectionCard
+          kicker={t('appMission.appMissionIdCaseRail.workflow')}
+          heading={t('appMission.appMissionIdCaseRail.advanceTheCase')}
+          tone="blue"
+        >
           {stageStates.length === 0 ? (
             <p className="lift-rail-line">
               {nextStates.length === 0
-                ? 'This case is in a terminal state.'
-                : 'There is no further stage from here. To stop the case, use More at the top of the page.'}
+                ? t('appMission.appMissionIdCaseRail.thisCaseIsInATerminal')
+                : t('appMission.appMissionIdCaseRail.thereIsNoFurtherStageFrom')}
             </p>
           ) : (
             <TransitionButtons missionId={mission.id} nextStates={stageStates} />

@@ -46,7 +46,7 @@ export function formatDateOnly(iso: string | Date, locale: Locale = 'en'): strin
  */
 export function formatTimestampDate(value: string | Date, locale: Locale = 'en'): string {
   const options = { year: 'numeric', month: 'short', day: 'numeric' } as const;
-  // Bengali readers get Bengali digits and month names; English keeps its exact output.
+  // Bengali readers get Bengali digits and month names; English keeps the exact output it had.
   if (locale === 'bn') return formatDate(new Date(value), locale, options);
   return new Date(value).toLocaleDateString('en-GB', options);
 }

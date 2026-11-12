@@ -9,7 +9,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DestinationLabel } from '../../../../components/destination-label';
 import { StatusBadge } from '../../../../components/ui';
+import { collectCatalog } from '../../../../i18n/collect';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { destinationName } from '../../../app/agency/[orgId]/collection/terms';
 import { WithdrawAnswerButton } from '../response-form';
@@ -50,6 +52,8 @@ export default async function YourAnswersPage({
     readonly withdrawn?: string | string[];
   }>;
 }) {
+  await primeLocale();
+  const t = getServerT(collectCatalog);
   // Always open, whatever the switch says: what was shared can always be seen and withdrawn.
   const query = await searchParams;
   const sent = query?.sent === '1';
@@ -85,20 +89,21 @@ export default async function YourAnswersPage({
 
   return (
     <section className="section container stack">
-      <h1 className="page-title">Your Answers to Agencies</h1>
+      <h1 className="page-title">{t('collect.collectAccountAnswersPage.yourAnswersToAgencies')}</h1>
       {sent ? (
         <output className="notice notice-ok">
-          Submitted to Agency. They can open only what you chose, exactly as it was when you sent
-          it.
+          {t('collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen')}
         </output>
       ) : null}
       {withdrawn ? (
         <output className="notice notice-ok">
-          Withdrawn. The agency can no longer open anything in that answer.
+          {t('collect.collectAccountAnswersPage.withdrawnTheAgencyCanNoLonger')}
         </output>
       ) : null}
       {people.length === 0 ? (
-        <p className="muted">You have not answered any agency requests yet.</p>
+        <p className="muted">
+          {t('collect.collectAccountAnswersPage.youHaveNotAnsweredAnyAgency')}
+        </p>
       ) : (
         people.map((person) => (
           <section
@@ -121,10 +126,14 @@ export default async function YourAnswersPage({
                     <p className="u-fs-085">
                       {answer.withdrawnAt ? (
                         <StatusBadge tone="neutral">
-                          Withdrawn {formatTimestampDate(answer.withdrawnAt)}
+                          {t('collect.collectAccountAnswersPage.withdrawnFormattimestampdate', {
+                            formatTimestampDate: formatTimestampDate(answer.withdrawnAt),
+                          })}
                         </StatusBadge>
                       ) : (
-                        <StatusBadge tone="success">Submitted to Agency</StatusBadge>
+                        <StatusBadge tone="success">
+                          {t('collect.collectAccountAnswersPage.submittedToAgency')}
+                        </StatusBadge>
                       )}{' '}
                       Sent {formatTimestampDate(answer.submittedAt)} · {countsLine(answer)}
                     </p>
@@ -143,8 +152,10 @@ export default async function YourAnswersPage({
         ))
       )}
       <p className="u-fs-085">
-        <Link href="/collect/account">Continue an Open Request</Link> ·{' '}
-        <Link href="/app">Go to Your Record</Link>
+        <Link href="/collect/account">
+          {t('collect.collectAccountAnswersPage.continueAnOpenRequest')}
+        </Link>{' '}
+        · <Link href="/app">{t('collect.collectAccountAnswersPage.goToYourRecord')}</Link>
       </p>
     </section>
   );

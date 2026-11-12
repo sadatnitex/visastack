@@ -57,7 +57,7 @@ function render(locale: 'en' | 'bn', proposals: readonly Finding[], canApprove =
     root.render(
       <I18nProvider locale={locale} pageLang={locale}>
         <DocumentFindings applicantId="a1" canApprove={canApprove} proposals={proposals} />
-        <ReadAgainButton applicantId="a1" documentId="d1" />
+        <ReadAgainButton applicantId="a1" documentVersionId="v1" />
       </I18nProvider>,
     ),
   );

@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
 import { Icon } from '../../../../components/icons';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { useCloseOnOutsidePress } from '../../../../lib/use-popover';
 import { type ActionState, deleteCancelledCaseAction, transitionMissionAction } from './actions';
 import { SnapshotButton } from './mission-buttons';
@@ -44,6 +46,7 @@ export function CaseMoreMenu({
     readonly snapshot?: boolean;
   };
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(transitionMissionAction, INITIAL);
   const [deleteState, deleteAction, deleting] = useActionState(deleteCancelledCaseAction, INITIAL);
   const [confirming, setConfirming] = useState<'cancel' | 'delete' | null>(null);
@@ -97,7 +100,7 @@ export function CaseMoreMenu({
         }}
       >
         <summary className="btn btn-secondary" aria-controls={panelId}>
-          More
+          {t('appMission.appMissionIdCaseMoreMenu.more')}
           <Icon name="chevronDown" size={14} />
         </summary>
         <div className="case-more-panel" id={panelId}>
@@ -108,15 +111,12 @@ export function CaseMoreMenu({
               aria-describedby={consequencesId}
             >
               <h2 className="case-cancel-question" id={questionId} ref={question} tabIndex={-1}>
-                Delete this case?
+                {t('appMission.appMissionIdCaseMoreMenu.deleteThisCase')}
               </h2>
               <ul className="case-cancel-consequences" id={consequencesId}>
-                <li>
-                  The case is removed for good, with its checklist, notes, tasks and what was sent
-                  for it.
-                </li>
-                <li>Your profile and documents are not touched.</li>
-                <li>This cannot be undone.</li>
+                <li>{t('appMission.appMissionIdCaseMoreMenu.theCaseIsRemovedForGood')}</li>
+                <li>{t('appMission.appMissionIdCaseMoreMenu.yourProfileAndDocumentsAreNot')}</li>
+                <li>{t('appMission.appMissionIdCaseMoreMenu.thisCannotBeUndone')}</li>
               </ul>
               <form
                 action={deleteAction}
@@ -141,7 +141,7 @@ export function CaseMoreMenu({
                     setConfirming(null);
                   }}
                 >
-                  Keep the Case
+                  {t('appMission.appMissionIdCaseMoreMenu.keepTheCase')}
                 </button>
               </form>
               {deleteAttempted ? <FormMessage result={deleteState} /> : null}
@@ -153,17 +153,12 @@ export function CaseMoreMenu({
               aria-describedby={consequencesId}
             >
               <h2 className="case-cancel-question" id={questionId} ref={question} tabIndex={-1}>
-                Cancel this case?
+                {t('appMission.appMissionIdCaseMoreMenu.cancelThisCase')}
               </h2>
               <ul className="case-cancel-consequences" id={consequencesId}>
-                <li>The case stops for good. It cannot be reopened or moved to another stage.</li>
-                <li>
-                  Nothing is deleted now. Its snapshots stay, and your profile and documents are not
-                  touched.
-                </li>
-                <li>
-                  To apply again later, open the case and choose Start a New Case from This One.
-                </li>
+                <li>{t('appMission.appMissionIdCaseMoreMenu.theCaseStopsForGoodIt')}</li>
+                <li>{t('appMission.appMissionIdCaseMoreMenu.nothingIsDeletedNowItsSnapshots')}</li>
+                <li>{t('appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe')}</li>
               </ul>
               <form action={formAction} className="case-cancel-actions">
                 <input type="hidden" name="missionId" value={missionId} />
@@ -183,7 +178,7 @@ export function CaseMoreMenu({
                     setConfirming(null);
                   }}
                 >
-                  Keep the Case
+                  {t('appMission.appMissionIdCaseMoreMenu.keepTheCase')}
                 </button>
               </form>
             </section>
@@ -197,12 +192,12 @@ export function CaseMoreMenu({
                       href={headerActions.addEvidenceHref}
                       onClick={() => close()}
                     >
-                      Add Evidence
+                      {t('appMission.appMissionIdCaseMoreMenu.addEvidence')}
                     </a>
                   </li>
                   <li className="case-more-phone">
                     <Link className="case-more-item" href={headerActions.newCaseHref}>
-                      Start a New Case from This One
+                      {t('appMission.appMissionIdCaseMoreMenu.startANewCaseFromThis')}
                     </Link>
                   </li>
                   {headerActions.snapshot === false ? null : (
@@ -214,7 +209,7 @@ export function CaseMoreMenu({
               ) : null}
               <li>
                 <Link className="case-more-item" href={`/app/applicant/${applicantId}/memory`}>
-                  Open Case History
+                  {t('appMission.appMissionIdCaseMoreMenu.openCaseHistory')}
                 </Link>
               </li>
               {canCancel ? (
@@ -225,7 +220,7 @@ export function CaseMoreMenu({
                     className="case-more-item case-more-danger"
                     onClick={() => setConfirming('cancel')}
                   >
-                    Cancel Case
+                    {t('appMission.appMissionIdCaseMoreMenu.cancelCase')}
                   </button>
                 </li>
               ) : null}
@@ -237,7 +232,7 @@ export function CaseMoreMenu({
                     className="case-more-item case-more-danger"
                     onClick={() => setConfirming('delete')}
                   >
-                    Delete Case
+                    {t('appMission.appMissionIdCaseMoreMenu.deleteCase')}
                   </button>
                 </li>
               ) : null}
