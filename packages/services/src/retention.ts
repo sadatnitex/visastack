@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { enqueueErasureJob } from './erasure';
@@ -28,6 +28,7 @@ export {
   missionBlockedByLegalHold,
   placeLegalHold,
   releaseLegalHold,
+  requeueUncoveredParkedJobs,
   sweepLegalHoldReviewReminders,
 } from './legal-hold';
 
@@ -198,7 +199,9 @@ export async function purgeExpiredDocuments(
       const objects = await tx
         .select()
         .from(schema.storageObjects)
-        .where(inArray(schema.storageObjects.id, storageObjectIds));
+        .where(inArray(schema.storageObjects.id, storageObjectIds))
+        .orderBy(asc(schema.storageObjects.id));
+      // In stored-file id order, the same order a legal hold release locks parked jobs in.
       for (const object of objects) {
         await enqueueErasureJob(tx, {
           reason: 'RETENTION_PURGE',
