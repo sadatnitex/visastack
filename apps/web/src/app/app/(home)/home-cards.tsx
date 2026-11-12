@@ -51,9 +51,13 @@ export function PersonCard({
           <span className="home-person-head">
             <span className="home-person-name">{name}</span>
             {actionNeeded ? (
-              <StatusBadge tone="warning">{t('appHome.appHomeCards.actionNeeded')}</StatusBadge>
+              <StatusBadge tone="warning">
+                {t.node('appHome.appHomeCards.actionNeeded')}
+              </StatusBadge>
             ) : documents === 0 ? (
-              <StatusBadge tone="neutral">{t('appHome.appHomeCards.addADocument')}</StatusBadge>
+              <StatusBadge tone="neutral">
+                {t.node('appHome.appHomeCards.addADocument')}
+              </StatusBadge>
             ) : null}
           </span>
           <span className="home-stats">
@@ -108,7 +112,7 @@ export function StartCaseTile({ href }: { readonly href: string }) {
   return (
     <Link className="home-start-tile plain-link" href={href}>
       <Icon name="plus" size={24} />
-      {t('appHome.appHomeCards.startACase')}
+      {t.node('appHome.appHomeCards.startACase')}
     </Link>
   );
 }

@@ -62,3 +62,20 @@ A numeric `{token}` is formatted by the language the message is actually written
 - `formatNumber(value, 'en')` now returns exactly `String(value)` (no grouping), so standalone counts converted in the waves keep the original English output (`1234`, not `1,234`). Bengali is unchanged: Bengali digits with locale grouping.
 - English that genuinely needs grouping passes `{ grouping: true }`. No merged caller needs it. The only caller, `countLabel` (badge counts, capped at 99+), has no English change.
 - `formatMoney` is separate (its own currency formatter) and unchanged: ISO code beside the amount. The ICU `#` and `{token}` paths do not call `formatNumber` and are unchanged.
+
+### Corrections and the marking pass (appended)
+
+Corrections to the section above, kept as notes because the docs are append-only:
+
+- `catalogTranslator` does not behave exactly as before. A Bengali visitor's English fallback is now formatted with the language it is written in: digits and plural rules are English (`en`), not Bengali. Before, a fallback sentence under `bn` took Bengali digits. Messages with a Bengali value, and everything under `en`, are unchanged.
+- The root layout takes `<html lang>` and the provider's `pageLang` from the value `primePage()` returns, not from `getPageLanguage()`. `getPageLanguage()` reads the same request-scoped holder afterwards and exists for server code that needs the answer later in the request.
+- The call sites are now converted for the screens that were on main when the marking pass ran (auth, home, trust, status, invitation, app home, trips and countries). Screens added by later conversion waves are marked the same way once they merge.
+
+The marking pass is `scripts/i18n/mark-parts.mjs` (tests in `mark-parts.test.mjs`, run by `test:node`):
+
+- `node scripts/i18n/mark-parts.mjs --surface auth,home --dry-run` counts first; without `--dry-run` it writes and formats. `--all` takes every catalogue, `--files` takes named files, `--exclude <prefix>...` keeps paths untouched (other lanes' files), and `--node-props Component.prop,...` also rewrites a component prop that the author has already widened to `ReactNode`. A second run changes nothing.
+- JSX text children `{t('k')}` (also under `?:`, `&&`, `||`, `??`) become `{t.node('k')}`.
+- `aria-label`, `title` and `alt` on a host element (and on `Link`) get `{...t.lang('k')}`, but only when everything inside the element is provably the same message or wordless (an icon). A variable, a `.map()`, another message, written words or an unknown component inside it means one `lang` would be wrong for that content, so the attribute is left alone and counted as `attribute_lang_mixed`. A form control (`input`, `textarea`, `select`) is skipped as `form_control`, because its `lang` also names what the person types.
+- An `<option>`, `<textarea>` or `<title>` cannot hold a span, so when one message is its only child the element gets the `t.lang` spread instead. Text that switches between two messages is reported as `string_only_parent` and written by hand with a conditional `t.lang`.
+- Template literals, props of components that were not widened, and values stored before they are shown stay a plain `t()`; the report counts them by reason (`template_literal`, `component_prop`, `value_flow`).
+- Known gap: a message stored in a variable or object and shown later (`value_flow`) is not marked; it is converted by hand when found.

@@ -147,7 +147,7 @@ export function WorkspaceRecordToolbar({
       >
         <BrandMark />
         <span className="record-brand-label">
-          {t('appHome.appWorkspaceRecordToolbar.visastack')}
+          {t.node('appHome.appWorkspaceRecordToolbar.visastack')}
         </span>
       </Link>
       {contextChip}
@@ -158,6 +158,7 @@ export function WorkspaceRecordToolbar({
             ref={toggle}
             className="record-search-toggle"
             aria-label={t('appHome.appWorkspaceRecordToolbar.searchAccessibleRecords')}
+            {...t.lang('appHome.appWorkspaceRecordToolbar.searchAccessibleRecords')}
             aria-expanded={mobileSearch}
             aria-controls={searchId}
             onClick={() => {
@@ -198,7 +199,7 @@ export function WorkspaceRecordToolbar({
           >
             <Icon name="search" size={19} />
             <label className="sr-only" htmlFor={inputId}>
-              {t('appHome.appWorkspaceRecordToolbar.searchAccessibleProfilesCasesAndDocument')}
+              {t.node('appHome.appWorkspaceRecordToolbar.searchAccessibleProfilesCasesAndDocument')}
             </label>
             <input
               id={inputId}
@@ -221,21 +222,21 @@ export function WorkspaceRecordToolbar({
             <div id={resultsId} className="record-search-results" hidden={!query.trim()}>
               {result.status === 'loading' ? (
                 <output aria-live="polite">
-                  {t('appHome.appWorkspaceRecordToolbar.searching')}
+                  {t.node('appHome.appWorkspaceRecordToolbar.searching')}
                 </output>
               ) : null}
               {result.status === 'error' ? (
                 <p role="alert">
-                  {t('appHome.appWorkspaceRecordToolbar.searchIsUnavailableTryAgainOr')}
+                  {t.node('appHome.appWorkspaceRecordToolbar.searchIsUnavailableTryAgainOr')}
                 </p>
               ) : null}
               {result.status === 'idle' ? (
-                <p>{t('appHome.appWorkspaceRecordToolbar.typeAtLeastTwoCharacters')}</p>
+                <p>{t.node('appHome.appWorkspaceRecordToolbar.typeAtLeastTwoCharacters')}</p>
               ) : null}
               {result.status === 'ready' && !result.rows.length ? (
                 <output aria-live="polite">
                   {result.notice ??
-                    t('appHome.appWorkspaceRecordToolbar.noAccessibleRecordsMatchThisSearch')}
+                    t.node('appHome.appWorkspaceRecordToolbar.noAccessibleRecordsMatchThisSearch')}
                 </output>
               ) : null}
               {result.status === 'ready' && result.rows.length ? (
@@ -259,14 +260,18 @@ export function WorkspaceRecordToolbar({
       <span className="record-toolbar-spacer" />
       {staff ? null : (
         <Link className="record-plan-badge" href={planHref}>
-          {planLabel || t('appHome.appWorkspaceRecordToolbar.planInformation')}
+          {planLabel || t.node('appHome.appWorkspaceRecordToolbar.planInformation')}
         </Link>
       )}
       <nav
         className="record-toolbar-shortcuts"
         aria-label={t('appHome.appWorkspaceRecordToolbar.helpAndNotifications')}
       >
-        <Link href="/app/help" aria-label={t('appHome.appWorkspaceRecordToolbar.helpAndSupport')}>
+        <Link
+          href="/app/help"
+          aria-label={t('appHome.appWorkspaceRecordToolbar.helpAndSupport')}
+          {...t.lang('appHome.appWorkspaceRecordToolbar.helpAndSupport')}
+        >
           <Icon name="alert" size={20} />
         </Link>
         <Link

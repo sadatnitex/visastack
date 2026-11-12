@@ -30,7 +30,9 @@ function Steps({ current, total }: { readonly current: number; readonly total: 2
   const t = getServerT(appHomeCatalog);
   return (
     <>
-      <p className="eyebrow">{t('appHome.appFirstRun.stepCurrentOfTotal', { current, total })}</p>
+      <p className="eyebrow">
+        {t.node('appHome.appFirstRun.stepCurrentOfTotal', { current, total })}
+      </p>
       <ol className="first-run-steps" aria-hidden="true">
         {Array.from({ length: total }, (_, at) => (
           <li key={`step-${at + 1}`} className={at < current ? 'on' : undefined} />
@@ -56,7 +58,7 @@ function ChosenCountry({
       {changeHref ? (
         <>
           {' '}
-          <Link href={changeHref}>{t('appHome.appFirstRun.change')}</Link>
+          <Link href={changeHref}>{t.node('appHome.appFirstRun.change')}</Link>
         </>
       ) : null}
     </p>
@@ -92,10 +94,10 @@ export function FirstRunCountry({
       <h1 className="section-title" id="first-run-title">
         Where do you want <em>to go?</em>
       </h1>
-      <p className="card-body">{t('appHome.appFirstRun.pickACountryAndSeeWhat')}</p>
+      <p className="card-body">{t.node('appHome.appFirstRun.pickACountryAndSeeWhat')}</p>
       <CountryChecklistPicker variant="first-run" data={data} initialIso2={iso2} action={action} />
       <p className="first-run-later">
-        <Link href={permissionStepHref(iso2)}>{t('appHome.appFirstRun.skipForNow')}</Link>
+        <Link href={permissionStepHref(iso2)}>{t.node('appHome.appFirstRun.skipForNow')}</Link>
       </p>
     </section>
   );
@@ -126,8 +128,8 @@ export function FirstRunConsent({
         name={countryName}
         {...(hasCountryStep && countryIso2 ? { changeHref: appHrefForCountry(countryIso2) } : {})}
       />
-      <p className="card-body">{t('appHome.appFirstRun.thisIsNeededBeforeAnythingCan')}</p>
-      <p className="first-run-notice">{t('appHome.appFirstRun.thisDoesNotTurnOnAi')}</p>
+      <p className="card-body">{t.node('appHome.appFirstRun.thisIsNeededBeforeAnythingCan')}</p>
+      <p className="first-run-notice">{t.node('appHome.appFirstRun.thisDoesNotTurnOnAi')}</p>
       <ConsentButton
         type="CORE_PROCESSING"
         granted={false}
@@ -135,7 +137,7 @@ export function FirstRunConsent({
         text={t('appHome.appFirstRun.letVisastackProcessMyDetails')}
       />
       <p className="first-run-later">
-        <Link href={laterHref}>{t('appHome.appFirstRun.notNow')}</Link>
+        <Link href={laterHref}>{t.node('appHome.appFirstRun.notNow')}</Link>
       </p>
       <p className="muted first-run-note">
         Without it you can still browse countries and read help.{' '}
@@ -164,7 +166,7 @@ export function FirstRunName({
       <ChosenCountry name={countryName} />
       <AddApplicantForm firstRun />
       <p className="first-run-later">
-        <Link href={laterHref}>{t('appHome.appFirstRun.notNow')}</Link>
+        <Link href={laterHref}>{t.node('appHome.appFirstRun.notNow')}</Link>
       </p>
     </section>
   );
@@ -208,52 +210,52 @@ export function FirstRunTask({
         {countryName && countryHref ? (
           <li>
             <Link href={countryHref}>
-              <b>{t('appHome.appFirstRun.seeYourCountrynameChecklist', { countryName })}</b>
-              <span>{t('appHome.appFirstRun.whatIsUsuallyAskedForAnd')}</span>
+              <b>{t.node('appHome.appFirstRun.seeYourCountrynameChecklist', { countryName })}</b>
+              <span>{t.node('appHome.appFirstRun.whatIsUsuallyAskedForAnd')}</span>
             </Link>
           </li>
         ) : null}
         {requestHref ? (
           <li>
             <Link href={requestHref}>
-              <b>{t('appHome.appFirstRun.completeARequest')}</b>
-              <span>{t('appHome.appFirstRun.anAgencyAskedYouForSomething')}</span>
+              <b>{t.node('appHome.appFirstRun.completeARequest')}</b>
+              <span>{t.node('appHome.appFirstRun.anAgencyAskedYouForSomething')}</span>
             </Link>
           </li>
         ) : null}
         {documentsHref ? (
           <li>
             <Link href={documentsHref}>
-              <b>{t('appHome.appFirstRun.addDocuments')}</b>
-              <span>{t('appHome.appFirstRun.uploadAPassportPageOrAny')}</span>
+              <b>{t.node('appHome.appFirstRun.addDocuments')}</b>
+              <span>{t.node('appHome.appFirstRun.uploadAPassportPageOrAny')}</span>
             </Link>
           </li>
         ) : null}
         {tripHref ? (
           <li>
             <Link href={tripHref}>
-              <b>{t('appHome.appFirstRun.startATrip')}</b>
-              <span>{t('appHome.appFirstRun.sayWhereAndWhyAndSee')}</span>
+              <b>{t.node('appHome.appFirstRun.startATrip')}</b>
+              <span>{t.node('appHome.appFirstRun.sayWhereAndWhyAndSee')}</span>
             </Link>
           </li>
         ) : null}
         {briefHref ? (
           <li>
             <Link href={briefHref}>
-              <b>{t('appHome.appFirstRun.prepareASummary')}</b>
-              <span>{t('appHome.appFirstRun.chooseWhatGoesInThenCopy')}</span>
+              <b>{t.node('appHome.appFirstRun.prepareASummary')}</b>
+              <span>{t.node('appHome.appFirstRun.chooseWhatGoesInThenCopy')}</span>
             </Link>
           </li>
         ) : null}
         <li>
           <Link href={recordsHref}>
-            <b>{t('appHome.appFirstRun.updateOrFindMyRecords')}</b>
-            <span>{t('appHome.appFirstRun.documentsDetailsAndDates')}</span>
+            <b>{t.node('appHome.appFirstRun.updateOrFindMyRecords')}</b>
+            <span>{t.node('appHome.appFirstRun.documentsDetailsAndDates')}</span>
           </Link>
         </li>
       </ul>
       <p className="first-run-later">
-        <Link href="/app">{t('appHome.appFirstRun.skipForNow')}</Link>
+        <Link href="/app">{t.node('appHome.appFirstRun.skipForNow')}</Link>
       </p>
     </section>
   );

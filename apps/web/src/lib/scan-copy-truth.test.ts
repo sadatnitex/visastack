@@ -75,7 +75,9 @@ describe('words about file checks', () => {
       if (name === 'signUp') {
         // The sign-up wording lives in the auth message catalogue. The page must still use the
         // key, and the key's English must hold the exact words, so dropping either turns this red.
-        expect(text, 'sign-up page uses the beta notice key').toContain(`t('${BETA_NOTICE_KEY}')`);
+        expect(text, 'sign-up page uses the beta notice key').toMatch(
+          new RegExp(`t(\\.node)?\\('${BETA_NOTICE_KEY}'\\)`),
+        );
         const english = authCatalog.en[BETA_NOTICE_KEY as keyof typeof authCatalog.en];
         expect(english, 'beta notice key has English text').toBeTruthy();
         text = english;
@@ -87,8 +89,8 @@ describe('words about file checks', () => {
     // The home wording lives in the home message catalogue: the page must still use the key, and
     // the key's English must hold the exact words.
     const HOME_NOTICE_KEY = 'home.page.itIsFreeToUseAt';
-    expect(read(SURFACES.home), 'home page uses the risk notice key').toContain(
-      `t('${HOME_NOTICE_KEY}')`,
+    expect(read(SURFACES.home), 'home page uses the risk notice key').toMatch(
+      new RegExp(`t(\\.node)?\\('${HOME_NOTICE_KEY}'\\)`),
     );
     expect(homeCatalog.en[HOME_NOTICE_KEY].replace(/\s+/g, ' ')).toContain(
       'protections such as virus scanning of uploads',
