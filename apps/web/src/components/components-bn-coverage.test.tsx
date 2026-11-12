@@ -273,21 +273,21 @@ describe('every live Bengali message of the shared components is shown under bn'
     noRawKey();
   });
 
-  it('the wallet count line is one plural message: raw numbers, English unchanged under en', () => {
+  it('the wallet count line is one plural message: English unchanged under en', () => {
     const many = wallet(4).map((d) => ({ ...d, kind: null, category: null, docType: null }));
     const one = wallet(2).map((d, i) => ({ ...d, kind: i === 0 ? null : 'Bank Statement' }));
-    const html = (docs: WalletBrowserDocument[], locale: 'en' | 'bn') => {
+    const html = (docs: WalletBrowserDocument[]) => {
       act(() =>
         root.render(
-          <I18nProvider locale={locale} pageLang="en">
+          <I18nProvider locale="en" pageLang="en">
             <DocumentWalletBrowser applicantId="p" documents={docs} />
           </I18nProvider>,
         ),
       );
       return host.textContent ?? '';
     };
-    expect(html(many, 'en')).toContain('4 Need a Kind');
-    expect(html(one, 'en')).toContain('1 Needs a Kind');
+    expect(html(many)).toContain('4 Need a Kind');
+    expect(html(one)).toContain('1 Needs a Kind');
   });
 
   afterAll(() => {

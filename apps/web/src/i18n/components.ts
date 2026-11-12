@@ -102,7 +102,8 @@ export const componentsCatalog = defineCatalog({
     'components.documentWalletBrowser.noDocumentsMatch': 'No Documents Match',
     'components.documentWalletBrowser.noDocumentsYet': 'No Documents Yet',
     'components.documentWalletBrowser.notSetYet': 'Not Set Yet',
-    'components.documentWalletBrowser.notsortedAgreeAKind': '{notSorted, plural, one {# Needs a Kind} other {# Need a Kind}}',
+    'components.documentWalletBrowser.notsortedAgreeAKind':
+      '{notSorted, plural, one {# Needs a Kind} other {# Need a Kind}}',
     'components.documentWalletBrowser.notsortedDocumentsHaveNoKindSet':
       '{notSorted, plural, =1 {{notSorted} document has no kind set yet, so it is in no category and left out when you share by category. Open a document and choose its kind.} other {{notSorted} documents have no kind set yet, so they are in no category and left out when you share by category. Open a document and choose its kind.}}',
     'components.documentWalletBrowser.openTheSecurePreviewBelowPermission':
