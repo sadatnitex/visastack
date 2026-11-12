@@ -7,6 +7,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { type ActionState, decideDocumentNameAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -34,6 +36,7 @@ export function NameReview({
     readonly reviewRequired: boolean;
   } | null;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(decideDocumentNameAction, INITIAL);
   const [editedName, setEditedName] = useState(proposedName);
   const formRef = useRef<HTMLFormElement>(null);
@@ -73,7 +76,7 @@ export function NameReview({
         <input
           type="text"
           name="finalName"
-          aria-label="Proposed filename"
+          aria-label={t('appApplicant.appApplicantIdNameReview.proposedFilename')}
           value={editedName}
           onChange={(e) => setEditedName(e.target.value)}
           className="input"

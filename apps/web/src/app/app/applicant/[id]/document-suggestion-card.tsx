@@ -8,7 +8,9 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
 import { StatusBadge } from '../../../../components/ui';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
 import { type ActionState, decideDocumentSuggestionAction } from './actions';
 import type { DocumentSuggestionView } from './document-suggestion';
@@ -43,6 +45,7 @@ export function DocumentSuggestionCard({
   /** The kinds that need a fresh sign-in check under the live settings (built on the server). */
   readonly protectedKinds: readonly string[];
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(decideDocumentSuggestionAction, INITIAL);
   const [editing, setEditing] = useState(suggestion.kind === null);
   const [kind, setKind] = useState(suggestion.kind ?? '');
@@ -64,7 +67,7 @@ export function DocumentSuggestionCard({
 
   return (
     <div className="document-findings document-suggestion">
-      <h3>Check the Kind and Name</h3>
+      <h3>{t('appApplicant.appApplicantIdDocumentSuggestionCard.checkTheKindAndName')}</h3>
       <article
         className="finding-card"
         data-clarity={suggestion.clear ? 'clear' : 'check'}
@@ -73,20 +76,30 @@ export function DocumentSuggestionCard({
         <header className="finding-card-head">
           <h4 id={headingId}>{heading}</h4>
           <StatusBadge tone={suggestion.clear ? 'success' : 'warning'}>
-            {suggestion.clear ? 'Clear' : 'Please Check'}
+            {suggestion.clear
+              ? t('appApplicant.appApplicantIdDocumentSuggestionCard.clear')
+              : t('appApplicant.appApplicantIdDocumentSuggestionCard.pleaseCheck')}
           </StatusBadge>
-          {suggestion.source === 'ai' ? <StatusBadge tone="neutral">Read by AI</StatusBadge> : null}
+          {suggestion.source === 'ai' ? (
+            <StatusBadge tone="neutral">
+              {t('appApplicant.appApplicantIdDocumentSuggestionCard.readByAi')}
+            </StatusBadge>
+          ) : null}
         </header>
         {editing ? null : (
           <dl className="document-suggestion-facts">
             <div>
-              <dt>Name</dt>
+              <dt>{t('appApplicant.appApplicantIdDocumentSuggestionCard.name')}</dt>
               <dd>{suggestion.proposedName}</dd>
             </div>
             {suggestion.recordGroup ? (
               <div>
-                <dt>Listed Under</dt>
-                <dd>{suggestion.recordGroup} on your Record</dd>
+                <dt>{t('appApplicant.appApplicantIdDocumentSuggestionCard.listedUnder')}</dt>
+                <dd>
+                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.recordgroupOnYourRecord', {
+                    recordGroup: suggestion.recordGroup,
+                  })}
+                </dd>
               </div>
             ) : null}
           </dl>
@@ -98,7 +111,9 @@ export function DocumentSuggestionCard({
         ) ? (
           <p className="notice notice-warn u-fs-085">{REMOVES_FRESH_SIGN_IN}</p>
         ) : null}
-        <p className="muted u-fs-085">Nothing is saved until you accept.</p>
+        <p className="muted u-fs-085">
+          {t('appApplicant.appApplicantIdDocumentSuggestionCard.nothingIsSavedUntilYouAccept')}
+        </p>
         <form ref={formRef} action={formAction} className="finding-form">
           <input type="hidden" name="applicantId" value={applicantId} />
           <input type="hidden" name="documentId" value={suggestion.documentId} />
@@ -108,7 +123,7 @@ export function DocumentSuggestionCard({
             <>
               <div className="finding-value">
                 <label className="field-label" htmlFor={kindId}>
-                  Kind of Document
+                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument')}
                 </label>
                 <select
                   id={kindId}
@@ -124,7 +139,9 @@ export function DocumentSuggestionCard({
                   }}
                   {...fieldProblem(state, 'docType', messageId)}
                 >
-                  <option value="">Choose a Kind</option>
+                  <option value="">
+                    {t('appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind')}
+                  </option>
                   {groups.map((group) => (
                     <optgroup key={group.key} label={group.label}>
                       {group.choices.map((choice) => (
@@ -139,7 +156,7 @@ export function DocumentSuggestionCard({
               {isOtherDocumentType(kind) ? (
                 <div className="finding-value">
                   <label className="field-label" htmlFor={subjectId}>
-                    What Is It?
+                    {t('appApplicant.appApplicantIdDocumentSuggestionCard.whatIsIt')}
                   </label>
                   <input
                     id={subjectId}
@@ -152,7 +169,7 @@ export function DocumentSuggestionCard({
               ) : null}
               <div className="finding-value">
                 <label className="field-label" htmlFor={nameId}>
-                  Name
+                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.name')}
                 </label>
                 <input
                   id={nameId}
@@ -188,7 +205,7 @@ export function DocumentSuggestionCard({
                       setEditing(false);
                     }}
                   >
-                    Cancel
+                    {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
                   </button>
                 ) : null}
               </div>
@@ -212,7 +229,7 @@ export function DocumentSuggestionCard({
                   className="btn btn-secondary"
                   onClick={() => setEditing(true)}
                 >
-                  Edit
+                  {t('appApplicant.appApplicantIdDocumentSuggestionCard.edit')}
                 </button>
               </div>
             </>

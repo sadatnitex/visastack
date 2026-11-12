@@ -18,9 +18,11 @@ import { DepthSwitch } from '../../../../../components/depth-switch';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatDateOnly } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import {
   type SearchParamsRecord,
   TRAVELLER_LIST_STEP,
@@ -143,6 +145,8 @@ export default async function ExpiryCentrePage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
+  const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const pathname = `/app/applicant/${id}/expiry`;
@@ -206,28 +210,25 @@ export default async function ExpiryCentrePage({
   return (
     <>
       <PageHeader
-        eyebrow="Record"
-        title={<>Dates &amp; Expiry</>}
+        eyebrow={t('appApplicant.appApplicantIdExpiryPage.record')}
+        title={t('appApplicant.appApplicantIdExpiryPage.datesExpiry')}
         actions={
           <Link href={`/app/applicant/${id}/calendar`} className="btn btn-secondary">
-            Add Dates to My Calendar
+            {t('appApplicant.appApplicantIdExpiryPage.addDatesToMyCalendar')}
           </Link>
         }
       />
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What the three signals are, one tap away. */}
-      <AboutDisclosure summary="About These Dates">
-        <p>
-          Three separate dates: when a document expires, whether a route wants a newer one, and how
-          long a confirmation from an issuer stays valid. We never merge them into one status.
-        </p>
+      <AboutDisclosure summary={t('appApplicant.appApplicantIdExpiryPage.aboutTheseDates')}>
+        <p>{t('appApplicant.appApplicantIdExpiryPage.threeSeparateDatesWhenADocument')}</p>
       </AboutDisclosure>
 
       <DepthScope family="expiry" depth={depth}>
         <DepthSwitch family="expiry" initial={depth} copy={depthWords} />
         <div className="u-mb-150">
           <DeadlineClock
-            heading="Deadline Clock"
+            heading={t('appApplicant.appApplicantIdExpiryPage.deadlineClock')}
             headingId="expiry-deadline-clock-heading"
             lines={
               data.deadlines === null ? null : deadlineLines(data.deadlines, { showPerson: false })
@@ -238,16 +239,17 @@ export default async function ExpiryCentrePage({
 
         <div className="grid">
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Document Expiry</p>
-            <h2 className="card-title">Documents</h2>
+            <p className="card-kicker">
+              {t('appApplicant.appApplicantIdExpiryPage.documentExpiry')}
+            </p>
+            <h2 className="card-title">{t('appApplicant.appApplicantIdExpiryPage.documents')}</h2>
             {data.intrinsic.length === 0 ? (
               <EmptyState
                 icon="file"
-                title="No Documents Yet"
+                title={t('appApplicant.appApplicantIdExpiryPage.noDocumentsYet')}
                 action={{ href: `/app/applicant/${id}/documents/add`, label: 'Add a Document' }}
               >
-                Documents with an expiry date, such as a passport, appear here so you hear about
-                them before they run out.
+                {t('appApplicant.appApplicantIdExpiryPage.documentsWithAnExpiryDateSuch')}
               </EmptyState>
             ) : (
               <>
@@ -277,8 +279,12 @@ export default async function ExpiryCentrePage({
                             {classification.daysRemaining !== null && doc.expiresAt ? (
                               <span className="attention-detail">
                                 {classification.daysRemaining >= 0
-                                  ? `Expires in ${plural(classification.daysRemaining, 'day')}`
-                                  : `Expired ${plural(Math.abs(classification.daysRemaining), 'day')} ago`}
+                                  ? t('appApplicant.appApplicantIdExpiryPage.expiresInPlural', {
+                                      plural: plural(classification.daysRemaining, 'day'),
+                                    })
+                                  : t('appApplicant.appApplicantIdExpiryPage.expiredPluralAgo', {
+                                      plural: plural(Math.abs(classification.daysRemaining), 'day'),
+                                    })}
                                 {' · '}
                                 {formatDateOnly(doc.expiresAt)}
                               </span>
@@ -292,18 +298,22 @@ export default async function ExpiryCentrePage({
                                       href={`/app/applicant/${id}/documents?document=${doc.id}#expiry-${doc.id}`}
                                       aria-label={`Set Expiry Date: ${doc.approvedName ?? doc.originalName}`}
                                     >
-                                      Set Expiry Date
+                                      {t('appApplicant.appApplicantIdExpiryPage.setExpiryDate')}
                                     </Link>
                                   </>
                                 ) : null}
                               </span>
                             ) : null}
                             {doc.expiresAt && doc.expiry?.origin === 'TYPED' ? (
-                              <span className="attention-detail">Entered by you.</span>
+                              <span className="attention-detail">
+                                {t('appApplicant.appApplicantIdExpiryPage.enteredByYou')}
+                              </span>
                             ) : null}
                             {doc.expiry?.mismatch ? (
                               <span className="attention-detail">
-                                You entered a different date. Check which is right on Documents.
+                                {t(
+                                  'appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck',
+                                )}
                               </span>
                             ) : null}
                           </span>
@@ -326,16 +336,19 @@ export default async function ExpiryCentrePage({
           </article>
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Route Date Rules</p>
-            <h2 className="card-title">Route Rules</h2>
+            <p className="card-kicker">
+              {t('appApplicant.appApplicantIdExpiryPage.routeDateRules')}
+            </p>
+            <h2 className="card-title">{t('appApplicant.appApplicantIdExpiryPage.routeRules')}</h2>
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}>
-              Some requirements demand evidence dated within a set window, separate from the
-              document's own expiry.
+              {t('appApplicant.appApplicantIdExpiryPage.someRequirementsDemandEvidenceDatedWithin')}
             </p>
             {data.freshnessRows.length === 0 ? (
-              <EmptyState icon="calendar" title="No Date Rules Yet">
-                Some visa routes need a document dated within a set window, such as a bank statement
-                from the last 30 days. They appear here once a case uses such a route.
+              <EmptyState
+                icon="calendar"
+                title={t('appApplicant.appApplicantIdExpiryPage.noDateRulesYet')}
+              >
+                {t('appApplicant.appApplicantIdExpiryPage.someVisaRoutesNeedADocument')}
               </EmptyState>
             ) : (
               <>
@@ -386,12 +399,18 @@ export default async function ExpiryCentrePage({
           </article>
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Confirmation Dates</p>
-            <h2 className="card-title">Confirmations from Issuers</h2>
+            <p className="card-kicker">
+              {t('appApplicant.appApplicantIdExpiryPage.confirmationDates')}
+            </p>
+            <h2 className="card-title">
+              {t('appApplicant.appApplicantIdExpiryPage.confirmationsFromIssuers')}
+            </h2>
             {data.verifications.length === 0 ? (
-              <EmptyState icon="check" title="No Confirmations Yet">
-                When an issuer, such as a bank or employer, confirms a document, the confirmation
-                and how long it stays valid appear here.
+              <EmptyState
+                icon="check"
+                title={t('appApplicant.appApplicantIdExpiryPage.noConfirmationsYet')}
+              >
+                {t('appApplicant.appApplicantIdExpiryPage.whenAnIssuerSuchAsA')}
               </EmptyState>
             ) : (
               <>

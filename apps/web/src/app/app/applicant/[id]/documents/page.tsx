@@ -68,6 +68,7 @@ import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
+import { primeLocale } from '../../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
@@ -201,6 +202,7 @@ export default async function ApplicantDocumentsPage({
     readonly action?: string;
   }>;
 }) {
+  await primeLocale();
   const { id } = await params;
   const {
     document: initialSelection,
@@ -634,7 +636,7 @@ export default async function ApplicantDocumentsPage({
             basis: file.basis,
             proposedApplicantId: file.proposedApplicantId,
             nameSuggestionApplicantId: file.nameSuggestionApplicantId,
-            addedOn: formatTimestampDate(file.addedAt),
+            addedOn: formatTimestampDate(file.addedAt, locale),
           }))}
           people={data.heldFiles.people}
           automatic={data.automatic}
@@ -996,10 +998,10 @@ export default async function ApplicantDocumentsPage({
                         origin={doc.expiry.origin}
                         typedOn={doc.expiry.typedOn}
                         mismatch={doc.expiry.mismatch}
-                        savedLabel={doc.expiresAt ? formatDateOnly(doc.expiresAt) : null}
+                        savedLabel={doc.expiresAt ? formatDateOnly(doc.expiresAt, locale) : null}
                         typedLabel={
                           doc.expiry.typedOn
-                            ? formatDateOnly(`${doc.expiry.typedOn}T00:00:00.000Z`)
+                            ? formatDateOnly(`${doc.expiry.typedOn}T00:00:00.000Z`, locale)
                             : null
                         }
                       />

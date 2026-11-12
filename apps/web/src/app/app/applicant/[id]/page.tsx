@@ -1,3 +1,4 @@
+import { formatNumber } from '@visastack/i18n';
 import {
   computeReadiness,
   getApplicant,
@@ -22,10 +23,12 @@ import { DepthSwitch } from '../../../../components/depth-switch';
 import { NO_CHECKLIST_LINE } from '../../../../components/progress-ring';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
 import { AboutDisclosure, ActionRow, ProgressMeter } from '../../../../components/ui-lift';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { openCasesNewestFirst } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { attentionActionLabel } from '../../../../lib/labels';
 import { completionOf, essentialsProgress, fieldLabel } from '../../../../lib/master-profile';
 import { openOwnerGate } from '../../../../lib/owner-gate';
@@ -55,6 +58,8 @@ export default async function ApplicantOverviewPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const locale = await primeLocale();
+  const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const outcome = (await searchParams)?.[OUTCOME_PARAM];
   const data = await withSession(async ({ db, accountId }) => {
@@ -342,19 +347,22 @@ export default async function ApplicantOverviewPage({
   return (
     <div className="traveller-overview">
       <PageHeader
-        eyebrow="Home"
+        eyebrow={t('appApplicant.appApplicantIdPage.home')}
         title={data.applicant.displayName}
         description={
           partial
-            ? 'Some records could not be loaded. Try refreshing before relying on these totals.'
+            ? t('appApplicant.appApplicantIdPage.someRecordsCouldNotBeLoaded')
             : attention
-              ? `${plural(attention, 'item')} ${agree(attention, 'needs', 'need')} a look.`
-              : 'Nothing is waiting for you.'
+              ? t('appApplicant.appApplicantIdPage.pluralAgreeALook', {
+                  plural: plural(attention, 'item'),
+                  agree: agree(attention, 'needs', 'need'),
+                })
+              : t('appApplicant.appApplicantIdPage.nothingIsWaitingForYou')
         }
         actions={
           data.manage?.lifecycle.state === 'RECENTLY_DELETED' ? undefined : (
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/missions#start-case`}>
-              Start a Case
+              {t('appApplicant.appApplicantIdPage.startACase')}
             </Link>
           )
         }
@@ -369,7 +377,7 @@ export default async function ApplicantOverviewPage({
         <DepthSwitch family="traveller-home" initial={depth} copy={depthWords} notesBehindInfo />
         {partial ? (
           <output className="notice notice-warn">
-            Some sections are unavailable. Unavailable totals are not reported as zero.
+            {t('appApplicant.appApplicantIdPage.someSectionsAreUnavailableUnavailableTotals')}
           </output>
         ) : null}
         <NextStepCard {...next} />
@@ -388,11 +396,15 @@ export default async function ApplicantOverviewPage({
             className={`card traveller-metric lift-tile${data.missions.ok && data.active.length === 0 ? ' lift-tile-zero' : ''}`}
             href={`/app/applicant/${id}/missions`}
           >
-            <span className="lift-tile-label">Active Cases</span>
+            <span className="lift-tile-label">
+              {t('appApplicant.appApplicantIdPage.activeCases')}
+            </span>
             <strong
               className={`lift-tile-numeral${data.missions.ok ? '' : ' traveller-metric-off'}`}
             >
-              {data.missions.ok ? data.active.length : 'Unavailable'}
+              {data.missions.ok
+                ? data.active.length
+                : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
           <Link
@@ -400,11 +412,15 @@ export default async function ApplicantOverviewPage({
             className={`card traveller-metric lift-tile${data.documents.ok && documents.length === 0 ? ' lift-tile-zero' : ''}`}
             href={`/app/applicant/${id}/documents`}
           >
-            <span className="lift-tile-label">Documents in Your Wallet</span>
+            <span className="lift-tile-label">
+              {t('appApplicant.appApplicantIdPage.documentsInYourWallet')}
+            </span>
             <strong
               className={`lift-tile-numeral${data.documents.ok ? '' : ' traveller-metric-off'}`}
             >
-              {data.documents.ok ? documents.length : 'Unavailable'}
+              {data.documents.ok
+                ? documents.length
+                : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
           <Link
@@ -412,21 +428,25 @@ export default async function ApplicantOverviewPage({
             className={`card traveller-metric lift-tile${data.documents.ok && data.requests.ok && attention === 0 ? ' lift-tile-zero' : ''}`}
             href={`/app/applicant/${id}/evidence`}
           >
-            <span className="lift-tile-label">Items Needing Attention</span>
+            <span className="lift-tile-label">
+              {t('appApplicant.appApplicantIdPage.itemsNeedingAttention')}
+            </span>
             <strong
               className={`lift-tile-numeral${
                 data.documents.ok && data.requests.ok ? '' : ' traveller-metric-off'
               }`}
             >
-              {data.documents.ok && data.requests.ok ? attention : 'Unavailable'}
+              {data.documents.ok && data.requests.ok
+                ? attention
+                : t('appApplicant.appApplicantIdPage.unavailable')}
             </strong>
           </Link>
         </div>
         {/* Owner, 5 Nov 2026: no page should have more than 30 words. What each total counts is one tap away. */}
-        <AboutDisclosure summary="About These Totals">
-          <p>Closed and cancelled cases are excluded.</p>
-          <p>Open documents to review processing and safety.</p>
-          <p>Requests, suggested details and flagged documents.</p>
+        <AboutDisclosure summary={t('appApplicant.appApplicantIdPage.aboutTheseTotals')}>
+          <p>{t('appApplicant.appApplicantIdPage.closedAndCancelledCasesAreExcluded')}</p>
+          <p>{t('appApplicant.appApplicantIdPage.openDocumentsToReviewProcessingAnd')}</p>
+          <p>{t('appApplicant.appApplicantIdPage.requestsSuggestedDetailsAndFlaggedDocuments')}</p>
         </AboutDisclosure>
         <div className="split traveller-working-area">
           <div className="split-main">
@@ -435,10 +455,16 @@ export default async function ApplicantOverviewPage({
                 <article className="card home-path" aria-labelledby="home-path-title">
                   <h3 id="home-path-title">
                     {pathDone === 0
-                      ? 'Three Steps to Get Ready'
-                      : `${pathDone} of ${pathSteps.length} Steps Done. Keep Going`}
+                      ? t('appApplicant.appApplicantIdPage.threeStepsToGetReady')
+                      : t('appApplicant.appApplicantIdPage.pathdoneOfLengthStepsDoneKeep', {
+                          pathDone: formatNumber(pathDone, locale),
+                          length: formatNumber(pathSteps.length, locale),
+                        })}
                   </h3>
-                  <ol className="home-path-steps" aria-label="Steps to get ready">
+                  <ol
+                    className="home-path-steps"
+                    aria-label={t('appApplicant.appApplicantIdPage.stepsToGetReady')}
+                  >
                     {pathSteps.map((step, index) => (
                       <li key={step.key}>
                         <Link className="home-path-step plain-link" href={step.href}>
@@ -456,9 +482,13 @@ export default async function ApplicantOverviewPage({
                             <span className="muted">{step.line}</span>
                           </span>
                           {step.done ? (
-                            <span className="home-path-state">Done</span>
+                            <span className="home-path-state">
+                              {t('appApplicant.appApplicantIdPage.done')}
+                            </span>
                           ) : step.key === pathNext ? (
-                            <span className="home-path-state home-path-next">Next</span>
+                            <span className="home-path-state home-path-next">
+                              {t('appApplicant.appApplicantIdPage.next')}
+                            </span>
                           ) : null}
                         </Link>
                       </li>
@@ -469,34 +499,42 @@ export default async function ApplicantOverviewPage({
             ) : null}
             <div className="depth-item" {...atLevel('browse')}>
               <div className="traveller-section-heading">
-                <h3>Continue Where You Left Off</h3>
-                <Link href={`/app/applicant/${id}/missions`}>All Cases →</Link>
+                <h3>{t('appApplicant.appApplicantIdPage.continueWhereYouLeftOff')}</h3>
+                <Link href={`/app/applicant/${id}/missions`}>
+                  {t('appApplicant.appApplicantIdPage.allCases')}
+                </Link>
               </div>
               <article className="card traveller-featured-case">
                 {!data.missions.ok ? (
-                  <EmptyState icon="alert" title="Cases Are Unavailable">
-                    Refresh to try again.
+                  <EmptyState
+                    icon="alert"
+                    title={t('appApplicant.appApplicantIdPage.casesAreUnavailable')}
+                  >
+                    {t('appApplicant.appApplicantIdPage.refreshToTryAgain')}
                   </EmptyState>
                 ) : data.featured ? (
                   <>
                     <div className="traveller-section-heading">
                       <h4>{data.featured.title}</h4>
                       <StatusBadge tone="neutral">
-                        {STAGE_LABELS[data.featured.state] ?? 'In Progress'}
+                        {STAGE_LABELS[data.featured.state] ??
+                          t('appApplicant.appApplicantIdPage.inProgress')}
                       </StatusBadge>
                     </div>
                     <p className="muted">
-                      {data.featured.jurisdiction ?? 'Visa Case'} ·{' '}
-                      {data.featured.serviceCategory ?? 'Personal application'}
+                      {data.featured.jurisdiction ?? t('appApplicant.appApplicantIdPage.visaCase')}{' '}
+                      ·{' '}
+                      {data.featured.serviceCategory ??
+                        t('appApplicant.appApplicantIdPage.personalApplication')}
                     </p>
                     <div className="traveller-checklist">
-                      <strong>Checklist Progress</strong>
+                      <strong>{t('appApplicant.appApplicantIdPage.checklistProgress')}</strong>
                       {data.readiness?.ok && data.readiness.value.requiredCount > 0 ? (
                         <ProgressMeter
                           size={6}
                           value={data.readiness.value.satisfiedRequired}
                           max={data.readiness.value.requiredCount}
-                          label="required items on file"
+                          label={t('appApplicant.appApplicantIdPage.requiredItemsOnFile')}
                           valueText={`${data.readiness.value.satisfiedRequired} of ${data.readiness.value.requiredCount} required items on file`}
                         />
                       ) : (
@@ -513,31 +551,34 @@ export default async function ApplicantOverviewPage({
                       )}
                       <p className="muted">
                         {!data.featured.packVersionId
-                          ? "Until a checklist is attached, you review this case's requirements by hand in the case."
-                          : 'Requirement completeness is not an approval prediction.'}
+                          ? t('appApplicant.appApplicantIdPage.untilAChecklistIsAttachedYou')
+                          : t(
+                              'appApplicant.appApplicantIdPage.requirementCompletenessIsNotAnApproval',
+                            )}
                       </p>
                     </div>
                     <div className="traveller-section-heading">
                       <Link className="btn btn-secondary" href={`/app/mission/${data.featured.id}`}>
-                        Continue Case →
+                        {t('appApplicant.appApplicantIdPage.continueCase')}
                       </Link>
                       <span className="muted">
-                        Updated {formatTimestampDate(data.featured.updatedAt)}
+                        {t('appApplicant.appApplicantIdPage.updatedFormattimestampdate', {
+                          formatTimestampDate: formatTimestampDate(data.featured.updatedAt, locale),
+                        })}
                       </span>
                     </div>
                   </>
                 ) : (
                   <EmptyState
                     art="trips"
-                    title="No Active Case Yet"
+                    title={t('appApplicant.appApplicantIdPage.noActiveCaseYet')}
                     why="Then you can see which checklist items are ready and which are still missing."
                     action={{
                       href: `/app/applicant/${id}/missions#start-case`,
                       label: 'Start a Case',
                     }}
                   >
-                    A case is where one visa application comes together. Start one for the route you
-                    are planning, and your saved documents are checked against its checklist.
+                    {t('appApplicant.appApplicantIdPage.aCaseIsWhereOneVisa')}
                   </EmptyState>
                 )}
               </article>
@@ -552,7 +593,7 @@ export default async function ApplicantOverviewPage({
                       {...(m.packVersionId ? {} : { meta: NO_CHECKLIST_LINE })}
                       pill={
                         <StatusBadge tone="neutral">
-                          {STAGE_LABELS[m.state] ?? 'In Progress'}
+                          {STAGE_LABELS[m.state] ?? t('appApplicant.appApplicantIdPage.inProgress')}
                         </StatusBadge>
                       }
                     />
@@ -561,13 +602,13 @@ export default async function ApplicantOverviewPage({
               ) : null}
             </div>
             <div className="depth-item" {...atLevel('browse')}>
-              <h3>Needs Your Attention</h3>
+              <h3>{t('appApplicant.appApplicantIdPage.needsYourAttention')}</h3>
               {attention === 0 ? (
                 <p className="home-clear">
                   <span aria-hidden="true" className="home-clear-mark">
                     {'\u2713'}
                   </span>
-                  Nothing needs a decision right now.
+                  {t('appApplicant.appApplicantIdPage.nothingNeedsADecisionRightNow')}
                 </p>
               ) : null}
               {attention > 0 ? (
@@ -576,7 +617,7 @@ export default async function ApplicantOverviewPage({
                     <ActionRow
                       href={`/app/applicant/${id}/evidence`}
                       icon="clipboard"
-                      title="Evidence Requests Waiting for a Reply"
+                      title={t('appApplicant.appApplicantIdPage.evidenceRequestsWaitingForAReply')}
                       pill={<StatusBadge tone="warning">{requests.length}</StatusBadge>}
                     />
                   ) : null}
@@ -584,7 +625,7 @@ export default async function ApplicantOverviewPage({
                     <ActionRow
                       href={`/app/applicant/${id}/review`}
                       icon="eye"
-                      title="Suggested Details Awaiting Approval"
+                      title={t('appApplicant.appApplicantIdPage.suggestedDetailsAwaitingApproval')}
                       pill={<StatusBadge tone="warning">{readings.length}</StatusBadge>}
                     />
                   ) : null}
@@ -592,7 +633,7 @@ export default async function ApplicantOverviewPage({
                     <ActionRow
                       href={`/app/applicant/${id}/profile`}
                       icon="shield"
-                      title="Suggestions from AI Apps Waiting for You"
+                      title={t('appApplicant.appApplicantIdPage.suggestionsFromAiAppsWaitingFor')}
                       pill={<StatusBadge tone="warning">{appSuggestions.length}</StatusBadge>}
                     />
                   ) : null}
@@ -600,7 +641,7 @@ export default async function ApplicantOverviewPage({
                     <ActionRow
                       href={`/app/applicant/${id}/documents`}
                       icon="file"
-                      title="Documents Needing Review"
+                      title={t('appApplicant.appApplicantIdPage.documentsNeedingReview')}
                       pill={<StatusBadge tone="warning">{flagged.length}</StatusBadge>}
                     />
                   ) : null}
@@ -610,12 +651,12 @@ export default async function ApplicantOverviewPage({
           </div>
           <aside
             className="split-rail"
-            aria-label="Upcoming dates, recent activity and profile health"
+            aria-label={t('appApplicant.appApplicantIdPage.upcomingDatesRecentActivityAndProfile')}
             {...atLevel('browse')}
           >
             <div className="depth-item" {...atLevel('browse')}>
               <DeadlineClock
-                heading="Deadline Clock"
+                heading={t('appApplicant.appApplicantIdExpiryPage.deadlineClock')}
                 headingId="applicant-deadline-clock-heading"
                 headingLevel="h3"
                 lines={
@@ -628,7 +669,7 @@ export default async function ApplicantOverviewPage({
               />
             </div>
             <div className="depth-item" {...atLevel('everything')}>
-              <h3>Upcoming</h3>
+              <h3>{t('appApplicant.appApplicantIdPage.upcoming')}</h3>
               <article className="card">
                 {agenda.length ? (
                   <ol className="traveller-agenda">
@@ -638,7 +679,7 @@ export default async function ApplicantOverviewPage({
                           {row.label}
                         </Link>
                         <time dateTime={row.date.toISOString()}>
-                          {formatTimestampDate(row.date)}
+                          {formatTimestampDate(row.date, locale)}
                         </time>
                       </li>
                     ))}
@@ -646,17 +687,20 @@ export default async function ApplicantOverviewPage({
                 ) : (
                   <EmptyState
                     icon="alert"
-                    title={data.missions.ok ? 'No Upcoming Case Dates' : 'Dates Are Unavailable'}
+                    title={
+                      data.missions.ok
+                        ? t('appApplicant.appApplicantIdPage.noUpcomingCaseDates')
+                        : t('appApplicant.appApplicantIdPage.datesAreUnavailable')
+                    }
                   >
-                    Set a target deadline or travel date in a case. Appointments remain in the
-                    individual case calendar.
+                    {t('appApplicant.appApplicantIdPage.setATargetDeadlineOrTravel')}
                   </EmptyState>
                 )}
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/expiry`}>
-                  Dates &amp; Expiry →
+                  {t('appApplicant.appApplicantIdPage.datesExpiry')}
                 </Link>
               </article>
-              <h3>Recent Activity</h3>
+              <h3>{t('appApplicant.appApplicantIdPage.recentActivity')}</h3>
               <article className="card">
                 {activity.length ? (
                   <ol className="traveller-activity">
@@ -666,26 +710,30 @@ export default async function ApplicantOverviewPage({
                           <strong>{row.label}</strong>
                           <span>{row.detail}</span>
                         </Link>
-                        <time dateTime={row.date}>{formatTimestampDate(row.date)}</time>
+                        <time dateTime={row.date}>{formatTimestampDate(row.date, locale)}</time>
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <EmptyState icon="activity" title="No Recorded Activity Yet">
-                    Profile changes, uploads and case updates will appear here. This is a
-                    recent-record summary, not a complete audit log.
+                  <EmptyState
+                    icon="activity"
+                    title={t('appApplicant.appApplicantIdPage.noRecordedActivityYet')}
+                  >
+                    {t('appApplicant.appApplicantIdPage.profileChangesUploadsAndCaseUpdates')}
                   </EmptyState>
                 )}
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/history`}>
-                  Profile History →
+                  {t('appApplicant.appApplicantIdPage.profileHistory')}
                 </Link>
               </article>
               <article className="card home-profile">
-                <h3>Profile &amp; Sharing</h3>
+                <h3>{t('appApplicant.appApplicantIdPage.profileSharing')}</h3>
                 {essentialsDone ? (
                   <>
                     <div className="meter-label">
-                      <span>Details with values in open sections</span>
+                      <span>
+                        {t('appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections')}
+                      </span>
                       <span>
                         {completed} / {completion.total}
                       </span>
@@ -694,14 +742,16 @@ export default async function ApplicantOverviewPage({
                       size={6}
                       value={completed}
                       max={completion.total}
-                      label="details with values in open sections"
+                      label={t(
+                        'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections8284e6',
+                      )}
                       valueText={null}
                     />
                   </>
                 ) : (
                   <>
                     <div className="meter-label">
-                      <span>Essentials added</span>
+                      <span>{t('appApplicant.appApplicantIdPage.essentialsAdded')}</span>
                       <span>
                         {essentials.answered} / {essentials.total}
                       </span>
@@ -710,14 +760,16 @@ export default async function ApplicantOverviewPage({
                       size={6}
                       value={essentials.answered}
                       max={essentials.total}
-                      label="essentials added"
+                      label={t('appApplicant.appApplicantIdPage.essentialsAdded28ca58')}
                       valueText={null}
                     />
                   </>
                 )}
-                <p className="muted">Completeness does not verify identity.</p>
+                <p className="muted">
+                  {t('appApplicant.appApplicantIdPage.completenessDoesNotVerifyIdentity')}
+                </p>
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/profile`}>
-                  Continue Profile →
+                  {t('appApplicant.appApplicantIdPage.continueProfile')}
                 </Link>
                 <p className="muted">
                   Active sharing grants:{' '}
@@ -726,7 +778,7 @@ export default async function ApplicantOverviewPage({
                     : 'Unavailable'}
                 </p>
                 <Link className="home-more plain-link" href={`/app/applicant/${id}/sharing`}>
-                  Manage Sharing →
+                  {t('appApplicant.appApplicantIdPage.manageSharing')}
                 </Link>
               </article>
             </div>

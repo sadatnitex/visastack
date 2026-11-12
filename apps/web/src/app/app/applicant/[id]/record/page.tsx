@@ -12,7 +12,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { buildMasterProfileView } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
@@ -34,6 +36,8 @@ export default async function ApplicantRecordPage({
 }: {
   readonly params: Promise<{ id: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -132,35 +136,33 @@ export default async function ApplicantRecordPage({
   return (
     <div className="stack record-hub-page">
       <PageHeader
-        eyebrow="Record"
-        title="All Records"
-        description={`Everything saved for ${data.applicant.displayName}, in one place. Find a detail or a document, see which copy is current, then use it in a case or share it.`}
+        eyebrow={t('appApplicant.appApplicantIdExpiryPage.record')}
+        title={t('appApplicant.appApplicantIdRecordPage.allRecords')}
+        description={t('appApplicant.appApplicantIdRecordPage.everythingSavedForDisplaynameInOne', {
+          displayName: data.applicant.displayName,
+        })}
         actions={
           <>
             <Link className="btn btn-primary" href={`${base}/documents/add`}>
-              Add a Document
+              {t('appApplicant.appApplicantIdRecordPage.addADocument')}
             </Link>
             <Link className="btn btn-secondary" href={`${base}/profile`}>
-              Update Your Profile
+              {t('appApplicant.appApplicantIdRecordPage.updateYourProfile')}
             </Link>
           </>
         }
       />
       <p className="muted record-hub-note">
-        Current Version means this is the newest copy you saved. It does not mean anyone has checked
-        that it is genuine, or that it suits every application. Files still being checked, refused,
-        expired or replaced are never shown as ready to use.
+        {t('appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe')}
       </p>
       {documentsLoaded ? null : (
         <p role="alert" className="notice notice-warn">
-          Your documents could not be loaded just now, so only your profile details are listed.
-          Refresh the page to try again.
+          {t('appApplicant.appApplicantIdRecordPage.yourDocumentsCouldNotBeLoaded')}
         </p>
       )}
       {documentsLoaded && documents.length === 0 ? (
         <p className="notice record-hub-start">
-          You have not added a document yet. You can still fill in your details by hand now, and add
-          a passport or other document whenever you have it.
+          {t('appApplicant.appApplicantIdRecordPage.youHaveNotAddedADocument')}
         </p>
       ) : null}
       <RecordBrowser items={items} documentsLoaded={documentsLoaded} />

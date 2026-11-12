@@ -44,12 +44,11 @@ export function formatDateOnly(iso: string | Date, locale: Locale = 'en'): strin
  * "6 Oct 2026". A bare `toLocaleDateString()` prints 06/10/2026, which a reader
  * cannot tell from 10 June. Not for date-only values: use `formatDateOnly`.
  */
-export function formatTimestampDate(value: string | Date): string {
-  return new Date(value).toLocaleDateString('en-GB', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+export function formatTimestampDate(value: string | Date, locale: Locale = 'en'): string {
+  const options = { year: 'numeric', month: 'short', day: 'numeric' } as const;
+  // Bengali readers get Bengali digits and month names; English keeps its exact output.
+  if (locale === 'bn') return formatDate(new Date(value), locale, options);
+  return new Date(value).toLocaleDateString('en-GB', options);
 }
 
 /** A real moment with its time, for example "6 Oct 2026, 14:05", in the viewer's timezone. */

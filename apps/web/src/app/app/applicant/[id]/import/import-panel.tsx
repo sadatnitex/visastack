@@ -1,10 +1,13 @@
 'use client';
 
+import { formatNumber } from '@visastack/i18n';
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useLocale, useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { newUploadId } from '../../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../../lib/format-size';
 import {
@@ -216,6 +219,7 @@ const ImportRow = memo(function ImportRow({
   readonly removal: Removal | undefined;
   readonly actions: RowActions;
 }) {
+  const t = useT(appApplicantCatalog);
   const status = useRef<HTMLParagraphElement>(null);
   // An action's button goes away once used; the line's own status takes the focus first, so a
   // keyboard user stays on this line instead of being sent back to the top of the page.
@@ -233,20 +237,28 @@ const ImportRow = memo(function ImportRow({
           <span className="upload-item-size">{formatFileSize(item.size)}</span>
         ) : null}
       </div>
-      {folder ? <p className="import-item-path">In {folder}</p> : null}
+      {folder ? (
+        <p className="import-item-path">
+          {t('appApplicant.appApplicantIdImportImportPanel.inFolder', { folder })}
+        </p>
+      ) : null}
       {item.state === 'uploading' ? (
         <progress
           className="upload-progress"
           max={100}
           value={item.progress}
-          aria-label={`Upload of ${item.name}`}
+          aria-label={t('appApplicant.appApplicantIdDocumentUploader.uploadOfName', {
+            name: item.name,
+          })}
         />
       ) : null}
       {item.shrunkTo !== null && item.size !== null ? (
         <p className="upload-item-status">{shrunkNotice(item.size, item.shrunkTo)}</p>
       ) : null}
       {(item.state === 'added' || item.state === 'duplicate') && item.title ? (
-        <p className="upload-item-title">Added as {item.title}</p>
+        <p className="upload-item-title">
+          {t('appApplicant.appApplicantIdDocumentUploader.addedAsTitle', { title: item.title })}
+        </p>
       ) : null}
       <p ref={status} tabIndex={-1} className={`upload-item-status${flag ? ' field-msg-err' : ''}`}>
         {flag ? <span className="upload-item-flag">{flag}</span> : null}
@@ -267,15 +279,21 @@ const ImportRow = memo(function ImportRow({
           />
         ) : (
           <div className="lc-new-copy">
-            <p className="lc-new-copy-line">You already keep an identical copy of this file.</p>
+            <p className="lc-new-copy-line">
+              {t('appApplicant.appApplicantIdDocumentUploader.youAlreadyKeepAnIdenticalCopy')}
+            </p>
             <button
               type="button"
               className="btn btn-secondary"
               aria-disabled={removal === 'busy' || undefined}
-              aria-label={`Remove This New Copy: ${item.name}`}
+              aria-label={t('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopyName', {
+                name: item.name,
+              })}
               onClick={removal === 'busy' ? undefined : keepFocusThen(() => actions.onRemove(item))}
             >
-              {removal === 'busy' ? 'Removing' : 'Remove This New Copy'}
+              {removal === 'busy'
+                ? t('appApplicant.appApplicantIdDocumentUploader.removing')
+                : t('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy')}
             </button>
             {removal && typeof removal === 'object' && 'problem' in removal ? (
               <p className="field-msg-err" role="alert">
@@ -289,20 +307,24 @@ const ImportRow = memo(function ImportRow({
         <button
           type="button"
           className="btn btn-secondary"
-          aria-label={`Try Again: ${item.name}`}
+          aria-label={t('appApplicant.appApplicantIdDocumentUploader.tryAgainName', {
+            name: item.name,
+          })}
           onClick={keepFocusThen(() => actions.onRetry(item.id))}
         >
-          Try Again
+          {t('appApplicant.appApplicantIdDocumentUploader.tryAgain')}
         </button>
       ) : null}
       {canSendAgain(item) ? (
         <button
           type="button"
           className="btn btn-secondary"
-          aria-label={`Send Again: ${item.name}`}
+          aria-label={t('appApplicant.appApplicantIdImportImportPanel.sendAgainName', {
+            name: item.name,
+          })}
           onClick={keepFocusThen(() => actions.onSendAgain(item.id))}
         >
-          Send Again
+          {t('appApplicant.appApplicantIdImportImportPanel.sendAgain')}
         </button>
       ) : null}
     </li>
@@ -360,6 +382,8 @@ export function ImportPanel({
    */
   readonly readingOn?: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const router = useRouter();
   const forId = useId();
   // Who the next files are for: one of this account's people, or "not sure" (the family route).
@@ -619,14 +643,17 @@ export function ImportPanel({
   return (
     <div className="uploader import-panel">
       <p className="uploader-limits" id={limitsId}>
-        {uploadLimitsText(limitLabel, pdfAccepted, true)} Up to {MAX_IMPORT_FILES} files in one
-        import.
+        {t('appApplicant.appApplicantIdImportImportPanel.uploadlimitstextUpToMaxImportFiles', {
+          uploadLimitsText: uploadLimitsText(limitLabel, pdfAccepted, true),
+          MAX_IMPORT_FILES: formatNumber(MAX_IMPORT_FILES, locale),
+        })}
       </p>
       {remembered > 0 ? (
         <div className="import-earlier">
           <p className="field-hint">
-            This browser remembers which files earlier imports here added (not their names), so a
-            file already added is not sent again. To finish an import, add the same folder again.
+            {t(
+              'appApplicant.appApplicantIdImportImportPanel.thisBrowserRemembersWhichFilesEarlier',
+            )}
           </p>
           <button
             type="button"
@@ -638,7 +665,7 @@ export function ImportPanel({
               setRemembered(0);
             })}
           >
-            Forget Earlier Imports
+            {t('appApplicant.appApplicantIdImportImportPanel.forgetEarlierImports')}
           </button>
         </div>
       ) : null}
@@ -646,7 +673,7 @@ export function ImportPanel({
       {choosePerson ? (
         <div className="field-stack umpe-g1-import-for">
           <label className="field-label" htmlFor={`${forId}-person`}>
-            Who Are These Files For?
+            {t('appApplicant.appApplicantIdImportImportPanel.whoAreTheseFilesFor')}
           </label>
           <select
             id={`${forId}-person`}
@@ -660,15 +687,23 @@ export function ImportPanel({
           >
             {people.map((person) => (
               <option key={person.id} value={person.id}>
-                {person.id === applicantId ? `${person.name} (This Person)` : person.name}
+                {person.id === applicantId
+                  ? t('appApplicant.appApplicantIdImportImportPanel.nameThisPerson', {
+                      name: person.name,
+                    })
+                  : person.name}
               </option>
             ))}
-            {familyBatch ? <option value={NOT_SURE}>Not Sure, Help Me Decide</option> : null}
+            {familyBatch ? (
+              <option value={NOT_SURE}>
+                {t('appApplicant.appApplicantIdImportImportPanel.notSureHelpMeDecide')}
+              </option>
+            ) : null}
           </select>
           <p className="field-hint" id={`${forId}-person-hint`}>
             {target === NOT_SURE
-              ? 'Each file waits in Needs One Decision, seen only by you, until you choose who it belongs to. We suggest a person only when the name and date of birth in the file match exactly one of your people.'
-              : 'Every file you add now is saved under this person. You can change this between files.'}
+              ? t('appApplicant.appApplicantIdImportImportPanel.eachFileWaitsInNeedsOne')
+              : t('appApplicant.appApplicantIdImportImportPanel.everyFileYouAddNowIs')}
           </p>
         </div>
       ) : null}
@@ -684,11 +719,10 @@ export function ImportPanel({
           <Icon name="upload" size={44} />
         </span>
         <p className="upload-drop-title" id={dropTitleId}>
-          Drop Files or a Folder Here
+          {t('appApplicant.appApplicantIdImportImportPanel.dropFilesOrAFolderHere')}
         </p>
         <p className="upload-drop-hint" id={dropHintId}>
-          Folders inside it are included. You do not need to say what each file is first. Each file
-          gets its own line below.
+          {t('appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou')}
         </p>
         <div className="upload-drop-actions">
           <button
@@ -697,7 +731,7 @@ export function ImportPanel({
             aria-describedby={limitsId}
             onClick={() => filesRef.current?.click()}
           >
-            Choose Files
+            {t('appApplicant.appApplicantIdDocumentUploader.chooseFiles')}
           </button>
           <button
             type="button"
@@ -705,7 +739,7 @@ export function ImportPanel({
             aria-describedby={limitsId}
             onClick={chooseFolder}
           >
-            Add a Folder
+            {t('appApplicant.appApplicantIdImportImportPanel.addAFolder')}
           </button>
         </div>
       </section>
@@ -716,7 +750,7 @@ export function ImportPanel({
         multiple
         tabIndex={-1}
         aria-hidden="true"
-        aria-label="Folder to Import"
+        aria-label={t('appApplicant.appApplicantIdImportImportPanel.folderToImport')}
         data-testid="import-folder"
         onChange={(event) => {
           take(readChosenFiles(Array.from(event.currentTarget.files ?? [])));
@@ -730,7 +764,7 @@ export function ImportPanel({
         multiple
         tabIndex={-1}
         aria-hidden="true"
-        aria-label="Files to Import"
+        aria-label={t('appApplicant.appApplicantIdImportImportPanel.filesToImport')}
         data-testid="import-files"
         onChange={(event) => {
           take(readChosenFiles(Array.from(event.currentTarget.files ?? [])));
@@ -739,14 +773,16 @@ export function ImportPanel({
       />
 
       <h3 className="import-summary-title" ref={headingRef} tabIndex={-1}>
-        Your Files
+        {t('appApplicant.appApplicantIdImportImportPanel.yourFiles')}
       </h3>
       <p className="upload-summary import-counts">{importCountsText(counts, snapshot.paused)}</p>
       <output className="sr-only import-announce">{announcement}</output>
       {truncated ? (
         <p className="field-hint">
-          This folder holds more than {MAX_ENTRIES_LOOKED_AT.toLocaleString('en-GB')} files. Only
-          the first {MAX_IMPORT_FILES} can be added in one import; the rest were not looked at.
+          {t('appApplicant.appApplicantIdImportImportPanel.thisFolderHoldsMoreThanTolocalestring', {
+            toLocaleString: formatNumber(MAX_ENTRIES_LOOKED_AT, locale),
+            MAX_IMPORT_FILES: formatNumber(MAX_IMPORT_FILES, locale),
+          })}
         </p>
       ) : null}
 
@@ -765,7 +801,9 @@ export function ImportPanel({
               }
             }}
           >
-            {snapshot.paused ? 'Resume' : 'Pause'}
+            {snapshot.paused
+              ? t('appApplicant.appApplicantIdImportImportPanel.resume')
+              : t('appApplicant.appApplicantIdImportImportPanel.pause')}
           </button>
           <button
             type="button"
@@ -775,29 +813,33 @@ export function ImportPanel({
               queue.stop();
             })}
           >
-            Stop
+            {t('appApplicant.appApplicantIdImportImportPanel.stop')}
           </button>
         </div>
       ) : null}
       {counts.held > 0 ? (
         <div className="import-controls">
           <p className="field-hint">
-            The hourly upload limit was reached, so {counts.held}{' '}
-            {counts.held === 1 ? 'file is' : 'files are'} waiting. Nothing more is sent until you
-            try again.
+            {t('appApplicant.appApplicantIdImportImportPanel.theHourlyUploadLimitWasReached', {
+              held: formatNumber(counts.held, locale),
+            })}
           </p>
           <button
             type="button"
             className="btn btn-secondary"
             onClick={fromHeading(() => queue.retryHeld())}
           >
-            Try Again for All Paused Files
+            {t('appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles')}
           </button>
         </div>
       ) : null}
 
       {items.length > 0 ? (
-        <ul className="upload-list" id={listId} aria-label="Files in This Import">
+        <ul
+          className="upload-list"
+          id={listId}
+          aria-label={t('appApplicant.appApplicantIdImportImportPanel.filesInThisImport')}
+        >
           {visible.map((item) => (
             <ImportRow
               key={item.id}
@@ -816,7 +858,11 @@ export function ImportPanel({
           aria-expanded={showAll}
           onClick={() => setShowAll((current) => !current)}
         >
-          {showAll ? 'Show Fewer' : `Show All ${items.length}`}
+          {showAll
+            ? t('appApplicant.appApplicantIdImportImportPanel.showFewer')
+            : t('appApplicant.appApplicantIdImportImportPanel.showAllLength', {
+                length: formatNumber(items.length, locale),
+              })}
         </button>
       ) : null}
       {items.length > 0 && !pending ? (
@@ -831,11 +877,14 @@ export function ImportPanel({
             setRemovals(new Map());
           })}
         >
-          Clear the List
+          {t('appApplicant.appApplicantIdDocumentUploader.clearTheList')}
         </button>
       ) : null}
       {counts.total > 0 && !pending ? (
-        <nav className="umpe-g1-import-next" aria-label="After This Import">
+        <nav
+          className="umpe-g1-import-next"
+          aria-label={t('appApplicant.appApplicantIdImportImportPanel.afterThisImport')}
+        >
           {addedCount > 0 ? (
             <output className="notice notice-ok">
               <strong>
@@ -854,10 +903,10 @@ export function ImportPanel({
           ))}
           <p className="field-hint">
             {sentToFamily.current
-              ? 'Files for several people wait in Needs One Decision until you choose who each one belongs to.'
+              ? t('appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn')
               : readingOn
-                ? 'Most files are sorted on their own. Anything that needs your answer is in Needs One Decision, and details read from your files wait for your approval.'
-                : 'Your files are saved and checked. Automatic reading is off, so nothing was read: you add the details yourself. Anything that needs your answer is in Needs One Decision.'}
+                ? t('appApplicant.appApplicantIdImportImportPanel.mostFilesAreSortedOnTheir')
+                : t('appApplicant.appApplicantIdImportImportPanel.yourFilesAreSavedAndChecked')}
           </p>
           {addedCount > 0 || showNext || sentToFamily.current ? (
             <div className="upload-drop-actions">
@@ -868,7 +917,11 @@ export function ImportPanel({
                     : peopleRef.current.find((p) => p.id === person)?.name;
                 return (
                   <a key={person} className="btn btn-primary" href={batchHref(person, ids)}>
-                    {name ? `See What We Found for ${name}` : 'See What We Found'}
+                    {name
+                      ? t('appApplicant.appApplicantIdImportImportPanel.seeWhatWeFoundForName', {
+                          name,
+                        })
+                      : t('appApplicant.appApplicantIdImportImportPanel.seeWhatWeFound')}
                   </a>
                 );
               })}
@@ -876,11 +929,13 @@ export function ImportPanel({
                 className={`btn ${addedCount > 0 ? 'btn-secondary' : 'btn-primary'}`}
                 href={`/app/applicant/${applicantId}/documents#needs-decision`}
               >
-                {sentToFamily.current ? 'Choose Which Person' : 'Open Needs One Decision'}
+                {sentToFamily.current
+                  ? t('appApplicant.appApplicantIdImportImportPanel.chooseWhichPerson')
+                  : t('appApplicant.appApplicantIdImportImportPanel.openNeedsOneDecision')}
               </a>
               {showNext ? (
                 <a className="btn btn-secondary" href={`/app/applicant/${applicantId}`}>
-                  Review Suggested Details
+                  {t('appApplicant.appApplicantIdImportImportPanel.reviewSuggestedDetails')}
                 </a>
               ) : null}
             </div>
@@ -888,8 +943,7 @@ export function ImportPanel({
         </nav>
       ) : null}
       <p className="muted uploader-note">
-        Each file is stored privately and checked when it arrives, exactly as a single upload is.
-        Only you and the people you choose to share with can open it.
+        {t('appApplicant.appApplicantIdImportImportPanel.eachFileIsStoredPrivatelyAnd')}
       </p>
     </div>
   );

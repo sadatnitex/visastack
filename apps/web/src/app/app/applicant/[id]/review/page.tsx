@@ -1,3 +1,4 @@
+import { formatNumber } from '@visastack/i18n';
 import {
   DEFAULT_DOCUMENT_PROTECTION,
   accountPrincipal,
@@ -17,8 +18,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { readingStatusCopy } from '../../../../../lib/document-reading';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { evidenceDocumentGroups } from '../../../../../lib/master-profile';
 import { protectedKindsOf } from '../../../../../lib/protected-kinds';
 import { createKeyManagementPort } from '../../../../../lib/providers';
@@ -57,6 +60,8 @@ export default async function WhatWeFoundPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<{ batch?: string | string[] }>;
 }) {
+  const locale = await primeLocale();
+  const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   // The files just added, when a person arrives from an import: followed one by one below.
   const batchIds = parseBatch((await searchParams)?.batch);
@@ -189,11 +194,15 @@ export default async function WhatWeFoundPage({
   return (
     <>
       <PageHeader
-        title={inBatch ? 'Your Files Are Saved' : 'What We Found'}
+        title={
+          inBatch
+            ? t('appApplicant.appApplicantIdReviewPage.yourFilesAreSaved')
+            : t('appApplicant.appApplicantIdReviewPage.whatWeFound')
+        }
         description={
           inBatch
-            ? 'We check each file, read it, and bring you the details to approve. Nothing is added to your profile until you accept it.'
-            : 'Details we read from your documents. Nothing is added to your profile until you accept it.'
+            ? t('appApplicant.appApplicantIdReviewPage.weCheckEachFileReadIt')
+            : t('appApplicant.appApplicantIdReviewPage.detailsWeReadFromYourDocuments')
         }
         back={{ href: `/app/applicant/${id}`, label: 'Home' }}
       />
@@ -203,7 +212,11 @@ export default async function WhatWeFoundPage({
           <AutoRefresh active={working} />
           <section className="card u-mb-150" aria-labelledby="flow-files-title">
             <h2 className="card-title" id="flow-files-title">
-              {rows.length === 1 ? '1 File Saved' : `${rows.length} Files Saved`}
+              {rows.length === 1
+                ? t('appApplicant.appApplicantIdReviewPage.1FileSaved')
+                : t('appApplicant.appApplicantIdReviewPage.lengthFilesSaved', {
+                    length: formatNumber(rows.length, locale),
+                  })}
             </h2>
             <ul className="flow-files">
               {rows.map(({ doc, stage, found }) => (
@@ -215,7 +228,7 @@ export default async function WhatWeFoundPage({
             </ul>
             {working ? (
               <output className="notice">
-                You can leave this page. We keep going, and Home tells you when details are ready.
+                {t('appApplicant.appApplicantIdReviewPage.youCanLeaveThisPageWe')}
               </output>
             ) : null}
           </section>
@@ -231,7 +244,7 @@ export default async function WhatWeFoundPage({
       ) : allDone ? (
         <article className="card u-mb-150" aria-labelledby="flow-done-title">
           <h2 className="card-title" id="flow-done-title">
-            All Done
+            {t('appApplicant.appApplicantIdReviewPage.allDone')}
           </h2>
           <p className="card-body">
             {rows.length === 1 ? 'Your file is' : `All ${rows.length} files are`} saved, named and
@@ -239,32 +252,35 @@ export default async function WhatWeFoundPage({
           </p>
           <div className="upload-drop-actions">
             <Link className="btn btn-primary" href={`/app/applicant/${id}/profile`}>
-              Open My Profile
+              {t('appApplicant.appApplicantIdReviewPage.openMyProfile')}
             </Link>
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/documents/add`}>
-              Add More Documents
+              {t('appApplicant.appApplicantIdReviewPage.addMoreDocuments')}
             </Link>
           </div>
         </article>
       ) : groups.length === 0 && unread.length === 0 && !inBatch ? (
         <EmptyState
-          title="You Are Up to Date"
+          title={t('appApplicant.appApplicantIdReviewPage.youAreUpToDate')}
           why="Every detail we found has been answered. Add a document to find more."
           action={{ href: `/app/applicant/${id}/documents/add`, label: 'Add Documents' }}
         >
-          Nothing is waiting for you.
+          {t('appApplicant.appApplicantIdPage.nothingIsWaitingForYou')}
         </EmptyState>
       ) : (
         <>
           {groups.length > 0 ? (
             <p className="card-body u-mb-150">
               {total > 0
-                ? `${plural(total, 'Detail', 'Details')} found in ${plural(
-                    groups.filter((group) => group.found.length > 0).length,
-                    'document',
-                    'documents',
-                  )}. Accept the clear ones at once, or one by one. Sensitive details, such as an ID number, are always decided one at a time.`
-                : 'Check the name we suggest for each document.'}
+                ? t('appApplicant.appApplicantIdReviewPage.pluralFoundInPlural2AcceptThe', {
+                    plural: plural(total, 'Detail', 'Details'),
+                    plural2: plural(
+                      groups.filter((group) => group.found.length > 0).length,
+                      'document',
+                      'documents',
+                    ),
+                  })
+                : t('appApplicant.appApplicantIdReviewPage.checkTheNameWeSuggestFor')}
             </p>
           ) : null}
           {groups.map(({ doc, found, suggestion }) => (
@@ -292,7 +308,7 @@ export default async function WhatWeFoundPage({
           {unread.length > 0 ? (
             <section className="u-mb-150" aria-labelledby="not-read-title">
               <h2 className="card-title" id="not-read-title">
-                Files Not Read Yet
+                {t('appApplicant.appApplicantIdReviewPage.filesNotReadYet')}
               </h2>
               {unread.map(({ doc, versionId, state, copy }) => (
                 <article
@@ -310,8 +326,8 @@ export default async function WhatWeFoundPage({
                       documentVersionId={versionId}
                       label={
                         NEVER_READ.includes(state.reason ?? '')
-                          ? 'Read This Document'
-                          : 'Read Again'
+                          ? t('appApplicant.appApplicantIdReviewPage.readThisDocument')
+                          : t('appApplicant.appApplicantIdReviewPage.readAgain')
                       }
                     />
                   ) : null}
@@ -321,7 +337,9 @@ export default async function WhatWeFoundPage({
           ) : null}
           {inBatch ? (
             <p className="field-hint">
-              <Link href={`/app/applicant/${id}/review`}>See everything that is waiting</Link>
+              <Link href={`/app/applicant/${id}/review`}>
+                {t('appApplicant.appApplicantIdReviewPage.seeEverythingThatIsWaiting')}
+              </Link>
             </p>
           ) : null}
         </>

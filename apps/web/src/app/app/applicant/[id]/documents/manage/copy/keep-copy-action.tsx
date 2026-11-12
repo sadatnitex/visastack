@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useRef } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../../../components/form-feedback';
+import { useT } from '../../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { type KeepCopyState, keepCopyAction } from './actions';
 
@@ -20,6 +22,7 @@ export function KeepCopyAction({
   copyPeople = [],
   onClose,
 }: ManageActionProps) {
+  const t = useT(appApplicantCatalog);
   const [state, action, pending] = useActionState(keepCopyAction, INITIAL);
   const closeButton = useRef<HTMLButtonElement>(null);
   // The form goes once the copy is kept, taking the focused button with it: focus moves to Close
@@ -31,9 +34,11 @@ export function KeepCopyAction({
   if (copyPeople.length === 0) {
     return (
       <div className="lc-action">
-        <p>There is no one else on your account to keep a copy for.</p>
+        <p>
+          {t('appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.thereIsNoOneElseOn')}
+        </p>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Close
+          {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
         </button>
       </div>
     );
@@ -53,7 +58,12 @@ export function KeepCopyAction({
             </>
           ) : (
             <fieldset className="umpe-g1-person-choices">
-              <legend>Keep a Copy of {documentName} for Whom?</legend>
+              <legend>
+                {t(
+                  'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.keepACopyOfDocumentnameFor',
+                  { documentName },
+                )}
+              </legend>
               {copyPeople.map((person) => (
                 <label key={person.id} className="umpe-g1-person-choice">
                   <input type="radio" name="targetId" value={person.id} required />
@@ -63,18 +73,26 @@ export function KeepCopyAction({
             </fieldset>
           )}
           <p className="muted">
-            It is a separate copy, checked for safety like any new file. Removing one does not
-            remove the other.
+            {t(
+              'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.itIsASeparateCopyChecked',
+            )}
           </p>
           <div className="upload-drop-actions">
             <SubmitButton
               pending={pending}
               idle="Keep a Copy"
               busy="Saving"
-              label={only ? `Keep a Copy for ${only.name}` : 'Keep a Copy'}
+              label={
+                only
+                  ? t(
+                      'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.keepACopyForName',
+                      { name: only.name },
+                    )
+                  : t('appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.keepACopy')
+              }
             />
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </form>
@@ -84,11 +102,11 @@ export function KeepCopyAction({
         <div className="upload-drop-actions">
           {state.targetId ? (
             <Link className="btn btn-secondary" href={`/app/applicant/${state.targetId}/documents`}>
-              Open Their Documents
+              {t('appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.openTheirDocuments')}
             </Link>
           ) : null}
           <button ref={closeButton} type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       ) : null}
