@@ -33,9 +33,9 @@ for (const path of ['/', '/auth/sign-in']) {
     );
     expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
     if (!bengali) return;
-    // Every marked part names a language that is not the page's own.
+    // Every marked part (the language picker's own buttons name their languages, as always) names a language that is not the page's own.
     const marked = await page
-      .locator('[lang]:not(html)')
+      .locator('[lang]:not(html):not(.lang-switch)')
       .evaluateAll((els) => els.map((el) => el.getAttribute('lang')));
     expect(marked.length).toBeGreaterThan(0);
     for (const lang of marked) {
