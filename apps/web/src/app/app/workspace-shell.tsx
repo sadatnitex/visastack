@@ -28,9 +28,12 @@ import {
   workspaceNavigation,
 } from '../../lib/workspace-navigation';
 
-type WorkspaceKind = WorkspaceNavigation['kind'];
+import { useT } from '../../components/i18n-provider';
+import { appHomeCatalog } from '../../i18n/app-home';
 import { AppNav, navIconFor } from './app-nav';
 import { WorkspaceRecordToolbar } from './workspace-record-toolbar';
+
+type WorkspaceKind = WorkspaceNavigation['kind'];
 
 type Subject = { readonly route: string; readonly applicantId: string };
 const SubjectContext = createContext<((subject: Subject) => void) | null>(null);
@@ -77,6 +80,7 @@ function WorkspaceSelector({
   /** A platform page: the list offers the Account Overview instead of traveller names. */
   readonly staff?: boolean;
 }) {
+  const t = useT(appHomeCatalog);
   const id = useId();
   const pathname = usePathname();
   const selector = useRef<HTMLDetailsElement>(null);
@@ -116,7 +120,11 @@ function WorkspaceSelector({
       {/* Beside the rail only the avatar shows, so the summary carries the full name itself. */}
       <summary
         aria-controls={id}
-        aria-label={popover ? `${name}, ${caption}, Switch Workspace` : undefined}
+        aria-label={
+          popover
+            ? t('appHome.appWorkspaceShell.nameCaptionSwitchWorkspace', { name, caption })
+            : undefined
+        }
       >
         {compact && !isPerson ? null : (
           <PersonAvatar
@@ -150,12 +158,12 @@ function WorkspaceSelector({
           </>
         )}
       </summary>
-      <nav id={id} aria-label="Available workspaces">
-        <p>Personal space</p>
+      <nav id={id} aria-label={t('appHome.appWorkspaceShell.availableWorkspaces')}>
+        <p>{t('appHome.appWorkspaceShell.personalSpace')}</p>
         {/* Staff mode keeps traveller names off platform screens (owner list item 18): one way
             back to the account's own overview, where the travellers are listed. */}
         {staff ? (
-          <Link href="/app">Account Overview</Link>
+          <Link href="/app">{t('appHome.appWorkspaceShell.accountOverview')}</Link>
         ) : (
           access.travellers.map((person) => (
             <Link key={person.id} href={`/app/applicant/${person.id}`}>
@@ -163,13 +171,15 @@ function WorkspaceSelector({
             </Link>
           ))
         )}
-        {access.agencies.length ? <p>Agencies</p> : null}
+        {access.agencies.length ? <p>{t('appHome.appWorkspaceShell.agencies')}</p> : null}
         {access.agencies.map((agency) => (
           <Link key={agency.id} href={`/app/agency/${agency.id}`}>
             {agency.name}
           </Link>
         ))}
-        {access.platform ? <Link href="/app/admin">Platform Operations</Link> : null}
+        {access.platform ? (
+          <Link href="/app/admin">{t('appHome.appWorkspaceShell.platformOperations')}</Link>
+        ) : null}
       </nav>
     </details>
   );
@@ -181,15 +191,16 @@ function WorkspaceSelector({
  * keeps its own permission checks, and the way out goes to the account's own overview.
  */
 function StaffModeBanner() {
+  const t = useT(appHomeCatalog);
   return (
-    <section className="staff-mode-banner" aria-label="Staff Mode">
+    <section className="staff-mode-banner" aria-label={t('appHome.appWorkspaceShell.staffMode')}>
       <Icon name="lock" size={18} />
       <p>
         <b>Staff Mode.</b> You are using platform tools. What you change here can affect other
         people&apos;s accounts.
       </p>
       <Link className="staff-mode-leave" href="/app">
-        Leave Staff Mode
+        {t('appHome.appWorkspaceShell.leaveStaffMode')}
       </Link>
     </section>
   );
@@ -296,6 +307,7 @@ export function WorkspaceShell({
   readonly initialCaseSubject?: Subject | null;
   readonly children: ReactNode;
 }) {
+  const t = useT(appHomeCatalog);
   const pathname = usePathname();
   // Every case this visit has reported (its route and, from the layout's owner check, its
   // traveller), so going back to a case or one of its pages shows its traveller at once.
@@ -382,16 +394,16 @@ export function WorkspaceShell({
               <p className="workspace-assurance">
                 <Icon name="lock" size={18} />
                 <span>
-                  <b>Staff Mode</b>
-                  <small>Platform tools for VisaStack staff.</small>
+                  <b>{t('appHome.appWorkspaceShell.staffMode')}</b>
+                  <small>{t('appHome.appWorkspaceShell.platformToolsForVisastackStaff')}</small>
                 </span>
               </p>
             ) : (
               <p className="workspace-assurance">
                 <Icon name="shield" size={18} />
                 <span>
-                  <b>You Control Access</b>
-                  <small>Sharing follows your saved permissions.</small>
+                  <b>{t('appHome.appWorkspaceShell.youControlAccess')}</b>
+                  <small>{t('appHome.appWorkspaceShell.sharingFollowsYourSavedPermissions')}</small>
                 </span>
               </p>
             )
@@ -411,7 +423,7 @@ export function WorkspaceShell({
               tools={nav.billing}
               primary={nav.primary}
               popover={railShown}
-              title="Operations and Billing"
+              title={t('appHome.appWorkspaceShell.operationsAndBilling')}
               groupIcon="briefcase"
               listLabel="Billing and plans"
             />

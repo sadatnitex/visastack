@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/icons';
 import { ShareOriginsProvider } from '../../components/share/share-origins';
+import { appHomeCatalog } from '../../i18n/app-home';
 import { resolveBaseUrl } from '../../lib/base-url';
 import { caseSubjectFor } from '../../lib/case-subject';
+import { getT } from '../../lib/i18n-server';
 import { withSession } from '../../lib/session';
 import { getSidebarState } from '../../lib/sidebar-state';
 import { signOutCurrentUser } from '../../lib/sign-out';
@@ -29,6 +31,9 @@ export async function WorkspaceFrame({
   readonly children: ReactNode;
   readonly pathname?: string | null;
 }) {
+  // getT primes the language itself: this frame also wraps pages (collect, account, answers)
+  // whose layout and page never prime it, and a sync read there would crash in dev and show English.
+  const t = await getT(appHomeCatalog);
   // The address comes from the same session read the chrome already uses; nothing new is loaded.
   // It is kept apart from the access object so the browser receives it once, only for the menu.
   const { account, accountEmail, caseSubject } = await withSession(async ({ db, ...actor }) => {
@@ -59,7 +64,7 @@ export async function WorkspaceFrame({
         >
           <button type="submit" className="btn btn-secondary nav-cta">
             <Icon name="logout" size={18} />
-            Sign Out
+            {t('appHome.appWorkspaceFrame.signOut')}
           </button>
         </form>
       }

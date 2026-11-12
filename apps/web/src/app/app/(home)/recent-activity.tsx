@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { atLevel } from '../../../components/depth';
 import { Icon } from '../../../components/icons';
 import { StatusBadge } from '../../../components/ui';
+import { appHomeCatalog } from '../../../i18n/app-home';
+import { getServerT } from '../../../lib/i18n-server';
 import type { RecentActivityEntry } from '../../../lib/recent-activity';
 
 /**
@@ -16,6 +18,7 @@ export function RecentActivity({
   readonly entries: readonly RecentActivityEntry[];
   readonly seeAllHref: string;
 }) {
+  const t = getServerT(appHomeCatalog);
   return (
     <section
       className="home-block u-mb-150"
@@ -24,11 +27,11 @@ export function RecentActivity({
       {...atLevel('browse')}
     >
       <h2 className="home-block-title" id="home-activity-heading">
-        Recent Activity
+        {t('appHome.appRecentActivity.recentActivity')}
       </h2>
       {entries.length === 0 ? (
         <p className="muted home-activity-empty">
-          Nothing yet. Each time your record is opened or changed, it shows here.
+          {t('appHome.appRecentActivity.nothingYetEachTimeYourRecord')}
         </p>
       ) : (
         <>
@@ -45,7 +48,7 @@ export function RecentActivity({
                   </time>
                 </span>
                 {entry.blocked ? (
-                  <StatusBadge tone="danger">Blocked</StatusBadge>
+                  <StatusBadge tone="danger">{t('appHome.appRecentActivity.blocked')}</StatusBadge>
                 ) : (
                   <span className="home-activity-who">{entry.who}</span>
                 )}
@@ -53,7 +56,7 @@ export function RecentActivity({
             ))}
           </ol>
           <Link className="btn btn-secondary home-activity-all" href={seeAllHref}>
-            See All
+            {t('appHome.appRecentActivity.seeAll')}
           </Link>
         </>
       )}

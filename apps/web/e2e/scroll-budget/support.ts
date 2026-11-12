@@ -122,6 +122,24 @@ function fixtureBundle(name: string, standIns: boolean): Promise<string> {
       plugins: [
         ...(standIns ? [standInServerActions] : []),
         {
+          // The server translator reads the request's cookies, which a fixture in the browser
+          // cannot do. It is replaced by an English-only stand-in, so the screens measured here
+          // are the English ones, exactly as before.
+          name: 'scroll-budget-english-translator',
+          enforce: 'pre',
+          resolveId(id: string) {
+            return /(^|\/)lib\/i18n-server$/.test(id) ? '\0english-i18n-server' : null;
+          },
+          load(id: string) {
+            if (id !== '\0english-i18n-server') return null;
+            return [
+              `import { catalogTranslator } from '@visastack/i18n';`,
+              `export const getServerT = (catalog) => catalogTranslator(catalog, 'en');`,
+              `export const primeLocale = async () => 'en';`,
+            ].join('\n');
+          },
+        },
+        {
           name: 'scroll-budget-mount',
           enforce: 'pre',
           resolveId(id: string) {

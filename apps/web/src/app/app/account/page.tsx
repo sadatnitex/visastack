@@ -105,7 +105,10 @@ export default async function AccountPage() {
               <form action={setLocaleAction}>
                 <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
                 <button type="submit" className="btn btn-secondary">
-                  Switch to {locale === 'en' ? 'বাংলা' : 'English'}
+                  Switch to{' '}
+                  <span lang={locale === 'en' ? 'bn' : 'en'}>
+                    {locale === 'en' ? 'বাংলা' : 'English'}
+                  </span>
                 </button>
               </form>
             </article>

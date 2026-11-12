@@ -1,6 +1,7 @@
 import { destinationByIso2 } from '@visastack/core/destinations';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { primeLocale } from '../../../../../../lib/i18n-server';
 import { CountryView } from '../../../../countries/country-view';
 
 export async function generateMetadata({
@@ -21,5 +22,6 @@ export default async function AgencyCountryPage({
   const { orgId, iso2 } = await params;
   const destination = destinationByIso2(iso2);
   if (!destination) notFound();
+  await primeLocale();
   return <CountryView destination={destination} backHref={`/app/agency/${orgId}/countries`} />;
 }

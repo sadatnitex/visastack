@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { CountryFlag } from '../../../../components/country-flag';
 import { destinationFlagCode } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
+import { appTripsCatalog } from '../../../../i18n/app-trips';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { loadTripPage } from '../trip-data';
 import { TripOverview } from '../trip-overview';
@@ -34,12 +36,14 @@ export default async function GroupTripPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ done?: string | string[] }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appTripsCatalog);
   const { id } = await params;
   const { done } = await searchParams;
   const notice = typeof done === 'string' ? NOTICES[done] : undefined;
   const data = await withSession(({ db, accountId }) => loadTripPage(db, accountId, id));
   // The layout already answered 404 for a missing trip; this covers one removed in between.
-  if (!data) return <p>This trip is not available.</p>;
+  if (!data) return <p>{t('appTrips.appTripsIdPage.thisTripIsNotAvailable')}</p>;
   return (
     <>
       <PageHeader
@@ -53,7 +57,10 @@ export default async function GroupTripPage({
           ) : null
         }
         title={data.title}
-        description={`${data.destination} for ${data.purpose}.`}
+        description={t('appTrips.appTripsIdPage.destinationForPurpose', {
+          destination: data.destination,
+          purpose: data.purpose,
+        })}
         back={{ href: '/app/trips', label: 'Group Trips' }}
       />
       {notice ? <output className="trip-notice">{notice}</output> : null}
