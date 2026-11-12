@@ -5,12 +5,27 @@ export function localeTag(locale: Locale): string {
   return locale === 'bn' ? 'bn-BD' : 'en-GB';
 }
 
-export function formatNumber(
-  value: number,
-  locale: Locale,
-  options?: Intl.NumberFormatOptions,
-): string {
-  return new Intl.NumberFormat(localeTag(locale), options).format(value);
+export type FormatNumberOptions = Intl.NumberFormatOptions & {
+  /** English only: group thousands ("1,234"). Off by default, so English stays as String(value). */
+  grouping?: boolean;
+};
+
+/**
+ * Standalone counts. English is exactly String(value) (no grouping), the same as the original
+ * English code; pass {grouping: true} where English genuinely needs "1,234". Bengali always uses
+ * Bengali digits with the locale grouping. Other Intl options apply to both languages.
+ */
+export function formatNumber(value: number, locale: Locale, options?: FormatNumberOptions): string {
+  if (locale === 'bn') {
+    const { grouping: _ignored, ...intl } = options ?? {};
+    return new Intl.NumberFormat(localeTag(locale), intl).format(value);
+  }
+  if (!options) return String(value);
+  const { grouping, ...intl } = options;
+  return new Intl.NumberFormat(localeTag(locale), {
+    ...intl,
+    useGrouping: grouping === true ? (intl.useGrouping ?? true) : false,
+  }).format(value);
 }
 
 export function formatDate(
