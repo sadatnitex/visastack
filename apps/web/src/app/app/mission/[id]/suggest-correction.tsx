@@ -1,5 +1,7 @@
 import { CORRECTION_CATEGORIES, CORRECTION_CATEGORY_LABELS } from '@visastack/services';
 import { ChecklistCorrectionForm } from '../../../../components/checklist-correction-form';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
+import { getServerT } from '../../../../lib/i18n-server';
 import { suggestCaseCorrectionAction } from './suggest-correction-actions';
 
 const CATEGORIES = CORRECTION_CATEGORIES.map((value) => ({
@@ -20,14 +22,14 @@ export function SuggestCorrection({
   readonly packRequirementId: string;
   readonly itemName: string;
 }) {
+  const t = getServerT(appMissionCatalog);
   return (
     <details className="correction-suggest">
       <summary>
         Suggest a Correction<span className="sr-only"> for {itemName}</span>
       </summary>
       <p className="muted u-fs-085 u-m-0">
-        Tell us if this item looks wrong. Pack editors check it against the official source; your
-        checklist does not change until a corrected version is published.
+        {t('appMission.appMissionIdSuggestCorrection.tellUsIfThisItemLooks')}
       </p>
       <ChecklistCorrectionForm
         action={suggestCaseCorrectionAction}

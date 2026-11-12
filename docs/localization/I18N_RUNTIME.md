@@ -57,6 +57,12 @@ A numeric `{token}` is formatted by the language the message is actually written
 - Strings and other values are inserted unchanged. Pass a raw number, not `formatNumber(value, locale)`: a pre-formatted string is locked to the visitor's language and shows Bengali digits inside an English fallback. Keep passing strings for values that must not change (codes, reference numbers, money from `formatMoney`).
 - Converted call site: the notification bell label in `workspace-record-toolbar.tsx` now passes the raw unread count. Only an unread count of 1000 or more differs in English (`1000`, was `1,000`); the badge itself caps at 99+.
 
+## formatNumber English default (12 Nov 2026)
+
+- `formatNumber(value, 'en')` now returns exactly `String(value)` (no grouping), so standalone counts converted in the waves keep the original English output (`1234`, not `1,234`). Bengali is unchanged: Bengali digits with locale grouping.
+- English that genuinely needs grouping passes `{ grouping: true }`. No merged caller needs it. The only caller, `countLabel` (badge counts, capped at 99+), has no English change.
+- `formatMoney` is separate (its own currency formatter) and unchanged: ISO code beside the amount. The ICU `#` and `{token}` paths do not call `formatNumber` and are unchanged.
+
 ### Corrections and the marking pass (appended)
 
 Corrections to the section above, kept as notes because the docs are append-only:

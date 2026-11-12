@@ -15,6 +15,8 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { DestinationLabel } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
+import { appTripInvitationsCatalog } from '../../../../i18n/app-trip-invitations';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import {
   ChoosePaperForm,
@@ -58,6 +60,8 @@ export default async function JoinedTripPage({
 }: {
   readonly params: Promise<{ readonly id: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appTripInvitationsCatalog);
   if (!tripCompanionsEnabled()) notFound();
   const { id } = await params;
   if (!UUID.test(id)) notFound();
@@ -81,21 +85,24 @@ export default async function JoinedTripPage({
   const { trip, level, papers, ownCaseId } = page;
   return (
     <Shell>
-      <PageHeader title={trip.title} description="You joined this trip." />
+      <PageHeader
+        title={trip.title}
+        description={t('appTripInvitations.appTripInvitationsIdPage.youJoinedThisTrip')}
+      />
       <article className="card">
         <dl className="rows">
           <div className="row">
-            <dt>Where</dt>
+            <dt>{t('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
             <dd>
               <DestinationLabel destination={trip.destination} />
             </dd>
           </div>
           <div className="row">
-            <dt>Why</dt>
+            <dt>{t('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
             <dd>{trip.purpose}</dd>
           </div>
           <div className="row">
-            <dt>Travelling</dt>
+            <dt>{t('appTripInvitations.appTripInvitationsIdPage.travelling')}</dt>
             <dd>
               <ul className="companion-people">
                 {trip.people.map((name, at) => (
@@ -111,7 +118,7 @@ export default async function JoinedTripPage({
         <div className="companion-actions">
           {ownCaseId ? (
             <Link className="btn btn-primary" href={`/app/mission/${ownCaseId}`}>
-              Open My Case
+              {t('appTripInvitations.appTripInvitationsIdPage.openMyCase')}
             </Link>
           ) : (
             <PlanOwnCaseForm tripId={id} />
@@ -130,9 +137,13 @@ export default async function JoinedTripPage({
         />
         {papers ? (
           <details className="companion-more">
-            <summary>Papers You Show ({papers.chosen.length})</summary>
+            <summary>
+              {t('appTripInvitations.appTripInvitationsIdPage.papersYouShowLength', {
+                length: papers.chosen.length,
+              })}
+            </summary>
             <p className="muted u-fs-085 u-m-0">
-              The organiser sees only the name and kind of each paper, never the file.
+              {t('appTripInvitations.appTripInvitationsIdPage.theOrganiserSeesOnlyTheName')}
             </p>
             {papers.chosen.length > 0 ? (
               <ul className="companion-papers">
@@ -150,7 +161,7 @@ export default async function JoinedTripPage({
               <ChoosePaperForm tripId={id} options={papers.options} />
             ) : (
               <p className="muted u-m-0">
-                No bookings or itineraries in your documents to add right now.
+                {t('appTripInvitations.appTripInvitationsIdPage.noBookingsOrItinerariesInYour')}
               </p>
             )}
           </details>
@@ -158,7 +169,9 @@ export default async function JoinedTripPage({
       </article>
       <div className="companion-leave">
         <LeaveTripForm tripId={id} />
-        <Link href="/app/trips">Back to My Trips</Link>
+        <Link href="/app/trips">
+          {t('appTripInvitations.appTripInvitationsIdPage.backToMyTrips')}
+        </Link>
       </div>
     </Shell>
   );

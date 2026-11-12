@@ -1,5 +1,7 @@
 import { StickyActionBar } from '../../../../components/sticky-action-bar';
 import { ProgressMeter } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
+import { getServerT } from '../../../../lib/i18n-server';
 import { type CaseAttentionItem, NEXT_STEP_COPY } from './case-model';
 
 /** How far the checklist is: required items on file out of all required items. */
@@ -21,6 +23,7 @@ export interface CaseMobileBarProps {
  * one button is secondary, because the Next Step panel at the top holds the page's filled button.
  */
 export function CaseMobileBar({ nextStep, progress }: CaseMobileBarProps) {
+  const t = getServerT(appMissionCatalog);
   if (!nextStep || nextStep.kind === 'changed') return null;
   const copy = NEXT_STEP_COPY[nextStep.kind];
   // Short on purpose: the Next Step panel above already says it in full.
@@ -29,7 +32,7 @@ export function CaseMobileBar({ nextStep, progress }: CaseMobileBarProps) {
   return (
     <div className="case-sticky-next">
       <StickyActionBar
-        label="Next Step"
+        label={t('appMission.appMissionIdCaseMobileBar.nextStep')}
         note={
           hasProgress && progress ? (
             <>
@@ -37,13 +40,16 @@ export function CaseMobileBar({ nextStep, progress }: CaseMobileBarProps) {
                 <ProgressMeter
                   value={progress.done}
                   max={progress.total}
-                  label="required items on file"
+                  label={t('appMission.appMissionIdCaseMobileBar.requiredItemsOnFile')}
                   size={6}
                   valueText={null}
                 />
                 {/* The bar's own name already says these numbers, so they are for the eyes only. */}
                 <span className="lift-bar-count" aria-hidden="true">
-                  {progress.done} of {progress.total}
+                  {t('appMission.appMissionIdCaseMobileBar.doneOfTotal', {
+                    done: progress.done,
+                    total: progress.total,
+                  })}
                 </span>
                 <span className="lift-bar-sep" aria-hidden="true">
                   {' · '}

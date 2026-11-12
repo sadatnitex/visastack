@@ -1,5 +1,6 @@
 import type { ChangesSinceConfirmed } from '@visastack/services';
 import Link from 'next/link';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import {
   changeLine,
   comparableVersionId,
@@ -7,6 +8,7 @@ import {
   memoryHref,
 } from '../../../../lib/application-memory-labels';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT } from '../../../../lib/i18n-server';
 
 /** At most this many changes are listed in the alert; the full list is one link away. */
 export const ALERT_CHANGE_LIMIT = 8;
@@ -25,6 +27,7 @@ export function ChangesSinceConfirmedList({
   /** Null when the list could not be read; the alert still shows. */
   readonly changes: ChangesSinceConfirmed | null;
 }) {
+  const t = getServerT(appMissionCatalog);
   if (!changes) {
     return (
       <p className="case-changes-note">
@@ -40,8 +43,7 @@ export function ChangesSinceConfirmedList({
       <div className="case-changes">
         <p className="case-changes-title">{heading}</p>
         <p className="case-changes-note">
-          This older snapshot did not record exact versions, so the changes cannot be listed. Open
-          the snapshots to compare them.
+          {t('appMission.appMissionIdChangesSinceConfirmed.thisOlderSnapshotDidNotRecord')}
         </p>
       </div>
     );
@@ -53,8 +55,7 @@ export function ChangesSinceConfirmedList({
       <p className="case-changes-title">{heading}</p>
       {shown.length === 0 ? (
         <p className="case-changes-note">
-          No detail, document or case date differs from that snapshot. The change may be a different
-          choice of evidence; open the snapshots to compare.
+          {t('appMission.appMissionIdChangesSinceConfirmed.noDetailDocumentOrCaseDate')}
         </p>
       ) : (
         <ul className="case-changes-list">
@@ -76,9 +77,12 @@ export function ChangesSinceConfirmedList({
                   <Link
                     className="case-change-link"
                     href={compareHref(applicantId, snapshot.id, versionId)}
-                    aria-label={`Compare ${line.name}, then and now`}
+                    aria-label={t(
+                      'appMission.appMissionIdChangesSinceConfirmed.compareNameThenAndNow',
+                      { name: line.name },
+                    )}
                   >
-                    Compare
+                    {t('appMission.appMissionIdChangesSinceConfirmed.compare')}
                   </Link>
                 ) : null}
               </li>
@@ -87,7 +91,11 @@ export function ChangesSinceConfirmedList({
         </ul>
       )}
       <Link className="case-changes-all" href={compareHref(applicantId, snapshot.id)}>
-        {more > 0 ? `See All ${changes.changes.length} Changes` : 'See What Changed'}
+        {more > 0
+          ? t('appMission.appMissionIdChangesSinceConfirmed.seeAllLengthChanges', {
+              length: changes.changes.length,
+            })
+          : t('appMission.appMissionIdChangesSinceConfirmed.seeWhatChanged')}
       </Link>
     </div>
   );

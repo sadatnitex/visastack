@@ -6,7 +6,9 @@ import { SafeCopyDownload } from '../../../../components/safe-copy-download';
 import { ShowMore } from '../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../components/visa-photo-sizes';
+import { appSharedCatalog } from '../../../../i18n/app-shared';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../lib/paging';
@@ -34,6 +36,8 @@ export default async function SharedWorkspacePage({
   /** `fields` and `docs`: how many shared details and documents to list (WP-SB3: 10, then more). */
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await primeLocale();
+  const t = getServerT(appSharedCatalog);
   const { grantId } = await params;
   const search = (await searchParams) ?? {};
   const fieldsShown = parseShow(search[FIELDS_KEY], {
@@ -94,43 +98,44 @@ export default async function SharedWorkspacePage({
     <section className="section container">
       <div className="u-mb-150">
         <Link href="/app/shared" className="muted u-fs-085">
-          ← Shared with you
+          {t('appShared.appSharedGrantidPage.sharedWithYou')}
         </Link>
       </div>
       <PageHeader
-        eyebrow="Shared Workspace"
+        eyebrow={t('appShared.appSharedGrantidPage.sharedWorkspace')}
         title={workspace.applicantDisplayName}
         description={
           <>
             {workspace.grant.purpose}
             {workspace.grant.expiryAt
-              ? ` · expires ${formatTimestampDate(workspace.grant.expiryAt)}`
+              ? t('appShared.appSharedGrantidPage.expiresFormattimestampdate', {
+                  formatTimestampDate: formatTimestampDate(workspace.grant.expiryAt),
+                })
               : ''}
           </>
         }
       />
 
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1.5rem' }}>
-        Every item below is re-checked against your grant's permissions on every visit. It never
-        shows more than what was shared with you, and never less than you're entitled to.
+        {t('appShared.appSharedGrantidPage.everyItemBelowIsReChecked')}
       </p>
 
       {workspace.missionScopeUnavailable ? (
         <div className="card u-mb-150">
-          <p className="card-body">
-            This access is limited to a specific case. Case-scoped sharing isn't available yet -
-            nothing is shown below until that support ships.
-          </p>
+          <p className="card-body">{t('appShared.appSharedGrantidPage.thisAccessIsLimitedToA')}</p>
         </div>
       ) : null}
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">Profile</p>
-          <h2 className="card-title">Shared Fields</h2>
+          <p className="card-kicker">{t('appShared.appSharedGrantidPage.profile')}</p>
+          <h2 className="card-title">{t('appShared.appSharedGrantidPage.sharedFields')}</h2>
           {workspace.fields.length === 0 ? (
-            <EmptyState icon="user" title="No Profile Details Shared">
-              This person has not shared any profile details with you for this purpose.
+            <EmptyState
+              icon="user"
+              title={t('appShared.appSharedGrantidPage.noProfileDetailsShared')}
+            >
+              {t('appShared.appSharedGrantidPage.thisPersonHasNotSharedAny')}
             </EmptyState>
           ) : (
             <>
@@ -159,11 +164,11 @@ export default async function SharedWorkspacePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">Document Vault</p>
-          <h2 className="card-title">Shared Documents</h2>
+          <p className="card-kicker">{t('appShared.appSharedGrantidPage.documentVault')}</p>
+          <h2 className="card-title">{t('appShared.appSharedGrantidPage.sharedDocuments')}</h2>
           {workspace.documents.length === 0 ? (
-            <EmptyState icon="file" title="No Documents Shared">
-              This person has not shared any documents with you for this purpose.
+            <EmptyState icon="file" title={t('appShared.appSharedGrantidPage.noDocumentsShared')}>
+              {t('appShared.appSharedGrantidPage.thisPersonHasNotSharedAnyb926f7')}
             </EmptyState>
           ) : (
             <>
@@ -182,11 +187,13 @@ export default async function SharedWorkspacePage({
                           </span>
                         ) : null}
                         {offer === 'not_prepared' ? (
-                          <span className="badge badge-neutral">Safe Copy: Not Prepared Yet</span>
+                          <span className="badge badge-neutral">
+                            {t('appShared.appSharedGrantidPage.safeCopyNotPreparedYet')}
+                          </span>
                         ) : null}
                         {offer === 'not_available' ? (
                           <span className="badge badge-neutral">
-                            Safe Copy Not Available for This File
+                            {t('appShared.appSharedGrantidPage.safeCopyNotAvailableForThis')}
                           </span>
                         ) : null}
                       </span>
@@ -220,17 +227,16 @@ export default async function SharedWorkspacePage({
                 />
               ))}
               <p className="muted u-fs-085">
-                Other documents cannot be previewed here yet. This list shows which documents your
-                grant covers. A passport photo shared with safe copies can be sized for a visa
-                application above.
+                {t('appShared.appSharedGrantidPage.otherDocumentsCannotBePreviewedHere')}
               </p>
               {!safeCopiesOn && workspace.grant.actions.includes('DOWNLOAD_REDACTED') ? (
-                <p className="muted u-fs-085">Safe copies are not available here yet.</p>
+                <p className="muted u-fs-085">
+                  {t('appShared.appSharedGrantidPage.safeCopiesAreNotAvailableHere')}
+                </p>
               ) : null}
               {[...safeCopies.values()].some((offer) => offer !== 'none') ? (
                 <p className="muted u-fs-085">
-                  A safe copy is a picture of each page with the parts the traveller chose covered
-                  in black. It is made fresh when you download it.
+                  {t('appShared.appSharedGrantidPage.aSafeCopyIsAPicture')}
                 </p>
               ) : null}
             </>

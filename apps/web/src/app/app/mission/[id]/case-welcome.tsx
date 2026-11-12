@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../../../../components/i18n-provider';
 import { AboutDisclosure } from '../../../../components/ui-lift';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 
 /**
  * The note a new case opens with (owner list item 1): it says the case exists and what to do
@@ -28,6 +30,7 @@ export function CaseWelcome({
   /** False when the next step or the changed-case alert holds the page's one primary button. */
   readonly primary?: boolean;
 }) {
+  const t = useT(appMissionCatalog);
   const heading = useRef<HTMLHeadingElement>(null);
   const [shown, setShown] = useState(true);
 
@@ -52,7 +55,7 @@ export function CaseWelcome({
         {title}
       </h2>
       <p className="case-welcome-body">{lead}</p>
-      <AboutDisclosure summary="About This">
+      <AboutDisclosure summary={t('appMission.appMissionIdCaseWelcome.aboutThis')}>
         {body.map((line) => (
           <p key={line}>{line}</p>
         ))}
@@ -74,7 +77,7 @@ export function CaseWelcome({
             }
           }}
         >
-          Got It
+          {t('appMission.appMissionIdCaseWelcome.gotIt')}
         </button>
       </div>
     </section>

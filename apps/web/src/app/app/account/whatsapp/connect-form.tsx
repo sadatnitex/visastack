@@ -7,12 +7,15 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appAccountCatalog } from '../../../../i18n/app-account';
 import { type ConnectState, startWhatsAppLinkAction } from './actions';
 
 const INITIAL: ConnectState = { ok: true, message: '' };
 
 /** Asks for agreement, then shows the one-time code to send from WhatsApp. */
 export function ConnectWhatsAppForm() {
+  const t = useT(appAccountCatalog);
   const [state, formAction, pending] = useActionState(startWhatsAppLinkAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const messageId = useId();
@@ -23,8 +26,7 @@ export function ConnectWhatsAppForm() {
     return (
       <div className="field-stack">
         <p className="card-body">
-          Send this message from the WhatsApp you want to connect. The code works for 10 minutes and
-          only once.
+          {t('appAccount.appAccountWhatsappConnectForm.sendThisMessageFromTheWhatsapp')}
         </p>
         <p className="mono" translate="no">
           <strong>{state.whatsappMessage}</strong>
@@ -32,11 +34,11 @@ export function ConnectWhatsAppForm() {
         <div className="page-actions">
           {state.whatsappHref ? (
             <a className="btn btn-primary" href={state.whatsappHref} rel="noopener noreferrer">
-              Open WhatsApp
+              {t('appAccount.appAccountWhatsappConnectForm.openWhatsapp')}
             </a>
           ) : null}
           <a className="btn btn-secondary" href="/app/account/whatsapp">
-            I Have Sent It
+            {t('appAccount.appAccountWhatsappConnectForm.iHaveSentIt')}
           </a>
         </div>
       </div>
@@ -54,8 +56,7 @@ export function ConnectWhatsAppForm() {
           {...fieldProblem(state, 'optIn', messageId)}
         />
         <span className="output-check-text">
-          I agree to receive messages from VisaStack on WhatsApp about my cases. I can send STOP at
-          any time.
+          {t('appAccount.appAccountWhatsappConnectForm.iAgreeToReceiveMessagesFrom')}
         </span>
       </label>
       <div>
