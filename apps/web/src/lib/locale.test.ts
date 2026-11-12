@@ -47,8 +47,8 @@ describe('the language a page is shown in', () => {
     expect(readRequest.count).toBe(before + 1);
   });
 
-  it('is off today: translation is deferred until the owner says the rest is done', () => {
-    expect(LANGUAGE_CHOICE_ENABLED).toBe(false);
+  it('is on: owner decision of 2026-11-12 (rollback is setting it to false)', () => {
+    expect(LANGUAGE_CHOICE_ENABLED).toBe(true);
   });
 });
 
