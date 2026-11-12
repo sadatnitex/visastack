@@ -1,6 +1,5 @@
 'use client';
 
-import { formatNumber } from '@visastack/i18n';
 import type {
   WorkspaceSearchResult,
   WorkspaceSearchScope,
@@ -275,7 +274,7 @@ export function WorkspaceRecordToolbar({
           aria-label={
             state
               ? t('appHome.appWorkspaceRecordToolbar.notificationsUnreadUnread', {
-                  unread: formatNumber(state.unread, locale),
+                  unread: state.unread,
                 })
               : t('appHome.appWorkspaceRecordToolbar.notifications')
           }
