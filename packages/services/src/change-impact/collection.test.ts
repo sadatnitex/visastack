@@ -1,5 +1,5 @@
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { accountPrincipal, requireAccess } from '../access';
 import { agencyCollectionPrincipal, collectionLinkProof } from '../access/collection-scope';
@@ -315,6 +315,38 @@ describe('an answered agency checklist', () => {
       );
       const withdrawn = await readDocumentImpact(w);
       expect(withdrawn.items.some((item) => item.id.startsWith('response:'))).toBe(false);
+    },
+    HEAVY,
+  );
+
+  it(
+    'holds the earlier copy while any line of the answer still carries it, even beside the newer one',
+    async () => {
+      const w = await buildImpactWorld();
+      await officialChecklist(w);
+      const answer = await answerChecklist(w);
+      const { newer } = await replaceWithNewerPassport(w);
+      // By hand: the same passport line also carries the newer passport, as an answer that
+      // chose two copies for one line records it.
+      const items = schema.agencyCollectionResponseItems;
+      const [line] = await w.db
+        .select({ itemId: items.itemId })
+        .from(items)
+        .where(and(eq(items.responseId, answer.responseId), eq(items.documentId, w.p1.documentId)));
+      if (!line) throw new Error('passport line');
+      await w.db.insert(items).values({
+        responseId: answer.responseId,
+        itemId: line.itemId,
+        kind: 'DOCUMENT',
+        documentId: newer.documentId,
+        documentVersionId: newer.versionId,
+        title: 'sample-passport-newer.pdf',
+      });
+
+      expect(itemOf(await readDocumentImpact(w), `response:${answer.responseId}`)).toMatchObject({
+        outcome: 'UNKNOWN',
+        reason: 'CHECKLIST_ANSWER_HOLDS_EARLIER',
+      });
     },
     HEAVY,
   );

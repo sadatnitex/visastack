@@ -23,7 +23,8 @@ import {
 /**
  * The reproducible "before": what the services that already exist tell the traveller when they
  * replace a document or change a confirmed detail, with no new code. Each assertion carries a
- * "today:" line. The table at the end is the measured summary.
+ * "today:" line. `BASELINE` is the summary: `trueConsequences` counts the consequences listed
+ * below, and `surfacedAtChangeTime` is measured by each test and asserted there.
  *
  * The true consequences in the scenario (see `scenario.test-support.ts`):
  *   Replacing passport P1: (1) the live case still uses it and its confirmation is void, (2) the
@@ -196,13 +197,4 @@ describe('baseline: what the existing services say about a changed detail', () =
     },
     HEAVY,
   );
-});
-
-describe('baseline: the measured table', () => {
-  it('is what the two tests above measured', () => {
-    expect(BASELINE).toEqual({
-      documentChange: { trueConsequences: 4, surfacedAtChangeTime: 1 },
-      detailChange: { trueConsequences: 3, surfacedAtChangeTime: 0 },
-    });
-  });
 });

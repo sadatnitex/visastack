@@ -4,24 +4,25 @@ import {
   type Resource as PolicyResource,
   authorize,
 } from '@visastack/policy';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { type SQL, and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import {
-  collectionResponsesPresent,
+  COLLECTION_RESPONSE_TABLES,
   liveCollectionResponse,
 } from '../access/collection-response-access';
 import { LIVE_GRANT_STATUSES, isLiveGrant } from '../access/grant-scope';
 import type { AuthorizedApplicant } from '../access/require-access';
 import { snapshotRecordedVersions } from '../application-memory';
 import { type Db, schema } from '../db';
-import { evidenceFieldPinsPresent } from '../evidence-field-answers';
-import { evidenceSubmissionsPresent, pinnedVersionIntact } from '../evidence-submission-tables';
+import { FIELD_PIN_TABLES } from '../evidence-field-answers';
+import { SUBMISSION_TABLES, pinnedVersionIntact } from '../evidence-submission-tables';
 import { type StoredCaseEvidence, readStoredCaseEvidence } from '../finished-case-evidence';
 import { readStoredReadiness } from '../finished-case-readiness';
 // Imported by the foundation's path, which the read-path guard recognises.
 import { presentDocumentCondition } from '../lifecycle/foundation/conditions';
-import { lifecycleTablesPresent } from '../lifecycle/foundation/presence';
+import { LIFECYCLE_RELATIONS } from '../lifecycle/foundation/presence';
 import { toPolicyGrant } from '../sharing';
-import { INACTIVE_CASE_STATES, packageTablesPresent } from '../umpe-package-tables';
+import { INACTIVE_CASE_STATES, PACKAGE_TABLES } from '../umpe-package-tables';
 import type { ShareReach } from './classify';
 import type { ImpactShareReach } from './contract';
 import type { RoundRequest, StoredDecision, StoredSend } from './rounds';
@@ -51,19 +52,55 @@ export interface TablesPresent {
   readonly collectionResponses: boolean;
 }
 
+const EVERY_TABLE_PRESENT: TablesPresent = {
+  lifecycle: true,
+  packageChoices: true,
+  documentPins: true,
+  detailPins: true,
+  collectionResponses: true,
+};
+
 /**
- * Presence of the tables that arrive with later migrations. `to_regclass` never raises, so this
- * is safe before a migration and never disturbs a transaction. Asked on the caller's own handle,
- * before the read's transaction opens.
+ * Handles that have seen every table. Only "all present" is remembered (a table is never
+ * dropped); anything missing is asked again next time, as the presence checks beside each table
+ * group do.
+ */
+const everyTablePresentOn = new WeakSet<object>();
+
+/** True when every one of these tables exists. */
+function allExist(tables: readonly string[]): SQL<boolean> {
+  const checks = tables.map((table) => sql`to_regclass(${table}::text) is not null`);
+  return sql<boolean>`(${sql.join(checks, sql` and `)})`;
+}
+
+/**
+ * Presence of the tables that arrive with later migrations, all in one statement (the table
+ * lists are the ones each group's own presence check asks about). `to_regclass` never raises, so
+ * this is safe before a migration and never disturbs a transaction. Asked on the caller's own
+ * handle, before the read's transaction opens; production makes a handle per request, so this
+ * statement is part of every read's cost.
  */
 export async function tablesPresent(access: Proof): Promise<TablesPresent> {
   const db = access.tx;
-  const lifecycle = await lifecycleTablesPresent(db);
-  const packageChoices = await packageTablesPresent(db);
-  const documentPins = await evidenceSubmissionsPresent(db);
-  const detailPins = await evidenceFieldPinsPresent(db);
-  const collectionResponses = await collectionResponsesPresent(db);
-  return { lifecycle, packageChoices, documentPins, detailPins, collectionResponses };
+  if (everyTablePresentOn.has(db)) return EVERY_TABLE_PRESENT;
+  const [row] = await db
+    .select({
+      lifecycle: allExist(LIFECYCLE_RELATIONS),
+      packageChoices: allExist(PACKAGE_TABLES),
+      documentPins: allExist(SUBMISSION_TABLES),
+      detailPins: allExist(FIELD_PIN_TABLES),
+      collectionResponses: allExist(COLLECTION_RESPONSE_TABLES),
+    })
+    .from(sql`(select 1) as probe`);
+  const present: TablesPresent = {
+    lifecycle: row?.lifecycle === true,
+    packageChoices: row?.packageChoices === true,
+    documentPins: row?.documentPins === true,
+    detailPins: row?.detailPins === true,
+    collectionResponses: row?.collectionResponses === true,
+  };
+  if (Object.values(present).every((found) => found)) everyTablePresentOn.add(db);
+  return present;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -137,15 +174,23 @@ export interface ReplacementChain {
   readonly laterIds: readonly string[];
   /** The newest of them that is still there (not in Recently Deleted); null when none is. */
   readonly replacement: DocumentSubject | null;
+  /**
+   * The chain ends on a document that was removed for good: its row, and with it the link to
+   * any document recorded after it, is gone. Whether a newer document exists, and which, is
+   * then not known; `laterIds` holds only the documents up to the cut.
+   */
+  readonly cut: boolean;
 }
 
 /**
  * The chain of recorded replacements that starts at `subject`. The links are read from all of
  * this traveller's own replaced documents in one statement (ids only, including documents in
- * Recently Deleted, so a removed document in the middle does not cut the chain) and walked in
- * memory: a loop in the stored links, or a chain longer than the limit, stops at the last
- * document reached. A second statement reads which of the later documents are still there
- * (`presentDocumentCondition`); the replacement is the last of those.
+ * Recently Deleted, so a document there does not cut the chain) and walked in memory: a loop in
+ * the stored links, or a chain longer than the limit, stops at the last document reached. A
+ * second statement reads the later documents with whether each is still there
+ * (`presentDocumentCondition`); the replacement is the last of those that is. A later document
+ * with no row at all was removed for good (the link has no foreign key, so it is not cleared):
+ * the walk necessarily ends there, and the chain is reported as cut.
  */
 export async function replacementChain(
   access: Proof,
@@ -153,7 +198,7 @@ export async function replacementChain(
   subject: DocumentSubject,
   lifecycle: boolean,
 ): Promise<ReplacementChain> {
-  if (subject.supersededBy === null) return { laterIds: [], replacement: null };
+  if (subject.supersededBy === null) return { laterIds: [], replacement: null, cut: false };
   const links = await tx
     .select({ id: schema.documents.id, next: schema.documents.supersededByDocumentId })
     .from(schema.documents)
@@ -172,19 +217,27 @@ export async function replacementChain(
     laterIds.push(next);
     next = nextOf.get(next);
   }
-  const present = await tx
-    .select(documentColumns)
+  const rows = await tx
+    .select({
+      ...documentColumns,
+      present: lifecycle ? sql<boolean>`${presentDocumentCondition()}` : sql<boolean>`true`,
+    })
     .from(schema.documents)
     .where(
       and(
         inArray(schema.documents.id, laterIds),
         eq(schema.documents.applicantId, access.applicant.id),
-        lifecycle ? presentDocumentCondition() : undefined,
       ),
     );
+  const present = rows.filter((row) => row.present === true);
   const last = [...laterIds].reverse().find((id) => present.some((row) => row.id === id));
   const row = present.find((candidate) => candidate.id === last);
-  return { laterIds, replacement: row ? toDocumentSubject(row) : null };
+  const end = laterIds[laterIds.length - 1];
+  return {
+    laterIds,
+    replacement: row ? toDocumentSubject(row) : null,
+    cut: end !== undefined && !rows.some((candidate) => candidate.id === end),
+  };
 }
 
 /**
@@ -219,9 +272,11 @@ export interface DetailSubject {
   /**
    * Every saved value, oldest first: ids, times and one yes-or-no, never a value.
    * `sameAsCurrent` is true for the current saved value itself and for any other saved value
-   * whose stored text is exactly the current one (saving a detail again without changing it
-   * still records a new saved value). For a detail stored protected nothing is compared, because
-   * this read never opens a protected value: only the current saved value itself is "the same".
+   * that says exactly what the current one says (saving a detail again without changing it still
+   * records a new saved value): the same stored text, the same start and end dates and the same
+   * status. Ending an entry or correcting its dates keeps the text and changes what it means, so
+   * it is a different value. For a detail stored protected nothing is compared, because this
+   * read never opens a protected value: only the current saved value itself is "the same".
    */
   readonly versions: readonly {
     readonly id: string;
@@ -255,30 +310,32 @@ export async function lockDetailSubject(
     .where(and(eq(schema.facts.id, factId), eq(schema.facts.applicantId, access.applicant.id)))
     .for('share', { of: schema.facts });
   if (!row) return undefined;
-  // The stored text is read only to compare it with the current one, here, in memory. It is
-  // never returned, logged or passed on: what leaves this function is the yes-or-no.
-  const stored = await tx
+  // Compared in the database: no stored text is loaded, only the yes-or-no comes back.
+  const version = schema.factVersions;
+  const current = alias(schema.factVersions, 'current_value');
+  const versions = await tx
     .select({
-      id: schema.factVersions.id,
-      savedAt: schema.factVersions.createdAt,
-      value: schema.factVersions.value,
-      protectedKeyVersion: schema.factVersions.protectedKeyVersion,
+      id: version.id,
+      savedAt: version.createdAt,
+      sameAsCurrent: sql<boolean>`coalesce(${version.id} = ${current.id} or (
+        ${version.protectedKeyVersion} is null and ${current.protectedKeyVersion} is null
+        and ${version.value} is not distinct from ${current.value}
+        and ${version.effectiveFrom} is not distinct from ${current.effectiveFrom}
+        and ${version.validUntil} is not distinct from ${current.validUntil}
+        and ${version.status} = ${current.status}
+      ), false)`,
     })
-    .from(schema.factVersions)
-    .where(eq(schema.factVersions.factId, row.id))
-    .orderBy(asc(schema.factVersions.createdAt), asc(schema.factVersions.id));
-  const current = stored.find((version) => version.id === row.currentVersionId);
-  const isPlain = (version: (typeof stored)[number]) => version.protectedKeyVersion === null;
-  const versions = stored.map((version) => ({
-    id: version.id,
-    savedAt: version.savedAt,
-    sameAsCurrent:
-      current !== undefined &&
-      (version.id === current.id ||
-        // Exact equality of the stored text: no trimming, no case folding.
-        (isPlain(version) && isPlain(current) && version.value === current.value)),
-  }));
-  return { ...row, versions };
+    .from(version)
+    .leftJoin(
+      current,
+      row.currentVersionId === null ? sql`false` : eq(current.id, row.currentVersionId),
+    )
+    .where(eq(version.factId, row.id))
+    .orderBy(asc(version.createdAt), asc(version.id));
+  return {
+    ...row,
+    versions: versions.map((saved) => ({ ...saved, sameAsCurrent: saved.sameAsCurrent === true })),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -833,12 +890,14 @@ export interface CollectionAnswer {
 /**
  * This traveller's live answers to agency checklists that carried one of the documents, or the
  * detail. "Live" is the access layer's own rule (`liveCollectionResponse`): not withdrawn, not
- * replaced by a newer answer, request not revoked. Two statements.
+ * replaced by a newer answer, request not revoked. That rule asks, inside the same statement,
+ * whether a withdrawal exists and whether the checklist request was revoked; nothing else of the
+ * request is read. Two statements.
  *
- * What the agency decided about an answer is not read: its decisions and the checklist request
- * itself live in tables kept for the asking agency alone (the agency document request ratchet in
- * access/enforcement.test.ts allows no exception), so a traveller's read cannot say whether an
- * answer is still being checked, was accepted or was sent back.
+ * What the agency decided about an answer is not read: its decisions live in tables kept for the
+ * asking agency alone (the agency document request ratchet in access/enforcement.test.ts allows
+ * no exception), so a traveller's read cannot say whether an answer is still being checked, was
+ * accepted or was sent back.
  */
 export async function collectionAnswersCarrying(
   access: Proof,
@@ -909,6 +968,8 @@ export interface LiveShare {
   readonly recipientName: string;
   readonly agencyId: string | null;
   readonly reach: ImpactShareReach;
+  /** The documents a share made by name lists; null for any other share. */
+  readonly namedDocumentIds: readonly string[] | null;
   readonly createdAt: Date;
   /** Whether this share lets its recipient open the thing described, by the policy evaluation. */
   readonly reaches: (resource: {
@@ -982,6 +1043,7 @@ export async function liveShares(access: Proof, tx: Db, now: Date): Promise<Live
             : grant.categories !== null
               ? ('CATEGORY' as const)
               : ('WHOLE_RECORD' as const),
+        namedDocumentIds: grant.documentIds,
         createdAt: grant.createdAt,
         reaches: (asked) => {
           const resource: PolicyResource = {

@@ -80,6 +80,19 @@ export async function loggedDb(): Promise<LoggedDb> {
   return { db, client, log };
 }
 
+/**
+ * A new handle on the same database that logs into the same list. The presence checks remember
+ * "present" per handle, so a fresh handle is a cold one: it sees a dropped table as missing and
+ * pays for the presence check once, as each request does in production.
+ */
+export function freshHandle<W extends LoggedDb>(world: W): W {
+  const db = drizzle(world.client, {
+    schema,
+    logger: { logQuery: (statement: string) => world.log.push(statement) },
+  }) as unknown as Db;
+  return { ...world, db };
+}
+
 export function must<T, E>(result: Result<T, E>, what: string): T {
   if (!result.ok) throw new Error(`${what}: ${JSON.stringify(result.error)}`);
   return result.value;
@@ -754,11 +767,16 @@ export function itemOf(impact: ChangeImpact, id: string): ImpactItem {
   return item;
 }
 
-/** The tables a list of logged statements read from or joined, sorted. */
+/**
+ * The tables a list of logged statements read from or joined, sorted: quoted names as the query
+ * builder writes them and unquoted ones as raw SQL does. A name followed by a dot is a column of
+ * an alias (`is not distinct from "x"."value"`) and one followed by a bracket is a function call
+ * (`from now()`): neither is a table.
+ */
 export function tablesRead(statements: readonly string[]): string[] {
   const names = new Set<string>();
   for (const statement of statements) {
-    for (const match of statement.matchAll(/(?:from|join)\s+"([a-z_]+)"/g)) {
+    for (const match of statement.matchAll(/\b(?:from|join)\s+"?([a-z_]+)"?(?![a-z_."(])/g)) {
       if (match[1]) names.add(match[1]);
     }
   }

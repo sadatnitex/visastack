@@ -27,7 +27,8 @@ import { type ServiceError, serviceError } from './errors';
 import { evidenceAudienceOf } from './evidence-submissions';
 import { isUuid } from './lifecycle/foundation/ids';
 
-const FIELD_PIN_TABLES = [
+/** The detail-pin tables of migration 0135. */
+export const FIELD_PIN_TABLES = [
   'evidence_request_fact_submissions',
   'evidence_request_decision_fact_submissions',
 ] as const;

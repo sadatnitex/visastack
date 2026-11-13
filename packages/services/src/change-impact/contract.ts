@@ -100,7 +100,8 @@ export const IMPACT_REASON_OUTCOME = {
   SENT_BEFORE_EXACT_VERSIONS: 'UNKNOWN',
   // A finished case has no saved copy and the detail changed: what it used cannot be shown.
   FINISHED_CASE_NO_SAVED_COPY: 'UNKNOWN',
-  // Stored history is missing or contradicts itself.
+  // Stored history is missing or contradicts itself (for example a chain of replacements cut by
+  // a document removed for good, so the newest document is not known).
   RECORD_INCOMPLETE: 'UNKNOWN',
   // One part of the record could not be read this time.
   COULD_NOT_CHECK: 'UNKNOWN',
@@ -199,7 +200,10 @@ export type ImpactSubject =
       /**
        * The newest document that stands in for this one: the recorded replacement (following a
        * chain of replacements to its end), or the candidate named in a preview. Null when the
-       * document has no replacement and none was named.
+       * document has no replacement and none was named; also null, with phase `RECORDED`, when a
+       * replacement was recorded but every later document has since been removed. When the
+       * chain is cut by a document removed for good, this is the last later document still there
+       * before the cut (null when there is none), and any newer document is not known.
        */
       readonly replacement: { readonly documentId: string; readonly title: string } | null;
     }
@@ -217,8 +221,9 @@ export type ImpactSubject =
 export interface ChangeImpact {
   readonly subject: ImpactSubject;
   /**
-   * `PREVIEW`: the document is not replaced yet; this is what recording the replacement would
-   * mean. `RECORDED`: the change is already saved.
+   * `PREVIEW`: the document is not replaced yet (no replacement was ever recorded); this is what
+   * recording the replacement would mean. `RECORDED`: the change is already saved. A replacement
+   * once recorded stays recorded, even when every later document has since been removed.
    */
   readonly phase: 'PREVIEW' | 'RECORDED';
   /** Ordered by `IMPACT_OUTCOMES`, then newest first, then by `id`. Deterministic. */
