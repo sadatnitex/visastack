@@ -191,6 +191,21 @@ const ROWS: readonly Row[] = [
       },
     }),
   ),
+  {
+    name: 'search: a one-letter query, checked before the service',
+    key: 'workspace_search.use_between_2_and_80_characters',
+    run: async () => {
+      const response = await search(
+        new Request('https://synthetic.example.test/api/workspace/search', {
+          method: 'POST',
+          headers: { Origin: 'https://synthetic.example.test', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: 'S', scope: { kind: 'personal' } }),
+        }),
+      );
+      expect(svc.searchWorkspaceRecords).not.toHaveBeenCalled();
+      return ((await response.json()) as { error: string }).error;
+    },
+  },
 ];
 
 beforeEach(() => {
