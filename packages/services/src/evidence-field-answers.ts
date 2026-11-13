@@ -20,11 +20,12 @@
  * aborted; only "present" is remembered per database handle.
  */
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { AuthorizedApplicant } from './access/require-access';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { evidenceAudienceOf } from './evidence-submissions';
+import { isUuid } from './lifecycle/foundation/ids';
 
 const FIELD_PIN_TABLES = [
   'evidence_request_fact_submissions',
@@ -152,12 +153,51 @@ export async function recordFieldSubmission(
 }
 
 /**
+ * A decision on this request, made after the newest send was recorded, that is linked to no send.
+ * It means an older deployment (running beside the new one, or after a rollback) decided the
+ * request without knowing about pinned values, so the send was in fact already decided and must not
+ * be decided again or have a later decision tied to it. Kept beside the field tables because the
+ * document helper looks only at the document links.
+ */
+export async function newerUnlinkedFieldDecision(
+  tx: Db,
+  requestId: string,
+  sentAt: Date,
+): Promise<{ id: string } | undefined> {
+  return first(
+    await tx
+      .select({ id: schema.evidenceRequestDecisions.id })
+      .from(schema.evidenceRequestDecisions)
+      .leftJoin(
+        schema.evidenceRequestDecisionFactSubmissions,
+        eq(
+          schema.evidenceRequestDecisionFactSubmissions.decisionId,
+          schema.evidenceRequestDecisions.id,
+        ),
+      )
+      .where(
+        and(
+          eq(schema.evidenceRequestDecisions.evidenceRequestId, requestId),
+          gt(schema.evidenceRequestDecisions.createdAt, sentAt),
+          isNull(schema.evidenceRequestDecisionFactSubmissions.decisionId),
+        ),
+      )
+      .orderBy(asc(schema.evidenceRequestDecisions.createdAt))
+      .limit(1),
+  );
+}
+
+/**
  * The detail send a reviewer would decide on now: the newest one, only while nobody has decided it
  * and the request still waits for a decision. Anything else is an older, already judged send.
  */
 export async function waitingFieldSubmission(
   tx: Db,
-  request: { readonly id: string; readonly status: string },
+  request: {
+    readonly id: string;
+    readonly status: string;
+    readonly respondingFactId: string | null;
+  },
 ): Promise<FieldSubmissionRecord | undefined> {
   if (request.status !== 'RECEIVED' && request.status !== 'UNDER_REVIEW') return undefined;
   const latest = first(
@@ -168,7 +208,9 @@ export async function waitingFieldSubmission(
       .orderBy(desc(schema.evidenceRequestFactSubmissions.roundNo))
       .limit(1),
   );
-  if (!latest) return undefined;
+  // The request must still point at the detail this send carried: an older deployment that sent a
+  // newer answer without a pin leaves a pointer that no pinned send matches.
+  if (!latest || request.respondingFactId !== latest.factId) return undefined;
   const decided = first(
     await tx
       .select({ decisionId: schema.evidenceRequestDecisionFactSubmissions.decisionId })
@@ -176,7 +218,10 @@ export async function waitingFieldSubmission(
       .where(eq(schema.evidenceRequestDecisionFactSubmissions.submissionId, latest.id))
       .limit(1),
   );
-  return decided ? undefined : latest;
+  if (decided) return undefined;
+  // An older deployment running beside this one may have decided it without a link.
+  if (await newerUnlinkedFieldDecision(tx, request.id, latest.sentAt)) return undefined;
+  return latest;
 }
 
 /** Tie a decision to the send it judged. One decision per send is also enforced by the database. */
@@ -243,6 +288,8 @@ export interface FieldAnswerHistory {
   readonly legacyLabel: typeof LEGACY_FIELD_ANSWER_LABEL;
 }
 
+type RequestRow = typeof schema.evidenceRequests.$inferSelect;
+
 /**
  * Every answer on one detail request, oldest first, each with the exact saved version that was sent
  * and the decision made on it. Readable by the request's own traveller (with the sent value) and by
@@ -259,54 +306,121 @@ export async function readEvidenceFieldAnswer(
   if (request.kind !== 'FIELD') {
     return err(serviceError('not_found', 'evidence request not found'));
   }
+  const histories = await fieldHistories(access.tx, [request], agency !== undefined);
+  const history = histories.get(request.id);
+  return history ? ok(history) : err(serviceError('not_found', 'evidence request not found'));
+}
+
+/** The most requests one batched read takes, so a call stays a bounded set of queries. */
+export const FIELD_ANSWER_MAX_REQUESTS = 100;
+
+/**
+ * The answers on many of one traveller's detail requests in one batched read (a fixed number of
+ * queries however many are listed), for the page that lists them. Only the traveller who owns the
+ * record may ask; a request that is not theirs, or is not a detail request, is simply absent.
+ */
+export async function listFieldAnswersForOwner(
+  access: AuthorizedApplicant<'MANAGE'>,
+  input: { readonly requestIds: readonly string[] },
+): Promise<Result<ReadonlyMap<string, FieldAnswerHistory>, ServiceError>> {
+  if (access.actor.kind !== 'applicant_owner') {
+    return err(serviceError('not_found', 'evidence request not found'));
+  }
+  if (input.requestIds.length > FIELD_ANSWER_MAX_REQUESTS) {
+    return err(serviceError('invalid', 'too many requests in one read'));
+  }
+  const wanted = [...new Set(input.requestIds.filter(isUuid))];
+  if (wanted.length === 0) return ok(new Map());
   const db = access.tx;
+  const requests = await db
+    .select()
+    .from(schema.evidenceRequests)
+    .where(
+      and(
+        inArray(schema.evidenceRequests.id, wanted),
+        eq(schema.evidenceRequests.applicantId, access.applicant.id),
+        eq(schema.evidenceRequests.kind, 'FIELD'),
+      ),
+    );
+  return ok(await fieldHistories(db, requests, false));
+}
+
+/** The one definition of the history: the same assembly for one request and for a page of them. */
+async function fieldHistories(
+  db: Db,
+  requests: readonly RequestRow[],
+  forAgency: boolean,
+): Promise<Map<string, FieldAnswerHistory>> {
+  const out = new Map<string, FieldAnswerHistory>();
+  if (requests.length === 0) return out;
+  const ids = requests.map((r) => r.id);
   const available = await evidenceFieldPinsPresent(db);
 
-  const decisions = await db
+  const decisionRows = await db
     .select({
       id: schema.evidenceRequestDecisions.id,
+      requestId: schema.evidenceRequestDecisions.evidenceRequestId,
       outcome: schema.evidenceRequestDecisions.outcome,
       reason: schema.evidenceRequestDecisions.reason,
       decidedAt: schema.evidenceRequestDecisions.createdAt,
     })
     .from(schema.evidenceRequestDecisions)
-    .where(eq(schema.evidenceRequestDecisions.evidenceRequestId, request.id))
+    .where(inArray(schema.evidenceRequestDecisions.evidenceRequestId, ids))
     .orderBy(asc(schema.evidenceRequestDecisions.createdAt));
 
-  const rounds: FieldAnswerRound[] = [];
-  const linked = new Set<string>();
-  if (available) {
-    const sends = await db
-      .select()
-      .from(schema.evidenceRequestFactSubmissions)
-      .where(eq(schema.evidenceRequestFactSubmissions.evidenceRequestId, request.id))
-      .orderBy(asc(schema.evidenceRequestFactSubmissions.roundNo));
-    const links = await db
-      .select({
-        submissionId: schema.evidenceRequestDecisionFactSubmissions.submissionId,
-        decisionId: schema.evidenceRequestDecisionFactSubmissions.decisionId,
-      })
-      .from(schema.evidenceRequestDecisionFactSubmissions)
-      .innerJoin(
-        schema.evidenceRequestDecisions,
-        eq(
-          schema.evidenceRequestDecisions.id,
-          schema.evidenceRequestDecisionFactSubmissions.decisionId,
-        ),
-      )
-      .where(eq(schema.evidenceRequestDecisions.evidenceRequestId, request.id));
-    const decisionOf = new Map(
-      links.map((l) => [l.submissionId, decisions.find((d) => d.id === l.decisionId)]),
+  const sendRows = available
+    ? await db
+        .select()
+        .from(schema.evidenceRequestFactSubmissions)
+        .where(inArray(schema.evidenceRequestFactSubmissions.evidenceRequestId, ids))
+        .orderBy(asc(schema.evidenceRequestFactSubmissions.roundNo))
+    : [];
+  const links = available
+    ? await db
+        .select({
+          submissionId: schema.evidenceRequestDecisionFactSubmissions.submissionId,
+          decisionId: schema.evidenceRequestDecisionFactSubmissions.decisionId,
+        })
+        .from(schema.evidenceRequestDecisionFactSubmissions)
+        .innerJoin(
+          schema.evidenceRequestDecisions,
+          eq(
+            schema.evidenceRequestDecisions.id,
+            schema.evidenceRequestDecisionFactSubmissions.decisionId,
+          ),
+        )
+        .where(inArray(schema.evidenceRequestDecisions.evidenceRequestId, ids))
+    : [];
+  const versions = await versionsOf(
+    db,
+    [...new Set(sendRows.map((s) => s.factId))],
+    sendRows.map((s) => s.factVersionId),
+  );
+  const linkedDecisionIds = new Set(links.map((l) => l.decisionId));
+  const decisionIdOf = new Map(links.map((l) => [l.submissionId, l.decisionId]));
+  // The newest send of a request may have been decided by an older deployment beside this one,
+  // without a link: that decision is then its decision, not a separate older answer.
+  const newestRound = new Map<string, number>();
+  for (const send of sendRows) {
+    newestRound.set(
+      send.evidenceRequestId,
+      Math.max(newestRound.get(send.evidenceRequestId) ?? 0, send.roundNo),
     );
-    for (const l of links) linked.add(l.decisionId);
+  }
 
-    const versions = await versionsOf(
-      db,
-      [...new Set(sends.map((s) => s.factId))],
-      sends.map((s) => s.factVersionId),
-    );
-    for (const send of sends) {
-      const decision = decisionOf.get(send.id);
+  for (const request of requests) {
+    const decisions = decisionRows.filter((d) => d.requestId === request.id);
+    const rounds: FieldAnswerRound[] = [];
+    const lateTaken = new Set<string>();
+    for (const send of sendRows.filter((s) => s.evidenceRequestId === request.id)) {
+      const decisionId = decisionIdOf.get(send.id);
+      let decision = decisionId ? decisions.find((d) => d.id === decisionId) : undefined;
+      if (!decision && send.roundNo === newestRound.get(request.id)) {
+        decision = decisions.find(
+          (d) => !linkedDecisionIds.has(d.id) && d.decidedAt.getTime() > send.sentAt.getTime(),
+        );
+        if (decision) lateTaken.add(decision.id);
+      }
       const state: FieldAnswerState = decision
         ? decision.outcome === 'CANCELLED'
           ? 'WITHDRAWN'
@@ -330,49 +444,52 @@ export async function readEvidenceFieldAnswer(
               savedAt: version.savedAt,
               protected: version.protected,
               // The value is the owner's to read; an agency member gets the identity only.
-              value: agency || version.protected ? null : version.value,
+              value: forAgency || version.protected ? null : version.value,
               stillCurrent: version.stillCurrent,
             }
           : null,
       });
     }
+    // Decisions with no pinned send behind them (made before the exact value was kept), and an
+    // answer still waiting that was never pinned. They are listed as what they are, with no value.
+    for (const d of decisions) {
+      if (d.outcome === 'CANCELLED' || linkedDecisionIds.has(d.id) || lateTaken.has(d.id)) continue;
+      rounds.push({
+        submissionId: null,
+        roundNo: null,
+        precision: 'legacy',
+        sentAt: null,
+        state: d.outcome as Exclude<FieldAnswerState, 'AWAITING_DECISION' | 'WITHDRAWN'>,
+        decidedAt: d.decidedAt,
+        reason: d.reason,
+        version: null,
+      });
+    }
+    const waitingPinned = rounds.some(
+      (r) => r.precision === 'pinned' && r.state === 'AWAITING_DECISION',
+    );
+    if (
+      (request.status === 'RECEIVED' || request.status === 'UNDER_REVIEW') &&
+      request.respondingFactId !== null &&
+      !waitingPinned
+    ) {
+      rounds.push({
+        submissionId: null,
+        roundNo: null,
+        precision: 'legacy',
+        sentAt: request.respondedAt,
+        state: 'AWAITING_DECISION',
+        decidedAt: null,
+        reason: null,
+        version: null,
+      });
+    }
+    // Oldest first, whichever record each round came from.
+    const at = (r: FieldAnswerRound) => (r.sentAt ?? r.decidedAt)?.getTime() ?? 0;
+    rounds.sort((a, b) => at(a) - at(b));
+    out.set(request.id, { available, rounds, legacyLabel: LEGACY_FIELD_ANSWER_LABEL });
   }
-
-  // Decisions with no pinned send behind them (made before the exact value was kept), and an answer
-  // still waiting that was never pinned. They are listed as what they are, with no value at all.
-  for (const d of decisions) {
-    if (d.outcome === 'CANCELLED' || linked.has(d.id)) continue;
-    rounds.push({
-      submissionId: null,
-      roundNo: null,
-      precision: 'legacy',
-      sentAt: null,
-      state: d.outcome as Exclude<FieldAnswerState, 'AWAITING_DECISION' | 'WITHDRAWN'>,
-      decidedAt: d.decidedAt,
-      reason: d.reason,
-      version: null,
-    });
-  }
-  const waitingPinned = rounds.some(
-    (r) => r.precision === 'pinned' && r.state === 'AWAITING_DECISION',
-  );
-  if (
-    (request.status === 'RECEIVED' || request.status === 'UNDER_REVIEW') &&
-    request.respondingFactId !== null &&
-    !waitingPinned
-  ) {
-    rounds.push({
-      submissionId: null,
-      roundNo: null,
-      precision: 'legacy',
-      sentAt: request.respondedAt,
-      state: 'AWAITING_DECISION',
-      decidedAt: null,
-      reason: null,
-      version: null,
-    });
-  }
-  return ok({ available, rounds, legacyLabel: LEGACY_FIELD_ANSWER_LABEL });
+  return out;
 }
 
 interface VersionFacts {

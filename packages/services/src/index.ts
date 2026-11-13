@@ -3193,7 +3193,9 @@ export {
   type FieldAnswerRound,
   type FieldAnswerState,
   type FieldAnswerVersion,
+  FIELD_ANSWER_MAX_REQUESTS,
   evidenceFieldPinsPresent,
+  listFieldAnswersForOwner,
   readEvidenceFieldAnswer,
 } from './evidence-field-answers';
 export {

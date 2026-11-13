@@ -10,7 +10,12 @@ import {
   startEvidenceReview,
   submitEvidenceResponse,
 } from './agency';
-import { LEGACY_FIELD_ANSWER_LABEL, readEvidenceFieldAnswer } from './evidence-field-answers';
+import {
+  FIELD_ANSWER_MAX_REQUESTS,
+  LEGACY_FIELD_ANSWER_LABEL,
+  listFieldAnswersForOwner,
+  readEvidenceFieldAnswer,
+} from './evidence-field-answers';
 import { agencyProof, ownerProof } from './evidence-submissions.test-support';
 import { editFact } from './profile';
 import { revokeGrant } from './sharing';
@@ -480,7 +485,7 @@ describe('answers recorded before the exact value was kept', () => {
   );
 
   it(
-    'a legacy answer and a newer pinned answer sit side by side, each described as what it is',
+    'a legacy answer and a newer pinned answer sit side by side, oldest first, each described as what it is',
     async () => {
       const s = await setup();
       await s.w.db
@@ -492,8 +497,8 @@ describe('answers recorded before the exact value was kept', () => {
       expect(isOk(await sendDetail(s))).toBe(true);
       const history = await ownerRead(s);
       expect(history.rounds.map((r) => [r.precision, r.state, r.version?.value ?? null])).toEqual([
-        ['pinned', 'AWAITING_DECISION', V2],
         ['legacy', 'NEEDS_REPLACEMENT', null],
+        ['pinned', 'AWAITING_DECISION', V2],
       ]);
     },
     TIMEOUT,
@@ -551,6 +556,165 @@ describe('documents are unchanged', () => {
         documentId: randomId(),
       });
       expect(isErr(refused)).toBe(true);
+    },
+    TIMEOUT,
+  );
+});
+
+describe("the batched read for the page that lists a traveller's detail requests", () => {
+  it(
+    'gives each detail request its own history in one call, owner only',
+    async () => {
+      const s = await setup();
+      expect(isOk(await sendDetail(s))).toBe(true);
+      expect(isOk(await decide(s, 'ACCEPTED'))).toBe(true);
+      await s.save(V2);
+      // A second detail request, still waiting on the traveller.
+      const second = await requestEvidence(s.w.db, {
+        actorAccountId: s.w.north.accountId,
+        organizationId: s.w.north.organizationId,
+        applicantId: s.w.rahim.applicantId,
+        kind: 'FIELD',
+        fieldKey: 'phone',
+      });
+      if (!isOk(second)) throw new Error('second request');
+
+      const listed = await listFieldAnswersForOwner(await ownerProof(s.w.db, s.w.rahim), {
+        requestIds: [s.requestId, second.value.id, randomId(), 'not-an-id'],
+      });
+      expect(isOk(listed)).toBe(true);
+      const map = isOk(listed) ? listed.value : new Map();
+      expect([...map.keys()].sort()).toEqual([s.requestId, second.value.id].sort());
+      expect(map.get(s.requestId)?.rounds[0]).toMatchObject({
+        state: 'ACCEPTED',
+        version: { value: V1, stillCurrent: false },
+      });
+      expect(map.get(second.value.id)?.rounds).toEqual([]);
+
+      // An agency member is not the owner, and the cap is enforced.
+      const asAgency = await listFieldAnswersForOwner(
+        await agencyProof(s.w.db, s.w.north, s.w.rahim.applicantId),
+        { requestIds: [s.requestId] },
+      );
+      expect(isErr(asAgency) && asAgency.error.code).toBe('not_found');
+      const tooMany = await listFieldAnswersForOwner(await ownerProof(s.w.db, s.w.rahim), {
+        requestIds: Array.from({ length: FIELD_ANSWER_MAX_REQUESTS + 1 }, () => randomId()),
+      });
+      expect(isErr(tooMany) && tooMany.error.code).toBe('invalid');
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "leaves out another traveller's requests and document requests",
+    async () => {
+      const s = await setup();
+      const karimField = await requestEvidence(s.w.db, {
+        actorAccountId: s.w.north.accountId,
+        organizationId: s.w.north.organizationId,
+        applicantId: s.w.rahim.applicantId,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+      if (!isOk(karimField)) throw new Error('doc request');
+      const listed = await listFieldAnswersForOwner(await ownerProof(s.w.db, s.w.rahim), {
+        requestIds: [karimField.value.id],
+      });
+      expect(isOk(listed) && listed.value.size).toBe(0);
+    },
+    TIMEOUT,
+  );
+});
+
+describe('an older deployment running beside the new one', () => {
+  it(
+    "a decision it made without a link is that send's decision, and a later decision is never tied to it",
+    async () => {
+      const s = await setup();
+      const sent = await sendDetail(s);
+      const first = isOk(sent) ? sent.value.submissionId : null;
+      // The older build sends the request back without knowing about pins ...
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      await s.w.db.insert(schema.evidenceRequestDecisions).values({
+        evidenceRequestId: s.requestId,
+        outcome: 'NEEDS_REPLACEMENT',
+        reason: 'older build',
+        respondingFactId: s.factId,
+        decidedByAccountId: s.w.north.accountId,
+      });
+      // ... and then sends a newer answer with no pin (the request waits again).
+      await s.w.db
+        .update(schema.evidenceRequests)
+        .set({ status: 'RECEIVED', respondingFactId: s.factId })
+        .where(eq(schema.evidenceRequests.id, s.requestId));
+
+      // The reader attributes the unlinked decision to round 1 and shows the unpinned answer apart.
+      const history = await ownerRead(s);
+      expect(history.rounds.map((r) => [r.precision, r.state, r.submissionId === first])).toEqual([
+        ['pinned', 'NEEDS_REPLACEMENT', true],
+        ['legacy', 'AWAITING_DECISION', false],
+      ]);
+
+      // The new build deciding now is not about round 1: nothing pinned is waiting, so no link.
+      expect(isOk(await decide(s, 'ACCEPTED'))).toBe(true);
+      expect(
+        await s.w.db.select().from(schema.evidenceRequestDecisionFactSubmissions),
+      ).toHaveLength(0);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'a pinned send that an older build accepted is not shown as still waiting',
+    async () => {
+      const s = await setup();
+      expect(isOk(await sendDetail(s))).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      await s.w.db.insert(schema.evidenceRequestDecisions).values({
+        evidenceRequestId: s.requestId,
+        outcome: 'ACCEPTED',
+        respondingFactId: s.factId,
+        decidedByAccountId: s.w.north.accountId,
+      });
+      await s.w.db
+        .update(schema.evidenceRequests)
+        .set({ status: 'ACCEPTED' })
+        .where(eq(schema.evidenceRequests.id, s.requestId));
+      const history = await ownerRead(s);
+      expect(history.rounds).toHaveLength(1);
+      expect(history.rounds[0]).toMatchObject({ precision: 'pinned', state: 'ACCEPTED' });
+    },
+    TIMEOUT,
+  );
+});
+
+describe('decisions at the same moment, and removal of the traveller', () => {
+  it(
+    'two decisions on one send at once give exactly one decision and one link',
+    async () => {
+      const s = await setup();
+      expect(isOk(await sendDetail(s))).toBe(true);
+      const both = await Promise.all([decide(s, 'ACCEPTED'), decide(s, 'NEEDS_REPLACEMENT')]);
+      expect(both.filter((r) => isOk(r))).toHaveLength(1);
+      expect(await s.w.db.select().from(schema.evidenceRequestDecisions)).toHaveLength(1);
+      expect(
+        await s.w.db.select().from(schema.evidenceRequestDecisionFactSubmissions),
+      ).toHaveLength(1);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'removing the traveller removes the pins and the links with everything else',
+    async () => {
+      const s = await setup();
+      expect(isOk(await sendDetail(s))).toBe(true);
+      expect(isOk(await decide(s, 'ACCEPTED'))).toBe(true);
+      await s.w.db.delete(schema.applicants).where(eq(schema.applicants.id, s.w.rahim.applicantId));
+      expect(await s.w.db.select().from(schema.evidenceRequestFactSubmissions)).toHaveLength(0);
+      expect(
+        await s.w.db.select().from(schema.evidenceRequestDecisionFactSubmissions),
+      ).toHaveLength(0);
     },
     TIMEOUT,
   );
