@@ -466,6 +466,10 @@ export const HOLDBACK = new Map([
     'SG-ff7d2a1c',
     'Official visa rule content stays English with a Bengali note (owner decision 2026-11-12): what most visa forms ask for first.',
   ],
+  [
+    'SG-c1f08b9e',
+    'Term conflict: this footer draft names the Public Trust page differently from the page link on the home page; one page keeps one name, so it waits for the owner term decision.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
@@ -521,6 +525,69 @@ export const placeholdersOf = (msg) => {
   return [...names].sort();
 };
 
+/**
+ * The structure of a message's `{...}` parts: `{name}` and `{name, plural, sel {...} ...}`, nested,
+ * as one comparable string (plural branch selectors left out: languages pick different ones; the
+ * number sign in the other branch kept).
+ * Null when the braces do not balance or a `{...}` part is neither shape.
+ * @returns {{ text: string, everyPluralHasOther: boolean } | null}
+ */
+export function messageShape(msg) {
+  let everyPluralHasOther = true;
+  const close = (s, from) => {
+    let depth = 0;
+    for (let i = from; i < s.length; i++) {
+      if (s[i] === '{') depth++;
+      else if (s[i] === '}' && --depth === 0) return i;
+    }
+    return -1;
+  };
+  const walk = (s) => {
+    const parts = [];
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '}') return null;
+      if (s[i] !== '{') continue;
+      const end = close(s, i);
+      if (end === -1) return null;
+      const inner = s.slice(i + 1, end);
+      const simple = inner.match(/^(\w+)$/);
+      const pl = inner.match(/^\s*(\w+)\s*,\s*plural\s*,([\s\S]*)$/);
+      if (simple) parts.push(simple[1]);
+      else if (pl) {
+        const branches = new Set();
+        const bodies = [];
+        let otherHasNumber = false;
+        let rest = pl[2];
+        while (rest.trim()) {
+          const m = rest.match(/^\s*(=\d+|zero|one|two|few|many|other)\s*\{/);
+          if (!m) return null;
+          const open = m[0].length - 1;
+          const bEnd = close(rest, open);
+          if (bEnd === -1) return null;
+          branches.add(m[1]);
+          if (m[1] === 'other') otherHasNumber = rest.slice(open + 1, bEnd).includes('#');
+          const body = walk(rest.slice(open + 1, bEnd));
+          if (body === null) return null;
+          bodies.push(body);
+          rest = rest.slice(bEnd + 1);
+        }
+        if (!branches.has('other')) everyPluralHasOther = false;
+        // The number (#) in the other branch is part of the shape: Bengali must not drop it.
+        parts.push(
+          `${pl[1]}:plural${otherHasNumber ? '#' : ''}[${[...new Set(bodies)].sort().join('|')}]`,
+        );
+      } else return null;
+      i = end;
+    }
+    return [...new Set(parts)].sort().join(',');
+  };
+  const text = walk(msg);
+  return text === null ? null : { text, everyPluralHasOther };
+}
+
+/** How far a text may have moved in its file and still take its census row (see lookup). */
+export const CENSUS_LINE_DRIFT = 25;
+
 export class Register {
   constructor({ registerCsv = '', censusCsv = '' } = {}) {
     this.byGroup = new Map();
@@ -532,10 +599,34 @@ export class Register {
       this.byEnglish.set(r.english, list);
     }
     this.census = new Map();
+    this.censusByFile = new Map();
     for (const c of censusCsv ? parseCsv(censusCsv) : []) {
       if (!c.semantic_group) continue;
       this.census.set(`${c.file}|${c.line_start}|${c.english}`, c.semantic_group);
+      const both = `${c.file}|${c.english}`;
+      const rows = this.censusByFile.get(both) ?? [];
+      rows.push({ line: Number(c.line_start), group: c.semantic_group });
+      this.censusByFile.set(both, rows);
     }
+  }
+
+  /**
+   * The census group for a text in a file whose lines have moved since the census was taken:
+   * found by file and English within CENSUS_LINE_DRIFT lines of where the text is now, and only
+   * when every such census row names the same register group. Two meanings of one word in one
+   * file are never merged, and a far-away row (perhaps a different text that has since gone)
+   * is never borrowed. A census row that another text of the same run still matches exactly
+   * (`claimed`, see claimedBy) belongs to that text and is never lent to a new one.
+   */
+  censusGroupIgnoringLine(file, form, line, claimed = new Set()) {
+    const near = (this.censusByFile.get(`${file}|${form}`) ?? []).filter(
+      (r) =>
+        Math.abs(r.line - line) <= CENSUS_LINE_DRIFT && !claimed.has(`${file}|${r.line}|${form}`),
+    );
+    const groups = new Set(near.map((r) => r.group));
+    if (groups.size !== 1) return null;
+    const [group] = groups;
+    return this.byGroup.has(group) ? group : null;
   }
 
   static load(root) {
@@ -546,12 +637,34 @@ export class Register {
     return new Register({ registerCsv: read(REGISTER_REL), censusCsv: read(CENSUS_REL) });
   }
 
+  formsOf(unit) {
+    return [...new Set([registerForm(unit.censusText), registerForm(unit.english)])];
+  }
+
+  /**
+   * The census rows that these texts (every text found in a run's files, converted or not) still
+   * match at their exact line. Pass the set to lookup, so the moved-line fallback never lends a
+   * row that still belongs to a text in place.
+   * @param {Array<{ file: string, line: number, censusText: string, english: string }>} units
+   * @returns {Set<string>}
+   */
+  claimedBy(units) {
+    const claimed = new Set();
+    for (const u of units)
+      for (const f of this.formsOf(u)) {
+        const key = `${u.file}|${u.line}|${f}`;
+        if (this.census.has(key)) claimed.add(key);
+      }
+    return claimed;
+  }
+
   /**
    * @param {{ file: string, line: number, censusText: string, english: string }} unit
+   * @param {Set<string>} [claimed] census rows other texts of the run match exactly (claimedBy)
    * @returns {{ group: string|null, bn: string|null, reason: string|null }}
    */
-  lookup(unit) {
-    const forms = [...new Set([registerForm(unit.censusText), registerForm(unit.english)])];
+  lookup(unit, claimed = new Set()) {
+    const forms = this.formsOf(unit);
     let row = null;
     for (const f of forms) {
       const g = this.census.get(`${unit.file}|${unit.line}|${f}`);
@@ -559,6 +672,11 @@ export class Register {
         row = this.byGroup.get(g);
         break;
       }
+    }
+    for (const f of forms) {
+      if (row) break;
+      const g = this.censusGroupIgnoringLine(unit.file, f, unit.line, claimed);
+      if (g) row = this.byGroup.get(g);
     }
     if (!row) {
       const groups = new Map();
@@ -581,13 +699,20 @@ export class Register {
    * catalogues after the rules or the register change.
    * @returns {{ group: string, bn: string|null, reason: string|null }}
    */
-  resolveGroup(group, english) {
+  resolveGroup(group, english, options) {
     const row = this.byGroup.get(group);
     if (!row) return { group, bn: null, reason: 'no_register_match' };
-    return this.resolveRow(row, english);
+    return this.resolveRow(row, english, options);
   }
 
-  resolveRow(row, english) {
+  /**
+   * With `plural`, an ICU plural message may be filled: its variables, plural variables and
+   * nesting must match the English exactly and every Bengali plural must have an `other` branch.
+   * Only callers whose translator formats plurals (the services catalogue) pass it; web
+   * catalogues still refuse plural messages.
+   * @param {{ plural?: boolean }} [options]
+   */
+  resolveRow(row, english, { plural = false } = {}) {
     const group = row.semantic_group;
     if (HOLDBACK.has(group)) return { group, bn: null, reason: `held_back:${HOLDBACK.get(group)}` };
     const queue = row.review_queue ?? '';
@@ -600,12 +725,18 @@ export class Register {
     if (!draft.trim()) return { group, bn: null, reason: 'no_bn_draft' };
     if (/\u2014|\[U\+[0-9A-F]+\]/.test(draft))
       return { group, bn: null, reason: 'bn_has_marker_or_em_dash' };
-    if (/[{}]/.test(english.replace(/\{\w+\}/g, '')))
-      return { group, bn: null, reason: 'english_is_plural_message' };
+    const isPlural = /[{}]/.test(english.replace(/\{\w+\}/g, ''));
+    if (isPlural && !plural) return { group, bn: null, reason: 'english_is_plural_message' };
     const a = placeholdersOf(english).join(',');
     const b = placeholdersOf(draft).join(',');
     if (a !== b) return { group, bn: null, reason: 'bn_placeholders_differ' };
-    if (/[{}]/.test(draft.replace(/\{\w+\}/g, '')))
+    if (isPlural) {
+      const shapeEn = messageShape(english);
+      const shapeBn = messageShape(draft);
+      if (shapeEn === null) return { group, bn: null, reason: 'english_plural_unreadable' };
+      if (shapeBn === null || shapeBn.text !== shapeEn.text || !shapeBn.everyPluralHasOther)
+        return { group, bn: null, reason: 'bn_plural_differs' };
+    } else if (/[{}]/.test(draft.replace(/\{\w+\}/g, '')))
       return { group, bn: null, reason: 'bn_stray_brace' };
     // A space at the start or end of the English joins it to the text beside it; Bengali that drops
     // that space would run the two together.

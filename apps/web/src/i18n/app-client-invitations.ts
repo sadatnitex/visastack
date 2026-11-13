@@ -34,8 +34,12 @@ export const appClientInvitationsCatalog = defineCatalog({
   },
   bn: {
     'appClientInvitations.appClientInvitationsAcceptAcceptForm.aiTools': 'এআই টুল',
+    'appClientInvitations.appClientInvitationsAcceptAcceptForm.leaveBlankToUseTheName':
+      'এজেন্সির দেওয়া নাম ব্যবহার করতে ঘরটি খালি রাখুন',
     'appClientInvitations.appClientInvitationsAcceptAcceptForm.profileNameOptional':
       'প্রোফাইলের নাম (ঐচ্ছিক)',
+    'appClientInvitations.appClientInvitationsAcceptAcceptForm.whichProfile': 'কোন প্রোফাইল?',
+    'appClientInvitations.appClientInvitationsAcceptConsentGate.on': 'চালু',
     'appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe':
       'আপনি গ্রহণ করলে তাঁরা যা করতে পারবেন:',
     'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight':
@@ -46,5 +50,7 @@ export const appClientInvitationsCatalog = defineCatalog({
       'এই আমন্ত্রণ লিংকটি বৈধ নয়।',
     'appClientInvitations.appClientInvitationsAcceptPage.turnTheseOnBeforeAcceptingBoth':
       'গ্রহণ করার আগে এগুলো চালু করুন (দুটিই আবশ্যক):',
+    'appClientInvitations.appClientInvitationsAcceptPage.workWithAnAgency':
+      'একটি এজেন্সির সঙ্গে কাজ করুন',
   },
 });

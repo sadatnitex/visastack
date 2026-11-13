@@ -1,0 +1,431 @@
+{"sg": "SG-c81cbca5", "bn": "WhatsApp থেকে আপনার ভিসা ফাইল নিয়ে জিজ্ঞেস করুন। যেকোনো সময় সংযোগটি বিচ্ছিন্ন করতে পারেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-93a158cb", "bn": "প্ল্যান ও ব্যবহার খুলুন", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bc96e950", "bn": "বিলিংয়ের ইতিহাস", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-67b08c36", "bn": "রসিদ ডাউনলোড করুন (PDF)", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ba15de58", "bn": "রিফান্ড", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed); link that opens a refund request email", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2f6a8d87", "bn": "আপনি যা কিনেছেন, সঙ্গে ডাউনলোড করার মতো ইনভয়েস ও রসিদ।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-a898f718", "bn": "আপনি কোনো প্ল্যান কিনলে তার ইনভয়েস ও রসিদ এখানে দেখা যাবে। আপনি নিজে পেমেন্ট না করলে কোনো চার্জ নেওয়া হয় না।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-65bcbe56", "bn": "{formatBillingDateTime} (বাংলাদেশ সময়) পর্যন্ত আপনি পুরো টাকা ফেরত চাইতে পারেন, এর জন্য কোনো কারণ জানাতে হবে না। টাকা ফেরত দেওয়া হলে যে সময়ের জন্য পেমেন্ট করা হয়েছিল, সেটি শেষ হয়ে যায়।", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ce4f525c", "bn": "প্ল্যানগুলো তুলনা করুন", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7f126fc0", "bn": "আপনার কেনাকাটা নিশ্চিত করুন", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-8bd41bdb", "bn": "বিটা চলাকালে VisaStack-এর সবকিছু বিনামূল্যে থাকছে। পেইড প্ল্যানে আপনি আরও জায়গা পান: বেশি স্টোরেজ ও বেশি দৈনিক সীমা, আপনার নিজের এবং যাঁদের রেকর্ড আপনি রাখেন তাঁদের সবার জন্য। এর দাম আগে দিতে হয়, আর এটি নিজে থেকে কখনো আবার চার্জ করে না।", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ec52dfab", "bn": "আরও জায়গা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-a5ee814c", "bn": "স্বয়ংক্রিয়ভাবে কোনো চার্জ নেই। মেয়াদ শেষ হওয়ার আগে আমরা আপনাকে মনে করিয়ে দিই, তখন আপনি ঠিক করবেন আবার পেমেন্ট করবেন কি না।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-351d9a16", "bn": "আপনার প্ল্যানে নেই", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fd353d3d", "bn": "এখনো কিছু রাখা হয়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ba779778", "bn": "দাম", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e00914ae", "bn": "এখনই নবায়ন করুন", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2a67db33", "bn": "পুরো অ্যাকাউন্টের স্টোরেজ", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-90075396", "bn": "ভ্রমণকারীর ফ্রি প্ল্যান ও পেইড প্ল্যানগুলো পাশাপাশি", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed); \"Traveller Free\" is the free plan's name", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f7fc29fa", "bn": "নিচের পেইড প্ল্যানগুলোর সঙ্গে এটি তুলনা করতে পারেন।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-533915db", "bn": "আপনার প্ল্যান", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-27b9eb47", "bn": "আমি আমার ভিসা ফাইল সম্পর্কে WhatsApp-এ VisaStack থেকে বার্তা পেতে রাজি। যেকোনো সময় আমি STOP পাঠাতে পারি।", "conf": "MEDIUM", "note": "Consent wording: OWNER_BLANKET_SIGNOFF_2026-11-12 (consent wording, not reviewed). STOP is the keyword to type and stays in Latin", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0b3c391", "bn": "যে WhatsApp নম্বরটি যুক্ত করতে চান, সেখান থেকে এই বার্তাটি পাঠান। কোডটি ১০ মিনিট কাজ করে এবং শুধু একবার ব্যবহার করা যায়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d420b2bd", "bn": "WhatsApp থেকে আপনার ভিসা ফাইল নিয়ে জিজ্ঞেস করুন। বাকি সবকিছু VisaStack-এই থাকে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fe8a08ec", "bn": "WhatsApp বিচ্ছিন্ন করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fd548384", "bn": "ডকুমেন্ট চ্যাটে নয়, VisaStack-এ যোগ করা হয়, তাই সেগুলো গোপন থাকে এবং পরীক্ষা করা হয়।", "conf": "MEDIUM", "note": "\"checked\" here is the file format check; written পরীক্ষা, not a virus scan", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e9dc52d4", "bn": "নম্বর", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e4c15e05", "bn": "বন্ধ (চালু করতে START পাঠান)", "conf": "HIGH", "note": "START is the keyword to type and stays in Latin", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eebfde0b", "bn": "কী জিজ্ঞেস করা যায় তা দেখতে WhatsApp-এ MENU পাঠান। বার্তা বন্ধ করতে STOP পাঠান।", "conf": "HIGH", "note": "MENU and STOP are keywords to type and stay in Latin", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e970f0f5", "bn": "একটি ভিসা ফাইল খুলুন:", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fb72a96c", "bn": "এআই সংযোগ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2b23ee28", "bn": "#087a68", "conf": "HIGH", "note": "A colour code shown as an example; kept exactly", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed", "keep_latin_digits": true}
+{"sg": "SG-d78a17d5", "bn": "একটি রং বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e8910820", "bn": "এখনো কোনো লোগো নেই। এর বদলে আপনার নামের আদ্যক্ষর দেখানো হচ্ছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-b9f22e02", "bn": "খালি করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-be84ee3e", "bn": "ডকুমেন্টের ধরন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f161a397", "bn": "শেষ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c05dc4a9", "bn": "এই তালিকায় এখনো কোনো আইটেম নেই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c31152af", "bn": "কোনো শেয়ার করা তালিকা মেলেনি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c73a3674", "bn": "আমাদের তালিকা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d8ba4852", "bn": "শুরুর তালিকা, অফিসিয়াল নয়", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-db5096ae", "bn": " · শেষ তারিখ {formatDateOnly}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f5513dd3", "bn": "ঘর", "conf": "MEDIUM", "note": "A form field label (Field); ঘর is the everyday word for a form field", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eabf3c6e", "bn": "আমন্ত্রিত · মেয়াদ শেষ {formatTimestampDate}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ec06af3c", "bn": "যে চেকলিস্ট অনুসরণ করা হবে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f0c2648f", "bn": "একটি দেশ বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fa8e1fc4", "bn": "শেষ তারিখ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dacbea31", "bn": "কতটা দরকার", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dadc2197", "bn": "{title} ডাউনলোড করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fff863b6", "bn": "এই ডকুমেন্টটি এখন ডাউনলোড করা যাচ্ছে না। ব্যক্তিটি হয়তো তাঁর উত্তর তুলে নিয়েছেন বা বদলেছেন, অথবা ডকুমেন্টটি এখনো পরীক্ষা করা হচ্ছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fa2c8f60", "bn": "ব্যক্তির জন্য নোট যোগ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f156d687", "bn": "{label} নিয়ে নোট", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cebd144b", "bn": "ডকুমেন্টের অনুরোধ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fb3bfab5", "bn": "ডকুমেন্টের অনুরোধ, নতুনগুলো আগে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c1b9b829", "bn": "অবস্থা অনুযায়ী অনুরোধ দেখান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f5265dba", "bn": "অবস্থা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f64b8090", "bn": "{waiting}টি পর্যালোচনার অপেক্ষায়", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fdbf7816", "bn": "শেষ তারিখ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0670f75", "bn": "শেষবার খোলা হয়েছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cd99e1ed", "bn": "এখনো নয়", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e90caf40", "bn": "ইমেইলে পাঠান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cad96201", "bn": "নির্দিষ্ট রুট", "conf": "MEDIUM", "note": "Route means the visa route chosen for the request", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c6a98e71", "bn": "ডাউনলোড সম্পর্কে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f2798506", "bn": "এখন খোলা যাচ্ছে না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d537975a", "bn": "কারণ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dc09dd28", "bn": "এই প্রতিষ্ঠানে আপনার কোনো ভূমিকা নেই। আপনাকে সদস্য হিসেবে যোগ করতে একজন মালিক বা অ্যাডমিনকে বলুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c6265e8d", "bn": "সিদ্ধান্তের কারণ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7528cae9", "bn": "যেমন এইচএম পাসপোর্ট অফিস", "conf": "MEDIUM", "note": "Example issuer name transliterated (HM Passport Office)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e2e2b7b6", "bn": "যে সদস্যকে দায়িত্ব দেবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d17c06be", "bn": "এখনো কোনো সিদ্ধান্ত রেকর্ড করা হয়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c4471b33", "bn": "নোট কারা দেখতে পাবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d1498659", "bn": "শুধু দায়িত্বপ্রাপ্ত সদস্যই সিদ্ধান্ত রেকর্ড করতে পারেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c129297d", "bn": "এই নিশ্চিতকরণ যে প্রয়োজনীয়তার জন্য", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e3c768f6", "bn": "প্রয়োজনীয়তা…", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fd24904b", "bn": "স্বীকার করা হয়েছে {formatTimestampDate}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d842de7e", "bn": "প্রমাণের অনুরোধ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e9b5ecc2", "bn": "এজেন্সি সেটআপ শেষ করুন: {length}টির মধ্যে {length}টি সম্পন্ন", "conf": "MEDIUM", "note": "REGISTER_CATALOGUE_PLACEHOLDER_DIFF: drafted for the register English ({length} twice); the catalogue key uses {length} and {length2}, so the refill skips it until the two agree", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ca28cb95", "bn": "ম্যানুয়াল মোড", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e6b558c8", "bn": "মনোযোগ দরকার", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c7bbf057", "bn": "অনলাইন পেমেন্ট", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fc9db6e9", "bn": "{invoiceRef}-এর অনলাইন পেমেন্ট", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-688eac8d", "bn": "পেমেন্টের তথ্য জানানো হয়েছে: আমরা এটি দেখছি। সিদ্ধান্ত হয়ে গেলে আপনি অনলাইনে পেমেন্ট করতে বা অন্য একটি পেমেন্টের তথ্য জানাতে পারবেন।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d66c8428", "bn": "পেমেন্টের তথ্য জানানো হয়েছে: আমরা এটি দেখছি। দেখা শেষ হলে আমরা এই ইনভয়েস হালনাগাদ করব।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-54ac96cb", "bn": "পেমেন্টের তথ্য", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed); Payment Reports = the payments the agency reported", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-1c6fc4aa", "bn": "{invoiceRef}-এর পেমেন্টের তথ্য", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f952f73c", "bn": "কারণ: {reason}", "conf": "MEDIUM", "note": "REGISTER_CATALOGUE_PLACEHOLDER_DIFF: drafted for the register English ({reason}); the catalogue key uses {decisionReason}, so the refill skips it until the two agree", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f91c5c9d", "bn": "এই ইনভয়েসের একটি পেমেন্ট {startedAt}-এ শুরু করা হয়েছিল। আবার পেমেন্ট করার আগে সেটি দেখে নিন।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-65670957", "bn": "একটি ছবি বা স্ক্রিনশট (JPEG বা PNG) অথবা একটি PDF, ৪ MB-এর কম। শুধু আপনার প্রতিষ্ঠানের মালিক ও অ্যাডমিনরা এবং VisaStack-এর কর্মীরা এটি খুলতে পারেন। কোনো ত্রুটির পর আবার জানালে ডকুমেন্টটি আবার বেছে নিন।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-73bad505", "bn": "ট্রান্সফার আইডি, বিকাশ ট্রানজ্যাকশন আইডি বা চেক নম্বর।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d9899339", "bn": "পরিশোধিত অঙ্ক ({currency})", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-840af75a", "bn": "পেমেন্টের তারিখ", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7c8a23c7", "bn": "কীভাবে পেমেন্ট করেছেন", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-6a6bb0ce", "bn": "আমি অন্যভাবে পেমেন্ট করেছি", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-245e79b8", "bn": "পেমেন্ট রেফারেন্স", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-b2ea9a57", "bn": "ব্যাংক ট্রান্সফার, বিকাশ বা চেকের মাধ্যমে আগেই করা কোনো পেমেন্টের কথা আমাদের জানান। VisaStack নিশ্চিত না করা পর্যন্ত কিছুই হিসাবে ধরা হয় না।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-4c7a74f9", "bn": "এখনো কোনো ইনভয়েস নেই। VisaStack আপনার প্ল্যানের জন্য ইনভয়েস ইস্যু করলে তা এখানে দেখা যাবে।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f4537149", "bn": "শুধু মালিক ও অ্যাডমিনরা ইনভয়েস দেখতে ও পেমেন্ট করতে পারেন।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7c2edbb3", "bn": "অনলাইনে ইনভয়েসের পেমেন্ট করুন, অথবা অন্যভাবে করা পেমেন্টের কথা আমাদের জানান। আপনার রসিদ এখানে রাখা থাকে।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-6ab89400", "bn": "ব্যবহার ও বিলিং", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f514f7f1", "bn": "অ্যাক্সেস অফার রেকর্ড করা হয়নি", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-8d8d7094", "bn": "এই প্রতিষ্ঠানের জন্য কোনো অ্যাক্সেস অফার রেকর্ড করা হয়নি। আপনার মাপা ব্যবহার নিচে দেখানো হয়েছে। রেকর্ডের অনুমতি ও নিরাপত্তা পরীক্ষা তবুও প্রযোজ্য।", "conf": "MEDIUM", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ad08fe8e", "bn": "এআই ফিচার ছাড়াই VisaStack-এর সবকিছু কাজ করে, আর প্রত্যেক ব্যক্তির নিজের এআই ব্যবহার VisaStack-এর সেটিংস মেনে চলে।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7b35a454", "bn": "{formatBillingDate} থেকে, আপনার পরবর্তী বিলিং সময়ে, দাম হবে {formatMoney}। আগে তৈরি ইনভয়েসের অঙ্ক বদলায় না।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-71a195dd", "bn": " শুধু আপনার জানার জন্য দেখানো হয়েছে; এতে কোনো কাজ থামে না।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-75c7bb49", "bn": "এই প্রতিষ্ঠানের প্ল্যানে আপনার অ্যাক্সেস নেই।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7b77880f", "bn": "আপনার এজেন্সির প্ল্যান এবং এর কতটা ব্যবহার হচ্ছে। প্রতিটি সীমা আপনার প্ল্যান থেকে আসে।", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-da7a7a86", "bn": "পর্যালোচনার নীতি", "conf": "MEDIUM", "note": "Agency settings: the agency's own review policy", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f4628c7a", "bn": "সেটিংস", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fd315ca1", "bn": "\"ডকুমেন্টের অনুরোধের অনুমতি\" চালু থাকলে একজন সদস্য নিজে ডকুমেন্টের অনুরোধ তৈরি করে পাঠাতে পারেন। মানুষ যা ফেরত পাঠান, তা শুধু মালিক ও অ্যাডমিনরা দেখেন।", "conf": "MEDIUM", "note": "The quoted setting name (Allow Document Requests) has no Bengali draft yet; keep both in step", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-df8bf430", "bn": "আপনার এজেন্সি নিবন্ধনের জন্য এখানে আবেদন করুন। আপনি এর মালিক হবেন, আর ক্লায়েন্টদের সঙ্গে কাজ শুরুর আগে প্ল্যাটফর্মের একজন অ্যাডমিনিস্ট্রেটরকে এটি যাচাই করতে হবে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-db04df67", "bn": "খালি করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f60b259f", "bn": "বিকল্প প্রোভাইডার ব্যবহার করা হয়েছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c71925bd", "bn": "দেখে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ce511844", "bn": "সম্ভাব্য অসংগতি ({confidence}% আস্থা)", "conf": "MEDIUM", "note": "confidence is the reading's own confidence score; আস্থা avoids a guarantee word", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e7158ae3", "bn": "সংবেদনশীল তথ্য, আপনি যা বদলেছেন এবং আপনার প্রোফাইলের সঙ্গে যা মেলে না, সেগুলো এখানে থাকে, যাতে আপনি একটি একটি করে দেখে নিতে পারেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e8e23983", "bn": "কিছু অপেক্ষায় নেই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d08e6480", "bn": "এআই অ্যাপের পরামর্শ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c5816767", "bn": "ধরন ও নাম দেখে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0a85fd6", "bn": "একটি ধরন বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ed74d9e2", "bn": "সম্পাদনা করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f5531607", "bn": "দেখে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f57f36bb", "bn": "যোগ করা হয়নি। ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f1dff4fc", "bn": "{name}-এর আপলোড", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ffbece13", "bn": "এই ডকুমেন্টের একটি হুবহু কপি আপনার কাছে আগে থেকেই আছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e6e84251", "bn": "আপনার ডকুমেন্ট বা পুরো একটি ফোল্ডার এখানে ছেড়ে দিন। আমরা প্রতিটি পরীক্ষা করি এবং আপনার জন্য রেখে দিই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fa9ce41f", "bn": "সম্পন্ন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e65dd06a", "bn": "ডকুমেন্ট পুনরুদ্ধার করা হয়েছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e71ad8ec", "bn": "{documentName} পুনরুদ্ধার করবেন?", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fc314765", "bn": "পরীক্ষা করতে কয়েক মিনিট লাগতে পারে। আপনি এটি বন্ধ করে পরে ফিরে আসতে পারেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c0b1889b", "bn": "আবার পরীক্ষা করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d1d4d80d", "bn": "আপনার ডকুমেন্ট লোড হচ্ছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f9d0cba0", "bn": "{documentName} প্রতিস্থাপন করবেন?", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e61159d5", "bn": "সম্পন্ন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c9cb2139", "bn": "অনুরোধটি রাখুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dcdd88b4", "bn": "বাতিল করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c65eaeff", "bn": "অন্য কাউকে বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e69463b9", "bn": "{personName}-এর নামে রাখা হয়েছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e3caa202", "bn": "যুক্ত কপি", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fd517a4d", "bn": "ডকুমেন্ট খুলুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d3228625", "bn": "এই ডকুমেন্টগুলো একসঙ্গে কয়েকজনের জন্য যোগ করা হয়েছিল। প্রতিটি কার, তা আপনি বেছে না নেওয়া পর্যন্ত সেটি এখানে অপেক্ষা করে, আর শুধু আপনিই এটি দেখতে পান।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c2458bf2", "bn": "যোগ করার দিনেই {title}-এর মেয়াদ শেষ হয়ে গিয়েছিল।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c8e1f304", "bn": "আপনি যা করতে পারেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c5da4b77", "bn": "{label} কার জন্য?", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f3d18c57", "bn": "ডকুমেন্টস", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c55f18e7", "bn": "আপনি অন্য একটি তারিখ দিয়েছেন। কোনটি ঠিক, তা ডকুমেন্টস-এ দেখে নিন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c1925a55", "bn": "আবার চালু করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c5d7425b", "bn": "আমরা যা পেয়েছি দেখুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-faa52d8a", "bn": "আবার পাঠান: {name}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d8ed741c", "bn": "থামান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-1898d152", "bn": "প্রস্তাবিত ডকুমেন্টের নাম", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fb9189ad", "bn": "ভিসা ফাইল দেখানো যাচ্ছে না", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f7ea2969", "bn": "তারিখ দেখানো যাচ্ছে না", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c507a41d", "bn": "কিছু অংশ এখন দেখানো যাচ্ছে না। যেসব মোট সংখ্যা পাওয়া যাচ্ছে না, সেগুলো শূন্য হিসেবে দেখানো হয় না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ec72750a", "bn": "পাওয়া যাচ্ছে না", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ed59d9f8", "bn": "চেকলিস্ট যুক্ত না হওয়া পর্যন্ত এই ভিসা ফাইলের প্রয়োজনীয়তাগুলো আপনি ভিসা ফাইলের ভেতরেই নিজে হাতে পর্যালোচনা করবেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cf1fe773", "bn": "এই অংশের ডকুমেন্ট", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fd6dcb36", "bn": "{formatDateOnly} তারিখে শেষ হয়েছে। এর তথ্য রেকর্ডে থেকে যায়। এটিকে আবার বর্তমান করতে নিচে একটি পরিবর্তন সংরক্ষণ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ece82a7e", "bn": "ইতিহাস →", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bbe72459", "bn": "{label}: আপনার ক্ষেত্রে প্রযোজ্য নয় বলে চিহ্নিত।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d68abc3a", "bn": "✗ এখনো লেখা হয়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c799c334", "bn": "খোলা", "conf": "HIGH", "note": "Badge for an open profile section (the other state is Locked)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-db795821", "bn": "আপনার তথ্য আছে বলে খোলা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-de3c9853", "bn": "প্রোফাইলের সব ঘরে খুঁজুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c1ee8a97", "bn": "{label}-এ অন্য কিছু", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7ac81355", "bn": "{suggestedLockedCount}টি প্রস্তাবিত অংশ এখনো লক করা আছে।", "conf": "MEDIUM", "note": "ICU_PLURAL_IN_CATALOGUE: the catalogue message is an ICU plural, so the refill skips it; Bengali needs one form only", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed", "choice_drop_ok": true}
+{"sg": "SG-e46eb096", "bn": "এই প্রোফাইল কিসের জন্য?", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e3b3650f", "bn": "আপনি বলেছেন আপনার কোনোটি নেই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eb09f5e2", "bn": "আপনার প্রোফাইল সংরক্ষণ করবেন কি না, বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d21507e0", "bn": "রেকর্ড করা আপডেট", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cdb66126", "bn": "এই প্রোফাইল সম্পাদনা করতে হোমে “VisaStack-কে আমার তথ্য প্রক্রিয়া করতে দিন” চালু করুন। আগের মানগুলো বদলায় না।", "conf": "HIGH", "note": "The quoted setting name follows its released Bengali label", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d731c196", "bn": "এখন পাওয়া যাচ্ছে না", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eb018946", "bn": "কিছু মেলেনি। খোঁজ মুছে দিন অথবা অন্য ক্যাটাগরি বা ফিল্টার বেছে নিন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c15e7f65", "bn": "রেকর্ডের পেজ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d9193770", "bn": ", এখন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-db307564", "bn": "আরও ডকুমেন্ট যোগ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bb44b151", "bn": "সব শেষ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f56a607f", "bn": "এজেন্সির দেওয়া নাম ব্যবহার করতে ঘরটি খালি রাখুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ddf6698f", "bn": "একটি এজেন্সির সঙ্গে কাজ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d27a5b81", "bn": "{applicantName} (ভ্রমণকারী)", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f4dc2cee", "bn": "কত দিন রাখা হবে:", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fb256953", "bn": "একটি ডকুমেন্ট দিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cfddc044", "bn": "PDF, PNG, JPEG, DOCX, TXT বা MD · আপলোডের সময় ডকুমেন্টের ফরম্যাট ও কাঠামো পরীক্ষা করা হয়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fdc1355d", "bn": "কত দিন থাকতে পারবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f541a0c9", "bn": "অফিসিয়াল রিপোর্টিং পেজ", "conf": "MEDIUM", "note": "Link label to an official page; the page content stays as published", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f98077f0", "bn": "পরিবারের একজন সদস্য", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e4e059f5", "bn": "ব্যক্তিগত ওয়ার্কস্পেস", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-befffcf8", "bn": "কী থাকবে বেছে নিন, তারপর কপি বা ডাউনলোড করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-edc80bbc", "bn": "সাধারণত কী চাওয়া হয়, আর প্রতিটি তথ্য কোথা থেকে এসেছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bfddee95", "bn": "খোঁজের ফলাফল", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-62b01c28", "bn": "আপনার নিজের ডকুমেন্ট থেকে একটি চিঠি বা রসিদ। এটি না থাকলে এটি শুধু আপনার নিজের দেওয়া তথ্য হিসেবেই থাকবে।", "conf": "HIGH", "note": "In the commercial queue only for the word receipt (an application receipt, not a payment)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-37bc808a", "bn": "আপনার নিজের ডকুমেন্ট থেকে একটি রসিদ বা নিশ্চিতকরণ। এটি না থাকলে এটি শুধু আপনার নিজের দেওয়া তথ্য হিসেবেই থাকবে।", "conf": "HIGH", "note": "In the commercial queue only for the word receipt (an application receipt, not a payment)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f50c1cf4", "bn": "ডকুমেন্ট যোগ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c5d83cc9", "bn": "যে ডকুমেন্ট যোগ করবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c3a9133b", "bn": "চেষ্টা হিসেবে রাখুন: {reportName}", "conf": "MEDIUM", "note": "Attempt = one try at an application, recorded by the person", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ea2411c9", "bn": "কে চেয়েছেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c647460e", "bn": "বেছে নেওয়া ডকুমেন্ট: {join}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-faab79e3", "bn": "ভিসা ফাইলটি রাখুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-febb4123", "bn": "আপনার প্রোফাইল ও ডকুমেন্টে কোনো পরিবর্তন হয় না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f6e30b30", "bn": "আবেদনের প্যাকেট", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e80a3873", "bn": "বুঝেছি", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e40c42df", "bn": "কোনো আইটেম মেলেনি", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ca7ddd0d", "bn": "চেকলিস্টে খুঁজুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c2a50296", "bn": "VisaStack অনুরোধ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e996e8d1", "bn": "কিছু নেই", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-efac2e10", "bn": "অফিসিয়াল: {officialWording}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d8bda592", "bn": "প্রস্তাবিত কপিতে ফিরে যান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eb052b52", "bn": "{itemName}-এর জন্য পছন্দ সংরক্ষণ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e077ba96", "bn": "{itemName}-এর জন্য কী ব্যবহার করবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e515b230", "bn": "{formatTimestampDate} তারিখে, পরের একটি পরিবর্তনের আগে, হস্তান্তরের জন্য প্রস্তুত করা হয়েছিল। সেই রেকর্ড যেমন ছিল তেমনই রাখা আছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-db335486", "bn": "কী বদলাতে হবে, অথবা আপনি কেন এটি প্রত্যাখ্যান করছেন?", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e3e5a4ac", "bn": "{state} অবস্থায় নেওয়া · চেকসাম {checksum}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dff03193", "bn": "JSON ডাউনলোড করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d6902da7", "bn": "কোনো ডকুমেন্ট রেকর্ড করা হয়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ece84ef8", "bn": "(কোনো উপযুক্ত ডকুমেন্ট নেই)", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c064718c", "bn": "কোনো তথ্য রেকর্ড করা হয়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ee038eb5", "bn": "পূরণ হয়নি", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d52853a9", "bn": "সব {length}টি {label} দেখান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-8d16f1ce", "bn": "যেমন ট্র্যাকিং বা রসিদ নম্বর", "conf": "HIGH", "note": "In the commercial queue only for the word receipt (an application receipt, not a payment)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d8b13ab8", "bn": "আসলে কী জমা দেওয়া হয়েছিল, এবং কোথায়", "conf": "MEDIUM", "note": "The person's own report of a filing made outside VisaStack; VisaStack does not file", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cd794e25", "bn": "নতুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c69296be", "bn": "আমার অ্যাকাউন্ট রাখুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e83f4b61", "bn": "ভ্রমণের অন্যরা এই নামটিই দেখবেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c4a4233b", "bn": "আপনার নাম", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dbe3885a", "bn": "একটি কাগজ বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-febb25fa", "bn": "এই ভ্রমণ ছেড়ে দেবেন? আয়োজক আর আপনাকে দেখতে পাবেন না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fb5d5553", "bn": "আমার ভ্রমণে ফিরে যান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d4a589a1", "bn": "এখন যোগ করার মতো কোনো বুকিং বা ভ্রমণসূচি আপনার ডকুমেন্টে নেই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e2097a05", "bn": "আপনি এই ভ্রমণে যোগ দিয়েছেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-db49b762", "bn": "{travellerCount} জন ভ্রমণকারী", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cba122e5", "bn": "আরেকজনকে যোগ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c4a61a5b", "bn": "রাখুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e4fb0938", "bn": "পুরো ভ্রমণে শুধু বুকিং, ভ্রমণসূচি, আমন্ত্রণপত্র ও থাকার ব্যবস্থার কাগজ শেয়ার করা যায়। পাসপোর্ট, ব্যাংকের কাগজ ও চিকিৎসার কাগজ কখনো শেয়ার করা হয় না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c72e73fe", "bn": "আর কে কে ভ্রমণ করছেন?", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-b768deab", "bn": "এই লিংক যাঁর কাছেই থাকুক, তিনি এই তারিখগুলো, সেগুলোর সাধারণ শিরোনাম (যেমন \"কাজের শেষ তারিখ\") এবং ভ্রমণকারীর নামের প্রথম অংশ দেখতে পারেন; ক্যালেন্ডারের নাম এই নাম দিয়েই হয়। এতে কখনো পুরো নাম, ভিসা ফাইলের নাম, ডকুমেন্ট বা নোট দেখায় না। লিংকটি গোপন রাখুন। অন্য কারও কাছে এটি থাকতে পারে মনে হলে নতুন লিংক তৈরি করুন বা শেয়ার বন্ধ করুন।", "conf": "MEDIUM", "note": "The example title is written in Bengali; if the calendar feed itself keeps English titles, the example should read Task Due", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fbc1c544", "bn": "তারপর এটি আপনার ক্যালেন্ডার অ্যাপে যোগ করুন:", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-887e664b", "bn": "শিরোনামের পরে ভিসা ফাইলের নাম যোগ করে, যেমন \"কাজের শেষ তারিখ - জাপান ভ্রমণ\"। আপনার ক্যালেন্ডার যিনিই দেখতে পান, তিনি এটি দেখবেন। ভিসা ফাইলের নামে কোনো নম্বর, লিংক বা ইমেইল ঠিকানা থাকলে সেই নাম বাদ দেওয়া হয়।", "conf": "MEDIUM", "note": "Example title written in Bengali; see the calendar feed note", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-44fdd3d4", "bn": "যেসব তারিখে সময় নেই, সেগুলো সারাদিনের ইভেন্ট হিসেবে যোগ হয়। আপনি ভিসা ফাইলের নাম যোগ করতে না চাইলে শিরোনাম সাধারণ থাকে, যেমন \"কাজের শেষ তারিখ\"। {CALENDAR_PAST_DAYS} দিনের বেশি আগের তারিখ তালিকায় থাকে না।", "conf": "MEDIUM", "note": "Example title written in Bengali; see the calendar feed note", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e04ad3bc", "bn": "ক্যালেন্ডার ডাউনলোড করুন", "conf": "HIGH", "note": "The calendar file is not an uploaded document, so the word file is left out", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f5c3f4ac", "bn": "যোগ করার মতো কোনো তারিখ নেই", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-8735373c", "bn": "একবারের ডাউনলোডে সর্বোচ্চ {CALENDAR_EXPORT_LIMIT}টি ইভেন্ট থাকে, তাই আপনার বেছে নেওয়া শেষের {plural} বাদ পড়েছে। সেগুলো দ্বিতীয় একটি ডাউনলোডে নিন।", "conf": "MEDIUM", "note": "ICU_PLURAL_IN_CATALOGUE: the catalogue message is an ICU plural, so the refill skips it. TECHNICAL: {plural} is filled with English words (a count and a noun) at run time, so the line stays mixed until the call site passes Bengali", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed", "choice_drop_ok": true}
+{"sg": "SG-ecceaa27", "bn": "এই মুহূর্তে আমরা ডাউনলোডটি তৈরি করতে পারিনি। আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c2ad78ad", "bn": "{join} অংশে {plural} সমর্থন করে।", "conf": "LOW", "note": "TECHNICAL: {plural} is filled with English words (a count and a noun) at run time, so the line stays mixed until the call site passes Bengali", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eb7e84f3", "bn": "যেগুলো সমর্থন করতে পারে: {join}।", "conf": "MEDIUM", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2782e738", "bn": "{plural}-এর মধ্যে {covered}টির সমর্থনকারী ডকুমেন্ট আছে।", "conf": "LOW", "note": "ICU_PLURAL_IN_CATALOGUE: the catalogue message is an ICU plural, so the refill skips it. TECHNICAL: {plural} is filled with English words (a count and a noun) at run time, so the line stays mixed until the call site passes Bengali", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed", "choice_drop_ok": true}
+{"sg": "SG-c685ac82", "bn": "পার্থক্য", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ddc573fc", "bn": "ডকুমেন্টের সারাংশ", "conf": "MEDIUM", "note": "Insights read as a summary of what the documents show", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d208c318", "bn": "যেসব ডকুমেন্টের শেষ তারিখ আছে, যেমন পাসপোর্ট, সেগুলো মেয়াদ ফুরানোর ক্রমে এখানে দেখা যায়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d15b5a37", "bn": "মেয়াদ শেষের সময়রেখা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-df727604", "bn": "দেখার মতো কিছু নেই", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ed0a7a29", "bn": "কাগজের কপি", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fa86c859", "bn": "প্রোফাইল কতটা পূরণ হয়েছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f15cb96b", "bn": "সুরক্ষিত", "conf": "MEDIUM", "note": "A protected (sensitive) detail; সুরক্ষিত, not নিরাপদ", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d5da2d13", "bn": "এই মুহূর্তে আমরা এই সারাংশ তৈরি করতে পারিনি। আবার চেষ্টা করতে রিফ্রেশ করুন। লোড না হওয়া পর্যন্ত কোনো কিছুকে অনুপস্থিত হিসেবে দেখানো হয় না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e06b51fe", "bn": "{name} তুলনা করুন, তখন ও এখন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e495beb6", "bn": "মুদ্রা", "conf": "HIGH", "note": "A profile field label (currency of an amount), not a payment", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f200a7f6", "bn": "রেকর্ড করা হয়নি", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e31fed4a", "bn": "তখন ও এখন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bcefacd9", "bn": "এটি শুধু যা রেকর্ড করা হয়েছিল তার তুলনা করে। কোন মানটি সঠিক, তা বলে না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c07a3013", "bn": "এই তথ্যটি আপডেট করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cdb7fd08", "bn": "সেই সময়ে যা লেখা হয়েছিল। এটি একটি বক্তব্য, প্রমাণ নয়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c096584a", "bn": "রাখার মেয়াদ শেষে এই ভিসা ফাইলের ডকুমেন্টগুলো সরিয়ে ফেলা হয়েছে। কী ঘটেছিল তার রেকর্ড থেকে যায়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bde16380", "bn": "স্ন্যাপশট {snapshotVersion} দেখুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ee76d9ba", "bn": "ভিসা ফাইলটি তৈরি করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d66277d1", "bn": "যেমন UK স্টুডেন্ট ভিসা - অটাম ২০২৬", "conf": "MEDIUM", "note": "Example case title; Autumn is the UK intake name, kept as অটাম", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-da177c03", "bn": "শেষ তারিখ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f35f40ad", "bn": "চলমান ({length})", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d381aa7e", "bn": "এখনো কোনো ভিসা ফাইল নেই", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d6d3edd7", "bn": "এই ভিসা ফাইল কিসের জন্য?", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dee89a08", "bn": "আপনি যেসব গ্রুপে টিক দেন, সেগুলোর ডকুমেন্ট থেকে পড়া লেখা যোগ করে। পাসপোর্ট, পরিচয়পত্র, টাকাপয়সা ও স্বাস্থ্যের ডকুমেন্ট কখনো যুক্ত করা হয় না। এআই অ্যাপের যদি লেখাগুলোই দরকার হয়, শুধু তখনই এটি বেছে নিন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dce3e0a5", "bn": "তথ্য বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d96f20bd", "bn": "লেখা কপি করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e6e0f82c", "bn": "যে তথ্য রাখবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c5f0085d", "bn": "স্প্রেডশিট ডাউনলোড করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e3af65ac", "bn": "ভিসা ফাইল নেই", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0d9dbc3", "bn": "দেখানোর মতো কিছু নেই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-b9b9a1af", "bn": "আবার শুরু করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-df05431c", "bn": "ধাপ {number} (মোট ৩):", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c906883a", "bn": "এই মুহূর্তে আমরা ডাউনলোডটি তৈরি করতে পারিনি। আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d65970ea", "bn": "{appName} বন্ধ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f3be3fe4", "bn": "অ্যাক্সেস বদলানো হয়েছে। অ্যাপটি পরের অনুরোধে নতুন অ্যাক্সেস পাবে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e80fbd60", "bn": "এআই অ্যাপ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fdab94fc", "bn": "এই রেকর্ডের সঙ্গে আপনার যুক্ত করা এআই অ্যাপ। প্রতিটি শুধু আপনার বেছে নেওয়া অংশ পড়তে পারে এবং VisaStack-এ কিছুই বদলাতে পারে না। কোনোটি বন্ধ করলে সেটি সঙ্গে সঙ্গে থেমে যায়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eb51eabb", "bn": "সংযুক্ত", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c569d083", "bn": "এই রেকর্ডের কিছুই নয়", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d77973bf", "bn": "এআই অ্যাপ থেকে কোনো খসড়া নেই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d4e54ac1", "bn": "এই ভিসা ফাইলের অনুমতি দিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d7c7d112", "bn": "এই ভিসা ফাইলের অনুমতি দিন: {title}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e82f6dfa", "bn": "এই অ্যাক্সেস নিশ্চিত করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-938a9ab6", "bn": "{length}টি নতুন ডকুমেন্ট এখন এই অনুমতির ক্যাটাগরির সঙ্গে মিলছে। আপনি সেগুলো যুক্ত করা নিশ্চিত না করা পর্যন্ত প্রাপকের কাছে সেগুলো লুকানো থাকে।", "conf": "MEDIUM", "note": "ICU_PLURAL_IN_CATALOGUE: the catalogue message is an ICU plural, so the refill skips it; the second {choice} (this grant category / these grant categories) is written into the Bengali", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed", "choice_drop_ok": true}
+{"sg": "SG-e5c4f1d3", "bn": "বাতিল করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bf124134", "bn": "একটি খোলা অনুরোধ চালিয়ে যান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d4cf3646", "bn": "আপনার রেকর্ডে যান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ed396e4e", "bn": "তুলে নেওয়া হয়েছে। এজেন্সি ওই উত্তরের কিছুই আর খুলতে পারবে না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c9fe42db", "bn": "আপনি এখনো এজেন্সির কোনো অনুরোধের উত্তর দেননি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bc86fc3a", "bn": "এজেন্সিকে দেওয়া আপনার উত্তর", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0cfdd1e", "bn": "আগে আপনার রেকর্ড তৈরি করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ea526e09", "bn": "অন্য একটি ডকুমেন্ট বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e8c70f13", "bn": "প্রতিটি আইটেমের জন্য কিছু না কিছু বেছে নেওয়া হয়েছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0ce9e0b", "bn": "এজেন্সির নোট: {note}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ed44defd", "bn": "একটি কপি বেছে নেওয়া হয়েছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ceb37f67", "bn": "একটি আইটেম এখনো বাকি। আপনি এখনই জমা দিতে পারেন, তখন এজেন্সি সেটিকে বাকি হিসেবে দেখবে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dee4680c", "bn": "{fileName}-এর আইটেম সংরক্ষণ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-03c70b5e", "bn": "{placed}টি ডকুমেন্ট রাখা হয়েছে", "conf": "MEDIUM", "note": "ICU_PLURAL_IN_CATALOGUE: the catalogue message is an ICU plural, so the refill skips it", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed", "choice_drop_ok": true}
+{"sg": "SG-d9a8c887", "bn": "যে ডকুমেন্টগুলো যোগ করবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f6c28e25", "bn": "উত্তর দিতে সাইন ইন করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f0540b4f", "bn": "ফিল্টার মুছে দিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cc0acdb3", "bn": "ভিসা ফাইল", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dc40a763", "bn": "ডকুমেন্টস", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-df69b3b7", "bn": "কত দিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fada3c30", "bn": "কোনো ভিসা ফাইল নয়", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c4081f1d", "bn": "শুধু {title}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e349c0c4", "bn": "আপনি পাঠানোর পর আমরা ডকুমেন্টটি আবার পরীক্ষা করি, তাই এখানে ঠিক দেখালেও কোনো ছবি পরে ফিরিয়ে দেওয়া হতে পারে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-5fd4b0f9", "bn": "কী ভুল মনে হচ্ছে{forItem}", "conf": "LOW", "note": "TECHNICAL: {forItem} is glued to the heading and is filled with English words at run time", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7871c597", "bn": "অনুমতি ও নিরাপত্তা পরীক্ষার পরেই কেবল বিষয়বস্তু দেখা যায়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-74e4a6d0", "bn": "ডকুমেন্টের বিবরণ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-8ec57fe9", "bn": "একটি ডকুমেন্ট খুঁজুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-51884866", "bn": "কোনো ডকুমেন্ট মেলেনি। অন্য নাম দিয়ে চেষ্টা করুন বা খোঁজ মুছে দিন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2f30b5ce", "bn": "সুরক্ষিত প্রিভিউ খুলুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-627b18d2", "bn": "ব্যক্তিগত ডকুমেন্ট", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-0170eb47", "bn": "পর্যালোচনা ও প্রিভিউ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2fc8519a", "bn": "এই ডকুমেন্টের প্রিভিউ দেখা যাচ্ছে না। ডকুমেন্টের তালিকায় এর অবস্থা দেখে নিন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d6ebdd3d", "bn": "এখানে বিবরণ পর্যালোচনা করতে একটি ডকুমেন্ট আপলোড করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-df4225e7", "bn": "আপনার ডকুমেন্ট", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-b9adfee5", "bn": "ডকুমেন্টের পেজ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fe73e05e", "bn": "এই ডকুমেন্টের প্রিভিউ ব্লক করা আছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f5a5aed5", "bn": "প্রচলিত", "conf": "MEDIUM", "note": "Group heading in the time zone list (the commonly used zones)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c410a00a", "bn": "পটভূমি: {backgroundRule}", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e20d176c", "bn": "আপনার আবেদনে যে মাপ চাওয়া হয়েছে তা বেছে নিন, তারপর মাথা ও কাঁধ মাঝখানে না আসা পর্যন্ত সরান ও জুম করুন। ছবিটি নিজে কখনো এডিট করা হয় না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f3b317ba", "bn": "সরান ও জুম করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-efa48db1", "bn": "নিচে সরান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fb269add", "bn": "বাঁয়ে সরান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ec151ad8", "bn": "ডানে সরান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c1afd38b", "bn": "জুম ইন করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f2c165ec", "bn": "ফিরিয়ে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-02005aa0", "bn": "আরও দেখান ({length})", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-16c38eb0", "bn": "নিজেকে যোগ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d4d070a7", "bn": "ছবি যোগ করতে আগে নিজেকে ভ্রমণকারী হিসেবে যোগ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-66899eb0", "bn": "বক্স যোগ করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-a34d1d79", "bn": "সম্পাদনায় ফিরে যান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-91427b2a", "bn": "এই পেজের বক্স", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-b3978dbf", "bn": "সম্পাদনা বাতিল করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-1cb0e2f2", "bn": "প্রতিটি পেজ দেখে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cd35573f", "bn": "প্রতিটি পেজ দেখে নিন। শুধু কালো বক্সের অংশই লুকানো হয়। পরামর্শে কিছু বাদ পড়তে পারে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-02db3229", "bn": "প্রতিটি পেজ দেখে নিন। শুধু কালো বক্সের অংশই লুকানো হয়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2f1cc3d4", "bn": "প্রস্তুত করা চালিয়ে যান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-3df32ee3", "bn": "বক্স আঁকুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bb4328eb", "bn": "প্রতিটি পেজ তার কালো বক্সসহ একবার আঁকা হয়। এই পেজটি খোলা রাখুন; বন্ধ হয়ে গেলে যেখানে থেমেছিল সেখান থেকে চালিয়ে যেতে \"প্রস্তুত করা চালিয়ে যান\" বেছে নিন।", "conf": "HIGH", "note": "The quoted button name matches its own draft in this batch", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-aa490704", "bn": "পেজ লোড হচ্ছে...", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-492f2c63", "bn": "কী লুকাবেন চিহ্নিত করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-30f26d42", "bn": "পরবর্তী পেজ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cb9e87ac", "bn": "এই পেজে এখনো কোনো বক্স নেই।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-4894674e", "bn": "এই ডকুমেন্টে লুকানোর কিছু নেই", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-2eceab7f", "bn": "ডকুমেন্ট খোলা হচ্ছে...", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-4c590cd6", "bn": "পেজ", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-31407fda", "bn": "পেজগুলো পর্যালোচনা করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-920bc939", "bn": "নিরাপদ কপি এখানে এখনো পাওয়া যায় না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-90111533", "bn": "শুধু PDF ডকুমেন্ট ও ছবি থেকেই নিরাপদ কপি তৈরি করা যায়।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f8695c0c", "bn": "বেছে নেওয়া বক্স", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f48ff9b0", "bn": "পেজটি আবার দেখান", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-551e64f1", "bn": "বক্সের পরামর্শ দিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-22b66608", "bn": "এই পেজটি দেখানো যায়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-5e8ca709", "bn": "স্ক্রল করে এই পেজে এলে এটি দেখা যাবে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-43614c58", "bn": "আপনি \"এই ডকুমেন্টে লুকানোর কিছু নেই\" বেছে নিয়েছেন। প্রতিটি পেজ ছবি হিসেবে শেয়ার করা হয়, কোনো লুকানো লেখা বা ডকুমেন্টের ভেতরের তথ্য ছাড়াই।", "conf": "HIGH", "note": "The quoted choice matches its own draft in this batch", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f2561310", "bn": "VisaStack ইনস্টল করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-be1ee232", "bn": "পরে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d25b44e8", "bn": "আপনি আবার অনলাইনে ফিরেছেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f410f83e", "bn": "{name} নিয়ে চালিয়ে যান", "conf": "HIGH", "note": "{name} is a country", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0e05025", "bn": "{name} নিয়ে শুরু করতে সাইন ইন করুন", "conf": "HIGH", "note": "{name} is a country", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e4efeece", "bn": "পরের ধাপের জন্য আমরা আপনার দেশটি মনে রাখি, তাই আপনার চেকলিস্ট অপেক্ষা করছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f8a60979", "bn": "এই পেজ লোড করতে গিয়ে একটু সমস্যা হয়েছে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d0abdc3f", "bn": "ভিসা ফাইল", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-7c8f0052", "bn": "বিনামূল্যে আপনার অ্যাকাউন্ট তৈরি করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dc2db2f8", "bn": "বিনামূল্যের পাবলিক বিটা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-68dafb4d", "bn": "আপনার ওয়ার্কস্পেস খুলুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d6afecc1", "bn": "এটি আমন্ত্রিত ব্যবহারকারীদের জন্য একটি প্রাইভেট পাইলট, আর কিছু ফিচার এখনো চালু হয়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-eb765547", "bn": "শুরু করার আগে", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bd3d7bcf", "bn": "পর্যালোচনা করতে একটি অ্যাকাউন্ট তৈরি করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fb8f67f6", "bn": "এগুলোর প্রতিটির জন্য আপনাকে আলাদাভাবে বেছে নিতে হবে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fa8293ce", "bn": "এটি আপনার কোন প্রোফাইলে প্রযোজ্য হবে, তা আপনি বেছে নেবেন, অথবা নতুন একটি শুরু করবেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-d589044f", "bn": "কী আশা করবেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-a70820b8", "bn": "কত দিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-a4126292", "bn": "{appName}-কে উত্তর দিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-711744f6", "bn": "একটি রেকর্ড বেছে নিন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fab4e436", "bn": "এই অ্যাপ কোন রেকর্ড পড়তে পারবে, তা বেছে নিন:", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-48c8ec6a", "bn": "{appName} যুক্ত করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-3bf94aa3", "bn": "এজেন্সির জন্য যুক্ত করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-6e5e6fff", "bn": "অথবা আপনার পরিচালিত কোনো এজেন্সির জন্য এটি যুক্ত করুন:", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ee296cf8", "bn": "এই অ্যাপটি কোনো ওয়েবসাইটে নয়, এই কম্পিউটারে চলে। আপনি নিজে এইমাত্র এটি চালু করে থাকলে তবেই অনুমতি দিন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-cdb5fd11", "bn": "যুক্ত করার মতো কোনো রেকর্ড এখনো আপনার নেই। আগে VisaStack-এ একটি যোগ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c42deec3", "bn": "প্ল্যান ও ব্যবহারে যান", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-49f4a72c", "bn": "কেনাকাটা", "conf": "HIGH", "note": "OWNER_BLANKET_SIGNOFF_2026-11-12 (payment wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f28cc3e4", "bn": "এখন যা ব্যবহার করতে পারেন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-6255acc0", "bn": "শুধু এই রেকর্ডের মালিকই এটি করতে পারেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-f9738b60", "bn": "ডকুমেন্টটি আর এখানে নেই। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-440f3567", "bn": "ডকুমেন্টটি আর এখানে নেই। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-fe78f731", "bn": "ডকুমেন্ট মুছে ফেলার সুবিধা এখনো চালু হয়নি।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c1e6692d", "bn": "গত এক ঘণ্টায় আপনি কয়েকটি ডকুমেন্ট মুছে ফেলেছেন। পরে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-5cbaeb71", "bn": "এই ডকুমেন্টটি আগেই \"সম্প্রতি মোছা\"-তে আছে, অথবা সরানো হচ্ছে। পেজটি রিফ্রেশ করুন।", "conf": "HIGH", "note": "Recently Deleted is written সম্প্রতি মোছা as in the released removal sentences", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ac68a340", "bn": "এই ডকুমেন্টটি এখন মুছে ফেলা যাচ্ছে না। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-e46fd058", "bn": "আমরা এই ডকুমেন্টটি দেখে নিতে পারিনি। এটি বন্ধ করে আবার চেষ্টা করুন।", "conf": "MEDIUM", "note": "check here means looking up whether the file can be deleted, not a file format check", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-11a6cdd8", "bn": "আমরা এটি মুছে ফেলতে পারিনি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-1ce16669", "bn": "এই কপিটি আগেই \"সম্প্রতি মোছা\"-তে আছে। পেজটি রিফ্রেশ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-0c9b0f72", "bn": "এই কপিটি এখন মুছে ফেলা যাচ্ছে না। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-c1f4394d", "bn": "আমরা এই কপিটি দেখে নিতে পারিনি। এটি বন্ধ করে আবার চেষ্টা করুন।", "conf": "MEDIUM", "note": "check here means looking up whether the copy can be deleted, not a file format check", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-81441133", "bn": "এর ৩০ দিন শেষ হয়ে গেছে এবং এটি সরানো হচ্ছে, তাই আর পুনরুদ্ধার করা যাবে না।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-a467fb90", "bn": "এই ডকুমেন্টটি \"সম্প্রতি মোছা\"-তে নেই। পেজটি রিফ্রেশ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-9675862d", "bn": "আমরা এই ডকুমেন্টটি দেখে নিতে পারিনি। এটি বন্ধ করে আবার চেষ্টা করুন।", "conf": "MEDIUM", "note": "check here means looking up whether it can be restored, not a file format check", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ef3b8dcd", "bn": "আমরা এটি পুনরুদ্ধার করতে পারিনি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-95bab396", "bn": "শুধু এই রেকর্ডগুলোর মালিকই কোনো ডকুমেন্ট সরানোর অনুরোধ করতে পারেন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-95ad8477", "bn": "এই ডকুমেন্টটি আগে থেকেই সরানো হচ্ছে, অথবা \"সম্প্রতি মোছা\"-তে আছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-a77c43ce", "bn": "এই ডকুমেন্টটি সরাতে আপনি আগেই আমাদের অনুরোধ করেছেন। অনুরোধটি দেখতে পেজটি রিফ্রেশ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-70af58f0", "bn": "সহায়তা দল এই অনুরোধে আগেই সিদ্ধান্ত নিয়েছে। সর্বশেষ অবস্থা দেখতে পেজটি রিফ্রেশ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-72f6285c", "bn": "তালিকা থেকে একটি কারণ বেছে নিন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-14aae38f", "bn": "এই অনুরোধটি পাঠানো যায়নি। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-56a105fd", "bn": "এই ডকুমেন্টের জন্য অপেক্ষমাণ কোনো অনুরোধ নেই। সর্বশেষ অবস্থা দেখতে পেজটি রিফ্রেশ করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ae180be6", "bn": "অনুরোধটি পাঠানো যায়নি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-5ca69a99", "bn": "অনুরোধটি বাতিল করা যায়নি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ad52352e", "bn": "VisaStack - একটি প্রোফাইল, প্রতিটি ভিসা", "conf": "HIGH", "note": "Page title (layout metadata); not on a catalogue yet", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-ce01db35", "bn": "ভাষা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-bd768b6c", "bn": "সাইন ইন করুন", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-32a41c45", "bn": "অবস্থা", "conf": "HIGH", "note": "Footer link to the status page; same word as the other Status rows", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-dd3a609e", "bn": "সাইন ইন সম্পন্ন হয়নি। অনুগ্রহ করে আবার চেষ্টা করুন। বারবার এমন হলে সাপোর্টে যোগাযোগ করুন এবং এই রেফারেন্সটি জানান: <strong>{authError}</strong>।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-74fd0ada", "bn": "তথ্যগুলো রাখুন। বারবার লেখা বাদ দিন।", "conf": "MEDIUM", "note": "Landing headline; the page shows it on two lines", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-af96c079", "bn": "ঠিক কী বাকি আছে, দেখে নিন।", "conf": "MEDIUM", "note": "Landing headline; the page shows it on two lines", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-8f263ff5", "bn": "গতকাল যা ছিল, তা তেমনই থাকে।", "conf": "MEDIUM", "note": "Landing headline (earlier copies stay as they were); the page shows it on two lines", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-affa8338", "bn": "{choice}, তাই কিছু ফিচার এখনো চালু করা হচ্ছে। আজ কী কাজ করছে, তা স্ট্যাটাস পাতায় দেখা যায়। ভিসা ফাইল পরীক্ষা করলে দেখা যায় সেটি কতটা সম্পূর্ণ, আপনার অনুমোদনের সম্ভাবনা নিয়ে কোনো অনুমান কখনো নয়।", "conf": "MEDIUM", "note": "{choice} is one of the two lines below (VisaStack is in public beta / in a private pilot); file here is the visa file (owner decision for the landing page)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-4cdea437", "bn": "VisaStack এখন পাবলিক বিটায় আছে", "conf": "HIGH", "note": "Fills {choice} in the line above", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-80817901", "bn": "VisaStack এখন একটি প্রাইভেট পাইলটে আছে", "conf": "HIGH", "note": "Fills {choice} in the line above", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-b16f8a04", "bn": "VisaStack টেস্ট বিল্ড", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-755ddf32", "bn": "VisaStack পাবলিক বিটা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
+{"sg": "SG-6105d452", "bn": "বিনামূল্যে, আপনার নিজের ঝুঁকিতে।", "conf": "MEDIUM", "note": "Risk wording: OWNER_BLANKET_SIGNOFF_2026-11-12 (legal wording, not reviewed)", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}

@@ -80,8 +80,12 @@ describe('page titles', () => {
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
     // VS-010: /trust opens on the privacy and control story, and the footer link names it so.
     expect(titleOf('trust/page.tsx')).toBe('Privacy and Control');
+    // The footer link's words come from the message catalogue; its English text is still "Privacy and Control".
     expect(readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8')).toContain(
-      '<Link href="/trust">Privacy and Control</Link>',
+      '<Link href="/trust">{t.node(\'home.layout.privacyAndControl\')}</Link>',
+    );
+    expect(readFileSync(join(APP_DIR, '../i18n/home.ts'), 'utf8')).toContain(
+      "'home.layout.privacyAndControl': 'Privacy and Control'",
     );
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');
@@ -104,7 +108,9 @@ describe('landmarks', () => {
       "aria-label={t('components.siteNavigation.site')}",
     );
     expect(read('../i18n/components.ts')).toContain("'components.siteNavigation.site': 'Site'");
-    expect(read('layout.tsx')).toContain('aria-label="Footer"');
+    // The label comes from the message catalogue; its English text is still "Footer".
+    expect(read('layout.tsx')).toContain("aria-label={t('home.layout.footer')}");
+    expect(read('../i18n/home.ts')).toContain("'home.layout.footer': 'Footer'");
     // The label now comes from the message catalogue; its English text is still "Workspace".
     expect(read('app/app-nav.tsx')).toContain("aria-label={t('appHome.appAppNav.workspace')}");
     expect(read('../i18n/app-home.ts')).toContain("'appHome.appAppNav.workspace': 'Workspace'");

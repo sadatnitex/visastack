@@ -21318,3 +21318,85 @@ body:lang(bn),
   border-bottom: 0;
 }
 /* end WP-RT2 */
+
+/* WP-P18 Bengali type for the home page headings (13 Nov 2026). The Harbor sizes are drawn for short Latin words; Bengali words are longer and taller, so at those sizes the hero headline broke onto four very large lines with wide gaps. For a visitor who chose Bangla (data-locale on the html element) the hero headline, the dark section heading and the closing title, which are Bengali, get a Bengali size and a taller line, so vowel signs above and below the letters never clip, and the lines balance. The product card titles and the phone heading sit next to English fallbacks, so only the Bengali ones (marked lang="bn") change; an English card keeps its English look. The landing styles set tight or wide letter spacing and capitals for Latin; Bengali letters are never spaced apart (see WP-P17), so Bengali text in these places is reset, and English fallback text keeps its spacing. English pages are untouched. */
+.c1
+  :is(
+    .c1-nudge,
+    .c1-headline,
+    .c1-subline,
+    .c1-tinycap,
+    .c1-phonename,
+    .c1-fileinfo b,
+    .c1-next-title,
+    .c1-sectionhead,
+    .c1-feature h3,
+    .c1-small-label
+  ):lang(bn),
+.c1
+  :is(
+    .c1-nudge,
+    .c1-headline,
+    .c1-subline,
+    .c1-tinycap,
+    .c1-phonename,
+    .c1-fileinfo b,
+    .c1-next-title,
+    .c1-sectionhead,
+    .c1-feature h3,
+    .c1-small-label
+  )
+  :lang(bn) {
+  letter-spacing: normal;
+  text-transform: none;
+}
+/* A Bengali part inside a heading is a span marked lang="bn"; the general :lang(bn) line height
+   (1.75, made for body text) would stretch each heading line, so the span follows its heading. */
+.c1 :is(.c1-headline, .c1-sectionhead, .c1-feature h3, .c1-phonename) [lang],
+.land-final-title [lang] {
+  line-height: inherit;
+}
+[data-locale="bn"] .c1 .c1-headline {
+  font-size: clamp(40px, 4.6vw, 64px);
+  line-height: 1.3;
+  font-weight: 760;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+[data-locale="bn"] .c1 .c1-sectionhead {
+  font-size: clamp(34px, 3.6vw, 48px);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.c1 .c1-feature h3:lang(bn) {
+  font-size: 28px;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.c1 .c1-phonename:lang(bn) {
+  font-size: 24px;
+  line-height: 1.3;
+}
+[data-locale="bn"] .land-final-title {
+  font-size: clamp(1.8rem, 4.4vw, 3rem);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+@media (max-width: 760px) {
+  /* On a phone the two halves of the headline wrap anyway, so the set break goes and the whole
+     sentence balances over three lines instead of four. */
+  [data-locale="bn"] .c1 .c1-headline {
+    font-size: clamp(28px, 9vw, 40px);
+    line-height: 1.35;
+  }
+  [data-locale="bn"] .c1 .c1-headline br {
+    display: none;
+  }
+  [data-locale="bn"] .c1 .c1-sectionhead {
+    font-size: 32px;
+  }
+  .c1 .c1-feature h3:lang(bn) {
+    font-size: 24px;
+  }
+}
+/* end WP-P18 */
