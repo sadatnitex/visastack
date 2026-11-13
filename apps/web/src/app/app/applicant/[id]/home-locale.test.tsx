@@ -301,6 +301,8 @@ describe('the traveller home under Bengali, in its unavailable and fuller states
     const text = await home('en');
     expect(text).not.toMatch(BENGALI);
     expect(text).toContain('Cases Are Unavailable');
-    expect(text).toContain('Some sections are unavailable. Unavailable totals are not reported as zero.');
+    expect(text).toContain(
+      'Some sections are unavailable. Unavailable totals are not reported as zero.',
+    );
   });
 });

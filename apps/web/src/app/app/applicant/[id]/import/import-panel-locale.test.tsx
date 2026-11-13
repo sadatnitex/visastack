@@ -1,8 +1,8 @@
+import { formatNumber } from '@visastack/i18n';
 // @vitest-environment jsdom
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatNumber } from '@visastack/i18n';
 import { I18nProvider } from '../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 

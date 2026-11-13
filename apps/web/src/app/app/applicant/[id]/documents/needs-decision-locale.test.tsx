@@ -65,7 +65,12 @@ describe('Needs One Decision under Bengali', () => {
   it('says what can be done about a file with no readable text in Bengali, and keeps its first line English (held)', () => {
     const { text } = render('bn', {
       items: [
-        { kind: 'no_readable_text', exceptionId: 'e1', documentId: 'd1', title: 'Scan of Passport' },
+        {
+          kind: 'no_readable_text',
+          exceptionId: 'e1',
+          documentId: 'd1',
+          title: 'Scan of Passport',
+        },
       ],
     });
     expect(text).toContain(bn[`${K}addAClearerCopyIfYou`]);
@@ -140,7 +145,13 @@ describe('Needs One Decision under Bengali', () => {
       ],
       personName: 'Karim',
       automatic: [
-        { placementId: 'p1', documentId: 'd1', placement: 'KIND', title: 'Passport', kindLabel: 'Passport' },
+        {
+          placementId: 'p1',
+          documentId: 'd1',
+          placement: 'KIND',
+          title: 'Passport',
+          kindLabel: 'Passport',
+        },
       ],
     });
     expect(text).not.toMatch(BENGALI);
