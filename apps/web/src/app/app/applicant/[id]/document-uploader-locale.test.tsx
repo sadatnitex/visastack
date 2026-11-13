@@ -132,7 +132,7 @@ describe('the uploader under Bengali', () => {
     expect(text).toContain('You already keep an identical copy of this file.');
   });
 
-  it('words a failed removal from the catalogue: Bengali where a checked draft exists, exact English otherwise', async () => {
+  it('words every failed removal from the catalogue: Bengali where a checked draft exists, the exact English where it is held', async () => {
     const R = 'appApplicant.appApplicantIdDocumentsManageRemoval.';
     const outcome = {
       kind: 'added',
@@ -161,9 +161,39 @@ describe('the uploader under Bengali', () => {
       message: 'This copy must be kept for a legal requirement. You can archive it instead.',
       messageKey: `${R}copyKeptLegalHold`,
     };
-    // No checked Bengali draft yet: the English shows, exactly.
-    expect(await removeAndRead('bn', kept)).toBe(kept.message);
+    // Legal wording, Bengali on the owner's blanket sign-off of 2026-11-12 (not a line-by-line review).
+    expect(await removeAndRead('bn', kept)).toBe(bn[`${R}copyKeptLegalHold`]);
+    expect(await removeAndRead('bn', kept)).toBe(
+      'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
+    );
     expect(await removeAndRead('en', kept)).toBe(kept.message);
+    // Every refusal Remove This New Copy can get: Bengali where a checked draft exists, the exact
+    // English where it is held (it names Recently Deleted, whose own label is still English).
+    for (const name of [
+      'notOwnerOfRecord',
+      'documentNoLongerHere',
+      'copyKeptFinishedCase',
+      'copyKeptAgencyAnswer',
+      'copyKeptHandover',
+      'copyKeptSharedByName',
+      'copyNotDuplicate',
+      'copyAlreadyRecentlyDeleted',
+      'copyCannotBeDeletedNow',
+    ]) {
+      const key = `${R}${name}`;
+      const refusal = { ok: false, message: en[key], messageKey: key };
+      expect(en[key], name).toBeTruthy();
+      expect(await removeAndRead('en', refusal), name).toBe(en[key]);
+      const shown = await removeAndRead('bn', refusal);
+      if (name === 'copyAlreadyRecentlyDeleted') {
+        expect(bn[key], name).toBeUndefined();
+        expect(shown, name).toBe(en[key]);
+      } else {
+        expect(bn[key], name).toBeTruthy();
+        expect(shown, name).toBe(bn[key]);
+        expect(shown, name).toMatch(BENGALI);
+      }
+    }
   });
 
   it('rewords a failed removal that is already on screen when the language is switched', async () => {

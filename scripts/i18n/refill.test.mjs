@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { readCatalog, renderCatalog, renderSources } from './catalog.mjs';
-import { refillBengali } from './refill.mjs';
-import { Register } from './register.mjs';
+import { OFFICIAL_RE, loadKeyDrafts, refillBengali } from './refill.mjs';
+import { HOLDBACK, Register } from './register.mjs';
 
 const BN = 'শর্ত';
 const header = 'semantic_group,review_queue,english,bn_BD_draft,automated_checks\n';
@@ -74,5 +74,106 @@ describe('refillBengali', () => {
     const value = readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.terms'];
     assert.equal(value, 'ক \u00b7 খ & গ');
     assert.ok(!/&[a-z#0-9]+;/i.test(value));
+  });
+});
+
+describe('refillBengali: drafts written for a catalogue key (no census row, no register group)', () => {
+  const KEPT = 'This copy answered a request from an agency, so it is kept.';
+  const KEPT_BN = 'এই কপিটি একটি এজেন্সির অনুরোধের উত্তরে দেওয়া হয়েছিল, তাই এটি রাখা আছে।';
+  /** A catalogue whose keys have no register group (sources null), as the removal sentences do. */
+  function keyRoot(en, extraSources = {}) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'refill-key-'));
+    fs.mkdirSync(path.join(dir, 'apps/web/src/i18n'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'apps/web/src/i18n/x.ts'), renderCatalog('x', en, {}));
+    fs.writeFileSync(
+      path.join(dir, 'apps/web/src/i18n/x.sources.json'),
+      renderSources({
+        ...Object.fromEntries(Object.keys(en).map((k) => [k, null])),
+        ...extraSources,
+      }),
+    );
+    return dir;
+  }
+  const drafts = (rows) => new Map(rows.map(([k, en, bn, note = '']) => [k, { en, bn, note }]));
+  const run = (dir, keyDrafts, extra = {}) =>
+    refillBengali({ root: dir, register: reg, keyDrafts, ...extra })[0].filled;
+
+  test('fills a key with no register group from a passing draft written for that key', () => {
+    const dir = keyRoot({ 'x.kept': KEPT });
+    assert.deepEqual(run(dir, drafts([['x.kept', KEPT, KEPT_BN]])), ['x.kept']);
+    assert.equal(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.kept'], KEPT_BN);
+  });
+
+  test('loads key drafts from no-census-*.jsonl and leaves out a key drafted twice', () => {
+    const dir = keyRoot({ 'x.kept': KEPT, 'x.twice': 'Save' });
+    const d = path.join(dir, 'docs/localization/data/drafts');
+    fs.mkdirSync(d, { recursive: true });
+    const row = (k, en, bn) => JSON.stringify({ catalogue_key: k, en, bn, note: '' });
+    fs.writeFileSync(
+      path.join(d, 'no-census-A.jsonl'),
+      `${row('x.kept', KEPT, KEPT_BN)}\n${row('x.twice', 'Save', 'সেভ')}\n`,
+    );
+    fs.writeFileSync(path.join(d, 'no-census-B.jsonl'), `${row('x.twice', 'Save', 'সংরক্ষণ')}\n`);
+    fs.writeFileSync(path.join(d, 'bn-BD.part-Z.jsonl'), `${row('x.other', 'Save', 'সেভ')}\n`);
+    const loaded = loadKeyDrafts(dir);
+    assert.deepEqual([...loaded.keys()], ['x.kept']);
+    assert.deepEqual(refillBengali({ root: dir, register: reg })[0].filled, ['x.kept']);
+  });
+
+  test('a draft written for other English, failing checks, a hold, or official wording stays English', () => {
+    const held = [...HOLDBACK.keys()][0];
+    const en = {
+      'x.changed': KEPT,
+      'x.failing': 'Upload a document.',
+      'x.official': 'Check the embassy website before you go.',
+      [held]: KEPT,
+    };
+    const dir = keyRoot(en);
+    const filled = run(
+      dir,
+      drafts([
+        ['x.changed', 'This copy answered a request, so it is kept.', KEPT_BN],
+        // নথি fails the guardrail check (NOT_STANDARD_DOCUMENT_WORD).
+        ['x.failing', 'Upload a document.', 'একটি নথি আপলোড করুন।'],
+        ['x.official', 'Check the embassy website before you go.', 'যাওয়ার আগে দূতাবাসের ওয়েবসাইট দেখুন।'],
+        [held, KEPT, KEPT_BN],
+      ]),
+    );
+    assert.deepEqual(filled, []);
+    assert.deepEqual(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn, {});
+  });
+
+  test('placeholder or edge-space mismatch stays English', () => {
+    const dir = keyRoot({ 'x.name': 'Kept for {name}.', 'x.edge': ' (kept)' });
+    const filled = run(
+      dir,
+      drafts([
+        ['x.name', 'Kept for {name}.', 'রাখা আছে।'],
+        ['x.edge', ' (kept)', '(রাখা আছে)'],
+      ]),
+    );
+    assert.deepEqual(filled, []);
+  });
+
+  test('a register group always wins, and a release of named groups or a key list fills nothing else', () => {
+    const dir = keyRoot({ 'x.kept': KEPT, 'x.terms': 'Terms of use' }, { 'x.terms': 'SG-A' });
+    const d = drafts([
+      ['x.kept', KEPT, KEPT_BN],
+      ['x.terms', 'Terms of use', 'অন্য'],
+    ]);
+    assert.deepEqual(run(dir, d, { groups: new Set(['SG-A']), dryRun: true }), ['x.terms']);
+    assert.deepEqual(run(dir, d, { keys: new Set(['x.kept']), dryRun: true }), ['x.kept']);
+    run(dir, d);
+    assert.equal(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.terms'], BN);
+  });
+
+  test('OFFICIAL_RE is the pattern build-register.mjs uses for the official queue', () => {
+    const src = fs.readFileSync(
+      path.join(import.meta.dirname, '../../docs/localization/tools/build-register.mjs'),
+      'utf8',
+    );
+    const m = src.match(/const OFFICIAL_RE =\s*(\/.*\/i);/);
+    assert.ok(m, 'OFFICIAL_RE not found in build-register.mjs');
+    assert.equal(m[1], String(OFFICIAL_RE));
   });
 });

@@ -374,6 +374,7 @@ describe('holdback list', () => {
     'SG-1549c176',
     'SG-16600835',
     'SG-19b168cd',
+    'SG-1ce16669',
     'SG-1d11e900',
     'SG-1f2c844a',
     'SG-21e2947f',
@@ -392,6 +393,7 @@ describe('holdback list', () => {
     'SG-58cc6dc1',
     'SG-59d94eb1',
     'SG-5a6c4e41',
+    'SG-5cbaeb71',
     'SG-5d43545f',
     'SG-5e7adbab',
     'SG-61e87632',
@@ -411,9 +413,11 @@ describe('holdback list', () => {
     'SG-8881fc69',
     'SG-8d14d065',
     'SG-8fd6641e',
+    'SG-95ad8477',
     'SG-95b07104',
     'SG-9d878677',
     'SG-9e771a8e',
+    'SG-a467fb90',
     'SG-a5fa0621',
     'SG-a7694752',
     'SG-a818802f',
@@ -470,6 +474,8 @@ describe('holdback list', () => {
     'SG-f974eb5d',
     'SG-fe5feab6',
     'SG-ff7d2a1c',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptFinishedCaseAskUs',
   ];
 
   test('names exactly the held groups, each with a reason', () => {

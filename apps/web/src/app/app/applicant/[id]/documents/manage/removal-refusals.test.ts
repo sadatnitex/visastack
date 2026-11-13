@@ -393,3 +393,82 @@ describe('Ask Us to Remove This File refusals', () => {
     expect(stranger).toEqual({ ok: false, ...said('requestNotOwner') });
   });
 });
+
+describe('one answer for a stranger, a made-up id and a record of another person', () => {
+  // A stranger must learn nothing from the answer: a real record that is not theirs and a made-up
+  // id get the same words on every action of the three removal screens, before any service is
+  // asked. Where the proof is for the document (Delete My File, Ask Us), a document of another
+  // applicant than the one in the address gets the same words too; where it is for the applicant
+  // (Delete Duplicate, Restore), the service only ever sees documents of that applicant.
+  const ACTIONS: readonly [string, () => Promise<unknown>, keyof typeof W, boolean][] = [
+    [
+      'Delete My File: open',
+      () => selfDeletePreviewAction(APPLICANT, DOC),
+      'notOwnerOfRecord',
+      true,
+    ],
+    [
+      'Delete My File: delete',
+      () => selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE),
+      'notOwnerOfRecord',
+      true,
+    ],
+    [
+      'Delete Duplicate: open',
+      () => deletePreviewAction(APPLICANT, DOC),
+      'notOwnerOfRecord',
+      false,
+    ],
+    [
+      'Delete Duplicate: delete',
+      () => deleteDuplicateAction(APPLICANT, DOC),
+      'notOwnerOfRecord',
+      false,
+    ],
+    ['Restore: open', () => restoreInfoAction(APPLICANT, DOC), 'notOwnerOfRecord', false],
+    [
+      'Restore: restore',
+      () => restoreDeletedAction(APPLICANT, DOC, 'RECENTLY_DELETED'),
+      'notOwnerOfRecord',
+      false,
+    ],
+    ['Ask Us: send', () => requestRemovalAction(APPLICANT, DOC, 'OTHER'), 'requestNotOwner', true],
+    ['Ask Us: cancel', () => cancelRemovalRequestAction(APPLICANT, DOC), 'requestNotOwner', true],
+  ];
+  const ANSWERS = {
+    stranger: { ok: false, error: { code: 'forbidden', message: 'not yours' } },
+    madeUpId: { ok: false, error: { code: 'not_found', message: 'document not found' } },
+    otherApplicant: {
+      ok: true,
+      value: { applicant: { id: '33333333-3333-4333-8333-333333333333' } },
+    },
+  };
+
+  it.each(ACTIONS)('%s', async (_name, call, slug, documentProof) => {
+    mocks.selfDeleteOn.mockReturnValue(true);
+    mocks.requestsOn.mockReturnValue(true);
+    const said = [];
+    const answers = documentProof
+      ? [ANSWERS.stranger, ANSWERS.madeUpId, ANSWERS.otherApplicant]
+      : [ANSWERS.stranger, ANSWERS.madeUpId];
+    for (const answer of answers) {
+      mocks.requireAccess.mockReset().mockResolvedValue(answer);
+      said.push(await call());
+    }
+    const words = { ok: false, message: appApplicantCatalog.en[W[slug]], messageKey: W[slug] };
+    expect(said).toEqual(answers.map(() => words));
+    // No service was asked anything for a stranger.
+    for (const service of [
+      mocks.previewDeleteMyFile,
+      mocks.deleteMyFile,
+      mocks.previewDeleteDuplicate,
+      mocks.deleteDuplicate,
+      mocks.getDocumentLifecycle,
+      mocks.restoreDeleted,
+      mocks.requestRemoval,
+      mocks.pendingRemovalRequests,
+      mocks.cancelRemovalRequest,
+    ])
+      expect(service).not.toHaveBeenCalled();
+  });
+});
