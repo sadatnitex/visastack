@@ -58,6 +58,7 @@ const mocks = vi.hoisted(() => ({
   locale: 'en' as 'en' | 'bn',
   key: '',
   fns: {} as Record<string, ReturnType<typeof vi.fn>>,
+  listSelected: undefined as unknown as { mockResolvedValue: (value: unknown) => void },
   fail: (async () => undefined) as () => Promise<unknown>,
 }));
 
@@ -68,6 +69,8 @@ vi.mock('@visastack/services', async (load) => {
   const fail = async () => ({ ok: false, error: actual.keyedError('invalid', mocks.key as never) });
   mocks.fail = fail;
   for (const name of mocks.failing) fns[name] = vi.fn(fail);
+  // listSelectedEvidenceForOrg is the last name in the list: it is the one that succeeds by default.
+  mocks.listSelected = fns[mocks.failing[mocks.failing.length - 1] as string] as never;
   const scope = vi.fn(async () => ({ ok: true, value: { organizationId: 'org-1' } }));
   return {
     ...actual,
@@ -492,7 +495,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.locale = 'en';
   for (const name of mocks.failing) mocks.fns[name]?.mockImplementation(mocks.fail);
-  mocks.fns.listSelectedEvidenceForOrg?.mockResolvedValue({
+  mocks.listSelected.mockResolvedValue({
     ok: true,
     value: [{ packRequirementId: 'pr1', factId: 'f1' }],
   });
@@ -531,6 +534,6 @@ describe('agency refusals in the visitor language, every converted site', () => 
   });
 
   it('builds the keyed error the services mock returns', () => {
-    expect(keyedError('invalid', keyOf('agency')).messageKey).toBe(keyOf('agency'));
+    expect(keyedError('invalid', keyOf('agency') as never).messageKey).toBe(keyOf('agency'));
   });
 });
