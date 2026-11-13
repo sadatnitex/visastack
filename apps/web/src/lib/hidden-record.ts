@@ -94,7 +94,28 @@ async function recordRefusedProbe(
       { subjectId: accountId, action: 'hidden_record.probe_audit' },
       RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT,
     );
-    if (!budget.allowed) return;
+    if (!budget.allowed) {
+      // Past the bound: one row an hour records that probing went on. It names the account only
+      // (no id, no person, no reason), so it is the same whichever id tripped it, and stays out of
+      // any traveller's Access Log and Recent Activity.
+      const marker = await checkRateLimit(
+        db,
+        { subjectId: accountId, action: 'hidden_record.probe_audit_capped' },
+        RATE_LIMITS.HIDDEN_RECORD_PROBES_CAPPED_AUDIT,
+      );
+      if (!marker.allowed) return;
+      await db.transaction(async (tx) => {
+        await appendAuditEvent(tx, {
+          eventType: 'HIDDEN_RECORD_PROBES_CAPPED',
+          actorAccountId: accountId,
+          action: 'VIEW_METADATA',
+          result: 'DENIED',
+          method: 'MANUAL',
+          metadata: { capped: true, limit: RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT.limit },
+        });
+      });
+      return;
+    }
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'HIDDEN_RECORD_REFUSED',

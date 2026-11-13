@@ -216,22 +216,51 @@ describe("the audit trail keeps a probe of any record id that is not the caller'
     );
   });
 
-  it('keeps at most a bounded number of probes per account, then none, alike for real and made-up ids', async () => {
+  it('keeps at most a bounded number of probes per account, then one id-free capped row, alike for real and made-up ids', async () => {
     // A fresh prober, so the bound is counted from zero.
     const prober = await account(world.db, `prober-${Date.now()}@example.com`);
-    const mine = async () =>
-      (await refused()).filter((row) => row.actorAccountId === prober).length;
+    const rowsOf = async (who: string) =>
+      (await world.db.select().from(schema.auditEvents)).filter(
+        (row) => row.actorAccountId === who,
+      );
+    const idRows = async (who: string) =>
+      (await rowsOf(who)).filter((row) => row.eventType === 'HIDDEN_RECORD_REFUSED');
+    const cappedRows = async (who: string) =>
+      (await rowsOf(who)).filter((row) => row.eventType === 'HIDDEN_RECORD_PROBES_CAPPED');
     const limit = RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT.limit;
     for (let index = 0; index < limit; index += 1) {
       const id = `99999999-9999-4999-8999-${String(index).padStart(12, '0')}`;
       expect(await ownsCase(world.db, prober, id)).toBe(false);
     }
-    expect(await mine()).toBe(limit);
-    // Past the bound neither a made-up nor a real id writes a row, and the answer is unchanged.
-    expect(await ownsCase(world.db, prober, MADE_UP)).toBe(false);
+    expect(await idRows(prober)).toHaveLength(limit);
+    expect(await cappedRows(prober)).toHaveLength(0);
+
+    // Past the bound: one real and one made-up id write exactly one capped row and no id row.
     expect(await ownsCase(world.db, prober, world.missionId)).toBe(false);
+    expect(await ownsCase(world.db, prober, MADE_UP)).toBe(false);
     expect(await ownsApplicant(world.db, prober, world.applicantId)).toBe(false);
-    expect(await mine()).toBe(limit);
+    expect(await idRows(prober)).toHaveLength(limit);
+    const capped = await cappedRows(prober);
+    expect(capped).toHaveLength(1);
+    // The capped row names the account only: no id, no person, no case, no grant, no reason.
+    expect(
+      capped.map((row) => [
+        row.resourceType,
+        row.resourceId,
+        row.applicantId,
+        row.missionId,
+        row.grantId,
+        row.reason,
+        row.result,
+        row.metadata,
+      ]),
+    ).toEqual([[null, null, null, null, null, null, 'DENIED', { capped: true, limit }]]);
+
+    // Another account keeps its own budget: its probe still gets its own id row.
+    const other = await account(world.db, `other-prober-${Date.now()}@example.com`);
+    expect(await ownsCase(world.db, other, world.missionId)).toBe(false);
+    expect((await idRows(other)).map((row) => row.resourceId)).toEqual([world.missionId]);
+    expect(await cappedRows(other)).toHaveLength(0);
   }, 120_000);
 });
 

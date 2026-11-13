@@ -84,6 +84,9 @@ export const RATE_LIMITS = {
   // above what a person reaches by following a stale link; past it the probe is not kept, alike
   // for a real and a made-up id.
   HIDDEN_RECORD_PROBE_AUDIT: { limit: 60, windowMs: HOUR_MS },
+  // Once that bound is reached, one row per account per hour says the probing went on (no ids), so
+  // the audit trail never goes silent while the count above is pruned.
+  HIDDEN_RECORD_PROBES_CAPPED_AUDIT: { limit: 1, windowMs: HOUR_MS },
   // The public client-invitation page and its logo (growth loop 1), per network address: a page
   // view is one use, the logo another, so these sit far above a person opening a link a few times.
   INVITATION_PREVIEW_IP: { limit: 60, windowMs: HOUR_MS },
