@@ -6,6 +6,7 @@ import {
   addCompanion,
   chooseTripPaper,
   joinedCompanionAccess,
+  planMyOwnCase,
   provisionAccount,
   requireAccess,
   setCompanionShareLevel,
@@ -149,6 +150,18 @@ describe('trip invitation pages under Bengali', () => {
     expect(words).toContain(bn[key('IdPage', 'why')]);
     expect(words).not.toContain('Papers You Show');
     expect(textOf(await joined('en'))).not.toMatch(BENGALI);
+  });
+
+  it('joined trip with its own case planned: Open My Case is Bengali', async () => {
+    // The guest needs a record of their own before a case can be started for them.
+    await addPerson(w.db, w.guestId, COMPANION_NAME);
+    const access = await joinedCompanionAccess(w.db, w.guestId, w.tripId);
+    if (!access) throw new Error('access');
+    const planned = await planMyOwnCase(w.db, access);
+    if (!planned.ok || planned.value.status === 'needs_own_record') throw new Error('plan');
+    const words = textOf(await joined('bn'));
+    expect(words).toContain(bn[key('IdPage', 'openMyCase')]);
+    expect(words).not.toContain('Open My Case');
   });
 
   it('joined trip with a chosen paper: the Remove label keeps its English name, matching the visible button', async () => {

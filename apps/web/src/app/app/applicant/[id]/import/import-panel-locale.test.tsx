@@ -133,13 +133,13 @@ describe('the import panel under Bengali', () => {
     expect(text()).not.toMatch(/appApplicant\./);
   });
 
-  it('shows the running import: pause, a file line and the English progress words', async () => {
+  it('shows the running import: pause, a file line and Stop in Bengali', async () => {
     await mount('bn', people);
     await choose(['a.jpg']);
     expect(text()).toContain(bn[`${K}pause`]);
     expect(text()).toContain('a.jpg');
-    // Not yet drafted: English, never a raw key.
-    expect(text()).toContain('Stop');
+    expect(text()).toContain(bn[`${K}stop`]);
+    expect(text()).not.toContain('Stop');
     expect(text()).not.toMatch(/appApplicant\./);
   });
 

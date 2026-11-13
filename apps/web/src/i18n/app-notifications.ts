@@ -23,8 +23,13 @@ export const appNotificationsCatalog = defineCatalog({
   bn: {
     'appNotifications.appNotificationsNotificationList.markAllRead': 'সব পড়া হয়েছে চিহ্নিত করুন',
     'appNotifications.appNotificationsNotificationList.markRead': 'পড়া হয়েছে চিহ্নিত করুন',
+    'appNotifications.appNotificationsNotificationList.new': 'নতুন',
     'appNotifications.appNotificationsNotificationList.notificationList': 'নোটিফিকেশনের তালিকা',
+    'appNotifications.appNotificationsNotificationList.open': 'খুলুন',
+    'appNotifications.appNotificationsPage.account': 'অ্যাকাউন্ট',
     'appNotifications.appNotificationsPage.noNotificationsYet': 'এখনও কোনো নোটিফিকেশন নেই',
+    'appNotifications.appNotificationsPage.nothingUnreadInYourLatestNotifications':
+      'আপনার সাম্প্রতিক নোটিফিকেশনে না-পড়া কিছু নেই।',
     'appNotifications.appNotificationsPage.notifications': 'নোটিফিকেশন',
     'appNotifications.appNotificationsPage.thisIsWhereVisastackTellsYou':
       'VisaStack এখানে আপনাকে জানায় কীসে আপনার সাড়া দরকার: এজেন্সির একটি অনুরোধ, মেয়াদ শেষের কাছাকাছি একটি ডকুমেন্ট, বা এগিয়ে যাওয়া একটি ভিসা ফাইল। এই মুহূর্তে আপনার কিছু করার নেই।',

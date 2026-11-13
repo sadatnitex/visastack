@@ -13,7 +13,13 @@ vi.mock('./actions', () => ({
   removeCompanionAction: vi.fn(),
   resendCompanionAction: vi.fn(),
 }));
-const { RemoveTravellerForm, GroupTripStartForm } = await import('./trip-forms');
+const {
+  RemoveTravellerForm,
+  GroupTripStartForm,
+  AddTravellersForm,
+  RemoveCompanionForm,
+  AddTripEvidenceForm,
+} = await import('./trip-forms');
 const { I18nProvider } = await import('../../../components/i18n-provider');
 const { appTripsCatalog } = await import('../../../i18n/app-trips');
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -72,9 +78,8 @@ describe('trip forms under Bengali', () => {
     expect(key in en).toBe(true);
     expect(key in bn).toBe(true);
     show('bn', true);
-    // The button keeps its English name until its own wording is signed off.
     const toggle = [...container.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Add Someone Else',
+      (b) => b.textContent === bn['appTrips.appTripsTripForms.addSomeoneElse'],
     );
     expect(toggle).toBeTruthy();
     act(() => toggle?.click());
@@ -90,5 +95,83 @@ describe('trip forms under English', () => {
     expect(
       container.querySelector('button[aria-label*="Rahima"]')?.getAttribute('aria-label'),
     ).toBe('Remove from Trip: Rahima Akter');
+  });
+});
+
+describe('trip form states under Bengali', () => {
+  const draw = (node: React.ReactNode) =>
+    act(() =>
+      root.render(
+        <I18nProvider locale="bn" pageLang="en">
+          {node}
+        </I18nProvider>,
+      ),
+    );
+  const k = (key: string) => bn[`appTrips.appTripsTripForms.${key}`] ?? `missing ${key}`;
+  const expectBengali = (keys: readonly string[]) => {
+    const text = container.textContent ?? '';
+    for (const key of keys) {
+      expect(text, key).toContain(k(key));
+      expect(text, key).not.toContain(en[`appTrips.appTripsTripForms.${key}`]);
+    }
+    expect(container.innerHTML).not.toMatch(/appTrips\./);
+  };
+  const press = (words: string) => {
+    const button = [...container.querySelectorAll('button')].find((b) => b.textContent === words);
+    if (!button) throw new Error(`button ${words}`);
+    act(() => button.click());
+  };
+
+  it('adding travellers: the list, a new family member and someone else with an email', () => {
+    draw(
+      <AddTravellersForm
+        tripId="t1"
+        travellers={[{ applicantId: 'p2', name: 'Karim Akter' }]}
+        companionsOn
+      />,
+    );
+    expectBengali(['whoElseIsTravelling']);
+    press(k('addAFamilyMember'));
+    expectBengali([
+      'nameAsOnThePassport',
+      'relationship',
+      'familyMember',
+      'minorGuardian',
+      'cancel',
+    ]);
+    press(k('addSomeoneElse'));
+    expectBengali(['withAnEmailTheyAreInvited', 'name', 'email']);
+  });
+
+  it('adding travellers when everyone is already on the trip', () => {
+    draw(<AddTravellersForm tripId="t1" travellers={[]} />);
+    expectBengali(['everyoneYouManageIsAlreadyOn']);
+  });
+
+  it('removing someone else asks first; its two answers stay English together', () => {
+    draw(<RemoveCompanionForm tripId="t1" companionId="c1" name="Nadia Rahman" />);
+    expectBengali(['remove']);
+    expect(container.querySelector('button[aria-label]')?.getAttribute('aria-label')).toBe(
+      k('removeName').replace('{name}', 'Nadia Rahman'),
+    );
+    press(k('remove'));
+    expect(container.textContent).toContain(
+      k('removeNameTheyLoseAccessAt').replace('{name}', 'Nadia Rahman'),
+    );
+    expect(container.textContent).toContain('Keep');
+  });
+
+  it('sharing a travel document: the label, the first choice and what can be shared', () => {
+    draw(
+      <AddTripEvidenceForm
+        tripId="t1"
+        documents={[{ documentId: 'd1', label: 'Hotel booking.pdf' } as never]}
+      />,
+    );
+    expectBengali([
+      'travelDocument',
+      'chooseADocument',
+      'onlyBookingsItinerariesInvitationsAndAccommodati',
+    ]);
   });
 });
