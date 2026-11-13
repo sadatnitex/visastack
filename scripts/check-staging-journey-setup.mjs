@@ -1,3 +1,5 @@
+import { appendFileSync } from 'node:fs';
+
 /** A name that must be present and non-empty, or (with `is`) exactly equal to that word. */
 const need = (name, is) => (is ? { name, is } : { name });
 
@@ -138,6 +140,22 @@ export function filesFor(suite) {
     ...found.filter((file) => !LAST_STAGE_SPECS.includes(file)),
     ...found.filter((file) => LAST_STAGE_SPECS.includes(file)),
   ];
+}
+
+/**
+ * The default command: one line per suite, ready or BLOCKED with the missing setting names (never a
+ * value), printed and, inside a workflow run, added to the run summary under a heading. It always
+ * ends normally: a blocked suite is reported here and fails where it would run, so this step can
+ * never hide behind its own exit code.
+ */
+export function runReport(env = process.env, summaryFile = env.GITHUB_STEP_SUMMARY) {
+  const lines = report(env);
+  for (const line of lines) console.info(line);
+  if (summaryFile) {
+    const body = ['### Signed-in journey setup', '', ...lines.map((line) => `- ${line}`), ''];
+    appendFileSync(summaryFile, `${body.join('\n')}\n`);
+  }
+  return lines;
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {

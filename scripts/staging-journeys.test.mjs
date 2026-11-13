@@ -14,7 +14,9 @@
  * Run with: node --test scripts/staging-journeys.test.mjs (part of `pnpm run test:node`).
  */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -232,6 +234,34 @@ test('the setup report names settings and never prints a value', () => {
   assert.match(text, /BLOCKED\s+traveller/);
   assert.match(text, /NEON_STAGING_TRAVELLER_EMAIL/);
   for (const value of Object.values(env)) assert.ok(!text.includes(value), 'a value was printed');
+});
+
+test('the setup command itself runs, lists every suite, writes the run summary and prints no value', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'journey-setup-'));
+  const summary = join(dir, 'summary.md');
+  try {
+    const secret = 'password-value-that-must-not-print';
+    const run = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/check-staging-journey-setup.mjs')],
+      {
+        env: {
+          PATH: process.env.PATH ?? '',
+          GITHUB_STEP_SUMMARY: summary,
+          NEON_STAGING_TRAVELLER_PASSWORD: secret,
+        },
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(run.status, 0, run.stderr);
+    for (const suite of Object.keys(SUITES)) assert.match(run.stdout, new RegExp(`${suite} \\(`));
+    assert.match(run.stdout, /BLOCKED\s+traveller/);
+    const written = readFileSync(summary, 'utf8');
+    assert.match(written, /### Signed-in journey setup/);
+    assert.ok(!run.stdout.includes(secret) && !written.includes(secret), 'a value was printed');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a confirmation must be exactly "true" and an empty setting is missing', () => {
