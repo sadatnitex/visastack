@@ -7,9 +7,34 @@ import type { Db } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import type { ReactElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { prerender } from 'react-dom/static';
 import { describe, expect, it, vi } from 'vitest';
 import { navigationState } from '../src/lib/next-mocks.test-support';
+
+/** Prerender awaits async server components; the output is read into one string with the text separators, Suspense markers and the doctype removed, like static markup. */
+async function prerenderToString(element: Parameters<typeof prerender>[0]): Promise<string> {
+  // Like static markup, an error anywhere in the tree fails the render (not a quiet fallback).
+  const failures: unknown[] = [];
+  const { prelude } = await prerender(element, {
+    onError: (error: unknown) => {
+      failures.push(error);
+    },
+  });
+  if (failures.length > 0) throw failures[0];
+  const reader = prelude.getReader();
+  const decoder = new TextDecoder();
+  let out = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    out += decoder.decode(value, { stream: true });
+  }
+  return (out + decoder.decode())
+    .replace(/^<!DOCTYPE html>/, '')
+    .replaceAll('<!-- -->', '')
+    .replaceAll('<!--$-->', '')
+    .replaceAll('<!--/$-->', '');
+}
 import { type PersonaKey, type World, buildWorld } from './world';
 
 /**
@@ -326,7 +351,7 @@ describe('l10n render: every page against a made-up world', () => {
           const layout = ((await layouts[key]?.()) as { default: Component }).default;
           element = await layout({ children: element, params: Promise.resolve(params) });
         }
-        html = renderToStaticMarkup(element);
+        html = await prerenderToString(element);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         outcome = message.startsWith('NEXT_NOT_FOUND')

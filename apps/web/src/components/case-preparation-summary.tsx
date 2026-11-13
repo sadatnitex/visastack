@@ -1,13 +1,11 @@
-import {
-  CANONICAL_CASE_STATES,
-  LEGACY_ONLY_MISSION_STATES,
-  type MissionState,
-} from '@visastack/core';
 import type { Readiness } from '@visastack/services';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { componentsMoreCatalog } from '../i18n/components-more';
+import { getT } from '../lib/i18n-server';
 import { progressRingPercent } from '../lib/readiness-words';
+import { CaseStageTrackerView } from './case-stage-tracker-view';
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE } from './progress-ring';
-import { ProgressMeter, StepBar } from './ui-lift';
+import { ProgressMeter } from './ui-lift';
 
 /**
  * The case's stages with the current one marked. `nextStates` are the stages the page offers as
@@ -15,56 +13,14 @@ import { ProgressMeter, StepBar } from './ui-lift';
  * below says so rather than listing it as a next stage. Only the current stage is marked: the page
  * keeps no history of finished stages, so an earlier stage is never ticked.
  */
-export function CaseStageTracker({
-  state,
-  labels,
-  nextStates,
-  cancelInMore = false,
-}: {
-  readonly state: MissionState;
-  readonly labels: Readonly<Record<string, string>>;
-  readonly nextStates: readonly MissionState[];
-  readonly cancelInMore?: boolean;
-}) {
-  const cancelLine = cancelInMore ? ' To stop the case, use More at the top of the page.' : '';
-  const legacy = (LEGACY_ONLY_MISSION_STATES as readonly string[]).includes(state);
-  const stages: readonly MissionState[] = legacy
-    ? [
-        'DRAFT',
-        ...LEGACY_ONLY_MISSION_STATES,
-        'SUBMISSION_READY',
-        'SUBMITTED',
-        'CLOSED',
-        'CANCELLED',
-      ]
-    : CANONICAL_CASE_STATES;
-  const named = (stage: MissionState) => ({
-    label: labels[stage] ?? stage,
-    current: stage === state,
-  });
-  // Cancelling is not a step along the way: it is shown apart, at the end.
-  const path: readonly MissionState[] = stages.filter((stage) => stage !== 'CANCELLED');
-  const apart = stages.filter((stage) => stage === 'CANCELLED');
-  const at = path.indexOf(state);
+export async function CaseStageTracker(
+  props: Omit<ComponentProps<typeof CaseStageTrackerView>, 'ariaLabel'>,
+) {
+  const t = await getT(componentsMoreCatalog);
   return (
-    <StepBar
-      ariaLabel="Actual case workflow state"
-      steps={path.map(named)}
-      apart={apart.map(named)}
-      position={at >= 0 ? `Stage ${at + 1} of ${path.length}` : 'This case was cancelled'}
-      help={{
-        summary: 'About Stages',
-        children: (
-          <p>
-            Only the current state is marked. This is not a completed-stage history.{' '}
-            {nextStates.length
-              ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and traveller confirmation are checked by the existing actions.${cancelLine}`
-              : cancelInMore
-                ? `There is no further stage from here.${cancelLine}`
-                : 'This case is in a terminal state.'}
-          </p>
-        ),
-      }}
+    <CaseStageTrackerView
+      {...props}
+      ariaLabel={t('componentsMore.casePreparationSummary.actualCaseWorkflowState')}
     />
   );
 }
@@ -125,7 +81,7 @@ export function countRequirementItems(
  * Evidence Progress: how many required items are on file as one big number and a bar, what that
  * means in a word and a sentence (`children`), the six counts and how it is counted. Exact computed requirement states; no score or probability is invented.
  */
-export function CasePreparationSummary({
+export async function CasePreparationSummary({
   readiness,
   children,
   explain,
@@ -136,18 +92,27 @@ export function CasePreparationSummary({
   /** The sentence and the confirmation line, folded with the counts under "How This Is Counted". */
   readonly explain?: ReactNode;
 }) {
+  const t = await getT(componentsMoreCatalog);
   const counts = countRequirementItems(readiness.requirementResults);
   const { requiredCount, satisfiedRequired } = readiness;
   const unit = 'required items on file';
   const shortUnit = 'required on file';
   return (
-    <section className="lift-progress" aria-label="Evidence preparation completeness">
-      <h2 className="lift-progress-kicker">Evidence Progress</h2>
+    <section
+      className="lift-progress"
+      aria-label={t('componentsMore.casePreparationSummary.evidencePreparationCompleteness')}
+    >
+      <h2 className="lift-progress-kicker">
+        {t.node('componentsMore.casePreparationSummary.evidenceProgress')}
+      </h2>
       {requiredCount > 0 ? (
         <>
           <p className="lift-progress-figure">
             <span className="lift-progress-numeral">
-              {satisfiedRequired} of {requiredCount}
+              {t.node('componentsMore.casePreparationSummary.satisfiedrequiredOfRequiredcount', {
+                satisfiedRequired,
+                requiredCount,
+              })}
             </span>
             <span className="lift-progress-unit">{shortUnit}</span>
           </p>
@@ -168,7 +133,7 @@ export function CasePreparationSummary({
       )}
       {children}
       <details className="lift-help">
-        <summary>How This Is Counted</summary>
+        <summary>{t.node('componentsMore.casePreparationSummary.howThisIsCounted')}</summary>
         <div className="lift-help-body">
           {explain}
           <dl className="lift-counts">
@@ -191,12 +156,13 @@ export function CasePreparationSummary({
               </div>
             ))}
           </dl>
+          <p>{t.node('componentsMore.casePreparationSummary.theBarCountsRequiredItemsThat')}</p>
           <p>
-            The bar counts required items that are on file. Optional and non-applicable items are
-            counted separately.
+            {t.node('componentsMore.casePreparationSummary.completenessIsNotAnApprovalProbability')}
           </p>
-          <p>Completeness is not an approval probability. Review each requirement below.</p>
-          <p>Readiness is completeness only - never an approval likelihood.</p>
+          <p>
+            {t.node('componentsMore.casePreparationSummary.readinessIsCompletenessOnlyNeverAn')}
+          </p>
         </div>
       </details>
     </section>

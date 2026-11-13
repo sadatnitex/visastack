@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { MISSION_STATES } from '@visastack/core';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../lib/axe.test-support';
+import { renderServer } from '../lib/next-mocks.test-support';
 import { CASE_STATUS, CHIP_WORDS, caseStatus } from '../lib/status-words';
 import { isTitleCase } from '../lib/title-case';
+vi.mock('server-only', () => ({}));
+vi.mock('../lib/locale', () => ({ getLocale: async () => 'en' }));
+
 import {
   CaseListRow,
   type CaseListRowProps,
@@ -24,9 +27,9 @@ const base: CaseListRowProps = {
   href: '/app/mission/c1',
 };
 
-function draw(props: Partial<CaseListRowProps> = {}): HTMLElement {
+async function draw(props: Partial<CaseListRowProps> = {}): Promise<HTMLElement> {
   const doc = document.createElement('div');
-  doc.innerHTML = `<ul>${renderToStaticMarkup(<CaseListRow {...base} {...props} />)}</ul>`;
+  doc.innerHTML = `<ul>${await renderServer(<CaseListRow {...base} {...props} />)}</ul>`;
   return doc;
 }
 
@@ -76,9 +79,9 @@ describe('the status words of a case', () => {
 });
 
 describe('a case row', () => {
-  it('has the same shape whatever the length of the name, with the chip alone on its line', () => {
-    const short = draw({ title: 'JP' });
-    const long = draw({ title: `Family visit ${'to Japan and onwards '.repeat(20)}` });
+  it('has the same shape whatever the length of the name, with the chip alone on its line', async () => {
+    const short = await draw({ title: 'JP' });
+    const long = await draw({ title: `Family visit ${'to Japan and onwards '.repeat(20)}` });
     expect(shape(long)).toEqual(shape(short));
     for (const doc of [short, long]) {
       const line = doc.querySelector('.trip-card-chipline');
@@ -92,28 +95,28 @@ describe('a case row', () => {
     }
   });
 
-  it('colours the chip with the Harbor tone of the stage, and leaves grey ones plain', () => {
-    const tone = (state: string) =>
-      draw({ state }).querySelector('.case-chip')?.getAttribute('data-tone') ?? null;
-    expect(tone('DRAFT')).toBe('amber');
-    expect(tone('AWAITING_APPLICANT')).toBe('red');
-    expect(tone('IN_REVIEW')).toBe('blue');
-    expect(tone('SUBMISSION_READY')).toBe('green');
-    expect(tone('CLOSED')).toBeNull();
+  it('colours the chip with the Harbor tone of the stage, and leaves grey ones plain', async () => {
+    const tone = async (state: string) =>
+      (await draw({ state })).querySelector('.case-chip')?.getAttribute('data-tone') ?? null;
+    expect(await tone('DRAFT')).toBe('amber');
+    expect(await tone('AWAITING_APPLICANT')).toBe('red');
+    expect(await tone('IN_REVIEW')).toBe('blue');
+    expect(await tone('SUBMISSION_READY')).toBe('green');
+    expect(await tone('CLOSED')).toBeNull();
   });
 
-  it('leaves a slot for the purpose icon in front of the purpose', () => {
-    const doc = draw({ purposeIcon: <svg data-testid="purpose" aria-hidden="true" /> });
+  it('leaves a slot for the purpose icon in front of the purpose', async () => {
+    const doc = await draw({ purposeIcon: <svg data-testid="purpose" aria-hidden="true" /> });
     expect(doc.querySelector('.trip-card-sub .trip-card-purpose svg')).not.toBeNull();
     expect(doc.querySelector('.trip-card-sub')?.textContent).toBe('Japan \u00b7 Tourism');
   });
 
-  it('opts out of the underline every link inside a list item gets, so the card is not underlined', () => {
-    expect(draw().querySelector('a')?.classList.contains('plain-link')).toBe(true);
+  it('opts out of the underline every link inside a list item gets, so the card is not underlined', async () => {
+    expect((await draw()).querySelector('a')?.classList.contains('plain-link')).toBe(true);
   });
 
-  it('is one link with one tab stop and one accessible name: case, stage and count', () => {
-    const doc = draw();
+  it('is one link with one tab stop and one accessible name: case, stage and count', async () => {
+    const doc = await draw();
     const links = doc.querySelectorAll('a');
     expect(links).toHaveLength(1);
     expect(links[0]?.getAttribute('href')).toBe('/app/mission/c1');
@@ -131,41 +134,45 @@ describe('a case row', () => {
     );
   });
 
-  it('shows the country and the purpose on one muted line, and invents neither', () => {
-    expect(draw().querySelector('.trip-card-sub')?.textContent).toBe('Japan · Tourism');
-    expect(draw({ purpose: null }).querySelector('.trip-card-sub')?.textContent).toBe('Japan');
+  it('shows the country and the purpose on one muted line, and invents neither', async () => {
+    expect((await draw()).querySelector('.trip-card-sub')?.textContent).toBe('Japan · Tourism');
+    expect((await draw({ purpose: null })).querySelector('.trip-card-sub')?.textContent).toBe(
+      'Japan',
+    );
     expect(
-      draw({ destination: null, iso2: null }).querySelector('.trip-card-sub')?.textContent,
+      (await draw({ destination: null, iso2: null })).querySelector('.trip-card-sub')?.textContent,
     ).toBe('Tourism');
     expect(
-      draw({ destination: null, iso2: null, purpose: null }).querySelector('.trip-card-sub'),
+      (await draw({ destination: null, iso2: null, purpose: null })).querySelector(
+        '.trip-card-sub',
+      ),
     ).toBeNull();
   });
 
-  it('draws a thin bar with the count and the next step from the checklist', () => {
-    const doc = draw();
+  it('draws a thin bar with the count and the next step from the checklist', async () => {
+    const doc = await draw();
     const bar = doc.querySelector<HTMLProgressElement>('progress.case-bar-track');
     expect(bar?.getAttribute('value')).toBe('75');
     expect(doc.querySelector('.trip-card-count')?.textContent).toBe('6 of 8 ready');
     expect(doc.querySelector('.trip-card-next')?.textContent).toBe('Next: Add Passport');
   });
 
-  it('keeps a visible stub on a bar at zero', () => {
-    const doc = draw({ progress: { kind: 'counted', done: 0, total: 5 } });
+  it('keeps a visible stub on a bar at zero', async () => {
+    const doc = await draw({ progress: { kind: 'counted', done: 0, total: 5 } });
     expect(doc.querySelector('.case-bar')?.getAttribute('data-empty')).toBe('true');
     expect(doc.querySelector('.trip-card-count')?.textContent).toBe('0 of 5 ready');
-    expect(draw().querySelector('.case-bar')?.getAttribute('data-empty')).toBe('false');
+    expect((await draw()).querySelector('.case-bar')?.getAttribute('data-empty')).toBe('false');
   });
 
-  it('with no checklist draws no bar and makes picking one the next step', () => {
-    const doc = draw({ progress: { kind: 'no-checklist' }, nextStep: null });
+  it('with no checklist draws no bar and makes picking one the next step', async () => {
+    const doc = await draw({ progress: { kind: 'no-checklist' }, nextStep: null });
     expect(doc.querySelector('progress')).toBeNull();
     expect(doc.querySelector('.trip-card-count')).toBeNull();
     expect(doc.querySelector('.trip-card-next')?.textContent).toBe('Next: Pick a Checklist');
   });
 
-  it('gives a closed or cancelled case no advice about what to do next', () => {
-    const doc = draw({
+  it('gives a closed or cancelled case no advice about what to do next', async () => {
+    const doc = await draw({
       state: 'CLOSED',
       past: true,
       progress: { kind: 'no-checklist' },
@@ -173,41 +180,44 @@ describe('a case row', () => {
     });
     expect(doc.querySelector('.trip-card-next')).toBeNull();
     expect(doc.textContent).not.toMatch(/pick a checklist/i);
-    const counted = draw({ state: 'CANCELLED', past: true });
+    const counted = await draw({ state: 'CANCELLED', past: true });
     expect(counted.querySelector('.trip-card-next')).toBeNull();
     expect(counted.querySelector('.trip-card-count')?.textContent).toBe('6 of 8 ready');
   });
 
-  it('says why there is no count instead of making one up', () => {
+  it('says why there is no count instead of making one up', async () => {
     expect(
-      draw({ progress: { kind: 'none-required' } }).querySelector('.trip-card-count')?.textContent,
+      (await draw({ progress: { kind: 'none-required' } })).querySelector('.trip-card-count')
+        ?.textContent,
     ).toBe('No required items');
     expect(
-      draw({ progress: { kind: 'unread' } }).querySelector('.trip-card-count')?.textContent,
+      (await draw({ progress: { kind: 'unread' } })).querySelector('.trip-card-count')?.textContent,
     ).toBe('Open the case to see its progress.');
   });
 
-  it('shows no next step when nothing required is missing', () => {
-    expect(draw({ nextStep: null }).querySelector('.trip-card-next')).toBeNull();
+  it('shows no next step when nothing required is missing', async () => {
+    expect((await draw({ nextStep: null })).querySelector('.trip-card-next')).toBeNull();
   });
 
-  it('draws the flag for the destination, and a plain globe for text that names no country', () => {
-    expect(draw().querySelector('.country-flag')?.getAttribute('data-size')).toBe('lg');
-    const unknown = draw({ destination: 'Not sure yet', iso2: null });
+  it('draws the flag for the destination, and a plain globe for text that names no country', async () => {
+    expect((await draw()).querySelector('.country-flag')?.getAttribute('data-size')).toBe('lg');
+    const unknown = await draw({ destination: 'Not sure yet', iso2: null });
     expect(unknown.querySelector('.country-flag-unknown')).not.toBeNull();
     expect(unknown.querySelector('.trip-card-sub')?.textContent).toContain('Not sure yet');
   });
 
   it('has no accessibility violations in its states', async () => {
     const doc = document.createElement('div');
-    doc.innerHTML = `<ul>${[
+    const states = [
       base,
       { ...base, id: 'c2', progress: { kind: 'no-checklist' } as const, nextStep: null },
       { ...base, id: 'c3', state: 'CLOSED', past: true },
       { ...base, id: 'c4', destination: null, iso2: null, purpose: null },
-    ]
-      .map((props) => renderToStaticMarkup(<CaseListRow {...props} />))
-      .join('')}</ul>`;
+    ];
+    const drawn = await Promise.all(
+      states.map((props) => renderServer(<CaseListRow {...props} />)),
+    );
+    doc.innerHTML = `<ul>${drawn.join('')}</ul>`;
     document.body.append(doc);
     expect(await axeViolations(doc.outerHTML)).toEqual([]);
     doc.remove();

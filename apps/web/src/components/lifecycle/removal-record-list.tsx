@@ -1,5 +1,7 @@
 import { formatUtcMoment } from '@visastack/core';
+import { componentsMoreCatalog } from '../../i18n/components-more';
 import { formatTimestampDate } from '../../lib/format-date';
+import { getT } from '../../lib/i18n-server';
 import { documentTypeLabel } from '../../lib/labels';
 
 /** What the list needs from one Removal Record (a `DeletionReceiptView` from the services). */
@@ -101,15 +103,20 @@ function RecordItem({ row, now }: { readonly row: RemovalRecordRow; readonly now
  * A traveller's Removal Records: reference codes, kinds, dates and counts only, never a name or
  * a title. The first ten show; the rest open with Show More.
  */
-export function RemovalRecordList({
+export async function RemovalRecordList({
   records,
   now = new Date(),
 }: {
   readonly records: readonly RemovalRecordRow[];
   readonly now?: Date;
 }) {
+  const t = await getT(componentsMoreCatalog);
   if (records.length === 0) {
-    return <p className="muted">Nothing has been removed from this record.</p>;
+    return (
+      <p className="muted">
+        {t.node('componentsMore.lifecycleRemovalRecordList.nothingHasBeenRemovedFromThis')}
+      </p>
+    );
   }
   const first = records.slice(0, REMOVAL_RECORDS_FIRST_ROWS);
   const rest = records.slice(REMOVAL_RECORDS_FIRST_ROWS);
@@ -122,7 +129,11 @@ export function RemovalRecordList({
       </ul>
       {rest.length > 0 ? (
         <details className="lc-records-more">
-          <summary>Show More ({rest.length})</summary>
+          <summary>
+            {t.node('componentsMore.lifecycleRemovalRecordList.showMoreLength', {
+              length: rest.length,
+            })}
+          </summary>
           <ul className="lc-record-list">
             {rest.map((row) => (
               <RecordItem key={row.id} row={row} now={now} />
