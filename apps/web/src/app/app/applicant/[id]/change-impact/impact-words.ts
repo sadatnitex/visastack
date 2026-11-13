@@ -5,6 +5,7 @@ import type {
   ImpactArea,
   ImpactItem,
   ImpactOutcome,
+  ImpactReason,
   ImpactSubject,
 } from '@visastack/services';
 import { type ChangeImpactKey, changeImpactCatalog } from '../../../../../i18n/change-impact';
@@ -64,7 +65,10 @@ export interface ImpactAboutWords {
   readonly forCase: string | null;
 }
 
-export function aboutWords(about: ImpactAbout): ImpactAboutWords {
+export function aboutWords(
+  about: ImpactAbout,
+  reason: ImpactReason | null = null,
+): ImpactAboutWords {
   switch (about.kind) {
     case 'CASE':
       return {
@@ -89,6 +93,17 @@ export function aboutWords(about: ImpactAbout): ImpactAboutWords {
         forCase: null,
       };
     case 'AREA':
+      // A part that cannot be found at all is not a part that could not be read this time.
+      if (reason === 'RECORD_INCOMPLETE')
+        return {
+          kind: 'changeImpact.about.areaMissing',
+          name: null,
+          nameKey:
+            about.area === 'AGENCY_REQUESTS'
+              ? 'changeImpact.about.areaSentCopies'
+              : AREA_NAMES[about.area],
+          forCase: null,
+        };
       return {
         kind: 'changeImpact.about.area',
         name: null,
@@ -109,8 +124,16 @@ export function impactSentence(
   phase: ChangeImpact['phase'],
 ): ImpactMessage {
   const { about } = item;
-  // A part of the record that could not be read has no name to put in any other sentence.
-  if (about.kind === 'AREA') return { key: COULD_NOT_CHECK[about.area], names: {}, date: null };
+  // A part of the record has no name to put in any other sentence. It is either a part that
+  // could not be read (try again) or a part that cannot be found at all (trying again will not
+  // help), and the two must never share a sentence.
+  if (about.kind === 'AREA') {
+    const key =
+      item.reason === 'RECORD_INCOMPLETE'
+        ? 'changeImpact.reason.recordIncomplete.area'
+        : COULD_NOT_CHECK[about.area];
+    return { key, names: {}, date: null };
+  }
   const document = subject === 'DOCUMENT';
   const preview = document && phase === 'PREVIEW';
   const request = about.kind === 'AGENCY_REQUEST' ? about : null;

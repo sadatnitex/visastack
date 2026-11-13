@@ -29,6 +29,7 @@ import {
   DETAIL_INCOMPLETE,
   DETAIL_RECORDED,
   DETAIL_SUBJECT,
+  DOCUMENT_CHAIN_CUT,
   DOCUMENT_PREVIEW,
   DOCUMENT_RECORDED,
   DOCUMENT_UNDATED,
@@ -241,6 +242,23 @@ describe('each reason has its own sentence and the right link', () => {
       'Could Not Check Your Sharing',
     ]);
     expect(rows.flatMap((li) => [...li.querySelectorAll('a, button')])).toHaveLength(0);
+  });
+
+  it('says a cut replacement chain cannot be found, not that a read failed, with no link', () => {
+    const host = dom(html(DOCUMENT_CHAIN_CUT));
+    const rows = [...host.querySelectorAll('li[data-reason="RECORD_INCOMPLETE"]')];
+    expect(rows.map((li) => words(li.querySelector('.ci-why')))).toEqual([
+      'We could not find every copy of the newer document that went to agencies, so we cannot tell whether one of them needs to be replaced.',
+    ]);
+    expect(rows.map((li) => words(li.querySelector('.ci-about')))).toEqual([
+      'Could Not Find Copies Sent to Agencies',
+    ]);
+    expect(rows.flatMap((li) => [...li.querySelectorAll('a, button')])).toHaveLength(0);
+    // Not a read that failed: the review stays complete and never says "try again".
+    expect(DOCUMENT_CHAIN_CUT.complete).toBe(true);
+    expect(host.querySelector('.ci-incomplete')).toBeNull();
+    expect(host.textContent ?? '').not.toContain('Try again');
+    expect(host.querySelector('li[data-reason="COULD_NOT_CHECK"]')).toBeNull();
   });
 
   it('words a preview as what will happen, never as done', () => {
@@ -543,7 +561,7 @@ describe('honest wording', () => {
         key,
       ),
     );
-    expect(names.length).toBe(26);
+    expect(names.length).toBe(28);
     for (const [key, text] of names) expect(isTitleCase(text), `${key}: ${text}`).toBe(true);
   });
 });

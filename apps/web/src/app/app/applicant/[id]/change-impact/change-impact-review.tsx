@@ -60,7 +60,7 @@ export function ChangeImpactReview({
   const list = (outcome: ImpactOutcome, items: readonly ImpactItem[]) => (
     <ul className="ci-list">
       {items.map((item, index) => {
-        const about = aboutWords(item.about);
+        const about = aboutWords(item.about, item.reason);
         const sentence = impactSentence(item, impact.subject.kind, impact.phase);
         const step = stepLink(item, applicantId);
         const aboutId = `${idPrefix}-${outcome.toLowerCase()}-${index + 1}`;

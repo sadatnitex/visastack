@@ -206,6 +206,11 @@ export const DETAIL_INCOMPLETE = review(DETAIL_SUBJECT, 'RECORDED', [
   item('COULD_NOT_CHECK', { kind: 'AREA', area: 'SHARING' }, null, 'could-not-check-sharing'),
 ]);
 
+/** A replacement chain cut by a document removed for good: one item, about copies sent to agencies. */
+export const DOCUMENT_CHAIN_CUT = review({ ...DOCUMENT_SUBJECT, replacement: null }, 'RECORDED', [
+  item('RECORD_INCOMPLETE', { kind: 'AREA', area: 'AGENCY_REQUESTS' }, null, 'chain:cut'),
+]);
+
 /** Nothing uses the changed item at all. */
 export const QUIET_EMPTY = review(
   { ...DETAIL_SUBJECT, changedAt: null, savedValues: 1 },

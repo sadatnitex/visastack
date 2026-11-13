@@ -17,7 +17,9 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.about.agencyNotActive': 'No Longer Active',
     'changeImpact.about.area': 'Could Not Check',
     'changeImpact.about.areaCases': 'Your Cases',
+    'changeImpact.about.areaMissing': 'Could Not Find',
     'changeImpact.about.areaRequests': 'Requests from Agencies',
+    'changeImpact.about.areaSentCopies': 'Copies Sent to Agencies',
     'changeImpact.about.areaSharing': 'Your Sharing',
     'changeImpact.about.case': 'Case',
     'changeImpact.about.finishedCase': 'Finished Case',
@@ -149,6 +151,8 @@ export const changeImpactCatalog = defineCatalog({
       '{case} is finished but has no saved copy, so we cannot show which value it used.',
     'changeImpact.reason.finishedCaseNoCopy.document':
       '{case} is finished but has no saved copy, so we cannot show which document it used.',
+    'changeImpact.reason.recordIncomplete.area':
+      'We could not find every copy of the newer document that went to agencies, so we cannot tell whether one of them needs to be replaced.',
     'changeImpact.reason.recordIncomplete.case':
       'The record for {case} does not add up, so we cannot tell what this change means for it.',
     'changeImpact.reason.recordIncomplete.request':
