@@ -42,7 +42,6 @@ import {
   evidenceFieldPinsPresent,
   findFieldSubmissionByKey,
   linkFieldDecision,
-  pinFieldVersion,
   recordFieldSubmission,
   waitingFieldSubmission,
 } from './evidence-field-answers';
@@ -3375,6 +3374,43 @@ async function noticeAgencyOfEvidence(
       },
     });
   }
+}
+
+/**
+ * Pin the version a send will carry: the detail's current saved version at this moment. The fact
+ * row is locked first, so an edit that lands at the same moment either finishes before (and is what
+ * is pinned) or waits until this send has committed; the pin is never a version that was already
+ * replaced. When the screen names the version the person saw (`expectedVersionId`) and the detail
+ * has moved on since, nothing is sent and the person is told the page is out of date.
+ */
+async function pinFieldVersion(
+  tx: Db,
+  input: {
+    readonly factId: string;
+    readonly fieldKey: string;
+    readonly expectedVersionId?: string;
+  },
+): Promise<Result<FieldPin, ServiceError>> {
+  const fact = first(
+    await tx
+      .select({ currentVersionId: schema.facts.currentVersionId })
+      .from(schema.facts)
+      .where(eq(schema.facts.id, input.factId))
+      .for('update'),
+  );
+  const current = fact?.currentVersionId ?? null;
+  if (current === null) {
+    return err(serviceError('invalid', 'this detail has no saved value to send yet'));
+  }
+  if (input.expectedVersionId !== undefined && input.expectedVersionId !== current) {
+    return err(
+      serviceError(
+        'stale',
+        'This detail changed after you opened the page. Refresh to see the value now saved, then send it.',
+      ),
+    );
+  }
+  return ok({ factId: input.factId, factVersionId: current, fieldKey: input.fieldKey });
 }
 
 /** The exact version a send pins, with what the record needs to remember about it. */
