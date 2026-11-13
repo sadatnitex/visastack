@@ -131,6 +131,40 @@ describe('the uploader under Bengali', () => {
     expect(text).toContain('You already keep an identical copy of this file.');
   });
 
+  it('words a failed removal from the catalogue: Bengali where a checked draft exists, exact English otherwise', async () => {
+    const R = 'appApplicant.appApplicantIdDocumentsManageRemoval.';
+    const outcome = {
+      kind: 'added',
+      message: 'Passport added.',
+      title: null,
+      removableCopyId: '11111111-1111-4111-8111-111111111111',
+    };
+    const removeAndRead = async (locale: 'en' | 'bn', result: 'down' | Record<string, unknown>) => {
+      if (result === 'down') copy.remove.mockReset().mockRejectedValue(new Error('offline'));
+      else copy.remove.mockReset().mockResolvedValue(result);
+      const { host } = await upload(locale, outcome);
+      const remove = [...host.querySelectorAll('button')].find((b) =>
+        b.getAttribute('aria-label')?.includes('passport.jpg'),
+      );
+      await act(async () => {
+        remove?.click();
+      });
+      return host.querySelector('[role="alert"]')?.textContent;
+    };
+    expect(await removeAndRead('bn', 'down')).toBe(bn[`${R}couldNotRemoveIt`]);
+    expect(await removeAndRead('en', 'down')).toBe(
+      'We could not remove it. Check your connection and try again.',
+    );
+    const kept = {
+      ok: false,
+      message: 'This copy must be kept for a legal requirement. You can archive it instead.',
+      messageKey: `${R}copyKeptLegalHold`,
+    };
+    // No checked Bengali draft yet: the English shows, exactly.
+    expect(await removeAndRead('bn', kept)).toBe(kept.message);
+    expect(await removeAndRead('en', kept)).toBe(kept.message);
+  });
+
   it('is the same English as before under English', async () => {
     const { text } = await upload('en', { kind: 'added', message: 'Passport added.', title: null });
     expect(text).not.toMatch(BENGALI);

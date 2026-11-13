@@ -57,7 +57,7 @@ describe('removal request actions', () => {
   it('ask for the owner MANAGE proof on the document, never trusting the page', async () => {
     mocks.switchOn.mockReturnValue(true);
     mocks.requireAccess.mockResolvedValue(proof('someone-else'));
-    expect(await requestRemovalAction('a1', 'd1', 'NO_LONGER_NEEDED')).toEqual({
+    expect(await requestRemovalAction('a1', 'd1', 'NO_LONGER_NEEDED')).toMatchObject({
       ok: false,
       message: NOT_ALLOWED,
     });

@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
+import { REMOVAL_WORDS as W, refusalNode } from '../removal-words';
 import { restoreDeletedAction, restoreInfoAction } from './actions';
 import { removedInLine } from './messages';
 
@@ -20,7 +21,7 @@ export function RestoreDeletedAction({
   const t = useT(appApplicantCatalog);
   const router = useRouter();
   const [days, setDays] = useState<number | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ReactNode>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -30,12 +31,12 @@ export function RestoreDeletedAction({
   const load = useCallback(async () => {
     try {
       const info = await restoreInfoAction(applicantId, documentId);
-      if (!info.ok) setProblem(info.message);
+      if (!info.ok) setProblem(refusalNode(t, info));
       else setDays(info.days);
     } catch {
-      setProblem('We could not check this document. Close this and try again.');
+      setProblem(t.node(W.couldNotCheckDocument));
     }
-  }, [applicantId, documentId]);
+  }, [applicantId, documentId, t]);
 
   useEffect(() => {
     void load();
@@ -58,12 +59,12 @@ export function RestoreDeletedAction({
     try {
       const restored = await restoreDeletedAction(applicantId, documentId, 'RECENTLY_DELETED');
       if (!restored.ok) {
-        setProblem(restored.message);
+        setProblem(refusalNode(t, restored));
         return;
       }
       setDone(true);
     } catch {
-      setProblem('We could not restore it. Check your connection and try again.');
+      setProblem(t.node(W.couldNotRestoreIt));
     } finally {
       setBusy(false);
     }

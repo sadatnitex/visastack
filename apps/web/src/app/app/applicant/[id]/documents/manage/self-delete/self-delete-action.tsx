@@ -1,11 +1,12 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
+import { REMOVAL_WORDS as W, refusalNode } from '../removal-words';
 import { type SelfDeletePreviewResult, selfDeleteAction, selfDeletePreviewAction } from './actions';
-import { BACKUP_NOTE, SIGN_IN_AGAIN, TYPE_THE_WORD, WHAT_HAPPENS, impactLines } from './messages';
+import { BACKUP_NOTE, SIGN_IN_AGAIN, WHAT_HAPPENS, impactLines } from './messages';
 
 type Preview = Extract<SelfDeletePreviewResult, { ok: true }>;
 
@@ -26,7 +27,7 @@ export function SelfDeleteAction({
   const router = useRouter();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [typed, setTyped] = useState('');
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ReactNode>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -40,11 +41,11 @@ export function SelfDeleteAction({
     try {
       const loaded = await selfDeletePreviewAction(applicantId, documentId);
       if (loaded.ok) setPreview(loaded);
-      else setProblem(loaded.message);
+      else setProblem(refusalNode(t, loaded));
     } catch {
-      setProblem('We could not check this file. Close this and try again.');
+      setProblem(t.node(W.couldNotCheckFile));
     }
-  }, [applicantId, documentId]);
+  }, [applicantId, documentId, t]);
 
   useEffect(() => {
     void load();
@@ -64,7 +65,7 @@ export function SelfDeleteAction({
   async function remove() {
     if (busy || !preview) return;
     if (typed.trim() === '') {
-      setProblem(TYPE_THE_WORD);
+      setProblem(t.node(W.typeTheWordToConfirm));
       return;
     }
     setBusy(true);
@@ -76,14 +77,14 @@ export function SelfDeleteAction({
       } else if ('signInHref' in done) {
         window.location.assign(done.signInHref);
       } else {
-        setProblem(done.message);
+        setProblem(refusalNode(t, done));
         if (done.stale) {
           setTyped('');
           await load();
         }
       }
     } catch {
-      setProblem('We could not delete it. Check your connection and try again.');
+      setProblem(t.node(W.couldNotDeleteIt));
     } finally {
       setBusy(false);
     }

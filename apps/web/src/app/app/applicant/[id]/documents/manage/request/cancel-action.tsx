@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
+import { REMOVAL_WORDS as W, refusalNode } from '../removal-words';
 import { cancelRemovalRequestAction } from './actions';
 
 /**
@@ -19,7 +20,7 @@ export function CancelRemovalRequestAction({
   const t = useT(appApplicantCatalog);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ReactNode>(null);
   const [result, setResult] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -44,9 +45,9 @@ export function CancelRemovalRequestAction({
     try {
       const done = await cancelRemovalRequestAction(applicantId, documentId);
       if (done.ok) setResult(done.message);
-      else setProblem(done.message);
+      else setProblem(refusalNode(t, done));
     } catch {
-      setProblem('The request could not be cancelled. Check your connection and try again.');
+      setProblem(t.node(W.requestCancelFailed));
     } finally {
       setBusy(false);
     }

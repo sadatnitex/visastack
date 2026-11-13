@@ -2,7 +2,7 @@
 
 import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { CapturePreview } from '../../../../components/capture-preview';
 import { useT } from '../../../../components/i18n-provider';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
@@ -23,6 +23,7 @@ import { uploadCheckNotice } from '../../../../lib/scan-state';
 import { acceptAttribute, checkChosenFile, uploadLimitsText } from '../../../../lib/upload-rules';
 import { deleteDuplicateAction, restoreDeletedAction } from './documents/manage/delete/actions';
 import { deletedLine } from './documents/manage/delete/messages';
+import { REMOVAL_WORDS as W, refusalNode } from './documents/manage/removal-words';
 
 /**
  * What a file's line says when its request never got an answer (a dropped connection, a tunnel,
@@ -72,7 +73,7 @@ interface UploadItem {
   /** The added document, when it is an exact copy that may be removed again (LC-C). */
   readonly removableCopyId: string | null;
   /** Remove This New Copy: not asked, running, done (with Undo), or why it was refused. */
-  readonly removal: 'none' | 'busy' | 'removed' | { readonly problem: string };
+  readonly removal: 'none' | 'busy' | 'removed' | { readonly problem: ReactNode };
   /** Days the removed copy stays in Recently Deleted. */
   readonly removedDays: number;
   /**
@@ -617,7 +618,7 @@ export function DocumentUploader({
                       try {
                         const removed = await deleteDuplicateAction(applicantId, id, true);
                         if (!removed.ok) {
-                          update(item.id, { removal: { problem: removed.message } });
+                          update(item.id, { removal: { problem: refusalNode(t, removed) } });
                           return;
                         }
                         update(item.id, { removal: 'removed', removedDays: removed.days });
@@ -625,7 +626,7 @@ export function DocumentUploader({
                       } catch {
                         update(item.id, {
                           removal: {
-                            problem: 'We could not remove it. Check your connection and try again.',
+                            problem: t.node(W.couldNotRemoveIt),
                           },
                         });
                       }

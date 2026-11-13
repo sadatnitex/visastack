@@ -75,11 +75,11 @@ afterEach(() => {
 describe('Delete My File actions', () => {
   it('do nothing while the switch is off: no proof is asked for, nothing is deleted', async () => {
     mocks.selfDeleteOn.mockReturnValue(false);
-    expect(await selfDeletePreviewAction(APPLICANT, DOC)).toEqual({
+    expect(await selfDeletePreviewAction(APPLICANT, DOC)).toMatchObject({
       ok: false,
       message: SWITCHED_OFF,
     });
-    expect(await selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).toEqual({
+    expect(await selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).toMatchObject({
       ok: false,
       message: SWITCHED_OFF,
     });
@@ -92,11 +92,11 @@ describe('Delete My File actions', () => {
   it('turn a malformed id into the same plain answer without reaching the session', async () => {
     mocks.selfDeleteOn.mockReturnValue(true);
     for (const bad of ['', 'not-a-uuid', '../../etc/passwd']) {
-      expect(await selfDeleteAction(bad, DOC, 'DELETE', NONE)).toEqual({
+      expect(await selfDeleteAction(bad, DOC, 'DELETE', NONE)).toMatchObject({
         ok: false,
         message: GONE,
       });
-      expect(await selfDeleteAction(APPLICANT, bad, 'DELETE', NONE)).toEqual({
+      expect(await selfDeleteAction(APPLICANT, bad, 'DELETE', NONE)).toMatchObject({
         ok: false,
         message: GONE,
       });
@@ -107,11 +107,11 @@ describe('Delete My File actions', () => {
   it('ask for the owner MANAGE proof on the document and never trust the page for whose record it is', async () => {
     mocks.selfDeleteOn.mockReturnValue(true);
     mocks.requireAccess.mockResolvedValue(proof('someone-else'));
-    expect(await selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).toEqual({
+    expect(await selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).toMatchObject({
       ok: false,
       message: NOT_ALLOWED,
     });
-    expect(await selfDeletePreviewAction(APPLICANT, DOC)).toEqual({
+    expect(await selfDeletePreviewAction(APPLICANT, DOC)).toMatchObject({
       ok: false,
       message: NOT_ALLOWED,
     });
@@ -141,7 +141,7 @@ describe('Delete My File actions', () => {
       stepUpSatisfied: false,
     });
     mocks.deleteMyFile.mockReset();
-    expect(await selfDeleteAction(APPLICANT, DOC, 7 as unknown as string, NONE)).toEqual({
+    expect(await selfDeleteAction(APPLICANT, DOC, 7 as unknown as string, NONE)).toMatchObject({
       ok: false,
       message: TYPE_THE_WORD,
     });
