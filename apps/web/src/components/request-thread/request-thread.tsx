@@ -1,3 +1,5 @@
+import { componentsMoreCatalog } from '../../i18n/components-more';
+import { getT } from '../../lib/i18n-server';
 import { formatMoment } from '../../lib/save-status';
 import { THREAD_WORDS, type Thread, type ThreadMessage, type ThreadWord } from './thread-model';
 
@@ -20,7 +22,7 @@ function wordFor(word: ThreadWord): ThreadWord {
   return word;
 }
 
-function Message({
+async function Message({
   message,
   viewer,
   timeZone,
@@ -29,6 +31,7 @@ function Message({
   readonly viewer: 'agency' | 'traveller';
   readonly timeZone: string | null;
 }) {
+  const t = await getT(componentsMoreCatalog);
   const word = wordFor(message.word);
   const when = (value: Date) => formatMoment(value, timeZone);
   return (
@@ -45,11 +48,13 @@ function Message({
         ) : message.side === 'traveller' ? (
           // A send whose time was never recorded says so. An agency line with no time shows none:
           // it may simply not have been read, which is not the same as not kept.
-          <span>Time not kept</span>
+          <span>{t.node('componentsMore.requestThreadRequestThread.timeNotKept')}</span>
         ) : null}
         {message.wordAt && message.wordAt.getTime() !== message.at?.getTime() ? (
           <span>
-            {word === 'Reviewed' ? 'Reviewed ' : 'Sent back '}
+            {word === 'Reviewed'
+              ? t.node('componentsMore.requestThreadRequestThread.reviewed')
+              : t.node('componentsMore.requestThreadRequestThread.sentBack')}
             <time dateTime={message.wordAt.toISOString()}>{when(message.wordAt)}</time>
           </span>
         ) : null}
@@ -65,7 +70,7 @@ function Message({
  * is not Reviewed. Flat tone fills only. Replying is not here: the form that sends stays a
  * deliberate button of its own.
  */
-export function RequestThread({
+export async function RequestThread({
   thread,
   viewer,
   timeZone,
@@ -80,6 +85,7 @@ export function RequestThread({
   /** False where a fold already names the conversation, so no heading level is added. */
   readonly showHeading?: boolean;
 }) {
+  const t = await getT(componentsMoreCatalog);
   return (
     <section className="rt" data-pattern="request-thread" aria-label={heading}>
       {showHeading ? <h4 className="rt-title">{heading}</h4> : null}
@@ -88,7 +94,11 @@ export function RequestThread({
           <Message key={message.id} message={message} viewer={viewer} timeZone={timeZone} />
         ))}
       </ol>
-      {thread.olderSends > 0 ? <p className="rt-note">Older sends are not shown here.</p> : null}
+      {thread.olderSends > 0 ? (
+        <p className="rt-note">
+          {t.node('componentsMore.requestThreadRequestThread.olderSendsAreNotShownHere')}
+        </p>
+      ) : null}
       {thread.note ? <p className="rt-note">{NOTE[thread.note]}</p> : null}
     </section>
   );

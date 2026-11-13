@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { componentsMoreCatalog } from '../../i18n/components-more';
+import { getT } from '../../lib/i18n-server';
 import type { OwnPhoto } from '../../lib/profile-photos';
 import { initialsOf } from './crop';
 import { ProfilePhotoControl } from './profile-photo-control';
@@ -9,15 +11,19 @@ import { ProfilePhotoControl } from './profile-photo-control';
  * is managed in one place. Someone who has not added themselves as a
  * traveller is told how to.
  */
-export function AccountPhotoCard({ photo }: { readonly photo: OwnPhoto }) {
+export async function AccountPhotoCard({ photo }: { readonly photo: OwnPhoto }) {
+  const t = await getT(componentsMoreCatalog);
   const { self } = photo;
   return (
     <article className="card profile-photo-card">
-      <p className="card-kicker">Profile Photo</p>
-      <h2 className="card-title">Your Photo</h2>
+      <p className="card-kicker">
+        {t.node('componentsMore.profilePhotoAccountPhotoCard.profilePhoto')}
+      </p>
+      <h2 className="card-title">
+        {t.node('componentsMore.profilePhotoAccountPhotoCard.yourPhoto')}
+      </h2>
       <p className="card-body u-mb-125">
-        Shown beside your name in your workspace. Only you can see it, and it is never used as a
-        visa photo or shared.
+        {t.node('componentsMore.profilePhotoAccountPhotoCard.shownBesideYourNameInYour')}
       </p>
       {self ? (
         <ProfilePhotoControl
@@ -28,9 +34,11 @@ export function AccountPhotoCard({ photo }: { readonly photo: OwnPhoto }) {
         />
       ) : (
         <>
-          <p className="card-body u-mb-125">Add yourself as a traveller first to add your photo.</p>
+          <p className="card-body u-mb-125">
+            {t.node('componentsMore.profilePhotoAccountPhotoCard.addYourselfAsATravellerFirst')}
+          </p>
           <Link href="/app/applicants" className="btn btn-secondary">
-            Add Yourself
+            {t.node('componentsMore.profilePhotoAccountPhotoCard.addYourself')}
           </Link>
         </>
       )}

@@ -6,7 +6,7 @@ Owner decisions of 2026-11-12, recorded in `drafts/OWNER_DECISIONS.json` (key `r
 - The Bengali word for box: "same, box", read as বক্স (never বাক্স). See glossary term T133.
 - Earlier decisions kept: official visa rules stay English with a Bengali note; invoice and receipt record content stays English with a Bengali note. Review queue 04 stays refused.
 
-Counts: released with a PASS draft 540, released with no PASS draft yet (English stays) 22, kept in English 106.
+Counts: released with a PASS draft 540, released with no PASS draft yet (English stays) 22, kept in English 111.
 
 The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The register and queue approval state is derived from it by `tools/release-state.mjs` (used by `tools/build-register.mjs` and, for the committed files, `tools/apply-release-state.mjs`); `scripts/i18n/release-state.test.mjs` checks that the derivation and the CSVs agree.
 
@@ -59,7 +59,7 @@ The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The regis
 - SG-f974eb5d: document requirement for minors  English: Parental travel consent for applicants under 18.
 - SG-ff7d2a1c: what most visa forms ask for first  English: The details most visa forms ask for first.
 
-## KEPT: technical (69)
+## KEPT: technical (74)
 
 - SG-01aeac1c: English-only size label (mbLabel) filled into the sentence  English: Each person you keep a record for can hold up to {mbLabel}. When you share a record with a
 - SG-02122e22: English-only consent label filled into the sentence (label in name)  English: Turn On: {label}
@@ -71,6 +71,7 @@ The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The regis
 - SG-103526c4: english word inside bengali sentence  English: Backs {plural}.
 - SG-153f9777: Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.  English: {removedInLine}. Restore it to bring it back to your documents. Cases that moved to the id
 - SG-19b168cd: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: Keep As It Is: {title}
+- SG-1d11e900: Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.  English: Reviewed
 - SG-1f2c844a: Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.  English: Due {due}
 - SG-260ff35f: Button name read by screen readers while the visible text is still English (label in name).  English: Selected - Remove {name}
 - SG-338d92d1: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: Confirm: {title}
@@ -80,6 +81,7 @@ The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The regis
 - SG-575944d9: no screen shows it today: the large export panel only draws a job that is still active, so this failed-job badge cannot be rendered  English: Could not be made
 - SG-59d94eb1: Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.  English: When {toLowerCase} became true. Leave blank if you are not sure.
 - SG-5a6c4e41: Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.  English: I have no {toLowerCase}
+- SG-5e7adbab: Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).  English: Remove
 - SG-61e87632: English-only state word filled into the sentence  English: Automatic Reading: {STATE_WORD}
 - SG-658e1cac: Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.  English: {uploadLimitsText} Up to {MAX_IMPORT_FILES} files in one import.
 - SG-6840bbdb: A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.  English: Preview: {label}
@@ -100,6 +102,7 @@ The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The regis
 - SG-a8684ed6: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: No Longer Current: {label}
 - SG-aa9771db: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: Change: {title}
 - SG-ac40a214: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: Skip: {label}
+- SG-acdb0e90: Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.  English: Sent back
 - SG-afed0db1: date from the non-locale helper formatTimestampDate at the call site  English: {missionTitle}: what differs today from snapshot {version}, taken on {formatTimestampDate}
 - SG-b1994b75: English-only agency note filled into the sentence  English: {agencyAiTravellerNote} If your sign-in is not recent, you will confirm it is you, then ti
 - SG-b4a4f931: Accessible name of the show-all toggle must match its visible words, which are still English here; stays English until the toggle is converted.  English: Show All {min} Cases
@@ -111,6 +114,7 @@ The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The regis
 - SG-c1fb8969: Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.  English: Added {formatTimestampDate} {STATUS_WORDS}
 - SG-c55cd000: A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.  English: And {plural}, not shown here. Delete ones you no longer need to see the rest.
 - SG-c60ff807: Already sent note that follows other text: the Bengali drops the leading space.  English: Already sent.
+- SG-c67c0fbc: Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).  English: Accept
 - SG-c87bb1a1: date from the non-locale helper formatBillingDate (English month names)  English: Paid until {formatBillingDate}. Fair-use safeguards and your privacy permissions still app
 - SG-c87e54e8: Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.  English: Sent {formatMoment}
 - SG-c9a7f414: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: Keep Separate: {title}
@@ -129,6 +133,7 @@ The machine-readable list is `RELEASE_CLASSIFICATION_2026-11-12.json`. The regis
 - SG-e8727ba5: Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.  English: Full profile: {answered} of {total} details in your {plural} have values ({percent}%). Ope
 - SG-eb382184: Applicant screens: Sentence built around an English-only value (a counted phrase, a lower-cased field label or a helper phrase): waits until the value itself is translated.  English: Expires in {plural}
 - SG-f22cca12: A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.  English: {kindLabel} · Added {addedLabel} · {scanLabel}
+- SG-f3c3a277: Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).  English: Select
 - SG-fe5feab6: Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).  English: Remove This File: {label}
 
 ## RELEASED: content (legal, privacy, consent, sharing, access, AI, payment) (224)

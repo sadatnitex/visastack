@@ -87,6 +87,10 @@ export const HOLDBACK = new Map([
     'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
   ],
   [
+    'SG-1d11e900',
+    'Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.',
+  ],
+  [
     'SG-1f2c844a',
     'Number or date inside the sentence is not yet formatted for Bengali digits here; stays English until it is.',
   ],
@@ -157,6 +161,10 @@ export const HOLDBACK = new Map([
   [
     'SG-5d43545f',
     'Official visa rule content stays English with a Bengali note (owner decision 2026-11-12): document requirement for minors.',
+  ],
+  [
+    'SG-5e7adbab',
+    "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
   ],
   [
     'SG-61e87632',
@@ -259,6 +267,10 @@ export const HOLDBACK = new Map([
     'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
   ],
   [
+    'SG-acdb0e90',
+    'Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.',
+  ],
+  [
     'SG-ad36e94f',
     'Official visa rule content stays English with a Bengali note (owner decision 2026-11-12): embassy original-paper rule.',
   ],
@@ -321,6 +333,10 @@ export const HOLDBACK = new Map([
   [
     'SG-c60ff807',
     'Already sent note that follows other text: the Bengali drops the leading space.',
+  ],
+  [
+    'SG-c67c0fbc',
+    "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
   ],
   [
     'SG-c87bb1a1',
@@ -425,6 +441,10 @@ export const HOLDBACK = new Map([
   [
     'SG-f22cca12',
     'A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.',
+  ],
+  [
+    'SG-f3c3a277',
+    "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
   ],
   [
     'SG-f6430216',

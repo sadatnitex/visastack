@@ -1,6 +1,5 @@
-import { renderToStaticMarkup } from 'react-dom/server';
 import { vi } from 'vitest';
-import './../next-mocks.test-support';
+import { renderServer } from './../next-mocks.test-support';
 import { registerParity } from './parity-kit.test-support';
 
 /** Account (screen 13): see parity-kit.test-support.ts for how the comparison works. */
@@ -48,7 +47,7 @@ registerParity({
     state.languageChoice = false;
     state.depth = 'auto';
   },
-  render: async () => renderToStaticMarkup(await AccountPage()),
+  render: async () => renderServer(AccountPage()),
   states: [
     { name: 'plain account', setup: () => undefined },
     {

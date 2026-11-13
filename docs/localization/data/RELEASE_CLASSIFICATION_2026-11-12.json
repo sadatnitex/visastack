@@ -12,7 +12,7 @@
   "counts": {
     "released": 540,
     "released_no_draft_or_pass": 22,
-    "kept": 106
+    "kept": 111
   },
   "groups": [
     {
@@ -686,6 +686,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "No applicants match. Try another part of the name."
+    },
+    {
+      "group": "SG-1d11e900",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.",
+      "queue": "ORDINARY_UI",
+      "english": "Reviewed"
     },
     {
       "group": "SG-1dbdbe0f",
@@ -1982,6 +1990,14 @@
       "reason": "Access control: who may see or act on what, or what a grant allows; waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "Only that email address can accept."
+    },
+    {
+      "group": "SG-5e7adbab",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
+      "queue": "ORDINARY_UI",
+      "english": "Remove"
     },
     {
       "group": "SG-5ea17c19",
@@ -3560,6 +3576,14 @@
       "english": "This case is under a legal hold, so it cannot be deleted for now."
     },
     {
+      "group": "SG-acdb0e90",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.",
+      "queue": "ORDINARY_UI",
+      "english": "Sent back"
+    },
+    {
       "group": "SG-acf01c97",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -4062,6 +4086,14 @@
       "reason": "automated checks PASS",
       "queue": "COMMERCIAL",
       "english": "{choice} The new limits apply from that day. Nothing is deleted."
+    },
+    {
+      "group": "SG-c67c0fbc",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
+      "queue": "ORDINARY_UI",
+      "english": "Accept"
     },
     {
       "group": "SG-c68a7790",
@@ -5102,6 +5134,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "This reading covers environment configuration only. Existing administration settings can select a database-managed provider, and the enable switch, consent, budget and human review still govern processing. Manual case preparation stays available."
+    },
+    {
+      "group": "SG-f3c3a277",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "Safe copy row button: its screen-reader name is 'Select/Accept/Remove box N', which has no Bengali draft and stays English, so the visible text stays English too (label in name).",
+      "queue": "ORDINARY_UI",
+      "english": "Select"
     },
     {
       "group": "SG-f49c0f3e",
