@@ -277,15 +277,52 @@ describe('No Longer Current and Ended (LC-G1)', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/applicant/a1', 'layout');
   });
 
-  it('stops at the access check and says so in plain words', async () => {
-    mocks.requireAccess.mockResolvedValue({
+  it('answers a stranger exactly as it answers a made-up record (no way to tell them apart)', async () => {
+    const answers: unknown[] = [];
+    for (const error of [
+      { code: 'forbidden', message: 'access denied (default_deny)' },
+      { code: 'not_found', message: 'record not found' },
+    ]) {
+      mocks.requireAccess.mockResolvedValue({ ok: false, error });
+      answers.push(
+        await markNotCurrentAction(initial, form({ applicantId: 'a1', factId: 'f1' })),
+        await markEndedAction(
+          initial,
+          form({
+            applicantId: 'a1',
+            recordGroupKey: 'g',
+            repeatingRecordKey: 'r1',
+            endedOn: '2025-06-30',
+          }),
+        ),
+      );
+    }
+    // Forbidden and not found give the same word for the same action.
+    expect(answers[0]).toEqual(answers[2]);
+    expect(answers[1]).toEqual(answers[3]);
+    expect(answers[0]).toEqual({
       ok: false,
-      error: { code: 'forbidden', message: 'not authorized (default_deny)' },
+      message: 'This detail could not be found. Reload the page and try again.',
+    });
+    expect(answers[1]).toEqual({
+      ok: false,
+      message: 'This entry could not be found. Reload the page and try again.',
+    });
+    expect(mocks.markFactNotCurrent).not.toHaveBeenCalled();
+    expect(mocks.markRecordEnded).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('still says plainly what went wrong when the owner passed the access check', async () => {
+    mocks.markFactNotCurrent.mockResolvedValue({
+      ok: false,
+      error: { code: 'consent_required', message: 'consent' },
     });
     const result = await markNotCurrentAction(initial, form({ applicantId: 'a1', factId: 'f1' }));
-    expect(result).toEqual({ ok: false, message: 'Only the profile owner can change this.' });
-    expect(mocks.markFactNotCurrent).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      message: 'Turn on \u201cLet VisaStack Process My Details\u201d on Home first.',
+    });
   });
 
   it('ends one entry on the chosen day', async () => {

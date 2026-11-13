@@ -163,7 +163,19 @@ export async function saveOtherItemAction(
   return result;
 }
 
-/** Plain words for a refusal from the two lifecycle marks. Never the engineering message. */
+/**
+ * Plain words for a refusal from the two lifecycle marks, after the access check let the caller
+ * through. Never the engineering message. The access check's own refusals never reach here: they
+ * are answered by `hiddenRecordRefusal`, one answer for a record that is not theirs and one that
+ * does not exist.
+ */
+/**
+ * The access check refused. It says "denied" for a real record that is not the caller's and "not
+ * found" for one that does not exist; this marker lets the action give the same answer for both,
+ * so a signed-in stranger who holds an id cannot learn whether that record exists.
+ */
+const HIDDEN = Symbol('hidden-record');
+
 function markRefusal(code: string): string {
   if (code === 'forbidden') return 'Only the profile owner can change this.';
   if (code === 'consent_required') {
@@ -194,9 +206,12 @@ export async function markNotCurrentAction(
       { applicantId },
       { purpose: 'profile_edit' },
     );
-    if (!gate.ok) return gate;
+    if (!gate.ok) return HIDDEN;
     return markFactNotCurrent(gate.value, { factId });
   });
+  if (result === HIDDEN) {
+    return { ok: false, message: 'This detail could not be found. Reload the page and try again.' };
+  }
   if (!result.ok) return { ok: false, message: markRefusal(result.error.code) };
   refresh(applicantId);
   return {
@@ -235,7 +250,7 @@ export async function markEndedAction(
       { applicantId },
       { purpose: 'profile_edit' },
     );
-    if (!gate.ok) return gate;
+    if (!gate.ok) return HIDDEN;
     const encryption = createKeyManagementPort();
     return markRecordEnded(gate.value, {
       recordGroupKey,
@@ -244,6 +259,9 @@ export async function markEndedAction(
       ...(encryption ? { encryption } : {}),
     });
   });
+  if (result === HIDDEN) {
+    return { ok: false, message: 'This entry could not be found. Reload the page and try again.' };
+  }
   if (!result.ok) return { ok: false, message: markRefusal(result.error.code) };
   refresh(applicantId);
   return { ok: true, message: 'Marked as ended. Its details stay on file.' };
