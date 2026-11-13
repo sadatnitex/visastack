@@ -83,5 +83,19 @@
       "corrections": "one correction per affected group in drafts/bn-BD.corrections.jsonl"
     },
     "note": "Decisions only. No translation was reviewed line by line by a human or a lawyer. The word reviewed is not used for any of these rows."
+  },
+  "version_wording_2026-11-13": {
+    "decided_on": "2026-11-13",
+    "decided_by": "owner (given in the orchestrator session, relayed to the part H drafting session)",
+    "document_version": "A document's version is কপি. সংস্করণ is used only for a product, release, snapshot, pack or name version.",
+    "checker": "guardrail-check.mjs VERSION_CONCEPT_REVIEW: where the English names a product, release, snapshot, pack, name or similar version, সংস্করণ is still required; elsewhere the version is a document's and কপি is accepted; a row with neither word fails. The self-test holds a case for each.",
+    "note": "Decision only. No translation is marked reviewed or approved."
+  },
+  "label_and_name_direction_2026-11-13": {
+    "given_on": "2026-11-13",
+    "given_by": "orchestrator session (not stated as an owner decision)",
+    "provider_names": "Provider names such as Neon, Neon Auth and Resend stay in Latin script, the same as the brand name VisaStack.",
+    "device_menu_labels": "A device or app menu label is written exactly as the person's phone shows it. Most phones in Bangladesh run in English, so the label stays in Latin, in quotation marks, inside the Bengali sentence. The checker accepts a quoted Latin label only when the English has the same words.",
+    "note": "Direction only. No translation is marked reviewed or approved."
   }
 }
