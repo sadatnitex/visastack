@@ -7,6 +7,7 @@ vi.mock('server-only', () => ({}));
 const state = vi.hoisted(() => ({
   locale: 'en' as 'en' | 'bn',
   generation: 0,
+  memberships: [] as unknown[],
   whatsapp: {
     available: true,
     connected: false,
@@ -58,7 +59,7 @@ vi.mock('./whatsapp/actions', () => ({
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getWhatsAppConnection: async () => state.whatsapp,
-  listMembershipsForAccount: async () => [],
+  listMembershipsForAccount: async () => state.memberships,
   getTravellerPlanSummary: async () => ({
     plan: { key: 'traveller_free', name: 'Traveller Free' },
     features: { ai_automatic_reading: { included: true, dailyLimit: null } },
@@ -112,6 +113,7 @@ const whatsapp = (locale: 'en' | 'bn') => html(locale, () => WhatsAppPage());
 const plan = (locale: 'en' | 'bn') => html(locale, () => PlanPage({}));
 
 beforeEach(() => {
+  state.memberships = [];
   state.whatsapp = {
     available: true,
     connected: false,
@@ -188,6 +190,46 @@ describe('WhatsApp page under Bengali', () => {
     expect(shown).toContain('২০');
     expect(shown).not.toContain('Oct 20, 2026');
     expect(textOf(await whatsapp('en'))).toContain('Oct 20, 2026');
+  });
+});
+
+describe('account and WhatsApp states under Bengali', () => {
+  const expectBengali = (shown: string, keys: readonly string[]) => {
+    const en = appAccountCatalog.en as Record<string, string>;
+    for (const key of keys) {
+      expect(bn[`appAccount.${key}`], key).toBeDefined();
+      expect(shown, key).toContain(bn[`appAccount.${key}`]);
+      expect(shown, key).not.toContain(en[`appAccount.${key}`]);
+    }
+    expect(shown).not.toMatch(/appAccount\./);
+  };
+
+  it('an agency member sees the Roles card with the Agency Desk link', async () => {
+    state.memberships = [{ active: true, organizationId: 'o1', role: 'member' }];
+    expectBengali(textOf(await account('bn')), [
+      'appAccountPage.roles',
+      'appAccountPage.otherAreasYouCanAccess',
+      'appAccountPage.agencyDesk',
+    ]);
+  });
+
+  it('WhatsApp not available yet: says so and that everything works without it', async () => {
+    state.whatsapp = { ...state.whatsapp, available: false };
+    expectBengali(textOf(await whatsapp('bn')), [
+      'appAccountWhatsappPage.whatsappIsNotAvailableYet',
+      'appAccountWhatsappPage.youCanUseEverythingInVisastack',
+    ]);
+  });
+
+  it('WhatsApp connected with messages off: says how to turn them on', async () => {
+    state.whatsapp = {
+      ...state.whatsapp,
+      connected: true,
+      maskedNumber: '+88 *** 1234',
+      connectedAt: '2026-10-20T08:00:00Z',
+      messagesOff: true,
+    };
+    expectBengali(textOf(await whatsapp('bn')), ['appAccountWhatsappPage.offSendStartToTurnThem']);
   });
 });
 
