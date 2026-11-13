@@ -14,6 +14,7 @@ import {
   clientInvitationTerms,
 } from '../../../../lib/client-invitation-terms';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
+import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
@@ -96,7 +97,7 @@ export default async function AcceptClientInvitationPage({
               ? t.node(
                   'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsNotValid',
                 )
-              : data.preview.error.message}
+              : serviceErrorNode(data.preview.error)}
           </p>
         ) : (
           <>

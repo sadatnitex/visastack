@@ -3,7 +3,7 @@ import { and, desc, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
@@ -199,12 +199,12 @@ export async function previewContributorRequest(
       )
       .limit(1),
   );
-  if (!row) return err(serviceError('not_found', 'request not found'));
+  if (!row) return err(keyedError('not_found', 'contributor_requests.request_not_found'));
   if (row.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this request has already been used or revoked'));
+    return err(keyedError('invalid', 'contributor_requests.already_used_or_revoked'));
   }
   if (row.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this request has expired'));
+    return err(keyedError('invalid', 'contributor_requests.this_request_has_expired'));
   }
 
   const now = new Date();
@@ -265,15 +265,15 @@ export async function beginContributorSubmission(
       .where(eq(schema.contributorRequests.tokenHash, tokenHash))
       .limit(1),
   );
-  if (!request) return err(serviceError('not_found', 'request not found'));
+  if (!request) return err(keyedError('not_found', 'contributor_requests.request_not_found'));
   if (request.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this request has already been used or revoked'));
+    return err(keyedError('invalid', 'contributor_requests.already_used_or_revoked'));
   }
   if (request.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this request has expired'));
+    return err(keyedError('invalid', 'contributor_requests.this_request_has_expired'));
   }
   if (request.contributorEmail !== input.actorEmail.trim().toLowerCase()) {
-    return err(serviceError('forbidden', 'this request was sent to a different email address'));
+    return err(keyedError('forbidden', 'contributor_requests.sent_to_a_different_email'));
   }
   // A traveller in Recently Deleted takes in nothing new (presentApplicantCondition, LC-A2): the
   // same answer as the preview gives, checked again here because this is the step that uploads.
@@ -283,7 +283,8 @@ export async function beginContributorSubmission(
       .from(schema.applicants)
       .where(and(eq(schema.applicants.id, request.applicantId), presentApplicantCondition()))
       .limit(1);
-    if (present.length === 0) return err(serviceError('not_found', 'request not found'));
+    if (present.length === 0)
+      return err(keyedError('not_found', 'contributor_requests.request_not_found'));
   }
 
   return db.transaction(async (tx) => {
@@ -306,7 +307,7 @@ export async function beginContributorSubmission(
         .returning(),
     );
     if (!updated) {
-      return err(serviceError('invalid', 'this request has already been used or revoked'));
+      return err(keyedError('invalid', 'contributor_requests.already_used_or_revoked'));
     }
     await appendAuditEvent(tx, {
       eventType: 'CONTRIBUTOR_SUBMISSION_STARTED',
@@ -378,7 +379,7 @@ export async function completeContributorSubmission(
       .returning(),
   );
   if (!updated) {
-    return err(serviceError('invalid', 'contributor request not in a completable state'));
+    return err(keyedError('invalid', 'contributor_requests.not_in_a_completable_state'));
   }
   return ok(updated);
 }

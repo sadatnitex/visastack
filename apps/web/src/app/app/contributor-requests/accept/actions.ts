@@ -66,7 +66,9 @@ export async function submitContributorEvidenceAction(
       actorEmail: email,
       allowWalletReuse,
     });
-    if (!begun.ok) return { ok: false, message: begun.error.message } satisfies ActionState;
+    if (!begun.ok) {
+      return { ok: false, message: await serviceErrorMessage(begun.error) } satisfies ActionState;
+    }
     const request = begun.value;
 
     const reservation = await reserveUpload(
@@ -162,7 +164,10 @@ export async function submitContributorEvidenceAction(
       documentId: outcome.version.version.documentId,
     });
     if (!completed.ok) {
-      return { ok: false, message: completed.error.message } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(completed.error),
+      } satisfies ActionState;
     }
 
     return {

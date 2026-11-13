@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  type ServiceError,
   accountPrincipal,
   askAboutRequestItem,
   requireAccess,
@@ -9,6 +10,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
+import { serviceErrorMessage } from '../../../../../lib/service-error-message';
 import { withSession } from '../../../../../lib/session';
 import { EVIDENCE_SENT_LINE } from '../../../../../lib/success-lines';
 
@@ -24,9 +26,10 @@ export interface ActionState {
 
 /**
  * The service's own sentences are written for developers in two common cases. Say them the way a
- * traveller needs to hear them; any other reason is passed on as the service wrote it.
+ * traveller needs to hear them; any other reason is the service's own, in the visitor's language.
  */
-function plainSubmitReason(message: string): string {
+async function plainSubmitReason(error: ServiceError): Promise<string> {
+  const message = error.message;
   if (message === 'this request is not awaiting a submission') {
     return 'This request is no longer waiting for you. Refresh the page to see where it stands.';
   }
@@ -49,7 +52,7 @@ function plainSubmitReason(message: string): string {
   if (message === 'evidence request not found') {
     return 'This request could not be found. Refresh the page to see where it stands.';
   }
-  return message;
+  return serviceErrorMessage(error);
 }
 
 /** Applicant owner submits a fact or document they already hold as the response to an evidence request. */
@@ -82,7 +85,7 @@ export async function submitEvidenceResponseAction(
     if (!submitted.ok) {
       return {
         ok: false,
-        message: plainSubmitReason(submitted.error.message),
+        message: await plainSubmitReason(submitted.error),
       } satisfies ActionState;
     }
     return {
@@ -128,7 +131,9 @@ export async function askAboutRequestItemAction(
       return { ok: false, message: 'This question could not be sent.' } satisfies ActionState;
     }
     const asked = await askAboutRequestItem(access.value, { requestId, question });
-    if (!asked.ok) return { ok: false, message: asked.error.message } satisfies ActionState;
+    if (!asked.ok) {
+      return { ok: false, message: await serviceErrorMessage(asked.error) } satisfies ActionState;
+    }
     return {
       ok: true,
       message: 'The agency can read it in the case notes.',

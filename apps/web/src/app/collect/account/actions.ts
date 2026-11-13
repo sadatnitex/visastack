@@ -8,6 +8,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { serviceErrorMessage } from '../../../lib/service-error-message';
 import { withSession } from '../../../lib/session';
 import { establishStepUpProof } from '../../../lib/step-up';
 import { collectSwitchOn } from '../load';
@@ -115,7 +116,7 @@ export async function submitResponseAction(
         state:
           submitted.error.code === 'not_found'
             ? CLOSED
-            : { ok: false, message: submitted.error.message },
+            : { ok: false, message: await serviceErrorMessage(submitted.error) },
       } as const;
     }
     return { next: '/collect/account/answers?sent=1' } as const;
