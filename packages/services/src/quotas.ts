@@ -1,5 +1,5 @@
 import { inArray, sql } from 'drizzle-orm';
-import { listApplicantsForOrganization } from './agency';
+import { applicantsSharedWithOrganization } from './agency';
 import { type Db, schema } from './db';
 import { type TravellerStorageRules, travellerStorageRulesFor } from './entitlements';
 
@@ -134,7 +134,7 @@ export async function getAccountEvidenceBytes(db: Db, accountId: string): Promis
  * Total evidence bytes across every applicant this organization currently
  * has real (active, accepted, current) access to -- COM-01's "total
  * retained storage" plan entitlement. Deliberately reuses
- * `listApplicantsForOrganization`'s exact grant-based definition of "which
+ * `applicantsSharedWithOrganization`'s exact grant-based definition of "which
  * applicants this org serves" rather than a narrower "cases this org
  * owns" one: storage is a genuine infrastructure footprint the org's
  * access enables, not a workload/ownership count (see `plans.ts`'s own
@@ -145,7 +145,7 @@ export async function getOrganizationEvidenceBytes(
   db: Db,
   organizationId: string,
 ): Promise<number> {
-  const applicants = await listApplicantsForOrganization(db, organizationId);
+  const applicants = await applicantsSharedWithOrganization(db, organizationId);
   if (applicants.length === 0) return 0;
   const rows = await db
     .select({ total: sql<string>`coalesce(sum(${schema.documentVersions.sizeBytes}), 0)` })

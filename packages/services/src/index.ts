@@ -449,7 +449,6 @@ export {
   isActiveMember,
   listApplicantsForOrganization,
   listAppointmentsForOrg,
-  listAssignedMissionIds,
   listAssignments,
   listAssignmentsDetailed,
   listEvidenceRequestDecisions,

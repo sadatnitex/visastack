@@ -133,6 +133,7 @@ export default async function AgencyCasesPage({
     // on this page, so it adds no case and no detail. The traveller alone can extend it.
     const accessEnds = await listAccessEndsForOrg(
       db,
+      accountId,
       orgId,
       list.cases.map((c) => c.missionId),
     );

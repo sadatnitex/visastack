@@ -12,7 +12,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tooling.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:pg": "vitest run --config vitest.pg.config.ts"
   },
   "dependencies": {
     "@visastack/core": "workspace:*",
