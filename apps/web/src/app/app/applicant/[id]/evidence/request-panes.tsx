@@ -8,6 +8,7 @@ import {
   type RequestItemExtras,
 } from '@visastack/services';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { atLevel } from '../../../../../components/depth';
 import type { PaneEntry } from '../../../../../components/list-pattern';
 import { ReferenceCode } from '../../../../../components/reference-code';
@@ -113,7 +114,7 @@ function FieldAnswerSent({
   if (read.state === 'unread') {
     return (
       <p className="case-row-meta" data-testid="field-answer-sent">
-        {answerT('evidenceAnswer.fieldAnswer.unread')}
+        {answerT.node('evidenceAnswer.fieldAnswer.unread')}
       </p>
     );
   }
@@ -121,15 +122,17 @@ function FieldAnswerSent({
   if (rounds.length === 0) return null;
   const stateWord = (state: (typeof rounds)[number]['state']) =>
     state === 'ACCEPTED'
-      ? answerT('evidenceAnswer.fieldAnswer.accepted')
+      ? answerT.node('evidenceAnswer.fieldAnswer.accepted')
       : state === 'AWAITING_DECISION'
-        ? answerT('evidenceAnswer.fieldAnswer.waiting')
+        ? answerT.node('evidenceAnswer.fieldAnswer.waiting')
         : state === 'WITHDRAWN'
-          ? answerT('evidenceAnswer.fieldAnswer.withdrawn')
-          : answerT('evidenceAnswer.fieldAnswer.sentBack');
+          ? answerT.node('evidenceAnswer.fieldAnswer.withdrawn')
+          : answerT.node('evidenceAnswer.fieldAnswer.sentBack');
   return (
     <div className="request-questions lc-questions" data-testid="field-answer-sent">
-      <p className="request-questions-title u-m-0">{answerT('evidenceAnswer.fieldAnswer.title')}</p>
+      <p className="request-questions-title u-m-0">
+        {answerT.node('evidenceAnswer.fieldAnswer.title')}
+      </p>
       <ul className="request-questions-list">
         {rounds.map((round) => (
           <li
@@ -139,21 +142,21 @@ function FieldAnswerSent({
             {round.version ? (
               <span>
                 {round.version.protected
-                  ? answerT('evidenceAnswer.fieldAnswer.protected', {
+                  ? answerT.node('evidenceAnswer.fieldAnswer.protected', {
                       version: round.version.number,
                       savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
                     })
-                  : answerT('evidenceAnswer.fieldAnswer.pinned', {
+                  : answerT.node('evidenceAnswer.fieldAnswer.pinned', {
                       version: round.version.number,
                       savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
                       value: round.version.value ?? '',
                     })}
                 {round.version.stillCurrent ? null : (
-                  <> {answerT('evidenceAnswer.fieldAnswer.changedSince')}</>
+                  <> {answerT.node('evidenceAnswer.fieldAnswer.changedSince')}</>
                 )}
               </span>
             ) : (
-              <span>{answerT('evidenceAnswer.fieldAnswer.legacy')}</span>
+              <span>{answerT.node('evidenceAnswer.fieldAnswer.legacy')}</span>
             )}
           </li>
         ))}
@@ -168,9 +171,9 @@ function sentBackNoteFor(
   answerT: ReturnType<typeof getServerT<keyof (typeof evidenceAnswerCatalog)['en'] & string>>,
   documents: readonly DocumentSummary[],
   timeZone: string,
-): string | null {
+): ReactNode {
   if (read.state === 'none') return null;
-  if (read.state === 'unknown') return answerT('evidenceAnswer.sentBack.unknown');
+  if (read.state === 'unknown') return answerT.node('evidenceAnswer.sentBack.unknown');
   const { copy } = read;
   const named = documents.find((doc) => doc.id.toLowerCase() === copy.documentId.toLowerCase());
   const name =
@@ -180,12 +183,12 @@ function sentBackNoteFor(
     answerT('evidenceAnswer.sentBack.thisDocument');
   const line =
     copy.precision === 'exact' && copy.versionNumber !== null && copy.sentAt
-      ? answerT('evidenceAnswer.sentBack.exact', {
+      ? answerT.node('evidenceAnswer.sentBack.exact', {
           name,
           version: copy.versionNumber,
           date: formatMoment(copy.sentAt.toISOString(), timeZone),
         })
-      : answerT('evidenceAnswer.sentBack.document', { name });
+      : answerT.node('evidenceAnswer.sentBack.document', { name });
   return line;
 }
 
@@ -313,7 +316,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
       ) : null}
       {awaitingReply && req.kind === 'DOCUMENT' && !sentBackNote && onlyOutdatedCopies ? (
         <p className="case-row-meta" data-testid="no-current-copy-note">
-          {answerT('evidenceAnswer.choices.noCurrent')}
+          {answerT.node('evidenceAnswer.choices.noCurrent')}
         </p>
       ) : null}
       {item.group !== null ? (
