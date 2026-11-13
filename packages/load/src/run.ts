@@ -19,6 +19,7 @@ import {
 } from '@visastack/adapters';
 import { isOk } from '@visastack/core';
 import { createPooledDb, schema } from '@visastack/db';
+import { startBridge, useLocalBridge } from '@visastack/db/pg-bridge';
 import {
   type Db,
   addDocumentVersion,
@@ -42,7 +43,6 @@ import { migrate } from 'drizzle-orm/neon-serverless/migrator';
 import { type DatasetManifest, LAUNCH_SHAPE, seedDataset } from './dataset';
 import { MemoryBlobStore } from './memory-blobs';
 import { buildPdf } from './pdf';
-import { startBridge, useLocalBridge } from './pg-bridge';
 import { busyPercent, hostSummary, readMachineCpu, readProcessesNamed } from './proc';
 import { rowsOf } from './rows';
 import { Recorder, round, summarise } from './stats';
@@ -246,7 +246,11 @@ function staffPages(
     {
       name: 'clients',
       weight: 15,
-      run: timed('client list', (db, a) => listApplicantsForOrganization(db, a.organizationId)),
+      // The client list is administrator data: timed as the agency's admin, as the page reads it.
+      run: timed('client list', (db, a) => {
+        const admin = a.staff.find((x) => x.role === 'ADMIN') as { accountId: string };
+        return listApplicantsForOrganization(db, admin.accountId, a.organizationId);
+      }),
     },
     {
       name: 'case',
@@ -254,7 +258,9 @@ function staffPages(
       run: timed('case detail', async (db, a, s) => {
         const view = await listVisibleMissionsForMember(db, a.organizationId, s.accountId);
         const one = view.missions[0];
-        if (one) await listTasksForOrg(db, a.organizationId, one.applicantId, one.missionId);
+        if (one) {
+          await listTasksForOrg(db, s.accountId, a.organizationId, one.applicantId, one.missionId);
+        }
       }),
     },
     {
@@ -538,7 +544,9 @@ async function main(): Promise<void> {
             ),
           );
           const clients = await volume.time(`${name}: client list`, () =>
-            withDb('load', (db) => listApplicantsForOrganization(db, agency.organizationId)),
+            withDb('load', (db) =>
+              listApplicantsForOrganization(db, admin.accountId, agency.organizationId),
+            ),
           );
           if (name === 'biggest normal agency') {
             await volume.time(`${name}: evidence requests (old one-by-one method)`, () =>

@@ -172,7 +172,7 @@ describe('agency Cases', () => {
     const html = await renderServer(Page(props));
     const text = textOf(html);
     // Only the cases this member can already see on the page are asked about.
-    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'o1', [M1, M2]);
+    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'acct-1', 'o1', [M1, M2]);
     expect(text).toContain('Access ends on 5 Dec 2026. The traveller can extend it.');
     // One line only: a case with no end date shows none, and nothing here extends anything.
     expect(html.match(/data-testid="access-ends-note"/g)).toHaveLength(1);
@@ -248,7 +248,7 @@ describe('agency Cases', () => {
   it('asks about no cases when the list is empty', async () => {
     mocks.loadCaseListPage.mockResolvedValue(listOf(true, []));
     await renderServer(Page(props));
-    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'o1', []);
+    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'acct-1', 'o1', []);
   });
 
   it('opens one case in its workspace, with the people who can be assigned', async () => {

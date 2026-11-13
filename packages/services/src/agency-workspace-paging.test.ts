@@ -286,16 +286,16 @@ describe('listVisibleMissionsForMember with a page', () => {
 
 describe('listNotes with a page', () => {
   it('pages the readable notes newest first, never another organization’s internal note', async () => {
-    const { db, orgId, applicantId, notedMissionId } = seeded;
-    const everything = await listNotes(db, orgId, applicantId, notedMissionId);
-    const first = await listNotes(db, orgId, applicantId, notedMissionId, {
+    const { db, orgId, adminId, applicantId, notedMissionId } = seeded;
+    const everything = await listNotes(db, adminId, orgId, applicantId, notedMissionId);
+    const first = await listNotes(db, adminId, orgId, applicantId, notedMissionId, {
       limit: 10,
       withTotal: true,
     });
     expect(first.items).toHaveLength(10);
     expect(first.total).toBe(everything.length);
     const all = await walk(async (before) => {
-      const page = await listNotes(db, orgId, applicantId, notedMissionId, {
+      const page = await listNotes(db, adminId, orgId, applicantId, notedMissionId, {
         limit: 7,
         ...(before ? { before } : {}),
       });
@@ -313,11 +313,11 @@ describe('listNotes with a page', () => {
   });
 
   it('continues after any note through its own cursor, as the Activity page merges cases', async () => {
-    const { db, orgId, applicantId, notedMissionId } = seeded;
-    const first = await listNotes(db, orgId, applicantId, notedMissionId, { limit: 10 });
+    const { db, orgId, adminId, applicantId, notedMissionId } = seeded;
+    const first = await listNotes(db, adminId, orgId, applicantId, notedMissionId, { limit: 10 });
     const fourth = first.items[3];
     if (!fourth) throw new Error('fourth note');
-    const after = await listNotes(db, orgId, applicantId, notedMissionId, {
+    const after = await listNotes(db, adminId, orgId, applicantId, notedMissionId, {
       limit: 6,
       before: fourth.cursor,
     });
@@ -325,8 +325,8 @@ describe('listNotes with a page', () => {
   });
 
   it('gives an organization without access an empty page, whatever the cursor', async () => {
-    const { db, otherOrgId, applicantId, notedMissionId } = seeded;
-    const page = await listNotes(db, otherOrgId, applicantId, notedMissionId, {
+    const { db, otherOrgId, strangerId, applicantId, notedMissionId } = seeded;
+    const page = await listNotes(db, strangerId, otherOrgId, applicantId, notedMissionId, {
       limit: 10,
       withTotal: true,
     });
@@ -334,13 +334,13 @@ describe('listNotes with a page', () => {
   });
 
   it('serves the first page for a foreign cursor', async () => {
-    const { db, orgId, otherOrgId, applicantId, notedMissionId } = seeded;
-    const first = await listNotes(db, orgId, applicantId, notedMissionId, { limit: 5 });
+    const { db, orgId, adminId, otherOrgId, applicantId, notedMissionId } = seeded;
+    const first = await listNotes(db, adminId, orgId, applicantId, notedMissionId, { limit: 5 });
     const foreign = encodeTimeCursor(
       { at: '2026-10-01T00:03:00.000000Z', id: first.items[0]?.id as string },
       `org:${otherOrgId}:notes`,
     );
-    const again = await listNotes(db, orgId, applicantId, notedMissionId, {
+    const again = await listNotes(db, adminId, orgId, applicantId, notedMissionId, {
       limit: 5,
       before: foreign,
     });
