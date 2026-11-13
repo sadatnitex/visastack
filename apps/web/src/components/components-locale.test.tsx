@@ -79,16 +79,14 @@ describe('shared client components under Bengali', () => {
     );
   });
 
-  it('InstallAppCard (not installed): the Bengali draft shows, the held lines stay English', () => {
+  it('InstallAppCard (not installed): the Bengali draft and the records line show (refill 4)', () => {
     const doc = render('bn', <InstallAppCard />);
     const key = 'componentsPwa.pwaInstallAppCard.addVisastackToYourHomeScreen';
     expect(doc.body.textContent).toContain(componentsPwaCatalog.bn[key]);
     expect(doc.body.textContent).toMatch(BENGALI);
-    expect(doc.body.textContent).toContain(
-      componentsPwaCatalog.en[
-        'componentsPwa.pwaInstallAppCard.installingDoesNotDownloadYourRecords'
-      ],
-    );
+    const records = 'componentsPwa.pwaInstallAppCard.installingDoesNotDownloadYourRecords';
+    expect(doc.body.textContent).toContain(componentsPwaCatalog.bn[records]);
+    expect(doc.body.textContent).not.toContain(componentsPwaCatalog.en[records]);
   });
 
   it('CopyMessageOnly never shows a raw key, whatever the catalogue holds', () => {

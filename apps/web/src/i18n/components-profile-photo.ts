@@ -24,7 +24,11 @@ export const componentsProfilePhotoCatalog = defineCatalog({
   bn: {
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.addPhoto': 'ছবি যোগ করুন',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.cancel': 'বাতিল করুন',
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.cropYourPhoto': 'আপনার ছবি ক্রপ করুন',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.photoFile': 'ছবির ডকুমেন্ট',
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.photoPosition': 'ছবির অবস্থান',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.removePhoto': 'ছবি সরান',
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.replacePhoto': 'ছবি বদলান',
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.zoom': 'জুম',
   },
 });
