@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { appInvitationsCatalog } from '../../../../i18n/app-invitations';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { membershipRoleLabel } from '../../../../lib/labels';
+import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
 import { AcceptInvitationForm } from './accept-form';
 
@@ -62,7 +63,7 @@ export default async function AcceptInvitationPage({
           <p className="card-body">
             {preview.error.code === 'not_found'
               ? t.node('appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsNotValid')
-              : preview.error.message}
+              : serviceErrorNode(preview.error)}
           </p>
         ) : (
           <>

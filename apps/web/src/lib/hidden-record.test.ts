@@ -12,7 +12,7 @@ import {
   setConsent,
 } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   CASE_HIDDEN_LINE,
   COMPLAINT_HIDDEN_LINE,
@@ -94,6 +94,11 @@ async function grantTo(db: Db, ownerId: string, applicantId: string, recipient: 
   if (!accepted.ok) throw new Error('accept');
   return grant.value.id;
 }
+
+// One test holds the clock inside a clock hour; every test gets the real clock back, pass or fail.
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeAll(async () => {
   const db = drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
@@ -228,6 +233,11 @@ describe("the audit trail keeps a probe of any record id that is not the caller'
     const cappedRows = async (who: string) =>
       (await rowsOf(who)).filter((row) => row.eventType === 'HIDDEN_RECORD_PROBES_CAPPED');
     const limit = RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT.limit;
+    // The bound is counted per clock hour, so the clock is held inside one hour here: on the real
+    // clock a run that crossed the top of an hour started a new count and wrote extra id rows.
+    // Only Date is held; timers keep running for the database.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-13T10:20:00Z'));
     for (let index = 0; index < limit; index += 1) {
       const id = `99999999-9999-4999-8999-${String(index).padStart(12, '0')}`;
       expect(await ownsCase(world.db, prober, id)).toBe(false);
@@ -261,6 +271,12 @@ describe("the audit trail keeps a probe of any record id that is not the caller'
     expect(await ownsCase(world.db, other, world.missionId)).toBe(false);
     expect((await idRows(other)).map((row) => row.resourceId)).toEqual([world.missionId]);
     expect(await cappedRows(other)).toHaveLength(0);
+
+    // The next clock hour is a new window: the first account's probe is recorded with its id again.
+    vi.setSystemTime(new Date('2026-11-13T11:20:00Z'));
+    expect(await ownsCase(world.db, prober, MADE_UP)).toBe(false);
+    expect(await idRows(prober)).toHaveLength(limit + 1);
+    expect(await cappedRows(prober)).toHaveLength(1);
   }, 120_000);
 });
 

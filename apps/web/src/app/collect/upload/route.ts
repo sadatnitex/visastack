@@ -4,6 +4,7 @@ import { createMalwareScanner } from '../../../lib/providers';
 import { createContentLimitsChecker } from '../../../lib/providers-media';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
+import { serviceErrorMessage, serviceKeyMessage } from '../../../lib/service-error-message';
 import { createStorage } from '../../../lib/storage';
 import {
   FILE_TOO_LARGE_MESSAGE,
@@ -67,7 +68,9 @@ export async function POST(request: Request): Promise<Response> {
   const proof = sessionProofFrom((await cookies()).get(COLLECT_COOKIE)?.value);
   if (!proof) return json('This page has closed. Open the link from your message again.', 403);
   const uploadId = request.headers.get('x-upload-id')?.trim() ?? '';
-  if (!isUploadId(uploadId)) return json('Choose the file again.', 400);
+  if (!isUploadId(uploadId)) {
+    return json(await serviceKeyMessage('umpe_guest_uploads.choose_the_file_again'), 400);
+  }
   const declaredType = request.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
 
   let bytes: Uint8Array;
@@ -116,14 +119,16 @@ export async function POST(request: Request): Promise<Response> {
       if (!result.ok) {
         const error = result.error;
         if (error.code === 'in_progress') {
-          return json(error.message, 503, { 'Retry-After': String(error.retryAfterSeconds) });
+          return json(await serviceErrorMessage(error), 503, {
+            'Retry-After': String(error.retryAfterSeconds),
+          });
         }
         if (error.code === 'rate_limited') {
           return json('Too many files were added just now. Wait a little, then try again.', 429, {
             'Retry-After': '600',
           });
         }
-        if (error.code === 'invalid') return json(error.message, 400);
+        if (error.code === 'invalid') return json(await serviceErrorMessage(error), 400);
         return json('This page has closed. Open the link from your message again.', 403);
       }
       if (result.value.kind === 'refused') return json(result.value.message, 422);

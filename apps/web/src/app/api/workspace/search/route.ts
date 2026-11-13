@@ -5,6 +5,7 @@ import {
   checkRateLimit,
   searchWorkspaceRecords,
 } from '@visastack/services';
+import { serviceErrorMessage, serviceKeyMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -72,8 +73,13 @@ export async function POST(request: Request): Promise<Response> {
         : { kind: 'personal' };
   else return response({ error: 'Choose a search workspace.' }, 400);
   const query = body.query;
-  if (query.trim().length < 2 || query.trim().length > 80)
-    return response({ error: 'Use between 2 and 80 characters.' }, 400);
+  // The service's own words for this limit, so both say the same thing in every language.
+  if (query.trim().length < 2 || query.trim().length > 80) {
+    return response(
+      { error: await serviceKeyMessage('workspace_search.use_between_2_and_80_characters') },
+      400,
+    );
+  }
   return withSession(async ({ db, accountId }) => {
     const allowed = await checkRateLimit(
       db,
@@ -102,7 +108,7 @@ export async function POST(request: Request): Promise<Response> {
     const result = await searchWorkspaceRecords(db, accountId, selected, query);
     if (!result.ok)
       return response(
-        { error: result.error.message },
+        { error: await serviceErrorMessage(result.error) },
         result.error.code === 'forbidden' ? 403 : 400,
       );
     return response({ results: result.value });

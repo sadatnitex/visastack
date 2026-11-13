@@ -98,3 +98,28 @@ describe('contributor upload refusals show in the visitor language', () => {
     expect(serviceMessages.bn['documents.applicantNotFound']).toMatch(BENGALI);
   });
 });
+
+describe('a refused contributor link shows in the visitor language', () => {
+  const KEYS = [
+    'contributor_requests.request_not_found',
+    'contributor_requests.already_used_or_revoked',
+    'contributor_requests.this_request_has_expired',
+    'contributor_requests.sent_to_a_different_email',
+  ] as const;
+
+  it.each(KEYS)('%s: exact English under en, checked Bangla (or English) under bn', async (key) => {
+    const error = keyedError('invalid', key);
+    mocks.beginContributorSubmission.mockResolvedValue({ ok: false, error });
+    expect(await submitContributorEvidenceAction(initial, form())).toEqual({
+      ok: false,
+      message: error.message,
+    });
+    state.locale = 'bn';
+    const own = (serviceMessages.bn as Readonly<Record<string, string>>)[key];
+    if (own !== undefined) expect(own).toMatch(BENGALI);
+    expect(await submitContributorEvidenceAction(initial, form())).toEqual({
+      ok: false,
+      message: own ?? error.message,
+    });
+  });
+});
