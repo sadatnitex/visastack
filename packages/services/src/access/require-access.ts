@@ -543,7 +543,10 @@ export async function requireAccess<A extends PermissionAction>(
     recordExists: boolean,
   ): Result<never, ServiceError> => {
     try {
-      opts.onRefused?.({ reason, recordExists });
+      // A listener that returns a promise (an audit write, say) may fail later: that is swallowed
+      // too, never left as an unhandled rejection.
+      const heard: unknown = opts.onRefused?.({ reason, recordExists });
+      if (heard instanceof Promise) heard.catch(() => undefined);
     } catch {
       // The answer never depends on whoever listens for the reason.
     }
@@ -628,13 +631,12 @@ export async function requireAccess<A extends PermissionAction>(
     );
   }
 
-  // Memberships first, then only the grants that could reach this caller: other people's grants
-  // never change what is read, so a missing record and a foreign one do the same work.
-  const memberships = await listMembershipsForAccount(tx, principal.accountId);
-  const grants = await loadRecipientGrantsForPolicy(tx, applicantId, {
-    accountId: principal.accountId,
-    organizationIds: memberships.map((membership) => membership.organization.id),
-  });
+  // Only the grants that could reach this caller: other people's grants never change what is
+  // read, so a missing record, a foreign one and a hidden case do the same work.
+  const [grants, memberships] = await Promise.all([
+    loadRecipientGrantsForPolicy(tx, applicantId, principal.accountId),
+    listMembershipsForAccount(tx, principal.accountId),
+  ]);
   const actingFor = opts.actingFor;
   const candidates: { actor: Actor; grants: readonly PolicyGrant[] }[] = [];
   for (const membership of memberships) {

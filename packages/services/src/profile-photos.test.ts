@@ -8,7 +8,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
+import { type AccessRefusal, EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -275,14 +275,19 @@ describe('profile photos', () => {
   it('refuses other accounts at the gate, and refuses a copied proof', async () => {
     const strangerId = await account(db, 'stranger@example.com');
     for (const action of ['MANAGE', 'VIEW_METADATA'] as const) {
+      // One public answer; the reason it stands for reaches only the gate's hook.
+      const heard: AccessRefusal[] = [];
       const proof = await requireAccess(
         db,
         accountPrincipal(strangerId),
         action,
         { applicantId },
-        { purpose: EACH_GRANT },
+        { purpose: EACH_GRANT, onRefused: (refusal) => heard.push(refusal) },
       );
-      expect(code(proof)).toBe('forbidden');
+      expect([code(proof), heard.map((refusal) => refusal.reason)]).toEqual([
+        'not_found',
+        ['default_deny'],
+      ]);
     }
     const copy = { ...(await manage()) } as never;
     expect(code(await setApplicantPhoto(copy, ports(), jpegUpload()))).toBe('forbidden');

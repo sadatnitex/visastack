@@ -37,6 +37,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError, serviceError } from './errors';
 import { serviceMessages } from './i18n';
 import {
@@ -113,38 +114,35 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
 
 /**
  * The grants on this applicant that could ever reach this caller: made to the account itself, or
- * to one of the named organizations (the caller's memberships). The access gate judges a caller
- * only against these, exactly as it did against the full list, so the answer is the same; reading
- * only these means other people's grants never change what work the gate does, so the work cannot
- * hint at whether a record exists. Case exceptions are read only for this caller's applicant-wide
- * grants.
+ * to an organization the account belongs to (read in the same statement). The access gate judges a
+ * caller only against these, exactly as it did against the full list, so its answer is the same.
+ * Reading only these, and always reading the case exceptions, means the statements sent never
+ * depend on anyone's grants: a record that does not exist, a real record of someone else and a
+ * case hidden from this caller by an exception all take the same database work.
  */
 export async function loadRecipientGrantsForPolicy(
   db: Db,
   applicantId: string,
-  recipient: { readonly accountId: string; readonly organizationIds: readonly string[] },
+  accountId: string,
 ): Promise<PolicyGrant[]> {
-  const organizationIds = [...new Set(recipient.organizationIds)];
+  const ownOrganizations = db
+    .select({ id: schema.memberships.organizationId })
+    .from(schema.memberships)
+    .where(eq(schema.memberships.accountId, accountId));
   const rows = await db
     .select()
     .from(schema.grants)
     .where(
       and(
         eq(schema.grants.applicantId, applicantId),
-        organizationIds.length > 0
-          ? or(
-              eq(schema.grants.recipientAccountId, recipient.accountId),
-              inArray(schema.grants.recipientOrganizationId, organizationIds),
-            )
-          : eq(schema.grants.recipientAccountId, recipient.accountId),
+        or(
+          eq(schema.grants.recipientAccountId, accountId),
+          inArray(schema.grants.recipientOrganizationId, ownOrganizations),
+        ),
       ),
     );
-  const applicantWide = rows.filter((row) => row.missionId === null).map((row) => row.id);
-  const exclusions =
-    applicantWide.length > 0
-      ? await loadCaseExclusions(db, { grantIds: applicantWide })
-      : undefined;
-  return rows.map((row) => toPolicyGrant(row, exclusions?.get(row.id)));
+  const exclusions = await loadCaseExclusions(db, { applicantId });
+  return rows.map((row) => toPolicyGrant(row, exclusions.get(row.id)));
 }
 
 async function ownsApplicant(
@@ -439,9 +437,15 @@ export interface SharedWithEmail {
  * pending grant exactly as `createGrant` makes it. An email with no account gets nothing (there is
  * no invitation without the switch): the same checks still run, in the same order (owner, consent,
  * permissions, purpose, expiry, chosen case and documents, the rate limit), so a refusal is the
- * same either way, and on success both get the one `sharing.sharedIfAccount` line. Only the audit
- * trail tells the two apart: `GRANT_CREATED` for a grant, `GRANT_RECIPIENT_NOT_REGISTERED` (no email
- * and no email hash, only the owner, the traveller and how many permissions) for no account.
+ * same either way, and on success both get the one `sharing.sharedIfAccount` line. The audit trail
+ * tells the two apart: `GRANT_CREATED` for a grant, `GRANT_RECIPIENT_NOT_REGISTERED` for no account
+ * (no email and no email hash: only the sharer and how many permissions). That row names no
+ * traveller and records no allow or deny, so it stays out of the traveller's Access Log, Recent
+ * Activity and the denied-access signal.
+ *
+ * Limit: without invitations an existing account still gets a real pending grant, which the
+ * sharer's own grant list shows and an email with no account does not. Only the invitation path
+ * (invitations switched on, as in production) makes the two look the same afterwards too.
  */
 export async function shareWithEmail(
   db: Db,
@@ -450,6 +454,8 @@ export async function shareWithEmail(
   },
 ): Promise<Result<SharedWithEmail, ServiceError>> {
   const { email, ...grant } = input;
+  // A format check says nothing about accounts.
+  if (!isEmailAddress(email.trim())) return err(keyedError('invalid', 'sharing.inviteEmailInvalid'));
   const recipient = await getAccountByEmail(db, email);
   if (recipient?.id === input.actorAccountId) {
     // Only the person's own address, which they already know.
@@ -467,8 +473,6 @@ export async function shareWithEmail(
         actorAccountId: input.actorAccountId,
         action: 'SHARE',
         method: 'MANUAL',
-        result: 'DENIED',
-        applicantId: input.applicantId,
         resourceType: 'grant',
         reason: 'recipient_has_no_account',
         metadata: { actions: input.actions.length },

@@ -95,8 +95,10 @@ describe('sharing by email answers the same whether or not the email has an acco
     expect(missing).toHaveLength(1);
     expect(missing[0]).toMatchObject({
       actorAccountId: ownerId,
-      applicantId,
-      result: 'DENIED',
+      // Names no traveller and records no allow or deny: it stays out of the traveller's Access
+      // Log, Recent Activity and the denied-access signal.
+      applicantId: null,
+      result: null,
       reason: 'recipient_has_no_account',
       metadata: { actions: 1 },
     });
@@ -133,6 +135,15 @@ describe('sharing by email answers the same whether or not the email has an acco
     const withAccount = await share(HAS_ACCOUNT);
     expect(withAccount.ok).toBe(false);
     expect(await share(NO_ACCOUNT)).toStrictEqual(withAccount);
+  });
+
+  it('refuses an address that is not an email before looking anything up', async () => {
+    for (const bad of ['alice@', 'bob', '']) {
+      const answer = await share(bad);
+      expect(answer.ok, bad).toBe(false);
+      if (!answer.ok) expect(answer.error.message).toBe('Enter a valid recipient email.');
+    }
+    expect(await audit('GRANT_RECIPIENT_NOT_REGISTERED')).toHaveLength(0);
   });
 
   it('tells a person only that they cannot share with themselves', async () => {

@@ -176,27 +176,39 @@ describe('ownsCase and ownsApplicant', () => {
   });
 });
 
-describe("the audit trail keeps a probe of a real record that is not the caller's", () => {
+describe("the audit trail keeps a probe of any record id that is not the caller's", () => {
   const refused = async () =>
     (await world.db.select().from(schema.auditEvents)).filter(
       (row) => row.eventType === 'HIDDEN_RECORD_REFUSED',
     );
 
-  it('writes one event naming ids only for a stranger on a real case or person, and nothing for anyone else', async () => {
+  it('writes one event naming ids only for a stranger on a real or made-up case or person, and nothing for anyone else', async () => {
     const before = (await refused()).length;
     expect(await ownsApplicant(world.db, world.owner, world.applicantId)).toBe(true);
-    expect(await ownsApplicant(world.db, world.stranger, MADE_UP)).toBe(false);
     expect(await ownsCase(world.db, world.stranger, 'not-an-id')).toBe(false);
     expect((await refused()).length).toBe(before);
+    // A made-up id is kept exactly like a real one (13 Nov 2026): the prober reads their own audit
+    // rows in their data export, so a row only for real ids would tell them which ids are real.
+    expect(await ownsApplicant(world.db, world.stranger, MADE_UP)).toBe(false);
+    const madeUpRows = (await refused()).slice(before);
+    expect(madeUpRows.map((r) => [r.resourceType, r.actorAccountId, r.result, r.reason])).toEqual([
+      ['applicant', world.stranger, 'DENIED', null],
+    ]);
+    const afterMadeUp = (await refused()).length;
 
     expect(await ownsApplicant(world.db, world.stranger, world.applicantId)).toBe(false);
     expect(await ownsCase(world.db, world.stranger, world.missionId)).toBe(false);
-    const rows = (await refused()).slice(before);
+    const rows = (await refused()).slice(afterMadeUp);
     expect(rows).toHaveLength(2);
-    expect(rows.map((r) => [r.resourceType, r.actorAccountId, r.result])).toEqual([
-      ['applicant', world.stranger, 'DENIED'],
-      ['case', world.stranger, 'DENIED'],
+    expect(rows.map((r) => [r.resourceType, r.actorAccountId, r.result, r.reason])).toEqual([
+      ['applicant', world.stranger, 'DENIED', null],
+      ['case', world.stranger, 'DENIED', null],
     ]);
+    // The real and the made-up row carry the same fields, apart from the id named.
+    const shape = (r: (typeof rows)[number]) => [r.eventType, r.action, r.method, r.metadata];
+    expect(shape(rows[0] as (typeof rows)[number])).toEqual(
+      shape(madeUpRows[0] as (typeof rows)[number]),
+    );
     // The same answer comes back either way: the probe record never changes it.
     expect(await ownsApplicant(world.db, world.stranger, world.applicantId)).toBe(
       await ownsApplicant(world.db, world.stranger, MADE_UP),

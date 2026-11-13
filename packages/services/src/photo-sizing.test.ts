@@ -7,7 +7,14 @@ import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal } from './access/principal';
-import { EACH_GRANT, requireAccess } from './access/require-access';
+import { type AccessRefusal, EACH_GRANT, requireAccess } from './access/require-access';
+// Every refusal is now one public answer; the reason the old code implied reaches only the gate's
+// `onRefused` hook, remembered here per result so each refusal is checked for both.
+const heardFor = new WeakMap<object, AccessRefusal>();
+function refusalOf(result: { readonly ok: boolean; readonly error?: { readonly code: string } }) {
+  return [result.ok ? undefined : result.error?.code, heardFor.get(result)?.reason];
+}
+
 import { verifyStepUp } from './access/step-up-proof';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -189,15 +196,21 @@ describe('visa photo sizes - access through the central gate', () => {
     action: A,
     documentId: string = photoId,
   ) {
-    return requireAccess(
+    let heard: AccessRefusal | undefined;
+    const result = await requireAccess(
       db,
       accountPrincipal(accountId),
       action,
       { documentId },
       {
         purpose: EACH_GRANT,
+        onRefused: (refusal) => {
+          heard = refusal;
+        },
       },
     );
+    if (heard !== undefined) heardFor.set(result, heard);
+    return result;
   }
 
   async function photoAudits(documentId: string = photoId) {
@@ -276,7 +289,7 @@ describe('visa photo sizes - access through the central gate', () => {
     const preview = await gate(agentId, 'PREVIEW');
     if (!isOk(preview)) throw new Error('preview gate');
     const download = await gate(agentId, 'DOWNLOAD_REDACTED');
-    expect(isErr(download) && download.error.code).toBe('forbidden');
+    expect(refusalOf(download)).toEqual(['not_found', 'action_not_granted']);
     const deps = fakeDeps();
     const checked = await checkVisaPhoto(preview.value as never, deps);
     expect(isErr(checked) && checked.error.code).toBe('forbidden');
@@ -287,7 +300,7 @@ describe('visa photo sizes - access through the central gate', () => {
     const stranger = await account(db, 'stranger@example.com');
     for (const action of ['PREVIEW', 'DOWNLOAD_REDACTED'] as const) {
       const result = await gate(stranger, action);
-      expect(isErr(result) && result.error.code).toBe('forbidden');
+      expect(refusalOf(result)).toEqual(['not_found', 'default_deny']);
     }
   });
 

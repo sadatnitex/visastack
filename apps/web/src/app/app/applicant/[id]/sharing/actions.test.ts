@@ -37,7 +37,8 @@ vi.mock('../../../../../lib/step-up', () => ({
   establishStepUpProof: mocks.establishStepUpProof,
 }));
 vi.mock('../../../../../lib/session', () => ({
-  withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
+  withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
+    fn({ db: {}, accountId: 'owner', email: 'owner@example.com' }),
 }));
 const {
   allowCaseAction,
@@ -159,6 +160,17 @@ describe('sharing by email never says whether the email has an account (invitati
       {},
       expect.objectContaining({ actorAccountId: 'owner', email: 'nobody@example.com' }),
     );
+  });
+
+  it('says only that a person cannot share with themselves, before any identity re-check', async () => {
+    const own = grantForm(' Owner@Example.com ');
+    own.append('action', 'DOWNLOAD_ORIGINAL');
+    expect(await createGrantAction({ ok: true, message: '' }, own)).toEqual({
+      ok: false,
+      message: 'You cannot share with yourself.',
+    });
+    expect(mocks.shareWithEmail).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 });
 

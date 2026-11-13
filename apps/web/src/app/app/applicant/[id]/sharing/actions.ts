@@ -88,8 +88,12 @@ export async function createGrantAction(
   // ordinary view/preview/comment-only grant never prompts for reauth.
   const isSensitive = actions.some((action) => STEP_UP_ACTIONS.includes(action));
 
-  const result = await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId, email }) => {
     const invitationsEnabled = process.env[sharingInvitationFlag] === 'true';
+    // Their own address, before any identity re-check: it says nothing about anyone else.
+    if (email.trim().toLowerCase() === recipientEmail) {
+      return { ok: false, message: 'You cannot share with yourself.' } satisfies ActionState;
+    }
     let stepUpSatisfied = false;
     if (isSensitive) {
       const stepUp = await tryEstablishStepUp(

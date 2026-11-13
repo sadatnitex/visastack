@@ -63,21 +63,26 @@ async function isOwner(
       refusal = heard;
     },
   });
-  if (refusal?.recordExists === true) await recordRefusedProbe(db, accountId, ref, refusal);
+  // Every refused id that could name a record is kept, real or made up, in the same words: the row
+  // goes into the prober's own data export, and writing it takes time, so neither may differ.
+  if (refusal !== undefined && refusal.reason !== 'malformed_id') {
+    await recordRefusedProbe(db, accountId, ref);
+  }
   return access.ok && access.value.actor.kind === 'applicant_owner';
 }
 
 /**
- * A signed-in account reached for a record that exists and is not theirs. The services this pre-check
- * now stands in front of used to write a denied event for this; one is written here so the audit
- * trail keeps the probe (ids only, never a value). A made-up id has no record to name and writes
- * nothing. Writing can never change the answer the person gets: a failure here is swallowed.
+ * A signed-in account reached for a record id that is not theirs. The services this pre-check now
+ * stands in front of used to write a denied event for this; one is written here so the audit trail
+ * keeps the probe (ids only, never a value, never the reason). It is written alike for a real
+ * record and a made-up id, so the row cannot tell the prober, who can read their own audit rows in
+ * their data export, which ids are real; staff tell them apart from the id itself. Writing can
+ * never change the answer the person gets: a failure here is swallowed.
  */
 async function recordRefusedProbe(
   db: Db,
   accountId: string,
   ref: { readonly missionId: string } | { readonly applicantId: string },
-  refusal: AccessRefusal,
 ): Promise<void> {
   try {
     await db.transaction(async (tx) => {
@@ -89,8 +94,6 @@ async function recordRefusedProbe(
         method: 'MANUAL',
         resourceType: 'missionId' in ref ? 'case' : 'applicant',
         resourceId: 'missionId' in ref ? ref.missionId : ref.applicantId,
-        // The gate's own reason (for example `grant_revoked`), kept here and never shown.
-        reason: refusal.reason,
         metadata: {},
       });
     });

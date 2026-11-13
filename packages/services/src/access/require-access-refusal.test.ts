@@ -19,11 +19,13 @@ import { acceptGrant, createGrant, revokeGrant } from '../sharing';
 import { issueStepUpAssurance } from '../step-up';
 import { accountPrincipal, staffPrincipal } from './principal';
 import {
+  ACCESS_REFUSAL,
   type AccessRefusal,
   type ApplicantResourceRef,
   type AuthorizedApplicant,
   EACH_GRANT,
   type RequireAccessOptions,
+  accessRefusalDetail,
   requireAccess,
 } from './require-access';
 import { verifyStepUp } from './step-up-proof';
@@ -314,6 +316,36 @@ describe('requireAccess gives one public refusal, whatever the reason', () => {
     }
   }
 
+  it('names its one refusal, and words the reason only for logs', async () => {
+    expect(ACCESS_REFUSAL).toStrictEqual({ code: 'not_found', message: 'record not found' });
+    expect(Object.isFrozen(ACCESS_REFUSAL)).toBe(true);
+    expect(accessRefusalDetail({ reason: 'grant_revoked', recordExists: true })).toBe(
+      'access denied (grant_revoked)',
+    );
+    // A listener that throws, or rejects later, never changes the answer.
+    const thrown = await requireAccess(
+      world.db,
+      accountPrincipal(world.strangerId),
+      'VIEW_METADATA',
+      { missionId: world.missionId },
+      {
+        purpose: 'self',
+        onRefused: () => {
+          throw new Error('listener failed');
+        },
+      },
+    );
+    expect(thrown).toStrictEqual({ ok: false, error: { ...ACCESS_REFUSAL } });
+    const rejected = await requireAccess(
+      world.db,
+      accountPrincipal(world.strangerId),
+      'VIEW_METADATA',
+      { missionId: world.missionId },
+      { purpose: 'self', onRefused: (async () => Promise.reject(new Error('later'))) as never },
+    );
+    expect(rejected).toStrictEqual(thrown);
+  });
+
   it('also refuses identically without a hook, and a non-account principal the same way', async () => {
     const made = await requireAccess(
       world.db,
@@ -337,6 +369,15 @@ describe('a made-up id and a real foreign id do the same database work', () => {
   let world: World;
   beforeAll(async () => {
     world = await buildWorld();
+    // The first read of case exceptions on a database handle also checks the table exists, once
+    // per handle whatever the data; warm it so every comparison below is between steady calls.
+    await requireAccess(
+      world.db,
+      accountPrincipal(world.strangerId),
+      'VIEW_METADATA',
+      { applicantId: MADE_UP },
+      self,
+    );
   });
 
   /** The statements one gate call sends, with ids and literals reduced to their shape. */
@@ -380,6 +421,85 @@ describe('a made-up id and a real foreign id do the same database work', () => {
       });
     }
   }
+
+  it('a case hidden from a grantee by an exception does the same work as a made-up case', async () => {
+    const { db, ownerId, applicantId } = world;
+    // An agency with an accepted all-cases grant, and a second case the owner keeps from it.
+    const agentId = await account(db, `hidden-${randomUUID()}@acme.example.com`);
+    const org = await createOrganization(db, {
+      actorAccountId: agentId,
+      name: 'Hidden Case Agency',
+    });
+    if (!isOk(org)) throw new Error('org');
+    const reviewerId = await account(db, `reviewer-${randomUUID()}@platform.example.com`);
+    const reviewed = await reviewOrganization(db, {
+      reviewerAccountId: reviewerId,
+      organizationId: org.value.id,
+      decision: 'ACTIVE',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(reviewed)) throw new Error('review');
+    const grant = await createGrant(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['VIEW_METADATA', 'MANAGE'],
+      purpose: 'visa-review',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    if (!isOk(await acceptGrant(db, { actorAccountId: agentId, grantId: grant.value.id }))) {
+      throw new Error('accept');
+    }
+    const hiddenCase = await createMission(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      title: 'H',
+    });
+    if (!isOk(hiddenCase)) throw new Error('mission');
+    await db.insert(schema.grantCaseExclusions).values({
+      grantId: grant.value.id,
+      missionId: hiddenCase.value.id,
+      applicantId,
+      createdByAccountId: ownerId,
+    });
+    const asAgency: RequireAccessOptions = {
+      purpose: EACH_GRANT,
+      actingFor: { organizationId: org.value.id },
+    };
+    // The visible case is allowed; the hidden one is refused exactly like a made-up id.
+    const visible = await requireAccess(
+      db,
+      accountPrincipal(agentId),
+      'VIEW_METADATA',
+      { missionId: world.missionId },
+      asAgency,
+    );
+    expect(isOk(visible)).toBe(true);
+    const hidden = await requireAccess(
+      db,
+      accountPrincipal(agentId),
+      'VIEW_METADATA',
+      { missionId: hiddenCase.value.id },
+      asAgency,
+    );
+    const madeUp = await requireAccess(
+      db,
+      accountPrincipal(agentId),
+      'VIEW_METADATA',
+      { missionId: MADE_UP },
+      asAgency,
+    );
+    expect(hidden).toStrictEqual(madeUp);
+
+    const hiddenWork = await statements(
+      agentId,
+      'VIEW_METADATA',
+      { missionId: hiddenCase.value.id },
+      asAgency,
+    );
+    const madeUpWork = await statements(agentId, 'VIEW_METADATA', { missionId: MADE_UP }, asAgency);
+    expect(hiddenWork).toEqual(madeUpWork);
+  });
 
   it('a contributor claim does the same work for a made-up and a real case', async () => {
     const claim = { purpose: 'contributor', contributorRequestId: randomUUID() } as const;
