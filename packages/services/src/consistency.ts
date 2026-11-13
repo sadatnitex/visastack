@@ -6,7 +6,7 @@ import { AuthorizedApplicant } from './access';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import type { KeyManagementPort } from './ports';
 import { type FactVersion, revealFactVersionValue } from './profile';
 
@@ -240,7 +240,6 @@ export interface CompareFactVersionsInput {
   readonly encryption?: KeyManagementPort;
 }
 
-const VERSION_NOT_FOUND = 'That version is not available.';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -374,7 +373,9 @@ async function reveal(
 ): Promise<Result<string | null, ServiceError>> {
   if (version.protectedKeyVersion === null) return ok(version.value);
   if (!encryption) {
-    return err(serviceError('encryption_unavailable', 'This value cannot be shown right now.'));
+    return err(
+      keyedError('encryption_unavailable', 'consistency.this_value_cannot_be_shown_right'),
+    );
   }
   const value = await revealFactVersionValue(db, encryption, version);
   return value.ok ? ok(value.value) : err(value.error);
@@ -458,7 +459,7 @@ export async function compareFactVersions(
         reason: decision.reason,
       });
     });
-    return err(serviceError('forbidden', 'You do not have access to this history.'));
+    return err(keyedError('forbidden', 'consistency.you_do_not_have_access_to'));
   }
   return compareExactVersions(db, input);
 }
@@ -491,7 +492,7 @@ export async function compareAuthorizedFactVersions(
         });
       });
     }
-    return err(serviceError('forbidden', 'You do not have access to this history.'));
+    return err(keyedError('forbidden', 'consistency.you_do_not_have_access_to'));
   }
   return compareExactVersions(proof.tx, {
     ...input,
@@ -509,7 +510,7 @@ async function compareExactVersions(
     !UUID.test(input.priorFactVersionId) ||
     (input.currentFactVersionId !== undefined && !UUID.test(input.currentFactVersionId))
   ) {
-    return err(serviceError('not_found', VERSION_NOT_FOUND));
+    return err(keyedError('not_found', 'consistency.that_version_is_not_available'));
   }
 
   const priorRow = first(
@@ -533,11 +534,11 @@ async function compareExactVersions(
       )
       .limit(1),
   );
-  if (!priorRow) return err(serviceError('not_found', VERSION_NOT_FOUND));
+  if (!priorRow) return err(keyedError('not_found', 'consistency.that_version_is_not_available'));
   const { fact, key: fieldKey } = priorRow;
 
   const currentId = input.currentFactVersionId ?? fact.currentVersionId;
-  if (!currentId) return err(serviceError('not_found', VERSION_NOT_FOUND));
+  if (!currentId) return err(keyedError('not_found', 'consistency.that_version_is_not_available'));
   const current = first(
     await db
       .select()
@@ -548,7 +549,7 @@ async function compareExactVersions(
   const prior = priorRow.version;
   // The "current" side may not be older than the prior one.
   if (!current || current.createdAt.getTime() < prior.createdAt.getTime()) {
-    return err(serviceError('not_found', VERSION_NOT_FOUND));
+    return err(keyedError('not_found', 'consistency.that_version_is_not_available'));
   }
 
   const priorValue = await reveal(db, prior, input.encryption);

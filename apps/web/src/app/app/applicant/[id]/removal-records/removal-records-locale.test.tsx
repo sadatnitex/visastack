@@ -33,6 +33,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
+import { componentsMoreCatalog } from '../../../../../i18n/components-more';
 import { primeLocale } from '../../../../../lib/i18n-server';
 import { renderServer, textOf } from '../../../../../lib/next-mocks.test-support';
 
@@ -98,7 +99,12 @@ describe('the Removal Records page under Bengali', () => {
   it('shows the empty state in each language without a raw key', async () => {
     service.listDeletionReceipts.mockResolvedValue({ ok: true, value: [] });
     const text = await render('bn');
-    expect(text).toContain('Nothing has been removed from this record.');
+    // The shared list now carries its own Bengali line for this state.
+    expect(text).toContain(
+      componentsMoreCatalog.bn[
+        'componentsMore.lifecycleRemovalRecordList.nothingHasBeenRemovedFromThis'
+      ],
+    );
     expect(text).toContain(bn[`${K}removalRecords`]);
     expect(text).not.toMatch(/appApplicant\./);
     void en;

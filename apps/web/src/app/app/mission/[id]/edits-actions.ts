@@ -2,6 +2,7 @@
 
 import { setChecklistWording, tidyWording } from '@visastack/services';
 import type { FormResult } from '../../../../components/form-feedback';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { UUID, withCaseProof } from './with-case-proof';
 
 /**
@@ -29,7 +30,7 @@ export async function saveWordingAction(
       : typed;
   return withCaseProof(missionId, 'checklistWording', async (proof) => {
     const saved = await setChecklistWording(proof, { missionId, packRequirementId, wording });
-    if (!saved.ok) return { ok: false, message: saved.error.message };
+    if (!saved.ok) return { ok: false, message: await serviceErrorMessage(saved.error) };
     return {
       ok: true,
       message: saved.value.wording === null ? 'Original wording is back.' : 'Wording saved.',

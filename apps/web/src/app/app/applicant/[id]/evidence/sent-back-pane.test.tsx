@@ -29,6 +29,12 @@ vi.mock('./clearer-copy-panel', () => ({
   ),
 }));
 
+// The conversation is an async server component and this test mounts in the browser: it is not
+// what this test is about, so it is left out here (its own tests render it on the server).
+vi.mock('../../../../../components/request-thread/request-thread', () => ({
+  RequestThread: () => null,
+}));
+
 const { requestPanes } = await import('./request-panes');
 const { requestItemView } = await import('./request-item');
 

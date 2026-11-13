@@ -12,7 +12,7 @@ import { appendAuditEvent } from './audit';
 import { readOrganizationLogo } from './branding';
 import { type Db, first, schema } from './db';
 import { isEmailAddress } from './email-address';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { isMissingRelationError } from './missing-relation';
@@ -86,7 +86,7 @@ export function isGuestRetentionDays(value: unknown): value is GuestRetentionDay
 }
 
 function missing(): ServiceError {
-  return serviceError('not_found', 'no such document request');
+  return keyedError('not_found', 'umpe_guest_collection.no_such_document_request');
 }
 
 /** A live session and the open link it belongs to. Never leaves this module. */
@@ -629,9 +629,7 @@ export async function sendGuestCode(
   if (session.verified) return ok({ alreadyVerified: true });
   const email = usableEmail(session.emailHint);
   if (!email) {
-    return err(
-      serviceError('invalid', 'This request has no email address for a code. Ask the agency.'),
-    );
+    return err(keyedError('invalid', 'umpe_guest_collection.this_request_has_no_email_address'));
   }
   const decision = await checkRateLimits(
     db,
@@ -649,7 +647,7 @@ export async function sendGuestCode(
   );
   if (!decision.allowed) return err(serviceError('rate_limited', decision.reason));
   if (await linkGuestPathSpent(db, session.linkId))
-    return err(serviceError('invalid', SPENT_MESSAGE));
+    return err(keyedError('invalid', 'umpe_guest_collection.this_link_can_no_longer_be'));
   const code = (input.generateCode ?? sixDigits)();
   if (normalizeGuestCode(code) !== code) throw new Error('a guest code must be six digits');
   const codeId = randomUUID();
@@ -845,7 +843,7 @@ export async function saveGuestRetentionChoice(
   const session = await liveSessionFor(db, proof, now);
   if (!session?.verified) return err(missing());
   if (!isGuestRetentionDays(days)) {
-    return err(serviceError('invalid', 'Choose how long the agency may keep your files.'));
+    return err(keyedError('invalid', 'umpe_guest_collection.choose_how_long_the_agency_may'));
   }
   return db.transaction(async (tx) => {
     const saved = await tx

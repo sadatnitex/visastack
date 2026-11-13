@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { componentsMoreCatalog } from '../i18n/components-more';
+import { getT } from '../lib/i18n-server';
 import { caseRowProgressWords, progressRingPercent } from '../lib/readiness-words';
 import { caseStatus } from '../lib/status-words';
 import { CountryFlag } from './country-flag';
@@ -100,7 +102,7 @@ function Progress({ progress }: { readonly progress: CaseRowProgress }) {
  * round flag, the name on one line, the country and purpose, the stage chip on its own line, the
  * count with a bar, one next step, and a chevron. The whole card is one link.
  */
-export function CaseListRow({
+export async function CaseListRow({
   id,
   title,
   state,
@@ -113,6 +115,7 @@ export function CaseListRow({
   href,
   purposeIcon,
 }: CaseListRowProps) {
+  const t = await getT(componentsMoreCatalog);
   const status = caseStatus(state);
   const country = destination?.trim() ? destination : null;
   const purposeText = purpose?.trim() ? purpose : null;
@@ -159,7 +162,7 @@ export function CaseListRow({
           <Progress progress={progress} />
           {step ? (
             <span className="trip-card-next" data-value="next">
-              Next: {step}
+              {t.node('componentsMore.caseListRow.nextStep', { step })}
             </span>
           ) : null}
         </span>

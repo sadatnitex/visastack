@@ -26,14 +26,13 @@ import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, asc, count, eq } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import {
-  COMPANION_UNAVAILABLE,
   type TripCompanionAccess,
   companionsReady,
   tripCompanionAccessProblem,
 } from './access/trip-companion-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -55,11 +54,6 @@ const OPTIONS_PAGE = 200;
 const OPTIONS_SCAN_LIMIT = 5000;
 
 export const COMPANION_PAPERS_NOT_AVAILABLE = 'Choosing papers is not switched on yet.';
-const LEVEL_FIRST = 'Choose Travel Bookings first.';
-const NOT_SHAREABLE =
-  'Only bookings, itineraries, invitations and accommodation papers can be shown to the organiser.';
-const PAPER_NOT_AVAILABLE = 'That paper is not available.';
-const TOO_MANY = `You can show up to ${COMPANION_PAPERS_MAX} papers.`;
 
 /** One of the companion's own papers, as the companion sees it. */
 export interface CompanionPaperView {
@@ -121,7 +115,9 @@ export async function listMyTripPapers(
   const problem = tripCompanionAccessProblem(access, 'JOINED');
   if (problem) return err(problem);
   if (!(await companionsReady(db)) || !(await liveRow(db, access))) {
-    return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   }
   if (!(await tripCompanionPapersTablePresent(db))) {
     return ok({ available: false, chosen: [], options: [] });
@@ -207,11 +203,13 @@ export async function chooseTripPaper(
     paper.applicant.relationship !== 'SELF' ||
     paper.resource.document.applicantId !== paper.applicant.id
   ) {
-    return err(serviceError('not_found', PAPER_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companion_papers.that_paper_is_not_available'));
   }
   const documentId = paper.resource.document.id;
   if (!(await companionsReady(db)) || !(await tripCompanionPapersTablePresent(db))) {
-    return err(serviceError('invalid', COMPANION_PAPERS_NOT_AVAILABLE));
+    return err(
+      keyedError('invalid', 'umpe_trip_companion_papers.choosing_papers_is_not_switched_on'),
+    );
   }
   return db.transaction(async (tx) => {
     const companions = schema.umpeTripCompanions;
@@ -230,8 +228,12 @@ export async function chooseTripPaper(
         .limit(1)
         .for('update'),
     );
-    if (!row) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
-    if (row.shareLevel !== 'TRAVEL_BOOKINGS') return err(serviceError('invalid', LEVEL_FIRST));
+    if (!row)
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
+    if (row.shareLevel !== 'TRAVEL_BOOKINGS')
+      return err(keyedError('invalid', 'umpe_trip_companion_papers.choose_travel_bookings_first'));
     // The paper is read again here: still theirs, still present, still a travel paper kind.
     const lifecycle = await lifecycleTablesPresent(tx);
     const doc = first(
@@ -252,9 +254,15 @@ export async function chooseTripPaper(
         )
         .limit(1),
     );
-    if (!doc) return err(serviceError('not_found', PAPER_NOT_AVAILABLE));
+    if (!doc)
+      return err(keyedError('not_found', 'umpe_trip_companion_papers.that_paper_is_not_available'));
     if (!isCommonTripEvidenceType(doc.docType)) {
-      return err(serviceError('invalid', NOT_SHAREABLE));
+      return err(
+        keyedError(
+          'invalid',
+          'umpe_trip_companion_papers.only_bookings_itineraries_invitations_and_accommodation',
+        ),
+      );
     }
     const papers = schema.umpeTripCompanionPapers;
     const already = first(
@@ -272,7 +280,9 @@ export async function chooseTripPaper(
         .where(eq(papers.companionId, access.companionId)),
     );
     if (Number(have?.n ?? 0) >= COMPANION_PAPERS_MAX) {
-      return err(serviceError('invalid', TOO_MANY));
+      return err(
+        keyedError('invalid', 'umpe_trip_companion_papers.too_many', { max: COMPANION_PAPERS_MAX }),
+      );
     }
     await tx.insert(papers).values({ companionId: access.companionId, documentId });
     await appendAuditEvent(tx, {
@@ -305,7 +315,10 @@ export async function removeTripPaper(
     return ok({ removed: false });
   }
   return db.transaction(async (tx) => {
-    if (!(await liveRow(tx, access))) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    if (!(await liveRow(tx, access)))
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
     const papers = schema.umpeTripCompanionPapers;
     const gone = await tx
       .delete(papers)

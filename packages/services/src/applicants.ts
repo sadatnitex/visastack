@@ -3,7 +3,7 @@ import { and, asc, desc, eq, getTableColumns, not } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import {
   everydayApplicantCondition,
   presentApplicantCondition,
@@ -141,29 +141,21 @@ export async function createApplicant(
   input: CreateApplicantInput,
 ): Promise<Result<Applicant, ServiceError>> {
   if (input.actorAccountId !== input.ownerAccountId) {
-    return err(serviceError('forbidden', 'applicants may only be created by their owning account'));
+    return err(keyedError('forbidden', 'applicants.applicants_may_only_be_created_by'));
   }
   const displayName = input.displayName.trim();
   if (displayName.length === 0) {
-    return err(serviceError('invalid', 'a display name is required'));
+    return err(keyedError('invalid', 'applicants.a_display_name_is_required'));
   }
   if (!(await hasConsent(db, input.ownerAccountId, 'CORE_PROCESSING'))) {
     return err(
-      serviceError(
-        'consent_required',
-        'Core processing consent is required before creating records',
-      ),
+      keyedError('consent_required', 'applicants.core_processing_consent_is_required_before'),
     );
   }
 
   const relationship = input.relationship ?? 'SELF';
   if (relationship !== 'SELF' && !input.authorityConfirmed) {
-    return err(
-      serviceError(
-        'invalid',
-        'confirm you have authority to create a record for this person before continuing',
-      ),
-    );
+    return err(keyedError('invalid', 'applicants.confirm_you_have_authority_to_create'));
   }
   const authorityConfirmedAt =
     relationship !== 'SELF' && input.authorityConfirmed ? new Date() : null;

@@ -1,5 +1,9 @@
-import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { renderServer } from '../../lib/next-mocks.test-support';
+
+vi.mock('server-only', () => ({}));
+vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
+
 import {
   REMOVAL_STATUS_LABELS,
   RemovalRecordList,
@@ -89,30 +93,30 @@ describe('who asked and when', () => {
       ),
     ).toBe('Asked from your account on 3 Nov 2026 at 14:05 UTC. Approved by VisaStack support.');
   });
-  it('shows no detail line for a row that carries none, and renders it under the sentence', () => {
+  it('shows no detail line for a row that carries none, and renders it under the sentence', async () => {
     expect(removalRecordDetail(row())).toBeNull();
-    const html = renderToStaticMarkup(
+    const html = await renderServer(
       <RemovalRecordList
         records={[row({ requestedAt: asked, requestedBy: 'OWNER_ACCOUNT' })]}
         now={NOW}
       />,
     );
     expect(html).toContain('Asked from your account on 3 Nov 2026 at 14:05 UTC.');
-    expect(renderToStaticMarkup(<RemovalRecordList records={[row()]} now={NOW} />)).not.toContain(
+    expect(await renderServer(<RemovalRecordList records={[row()]} now={NOW} />)).not.toContain(
       'Asked from',
     );
   });
 });
 
 describe('RemovalRecordList', () => {
-  it('shows ten records, then the rest behind Show More', () => {
+  it('shows ten records, then the rest behind Show More', async () => {
     const rows = Array.from({ length: 12 }, (_, i) => row({ id: `r${i}` }));
-    const html = renderToStaticMarkup(<RemovalRecordList records={rows} now={NOW} />);
+    const html = await renderServer(<RemovalRecordList records={rows} now={NOW} />);
     expect(html.split('class="lc-record"').length - 1).toBe(12);
     expect(html).toContain('<summary>Show More (2)</summary>');
   });
-  it('says so when nothing has been removed', () => {
-    expect(renderToStaticMarkup(<RemovalRecordList records={[]} />)).toContain(
+  it('says so when nothing has been removed', async () => {
+    expect(await renderServer(<RemovalRecordList records={[]} />)).toContain(
       'Nothing has been removed from this record.',
     );
   });

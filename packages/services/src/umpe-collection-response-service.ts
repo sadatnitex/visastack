@@ -18,7 +18,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import {
   everydayDocumentCondition,
   presentDocumentCondition,
@@ -96,7 +96,7 @@ function notWithdrawn() {
 }
 
 function closed(): ServiceError {
-  return serviceError('not_found', 'this request link is not open');
+  return keyedError('not_found', 'umpe_collection_response_service.this_request_link_is_not_open');
 }
 
 /** The open, intact request this link names, for an account allowed to answer it, or null. */
@@ -333,7 +333,7 @@ export async function proposeCollectionResponse(
 ): Promise<Result<ResponseProposal, ServiceError>> {
   if (!GuestCollectionSessionProof.isGenuine(session)) return err(closed());
   if (!AuthorizedApplicant.isGenuine(person, 'VIEW_METADATA') || notOwner(person)) {
-    return err(serviceError('not_found', 'record not found'));
+    return err(keyedError('not_found', 'umpe_collection_response_service.record_not_found'));
   }
   const now = options.now ?? new Date();
   const desk = await loadDesk(db, session, person.applicant.ownerAccountId, now);
@@ -396,14 +396,21 @@ export async function submitCollectionResponse(
 ): Promise<Result<SubmittedResponse, ServiceError>> {
   if (!GuestCollectionSessionProof.isGenuine(session)) return err(closed());
   if (!AuthorizedApplicant.isGenuine(person, 'SHARE') || notOwner(person)) {
-    return err(serviceError('not_found', 'record not found'));
+    return err(keyedError('not_found', 'umpe_collection_response_service.record_not_found'));
   }
   const accountId = person.applicant.ownerAccountId;
   if (input.consentVersion !== RESPONSE_CONSENT_VERSION) {
-    return err(serviceError('invalid', 'Agree to share before you submit.'));
+    return err(
+      keyedError('invalid', 'umpe_collection_response_service.agree_to_share_before_you_submit'),
+    );
   }
   if (!(await collectionResponsesPresent(db))) {
-    return err(serviceError('upstream_error', 'Answering requests is not available yet.'));
+    return err(
+      keyedError(
+        'upstream_error',
+        'umpe_collection_response_service.answering_requests_is_not_available_yet',
+      ),
+    );
   }
   const applicantId = person.applicant.id;
   return db.transaction(async (tx) => {
@@ -419,11 +426,16 @@ export async function submitCollectionResponse(
     // replaced by another request's link (another tab) must never receive this answer.
     if (desk.linkId !== input.linkId || desk.revisionId !== input.revisionId) {
       return err(
-        serviceError('invalid', 'This page is out of date. Open the request again and check it.'),
+        keyedError('invalid', 'umpe_collection_response_service.this_page_is_out_of_date'),
       );
     }
     if (!desk.agencyReviewed) {
-      return err(serviceError('forbidden', 'This agency has not been reviewed by VisaStack yet.'));
+      return err(
+        keyedError(
+          'forbidden',
+          'umpe_collection_response_service.this_agency_has_not_been_reviewed',
+        ),
+      );
     }
     const organizationId = desk.organizationId;
     const evidence = await personEvidence(tx, applicantId, desk.items, undefined);
@@ -460,7 +472,10 @@ export async function submitCollectionResponse(
     ]);
     if (!limited.allowed) {
       return err(
-        serviceError('rate_limited', 'Too many answers were sent just now. Try again in an hour.'),
+        keyedError(
+          'rate_limited',
+          'umpe_collection_response_service.too_many_answers_were_sent_just',
+        ),
       );
     }
     const responses = schema.agencyCollectionResponses;
@@ -658,7 +673,7 @@ export async function listOwnCollectionResponses(
     !AuthorizedApplicant.isGenuine(person, 'VIEW_METADATA') ||
     person.actor.kind !== 'applicant_owner'
   ) {
-    return err(serviceError('not_found', 'record not found'));
+    return err(keyedError('not_found', 'umpe_collection_response_service.record_not_found'));
   }
   if (!(await collectionResponsesPresent(db))) return ok([]);
   const responses = schema.agencyCollectionResponses;
@@ -734,9 +749,9 @@ export async function withdrawCollectionResponse(
   now: Date = new Date(),
 ): Promise<Result<{ readonly withdrawnAt: Date }, ServiceError>> {
   if (!AuthorizedApplicant.isGenuine(person, 'MANAGE') || person.actor.kind !== 'applicant_owner') {
-    return err(serviceError('not_found', 'record not found'));
+    return err(keyedError('not_found', 'umpe_collection_response_service.record_not_found'));
   }
-  const notFound = err(serviceError('not_found', 'no such answer'));
+  const notFound = err(keyedError('not_found', 'umpe_collection_response_review.no_such_answer'));
   if (!isUuid(responseId) || !(await collectionResponsesPresent(db))) return notFound;
   const actorAccountId = person.applicant.ownerAccountId;
   return db.transaction(async (tx) => {
@@ -888,7 +903,8 @@ export async function readCollectionResponse(
       )
       .limit(1),
   );
-  if (!response) return err(serviceError('not_found', 'no such response'));
+  if (!response)
+    return err(keyedError('not_found', 'umpe_collection_response_service.no_such_response'));
   const revision = first(
     await db
       .select()

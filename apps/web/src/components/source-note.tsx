@@ -1,11 +1,14 @@
 import type { DestinationSource } from '@visastack/core/destinations';
+import { componentsMoreCatalog } from '../i18n/components-more';
 import { checkedOnLabel, trustNotes } from '../lib/country-view';
+import { getT } from '../lib/i18n-server';
 
 /**
  * Where a country fact came from: the page, who published it, when it was checked, and any warning about
  * how far to rely on it. Every fact on the country screens carries one, so nobody has to guess.
  */
-export function SourceNote({ source }: { readonly source: DestinationSource | null }) {
+export async function SourceNote({ source }: { readonly source: DestinationSource | null }) {
+  const t = await getT(componentsMoreCatalog);
   const notes = trustNotes(source);
   return (
     <div className="source-note">
@@ -26,7 +29,7 @@ export function SourceNote({ source }: { readonly source: DestinationSource | nu
       ))}
       {source?.exactWords ? (
         <details className="source-note-words">
-          <summary>Words Copied from the Source</summary>
+          <summary>{t.node('componentsMore.sourceNote.wordsCopiedFromTheSource')}</summary>
           <p>{source.exactWords}</p>
         </details>
       ) : null}
