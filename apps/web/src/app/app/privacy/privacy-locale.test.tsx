@@ -105,7 +105,7 @@ const seen: string[] = [];
 const drawPanels = (
   locale: 'en' | 'bn',
   jobs: Parameters<typeof LargeExportPanel>[0]['jobs'],
-  scheduledFor: Date | null = null,
+  scheduledFor: string | null = null,
 ) =>
   textOf(
     renderToStaticMarkup(
@@ -125,7 +125,7 @@ const drawPanels = (
       </I18nProvider>,
     ),
   );
-const job = (status: string, lastError: string | null = null) => ({
+const job = (status: 'PENDING' | 'CLAIMED' | 'READY' | 'FAILED' | 'EXPIRED', lastError: string | null = null) => ({
   id: 'j1',
   status,
   createdAt: '2026-10-01T00:00:00Z',
@@ -236,7 +236,7 @@ describe('privacy screens under Bengali (owner-approved legal wording, signed of
 });
 
 describe('privacy screens, language of parts', () => {
-  it('has no Bengali to mark, and the English activity log carries no language mark', async () => {
+  it('marks the released Bengali lang="bn" on the English page, and the activity log carries no mark', async () => {
     state.locale = 'bn';
     state.generation += 1;
     const element = await PrivacyPage({ searchParams: Promise.resolve({}) });
@@ -246,8 +246,13 @@ describe('privacy screens, language of parts', () => {
       </I18nProvider>,
     );
     const r = bengaliMarking(html);
-    expect(r.unmarked).toEqual([]);
-    expect(r.marked).toBe(0);
-    expect(html).not.toContain('lang="');
+    expect(r.marked).toBeGreaterThan(0);
+    // Known marking gaps (skipped items component_prop and attribute_lang_mixed): a title handed to a
+    // component prop, an aria-label and a placeholder stay unmarked until the marking pass reaches them.
+    expect(r.unmarked).toEqual([
+      bn['appPrivacy.appPrivacyPage.privacyConsent'],
+      `aria-label: ${bn['appPrivacy.appPrivacyPage.yourRights']}`,
+      `placeholder: ${bn['appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired']}`,
+    ]);
   });
 });

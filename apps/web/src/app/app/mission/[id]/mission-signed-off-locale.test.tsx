@@ -61,7 +61,7 @@ const show = (node: React.ReactNode) =>
   act(() =>
     root.render(
       <I18nProvider locale="bn" pageLang="bn">
-        <ShareOriginsProvider appOrigin="https://vs.example.test">{node}</ShareOriginsProvider>
+        <ShareOriginsProvider origin="https://vs.example.test">{node}</ShareOriginsProvider>
       </I18nProvider>,
     ),
   );

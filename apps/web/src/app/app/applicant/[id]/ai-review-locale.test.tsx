@@ -73,7 +73,7 @@ describe('AI review under Bengali', () => {
     expect(text).toContain(bn[`${K}sensitive`]);
     expect(host.querySelectorAll('.finding-card .badge')).toHaveLength(3);
     // One badge is the sensitive one; the Bengali AI wording (signed off 2026-11-12) sits beside it.
-    expect(text.split(bn[`${K}sensitive`])).toHaveLength(2);
+    expect(text.split(bn[`${K}sensitive`] as string)).toHaveLength(2);
   });
 
   it('shows no Sensitive badge when nothing is sensitive, for a clear and a to-check detail', () => {
