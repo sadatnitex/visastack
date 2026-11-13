@@ -184,6 +184,50 @@ async function missionBelongsTo(db: Db, missionId: string, applicantId: string):
 }
 
 /**
+ * Whether the account has ANY relationship with this traveller beyond ownership: it is the named
+ * recipient of a grant on them (whatever its state), or belongs (in any state) to an organization
+ * that holds one. A signed-in stranger has none of these. The services that refuse a caller who
+ * lacks one specific right (`forbidden`) use this to answer a stranger exactly as they answer an
+ * id that does not exist, so a real case or request cannot be told apart from a made-up one.
+ * Never used to grant anything.
+ */
+async function hasAnyStandingOnApplicant(
+  db: Db,
+  accountId: string,
+  applicantId: string,
+): Promise<boolean> {
+  const grantRows = await db
+    .select({
+      recipientAccountId: schema.grants.recipientAccountId,
+      recipientOrganizationId: schema.grants.recipientOrganizationId,
+    })
+    .from(schema.grants)
+    .where(eq(schema.grants.applicantId, applicantId));
+  if (grantRows.some((row) => row.recipientAccountId === accountId)) return true;
+  const organizationIds = [
+    ...new Set(
+      grantRows.flatMap((row) =>
+        row.recipientOrganizationId ? [row.recipientOrganizationId] : [],
+      ),
+    ),
+  ];
+  if (organizationIds.length === 0) return false;
+  const membership = first(
+    await db
+      .select({ id: schema.memberships.id })
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, accountId),
+          inArray(schema.memberships.organizationId, organizationIds),
+        ),
+      )
+      .limit(1),
+  );
+  return membership !== undefined;
+}
+
+/**
  * True if the account is an active member (any role) of the organization.
  * Exported for `apps/web`'s org console page (finding #31, post-programme
  * defect register): the page used to gate its ENTIRE mission-collaboration
@@ -1424,6 +1468,11 @@ export async function addNote(
   }
 
   if (!authorized) {
+    const stranger = !(await hasAnyStandingOnApplicant(
+      db,
+      input.actorAccountId,
+      mission.applicantId,
+    ));
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'MISSION_NOTE_DENIED',
@@ -1436,6 +1485,10 @@ export async function addNote(
         resourceId: null,
       });
     });
+    // Someone with no relationship to this traveller at all is answered exactly like an unknown
+    // case id, so a real case cannot be told apart from a made-up one. The denied attempt is
+    // still recorded above.
+    if (stranger) return err(serviceError('not_found', 'case not found'));
     return err(serviceError('forbidden', 'not authorized to comment on this case'));
   }
 
@@ -3804,6 +3857,10 @@ export async function listEvidenceRequestDecisions(
       request.missionId ?? undefined,
     ));
   if (!isOwner && !isAuthorizedOrgMember) {
+    // A stranger gets exactly what an unknown request id gets.
+    if (!(await hasAnyStandingOnApplicant(db, actorAccountId, request.applicantId))) {
+      return err(serviceError('not_found', 'evidence request not found'));
+    }
     return err(serviceError('forbidden', 'not authorized to view this request'));
   }
 
@@ -4208,6 +4265,13 @@ export async function listMissionDecisions(
       }
     }
     if (!authorized) {
+      // A stranger gets exactly what an unknown case id gets.
+      if (
+        assignments.length === 0 &&
+        !(await hasAnyStandingOnApplicant(db, actorAccountId, mission.applicantId))
+      ) {
+        return err(serviceError('not_found', 'case not found'));
+      }
       return err(serviceError('forbidden', 'not authorized to view decisions on this case'));
     }
   }
