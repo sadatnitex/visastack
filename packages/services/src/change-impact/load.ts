@@ -193,8 +193,18 @@ export interface DetailSubject {
   /** The sharing category the detail belongs to, when it has one. */
   readonly category: string | null;
   readonly currentVersionId: string | null;
-  /** Every saved value, oldest first: ids and times only, never a value. */
-  readonly versions: readonly { readonly id: string; readonly savedAt: Date }[];
+  /**
+   * Every saved value, oldest first: ids, times and one yes-or-no, never a value.
+   * `sameAsCurrent` is true for the current saved value itself and for any other saved value
+   * whose stored text is exactly the current one (saving a detail again without changing it
+   * still records a new saved value). For a detail stored protected nothing is compared, because
+   * this read never opens a protected value: only the current saved value itself is "the same".
+   */
+  readonly versions: readonly {
+    readonly id: string;
+    readonly savedAt: Date;
+    readonly sameAsCurrent: boolean;
+  }[];
 }
 
 /**
@@ -222,11 +232,29 @@ export async function lockDetailSubject(
     .where(and(eq(schema.facts.id, factId), eq(schema.facts.applicantId, access.applicant.id)))
     .for('share', { of: schema.facts });
   if (!row) return undefined;
-  const versions = await tx
-    .select({ id: schema.factVersions.id, savedAt: schema.factVersions.createdAt })
+  // The stored text is read only to compare it with the current one, here, in memory. It is
+  // never returned, logged or passed on: what leaves this function is the yes-or-no.
+  const stored = await tx
+    .select({
+      id: schema.factVersions.id,
+      savedAt: schema.factVersions.createdAt,
+      value: schema.factVersions.value,
+      protectedKeyVersion: schema.factVersions.protectedKeyVersion,
+    })
     .from(schema.factVersions)
     .where(eq(schema.factVersions.factId, row.id))
     .orderBy(asc(schema.factVersions.createdAt), asc(schema.factVersions.id));
+  const current = stored.find((version) => version.id === row.currentVersionId);
+  const isPlain = (version: (typeof stored)[number]) => version.protectedKeyVersion === null;
+  const versions = stored.map((version) => ({
+    id: version.id,
+    savedAt: version.savedAt,
+    sameAsCurrent:
+      current !== undefined &&
+      (version.id === current.id ||
+        // Exact equality of the stored text: no trimming, no case folding.
+        (isPlain(version) && isPlain(current) && version.value === current.value)),
+  }));
   return { ...row, versions };
 }
 

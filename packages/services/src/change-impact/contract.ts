@@ -39,8 +39,10 @@
  *
  * UNKNOWN            The stored records cannot settle it: an answer sent before exact versions
  *                    were kept, a finished case with no saved copy whose detail changed, stored
- *                    history that is missing or contradicts itself, or a part of the record that
- *                    could not be read. Said plainly, never guessed in either direction.
+ *                    history that is missing or contradicts itself, a part of the record that
+ *                    could not be read, or an answer to an agency's checklist that holds the
+ *                    earlier copy or value (its review is not part of this read). Said plainly,
+ *                    never guessed in either direction.
  *
  * Distinctions that hold everywhere:
  * - A document is not a version. A send pins one exact copy; a newer document never replaces it.
@@ -98,6 +100,9 @@ export const IMPACT_REASON_OUTCOME = {
   RECORD_INCOMPLETE: 'UNKNOWN',
   // One part of the record could not be read this time.
   COULD_NOT_CHECK: 'UNKNOWN',
+  // A live answer to an agency's checklist holds the earlier copy or value; where that answer
+  // stands is shown in Your Answers, not here.
+  CHECKLIST_ANSWER_HOLDS_EARLIER: 'UNKNOWN',
 
   // A finished case keeps the earlier copy or value in its saved copy.
   FINISHED_CASE_KEPT: 'HISTORY_PRESERVED',
@@ -135,6 +140,7 @@ export type ImpactAbout =
       readonly source: 'EVIDENCE_REQUEST' | 'COLLECTION_RESPONSE';
       readonly requestId: string;
       readonly organizationId: string;
+      /** Empty when the agency is not active; the interface then names no agency. */
       readonly organizationName: string;
       /** The case the request belongs to, when it names one the traveller can still open. */
       readonly missionId: string | null;

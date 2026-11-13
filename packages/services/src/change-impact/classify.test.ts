@@ -43,8 +43,25 @@ describe('a case and a replaced document', () => {
 });
 
 describe('a case and a changed detail', () => {
-  const detail = { currentVersionId: 'v2', savedValues: 2 };
-  const once = { currentVersionId: 'v1', savedValues: 1 };
+  const detail = {
+    currentVersionId: 'v2',
+    savedValues: 2,
+    sameValueIds: new Set(['v2']),
+    valueChanged: true,
+  };
+  const once = {
+    currentVersionId: 'v1',
+    savedValues: 1,
+    sameValueIds: new Set(['v1']),
+    valueChanged: false,
+  };
+  /** Saved again unchanged: two saved values, the same text. */
+  const resaved = {
+    currentVersionId: 'v2',
+    savedValues: 2,
+    sameValueIds: new Set(['v1', 'v2']),
+    valueChanged: false,
+  };
   const base: DetailCaseFacts = {
     ...CASE,
     live: true,
@@ -70,6 +87,17 @@ describe('a case and a changed detail', () => {
     expect(reason({ recorded: recorded('INEXACT') })).toBe('RECORD_INCOMPLETE');
     expect(reason({}, once)).toBe('LIVE_CASE_FOLLOWS_CURRENT');
     expect(reason({ selects: false })).toBeNull();
+  });
+
+  it('treats a value saved again unchanged as the current value, except for a void confirmation', () => {
+    const finished = { live: false, everConfirmed: false };
+    // A finished case whose copy names the earlier saved value with the same text: nothing to say.
+    expect(reason(finished, resaved)).toBeNull();
+    expect(reason({ ...finished, recorded: recorded('NO_COPY') }, resaved)).toBeNull();
+    expect(reason({ ...finished, recorded: recorded('INEXACT') }, resaved)).toBeNull();
+    // A live case whose confirmation was voided by the save must still be confirmed again.
+    expect(reason({}, resaved)).toBe('LIVE_CASE_CONFIRMATION_VOID');
+    expect(reason({ confirmationLive: true }, resaved)).toBe('LIVE_CASE_FOLLOWS_CURRENT');
   });
 
   it('judges a finished case by its saved copy', () => {

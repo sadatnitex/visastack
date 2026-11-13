@@ -78,10 +78,30 @@ export async function assessDetailChangeImpact(
     const versionIds = new Set(subject.versions.map((version) => version.id));
     const current = subject.versions.find((version) => version.id === subject.currentVersionId);
     const newest = subject.versions[subject.versions.length - 1];
+    // Saving a detail again without changing it records a new saved value. Wherever the rules
+    // ask "is this the current value", a saved value with exactly the current text is the
+    // current value (the reader compares; no value comes this far). A protected detail is never
+    // opened here, so for it only the current saved value itself counts.
+    const sameValueIds = new Set(
+      subject.versions.filter((version) => version.sameAsCurrent).map((version) => version.id),
+    );
     const detail: DetailFacts = {
       currentVersionId: subject.currentVersionId,
       savedValues: subject.versions.length,
+      sameValueIds,
+      valueChanged: subject.versions.some((version) => !version.sameAsCurrent),
     };
+    // The moment from which the detail has held its current value without interruption: the
+    // start of the run of saved values, up to the newest, that all hold it. Null when the newest
+    // saved value is not the current one.
+    let heldSince: Date | null = null;
+    if (newest !== undefined && current !== undefined && newest.id === current.id) {
+      for (let i = subject.versions.length - 1; i >= 0; i -= 1) {
+        const version = subject.versions[i];
+        if (!version?.sameAsCurrent) break;
+        heldSince = version.savedAt;
+      }
+    }
     const drafts: DraftItem[] = [];
 
     // Cases.
@@ -160,18 +180,13 @@ export async function assessDetailChangeImpact(
 
     // Sends to agencies, each judged on its latest round.
     /**
-     * A send recorded before exact values were kept could have carried another value unless the
-     * detail has only ever had one, or the send is provably later than the current value (which
-     * must also be the newest one saved).
+     * A send recorded before exact values were kept could have carried another value unless no
+     * saved value differs from the current one, or the send is provably later than the moment
+     * the detail came to hold its current value.
      */
     const couldDiffer = (sentAt: Date | null): boolean => {
-      if (detail.savedValues <= 1) return false;
-      const provablyCurrent =
-        sentAt !== null &&
-        current !== undefined &&
-        newest?.id === current.id &&
-        sentAt.getTime() >= current.savedAt.getTime();
-      return !provablyCurrent;
+      if (!detail.valueChanged) return false;
+      return !(sentAt !== null && heldSince !== null && sentAt.getTime() >= heldSince.getTime());
     };
     const rules: SendRules = {
       carriesOf: (round) => {
@@ -181,7 +196,7 @@ export async function assessDetailChangeImpact(
         }
         if (round.send.subjectId !== factId) return 'OTHER';
         if (!round.send.intact) return 'BROKEN';
-        return round.send.versionId === subject.currentVersionId ? 'CURRENT' : 'EARLIER';
+        return sameValueIds.has(round.send.versionId) ? 'CURRENT' : 'EARLIER';
       },
       waitingSendMatches: () => true,
       carriedWithoutRecord: (respondingId) =>
@@ -206,7 +221,7 @@ export async function assessDetailChangeImpact(
         ...collectionAnswerDrafts(answers, (answer) =>
           answer.carriedIds.length === 0
             ? 'OTHER'
-            : answer.carriedIds.every((id) => id === subject.currentVersionId)
+            : answer.carriedIds.every((id) => sameValueIds.has(id))
               ? 'CURRENT'
               : 'EARLIER',
         ),

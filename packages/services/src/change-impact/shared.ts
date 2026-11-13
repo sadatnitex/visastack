@@ -9,7 +9,6 @@ import {
   agencyRequestItem,
   agencyWorkIsLive,
   classifySend,
-  couldNotCheck,
   requestStanding,
 } from './classify';
 import {
@@ -120,22 +119,21 @@ export function evidenceRequestItem(history: RequestHistory, rules: SendRules): 
 }
 
 /**
- * The traveller's live answers to agency checklists. An answer that holds the current copy or
- * value needs nothing, whatever the agency decided. For one that holds the earlier copy or value
- * the agency's decision would settle the outcome, and a traveller's read may not read it (see
- * `collectionAnswersCarrying`): rather than guess between "still checking", "accepted" and "sent
- * back", the agency part of the record is reported as not fully checked.
+ * The traveller's live answers to agency checklists, one item each. An answer that holds the
+ * current copy or value needs nothing, whatever the agency decided. For one that holds the
+ * earlier copy or value, where it stands (still being checked, accepted, sent back) is the
+ * agency's review, which is not part of this read by design (see `collectionAnswersCarrying`):
+ * the item says the answer holds the earlier copy or value and points at the answer itself,
+ * never guessing its state. Nothing failed, so the read stays complete.
  */
 export function collectionAnswerDrafts(
   answers: readonly CollectionAnswer[],
   carriesOf: (answer: CollectionAnswer) => SendCarries,
 ): DraftItem[] {
   const drafts: DraftItem[] = [];
-  let earlierHeld = false;
   for (const answer of answers) {
     const carries = carriesOf(answer);
-    if (carries === 'EARLIER') earlierHeld = true;
-    if (carries !== 'CURRENT') continue;
+    if (carries !== 'CURRENT' && carries !== 'EARLIER') continue;
     drafts.push(
       agencyRequestItem(
         {
@@ -149,11 +147,10 @@ export function collectionAnswerDrafts(
           decidedAt: null,
           createdAt: answer.submittedAt,
         },
-        'AGENCY_HOLDS_CURRENT',
+        carries === 'CURRENT' ? 'AGENCY_HOLDS_CURRENT' : 'CHECKLIST_ANSWER_HOLDS_EARLIER',
       ),
     );
   }
-  if (earlierHeld) drafts.push(couldNotCheck('AGENCY_REQUESTS'));
   return drafts;
 }
 

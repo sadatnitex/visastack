@@ -45,10 +45,11 @@ import {
  * values. Agency B asks for a passport and the employment detail through its own checklist link;
  * the traveller answers from their record through the real services.
  *
- * What the agency then decides about the answer is kept in tables for the asking agency alone,
- * which a traveller's read may not read. So an answer that holds the earlier copy or value cannot
- * be classified, and the read says so (the agency part "could not be checked", `complete: false`)
- * instead of guessing; an answer that holds the current copy or value needs nothing either way.
+ * What the agency then decides about the answer is its own review, kept for the asking agency
+ * alone and not part of this read by design. So an answer that holds the earlier copy or value
+ * gets its own item that says exactly that and points at the answer, never a guess at its state;
+ * nothing failed, so the read stays complete. An answer that holds the current copy or value
+ * needs nothing either way.
  */
 
 const STEP_UP_SECRET = 'impact-collection-step-up-secret';
@@ -212,7 +213,7 @@ describe('an answered agency checklist', () => {
   });
 
   it(
-    'needs nothing while it holds what is current, and is never guessed at once it holds the earlier copy or value',
+    'needs nothing while it holds what is current, and is named but never guessed at once it holds the earlier copy or value',
     async () => {
       const w = await buildImpactWorld();
       await officialChecklist(w);
@@ -225,6 +226,11 @@ describe('an answered agency checklist', () => {
 
       // Before the detail changes, the answer holds its current value: nothing to do.
       expect((await readDetailImpact(w)).complete).toBe(true);
+      // A preview of replacing the passport already says the answer would hold the earlier copy.
+      const preview = await readDocumentImpact(w);
+      expect(preview.phase).toBe('PREVIEW');
+      expect(itemOf(preview, id).reason).toBe('CHECKLIST_ANSWER_HOLDS_EARLIER');
+      expect(preview.complete).toBe(true);
       expect(itemOf(await readDetailImpact(w), id)).toEqual({
         id,
         outcome: 'NO_ACTION',
@@ -248,21 +254,33 @@ describe('an answered agency checklist', () => {
       await changeEmploymentDetail(w);
 
       // The answer now holds the earlier copy and value. Whatever the agency decides, the read
-      // cannot see it, so it never says "checking", "accepted" or "sent back": it says the
-      // agency part could not be fully checked.
+      // does not see it, so it never says "checking", "accepted" or "sent back": it says the
+      // answer holds the earlier copy or value and offers the answer itself.
       const unknown = async () => {
         for (const impact of [await readDocumentImpact(w), await readDetailImpact(w)]) {
-          expect(impact.items.some((item) => item.id === id)).toBe(false);
-          expect(itemOf(impact, 'area:AGENCY_REQUESTS')).toEqual({
-            id: 'area:AGENCY_REQUESTS',
+          expect(itemOf(impact, id)).toEqual({
+            id,
             outcome: 'UNKNOWN',
-            reason: 'COULD_NOT_CHECK',
+            reason: 'CHECKLIST_ANSWER_HOLDS_EARLIER',
             area: 'AGENCY_REQUESTS',
-            about: { kind: 'AREA', area: 'AGENCY_REQUESTS' },
-            nextStep: null,
+            about: {
+              kind: 'AGENCY_REQUEST',
+              source: 'COLLECTION_RESPONSE',
+              requestId: answer.responseId,
+              organizationId: w.agencyB.organizationId,
+              organizationName: AGENCY_B_NAME,
+              missionId: null,
+              caseTitle: null,
+              sentAt: expect.any(Date),
+              decidedAt: null,
+            },
+            nextStep: { kind: 'OPEN_REQUEST', requestId: answer.responseId },
           });
-          expect(impact.complete).toBe(false);
+          // Nothing failed: no part is reported as unread, and the read is complete.
+          expect(impact.items.some((item) => item.reason === 'COULD_NOT_CHECK')).toBe(false);
+          expect(impact.complete).toBe(true);
           expect(impact.quiet).toBe(false);
+          expect(impact.counts.UNKNOWN).toBe(1);
         }
       };
       await unknown();

@@ -1,0 +1,105 @@
+{
+  "subject": {
+    "kind": "DOCUMENT",
+    "documentId": "<document:p1>",
+    "title": "sample-passport-older.pdf",
+    "replacement": {
+      "documentId": "<document:p2>",
+      "title": "sample-passport-newer.pdf"
+    }
+  },
+  "phase": "RECORDED",
+  "items": [
+    {
+      "id": "case:<case:live>",
+      "outcome": "ACTION_REQUIRED",
+      "reason": "LIVE_CASE_USES_REPLACED_DOCUMENT",
+      "area": "CASES",
+      "about": {
+        "kind": "CASE",
+        "missionId": "<case:live>",
+        "title": "Sample Live Case",
+        "live": true
+      },
+      "nextStep": {
+        "kind": "OPEN_CASE",
+        "missionId": "<case:live>"
+      }
+    },
+    {
+      "id": "share:<share:agency-b>",
+      "outcome": "REVIEW_RECOMMENDED",
+      "reason": "SHARE_COVERS_EARLIER_ONLY",
+      "area": "SHARING",
+      "about": {
+        "kind": "SHARE",
+        "grantId": "<share:agency-b>",
+        "recipientKind": "ORGANIZATION",
+        "recipientName": "Sample Agency B",
+        "reach": "BY_NAME"
+      },
+      "nextStep": {
+        "kind": "OPEN_SHARING",
+        "grantId": "<share:agency-b>"
+      }
+    },
+    {
+      "id": "request:<request:passport>",
+      "outcome": "REVIEW_RECOMMENDED",
+      "reason": "AGENCY_ACCEPTED_EARLIER_LIVE_WORK",
+      "area": "AGENCY_REQUESTS",
+      "about": {
+        "kind": "AGENCY_REQUEST",
+        "source": "EVIDENCE_REQUEST",
+        "requestId": "<request:passport>",
+        "organizationId": "<agency:a>",
+        "organizationName": "Sample Agency A",
+        "missionId": "<case:live>",
+        "caseTitle": "Sample Live Case",
+        "sentAt": "2026-11-11T12:00:00.000Z",
+        "decidedAt": "2026-11-12T12:00:00.000Z"
+      },
+      "nextStep": {
+        "kind": "OPEN_REQUEST",
+        "requestId": "<request:passport>"
+      }
+    },
+    {
+      "id": "case:<case:finished>",
+      "outcome": "HISTORY_PRESERVED",
+      "reason": "FINISHED_CASE_KEPT",
+      "area": "CASES",
+      "about": {
+        "kind": "CASE",
+        "missionId": "<case:finished>",
+        "title": "Sample Finished Case",
+        "live": false
+      },
+      "nextStep": null
+    },
+    {
+      "id": "share:<share:agency-a>",
+      "outcome": "NO_ACTION",
+      "reason": "SHARE_ALREADY_COVERS",
+      "area": "SHARING",
+      "about": {
+        "kind": "SHARE",
+        "grantId": "<share:agency-a>",
+        "recipientKind": "ORGANIZATION",
+        "recipientName": "Sample Agency A",
+        "reach": "WHOLE_RECORD"
+      },
+      "nextStep": null
+    }
+  ],
+  "counts": {
+    "ACTION_REQUIRED": 1,
+    "REVIEW_RECOMMENDED": 2,
+    "UNKNOWN": 0,
+    "HISTORY_PRESERVED": 1,
+    "NO_ACTION": 1
+  },
+  "quiet": false,
+  "complete": true,
+  "assessedAt": "2026-11-13T12:00:00.000Z"
+}

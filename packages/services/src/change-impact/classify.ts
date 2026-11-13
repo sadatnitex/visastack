@@ -130,10 +130,19 @@ export interface DetailCaseFacts extends CaseFacts {
 
 export interface DetailFacts {
   readonly currentVersionId: string | null;
+  /** How many values were saved, including one saved again unchanged. */
   readonly savedValues: number;
+  /**
+   * The saved values that hold what the detail holds now: the current one, and any other whose
+   * stored text is exactly the same (see `DetailSubject.versions`).
+   */
+  readonly sameValueIds: ReadonlySet<string>;
+  /** At least one saved value differs from the current one. */
+  readonly valueChanged: boolean;
 }
 
-function holdsOnlyCurrent(recorded: RecordedDetail, detail: DetailFacts): boolean {
+/** The copy recorded only the current saved value itself. */
+function recordedCurrentVersion(recorded: RecordedDetail, detail: DetailFacts): boolean {
   return (
     recorded.kind === 'VERSIONS' &&
     recorded.versionIds.length > 0 &&
@@ -141,20 +150,31 @@ function holdsOnlyCurrent(recorded: RecordedDetail, detail: DetailFacts): boolea
   );
 }
 
+/** Everything the copy recorded holds what the detail holds now. */
+function holdsCurrentValue(recorded: RecordedDetail, detail: DetailFacts): boolean {
+  return (
+    recorded.kind === 'VERSIONS' &&
+    recorded.versionIds.length > 0 &&
+    recorded.versionIds.every((id) => detail.sameValueIds.has(id))
+  );
+}
+
 /** One case and a changed detail. Null when the case is not affected. */
 export function classifyDetailCase(facts: DetailCaseFacts, detail: DetailFacts): DraftItem | null {
-  const changed = detail.savedValues > 1;
   if (facts.live) {
     if (!facts.selects) return null;
-    if (!facts.everConfirmed || facts.confirmationLive || !changed) {
+    if (!facts.everConfirmed || facts.confirmationLive || detail.savedValues <= 1) {
       return caseItem(facts, 'LIVE_CASE_FOLLOWS_CURRENT');
     }
-    // Confirmed once, and that confirmation is void. Which value it was confirmed with decides.
+    // Confirmed once, and that confirmation is void. A live case is judged by the saved value it
+    // was confirmed with, not by its text: saving the detail again, even unchanged, voids the
+    // confirmation by a product rule that is already enforced, and the traveller really must
+    // confirm again. So a confirmed copy whose text equals the current one is still void.
     switch (facts.recorded.kind) {
       case 'VERSIONS':
         return caseItem(
           facts,
-          holdsOnlyCurrent(facts.recorded, detail)
+          recordedCurrentVersion(facts.recorded, detail)
             ? 'LIVE_CASE_FOLLOWS_CURRENT'
             : 'LIVE_CASE_CONFIRMATION_VOID',
         );
@@ -167,17 +187,21 @@ export function classifyDetailCase(facts: DetailCaseFacts, detail: DetailFacts):
         return caseItem(facts, 'RECORD_INCOMPLETE');
     }
   }
+  // A finished case is judged by what its copy says: a copy that holds the same text as the
+  // current value holds the current value, whichever saved value it names.
   switch (facts.recorded.kind) {
     case 'VERSIONS':
-      return holdsOnlyCurrent(facts.recorded, detail)
+      return holdsCurrentValue(facts.recorded, detail)
         ? null
         : caseItem(facts, 'FINISHED_CASE_KEPT');
     case 'ABSENT':
       return null;
     case 'INEXACT':
-      return changed ? caseItem(facts, 'RECORD_INCOMPLETE') : null;
+      return detail.valueChanged ? caseItem(facts, 'RECORD_INCOMPLETE') : null;
     case 'NO_COPY':
-      return facts.selects && changed ? caseItem(facts, 'FINISHED_CASE_NO_SAVED_COPY') : null;
+      return facts.selects && detail.valueChanged
+        ? caseItem(facts, 'FINISHED_CASE_NO_SAVED_COPY')
+        : null;
   }
 }
 

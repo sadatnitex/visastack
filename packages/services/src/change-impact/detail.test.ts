@@ -1,4 +1,7 @@
+import { randomBytes, randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import type { KeyManagementPort } from '../ports';
+import { editFact, registerFieldDefinition } from '../profile';
 import { revokeGrant } from '../sharing';
 import {
   AGENCY_A_NAME,
@@ -284,6 +287,140 @@ describe('changing a detail that nothing uses', () => {
         HISTORY_PRESERVED: 0,
         NO_ACTION: 0,
       });
+    },
+    HEAVY,
+  );
+});
+
+describe('a detail saved again without changing it', () => {
+  it(
+    'is not an earlier value: the agency holds the current value and the finished case is not listed',
+    async () => {
+      const w = await buildImpactWorld();
+      // Saving the same text again still records a new saved value (and voids the confirmation).
+      const again = await changeEmploymentDetail(w, E_VALUE_1);
+      expect(again.version.id).not.toBe(w.e.v1);
+
+      const impact = await readDetailImpact(w);
+      expect(impact.subject).toMatchObject({ savedValues: 2 });
+      // The send is pinned to the first saved value, whose text is the current text.
+      expect(itemOf(impact, `request:${w.detailRequestId}`)).toMatchObject({
+        outcome: 'NO_ACTION',
+        reason: 'AGENCY_HOLDS_CURRENT',
+        nextStep: null,
+      });
+      expect(impact.items.some((item) => item.id === `case:${w.finishedCaseId}`)).toBe(false);
+      // The one real consequence: the live case's confirmation was voided by the save, and the
+      // traveller must confirm again whatever the text.
+      expect(reasons(impact)).toEqual([
+        [`case:${w.liveCaseId}`, 'LIVE_CASE_CONFIRMATION_VOID'],
+        [`request:${w.detailRequestId}`, 'AGENCY_HOLDS_CURRENT'],
+        [`share:${w.agencyAShareId}`, 'SHARE_ALREADY_COVERS'],
+      ]);
+
+      // Confirmed again: nothing is left to look at.
+      await confirmCase(w.db, w.rahim, w.liveCaseId);
+      const quiet = await readDetailImpact(w);
+      expect(quiet.quiet).toBe(true);
+      expect(quiet.counts).toMatchObject({ ACTION_REQUIRED: 0, REVIEW_RECOMMENDED: 0, UNKNOWN: 0 });
+      expect(itemOf(quiet, `request:${w.detailRequestId}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+
+      // A case cancelled with no saved copy has nothing unknown about it either: no saved value
+      // differs from the current one.
+      const noCopy = await makeCase(w.db, w.rahim, w.checklist, {
+        title: 'Sample Case Cancelled Without a Copy',
+        factId: w.e.factId,
+        confirm: false,
+      });
+      await cancelCase(w.db, w.rahim, noCopy);
+      expect((await readDetailImpact(w)).items.some((item) => item.id === `case:${noCopy}`)).toBe(
+        false,
+      );
+      expect(JSON.stringify(impact)).not.toContain(E_VALUE_1);
+    },
+    HEAVY,
+  );
+
+  it(
+    'changed and then changed back: the earlier answer holds the current value again',
+    async () => {
+      const w = await buildImpactWorld();
+      await changeEmploymentDetail(w, E_VALUE_2);
+      expect(itemOf(await readDetailImpact(w), `request:${w.detailRequestId}`).reason).toBe(
+        'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      );
+      expect(itemOf(await readDetailImpact(w), `case:${w.finishedCaseId}`).reason).toBe(
+        'FINISHED_CASE_KEPT',
+      );
+
+      await changeEmploymentDetail(w, E_VALUE_1);
+      const back = await readDetailImpact(w);
+      expect(back.subject).toMatchObject({ savedValues: 3 });
+      expect(itemOf(back, `request:${w.detailRequestId}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+      expect(back.items.some((item) => item.id === `case:${w.finishedCaseId}`)).toBe(false);
+      expect(itemOf(back, `case:${w.liveCaseId}`).reason).toBe('LIVE_CASE_CONFIRMATION_VOID');
+
+      // Exact text only: a different spelling is a different value.
+      await changeEmploymentDetail(w, `${E_VALUE_1} `);
+      expect(itemOf(await readDetailImpact(w), `request:${w.detailRequestId}`).reason).toBe(
+        'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      );
+    },
+    HEAVY,
+  );
+
+  it(
+    'is not compared for a detail stored protected: the saved value itself decides',
+    async () => {
+      const w = await buildImpactWorld();
+      const keys = new Map<string, Uint8Array>();
+      const encryption: KeyManagementPort = {
+        currentKeyVersion: () => 'test-v1',
+        async generateDataKey() {
+          const id = randomUUID();
+          const key = randomBytes(32);
+          keys.set(id, key);
+          return { keyVersion: 'test-v1', plaintextDataKey: key, wrappedDataKey: Buffer.from(id) };
+        },
+        async unwrapDataKey(version, wrapped) {
+          const key = keys.get(Buffer.from(wrapped).toString());
+          if (version !== 'test-v1' || !key) throw new Error('Unknown key');
+          return key;
+        },
+      };
+      const field = 'passport.number';
+      await registerFieldDefinition(w.db, {
+        key: field,
+        dataType: 'string',
+        sensitivity: 'SENSITIVE',
+      });
+      const save = async () =>
+        must(
+          await editFact(w.db, {
+            actorAccountId: w.rahim.accountId,
+            applicantId: w.rahim.applicantId,
+            fieldKey: field,
+            value: 'SAMPLE12345',
+            encryption,
+          }),
+          'protected save',
+        );
+      const first = await save();
+      expect(first.version.protectedKeyVersion).not.toBeNull();
+      const request = await askForDetail(w.db, w.agencyA, w.rahim, undefined, field);
+      await sendDetail(w.db, w.rahim, request, first.fact.id);
+      await decide(w.db, w.agencyA, request, 'ACCEPTED');
+      expect(itemOf(await readDetailImpact(w, first.fact.id), `request:${request}`).reason).toBe(
+        'AGENCY_HOLDS_CURRENT',
+      );
+
+      // The same text saved again. A protected value is never opened by this read, so it cannot
+      // know the text is the same: the answer names an earlier saved value, and that is said.
+      await save();
+      const impact = await readDetailImpact(w, first.fact.id);
+      expect(impact.subject).toMatchObject({ savedValues: 2 });
+      expect(itemOf(impact, `request:${request}`).reason).toBe('AGENCY_ACCEPTED_EARLIER_LIVE_WORK');
+      expect(JSON.stringify(impact)).not.toContain('SAMPLE12345');
     },
     HEAVY,
   );
