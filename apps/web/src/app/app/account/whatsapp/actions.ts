@@ -3,6 +3,7 @@
 import { disconnectWhatsApp, startWhatsAppLink } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { readWhatsAppConfig } from '../../../../lib/whatsapp';
@@ -47,7 +48,7 @@ export async function startWhatsAppLinkAction(
       optIn,
       businessNumber: config.businessNumber,
     });
-    if (!started.ok) return { ok: false, message: started.error.message };
+    if (!started.ok) return { ok: false, message: await serviceErrorMessage(started.error) };
     return {
       ok: true,
       message: 'Your code is ready.',

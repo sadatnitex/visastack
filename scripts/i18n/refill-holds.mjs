@@ -690,6 +690,114 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'Left English at review (refill 4): Shares one row with the English Send on WhatsApp link.',
   ],
   [
+    'appMission.appMissionIdAttemptPanel.decisionOnFormatdateonlyBasislabel',
+    'Left English at review (refill 5): The date is formatted without the reader language, and `basisLabel` is English ("Document Attached").',
+  ],
+  [
+    'appMission.appMissionIdCaseRail.inEffectSinceFormatdateonly',
+    'Left English at review (refill 5): The date is formatted without the reader language. Fix: pass the locale.',
+  ],
+  [
+    'appMission.appMissionIdContributorRequestsPanel.expiresFormattimestampdate',
+    'Left English at review (refill 5): Same: the expiry date is English.',
+  ],
+  [
+    'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdate',
+    'Left English at review (refill 5): Same: the handoff date is English.',
+  ],
+  [
+    'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdateBefore',
+    'Left English at review (refill 5): Same: the handoff date is English.',
+  ],
+  [
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.historicalTheCaseChangedAfterThis',
+    'Left English at review (refill 5): Same: the date and time are English.',
+  ],
+  [
+    'appMission.appMissionIdComplaintFeedbackPanel.filedTostatus',
+    'Left English at review (refill 5): `toStatus` is an English status code ("OPEN").',
+  ],
+  [
+    'appMission.appMissionIdSnapshotsSnapshotidPage.capturedWhileStateChecksumChecksum',
+    'Left English at review (refill 5): `state` is an English stage code ("IN_PROGRESS").',
+  ],
+  [
+    'appMission.appMissionIdAttemptForms.saveForAttemptAttemptno',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Save", is English.',
+  ],
+  [
+    'appMission.appMissionIdAttemptForms.trackAsAttemptReportname',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Track as Attempt", is English.',
+  ],
+  [
+    'appMission.appMissionIdPackageForms.saveChoiceForItemname',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Save Choice", is English.',
+  ],
+  [
+    'appMission.appMissionIdWordingEditor.saveWordingForItemname',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Save Wording", is English.',
+  ],
+  [
+    'appMission.appMissionIdPackageForms.whatToUseForItemname',
+    'Left English at review (refill 5): `itemName` is an English item name ("Passport", "Given Name").',
+  ],
+  [
+    'appMission.appMissionIdPackagePanel.addAndConfirmYourItemnameIn',
+    'Left English at review (refill 5): `itemName` is an English item name inside the sentence.',
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.forApplieswhen',
+    "Left English at review (refill 5): `appliesWhen` is the checklist's own English wording of who an item applies to.",
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.howToProvideItJoin',
+    "Left English at review (refill 5): The joined lines are the checklist's English format rules.",
+  ],
+  [
+    'appMission.appMissionIdOutcomePanel.officialOfficialwording',
+    'Left English at review (refill 5): Introduces the official English wording of a decision.',
+  ],
+  [
+    'appMission.appMissionIdChangesSinceConfirmed.compare',
+    "Left English at review (refill 5): The Compare link's spoken name (next row) names the change in English, so its visible text stays English with it.",
+  ],
+  [
+    'appMission.appMissionIdChangesSinceConfirmed.compareNameThenAndNow',
+    'Left English at review (refill 5): `name` is an English detail name ("Given Name").',
+  ],
+  [
+    'appMission.appMissionIdCollaborationPanels.addedByAddedby',
+    'Left English at review (refill 5): The app name falls back to the English "an AI App"; the line is also about an AI app.',
+  ],
+  [
+    'appMission.appMissionIdChecklistSearch.searchTheChecklist',
+    'Left English at review (refill 5): The search box\'s spoken name is the English "Search the Checklist", so its placeholder stays English with it.',
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.chosenDocumentJoin',
+    'Left English at review (refill 5): The chosen documents are named by English lifecycle lines with English dates ("Removed by the traveller on 12 Oct").',
+  ],
+  [
+    'appMission.appMissionIdCaseMoreMenu.keepTheCase',
+    'Left English at review (refill 5): The other answer of both questions ("Yes, Cancel This Case", "Yes, Delete This Case") is English.',
+  ],
+  [
+    'appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe',
+    'Left English at review (refill 5): It names Start a New Case from This One, which wide screens show only as an English button.',
+  ],
+  [
+    'appMission.appMissionIdContributorRequestsPanel.visastackRequest',
+    "Left English at review (refill 5): Title of the share sent to the contributor with an English message; it follows the message, not the sender's screen.",
+  ],
+  [
+    'appMission.appMissionIdAttemptForms.remove',
+    'Left English at review (refill 5): Was live. Its button\'s spoken name is the English "Remove {document}", so its visible text goes back to English.',
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname',
+    'Left English at review (refill 5): Was live. `copyName` is English ("Your Saved Answer", "Document") or a name with an unformatted date ("2026-10-01").',
+  ],
+  [
     'components.capturePreview.thisDeviceCannotShowThePhoto',
     'Left English at review (refill 6): Names the Use This button, which is English.',
   ],

@@ -3,6 +3,7 @@ import { caseFlowABn, caseFlowAEn } from './case-flow-a';
 import { caseFlowBBn, caseFlowBEn } from './case-flow-b';
 import { documentsBn, documentsEn } from './documents';
 import { sharingBn, sharingEn } from './sharing';
+import { travellerFlowBn, travellerFlowEn } from './traveller-flow';
 
 /**
  * The words behind service refusals that carry a `messageKey` (see `keyedError` in errors.ts).
@@ -15,8 +16,8 @@ import { sharingBn, sharingEn } from './sharing';
  * never come here.
  */
 export const serviceMessages = defineCatalog({
-  en: { ...caseFlowAEn, ...caseFlowBEn, ...documentsEn, ...sharingEn },
-  bn: { ...caseFlowABn, ...caseFlowBBn, ...documentsBn, ...sharingBn },
+  en: { ...caseFlowAEn, ...caseFlowBEn, ...documentsEn, ...sharingEn, ...travellerFlowEn },
+  bn: { ...caseFlowABn, ...caseFlowBBn, ...documentsBn, ...sharingBn, ...travellerFlowBn },
 });
 
 export type ServiceMessageKey = CatalogKey<typeof serviceMessages>;

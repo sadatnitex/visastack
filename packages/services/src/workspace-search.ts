@@ -23,7 +23,7 @@ import {
 } from 'drizzle-orm';
 import { withCaseExclusions } from './access/grant-scope';
 import { type Db, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import {
   everydayApplicantCondition,
   everydayDocumentCondition,
@@ -54,10 +54,10 @@ export async function searchWorkspaceRecords(
     subjectId &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subjectId)
   )
-    return err(serviceError('invalid', 'Choose an available workspace.'));
+    return err(keyedError('invalid', 'workspace_search.choose_an_available_workspace'));
   const value = query.trim();
   if (value.length < 2 || value.length > 80)
-    return err(serviceError('invalid', 'Use between 2 and 80 characters.'));
+    return err(keyedError('invalid', 'workspace_search.use_between_2_and_80_characters'));
   const pattern = `%${value.replace(/[\\%_]/g, '\\$&')}%`;
   if (scope.kind === 'agency') {
     const membership = await db
@@ -77,7 +77,7 @@ export async function searchWorkspaceRecords(
       )
       .limit(1);
     if (!membership.length)
-      return err(serviceError('forbidden', 'This agency workspace is unavailable.'));
+      return err(keyedError('forbidden', 'workspace_search.this_agency_workspace_is_unavailable'));
     const now = new Date();
     const lifecycle = await lifecycleTablesPresent(db);
     // Same current grant and assignment boundaries as the existing visible-case list.
@@ -171,7 +171,9 @@ export async function searchWorkspaceRecords(
       .where(owned)
       .limit(1);
     if (!subject.length)
-      return err(serviceError('forbidden', 'This traveller workspace is unavailable.'));
+      return err(
+        keyedError('forbidden', 'workspace_search.this_traveller_workspace_is_unavailable'),
+      );
   }
   const code = readsAsReferenceCode(value);
   const codeResults = code.ok ? await personalCodeResults(db, owned, code, lifecycle) : [];

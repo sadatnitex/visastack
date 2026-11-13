@@ -779,6 +779,25 @@ describe('client invitations - agency invites a traveller as a new client (Comme
       expect(isErr(accepted) && accepted.error.message).toBe(
         'this invitation has already been used or revoked',
       );
+      // The same key as a used email invitation, so the phone path cannot be told apart in any
+      // language.
+      expect(isErr(preview) && preview.error.messageKey).toBe(
+        'client_invitations.already_used_or_revoked',
+      );
+      expect(isErr(accepted) && accepted.error.messageKey).toBe(
+        'client_invitations.already_used_or_revoked',
+      );
+      const email = await invite();
+      if (!isOk(email)) throw new Error('setup failed');
+      await db
+        .update(dbSchema.clientInvitations)
+        .set({ status: 'ACCEPTED' })
+        .where(eq(dbSchema.clientInvitations.id, email.value.invitation.id));
+      const intended = await consentedTraveller(db, 'jane@example.com');
+      const usedEmail = await previewClientInvitation(db, email.value.rawToken, intended);
+      expect(isErr(usedEmail) && usedEmail.error.messageKey).toBe(
+        'client_invitations.already_used_or_revoked',
+      );
     }, 30_000);
 
     it('an account already working with this agency still cannot claim an invitation sent to someone else (T04)', async () => {
