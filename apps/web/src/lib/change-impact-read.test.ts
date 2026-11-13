@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   assessDocument: vi.fn(),
   assessDetail: vi.fn(),
   withSession: vi.fn(),
+  after: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
@@ -20,6 +21,7 @@ vi.mock('@visastack/services', () => ({
   assessDetailChangeImpact: mocks.assessDetail,
 }));
 vi.mock('./session', () => ({ withSession: mocks.withSession }));
+vi.mock('next/server', () => ({ after: mocks.after }));
 vi.mock('next/navigation', () => ({
   unstable_rethrow: (error: unknown) => {
     if (error instanceof Error && /^NEXT_/.test(error.message)) throw error;
@@ -131,5 +133,49 @@ describe('reading what a change affects', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('hands a look that ran past its budget to the platform to finish, and swallows how it ends', async () => {
+    vi.useFakeTimers();
+    try {
+      let fail: (error: Error) => void = () => undefined;
+      mocks.assessDetail.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+      );
+      const pending = readDetailChangeImpact('a1', 'f1');
+      await vi.advanceTimersByTimeAsync(CHANGE_IMPACT_READ_BUDGET_MS + 1);
+      expect(await pending).toBe('failed');
+      // The look is handed over, not dropped: the platform is told to let it end.
+      expect(mocks.after).toHaveBeenCalledTimes(1);
+      const settle = mocks.after.mock.calls[0]?.[0] as () => Promise<unknown>;
+      const ended = settle();
+      // It ends with a sign-in redirect long after the answer went out: nobody is told, nothing throws.
+      fail(new Error('NEXT_REDIRECT'));
+      await expect(ended).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still lets a late look end quietly when it is not inside a request', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.after.mockImplementation(() => {
+        throw new Error('outside a request');
+      });
+      mocks.assessDetail.mockReturnValue(new Promise(() => undefined));
+      const pending = readDetailChangeImpact('a1', 'f1');
+      await vi.advanceTimersByTimeAsync(CHANGE_IMPACT_READ_BUDGET_MS + 1);
+      expect(await pending).toBe('failed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('hands nothing over when the look finishes in time', async () => {
+    expect(await readDetailChangeImpact('a1', 'f1')).toBe(REVIEW);
+    expect(mocks.after).not.toHaveBeenCalled();
   });
 });

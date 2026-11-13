@@ -8,6 +8,7 @@ import {
   requireAccess,
 } from '@visastack/services';
 import { unstable_rethrow } from 'next/navigation';
+import { after } from 'next/server';
 import { withSession } from './session';
 
 /*
@@ -61,18 +62,41 @@ async function read(
   assess: (access: AuthorizedApplicant<'MANAGE'>) => ReturnType<typeof assessDetailChangeImpact>,
 ): Promise<ChangeImpactRead> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
   // A slow look must never make a save that has already committed look as if it failed: past the
-  // budget the screen gets `failed` and the look finishes (or not) on its own, read only.
+  // budget the screen gets `failed`. The look itself is read only, but it holds a row lock and a
+  // connection until it ends, so it is handed to `after` to be allowed to finish rather than be
+  // frozen half way with the lock still held (the next save of the same detail would wait on it).
   const late = new Promise<'failed'>((resolve) => {
-    timer = setTimeout(() => resolve('failed'), CHANGE_IMPACT_READ_BUDGET_MS);
+    timer = setTimeout(() => {
+      timedOut = true;
+      resolve('failed');
+    }, CHANGE_IMPACT_READ_BUDGET_MS);
   });
+  const job = work(applicantId, assess);
   try {
-    return await Promise.race([late, work(applicantId, assess)]);
+    return await Promise.race([late, job]);
   } catch (error) {
     unstable_rethrow(error);
     return 'failed';
   } finally {
     clearTimeout(timer);
+    if (timedOut) finishInBackground(job);
+  }
+}
+
+/** Lets a look that ran past its budget end on its own; whatever it ends with is not wanted. */
+function finishInBackground(job: Promise<ChangeImpactRead>): void {
+  const settle = () =>
+    job.then(
+      () => undefined,
+      () => undefined,
+    );
+  try {
+    after(settle);
+  } catch {
+    // Outside a request there is nothing to hand it to; it still settles quietly on its own.
+    void settle();
   }
 }
 

@@ -485,7 +485,10 @@ export function hasImpactCounts(summary: ChangeImpactSummary): boolean {
  */
 export const BATCH_IMPACT_READS = 6;
 
-/** The longest a batch may keep looking after an approval that is already saved. */
+/**
+ * How long a batch may go on starting new looks after an approval that is already saved. A look
+ * that started just before the limit still has its own limit, so the whole is a little longer.
+ */
 export const BATCH_IMPACT_BUDGET_MS = 6000;
 
 /** How many details the batch notice names. Any others are counted, never listed. */
