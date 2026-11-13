@@ -120,8 +120,6 @@ export const applicantSharingCatalog = defineCatalog({
   bn: {
     'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOff': 'বন্ধ করুন',
     'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppname': '{appName} বন্ধ করুন',
-    'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppnameFromItsNext':
-      '{appName} বন্ধ করবেন? পরের অনুরোধ থেকে এটি আর এই রেকর্ড পড়তে পারবে না। আবার ব্যবহার করতে অ্যাপ থেকে আবার সংযুক্ত করুন।',
     'applicantSharing.appApplicantIdSharingAiConnections.accessChangedTheAppGetsThe':
       'অ্যাক্সেস বদলানো হয়েছে। অ্যাপটি পরের অনুরোধে নতুন অ্যাক্সেস পাবে।',
     'applicantSharing.appApplicantIdSharingAiConnections.aiApps': 'এআই অ্যাপ',
@@ -150,23 +148,18 @@ export const applicantSharingCatalog = defineCatalog({
     'applicantSharing.appApplicantIdSharingAiConnections.turnedOffThatAppCanNo':
       'বন্ধ করা হয়েছে। ওই অ্যাপ এই রেকর্ড আর পড়তে পারবে না।',
     'applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff': 'আপনি বন্ধ না করা পর্যন্ত',
-    'applicantSharing.appApplicantIdSharingAiDrafts.copyDraft': 'খসড়া কপি করুন',
-    'applicantSharing.appApplicantIdSharingAiDrafts.copyDraftTitle': 'খসড়া কপি করুন: {title}',
     'applicantSharing.appApplicantIdSharingAiDrafts.draftTextTitle': 'খসড়া লেখা: {title}',
     'applicantSharing.appApplicantIdSharingAiDrafts.draftsFromAiApps': 'এআই অ্যাপের খসড়া',
     'applicantSharing.appApplicantIdSharingAiDrafts.draftsYourAiAppsSavedFor':
       'আপনার এআই অ্যাপ আপনার জন্য যে খসড়া সংরক্ষণ করেছে, যেমন চিঠি ও নোট। এগুলো এখানে শুধু আপনার জন্যই রাখা হয়: কোথাও কিছু পাঠানো হয় না, আর এজেন্সিগুলো এগুলো কখনো দেখে না। আপনি মুছে না ফেলা পর্যন্ত খসড়া থাকে।',
     'applicantSharing.appApplicantIdSharingAiDrafts.noDraftsFromAiApps':
       'এআই অ্যাপ থেকে কোনো খসড়া নেই।',
-    'applicantSharing.appApplicantIdSharingAiDrafts.showDraft': 'খসড়া দেখান',
     'applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCase': 'এই ভিসা ফাইলের অনুমতি দিন',
     'applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCaseTitle':
       'এই ভিসা ফাইলের অনুমতি দিন: {title}',
     'applicantSharing.appApplicantIdSharingCaseExceptions.notShared': 'শেয়ার করা হয়নি',
     'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelSeesThisCaseThroughAnother':
       '{recipientLabel} আপনার দেওয়া অন্য একটি অ্যাক্সেসের মাধ্যমে এই ভিসা ফাইল দেখেন।',
-    'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelWillBeAbleToSee':
-      '{recipientLabel} এই ভিসা ফাইল ও এর রেকর্ড দেখতে পারবেন।',
     'applicantSharing.appApplicantIdSharingCaseExceptions.sharedSeparately': 'আলাদাভাবে শেয়ার করা',
     'applicantSharing.appApplicantIdSharingCaseExceptions.thisAccessCoversEveryCaseExcept':
       'নিচেরগুলো ছাড়া সব ভিসা ফাইল এই অ্যাক্সেসের আওতায়। আপনার শেয়ার করা ডকুমেন্ট ও প্রোফাইলের তথ্য শেয়ার করাই থাকে।',

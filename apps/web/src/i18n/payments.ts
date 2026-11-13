@@ -14,8 +14,6 @@ export const paymentsCatalog = defineCatalog({
     'payments.paymentsResultPage.purchase': 'Purchase',
   },
   bn: {
-    'payments.paymentsResultPage.checkAgain': 'আবার পরীক্ষা করুন',
-    'payments.paymentsResultPage.goToPlanUsage': 'প্ল্যান ও ব্যবহারে যান',
     'payments.paymentsResultPage.goToWorkspace': 'ওয়ার্কস্পেসে যান',
   },
 });

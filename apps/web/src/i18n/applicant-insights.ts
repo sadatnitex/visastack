@@ -111,7 +111,6 @@ export const applicantInsightsCatalog = defineCatalog({
       'যে প্রোফাইল অংশের পক্ষে কোনো ডকুমেন্ট প্রমাণ দিতে পারে, সেটি খুললে এখানে দেখা যাবে।',
     'applicantInsights.appApplicantIdInsightsPage.openCases': 'খোলা ভিসা ফাইল',
     'applicantInsights.appApplicantIdInsightsPage.openDatesExpiry': 'তারিখ ও মেয়াদ খুলুন',
-    'applicantInsights.appApplicantIdInsightsPage.openDocuments': 'ডকুমেন্টস খুলুন',
     'applicantInsights.appApplicantIdInsightsPage.openProfile': 'প্রোফাইল খুলুন',
     'applicantInsights.appApplicantIdInsightsPage.openTheCase': 'ভিসা ফাইলটি খুলুন',
     'applicantInsights.appApplicantIdInsightsPage.optionalForThisCase': 'এই ভিসা ফাইলের জন্য ঐচ্ছিক',

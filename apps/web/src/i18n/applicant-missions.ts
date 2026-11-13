@@ -92,7 +92,6 @@ export const applicantMissionsCatalog = defineCatalog({
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGUkStudentVisaAutumn':
       'যেমন UK স্টুডেন্ট ভিসা - অটাম ২০২৬',
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.endDate': 'শেষ তারিখ',
-    'applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet': 'এখনো নিশ্চিত নই',
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.startDate': 'শুরুর তারিখ',
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional':
       'ভ্রমণের তারিখ (ঐচ্ছিক)',

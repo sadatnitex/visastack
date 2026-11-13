@@ -93,20 +93,8 @@ describe('live Bengali keys of the payment result page', () => {
       currency: 'BDT',
     });
     const bn = await render('bn', { t: TRAN, x: '9999999999', s: 'sig' });
-    // A person's payment still being confirmed: Check Again and Go to Plan & Usage (refill 3).
-    mocks.view.mockResolvedValue({
-      state: 'confirming',
-      payer: 'person',
-      invoiceRef: 'I',
-      amountMinorUnits: 1,
-      currency: 'BDT',
-    });
-    const person = await render('bn', { t: TRAN, x: '9999999999', s: 'sig' });
-    const shown = `${bn.body.textContent ?? ''} ${person.body.textContent ?? ''}`;
     const live = Object.values(paymentsCatalog.bn);
-    expect(live.filter((v) => !shown.includes(v))).toEqual([]);
-    // The purchase line is payment wording and stays as in English.
-    expect(person.body.textContent).toContain('Purchase I:');
+    expect(live.filter((v) => !(bn.body.textContent ?? '').includes(v))).toEqual([]);
   });
 });
 

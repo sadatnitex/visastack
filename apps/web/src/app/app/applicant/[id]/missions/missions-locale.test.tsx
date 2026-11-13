@@ -216,7 +216,8 @@ describe('the new case form under Bengali', () => {
     expect(text).toContain('What is this case for?');
     expect(text).toContain('Where are you going?');
     expect(html).toContain(`placeholder="${bn[`${FORM}eGUkStudentVisaAutumn`]}"`);
-    expect(html).toContain(`placeholder="${bn[`${FORM}notSureYet`]}"`);
+    // Not Sure Yet is also an option of the English purpose list, so it stays English.
+    expect(`${FORM}notSureYet` in bn).toBe(false);
     expect(text).toContain(bn[`${FORM}aboutChecklists`]);
     expect(text).toContain(bn[`${FORM}startDate`]);
     expect(text).toContain(bn[`${FORM}endDate`]);

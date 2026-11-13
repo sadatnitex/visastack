@@ -124,6 +124,9 @@ describe('document insights under Bengali', () => {
     // "No Documents Yet" and the section group "No Document Yet" share one Bengali wording, so the
     // empty state is checked by its own sentence instead.
     expect(text).toContain(bn[`${K}noDocumentYet`]);
+    expect(text).not.toContain(bn[`${K}addADocumentAndAcceptWhat`]);
+    // Open Documents stays English: the Details to Check card writes it in English too.
+    expect(`${K}openDocuments` in bn).toBe(false);
     expect(text).not.toContain(bn[`${K}eachVisaApplicationIsACase`]);
     expect(text).toContain('Study Visa');
     expect(text).toContain(bn[`${K}aSummaryOfYourSavedDocuments`]);

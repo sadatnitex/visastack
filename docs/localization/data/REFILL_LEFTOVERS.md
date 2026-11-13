@@ -176,7 +176,7 @@ Values the refill would place (34 in the first refill pull request), left in Eng
 
 ## Left English at review in refill 3
 
-Refill 3 filled 224 keys of the applicant record screens (calendar, requests, insights, case history, cases, summaries, sharing), document collection, invitation, payments, status and trust. These 58 have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
+Refill 3 filled 215 keys of the applicant record screens (calendar, requests, insights, case history, cases, summaries, sharing), document collection, invitation, payments, status and trust. These 67 have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
 
 | Surface | Key | Why it stays English |
 | --- | --- | --- |
@@ -238,3 +238,12 @@ Refill 3 filled 224 keys of the applicant record screens (calendar, requests, in
 | oauth | `oauth.oauthAuthorizePage.thisAppRunsOnThisComputer` | Same guard. |
 | oauth | `oauth.oauthAuthorizePage.youHaveNoRecordsToConnect` | Same guard. |
 | payments | `payments.paymentsResultPage.purchase` | The payment result test keeps the purchase and invoice line identical to English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppnameFromItsNext` | The question's answers, "Yes, Turn Off" and Keep It On, are English; the confirmation stays one language. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelWillBeAbleToSee` | Same: its answers "Yes, Allow This Case" and Keep It Private are English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiDrafts.showDraft` | The copy-failure message names it in English ("Choose Show Draft"). |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiDrafts.copyDraft` | Sits next to the English Delete Draft button, and the copy message names Show Draft in English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiDrafts.copyDraftTitle` | Spoken name of Copy Draft, which stays English. |
+| payments | `payments.paymentsResultPage.checkAgain` | The English payment message names it ("choose Check Again"). |
+| payments | `payments.paymentsResultPage.goToPlanUsage` | The English payment message names it ("go back to Plan & Usage"). |
+| applicant-missions | `applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet` | Also an option of the English purpose list, under an English question. |
+| applicant-insights | `applicantInsights.appApplicantIdInsightsPage.openDocuments` | The Details to Check card on the same page writes Open Documents in English. |

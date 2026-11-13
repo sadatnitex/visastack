@@ -304,16 +304,15 @@ describe('the sharing form under Bengali', () => {
       // The full-numbers row keeps its English name and its English answer together.
       expect(text).toContain('No');
       expect(text).not.toContain(en[`${AI}aiAppsYouConnectedToThis12cecd`]);
-      // Turn Off asks first: the question and the button are Bengali; the answers stay one
-      // language each (the confirm button "Yes, Turn Off" is English, so is Keep It On).
+      // Turn Off is Bengali; the question it opens stays English with its two English answers
+      // ("Yes, Turn Off" is written in the component), so the confirmation is one language.
       expect(host.innerHTML).toContain(
         `aria-label="${bn[`${OFF}turnOffAppname`]?.replace('{appName}', 'Claude')}"`,
       );
       await act(async () => button(bn[`${OFF}turnOff`] as string).click());
       const asked = host.textContent ?? '';
-      expect(asked).toContain(
-        (bn[`${OFF}turnOffAppnameFromItsNext`] as string).replace('{appName}', 'Claude'),
-      );
+      expect(asked).toContain('Turn off Claude? From its next request');
+      expect(`${OFF}turnOffAppnameFromItsNext` in bn).toBe(false);
       expect(asked).toContain('Yes, Turn Off');
       expect(asked).toContain('Keep It On');
       expect(host.innerHTML).not.toMatch(RAW_KEY);
@@ -377,13 +376,9 @@ describe('the sharing form under Bengali', () => {
       if (!allow) throw new Error('Missing Allow This Case');
       await act(async () => allow.click());
       const asked = host.textContent ?? '';
-      expect(asked).toContain(
-        (bn[`${EXC}recipientlabelWillBeAbleToSee`] as string).replace(
-          '{recipientLabel}',
-          'Harbor Visas',
-        ),
-      );
-      // The two answers stay English together.
+      // The question and its two answers stay English together.
+      expect(asked).toContain('Harbor Visas will be able to see this case and its records.');
+      expect(`${EXC}recipientlabelWillBeAbleToSee` in bn).toBe(false);
       expect(asked).toContain('Yes, Allow This Case');
       expect(asked).toContain('Keep It Private');
       expect(host.innerHTML).not.toMatch(RAW_KEY);
