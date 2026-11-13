@@ -577,6 +577,41 @@ describe('a start date stated for a different text', () => {
   );
 });
 
+describe('a text changed and then changed back in the profile editor', () => {
+  it(
+    'keeps the start date stated for that text, so the earlier answer holds the current value',
+    async () => {
+      const w = await buildImpactWorld();
+      const START = new Date('2025-01-01T00:00:00Z');
+      const save = async (value: string, effectiveFrom?: Date) =>
+        must(
+          await editFact(w.db, {
+            actorAccountId: w.rahim.accountId,
+            applicantId: w.rahim.applicantId,
+            fieldKey: EMPLOYMENT_FIELD,
+            value,
+            ...(effectiveFrom ? { effectiveFrom } : {}),
+          }),
+          'save',
+        );
+      // The first text is saved with a start date, sent and accepted.
+      await save(E_VALUE_1, START);
+      const asked = await askForDetail(w.db, w.agencyA, w.rahim);
+      await sendDetail(w.db, w.rahim, asked, w.e.factId);
+      await decide(w.db, w.agencyA, asked, 'ACCEPTED');
+      // Another text, then the first text again the way the editor does it: no date. The date was
+      // stated for the first text, so the agency holds exactly what is current again.
+      await save(E_VALUE_2);
+      await save(E_VALUE_1);
+      expect(itemOf(await readDetailImpact(w), `request:${asked}`)).toMatchObject({
+        outcome: 'NO_ACTION',
+        reason: 'AGENCY_HOLDS_CURRENT',
+      });
+    },
+    HEAVY,
+  );
+});
+
 describe('the profile editor saving the same text again', () => {
   /**
    * Saves `E_VALUE_1` with `first` (a way the value can come to be stored), has Agency A ask for
