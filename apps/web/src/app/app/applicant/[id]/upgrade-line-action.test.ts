@@ -344,6 +344,10 @@ describe('an AI feature refused for its daily limit', () => {
 
 describe('Gap Explanations refused for its daily limit on a case', () => {
   beforeEach(() => {
+    mocks.requireAccess.mockResolvedValue({
+      ok: true,
+      value: { actor: { kind: 'applicant_owner' } },
+    });
     mocks.getMissionForOwner.mockResolvedValue({ ok: true, value: { packVersionId: 'pv-1' } });
     mocks.computeReadiness.mockResolvedValue({
       ok: true,
@@ -385,12 +389,17 @@ describe('Gap Explanations refused for its daily limit on a case', () => {
   });
 
   it('is never reached by someone who does not own the case', async () => {
+    // Real or made up, the case is not theirs: one fixed line, never the service's own words.
+    mocks.requireAccess.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'access denied (default_deny)' },
+    });
     mocks.getMissionForOwner.mockResolvedValue({
       ok: false,
-      error: { code: 'not_found', message: 'case not found' },
+      error: { code: 'forbidden', message: 'not authorized for this case' },
     });
     mocks.explainReadinessGap.mockResolvedValue({ ok: false, error: AI_LIMIT });
-    expect(await ask()).toEqual({ ok: false, message: 'case not found' });
+    expect(await ask()).toEqual({ ok: false, message: 'This case is not available to you.' });
     expect(mocks.upgradeWouldHelp).not.toHaveBeenCalled();
   });
 });

@@ -77,3 +77,9 @@ test goes red, the file is restored from a copy and compared byte for byte.
 | The receipt no longer tied to the agency | gives the same empty receipt for an unknown key, another agency and another traveller | receipts differ |
 | A replaced document offered | leaves out replaced documents, holds back unchecked files and the copy that was sent back | `expected 'CHOOSE' to be 'READY'` |
 | The sent-back copy offered again | same test | `expected 'READY' to be 'NEEDS_NEW_COPY'` |
+
+## Update, 13 Nov 2026: the two findings
+
+1. The access gate finding is resolved at the callers (pull request #553): the gate's contract is unchanged and deliberate; every server action that worked on one record and printed the service's own refusal now checks ownership first and gives one fixed line. The describe formerly named "KNOWN GAP: the access gate ..." is now "Access gate contract ...". Callers in files held by open localization pull requests are listed in known-issues and still follow.
+2. The detail answer finding is resolved in the services (pull request #550, migration 0135 prepared and not run): the probe `probe: an accepted detail answer after the fact changes` now asserts the accepted value stays the accepted value. The new life cycle tests are in `packages/services/src/evidence-field-answers.test.ts`.
+The rows above that call these an "open gap" are historical.

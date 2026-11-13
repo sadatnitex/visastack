@@ -6,7 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mocks = vi.hoisted(() => ({ createTask: vi.fn(), revalidatePath: vi.fn() }));
-vi.mock('@visastack/services', () => ({ createTask: mocks.createTask }));
+// The signed-in account owns the case (the access gate says so), as in every case of this file.
+vi.mock('@visastack/services', () => ({
+  createTask: mocks.createTask,
+  accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
+  requireAccess: async () => ({ ok: true, value: { actor: { kind: 'applicant_owner' } } }),
+}));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 vi.mock('../../../../lib/ai', () => ({ resolveAiExplainer: vi.fn() }));
