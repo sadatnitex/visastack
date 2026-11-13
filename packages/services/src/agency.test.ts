@@ -1672,7 +1672,9 @@ describe('reviewer decisions (master directive §7 "PR 10")', () => {
     if (!isOk(stranger)) throw new Error('provision');
     const list = await listMissionDecisions(db, stranger.value.id, missionId);
     expect(isErr(list)).toBe(true);
-    if (isErr(list)) expect(list.error.code).toBe('forbidden');
+    // A stranger is answered exactly like an unknown case id (agency-stranger-uniform.test.ts).
+    if (isErr(list))
+      expect(list.error).toMatchObject({ code: 'not_found', message: 'case not found' });
   });
 
   it("revokes a former reviewer's access to decision history the instant their membership is deactivated (finding #32)", async () => {

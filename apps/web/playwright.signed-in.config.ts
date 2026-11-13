@@ -22,11 +22,15 @@ if (!origin) throw new Error('BLOCKED: explicit isolated staging origin is requi
 
 /**
  * The order the specs run in is explicit, not an accident of file names. A spec that ends or changes
- * a grant other specs rely on goes in this list; it runs in its own last stage (the project
- * "revocation", which depends on the project "journeys"), after everything else has finished.
- * scripts/staging-journeys.test.mjs fails if such a spec is anywhere else.
+ * a grant other specs rely on goes in this list, in the order it must run. Each one runs in its own
+ * last stage (a project of its own, which depends on the stage before it), after everything else has
+ * finished: "journeys" first, then "flagship" (the Answer from Your Records journey, whose last test
+ * ends the agency's access), then "revocation" (which finds the access already ended, or ends it).
+ * One project for each, because a project does not run its files in the order of a list, and a
+ * project gets its own worker. scripts/staging-journeys.test.mjs fails if such a spec is anywhere
+ * else, or if the order differs from the one in scripts/check-staging-journey-setup.mjs.
  */
-const LAST_STAGE_SPECS = ['agency-loop-revoke.spec.ts'];
+const LAST_STAGE_SPECS = ['answer-from-records.spec.ts', 'agency-loop-revoke.spec.ts'];
 const browser = { browserName: 'chromium', colorScheme: 'light' } as const;
 
 export default defineConfig({
@@ -48,9 +52,15 @@ export default defineConfig({
   projects: [
     { name: 'journeys', testIgnore: LAST_STAGE_SPECS, use: browser },
     {
-      name: 'revocation',
-      testMatch: LAST_STAGE_SPECS,
+      name: 'flagship',
+      testMatch: 'answer-from-records.spec.ts',
       dependencies: ['journeys'],
+      use: browser,
+    },
+    {
+      name: 'revocation',
+      testMatch: 'agency-loop-revoke.spec.ts',
+      dependencies: ['flagship'],
       use: browser,
     },
   ],
