@@ -32,6 +32,7 @@ import { issueStepUpAssurance } from '../step-up';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from '../support-access';
 import { StaffScope, accountPrincipal, staffPrincipal, systemPrincipal } from './principal';
 import {
+  ACCESS_REFUSAL,
   type AccessRefusal,
   AuthorizedApplicant,
   EACH_GRANT,
@@ -112,11 +113,12 @@ function refusal<T>(result: Result<T, ServiceError>): {
   return { code: errorCode(result), reason: heardFor.get(result)?.reason };
 }
 
+/** The one public refusal code (`ACCESS_REFUSAL`), with the reason the hook must have heard. */
 function refused(reason: AccessRefusal['reason']): {
-  readonly code: 'not_found';
+  readonly code: string;
   readonly reason: string | undefined;
 } {
-  return { code: 'not_found', reason };
+  return { code: ACCESS_REFUSAL.code, reason };
 }
 
 describe('requireAccess - central applicant authorization gate', () => {
