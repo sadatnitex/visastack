@@ -244,6 +244,24 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
       t0,
     );
     expect(!wrong.ok && 'code' in wrong.error && wrong.error.code).toBe('wrong');
+    // The refusal carries its key and the count raw, for the screen to word; the English is exact.
+    expect(!wrong.ok && wrong.error).toEqual({
+      code: 'wrong',
+      message: 'That code is not right. Check the newest email and try again (4 tries left).',
+      messageKey: 'umpe_guest_collection.that_code_is_not_right',
+      params: { left: 4 },
+    });
+    const misshapen = await verifyGuestCode(
+      db,
+      proofOf(raw),
+      { code: '12', networkSubject: NET },
+      t0,
+    );
+    expect(!misshapen.ok && misshapen.error).toEqual({
+      code: 'wrong',
+      message: 'Enter the six digits from the email.',
+      messageKey: 'umpe_guest_collection.enter_the_six_digits_from_the',
+    });
     const right = await verifyGuestCode(
       db,
       proofOf(raw),
@@ -315,6 +333,11 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
       at(11 * 60 * 1000),
     );
     expect(!late.ok && 'code' in late.error && late.error.code).toBe('expired');
+    expect(!late.ok && late.error).toEqual({
+      code: 'expired',
+      message: 'This code has expired or was replaced. Ask for a new code.',
+      messageKey: 'umpe_guest_collection.this_code_has_expired_or_was',
+    });
     // A newer code replaces the older one.
     await send('222222', at(60_000));
     await send('333333', at(120_000));
@@ -354,6 +377,7 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
       t0,
     );
     const refusals: string[] = [];
+    const keyed: unknown[] = [];
     for (let i = 0; i < 5; i += 1) {
       const result = await verifyGuestCode(
         db,
@@ -362,8 +386,17 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
         t0,
       );
       if (!result.ok && 'code' in result.error) refusals.push(result.error.code);
+      if (!result.ok) keyed.push([result.error.messageKey, result.error.params]);
     }
     expect(refusals).toEqual(['wrong', 'wrong', 'wrong', 'wrong', 'expired']);
+    // Each refusal is keyed for the screen: the count of tries left, then the last-try wording.
+    expect(keyed).toEqual([
+      ['umpe_guest_collection.that_code_is_not_right', { left: 4 }],
+      ['umpe_guest_collection.that_code_is_not_right', { left: 3 }],
+      ['umpe_guest_collection.that_code_is_not_right', { left: 2 }],
+      ['umpe_guest_collection.that_code_is_not_right', { left: 1 }],
+      ['umpe_guest_collection.that_code_has_had_too_many', undefined],
+    ]);
     const right = await verifyGuestCode(db, proofOf(raw), { code: CODE, networkSubject: NET }, t0);
     expect(right.ok).toBe(false);
     const [row] = await db.select().from(schema.agencyCollectionGuestCodes);
