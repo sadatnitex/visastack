@@ -190,7 +190,7 @@ describe('the attempts card under Bengali', () => {
             occurredOn: '2026-10-20',
             documentSupplied: true,
           },
-        } as AttemptView,
+        } as unknown as AttemptView,
         {
           ...base,
           id: '00000000-0000-4000-8000-0000000000a2',
@@ -215,7 +215,7 @@ describe('the attempts card under Bengali', () => {
               documentSupplied: false,
             },
           ],
-        } as AttemptView,
+        } as unknown as AttemptView,
       ],
     });
     expect(words()).toContain('প্রচেষ্টা ১');
@@ -395,7 +395,7 @@ describe('the item panel under Bengali', () => {
         packageItem: {
           ...item,
           chosen: {
-            choice: 'COPY',
+            choice: 'USE_COPY',
             copy: { ...copy, usable: false },
             reason: null,
             chosenAt: '2026-11-01T08:00:00.000Z',
