@@ -73,7 +73,6 @@ export const appTripInvitationsCatalog = defineCatalog({
     'appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTripTheOrganiserWill':
       'এই ভ্রমণ ছেড়ে দেবেন? আয়োজক আর আপনাকে দেখতে পাবেন না।',
     'appTripInvitations.appTripInvitationsIdJoinedTripForms.paperToShow': 'দেখানোর কাগজ',
-    'appTripInvitations.appTripInvitationsIdJoinedTripForms.stay': 'থাকুন',
     'appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser':
       'আয়োজকের সঙ্গে আপনি যা শেয়ার করেন',
     'appTripInvitations.appTripInvitationsIdPage.backToMyTrips': 'আমার ভ্রমণে ফিরে যান',

@@ -50,8 +50,6 @@ export const appSharingInvitationsCatalog = defineCatalog({
       'আমন্ত্রণের মেয়াদ শেষ হবে',
     'appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable':
       'আমন্ত্রণ পাওয়া যাচ্ছে না',
-    'appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting':
-      'গ্রহণ না করে চলে যান',
     'appSharingInvitations.appSharingInvitationsAcceptPage.openingThisInvitationGrantsNoAccess':
       'এই আমন্ত্রণ খুললে কোনো অ্যাক্সেস দেওয়া হয় না। গ্রহণ করার আগে সবকিছু পর্যালোচনা করুন।',
     'appSharingInvitations.appSharingInvitationsAcceptPage.permissions': 'অনুমতি',

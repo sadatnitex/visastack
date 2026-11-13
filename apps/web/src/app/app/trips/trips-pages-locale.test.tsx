@@ -60,7 +60,11 @@ function expectBengali(text: string, keys: readonly string[]) {
   for (const key of keys) {
     const full = `appTrips.${key}`;
     expect(full in bn, key).toBe(true);
-    expect(text, key).toContain(bn[full]?.split('{')[0]?.trim() ?? '?');
+    for (const part of (bn[full] ?? '?')
+      .split(/\{\w+\}/)
+      .map((p) => p.trim())
+      .filter(Boolean))
+      expect(text, key).toContain(part);
     expect(text, key).not.toContain(en[full]);
   }
   expect(text).not.toMatch(/appTrips\./);

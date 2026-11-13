@@ -172,7 +172,7 @@ describe('joined trip forms under Bengali', () => {
     );
   };
 
-  it('leaving asks first in Bengali, with Stay', async () => {
+  it('leaving asks first in Bengali; the two answers stay English together', async () => {
     await draw(<LeaveTripForm tripId="t1" />);
     const leaveWords = await words('leaveThisTrip');
     const leave = [...container.querySelectorAll('button')].find(
@@ -181,7 +181,7 @@ describe('joined trip forms under Bengali', () => {
     if (!leave) throw new Error('Leave This Trip button');
     act(() => leave.click());
     expect(container.textContent).toContain(await words('leaveThisTripTheOrganiserWill'));
-    expect(container.textContent).toContain(await words('stay'));
+    expect(container.textContent).toContain('Stay');
     expect(container.textContent).not.toContain('Leave this trip? The organiser');
   });
 

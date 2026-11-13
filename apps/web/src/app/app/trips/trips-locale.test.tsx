@@ -148,7 +148,7 @@ describe('trip form states under Bengali', () => {
     expectBengali(['everyoneYouManageIsAlreadyOn']);
   });
 
-  it('removing someone else asks first, with Keep', () => {
+  it('removing someone else asks first; its two answers stay English together', () => {
     draw(<RemoveCompanionForm tripId="t1" companionId="c1" name="Nadia Rahman" />);
     expectBengali(['remove']);
     expect(container.querySelector('button[aria-label]')?.getAttribute('aria-label')).toBe(
@@ -158,7 +158,7 @@ describe('trip form states under Bengali', () => {
     expect(container.textContent).toContain(
       k('removeNameTheyLoseAccessAt').replace('{name}', 'Nadia Rahman'),
     );
-    expectBengali(['keep']);
+    expect(container.textContent).toContain('Keep');
   });
 
   it('sharing a travel document: the label, the first choice and what can be shared', () => {

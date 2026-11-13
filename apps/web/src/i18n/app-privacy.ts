@@ -54,7 +54,6 @@ export const appPrivacyCatalog = defineCatalog({
   bn: {
     'appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired':
       'আমাদের উন্নতিতে সাহায্য করে - আবশ্যক নয়',
-    'appPrivacy.appPrivacyDeletionPanel.keepMyAccount': 'আমার অ্যাকাউন্ট রাখুন',
     'appPrivacy.appPrivacyDeletionPanel.reasonOptional': 'কারণ (ঐচ্ছিক)',
     'appPrivacy.appPrivacyDeletionPanel.requestAccountDeletion': 'অ্যাকাউন্ট মুছে ফেলার অনুরোধ করুন',
     'appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount':

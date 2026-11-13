@@ -239,7 +239,6 @@ describe('privacy screens under Bengali (owner-approved legal wording, signed of
     // asserted, in deletion-panel-locale.test.tsx.
     const elsewhere = new Set([
       bn['appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount'],
-      bn['appPrivacy.appPrivacyDeletionPanel.keepMyAccount'],
       bn['appPrivacy.appPrivacyDeletionPanel.reasonOptional'],
     ]);
     expect(

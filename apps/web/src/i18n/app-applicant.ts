@@ -635,10 +635,8 @@ export const appApplicantCatalog = defineCatalog({
   bn: {
     'appApplicant.appApplicantIdAiReview.changeItIfItIsNot': 'গ্রহণ করার আগে এটি ঠিক না হলে বদলে নিন।',
     'appApplicant.appApplicantIdAiReview.checkWhatWeFound': 'আমরা যা পেয়েছি তা দেখে নিন',
-    'appApplicant.appApplicantIdAiReview.dateItChanged': 'যেদিন বদলেছে',
     'appApplicant.appApplicantIdAiReview.fallbackProviderUsed': 'বিকল্প প্রোভাইডার ব্যবহার করা হয়েছে',
     'appApplicant.appApplicantIdAiReview.noLegibleTextWasFound': 'পড়ার মতো কোনো লেখা পাওয়া যায়নি।',
-    'appApplicant.appApplicantIdAiReview.pleaseCheck': 'দেখে নিন',
     'appApplicant.appApplicantIdAiReview.possibleInconsistencyConfidenceConfidence':
       'সম্ভাব্য অসংগতি ({confidence}% আস্থা)',
     'appApplicant.appApplicantIdAiReview.sensitive': 'সংবেদনশীল',
@@ -647,15 +645,11 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdAiReview.suggestedByApp': '{app}-এর পরামর্শ',
     'appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr':
       'প্রথম রিডারের সময় শেষ হয়ে গেছে বা এটি খুব ব্যস্ত ছিল, তাই একটি বিকল্প রিডার ব্যবহার করা হয়েছে। অনুগ্রহ করে ফলাফলটি দেখে নিন।',
-    'appApplicant.appApplicantIdAiReview.useTheSuggestedValue': 'পরামর্শ দেওয়া মান ব্যবহার করুন',
-    'appApplicant.appApplicantIdAiReview.useThisDocumentSValue': 'এই ডকুমেন্টের মান ব্যবহার করুন',
     'appApplicant.appApplicantIdAiReview.valueToSave': 'সংরক্ষণের মান',
     'appApplicant.appApplicantIdAiReview.weCouldNotFindTheseExact':
       'ডকুমেন্টে এই হুবহু শব্দগুলো খুঁজে পাওয়া যায়নি। গ্রহণ করার আগে ডকুমেন্টটি দেখে নিন।',
     'appApplicant.appApplicantIdAiReview.weReadReadaswrittenPickTheDate':
       'আমরা পড়েছি "{readAsWritten}"। সংরক্ষণের জন্য তারিখটি বেছে নিন।',
-    'appApplicant.appApplicantIdAiReview.yourProfileAlreadyHasADifferent':
-      'আপনার প্রোফাইলে এর জন্য আগে থেকেই অন্য একটি মান আছে, গোপন রাখতে এখানে লুকানো। কোনটি সঠিক?',
     'appApplicant.appApplicantIdAppSuggestions.aiApps': 'এআই অ্যাপ',
     'appApplicant.appApplicantIdAppSuggestions.suggestionsFromAiApps': 'এআই অ্যাপের পরামর্শ',
     'appApplicant.appApplicantIdDocumentExpiryForm.expiryDate': 'মেয়াদ শেষের তারিখ',
@@ -668,19 +662,16 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdDocumentRenameForm.documentName': 'ডকুমেন্টের নাম',
     'appApplicant.appApplicantIdDocumentSuggestionCard.cancel': 'বাতিল করুন',
     'appApplicant.appApplicantIdDocumentSuggestionCard.checkTheKindAndName': 'ধরন ও নাম দেখে নিন',
-    'appApplicant.appApplicantIdDocumentSuggestionCard.edit': 'সম্পাদনা করুন',
     'appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument': 'ডকুমেন্টের ধরন',
     'appApplicant.appApplicantIdDocumentSuggestionCard.listedUnder': 'যেখানে তালিকাভুক্ত',
     'appApplicant.appApplicantIdDocumentSuggestionCard.name': 'নাম',
     'appApplicant.appApplicantIdDocumentSuggestionCard.nothingIsSavedUntilYouAccept':
       'আপনি গ্রহণ না করা পর্যন্ত কিছুই সংরক্ষণ করা হয় না।',
-    'appApplicant.appApplicantIdDocumentSuggestionCard.pleaseCheck': 'দেখে নিন',
     'appApplicant.appApplicantIdDocumentSuggestionCard.readByAi': 'এআই পড়েছে',
     'appApplicant.appApplicantIdDocumentTypeForm.forExampleMarriageCertificate': 'যেমন: বিবাহ সনদ',
     'appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType': 'অন্য ধরনের জন্য একটি নাম',
     'appApplicant.appApplicantIdDocumentTypeForm.notSetYet': 'এখনও ঠিক করা হয়নি',
     'appApplicant.appApplicantIdDocumentTypeForm.save': 'সংরক্ষণ করুন',
-    'appApplicant.appApplicantIdDocumentUploader.addedAsTitle': '{title} হিসেবে যোগ করা হয়েছে',
     'appApplicant.appApplicantIdDocumentUploader.appliesToTheFilesYouAdd':
       'এটি আপনি এরপর যে ডকুমেন্টগুলো যোগ করবেন সেগুলোর ক্ষেত্রে প্রযোজ্য: সঠিক শেয়ারিং ক্যাটাগরিতে রাখে এবং নাম দেয়, যেমন পাসপোর্ট ও আপনার নামের প্রথম অংশ। দুটোই আপনি পরে বদলাতে পারবেন।',
     'appApplicant.appApplicantIdDocumentUploader.cameraPhoto': 'ক্যামেরার ছবি',
@@ -756,9 +747,6 @@ export const appApplicantCatalog = defineCatalog({
       'বেশিরভাগ ডকুমেন্ট নিজে থেকেই সাজানো হয়। এগুলোর জন্য আপনার একটি উত্তর দরকার। আপনি বেছে না নেওয়া পর্যন্ত কিছুই বদলায় না।',
     'appApplicant.appApplicantIdDocumentsNeedsDecision.needsOneDecision': 'একটি সিদ্ধান্ত দরকার',
     'appApplicant.appApplicantIdDocumentsNeedsDecision.openDocument': 'ডকুমেন্ট খুলুন',
-    'appApplicant.appApplicantIdDocumentsNeedsDecision.openDocumentTitle': 'ডকুমেন্ট খুলুন: {title}',
-    'appApplicant.appApplicantIdDocumentsNeedsDecision.titleHadAlreadyExpiredOnThe':
-      'যোগ করার দিনেই {title}-এর মেয়াদ শেষ হয়ে গিয়েছিল।',
     'appApplicant.appApplicantIdDocumentsNeedsDecision.whatYouCanDo': 'আপনি যা করতে পারেন',
     'appApplicant.appApplicantIdExpiryPage.aboutTheseDates': 'এই তারিখগুলো সম্পর্কে',
     'appApplicant.appApplicantIdExpiryPage.addDatesToMyCalendar': 'আমার ক্যালেন্ডারে তারিখ যোগ করুন',
@@ -887,13 +875,10 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.answeredOfTotalDetailsCounted':
       '{total}টির মধ্যে {answered}টি তথ্য গণনা করা হয়েছে',
     'appApplicant.appApplicantIdProfileEditor.apply': 'প্রয়োগ করুন',
-    'appApplicant.appApplicantIdProfileEditor.area': 'এলাকা',
     'appApplicant.appApplicantIdProfileEditor.backedByASuppliedDocument':
       '✓ দেওয়া একটি ডকুমেন্ট দিয়ে সমর্থিত।',
     'appApplicant.appApplicantIdProfileEditor.chooseAPurpose': 'একটি উদ্দেশ্য বেছে নিন…',
     'appApplicant.appApplicantIdProfileEditor.detailsFilled': 'তথ্য পূরণ হয়েছে',
-    'appApplicant.appApplicantIdProfileEditor.eGPassportAddressEmployer':
-      'যেমন পাসপোর্ট, ঠিকানা, নিয়োগকর্তা',
     'appApplicant.appApplicantIdProfileEditor.editTheseDetails': 'এই তথ্য সম্পাদনা করুন',
     'appApplicant.appApplicantIdProfileEditor.ended': 'শেষ হয়েছে',
     'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay':
@@ -907,8 +892,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate':
       'সর্বশেষ নিশ্চিত করা হয়েছে {formatDate}',
     'appApplicant.appApplicantIdProfileEditor.locked': 'লক করা',
-    'appApplicant.appApplicantIdProfileEditor.lockedAndNotCountedTickUse':
-      'লক করা এবং গণনায় ধরা হয় না। পূরণ করতে “এই অংশ ব্যবহার করুন”-এ টিক দিন; তখন এটি আপনার সম্পূর্ণতার হিসাবে ধরা হবে।',
     'appApplicant.appApplicantIdProfileEditor.needsReview': 'পর্যালোচনা দরকার',
     'appApplicant.appApplicantIdProfileEditor.noSupportingDocumentSupplied':
       '✗ সমর্থনকারী কোনো ডকুমেন্ট দেওয়া হয়নি।',
@@ -970,8 +953,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdRecordBrowser.rowcountItemsMatch': '{rowCount}টি আইটেম মিলেছে।',
     'appApplicant.appApplicantIdRecordPage.addADocument': 'ডকুমেন্ট যোগ করুন',
     'appApplicant.appApplicantIdRecordPage.allRecords': 'সব রেকর্ড',
-    'appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe':
-      'বর্তমান কপি মানে এটি আপনার সংরক্ষিত সবচেয়ে নতুন কপি। এর মানে এই নয় যে কেউ পরীক্ষা করে দেখেছেন এটি আসল কি না, বা এটি সব আবেদনের জন্য উপযুক্ত কি না। যেসব ডকুমেন্ট এখনো পরীক্ষা করা হচ্ছে, প্রত্যাখ্যান করা হয়েছে, মেয়াদ শেষ হয়েছে বা প্রতিস্থাপন করা হয়েছে, সেগুলো কখনো ব্যবহারের জন্য প্রস্তুত হিসেবে দেখানো হয় না।',
     'appApplicant.appApplicantIdRecordPage.everythingSavedForDisplaynameInOne':
       '{displayName}-এর জন্য সংরক্ষিত সবকিছু এক জায়গায়। একটি তথ্য বা ডকুমেন্ট খুঁজুন, কোন কপিটি বর্তমান তা দেখুন, তারপর ভিসা ফাইলে ব্যবহার করুন বা শেয়ার করুন।',
     'appApplicant.appApplicantIdRecordPage.updateYourProfile': 'আপনার প্রোফাইল আপডেট করুন',

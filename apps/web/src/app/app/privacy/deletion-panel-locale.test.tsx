@@ -62,8 +62,8 @@ describe('the deletion panel under Bengali (signed off 2026-11-12)', () => {
     expect(host.textContent).toContain(
       bn['appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount'],
     );
-    expect(host.textContent).toContain(bn['appPrivacy.appPrivacyDeletionPanel.keepMyAccount']);
-    expect(host.textContent).not.toContain('Keep My Account');
+    // Left English at review: both choices of the confirmation stay in one language.
+    expect(host.textContent).toContain('Keep My Account');
     expect(host.textContent).not.toMatch(/appPrivacy\./);
   });
 

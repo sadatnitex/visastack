@@ -84,7 +84,6 @@ export const appTripsCatalog = defineCatalog({
       'আপনি যাঁদের দেখাশোনা করেন, তাঁরা সবাই ইতিমধ্যে এই ট্রিপে আছেন।',
     'appTrips.appTripsTripForms.familyMember': 'পরিবারের সদস্য',
     'appTrips.appTripsTripForms.forExampleJapan': 'যেমন: জাপান',
-    'appTrips.appTripsTripForms.keep': 'রাখুন',
     'appTrips.appTripsTripForms.minorGuardian': 'অপ্রাপ্তবয়স্ক (অভিভাবক)',
     'appTrips.appTripsTripForms.name': 'নাম',
     'appTrips.appTripsTripForms.nameAsOnThePassport': 'পাসপোর্টে যেমন আছে তেমন নাম',

@@ -86,8 +86,8 @@ describe('AI review under Bengali', () => {
     expect(text).not.toContain(bn[`${K}sensitive`]);
     // Left English at review: the draft for "Clear" is the verb (empty it), not "readable".
     expect(text).toContain('Clear');
-    expect(text).toContain(bn[`${K}pleaseCheck`]);
-    expect(text).not.toContain('Please Check');
+    // Left English at review with its pair "Clear" (one language per badge pair).
+    expect(text).toContain('Please Check');
   });
 
   it('shows the AI promises and the approval wording in Bengali, with no raw key', () => {
@@ -134,8 +134,12 @@ describe('AI review states under Bengali', () => {
   const text = () => (host.textContent ?? '').replace(/\s+/g, ' ');
   const expectBengali = (keys: readonly string[]) => {
     for (const key of keys) {
-      const value = (bn[`${K}${key}`] ?? `missing ${key}`).split('{')[0]?.trim() ?? '';
-      expect(text(), key).toContain(value);
+      const value = bn[`${K}${key}`] ?? `missing ${key}`;
+      for (const part of value
+        .split(/\{\w+\}/)
+        .map((p) => p.trim())
+        .filter(Boolean))
+        expect(text(), key).toContain(part);
       expect(text(), key).not.toContain(en[`${K}${key}`]);
     }
     expect(host.innerHTML).not.toMatch(/appApplicant\./);
@@ -167,13 +171,17 @@ describe('AI review states under Bengali', () => {
         ]}
       />,
     );
-    expectBengali(['suggestedByApp', 'useTheSuggestedValue', 'yourProfileAlreadyHasADifferent']);
+    // "Suggested by {app}": the app name sits after the Bengali words.
+    expect(text()).toContain(`Claude${bn[`${K}suggestedByApp`]?.split('{app}')[1] ?? '?'}`);
+    // Left English at review: the choice of which value is right stays in one language.
+    expect(text()).toContain('Use the Suggested Value');
+    expect(text()).toContain('Both Are Right, It Changed');
     expect(text()).toContain('14 MAR 2030');
     expect(text()).toContain(bn[`${K}weReadReadaswrittenPickTheDate`]?.split('"')[0]?.trim());
     const changed = host.querySelector<HTMLInputElement>('input[type="radio"][value="changed"]');
     if (!changed) throw new Error('changed choice');
     act(() => changed.click());
-    expectBengali(['dateItChanged']);
+    expect(text()).toContain('Date It Changed');
   });
 
   it('two clear details offer accepting them together, with what is left out', () => {
