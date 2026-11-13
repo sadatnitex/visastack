@@ -647,8 +647,7 @@ export async function sendGuestCode(
     now,
   );
   if (!decision.allowed) return err(serviceError('rate_limited', decision.reason));
-  if (await linkGuestPathSpent(db, session.linkId))
-    return err(keyedError('invalid', SPENT_KEY));
+  if (await linkGuestPathSpent(db, session.linkId)) return err(keyedError('invalid', SPENT_KEY));
   const code = (input.generateCode ?? sixDigits)();
   if (normalizeGuestCode(code) !== code) throw new Error('a guest code must be six digits');
   const codeId = randomUUID();
@@ -721,12 +720,7 @@ export async function verifyGuestCode(
   proof: GuestCollectionSessionProof,
   input: { readonly code: unknown; readonly networkSubject: string },
   now: Date = new Date(),
-): Promise<
-  Result<
-    { readonly rawSessionId: string },
-    ServiceError | GuestCodeRefusalError
-  >
-> {
+): Promise<Result<{ readonly rawSessionId: string }, ServiceError | GuestCodeRefusalError>> {
   if (!GuestCollectionSessionProof.isGenuine(proof)) return err(missing());
   const session = await liveSessionFor(db, proof, now);
   if (!session || session.verified) return err(missing());

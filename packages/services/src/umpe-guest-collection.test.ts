@@ -386,15 +386,15 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
         t0,
       );
       if (!result.ok && 'code' in result.error) refusals.push(result.error.code);
-      if (!result.ok) keyed.push([result.error.messageKey, result.error.params?.['left']]);
+      if (!result.ok) keyed.push([result.error.messageKey, result.error.params]);
     }
     expect(refusals).toEqual(['wrong', 'wrong', 'wrong', 'wrong', 'expired']);
     // Each refusal is keyed for the screen: the count of tries left, then the last-try wording.
     expect(keyed).toEqual([
-      ['umpe_guest_collection.that_code_is_not_right', 4],
-      ['umpe_guest_collection.that_code_is_not_right', 3],
-      ['umpe_guest_collection.that_code_is_not_right', 2],
-      ['umpe_guest_collection.that_code_is_not_right', 1],
+      ['umpe_guest_collection.that_code_is_not_right', { left: 4 }],
+      ['umpe_guest_collection.that_code_is_not_right', { left: 3 }],
+      ['umpe_guest_collection.that_code_is_not_right', { left: 2 }],
+      ['umpe_guest_collection.that_code_is_not_right', { left: 1 }],
       ['umpe_guest_collection.that_code_has_had_too_many', undefined],
     ]);
     const right = await verifyGuestCode(db, proofOf(raw), { code: CODE, networkSubject: NET }, t0);

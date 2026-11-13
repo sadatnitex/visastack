@@ -6,6 +6,7 @@ import {
   previewCompanionInvitation,
   tripCompanionsEnabled,
 } from '@visastack/services';
+import { serviceMessages } from '@visastack/services/i18n';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -14,8 +15,7 @@ import { DestinationLabel } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
 import { appTripInvitationsCatalog } from '../../../../i18n/app-trip-invitations';
 import { formatTimestampDate } from '../../../../lib/format-date';
-import { getServerLocale, getServerT, primeLocale } from '../../../../lib/i18n-server';
-import { serviceErrorTranslator } from '../../../../lib/service-error-text';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import {
   AcceptTripInvitationForm,
@@ -58,8 +58,8 @@ function Shell({ children }: { readonly children: ReactNode }) {
  */
 function Unavailable({ token, busy = false }: { readonly token: string; readonly busy?: boolean }) {
   const t = getServerT(appTripInvitationsCatalog);
-  // The service's own words for the one refusal, in the language the page resolved.
-  const refusal = serviceErrorTranslator(getServerLocale());
+  // The service's own words for the one refusal, in the language the page resolved, marked as such.
+  const refusal = getServerT(serviceMessages);
   const back = TOKEN_SHAPE.test(token)
     ? `/auth/sign-in?next=${encodeURIComponent(`/app/trip-invitations/accept?token=${token}`)}`
     : '/auth/sign-in';
@@ -69,7 +69,9 @@ function Unavailable({ token, busy = false }: { readonly token: string; readonly
         title={t('appTripInvitations.appTripInvitationsAcceptPage.invitationUnavailable')}
       />
       <article className="card">
-        <p className="u-m-0">{refusal(busy ? INVITATION_BUSY_KEY : INVITATION_UNAVAILABLE_KEY)}</p>
+        <p className="u-m-0">
+          {refusal.node(busy ? INVITATION_BUSY_KEY : INVITATION_UNAVAILABLE_KEY)}
+        </p>
         <p className="muted u-m-0">
           {t.node('appTripInvitations.appTripInvitationsAcceptPage.askThePersonWhoInvitedYou')}
         </p>

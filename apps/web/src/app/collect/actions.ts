@@ -143,7 +143,7 @@ export async function retentionAction(
   if (!session) return CLOSED;
   const days = Number(formData.get('retentionDays'));
   if (!Number.isInteger(days)) {
-    // The service's own check and words, so a hand-made form gets the same answer in every language.
+    // The service's own words for this check, so both say the same thing in every language.
     return {
       ok: false,
       message: await serviceKeyMessage('umpe_guest_collection.choose_how_long_the_agency_may'),

@@ -179,11 +179,18 @@ describe('the one refusal in both answers', () => {
 });
 
 describe('the one refusal on the page', () => {
-  async function page() {
-    return textOf(
-      await renderServer(TripInvitationPage({ searchParams: Promise.resolve({ token: TOKEN }) })),
-    );
+  async function html() {
+    return renderServer(TripInvitationPage({ searchParams: Promise.resolve({ token: TOKEN }) }));
   }
+  async function page() {
+    return textOf(await html());
+  }
+
+  it('under bn the Bangla refusal is marked as Bangla inside the English page', async () => {
+    loc.locale = 'bn';
+    svc.previewCompanionInvitation.mockResolvedValue(refused(serviceError('not_found', 'x')));
+    expect(await html()).toMatch(new RegExp(`lang="bn"[^>]*>${UNAVAILABLE_BN}<`));
+  });
 
   it.each(['en', 'bn'] as const)('%s: a made-up and a busy invitation page', async (locale) => {
     loc.locale = locale;
