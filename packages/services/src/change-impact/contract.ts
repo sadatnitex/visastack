@@ -26,7 +26,7 @@
  *                    - an agency is still checking the earlier copy or answer;
  *                    - an agency accepted the earlier copy or answer and its work with the
  *                      traveller is still live;
- *                    - a share names the replaced document, so the newer one is not shared;
+ *                    - a share reaches the replaced document but not the newer one;
  *                    - a live case holds a deliberate choice of the earlier copy.
  *
  * HISTORY_PRESERVED  A finished record holds the earlier copy or value and stays exactly as it
@@ -84,8 +84,9 @@ export const IMPACT_REASON_OUTCOME = {
   AGENCY_CHECKING_EARLIER: 'REVIEW_RECOMMENDED',
   // The agency accepted the earlier copy or answer and its work with the traveller is live.
   AGENCY_ACCEPTED_EARLIER_LIVE_WORK: 'REVIEW_RECOMMENDED',
-  // A live share lists the replaced document by name; the newer document is outside it.
-  SHARE_NAMES_REPLACED_DOCUMENT: 'REVIEW_RECOMMENDED',
+  // A live share reaches the replaced document but not the newer one (for example it lists the
+  // earlier document by name).
+  SHARE_COVERS_EARLIER_ONLY: 'REVIEW_RECOMMENDED',
   // A live case holds a deliberate choice of the earlier copy.
   LIVE_CASE_KEEPS_EARLIER_COPY: 'REVIEW_RECOMMENDED',
 
