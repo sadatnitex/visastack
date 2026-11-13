@@ -3003,6 +3003,15 @@ export async function submitEvidenceResponse(
     /** The saved version of the detail the person saw; must still be the current one. */
     readonly factVersionId?: string;
     readonly idempotencyKey?: string;
+    /**
+     * Set by one confirmation that answers several requests of this agency together: the agency's
+     * administrators get one combined notice for the whole confirmation instead of one per answer.
+     * Each answer is still its own send, audit entry and review. `anchorRequestId` is the same for
+     * every answer of the confirmation, so the notice's retry key is the same too and the first
+     * answer to commit writes it; the rest find it already there. Left out, the notice is the
+     * single-answer one, exactly as before.
+     */
+    readonly agencyNotice?: { readonly groupKey: string; readonly anchorRequestId: string };
   },
 ): Promise<Result<EvidenceSubmitResult, ServiceError>> {
   if (input.idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
@@ -3299,6 +3308,7 @@ export async function submitEvidenceResponse(
     }
     await noticeAgencyOfEvidence(tx, {
       request,
+      ...(input.agencyNotice ? { group: input.agencyNotice } : {}),
       // Keyed on the send's own row (never on its round number, which can be reused once an
       // earlier send is removed with its document); the time covers a send with no exact copy.
       threshold:
@@ -3346,9 +3356,18 @@ export async function submitEvidenceResponse(
  */
 async function noticeAgencyOfEvidence(
   tx: Db,
-  input: { readonly request: EvidenceRequest; readonly threshold: string },
+  input: {
+    readonly request: EvidenceRequest;
+    readonly threshold: string;
+    /** One combined notice for a whole confirmation (see `submitEvidenceResponse`). */
+    readonly group?: { readonly groupKey: string; readonly anchorRequestId: string };
+  },
 ): Promise<void> {
   const { request } = input;
+  // A combined notice is about the confirmation, not about this answer: its retry key, its driving
+  // request and its words are the same for every answer in it, and the deep link opens the first
+  // request of the group, where the agency's list of waiting answers is.
+  const anchor = input.group?.anchorRequestId ?? request.id;
   const admins = await tx
     .select({ accountId: schema.memberships.accountId })
     .from(schema.memberships)
@@ -3362,16 +3381,18 @@ async function noticeAgencyOfEvidence(
   for (const admin of admins) {
     await enqueueNotificationBothChannels(tx, {
       eventType: 'EVIDENCE_RESPONSE_RECEIVED',
-      resourceId: request.id,
-      threshold: input.threshold,
+      resourceId: anchor,
+      threshold: input.group ? `group-${input.group.groupKey}` : input.threshold,
       recipientAccountId: admin.accountId,
       applicantId: request.applicantId,
       organizationId: request.organizationId,
       ...(request.missionId ? { missionId: request.missionId } : {}),
       payload: {
         subject: 'New Evidence Received',
-        summary: 'A traveller sent evidence for one of your requests.',
-        deepLinkPath: `/app/agency/${request.organizationId}/clients?request=${request.id}#request-${request.id}`,
+        summary: input.group
+          ? 'A traveller sent evidence for several of your requests.'
+          : 'A traveller sent evidence for one of your requests.',
+        deepLinkPath: `/app/agency/${request.organizationId}/clients?request=${anchor}#request-${anchor}`,
       },
     });
   }
