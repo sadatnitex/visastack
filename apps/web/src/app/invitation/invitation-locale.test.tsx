@@ -26,7 +26,8 @@ const preview = vi.hoisted(() => ({ page: { state: 'unavailable' } as Record<str
 vi.mock('../../lib/invitation-preview', () => ({
   loadClientInvitationPage: async () => preview.page,
 }));
-vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => false }));
+const session = vi.hoisted(() => ({ signedIn: false }));
+vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => session.signedIn }));
 
 import { invitationCatalog } from '../../i18n/invitation';
 
@@ -99,8 +100,24 @@ describe('the public invitation page under Bengali', () => {
         bn['invitation.invitationClientInvitationOffer.ifYouResetYourPasswordOpen'],
       );
       expect(offer).toContain(bn['invitation.invitingAgency.poweredByVisastack']);
-      expect(offer).toContain('Acme Visas Invited You');
-      expect(offer).toContain('They Could Not');
+      expect(offer).toContain(
+        bn['invitation.invitationClientInvitationOffer.agencynameInvitedYou'].replace(
+          '{agencyName}',
+          'Acme Visas',
+        ),
+      );
+      expect(offer).not.toContain('Acme Visas Invited You');
+      for (const key of [
+        'invitation.invitationClientInvitationOffer.theyCould',
+        'invitation.invitationClientInvitationOffer.theyCouldNot',
+        'invitation.invitationClientInvitationOffer.beforeYouStart',
+        'invitation.invitationClientInvitationOffer.createAnAccountOrSignIn',
+        'invitation.invitationClientInvitationOffer.youStayInControl',
+      ] as const) {
+        expect(offer, key).toContain(bn[key]);
+      }
+      // The step names stay English, so the spoken "(Done)" after them stays English too.
+      expect(offer).toContain('1 Sign In 2 Review 3 Decide');
       expect(offer).not.toMatch(/invitation\.invitationClientInvitationOffer\./);
       expect(offer).not.toMatch(/\{[A-Za-z]+\}/);
       for (const key of [
@@ -113,6 +130,31 @@ describe('the public invitation page under Bengali', () => {
       }
     } finally {
       preview.page = { state: 'unavailable' };
+    }
+  });
+
+  it('signed in, the offer asks for the invited address in Bengali (refill 3)', async () => {
+    preview.page = {
+      state: 'open',
+      view: {
+        agencyName: 'Acme Visas',
+        verified: true,
+        accentColor: null,
+        logoVersion: null,
+        grantActions: DEFAULT_CLIENT_GRANT_ACTIONS,
+        expiresAt: new Date(Date.now() + 6.5 * 24 * 60 * 60 * 1000),
+      },
+    };
+    session.signedIn = true;
+    try {
+      const offer = await render('bn', { kind: 'client', token: TOKEN });
+      expect(offer).toContain(
+        invitationCatalog.bn['invitation.invitationClientInvitationOffer.useTheEmailAddressThatReceived'],
+      );
+      expect(offer).not.toMatch(/invitation\.invitationClientInvitationOffer\./);
+    } finally {
+      preview.page = { state: 'unavailable' };
+      session.signedIn = false;
     }
   });
 

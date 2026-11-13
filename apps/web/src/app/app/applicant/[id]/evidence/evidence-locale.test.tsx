@@ -175,7 +175,8 @@ describe('the requests page under Bengali', () => {
     expect(text).toContain(bn[`${PAGE}anAgencyIsAskingYouFor`]);
     expect(text).not.toContain(en[`${PAGE}anAgencyIsAskingYouFor`]);
     expect(text).toContain(en[`${PAGE}anAgencyRequestIsThatOrganisation`]);
-    expect(text).toContain('1 request is waiting for you.');
+    expect(text).toContain(bn[`${PAGE}1RequestIsWaitingForYou`]);
+    expect(text).not.toContain('1 request is waiting for you.');
     expect(text).toContain('Missing');
     expect(text).not.toContain(bn[`${PAGE}nothingIsWaitingForYou`]);
     expect(html).not.toMatch(RAW_KEY);
@@ -197,17 +198,53 @@ describe('the requests page under Bengali', () => {
     mocks.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: [] });
     const { html, text } = await page('bn');
     expect(text).toContain(bn[`${PAGE}requestsFromAgencies`]);
-    expect(text).toContain('No Evidence Requests');
-    expect(text).toContain(en[`${PAGE}thisIsWhereAnAgencyAsks`]);
+    expect(text).toContain(bn[`${PAGE}noEvidenceRequests`]);
+    expect(text).toContain(bn[`${PAGE}thisIsWhereAnAgencyAsks`]);
+    expect(text).not.toContain('No Evidence Requests');
     expect(text).not.toContain(bn[`${PAGE}nothingIsWaitingForYou`]);
     expect(html).not.toMatch(RAW_KEY);
   });
 
-  it('when the requests cannot be loaded it keeps the warning in English', async () => {
+  it('when the requests cannot be loaded it says so in Bengali', async () => {
     mocks.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: false });
     const { text } = await page('bn');
-    expect(text).toContain(en[`${PAGE}yourRequestsCouldNotBeLoaded`]);
+    expect(text).toContain(bn[`${PAGE}yourRequestsCouldNotBeLoaded`]);
+    expect(text).not.toContain(en[`${PAGE}yourRequestsCouldNotBeLoaded`]);
     expect(text).not.toMatch(RAW_KEY);
+  });
+
+  it('several waiting requests are counted in Bengali digits (refill 3)', async () => {
+    mocks.listEvidenceRequestsForApplicant.mockResolvedValue({
+      ok: true,
+      value: [request, { ...request, id: 'r2' }],
+    });
+    const { html, text } = await page('bn');
+    expect(text).toContain('২টি অনুরোধ আপনার জন্য অপেক্ষা করছে।');
+    expect(text).not.toContain('requests are waiting for you');
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('questions already asked show the Bengali title and the limit line, with the dates left in English (refill 3)', async () => {
+    mocks.listEvidenceRequestsForApplicant.mockResolvedValue({
+      ok: true,
+      value: [{ ...request, missionId: 'm1' }],
+    });
+    const asked = Array.from({ length: 5 }, (_, i) => ({
+      askedAt: new Date(`2026-11-0${i + 1}T08:00:00Z`),
+      text: `Question ${i + 1}`,
+    }));
+    mocks.listRequestItemExtras.mockResolvedValue({
+      ok: true,
+      value: { rules: new Map(), questions: new Map([['r1', asked]]) },
+    });
+    const { html, text } = await page('bn');
+    expect(text).toContain(bn[`${PANES}yourQuestions`]);
+    expect(text).toContain(bn[`${PANES}youHaveAskedSeveralQuestionsAbout`]);
+    expect(text).not.toContain(en[`${PANES}youHaveAskedSeveralQuestionsAbout`]);
+    // The asked line holds an English date, so it stays English.
+    expect(text).toContain('Asked ');
+    expect(text).toContain('Question 5');
+    expect(html).not.toMatch(RAW_KEY);
   });
 
   it('is the same English as before under English, with no Bengali', async () => {
@@ -246,10 +283,11 @@ const submit = (props: Partial<React.ComponentProps<typeof SubmitResponseForm>> 
 );
 
 describe('the reply form under Bengali', () => {
-  it('asking for a document with no copy says so in Bengali and keeps the Open Documents button in English', () => {
+  it('asking for a document with no copy says so in Bengali, with a Bengali Open Documents button', () => {
     const { html, text } = client('bn', submit());
     expect(text).toContain(bn[`${FORM}noCopyOfThisDocumentType`]);
-    expect(text).toContain(en[`${FORM}openDocuments`]);
+    expect(text).toContain(bn[`${FORM}openDocuments`]);
+    expect(text).not.toContain(en[`${FORM}openDocuments`]);
     expect(html).not.toMatch(RAW_KEY);
   });
 
@@ -299,12 +337,13 @@ describe('the reply form under Bengali', () => {
     expect(html).not.toMatch(RAW_KEY);
   });
 
-  it('a detail with nothing recorded yet and unreadable documents stay in English', () => {
+  it('a detail with nothing recorded yet stays in English; unreadable documents say so in Bengali', () => {
     const none = client('bn', submit({ kind: 'FIELD' }));
     expect(none.text).toContain('You have not recorded this field yet.');
+    expect(none.text).not.toMatch(BENGALI);
     const unread = client('bn', submit({ documentsRead: false }));
-    expect(unread.text).toContain(en[`${FORM}yourDocumentsCouldNotBeLoaded`]);
-    expect(none.text + unread.text).not.toMatch(BENGALI);
+    expect(unread.text).toContain(bn[`${FORM}yourDocumentsCouldNotBeLoaded`]);
+    expect(unread.text).not.toContain(en[`${FORM}yourDocumentsCouldNotBeLoaded`]);
   });
 
   it('is the same English as before under English', () => {

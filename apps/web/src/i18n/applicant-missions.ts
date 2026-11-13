@@ -82,25 +82,60 @@ export const applicantMissionsCatalog = defineCatalog({
       'Who Can See This Case',
   },
   bn: {
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.aboutChecklists': 'চেকলিস্ট সম্পর্কে',
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.addMoreDetailsOptional':
       'আরও তথ্য যোগ করুন (ঐচ্ছিক)',
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGSmithFamilyEurope2026':
       'যেমন: রহমান পরিবার ইউরোপ ২০২৬',
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGTouristStudentWork':
       'যেমন: পর্যটক, শিক্ষার্থী, কাজ',
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.eGUkStudentVisaAutumn':
+      'যেমন UK স্টুডেন্ট ভিসা - অটাম ২০২৬',
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.endDate': 'শেষ তারিখ',
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet': 'এখনো নিশ্চিত নই',
+    'applicantMissions.appApplicantIdMissionsCreateMissionForm.startDate': 'শুরুর তারিখ',
     'applicantMissions.appApplicantIdMissionsCreateMissionForm.travelDatesOptional':
       'ভ্রমণের তারিখ (ঐচ্ছিক)',
+    'applicantMissions.appApplicantIdMissionsPage.aCaseChecksThisTravellerS':
+      'একটি ভিসা ফাইল একটি ভিসার তালিকার সঙ্গে এই ভ্রমণকারীর ডকুমেন্ট মিলিয়ে দেখে।',
     'applicantMissions.appApplicantIdMissionsPage.aboutCases': 'ভিসা ফাইল সম্পর্কে',
+    'applicantMissions.appApplicantIdMissionsPage.activeLength': 'চলমান ({length})',
+    'applicantMissions.appApplicantIdMissionsPage.caseDeleted': 'ভিসা ফাইল মুছে ফেলা হয়েছে।',
+    'applicantMissions.appApplicantIdMissionsPage.caseHistory': 'ভিসা ফাইলের ইতিহাস',
     'applicantMissions.appApplicantIdMissionsPage.cases': 'ভিসা ফাইল',
     'applicantMissions.appApplicantIdMissionsPage.new': 'নতুন',
+    'applicantMissions.appApplicantIdMissionsPage.noActiveCaseYet': 'এখনো কোনো চলমান ভিসা ফাইল নেই।',
+    'applicantMissions.appApplicantIdMissionsPage.noCasesYet': 'এখনো কোনো ভিসা ফাইল নেই',
+    'applicantMissions.appApplicantIdMissionsPage.notSureWhereYetAddA':
+      'কোথায় যাবেন এখনো নিশ্চিত নন? নাম দিয়ে একটি ভিসা ফাইল যোগ করুন',
+    'applicantMissions.appApplicantIdMissionsPage.pastTripsLength': 'আগের ট্রিপ ({length})',
+    'applicantMissions.appApplicantIdMissionsPage.prepareASummary': 'একটি সারাংশ প্রস্তুত করুন',
+    'applicantMissions.appApplicantIdMissionsPage.sayWhereYouAreGoingAnd':
+      'আপনি কোথায় যাচ্ছেন এবং কেন, তা জানান। আমরা ভিসা ফাইল ও তার চেকলিস্ট তৈরি করে দিই।',
     'applicantMissions.appApplicantIdMissionsPage.startATrip': 'ভ্রমণ শুরু করুন',
+    'applicantMissions.appApplicantIdMissionsPage.yourCasesCouldNotBeLoaded':
+      'আপনার ভিসা ফাইল লোড করা যায়নি। আবার চেষ্টা করতে রিফ্রেশ করুন।',
     'applicantMissions.appApplicantIdMissionsPrepareAgainPage.startANewCaseFromThis':
       'এটি থেকে একটি নতুন ভিসা ফাইল শুরু করুন',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.newCaseDetails':
+      'নতুন ভিসা ফাইলের তথ্য',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.nobodyHasAccessToAllYour':
+      'আপনার সব ভিসা ফাইলে কারও অ্যাক্সেস নেই, তাই এই ভিসা ফাইলটি শুধু আপনার কাছেই গোপন থাকে।',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.nothingHere':
+      'এখানে কিছু নেই।',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.recordsFromTheLastCase':
+      'আগের ভিসা ফাইলের রেকর্ড',
     'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.targetDeadlineOptional':
       'লক্ষ্যমাত্রার শেষ তারিখ (ঐচ্ছিক)',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.thesePeopleAndAgenciesCanSee':
+      'এই ব্যক্তি ও এজেন্সিগুলো আপনার সব ভিসা ফাইল দেখতে পারেন। এই নতুনটিও যাঁদের দেখা উচিত, তাঁদের টিক দিন। যাঁদের টিক দেবেন না, তাঁরা এটি দেখবেন না।',
     'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.travelEndDate':
       'ভ্রমণ শেষের তারিখ',
     'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.travelStartDate':
       'ভ্রমণ শুরুর তারিখ',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.whatIsThisCaseFor':
+      'এই ভিসা ফাইল কিসের জন্য?',
+    'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.whoCanSeeThisCase':
+      'এই ভিসা ফাইল কে দেখতে পারেন',
   },
 });

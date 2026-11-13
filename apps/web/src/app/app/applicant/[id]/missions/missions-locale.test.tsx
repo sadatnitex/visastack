@@ -60,10 +60,12 @@ const AGAIN = 'applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainF
 const RAW_KEY = /applicantMissions\.app[A-Z]/;
 const BENGALI = /[ঀ-৿]/;
 
-async function cases(locale: 'en' | 'bn') {
+async function cases(locale: 'en' | 'bn', query: Record<string, string> = {}) {
   current.holder = null;
   current.locale = locale;
-  const marked = await renderServer(CasesPage({ params: Promise.resolve({ id: 'person' }) }));
+  const marked = await renderServer(
+    CasesPage({ params: Promise.resolve({ id: 'person' }), searchParams: Promise.resolve(query) }),
+  );
   // Bengali on a page marked English carries its own language; the checks below read the words.
   const html = marked.replace(/<span lang="bn">([^<]*)<\/span>/g, '$1');
   return { html, marked, text: textOf(html) };
@@ -139,7 +141,9 @@ describe('the Cases page under Bengali', () => {
     expect(html).toMatch(new RegExp(`class="btn btn-primary"[^>]*>${bn[`${PAGE}startATrip`]}</a>`));
     // The person's own case name, the status word and the plain explanation stay as they are.
     expect(text).toContain('Your case: Japan Visit');
-    expect(text).toContain(en[`${PAGE}aCaseChecksThisTravellerS`]);
+    expect(text).toContain(bn[`${PAGE}aCaseChecksThisTravellerS`]);
+    expect(text).not.toContain(en[`${PAGE}aCaseChecksThisTravellerS`]);
+    expect(text).toContain('চলমান (১)');
     expect(text).toContain('Start a Trip');
     expect(html).not.toMatch(RAW_KEY);
   });
@@ -154,13 +158,31 @@ describe('the Cases page under Bengali', () => {
     expect(html).not.toMatch(RAW_KEY);
   });
 
-  it('with no case it keeps the empty-state wording in English', async () => {
+  it('with no case it says so in Bengali', async () => {
     service.listMissions.mockResolvedValue({ ok: true, value: [] });
     const { html, text } = await cases('bn');
-    expect(text).toContain('No Cases Yet');
-    expect(text).toContain(en[`${PAGE}noActiveCaseYet`]);
+    expect(text).toContain(bn[`${PAGE}noCasesYet`]);
+    expect(text).toContain(bn[`${PAGE}sayWhereYouAreGoingAnd`]);
+    expect(text).not.toContain('No Cases Yet');
     expect(text).toContain(bn[`${PAGE}cases`]);
     expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('a deleted case, past trips and an unreadable list are Bengali (refill 3)', async () => {
+    service.listMissions.mockResolvedValue({
+      ok: true,
+      value: [aCase, { ...aCase, id: 'c2', title: 'Old Trip', state: 'CLOSED' }],
+    });
+    const done = await cases('bn', { deleted: '1' });
+    expect(done.text).toContain(bn[`${PAGE}caseDeleted`]);
+    expect(done.text).toContain('আগের ট্রিপ (১)');
+    expect(done.text).toContain(bn[`${PAGE}caseHistory`]);
+    expect(done.text).not.toContain('Past Trips');
+    service.listMissions.mockResolvedValue({ ok: false, error: { code: 'unavailable' } });
+    const failed = await cases('bn');
+    expect(failed.text).toContain(bn[`${PAGE}yourCasesCouldNotBeLoaded`]);
+    expect(failed.text).not.toContain(en[`${PAGE}yourCasesCouldNotBeLoaded`]);
+    expect(done.html + failed.html).not.toMatch(RAW_KEY);
   });
 
   it('is the same English as before under English, with no Bengali', async () => {
@@ -193,6 +215,11 @@ describe('the new case form under Bengali', () => {
     expect(html).toContain(`placeholder="${bn[`${FORM}eGTouristStudentWork`]}"`);
     expect(text).toContain('What is this case for?');
     expect(text).toContain('Where are you going?');
+    expect(html).toContain(`placeholder="${bn[`${FORM}eGUkStudentVisaAutumn`]}"`);
+    expect(html).toContain(`placeholder="${bn[`${FORM}notSureYet`]}"`);
+    expect(text).toContain(bn[`${FORM}aboutChecklists`]);
+    expect(text).toContain(bn[`${FORM}startDate`]);
+    expect(text).toContain(bn[`${FORM}endDate`]);
     expect(text).toContain('Create Case');
     expect(html).not.toMatch(RAW_KEY);
   });
@@ -224,6 +251,34 @@ describe('Start a New Case from This One under Bengali', () => {
     expect(html).toContain(`aria-label="${bn[`${AGAIN}travelStartDate`]}"`);
     expect(html).toContain(`aria-label="${bn[`${AGAIN}travelEndDate`]}"`);
     expect(text).toContain('Create the New Case');
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('the sharing question names who sees every case, in Bengali (refill 3)', async () => {
+    service.planPrepareAgain.mockResolvedValue({
+      ok: true,
+      value: {
+        source: { id: 'm1', title: 'Japan trip 2025' },
+        packVersion: null,
+        checklistUnavailable: false,
+        notApplicableCount: 0,
+        items: [],
+        sharingQuestions: [
+          {
+            kind: 'grant',
+            id: 'g1',
+            recipient: { label: 'Harbor Visas' },
+            purpose: 'Visa help',
+            status: 'ACTIVE',
+          },
+        ],
+      },
+    });
+    const { html, text } = await again('bn');
+    expect(text).toContain(bn[`${AGAIN}whoCanSeeThisCase`]);
+    expect(text).toContain(bn[`${AGAIN}thesePeopleAndAgenciesCanSee`]);
+    expect(text).not.toContain(en[`${AGAIN}thesePeopleAndAgenciesCanSee`]);
+    expect(text).toContain('Harbor Visas');
     expect(html).not.toMatch(RAW_KEY);
   });
 

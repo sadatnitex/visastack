@@ -118,11 +118,62 @@ export const applicantSharingCatalog = defineCatalog({
       '{length, plural, =1 {{length} new document now match this grant category. They stay hidden from the recipient until you confirm including them.} other {{length} new documents now match this grant categories. They stay hidden from the recipient until you confirm including them.}}',
   },
   bn: {
+    'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOff': 'বন্ধ করুন',
+    'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppname': '{appName} বন্ধ করুন',
+    'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppnameFromItsNext':
+      '{appName} বন্ধ করবেন? পরের অনুরোধ থেকে এটি আর এই রেকর্ড পড়তে পারবে না। আবার ব্যবহার করতে অ্যাপ থেকে আবার সংযুক্ত করুন।',
+    'applicantSharing.appApplicantIdSharingAiConnections.accessChangedTheAppGetsThe':
+      'অ্যাক্সেস বদলানো হয়েছে। অ্যাপটি পরের অনুরোধে নতুন অ্যাক্সেস পাবে।',
+    'applicantSharing.appApplicantIdSharingAiConnections.aiApps': 'এআই অ্যাপ',
+    'applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis':
+      'এই রেকর্ডের সঙ্গে আপনার সংযুক্ত করা এআই অ্যাপ। প্রতিটি অ্যাপ শুধু আপনার বেছে নেওয়া অংশ পড়তে পারে। যে অ্যাপকে আপনি পরিবর্তনের পরামর্শ দিতে দিয়েছেন, সেটি আপনার জন্য পরামর্শ, খসড়া ও রিমাইন্ডার রেখে যেতে পারে, আর আপনি অনুমোদন না করা পর্যন্ত কিছুই বদলায় না। কোনো অ্যাপ বন্ধ করলে সেটি সঙ্গে সঙ্গে থেমে যায়।',
+    'applicantSharing.appApplicantIdSharingAiConnections.aiAppsYouConnectedToThis12cecd':
+      'এই রেকর্ডের সঙ্গে আপনার যুক্ত করা এআই অ্যাপ। প্রতিটি শুধু আপনার বেছে নেওয়া অংশ পড়তে পারে এবং VisaStack-এ কিছুই বদলাতে পারে না। কোনোটি বন্ধ করলে সেটি সঙ্গে সঙ্গে থেমে যায়।',
+    'applicantSharing.appApplicantIdSharingAiConnections.aiConnections': 'এআই সংযোগ',
+    'applicantSharing.appApplicantIdSharingAiConnections.aiConnectionsCannotBeShownRight':
+      'এআই সংযোগ এখন দেখানো যাচ্ছে না। পরে আবার চেষ্টা করুন।',
+    'applicantSharing.appApplicantIdSharingAiConnections.canRead': 'পড়তে পারেন',
+    'applicantSharing.appApplicantIdSharingAiConnections.cases': 'ভিসা ফাইল',
+    'applicantSharing.appApplicantIdSharingAiConnections.changeAccess': 'অ্যাক্সেস বদলান',
+    'applicantSharing.appApplicantIdSharingAiConnections.changeAccessForClientname':
+      '{clientName}-এর অ্যাক্সেস বদলান',
+    'applicantSharing.appApplicantIdSharingAiConnections.connected': 'সংযুক্ত',
+    'applicantSharing.appApplicantIdSharingAiConnections.ends': 'শেষের তারিখ',
+    'applicantSharing.appApplicantIdSharingAiConnections.lastUsed': 'সর্বশেষ ব্যবহার',
+    'applicantSharing.appApplicantIdSharingAiConnections.noAiAppsAreConnectedTo':
+      'এই রেকর্ডের সঙ্গে কোনো এআই অ্যাপ সংযুক্ত নেই। আপনার এআই অ্যাপ থেকে একটি সংযুক্ত করলে, সেটি কী পড়তে পারে তা সহ এখানে দেখা যাবে।',
+    'applicantSharing.appApplicantIdSharingAiConnections.notUsedYet': 'এখনো ব্যবহার করা হয়নি',
+    'applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord':
+      'এই রেকর্ডের কিছুই নয়',
+    'applicantSharing.appApplicantIdSharingAiConnections.recentlyTurnedOffLength':
+      'সম্প্রতি বন্ধ করা হয়েছে ({length})',
+    'applicantSharing.appApplicantIdSharingAiConnections.turnedOffThatAppCanNo':
+      'বন্ধ করা হয়েছে। ওই অ্যাপ এই রেকর্ড আর পড়তে পারবে না।',
+    'applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff': 'আপনি বন্ধ না করা পর্যন্ত',
+    'applicantSharing.appApplicantIdSharingAiDrafts.copyDraft': 'খসড়া কপি করুন',
+    'applicantSharing.appApplicantIdSharingAiDrafts.copyDraftTitle': 'খসড়া কপি করুন: {title}',
+    'applicantSharing.appApplicantIdSharingAiDrafts.draftTextTitle': 'খসড়া লেখা: {title}',
+    'applicantSharing.appApplicantIdSharingAiDrafts.draftsFromAiApps': 'এআই অ্যাপের খসড়া',
     'applicantSharing.appApplicantIdSharingAiDrafts.draftsYourAiAppsSavedFor':
       'আপনার এআই অ্যাপ আপনার জন্য যে খসড়া সংরক্ষণ করেছে, যেমন চিঠি ও নোট। এগুলো এখানে শুধু আপনার জন্যই রাখা হয়: কোথাও কিছু পাঠানো হয় না, আর এজেন্সিগুলো এগুলো কখনো দেখে না। আপনি মুছে না ফেলা পর্যন্ত খসড়া থাকে।',
+    'applicantSharing.appApplicantIdSharingAiDrafts.noDraftsFromAiApps':
+      'এআই অ্যাপ থেকে কোনো খসড়া নেই।',
+    'applicantSharing.appApplicantIdSharingAiDrafts.showDraft': 'খসড়া দেখান',
+    'applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCase': 'এই ভিসা ফাইলের অনুমতি দিন',
+    'applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCaseTitle':
+      'এই ভিসা ফাইলের অনুমতি দিন: {title}',
+    'applicantSharing.appApplicantIdSharingCaseExceptions.notShared': 'শেয়ার করা হয়নি',
+    'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelSeesThisCaseThroughAnother':
+      '{recipientLabel} আপনার দেওয়া অন্য একটি অ্যাক্সেসের মাধ্যমে এই ভিসা ফাইল দেখেন।',
+    'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelWillBeAbleToSee':
+      '{recipientLabel} এই ভিসা ফাইল ও এর রেকর্ড দেখতে পারবেন।',
+    'applicantSharing.appApplicantIdSharingCaseExceptions.sharedSeparately': 'আলাদাভাবে শেয়ার করা',
+    'applicantSharing.appApplicantIdSharingCaseExceptions.thisAccessCoversEveryCaseExcept':
+      'নিচেরগুলো ছাড়া সব ভিসা ফাইল এই অ্যাক্সেসের আওতায়। আপনার শেয়ার করা ডকুমেন্ট ও প্রোফাইলের তথ্য শেয়ার করাই থাকে।',
     'applicantSharing.appApplicantIdSharingGrantAiChoice.aiTools': 'এআই টুল',
     'applicantSharing.appApplicantIdSharingGrantForm.30DefaultUpTo90': '৩০ (ডিফল্ট), সর্বোচ্চ ৯০',
     'applicantSharing.appApplicantIdSharingGrantForm.commonReasons': 'সাধারণ কারণ',
+    'applicantSharing.appApplicantIdSharingGrantForm.confirmThisAccess': 'এই অ্যাক্সেস নিশ্চিত করুন',
     'applicantSharing.appApplicantIdSharingGrantForm.downloadsAreNotIncludedYouCan':
       'ডাউনলোড এতে অন্তর্ভুক্ত নয়। আপনি যেকোনো সময় ভবিষ্যতের অ্যাক্সেস স্থগিত বা প্রত্যাহার করতে পারেন; আগে ডাউনলোড হয়ে যাওয়া কপি ফিরিয়ে নেওয়া যায় না।',
     'applicantSharing.appApplicantIdSharingGrantForm.eGReviewMyUkStudent':
@@ -139,6 +190,7 @@ export const applicantSharingCatalog = defineCatalog({
     'applicantSharing.appApplicantIdSharingGrantForm.permissions': 'অনুমতি',
     'applicantSharing.appApplicantIdSharingGrantForm.pressReviewAndConfirmFirst':
       'আগে পর্যালোচনা ও নিশ্চিত করুন বোতামটি চাপুন।',
+    'applicantSharing.appApplicantIdSharingGrantForm.purpose': 'উদ্দেশ্য',
     'applicantSharing.appApplicantIdSharingGrantForm.recipientEmail': 'প্রাপকের ইমেইল',
     'applicantSharing.appApplicantIdSharingGrantForm.reviewAndConfirm': 'পর্যালোচনা ও নিশ্চিত করুন',
     'applicantSharing.appApplicantIdSharingGrantForm.revokingEndsAccessOnVisastackIt':
