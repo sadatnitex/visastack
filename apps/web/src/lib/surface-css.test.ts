@@ -150,6 +150,10 @@ describe('surfaces and edges by role (WP-C2)', () => {
   it('has removed the ghost numerals from the landing steps', () => {
     expect(css).not.toContain('land-step-num');
     expect(landing).not.toContain('land-step-num');
-    expect(landing).toContain('Step {index + 1}');
+    // The step label comes from the message catalogue; its English text is still "Step {value}".
+    expect(landing).toContain("t.node('home.page.stepValue', { value })");
+    expect(readFileSync(join(__dirname, '..', 'i18n', 'home.ts'), 'utf8')).toContain(
+      "'home.page.stepValue': 'Step {value}'",
+    );
   });
 });
