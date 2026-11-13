@@ -537,3 +537,39 @@ describe('agency refusals in the visitor language, every converted site', () => 
     expect(keyedError('invalid', keyOf('agency') as never).messageKey).toBe(keyOf('agency'));
   });
 });
+
+describe('recording an issuer confirmation checks the person before it looks anything up', () => {
+  const site = SITES.find((s) => s.fails === 'listSelectedEvidenceForOrg') as Site;
+  const lookup = site.fails;
+  const record = 'recordIssuerVerification' as string;
+
+  it('asks the service as the signed-in person, for the agency and case named in the form', async () => {
+    mocks.key = keyOf('agency');
+    await site.run({ ok: true, message: '' } as never, formOf(site));
+    const listSelected = mocks.fns[lookup];
+    expect(listSelected).toHaveBeenCalledWith({}, 'signed-in-account', 'org-1', 'm1');
+  });
+
+  it('records nothing and answers with the refusal alone when the service refuses the person', async () => {
+    mocks.key = keyOf('agency');
+    mocks.fns[lookup]?.mockImplementation(mocks.fail);
+    const answers: string[] = [];
+    // A made-up agency, a made-up case, and a real case with or without evidence chosen: the
+    // service refuses a stranger the same way for each (agency-org-actor-matrix.test.ts), so the
+    // form shows one answer and never reaches the record step.
+    for (const form of [
+      { organizationId: 'made-up-org', missionId: 'm1' },
+      { organizationId: 'org-1', missionId: 'made-up-case' },
+      { organizationId: 'org-1', missionId: 'm-nothing-chosen' },
+      { organizationId: 'org-1', missionId: 'm1' },
+    ]) {
+      const data = formOf(site);
+      data.set('organizationId', form.organizationId);
+      data.set('missionId', form.missionId);
+      answers.push((await site.run({ ok: true, message: '' } as never, data)).message);
+    }
+    expect(new Set(answers).size).toBe(1);
+    expect(answers[0]).toBe(en[keyOf('agency')]);
+    expect(mocks.fns[record]).not.toHaveBeenCalled();
+  });
+});

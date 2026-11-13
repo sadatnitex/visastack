@@ -591,23 +591,28 @@ describe('Keep Sharing for 30 More Days', () => {
       title: 'Spring trip',
     });
     if (!isOk(mission)) throw new Error('mission');
-    const before = await listAccessEndsForOrg(db, agency.orgId, [mission.value.id]);
+    const before = await listAccessEndsForOrg(db, agency.owner.id, agency.orgId, [
+      mission.value.id,
+    ]);
     expect(before.get(mission.value.id)?.getTime()).toBe((grant.expiryAt as Date).getTime());
 
     const proof = await ownerProof(db, account.id, applicantId);
     const result = await extendGrant(proof, { grantId: grant.id });
     if (!isOk(result)) throw new Error('extend');
-    const after = await listAccessEndsForOrg(db, agency.orgId, [mission.value.id]);
+    const after = await listAccessEndsForOrg(db, agency.owner.id, agency.orgId, [mission.value.id]);
     expect(after.get(mission.value.id)?.getTime()).toBe(
       (grant.expiryAt as Date).getTime() + 30 * DAY,
     );
     // Another agency learns nothing about this case, and a case not named is not read.
-    const other = await listAccessEndsForOrg(db, '00000000-0000-4000-8000-000000000000', [
-      mission.value.id,
-    ]);
+    const other = await listAccessEndsForOrg(
+      db,
+      agency.owner.id,
+      '00000000-0000-4000-8000-000000000000',
+      [mission.value.id],
+    );
     expect(other.size).toBe(0);
-    expect((await listAccessEndsForOrg(db, agency.orgId, [])).size).toBe(0);
-    const unnamed = await listAccessEndsForOrg(db, agency.orgId, [
+    expect((await listAccessEndsForOrg(db, agency.owner.id, agency.orgId, [])).size).toBe(0);
+    const unnamed = await listAccessEndsForOrg(db, agency.owner.id, agency.orgId, [
       '00000000-0000-4000-8000-000000000000',
     ]);
     expect(unnamed.size).toBe(0);

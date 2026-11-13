@@ -2471,7 +2471,12 @@ describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSel
     if (!isOk(grant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: agent.value.id, grantId: grant.value.id });
 
-    const forOrg = await listSelectedEvidenceForOrg(db, org.value.id, mission.value.id);
+    const forOrg = await listSelectedEvidenceForOrg(
+      db,
+      agent.value.id,
+      org.value.id,
+      mission.value.id,
+    );
     expect(isOk(forOrg)).toBe(true);
     if (!isOk(forOrg)) return;
     expect(forOrg.value).toHaveLength(1);
@@ -2501,7 +2506,12 @@ describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSel
     });
     if (!isOk(org)) throw new Error('org');
 
-    const forOrg = await listSelectedEvidenceForOrg(db, org.value.id, mission.value.id);
+    const forOrg = await listSelectedEvidenceForOrg(
+      db,
+      agent.value.id,
+      org.value.id,
+      mission.value.id,
+    );
     expect(isErr(forOrg)).toBe(true);
     // A case the organization does not reach answers like an unknown id (ADR 0017).
     if (isErr(forOrg)) expect(forOrg.error.code).toBe('not_found');
@@ -2510,6 +2520,7 @@ describe('listSelectedEvidenceForOrg (EVI-05): the org-scoped sibling of listSel
   it('reports not_found for an unknown mission', async () => {
     const forOrg = await listSelectedEvidenceForOrg(
       db,
+      '00000000-0000-0000-0000-000000000000',
       '00000000-0000-0000-0000-000000000000',
       '00000000-0000-0000-0000-000000000000',
     );

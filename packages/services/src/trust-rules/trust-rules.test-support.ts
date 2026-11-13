@@ -53,8 +53,9 @@ export interface TrustWorld {
   readonly northGrantId: string;
 }
 
-export async function trustWorld(): Promise<TrustWorld> {
-  const db = await freshDb();
+/** The shared world on a fresh in-memory database, or on `on` (a real Postgres database in the race tests). */
+export async function trustWorld(on?: Db): Promise<TrustWorld> {
+  const db = on ?? (await freshDb());
   const rahim = await traveller(db, TRAVELLER_EMAIL);
   const karim = await traveller(db, OTHER_TRAVELLER_EMAIL);
   const north = await agency(db, 'test-north-owner@example.test', NORTH_NAME);

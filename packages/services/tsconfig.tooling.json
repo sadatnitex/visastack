@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "files": ["vitest.config.ts", "vitest-shards.ts", "vitest-shards.test.ts"]
+  "files": ["vitest.config.ts", "vitest.pg.config.ts", "vitest-shards.ts", "vitest-shards.test.ts"]
 }
