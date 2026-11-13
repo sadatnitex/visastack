@@ -166,3 +166,13 @@ owner's merge word and a deployment. No migration.
 Not verified: the signed-in journey on production (the owner's click script is
 `docs/operations/acceptance/what-this-change-affects-click-script.md`). The wording is English
 only for now, also for a reader who chose Bangla.
+
+## Update, 2026-11-13 (later): What This Change Affects, reviewed and checked
+
+The service part is live (merged and deployed, no screen calls it). The screens are on branch
+`claude/candidate-b-impact-experience`, checked by the full local run, and become visible after
+their merge. Two changes since the first update: a look at what a change affects now gives up after
+4 seconds (a batch of approvals after 6) and says the check did not happen, so a slow database can
+never hold up a save that already went through; and a replacement chain cut by a document removed
+for good says plainly that a later document was removed and we cannot tell whether a newer one
+exists. The wording is still English only (118 messages); Bangla is not drafted.
