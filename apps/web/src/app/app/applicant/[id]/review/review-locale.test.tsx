@@ -169,3 +169,60 @@ describe('the What We Found page under Bengali', () => {
     expect(text).toContain('2 Files Saved');
   });
 });
+
+/** Refill 7: the end of the flow and the name check, under Bengali. */
+describe('the What We Found page under Bengali, at the end of the flow', () => {
+  it('says All Done and offers the profile and more documents in Bengali, beside the English line', async () => {
+    mocks.listDocumentReadingStates.mockResolvedValue({
+      ok: true,
+      value: { states: new Map([[`${D1}-v1`, { stage: 'done' }]]), sourceOfRun: new Map() },
+    });
+    const text = await render('bn', D1);
+    for (const key of ['allDone', 'openMyProfile', 'addMoreDocuments']) {
+      expect(text, key).toContain(bn[`${K}${key}`]);
+      expect(text, key).not.toContain(en[`${K}${key}`]);
+    }
+    // Not in a catalogue yet: the line under the heading is English.
+    expect(text).toContain('Your file is saved, named and read. Nothing is waiting for you.');
+    expect(await render('en', D1)).toContain('All Done');
+  });
+
+  it('asks the person to check the suggested name in Bengali', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...doc(D1, 'Passport, Nazmus'),
+          safetyStatus: 'CLEAN',
+          docType: 'PASSPORT',
+          classification: null,
+          pendingNameVersion: { id: 'n1', proposedName: 'Passport - Nazmus.jpg' },
+        },
+      ],
+    });
+    const text = await render('bn');
+    expect(text).toContain(bn[`${K}checkTheNameWeSuggestFor`]);
+    expect(text).not.toContain(en[`${K}checkTheNameWeSuggestFor`]);
+    expect(await render('en')).toContain(en[`${K}checkTheNameWeSuggestFor`]);
+  });
+
+  it('keeps Read Again English, as the English reading status names it (held in refill 7)', async () => {
+    mocks.listDocumentReadingStates.mockResolvedValue({
+      ok: true,
+      value: {
+        states: new Map([[`${D1}-v1`, { stage: 'could_not_read', reason: 'NOTHING_FOUND' }]]),
+        sourceOfRun: new Map(),
+      },
+    });
+    current.holder = null;
+    current.locale = 'bn';
+    await primeLocale();
+    const html = await renderServer(
+      WhatWeFoundPage({ params: Promise.resolve({ id: 'a1' }), searchParams: Promise.resolve({}) }),
+    );
+    expect(bn[`${K}readAgain`]).toBeUndefined();
+    expect(stubProps<{ label: string }>(html, 'ReadAgainButton')).toEqual([
+      expect.objectContaining({ label: 'Read Again' }),
+    ]);
+  });
+});

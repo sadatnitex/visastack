@@ -18,18 +18,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'Left English at review (refill 1): `uploadLimitLabel` is an English size label with Latin digits.',
   ],
   [
-    'appAgency.appAgencyOrgidClientsPage.dueFormatdateonly',
-    'Left English at review (refill 1): The call site formats the date without the reader language, so it is English. Fix: pass the locale.',
-  ],
-  [
-    'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
-    'Left English at review (refill 1): The call site formats the date without the reader language, so it is English. Fix: pass the locale. the date is formatted in English at both call sites (clients and team pages).',
-  ],
-  [
-    'appAgency.appAgencyOrgidPage.acknowledgedFormattimestampdate',
-    'Left English at review (refill 1): The call site formats the date without the reader language, so it is English. Fix: pass the locale. the date is formatted in English.',
-  ],
-  [
     'appAgency.appAgencyOrgidEvidenceCopies.decidedFormatmoment',
     'Left English at review (refill 1): `formatMoment` writes an English date and time.',
   ],
@@ -254,14 +242,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'Left English at review (refill 2): Unreachable: the panel shows only an active export.',
   ],
   [
-    'appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime',
-    'Left English at review (refill 2): `formatDateTime` writes an English date.',
-  ],
-  [
-    'appShared.appSharedGrantidPage.expiresFormattimestampdate',
-    'Left English at review (refill 2): The date is formatted in English.',
-  ],
-  [
     'appSharingInvitations.appSharingInvitationsAcceptPage.pluralCapturedWhenInvited',
     'Left English at review (refill 2): `plural()` writes an English noun.',
   ],
@@ -307,7 +287,7 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
   ],
   [
     'applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment',
-    'Left English at review (refill 3): `formatMoment` writes an English date.',
+    'Left English at review (refill 3): The draft says the item was requested, not that a question was asked, and `formatMoment` is called without the reader language here. Fix: a draft written for this key, then pass the reader language.',
   ],
   [
     'applicantInsights.appApplicantIdInsightsPage.backsPluralJoin',
@@ -348,10 +328,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
   [
     'applicantOutputs.appApplicantIdOutputsPage.nothingToShow',
     'Left English at review (refill 3): Waits for a test: every section a summary builds today has rows or its own note, so no test can show this line yet.',
-  ],
-  [
-    'applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly',
-    'Left English at review (refill 3): `longDay` writes an English date.',
   ],
   [
     'applicantOutputs.appApplicantIdOutputsPage.stepNumberOf3',
@@ -404,10 +380,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
   [
     'applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manageName',
     'Left English at review (refill 3): Spoken name of a button whose visible text "Manage" is English.',
-  ],
-  [
-    'collect.collectAccountAnswersPage.withdrawnFormattimestampdate',
-    'Left English at review (refill 3): `formatTimestampDate` is called without the locale: English date.',
   ],
   [
     'collect.collectGuestProgress.chooseHowLongWhoMayKeep',
@@ -688,5 +660,225 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
   [
     'componentsShare.shareWhatsappShare.moreWaysToSend',
     'Left English at review (refill 4): Shares one row with the English Send on WhatsApp link.',
+  ],
+  [
+    'appMission.appMissionIdAttemptPanel.decisionOnFormatdateonlyBasislabel',
+    'Left English at review (refill 5): The date is formatted without the reader language, and `basisLabel` is English ("Document Attached").',
+  ],
+  [
+    'appMission.appMissionIdCaseRail.inEffectSinceFormatdateonly',
+    'Left English at review (refill 5): The date is formatted without the reader language. Fix: pass the locale.',
+  ],
+  [
+    'appMission.appMissionIdContributorRequestsPanel.expiresFormattimestampdate',
+    'Left English at review (refill 5): Same: the expiry date is English.',
+  ],
+  [
+    'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdate',
+    'Left English at review (refill 5): Same: the handoff date is English.',
+  ],
+  [
+    'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdateBefore',
+    'Left English at review (refill 5): Same: the handoff date is English.',
+  ],
+  [
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.historicalTheCaseChangedAfterThis',
+    'Left English at review (refill 5): Same: the date and time are English.',
+  ],
+  [
+    'appMission.appMissionIdComplaintFeedbackPanel.filedTostatus',
+    'Left English at review (refill 5): `toStatus` is an English status code ("OPEN").',
+  ],
+  [
+    'appMission.appMissionIdSnapshotsSnapshotidPage.capturedWhileStateChecksumChecksum',
+    'Left English at review (refill 5): `state` is an English stage code ("IN_PROGRESS").',
+  ],
+  [
+    'appMission.appMissionIdAttemptForms.saveForAttemptAttemptno',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Save", is English.',
+  ],
+  [
+    'appMission.appMissionIdAttemptForms.trackAsAttemptReportname',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Track as Attempt", is English.',
+  ],
+  [
+    'appMission.appMissionIdPackageForms.saveChoiceForItemname',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Save Choice", is English.',
+  ],
+  [
+    'appMission.appMissionIdWordingEditor.saveWordingForItemname',
+    'Left English at review (refill 5): Spoken name of a button whose visible text, "Save Wording", is English.',
+  ],
+  [
+    'appMission.appMissionIdPackageForms.whatToUseForItemname',
+    'Left English at review (refill 5): `itemName` is an English item name ("Passport", "Given Name").',
+  ],
+  [
+    'appMission.appMissionIdPackagePanel.addAndConfirmYourItemnameIn',
+    'Left English at review (refill 5): `itemName` is an English item name inside the sentence.',
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.forApplieswhen',
+    "Left English at review (refill 5): `appliesWhen` is the checklist's own English wording of who an item applies to.",
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.howToProvideItJoin',
+    "Left English at review (refill 5): The joined lines are the checklist's English format rules.",
+  ],
+  [
+    'appMission.appMissionIdOutcomePanel.officialOfficialwording',
+    'Left English at review (refill 5): Introduces the official English wording of a decision.',
+  ],
+  [
+    'appMission.appMissionIdChangesSinceConfirmed.compare',
+    "Left English at review (refill 5): The Compare link's spoken name (next row) names the change in English, so its visible text stays English with it.",
+  ],
+  [
+    'appMission.appMissionIdChangesSinceConfirmed.compareNameThenAndNow',
+    'Left English at review (refill 5): `name` is an English detail name ("Given Name").',
+  ],
+  [
+    'appMission.appMissionIdCollaborationPanels.addedByAddedby',
+    'Left English at review (refill 5): The app name falls back to the English "an AI App"; the line is also about an AI app.',
+  ],
+  [
+    'appMission.appMissionIdChecklistSearch.searchTheChecklist',
+    'Left English at review (refill 5): The search box\'s spoken name is the English "Search the Checklist", so its placeholder stays English with it.',
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.chosenDocumentJoin',
+    'Left English at review (refill 5): The chosen documents are named by English lifecycle lines with English dates ("Removed by the traveller on 12 Oct").',
+  ],
+  [
+    'appMission.appMissionIdCaseMoreMenu.keepTheCase',
+    'Left English at review (refill 5): The other answer of both questions ("Yes, Cancel This Case", "Yes, Delete This Case") is English.',
+  ],
+  [
+    'appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe',
+    'Left English at review (refill 5): It names Start a New Case from This One, which wide screens show only as an English button.',
+  ],
+  [
+    'appMission.appMissionIdContributorRequestsPanel.visastackRequest',
+    "Left English at review (refill 5): Title of the share sent to the contributor with an English message; it follows the message, not the sender's screen.",
+  ],
+  [
+    'appMission.appMissionIdAttemptForms.remove',
+    'Left English at review (refill 5): Was live. Its button\'s spoken name is the English "Remove {document}", so its visible text goes back to English.',
+  ],
+  [
+    'appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname',
+    'Left English at review (refill 5): Was live. `copyName` is English ("Your Saved Answer", "Document") or a name with an unformatted date ("2026-10-01").',
+  ],
+  [
+    'components.capturePreview.thisDeviceCannotShowThePhoto',
+    'Left English at review (refill 6): Names the Use This button, which is English.',
+  ],
+  [
+    'components.loadingSlowNote.stillLoadingYouCanKeepThis',
+    "Left English at review (refill 6): Sits in one status line with the page's English loading label.",
+  ],
+  [
+    'componentsMore.safeCopyEditor.continuePreparing',
+    'Left English at review (refill 6): The line that names it (`eachPageIsDrawnOnceWith`) is held English.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.showThePageAgain',
+    'Left English at review (refill 6): The retry for the held English line "This page could not be shown"; the two stay one language.',
+  ],
+  [
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto',
+    'Left English at review (refill 6): The same button reads the held English "Save Photo" before it saves.',
+  ],
+  [
+    'componentsPwa.pwaPwaRuntime.browserTip',
+    'Left English at review (refill 6): Names a tip whose text (`BROWSER_HINT_TEXT`) is English.',
+  ],
+  [
+    'componentsPwa.pwaPwaRuntime.dismiss',
+    'Left English at review (refill 6): Closes the English browser tip.',
+  ],
+  [
+    'components.documentWalletBrowser.showAll',
+    'Left English at review (refill 6): The same toggle reads the English "Show Them" / "Show It" before it is pressed.',
+  ],
+  [
+    'components.documentWalletBrowser.clearTheSearchOrChooseAnother',
+    'Left English at review (refill 6): The draft calls the category filter \u09ac\u09bf\u09ad\u09be\u0997; the filter itself reads \u0995\u09cd\u09af\u09be\u099f\u09be\u0997\u09b0\u09bf. Needs a redraft.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.youChoseNothingToHideOn',
+    'Left English at review (refill 6): Sits above the English page captions ("Page 1 of 2: nothing hidden.") that say the same thing.',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind',
+    'Left English at review (refill 7): A Bengali first option in a list of English document kinds.',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentUploader.notAdded',
+    'Left English at review (refill 7): Joined in one line to the reason the upload gives, which is English, and its pair Not Confirmed has no Bengali.',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf',
+    'Left English at review (refill 7): Names the Change button in quotes, but that button still shows the English Change (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable',
+    'Left English at review (refill 7): The document title is filled in as English, as in the expired-on-arrival line beside it.',
+  ],
+  [
+    'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections8284e6',
+    'Left English at review (refill 7): Filled into the English progress meter name "{value} of {max} {label}", which would mix languages.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.whereThisCameFrom',
+    'Left English at review (refill 7): Its spoken name "Where this came from: the document for {label}" is held English, so the visible text and the name would differ.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent',
+    'Left English at review (refill 7): Names the No Longer Current button, which is still English.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.chooseWhetherToSaveYourProfile',
+    'Left English at review (refill 7): Title of the consent empty state, whose Review Permissions action is English.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.reviewPermissions',
+    'Left English at review (refill 7): Shown in the same consent state as the English Review Permissions action, so one action would show in two languages.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy',
+    'Left English at review (refill 7): Quotes the consent setting Let VisaStack Process My Details, which stays English on Home.',
+  ],
+  [
+    'appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles',
+    'Left English at review (refill 7): The English line on each paused file tells the person to use Try Again for All Paused Files by that name (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdReviewPage.readAgain',
+    'Left English at review (refill 7): The English reading status above the button tells the person to try Read Again by that name (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdNameReview.proposedFilename',
+    'Left English at review (refill 7): Unreachable: no screen renders the name review form any more (only an accessibility test imports it).',
+  ],
+  [
+    'appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck',
+    'Left English at review (refill 7): Sends the person to Documents by name, but the menu item and the link on the same page are still English (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections',
+    "Left English at review (refill 7): The count beside it is written in Latin digits and the meter's spoken name is English, so the label would be the only Bengali in that line.",
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.addAnother',
+    'Left English at review (refill 7): The English document kind is joined after it in the link name, so the Bengali verb would come before its object. Needs one message with the kind inside it.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.suggested',
+    'Left English at review (refill 7): The draft reads as advice given; this catalogue words suggested as প্রস্তাবিত everywhere else. Needs a redraft.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.upload',
+    'Left English at review (refill 7): Same as Add Another: the English document kind is joined after the Bengali verb in the link name.',
   ],
 ]);

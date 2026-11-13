@@ -1,8 +1,9 @@
 'use client';
 
+import { type Locale, formatDate } from '@visastack/i18n';
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../components/form-feedback';
-import { useT } from '../../../components/i18n-provider';
+import { useLocale, useT } from '../../../components/i18n-provider';
 import { appPrivacyCatalog } from '../../../i18n/app-privacy';
 import { type ActionState, requestLargeExportAction } from './actions';
 
@@ -22,18 +23,22 @@ interface LargeExportPanelProps {
   readonly jobs: readonly LargeExportJobProps[];
 }
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+function formatDateTime(iso: string, locale: Locale): string {
+  const options = {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  });
+  } as const;
+  // Bengali readers get Bengali digits and month names; English keeps the exact output it had.
+  if (locale === 'bn') return formatDate(new Date(iso), locale, options);
+  return new Date(iso).toLocaleString(undefined, options);
 }
 
 function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
   const t = useT(appPrivacyCatalog);
+  const locale = useLocale();
   switch (job.status) {
     case 'PENDING':
     case 'CLAIMED':
@@ -55,7 +60,7 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
           {job.expiresAt ? (
             <span className="muted u-fs-085">
               {t.node('appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime', {
-                formatDateTime: formatDateTime(job.expiresAt),
+                formatDateTime: formatDateTime(job.expiresAt, locale),
               })}
             </span>
           ) : null}

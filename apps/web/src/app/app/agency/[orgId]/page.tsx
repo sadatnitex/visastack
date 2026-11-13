@@ -701,6 +701,7 @@ export default async function AgencyDashboardPage({
                                 {
                                   formatTimestampDate: formatTimestampDate(
                                     mission.liveAcknowledgementAt,
+                                    locale,
                                   ),
                                 },
                               )

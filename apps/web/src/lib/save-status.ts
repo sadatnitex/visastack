@@ -7,6 +7,7 @@
  * "Saved at 14:32" never leaves anyone guessing which 14:32 it was.
  */
 
+import { type Locale, formatDate } from '@visastack/i18n';
 import type { FormResult } from '../components/form-feedback';
 
 export const SAVING_TEXT = 'Saving…';
@@ -26,20 +27,31 @@ function moment(
   value: string | Date,
   timeZone: string | null | undefined,
   withDate: boolean,
+  locale: Locale = 'en',
 ): string {
   const zone = usableZone(timeZone);
-  return new Date(value).toLocaleString('en-GB', {
-    ...(withDate ? { year: 'numeric', month: 'short', day: 'numeric' } : {}),
+  const options = {
+    ...(withDate ? ({ year: 'numeric', month: 'short', day: 'numeric' } as const) : {}),
     hour: '2-digit',
     minute: '2-digit',
     timeZoneName: 'short',
     ...(zone ? { timeZone: zone } : {}),
-  });
+  } as const;
+  // Bengali readers get Bengali digits and month names; English keeps the exact output it had.
+  if (locale === 'bn') return formatDate(new Date(value), locale, options);
+  return new Date(value).toLocaleString('en-GB', options);
 }
 
-/** A real moment with its day, for example "27 Oct 2026, 14:32 GMT+6". */
-export function formatMoment(value: string | Date, timeZone?: string | null): string {
-  return moment(value, timeZone, true);
+/**
+ * A real moment with its day, for example "27 Oct 2026, 14:32 GMT+6". Pass the reader's language
+ * only where the sentence around it is shown in that language.
+ */
+export function formatMoment(
+  value: string | Date,
+  timeZone?: string | null,
+  locale: Locale = 'en',
+): string {
+  return moment(value, timeZone, true, locale);
 }
 
 /** "Saved at 14:32 GMT+6". Call it only with the time the server confirmed. */

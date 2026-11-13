@@ -25,7 +25,7 @@ export default async function AgencyTeamPage({
 }: {
   readonly params: Promise<{ orgId: string }>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
 
@@ -125,7 +125,7 @@ export default async function AgencyTeamPage({
               <span className="row-end">
                 <span className="badge badge-warning">
                   {t.node('appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate', {
-                    formatTimestampDate: formatTimestampDate(invitation.expiresAt),
+                    formatTimestampDate: formatTimestampDate(invitation.expiresAt, locale),
                   })}
                 </span>
                 <InvitationRevokeButton organizationId={orgId} invitationId={invitation.id} />

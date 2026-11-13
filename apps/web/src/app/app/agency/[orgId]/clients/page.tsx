@@ -6,7 +6,7 @@ import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure, SectionCard } from '../../../../../components/ui-lift';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
-import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
+import { getServerLocale, getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { type SearchParamsRecord, firstParam, pagingHref } from '../../../../../lib/paging';
 import { buildRequestPicker } from '../../../../../lib/request-picker';
 import { withSession } from '../../../../../lib/session';
@@ -81,7 +81,7 @@ export default async function AgencyClientsPage({
   readonly params: Promise<{ orgId: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appAgencyCatalog);
   const { orgId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
@@ -233,7 +233,12 @@ export default async function AgencyClientsPage({
                           <span className="badge badge-warning">
                             {t.node(
                               'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
-                              { formatTimestampDate: formatTimestampDate(invitation.expiresAt) },
+                              {
+                                formatTimestampDate: formatTimestampDate(
+                                  invitation.expiresAt,
+                                  locale,
+                                ),
+                              },
                             )}
                           </span>
                         )}
@@ -467,7 +472,7 @@ function RequestRow({
         {req.applicantName}
         {req.dueDate
           ? t.node('appAgency.appAgencyOrgidClientsPage.dueFormatdateonly', {
-              formatDateOnly: formatDateOnly(req.dueDate),
+              formatDateOnly: formatDateOnly(req.dueDate, getServerLocale()),
             })
           : ''}
       </span>
