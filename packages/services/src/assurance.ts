@@ -1,7 +1,7 @@
 import type { Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { orgGrantPermits } from './agency';
+import { mayReadOrgCase, orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -9,7 +9,7 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { isUuid } from './lifecycle/foundation/ids';
-import { listMembershipsForAccount } from './organizations';
+import { isOrgAdmin, listMembershipsForAccount } from './organizations';
 
 /**
  * EVI-05 (assurance ladder): "Display separate statements: applicant
@@ -407,6 +407,20 @@ export async function recordIssuerVerification(
   const memberships = await listMembershipsForAccount(db, input.actorAccountId);
   for (const membership of memberships) {
     if (!membership.active) continue;
+    // The person must also be someone who may work on this case for that organization: its owner
+    // or admin, or the member assigned to the case (`mayReadOrgCase`); without a case named, an
+    // owner or admin only. An active reviewer or case manager who is not assigned is refused like
+    // a stranger, before consent or any record is looked at.
+    const mayAct =
+      input.missionId !== undefined
+        ? await mayReadOrgCase(
+            db,
+            input.actorAccountId,
+            membership.organization.id,
+            input.missionId,
+          )
+        : await isOrgAdmin(db, input.actorAccountId, membership.organization.id);
+    if (!mayAct) continue;
     if (
       await orgGrantPermits(
         db,

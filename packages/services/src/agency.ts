@@ -283,22 +283,36 @@ export async function mayReadOrgCase(
   missionId: string,
 ): Promise<boolean> {
   if (!isUuid(actorAccountId) || !isUuid(organizationId) || !isUuid(missionId)) return false;
-  const membership = first(
+  const membership = await readActiveMembership(db, actorAccountId, organizationId);
+  if (!membership) return false;
+  if (membership.admin) return true;
+  return assignedToMission(db, organizationId, actorAccountId, missionId);
+}
+
+/**
+ * The person's membership of the organization, read once: `null` unless they are an active member,
+ * and whether they are an administrator (the roles `isOrgAdmin` treats as such). One read for what
+ * `isActiveMember` and `isOrgAdmin` would read twice.
+ */
+async function readActiveMembership(
+  db: Db,
+  accountId: string,
+  organizationId: string,
+): Promise<{ readonly admin: boolean } | null> {
+  const row = first(
     await db
       .select({ active: schema.memberships.active, role: schema.memberships.role })
       .from(schema.memberships)
       .where(
         and(
-          eq(schema.memberships.accountId, actorAccountId),
+          eq(schema.memberships.accountId, accountId),
           eq(schema.memberships.organizationId, organizationId),
         ),
       )
       .limit(1),
   );
-  if (membership?.active !== true) return false;
-  // The same roles `isOrgAdmin` treats as administrators.
-  if (membership.role === 'OWNER' || membership.role === 'ADMIN') return true;
-  return assignedToMission(db, organizationId, actorAccountId, missionId);
+  if (row?.active !== true) return null;
+  return { admin: row.role === 'OWNER' || row.role === 'ADMIN' };
 }
 
 /** The organization-wide reads (every case, every client): an active OWNER or ADMIN only. */
@@ -1328,16 +1342,16 @@ export async function listVisibleMissionsForMember(
 ): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] } | VisibleCasesPage> {
   // Not a member (never one, removed, or the organization does not exist): no case, the same
   // answer as an organization with nothing shared.
-  if (
-    !isUuid(actorAccountId) ||
-    !isUuid(organizationId) ||
-    !(await isActiveMember(db, actorAccountId, organizationId))
-  ) {
+  const membership =
+    isUuid(actorAccountId) && isUuid(organizationId)
+      ? await readActiveMembership(db, actorAccountId, organizationId)
+      : null;
+  if (!membership) {
     return options
       ? { admin: false, missions: [], nextCursor: null, total: 0 }
       : { admin: false, missions: [] };
   }
-  const admin = await isOrgAdmin(db, actorAccountId, organizationId);
+  const { admin } = membership;
   const base = await missionsReachableByOrganization(db, organizationId);
   let scoped = base;
   if (!admin) {

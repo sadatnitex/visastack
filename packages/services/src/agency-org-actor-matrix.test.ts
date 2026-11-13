@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type Result, isErr, isOk } from '@visastack/core';
+import { schema } from '@visastack/db';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import { listAccessEndsForOrg } from './access-ends';
@@ -26,6 +27,7 @@ import {
   updateTaskForOrg,
 } from './agency';
 import { recordIssuerVerification } from './assurance';
+import { setConsent } from './consent';
 import type { Db } from './db';
 import { openRequest } from './evidence-submissions.test-support';
 import {
@@ -65,6 +67,8 @@ const MADE_UP_CASE = randomUUID();
 interface World extends TrustWorld {
   /** A case with a published list attached and one requirement's evidence chosen. */
   readonly caseA: string;
+  /** The traveller's saved passport number, chosen as evidence on case A. */
+  readonly factId: string;
   /** A case with the same list and nothing chosen. */
   readonly caseB: string;
   /** A case nobody is assigned to (the reassignment queue). */
@@ -209,6 +213,7 @@ async function buildWorld(): Promise<World> {
   return {
     ...base,
     caseA,
+    factId: fact.value.fact.id,
     caseB,
     caseC,
     taskId: task.value.id,
@@ -403,29 +408,56 @@ describe('agency functions told an organization check the person acting', () => 
     expect(own[3] && isOk(own[3]) ? own[3].value.length : 0).toBe(1);
   });
 
-  it('recording an issuer confirmation refuses a person without a grant on that traveller before it looks the traveller up', async () => {
-    const record = (actor: string, applicantId: string) =>
+  it('recording an issuer confirmation: everyone who may not work on this case gets the made-up traveller answer, whether or not the traveller allowed issuer contact', async () => {
+    const record = (actor: string, applicantId: string, factId = w.factId) =>
       recordIssuerVerification(w.db, {
         actorAccountId: actor,
         applicantId,
         missionId: w.caseA,
-        factId: randomUUID(),
+        factId,
         issuerIdentity: 'Issuer',
         contactMethod: 'email',
         exactClaim: 'Claim',
         response: 'Confirmed',
         validUntil: new Date(Date.now() + 86_400_000),
       });
-    // North's caseworker naming a traveller north has no grant on (Karim), and someone with no
-    // standing at all naming Rahim: the same answer as a made-up traveller, whatever is true about
-    // the real one (whether they exist, whether they allowed issuer contact).
-    const madeUp = shape(await record(w.caseworker, randomUUID()));
-    expect(shape(await record(w.caseworker, w.karim.applicantId)), 'other traveller').toBe(madeUp);
-    for (const [who, accountId] of Object.entries(w.strangers)) {
-      if (accountId === w.rahim.accountId) continue;
-      expect(shape(await record(accountId, w.rahim.applicantId)), who).toBe(madeUp);
-    }
-    expect(shape(await record(w.caseworker, 'not-a-uuid')), 'malformed id').toBe(madeUp);
+    const madeUp = shape(await record(w.caseworker, randomUUID(), randomUUID()));
+    const askers: Record<string, string> = {
+      ...w.strangers,
+      // An active member of the agency, with the agency's grant on the traveller, but neither an
+      // owner or admin nor assigned to this case.
+      'unassigned reviewer': w.reviewer,
+    };
+    const everyone = async (state: string) => {
+      for (const [who, accountId] of Object.entries(askers)) {
+        const answer = shape(await record(accountId, w.rahim.applicantId));
+        expect(answer, `${who} (${state})`).toBe(madeUp);
+      }
+      // The agency's own caseworker naming a traveller the agency has no grant on.
+      expect(
+        shape(await record(w.caseworker, w.karim.applicantId)),
+        `other traveller (${state})`,
+      ).toBe(madeUp);
+      expect(shape(await record(w.caseworker, 'not-a-uuid')), `malformed id (${state})`).toBe(
+        madeUp,
+      );
+    };
+    // The traveller has NOT allowed issuer contact: nobody is told so.
+    await everyone('no consent');
+    // The traveller HAS allowed it: nobody gets to write a record either.
+    const allowed = await setConsent(w.db, {
+      actorAccountId: w.rahim.accountId,
+      accountId: w.rahim.accountId,
+      type: 'ISSUER_CONTACT',
+      granted: true,
+    });
+    expect(isOk(allowed)).toBe(true);
+    await everyone('consent given');
+    const rows = () => w.db.select().from(schema.issuerVerifications);
+    expect(await rows()).toHaveLength(0);
+    // The genuine caseworker (admin, assigned to the case) still can.
+    expect(isOk(await record(w.caseworker, w.rahim.applicantId))).toBe(true);
+    expect(await rows()).toHaveLength(1);
   });
 
   it('the genuine caseworker still reads everything with the real ids', async () => {
