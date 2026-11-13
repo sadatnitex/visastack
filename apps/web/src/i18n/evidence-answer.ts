@@ -132,7 +132,6 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.sentBack.document':
       'The agency sent back {name}. This page cannot say which version of it.',
     'evidenceAnswer.sentBack.thisDocument': 'this document',
-    'evidenceAnswer.sentBack.reason': 'Reason: {reason}',
     'evidenceAnswer.sentBack.unknown':
       'The agency sent an answer back, but this page cannot tell which copy it was. Nothing is chosen for you. Choose the copy to send yourself.',
   },

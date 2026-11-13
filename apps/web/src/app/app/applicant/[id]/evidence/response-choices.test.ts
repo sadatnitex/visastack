@@ -316,4 +316,9 @@ describe('the choice made in advance (outdated and rejected copies are never cho
     expect(initialChoice(choices)).toBe('');
     expect(choices.filter(isCurrentCopy).map((c) => c.documentId)).toEqual(['new']);
   });
+
+  it('treats an unreadable saved date as no date instead of failing the page', () => {
+    const choices = build([doc('a', { expiresAt: 'not a date' })]);
+    expect(choices[0]).toMatchObject({ dateNote: null, expired: false });
+  });
 });

@@ -116,9 +116,7 @@ function sentBackNoteFor(
           date: formatMoment(copy.sentAt.toISOString(), timeZone),
         })
       : answerT('evidenceAnswer.sentBack.document', { name });
-  return copy.reason && copy.reason.trim() !== ''
-    ? `${line} ${answerT('evidenceAnswer.sentBack.reason', { reason: copy.reason.trim() })}`
-    : line;
+  return line;
 }
 
 function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & RequestPanesProps) {
@@ -164,6 +162,9 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
     req.status === 'NEEDS_REPLACEMENT' ? clearerCopyTarget(documentChoices) : null;
   // A copy the person can rely on: sendable, not sent back, not out of date, date not in doubt.
   const otherCopyUsable = documentChoices.some(isCurrentCopy);
+  // Copies exist and can be sent, but every one is out of date or of an uncertain date.
+  const onlyOutdatedCopies =
+    !otherCopyUsable && documentChoices.some((choice) => choice.usable && !choice.sentBack);
   const sentBackNote = sentBackNoteFor(sentBackRead, answerT, data.documents, timeZone);
   const due = req.dueDate ? dueLabel(req.dueDate, req.status, timeZone) : null;
   const code = data.referenceCodes.get(req.id);
@@ -237,11 +238,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           {sentBackNote}
         </p>
       ) : null}
-      {awaitingReply &&
-      req.kind === 'DOCUMENT' &&
-      !sentBackNote &&
-      documentChoices.length > 0 &&
-      !otherCopyUsable ? (
+      {awaitingReply && req.kind === 'DOCUMENT' && !sentBackNote && onlyOutdatedCopies ? (
         <p className="case-row-meta" data-testid="no-current-copy-note">
           {answerT('evidenceAnswer.choices.noCurrent')}
         </p>
@@ -250,7 +247,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
         <SubmitResponseForm
           // A new round (the status or the answer changed) or a changed list of copies starts
           // the form afresh, with its own retry key.
-          key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${documentChoices.map((choice) => choice.documentId).join(',')}`}
+          key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${sentBackRead.state}:${sentBackInfo?.versionId ?? ''}:${documentChoices.map((choice) => `${choice.documentId}/${choice.versionId}`).join(',')}`}
           applicantId={id}
           requestId={req.id}
           kind={req.kind}

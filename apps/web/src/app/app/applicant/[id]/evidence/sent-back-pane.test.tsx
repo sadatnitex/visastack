@@ -138,7 +138,7 @@ const hidden = (name: string) =>
   host.querySelector<HTMLInputElement>(`input[type=hidden][name=${name}]`)?.value;
 
 describe('a request the agency sent back', () => {
-  it('names the exact copy that was sent back and why, from the decision history', async () => {
+  it('names the exact copy that was sent back, from the decision history (the reason sits in the thread above)', async () => {
     await act(async () =>
       root.render(
         pane({ documents: [doc('old'), doc('new', { createdAt: '2026-11-05T00:00:00Z' })] }),
@@ -147,7 +147,6 @@ describe('a request the agency sent back', () => {
     const note = host.querySelector('[data-testid=sent-back-note]')?.textContent ?? '';
     expect(note).toContain('old-statement.pdf');
     expect(note).toContain('version 1');
-    expect(note).toContain('Reason: Page 2 is cut off.');
   });
 
   it('marks the sent-back copy, offers a clearer copy for it, and does not choose it', async () => {
@@ -199,6 +198,34 @@ describe('a request the agency sent back', () => {
     expect(host.textContent).toContain('Expired on');
     expect(host.querySelector('.evidence-add-link')?.getAttribute('href')).toBe(
       '/app/applicant/a1/documents/add',
+    );
+  });
+
+  it('does not call a copy that cannot be sent expired or in need of a date check', async () => {
+    await act(async () =>
+      root.render(
+        pane({
+          req: request({ status: 'OPEN' }),
+          documents: [doc('bad', { safetyStatus: 'INFECTED' as never })],
+          sentBack: { state: 'none' },
+        }),
+      ),
+    );
+    expect(host.querySelector('[data-testid=no-current-copy-note]')).toBeNull();
+  });
+
+  it('says what to do when every saved copy is out of date', async () => {
+    await act(async () =>
+      root.render(
+        pane({
+          req: request({ status: 'OPEN' }),
+          documents: [doc('old', { expiresAt: past })],
+          sentBack: { state: 'none' },
+        }),
+      ),
+    );
+    expect(host.querySelector('[data-testid=no-current-copy-note]')?.textContent).toContain(
+      'Add a current copy',
     );
   });
 

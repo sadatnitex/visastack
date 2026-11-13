@@ -95,7 +95,8 @@ function dateNoteFor(
   locale: Locale,
   now: Date,
 ): { readonly dateNote: string | null; readonly expired: boolean } {
-  if (!expiresAt) return { dateNote: null, expired: false };
+  // A date that cannot be read is treated as no date, never as a reason to fail the page.
+  if (!expiresAt || Number.isNaN(Date.parse(expiresAt))) return { dateNote: null, expired: false };
   const day = new Date(expiresAt).toISOString().slice(0, 10);
   const expired = expiryDayIsExpired(day, now);
   if (!words) return { dateNote: null, expired };

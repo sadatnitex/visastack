@@ -120,6 +120,32 @@ describe('which copy the agency sent back', () => {
     });
   });
 
+  it('does not name an older document when the newest decision names none', () => {
+    const read = sentBackCopyOf(
+      'NEEDS_REPLACEMENT',
+      list(
+        [],
+        [
+          {
+            label: LEGACY_SEND_LABEL,
+            documentId: 'doc-older',
+            sentAt: null,
+            state: 'NEEDS_REPLACEMENT',
+            decidedAt: new Date('2026-10-01T00:00:00Z'),
+          },
+          {
+            label: LEGACY_SEND_LABEL,
+            documentId: null,
+            sentAt: null,
+            state: 'NEEDS_REPLACEMENT',
+            decidedAt: new Date('2026-10-05T00:00:00Z'),
+          },
+        ],
+      ),
+    );
+    expect(read).toEqual({ state: 'unknown' });
+  });
+
   it('never invents a copy when the history could not be read or names none', () => {
     expect(sentBackCopyOf('NEEDS_REPLACEMENT', undefined)).toEqual({ state: 'unknown' });
     expect(sentBackCopyOf('NEEDS_REPLACEMENT', list([]))).toEqual({ state: 'unknown' });

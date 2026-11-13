@@ -51,10 +51,9 @@ export function sentBackCopyOf(
   if (status !== 'NEEDS_REPLACEMENT') return { state: 'none' };
   if (!sends) return { state: 'unknown' };
   const exact = [...sends.submissions].reverse().find((send) => SENT_BACK_OUTCOMES.has(send.state));
-  const older = [...sends.legacy]
-    .reverse()
-    .find((send) => SENT_BACK_OUTCOMES.has(send.state) && send.documentId !== null);
-  // The newest decision wins. A legacy decision has no send time, so its decision time is used.
+  // The newest sent-back decision overall, whichever record it sits in. A legacy decision has no
+  // send time, so its decision time is used to order the two.
+  const older = [...sends.legacy].reverse().find((send) => SENT_BACK_OUTCOMES.has(send.state));
   const exactAt = exact?.decidedAt?.getTime() ?? Number.NEGATIVE_INFINITY;
   const olderAt = older?.decidedAt?.getTime() ?? Number.NEGATIVE_INFINITY;
   if (exact && exactAt >= olderAt) {
@@ -71,6 +70,7 @@ export function sentBackCopyOf(
       },
     };
   }
+  // The newest decision names no document: say so, never name an older one in its place.
   if (older?.documentId) {
     return {
       state: 'copy',
