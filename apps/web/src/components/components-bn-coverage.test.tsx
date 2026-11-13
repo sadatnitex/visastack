@@ -363,16 +363,24 @@ describe('every live Bengali message of the shared components is shown under bn'
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
   };
+  /** Each key's Bengali is on screen (words or an attribute such as a spoken name). */
   const expectShown = (...keys: string[]) => {
+    const seen = [
+      host.textContent ?? '',
+      ...[...host.querySelectorAll('*')].flatMap((el) => [...el.attributes].map((a) => a.value)),
+    ].join('\n');
     for (const key of keys) {
       expect(bnOf(key), key).not.toBe('');
-      const attributes = [...host.querySelectorAll('*')].flatMap((el) =>
-        [...el.attributes].map((a) => a.value),
-      );
-      expect([host.textContent ?? '', ...attributes].join('\n'), key).toContain(bnOf(key));
+      expect(seen, key).toContain(bnOf(key));
     }
     noRawKey();
   };
+  /** Some element's own text is exactly this key's Bengali (not a longer line that contains it). */
+  const expectExact = (key: string) =>
+    expect(
+      [...host.querySelectorAll('*')].some((el) => el.textContent === bnOf(key)),
+      key,
+    ).toBe(true);
 
   it('activity log: a search that matches nothing, with the way to clear it', () => {
     show(<ActivityLog entries={logEntries} label="Access Log Entries" />);
@@ -393,9 +401,10 @@ describe('every live Bengali message of the shared components is shown under bn'
     typeInto(host.querySelector('input'), 'Atlantis');
     expectShown(
       'components.countryBrowser.noCountriesMatch',
-      'components.countryBrowser.noCountriesMatche4ae64',
       'components.countryBrowser.clearTheSearchOrChooseAnother',
     );
+    expectExact('components.countryBrowser.noCountriesMatche4ae64');
+    expect(host.textContent).not.toContain('No Countries Match');
   });
 
   it('document review panel: no documents, no match, and a file that cannot be previewed', () => {
@@ -422,17 +431,24 @@ describe('every live Bengali message of the shared components is shown under bn'
     expectShown('components.documentReviewPanel.noDocumentsMatchTryAnotherName');
   });
 
-  it('wallet browser: a search that matches nothing, the chosen file outside it, and Show All', () => {
+  it('wallet browser: a search that matches nothing, and the chosen file outside it', () => {
     show(<DocumentWalletBrowser applicantId="p" documents={wallet(4)} initialSelection="doc-1" />);
     typeInto(host.querySelector('input[type="search"]'), 'nothing like this');
     expectShown(
       'components.documentWalletBrowser.noDocumentsMatch',
-      'components.documentWalletBrowser.clearTheSearchOrChooseAnother',
       'components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe',
     );
-    show(<DocumentWalletBrowser key="sorted" applicantId="p" documents={wallet(4)} />);
-    click(host.querySelector('.u-btn-xs'));
-    expectShown('components.documentWalletBrowser.showAll');
+    // It names a filter the screen calls by another word, so it stays English for now.
+    expect(host.textContent).toContain('Clear the search or choose another category or status.');
+  });
+
+  it('wallet browser: the unsorted toggle stays in one language both ways', () => {
+    show(<DocumentWalletBrowser applicantId="p" documents={wallet(4)} />);
+    const toggle = () => host.querySelector('.u-btn-xs');
+    const before = toggle()?.textContent;
+    click(toggle());
+    expect(toggle()?.textContent).toBe('Show All');
+    expect(before).not.toMatch(/[\u0980-\u09FF]/);
   });
 
   it('purpose choice: back to the common purposes from the full list', () => {
@@ -469,6 +485,13 @@ describe('every live Bengali message of the shared components is shown under bn'
   });
 
   it('install card: the install offer, and the lines after a no and after installing', async () => {
+    try {
+      await installCard();
+    } finally {
+      setInstallPrompt(null);
+    }
+  });
+  async function installCard() {
     const prompt = vi.fn(async () => undefined);
     setInstallPrompt(
       Object.assign(new Event('beforeinstallprompt'), {
@@ -497,8 +520,7 @@ describe('every live Bengali message of the shared components is shown under bn'
       );
     });
     expectShown('componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice');
-    setInstallPrompt(null);
-  });
+  }
 
   it('app update: the notice, Later, and Reload Now while it reloads', async () => {
     const waiting = { postMessage: vi.fn(), addEventListener: vi.fn() };
@@ -514,6 +536,13 @@ describe('every live Bengali message of the shared components is shown under bn'
       getRegistrations: vi.fn(async () => [registration]),
     });
     Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: container });
+    try {
+      await appUpdate();
+    } finally {
+      Reflect.deleteProperty(navigator, 'serviceWorker');
+    }
+  });
+  async function appUpdate() {
     show(<PwaRuntime enabled />);
     await act(async () => undefined);
     expectShown(
@@ -524,8 +553,7 @@ describe('every live Bengali message of the shared components is shown under bn'
     );
     await act(async () => byText('button', bnOf('componentsPwa.pwaPwaRuntime.reloadNow'))?.click());
     expectShown('componentsPwa.pwaPwaRuntime.reloading');
-    Reflect.deleteProperty(navigator, 'serviceWorker');
-  });
+  }
 
   afterAll(() => {
     const live = [

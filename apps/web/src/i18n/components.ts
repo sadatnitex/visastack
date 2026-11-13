@@ -225,8 +225,6 @@ export const componentsCatalog = defineCatalog({
     'components.documentWalletBrowser.allCategories': 'সব ক্যাটাগরি',
     'components.documentWalletBrowser.backToDocuments': 'ডকুমেন্টে ফিরে যান',
     'components.documentWalletBrowser.category': 'ক্যাটাগরি',
-    'components.documentWalletBrowser.clearTheSearchOrChooseAnother':
-      'খোঁজা মুছে দিন বা অন্য কোনো বিভাগ বা অবস্থা বেছে নিন।',
     'components.documentWalletBrowser.documentMetadataList': 'ডকুমেন্টের মেটাডেটা তালিকা',
     'components.documentWalletBrowser.documentPages': 'ডকুমেন্টের পাতা',
     'components.documentWalletBrowser.documentStateFilters': 'ডকুমেন্টের অবস্থা অনুযায়ী ফিল্টার',
@@ -252,7 +250,6 @@ export const componentsCatalog = defineCatalog({
       'বেছে নেওয়া ডকুমেন্টটি পাওয়া যাচ্ছে না',
     'components.documentWalletBrowser.sharingRequiresConsentAnExactReviewed':
       'শেয়ার করতে সম্মতি, পর্যালোচনা করা সুনির্দিষ্ট পরিসর এবং প্রাপকের গ্রহণ দরকার। আপনি অনুমোদন না করা পর্যন্ত এআই-এর পরামর্শ কখনো আপনার প্রোফাইল হালনাগাদ করে না।',
-    'components.documentWalletBrowser.showAll': 'সব দেখান',
     'components.documentWalletBrowser.viewSelectedDetails': 'নির্বাচিত বিবরণ দেখুন →',
     'components.documentWalletBrowser.why': 'কেন?',
     'components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe':

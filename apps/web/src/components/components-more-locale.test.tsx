@@ -553,12 +553,12 @@ describe('safe copy editor under Bengali', () => {
     await settle();
   });
 
-  it('review after Nothing to Hide: the line that says so is Bengali', async () => {
+  it('review after Nothing to Hide: the line stays English above the English page captions', async () => {
     await mount();
     await click(bn('safeCopyEditor.prepareSafeCopy'));
     await click(bn('safeCopyEditor.nothingToHideOnThisDocument'));
-    expect(container.textContent).toContain(bn('safeCopyEditor.youChoseNothingToHideOn'));
-    expect(container.textContent).not.toContain('You chose Nothing to Hide on This Document.');
+    expect(container.textContent).toContain('You chose Nothing to Hide on This Document.');
+    expect(container.textContent).toContain('nothing hidden.');
     expect(container.textContent).not.toMatch(RAW_KEY);
   });
 

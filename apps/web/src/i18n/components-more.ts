@@ -177,8 +177,6 @@ export const componentsMoreCatalog = defineCatalog({
     'componentsMore.safeCopyEditor.thisDocumentIsTooLargeFor':
       'এই ডকুমেন্ট নিরাপদ কপির জন্য খুব বড়। নিরাপদ কপিতে সর্বোচ্চ ২০ পাতা ও ২৫ MB থাকতে পারে।',
     'componentsMore.safeCopyEditor.thisPageShowsWhenYouScroll': 'স্ক্রল করে এই পাতায় এলে এটি দেখা যাবে।',
-    'componentsMore.safeCopyEditor.youChoseNothingToHideOn':
-      'আপনি "এই ডকুমেন্টে লুকানোর কিছু নেই" বেছে নিয়েছেন। প্রতিটি পাতা ছবি হিসেবে শেয়ার করা হয়, কোনো লুকানো লেখা বা ডকুমেন্টের ভেতরের তথ্য ছাড়াই।',
     'componentsMore.sourceNote.wordsCopiedFromTheSource': 'উৎস থেকে কপি করা শব্দ',
   },
 });

@@ -717,4 +717,16 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'componentsPwa.pwaPwaRuntime.dismiss',
     'Left English at review (refill 6): Closes the English browser tip.',
   ],
+  [
+    'components.documentWalletBrowser.showAll',
+    'Left English at review (refill 6): The same toggle reads the English "Show Them" / "Show It" before it is pressed.',
+  ],
+  [
+    'components.documentWalletBrowser.clearTheSearchOrChooseAnother',
+    'Left English at review (refill 6): The draft calls the category filter \u09ac\u09bf\u09ad\u09be\u0997; the filter itself reads \u0995\u09cd\u09af\u09be\u099f\u09be\u0997\u09b0\u09bf. Needs a redraft.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.youChoseNothingToHideOn',
+    'Left English at review (refill 6): Sits above the English page captions ("Page 1 of 2: nothing hidden.") that say the same thing.',
+  ],
 ]);

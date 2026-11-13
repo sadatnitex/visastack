@@ -345,7 +345,7 @@ These have a passing draft and no content reason to stay English. No test render
 
 ## Left English at review in refill 6
 
-Refill 6 filled 23 of the 32 keys deferred from refill 4 (shared components), each with a test that draws its state under Bengali. These 7 stay English for the reason given; HOLDBACK is unchanged.
+Refill 6 filled 20 of the 32 keys deferred from refill 4 (shared components), each with a test that draws its state under Bengali. These 10 stay English for the reason given; HOLDBACK is unchanged.
 
 | Surface | Key | Why it stays English |
 | --- | --- | --- |
@@ -356,6 +356,9 @@ Refill 6 filled 23 of the 32 keys deferred from refill 4 (shared components), ea
 | components-profile-photo | `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto` | The same button reads the held English "Save Photo" before it saves. |
 | components-pwa | `componentsPwa.pwaPwaRuntime.browserTip` | Names a tip whose text (`BROWSER_HINT_TEXT`) is English. |
 | components-pwa | `componentsPwa.pwaPwaRuntime.dismiss` | Closes the English browser tip. |
+| components | `components.documentWalletBrowser.showAll` | The same toggle reads the English "Show Them" / "Show It" before it is pressed. |
+| components | `components.documentWalletBrowser.clearTheSearchOrChooseAnother` | The draft calls the category filter বিভাগ; the filter itself reads ক্যাটাগরি. Needs a redraft. |
+| components-more | `componentsMore.safeCopyEditor.youChoseNothingToHideOn` | Sits above the English page captions ("Page 1 of 2: nothing hidden.") that say the same thing. |
 
 ## Refill 6: what stays deferred
 
