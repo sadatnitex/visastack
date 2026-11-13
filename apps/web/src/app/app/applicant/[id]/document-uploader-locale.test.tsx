@@ -131,6 +131,97 @@ describe('the uploader under Bengali', () => {
     expect(text).not.toContain('You already keep an identical copy of this file.');
   });
 
+  it('words every failed removal from the catalogue: Bengali where a checked draft exists, the exact English where it is held', async () => {
+    const R = 'appApplicant.appApplicantIdDocumentsManageRemoval.';
+    const outcome = {
+      kind: 'added',
+      message: 'Passport added.',
+      title: null,
+      removableCopyId: '11111111-1111-4111-8111-111111111111',
+    };
+    const removeAndRead = async (locale: 'en' | 'bn', result: 'down' | Record<string, unknown>) => {
+      if (result === 'down') copy.remove.mockReset().mockRejectedValue(new Error('offline'));
+      else copy.remove.mockReset().mockResolvedValue(result);
+      const { host } = await upload(locale, outcome);
+      const remove = [...host.querySelectorAll('button')].find((b) =>
+        b.getAttribute('aria-label')?.includes('passport.jpg'),
+      );
+      await act(async () => {
+        remove?.click();
+      });
+      return host.querySelector('[role="alert"]')?.textContent;
+    };
+    expect(await removeAndRead('bn', 'down')).toBe(bn[`${R}couldNotRemoveIt`]);
+    expect(await removeAndRead('en', 'down')).toBe(
+      'We could not remove it. Check your connection and try again.',
+    );
+    const kept = {
+      ok: false,
+      message: 'This copy must be kept for a legal requirement. You can archive it instead.',
+      messageKey: `${R}copyKeptLegalHold`,
+    };
+    // Held: new legal wording the owner has not confirmed. The exact English shows, and no Bengali
+    // value exists that could ship by mistake.
+    expect(bn[`${R}copyKeptLegalHold`]).toBeUndefined();
+    expect(await removeAndRead('bn', kept)).toBe(kept.message);
+    expect(await removeAndRead('en', kept)).toBe(kept.message);
+    // Every refusal Remove This New Copy can get: Bengali where a checked draft exists, the exact
+    // English where it is held (it names Recently Deleted, whose own label is still English).
+    for (const name of [
+      'notOwnerOfRecord',
+      'documentNoLongerHere',
+      'copyKeptFinishedCase',
+      'copyKeptAgencyAnswer',
+      'copyKeptHandover',
+      'copyKeptSharedByName',
+      'copyNotDuplicate',
+      'copyAlreadyRecentlyDeleted',
+      'copyCannotBeDeletedNow',
+    ]) {
+      const key = `${R}${name}`;
+      const refusal = { ok: false, message: en[key], messageKey: key };
+      expect(en[key], name).toBeTruthy();
+      expect(await removeAndRead('en', refusal), name).toBe(en[key]);
+      const shown = await removeAndRead('bn', refusal);
+      if (name === 'copyAlreadyRecentlyDeleted') {
+        expect(bn[key], name).toBeUndefined();
+        expect(shown, name).toBe(en[key]);
+      } else {
+        expect(bn[key], name).toBeTruthy();
+        expect(shown, name).toBe(bn[key]);
+        expect(shown, name).toMatch(BENGALI);
+      }
+    }
+  });
+
+  it('rewords a failed removal that is already on screen when the language is switched', async () => {
+    const R = 'appApplicant.appApplicantIdDocumentsManageRemoval.';
+    copy.remove.mockReset().mockRejectedValue(new Error('offline'));
+    const { host, root } = await upload('bn', {
+      kind: 'added',
+      message: 'Passport added.',
+      title: null,
+      removableCopyId: '11111111-1111-4111-8111-111111111111',
+    });
+    const remove = [...host.querySelectorAll('button')].find((b) =>
+      b.getAttribute('aria-label')?.includes('passport.jpg'),
+    );
+    await act(async () => {
+      remove?.click();
+    });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(bn[`${R}couldNotRemoveIt`]);
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="en" pageLang="en">
+          <DocumentUploader applicantId="a1" limitBytes={4 * 1024 * 1024} limitLabel="4 MB" />
+        </I18nProvider>,
+      );
+    });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      'We could not remove it. Check your connection and try again.',
+    );
+  });
+
   it('is the same English as before under English', async () => {
     const { text } = await upload('en', { kind: 'added', message: 'Passport added.', title: null });
     expect(text).not.toMatch(BENGALI);

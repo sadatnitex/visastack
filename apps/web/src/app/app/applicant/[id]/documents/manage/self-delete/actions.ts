@@ -17,16 +17,8 @@ import {
   STEP_UP_NOT_CONFIGURED_MESSAGE,
   tryEstablishStepUp,
 } from '../../../../../../../lib/step-up';
-import {
-  ASK_US_INSTEAD,
-  CHANGED,
-  GONE,
-  NOT_ALLOWED,
-  SIGN_IN_AGAIN,
-  SWITCHED_OFF,
-  TYPE_THE_WORD,
-  deletedLine,
-} from './messages';
+import { REMOVAL_WORDS as W, type WordedRefusal, said } from '../removal-words';
+import { SIGN_IN_AGAIN, deletedLine } from './messages';
 
 export type SelfDeletePreviewResult =
   | {
@@ -35,16 +27,20 @@ export type SelfDeletePreviewResult =
       /** Deleting will ask for a fresh sign-in first. */
       readonly needsFreshSignIn: boolean;
     }
-  | { readonly ok: false; readonly message: string };
+  | ({ readonly ok: false } & Partial<WordedRefusal> & { readonly message: string });
 
 export type SelfDeleteResult =
   | { readonly ok: true; readonly message: string }
   /** `stale`: what the file touches changed since the screen was read; read it again. */
-  | { readonly ok: false; readonly message: string; readonly stale?: true }
+  | ({
+      readonly ok: false;
+      readonly message: string;
+      readonly stale?: true;
+    } & Partial<WordedRefusal>)
   /** The session is too old for this: go to `signInHref`, which returns to this confirmation. */
   | { readonly ok: false; readonly message: string; readonly signInHref: string };
 
-const SWITCHED_OFF_RESULT = { ok: false, message: SWITCHED_OFF } as const;
+const SWITCHED_OFF_RESULT = { ok: false, ...said(W.deletingNotAvailable) } as const;
 
 /** The owner's MANAGE proof for one document of `applicantId`, from the signed-in session. */
 async function manageProof(
@@ -65,34 +61,30 @@ async function manageProof(
 }
 
 /** The person's words for each refusal the service gives (SELF_DELETE_REFUSALS). */
-function refusalWords(code: string, message: string): { text: string; stale: boolean } {
-  const said = (text: string) => ({ text, stale: false });
-  const askUs = documentRemovalRequestsOn() ? ` ${ASK_US_INSTEAD}` : '';
-  if (code === 'forbidden') return said(NOT_ALLOWED);
-  if (code === 'not_found') return said(GONE);
-  if (code === 'rate_limited') {
-    return said('You have deleted several files in the last hour. Try again later.');
-  }
+function refusalWords(code: string, message: string): { words: WordedRefusal; stale: boolean } {
+  const plain = (key: Parameters<typeof said>[0]) => ({ words: said(key), stale: false });
+  const askUs = documentRemovalRequestsOn();
+  if (code === 'forbidden') return plain(W.notOwnerOfRecord);
+  if (code === 'not_found') return plain(W.fileNoLongerHere);
+  if (code === 'rate_limited') return plain(W.deletedManyFilesLastHour);
   switch (message) {
     case SELF_DELETE_REFUSALS.stale:
-      return { text: CHANGED, stale: true };
+      return { words: said(W.changedSinceOpened), stale: true };
     case SELF_DELETE_REFUSALS.alreadyGone:
     case SELF_DELETE_REFUSALS.notLive:
-      return said('This file is already in Recently Deleted or being removed. Refresh the page.');
+      return plain(W.fileAlreadyDeletedOrRemoving);
     case SELF_DELETE_REFUSALS.legalHold:
-      return said(
-        'We have to keep this file for now because of a legal requirement, so it cannot be deleted.',
-      );
+      return plain(W.fileKeptLegal);
     case SELF_DELETE_REFUSALS.finishedCase:
-      return said(`A finished case used this file, so it is kept with that case.${askUs}`);
+      return plain(askUs ? W.fileKeptFinishedCaseAskUs : W.fileKeptFinishedCase);
     case SELF_DELETE_REFUSALS.agencyAnswer:
-      return said(`This file answered a request from an agency, so it is kept.${askUs}`);
+      return plain(askUs ? W.fileKeptAgencyAnswerAskUs : W.fileKeptAgencyAnswer);
     case SELF_DELETE_REFUSALS.word:
-      return said(TYPE_THE_WORD);
+      return plain(W.typeTheWordToConfirm);
     case SELF_DELETE_REFUSALS.unavailable:
-      return said(SWITCHED_OFF);
+      return plain(W.deletingNotAvailable);
     default:
-      return said('This file cannot be deleted right now. Refresh the page and try again.');
+      return plain(W.fileCannotBeDeletedNow);
   }
 }
 
@@ -102,13 +94,17 @@ export async function selfDeletePreviewAction(
   documentId: string,
 ): Promise<SelfDeletePreviewResult> {
   if (!documentSelfDeleteOn()) return SWITCHED_OFF_RESULT;
-  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, message: GONE };
+  if (!isRecordId(applicantId) || !isRecordId(documentId))
+    return { ok: false, ...said(W.fileNoLongerHere) };
   return withSession(async ({ db, accountId }): Promise<SelfDeletePreviewResult> => {
     const access = await manageProof(db, accountId, applicantId, documentId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...said(W.notOwnerOfRecord) };
     const preview = await previewDeleteMyFile(access, { documentId });
     if (!preview.ok) {
-      return { ok: false, message: refusalWords(preview.error.code, preview.error.message).text };
+      return {
+        ok: false,
+        ...refusalWords(preview.error.code, preview.error.message).words,
+      };
     }
     return { ok: true, ...preview.value };
   });
@@ -127,11 +123,12 @@ export async function selfDeleteAction(
   confirmed: SelfDeleteImpact,
 ): Promise<SelfDeleteResult> {
   if (!documentSelfDeleteOn()) return SWITCHED_OFF_RESULT;
-  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, message: GONE };
-  if (typeof typed !== 'string') return { ok: false, message: TYPE_THE_WORD };
+  if (!isRecordId(applicantId) || !isRecordId(documentId))
+    return { ok: false, ...said(W.fileNoLongerHere) };
+  if (typeof typed !== 'string') return { ok: false, ...said(W.typeTheWordToConfirm) };
   const result = await withSession(async ({ db, accountId }): Promise<SelfDeleteResult> => {
     const access = await manageProof(db, accountId, applicantId, documentId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...said(W.notOwnerOfRecord) };
     let deleted = await deleteMyFile(access, {
       documentId,
       typed,
@@ -156,8 +153,8 @@ export async function selfDeleteAction(
     if (!deleted.ok) {
       const words = refusalWords(deleted.error.code, deleted.error.message);
       return words.stale
-        ? { ok: false, message: words.text, stale: true }
-        : { ok: false, message: words.text };
+        ? { ok: false, ...words.words, stale: true }
+        : { ok: false, ...words.words };
     }
     return { ok: true, message: deletedLine(deleted.value.documentCode, deleted.value.removal) };
   });
