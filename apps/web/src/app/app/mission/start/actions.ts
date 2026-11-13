@@ -15,6 +15,7 @@ import {
   resolveCaseCountry,
 } from '../../../../lib/case-choices';
 import { reportServerError } from '../../../../lib/server-error';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 /** UMPE P4 (R13): one case per traveller from "Where are you going? Why? Who's travelling?". */
@@ -110,7 +111,7 @@ export async function startTripAction(
             message:
               opened.error.code === 'consent_required'
                 ? 'Turn on Let VisaStack Process My Details on Home, then start the trip.'
-                : opened.error.message,
+                : await serviceErrorMessage(opened.error),
             cases,
           };
         }

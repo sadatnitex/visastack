@@ -4,6 +4,7 @@ import { decideAcknowledgement } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { CASE_HIDDEN_LINE, ownsCase } from '../../../../../../lib/hidden-record';
+import { serviceErrorMessage } from '../../../../../../lib/service-error-message';
 import { withSession } from '../../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../../lib/step-up';
 
@@ -79,7 +80,8 @@ export async function decideAcknowledgementAction(
       stepUpSatisfied: true,
       ...(reason.length > 0 ? { reason } : {}),
     });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     return { ok: true, message: DECISION_MESSAGES[decision] } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}/snapshots/${snapshotId}`);

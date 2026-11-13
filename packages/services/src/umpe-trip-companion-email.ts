@@ -16,7 +16,7 @@ import { and, eq, gt, ne } from 'drizzle-orm';
 import type { AuthorizedApplicant } from './access/require-access';
 import { companionsReady } from './access/trip-companion-access';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { hashInvitationToken } from './invitation-tokens';
 import type { KeyManagementPort } from './ports';
@@ -24,7 +24,6 @@ import type { CompanionInvitationDelivery } from './umpe-trip-companions';
 import { ownerAccountOf } from './umpe-trip-service';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NOT_AVAILABLE = 'That person is not on this trip.';
 
 /**
  * Queue the invitation email for one person on the organiser's own trip. Only the invitation that
@@ -46,9 +45,10 @@ export async function queueCompanionInvitation(
   if (!owner.ok) return owner;
   const db: Db = proof.tx;
   if (!UUID.test(input.tripId) || !UUID.test(input.companionId)) {
-    return err(serviceError('not_found', NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
   }
-  if (!(await companionsReady(db))) return err(serviceError('invalid', NOT_AVAILABLE));
+  if (!(await companionsReady(db)))
+    return err(keyedError('invalid', 'umpe_trip_companion_email.that_person_is_not_on_this'));
   return db.transaction(async (tx) => {
     const companions = schema.umpeTripCompanions;
     const row = first(
@@ -69,7 +69,7 @@ export async function queueCompanionInvitation(
         .limit(1),
     );
     if (!row?.email || !row.expiresAt || row.email !== input.invitation.recipientEmail) {
-      return err(serviceError('not_found', NOT_AVAILABLE));
+      return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
     }
     // The newest is queued first (the key service is called before anything is cancelled, so no
     // lock is held across it), then every older waiting email is cancelled. A replay of the same

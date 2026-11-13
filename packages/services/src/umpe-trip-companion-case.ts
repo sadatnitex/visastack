@@ -19,7 +19,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import {
-  COMPANION_UNAVAILABLE,
   type TripCompanionAccess,
   companionsReady,
   tripCompanionAccessProblem,
@@ -27,7 +26,7 @@ import {
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { createMission } from './missions';
 
@@ -77,7 +76,10 @@ export async function planMyOwnCase(
 ): Promise<Result<PlanOwnCaseOutcome, ServiceError>> {
   const problem = tripCompanionAccessProblem(access, 'JOINED');
   if (problem) return err(problem);
-  if (!(await companionsReady(db))) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+  if (!(await companionsReady(db)))
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   return db.transaction(async (tx) => {
     const companions = schema.umpeTripCompanions;
     // The row is locked, so two tries at once cannot both start a case.
@@ -101,7 +103,10 @@ export async function planMyOwnCase(
         .limit(1)
         .for('update', { of: companions }),
     );
-    if (!row) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    if (!row)
+      return err(
+        keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+      );
     const { destination, purpose } = row;
     if (row.ownMissionId !== null) {
       const existing = await ownCaseOf(tx, access.accountId, row.ownMissionId);
@@ -109,7 +114,7 @@ export async function planMyOwnCase(
         return ok({ status: 'existing' as const, missionId: existing, destination, purpose });
     }
     if (!(await hasConsent(tx, access.accountId, 'CORE_PROCESSING'))) {
-      return err(serviceError('consent_required', 'Core processing consent is required'));
+      return err(keyedError('consent_required', 'missions.core_processing_consent_is_required'));
     }
     // Their own record: the one that is them, never a family member they manage.
     const lifecycle = await lifecycleTablesPresent(tx);
@@ -165,7 +170,10 @@ export async function myTripCaseId(
 ): Promise<Result<string | null, ServiceError>> {
   const problem = tripCompanionAccessProblem(access, 'JOINED');
   if (problem) return err(problem);
-  if (!(await companionsReady(db))) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+  if (!(await companionsReady(db)))
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   const companions = schema.umpeTripCompanions;
   const row = first(
     await db
@@ -181,7 +189,10 @@ export async function myTripCaseId(
       )
       .limit(1),
   );
-  if (!row) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+  if (!row)
+    return err(
+      keyedError('not_found', 'umpe_trip_companion_case.this_invitation_is_not_available'),
+    );
   return ok(
     row.ownMissionId === null ? null : await ownCaseOf(db, access.accountId, row.ownMissionId),
   );
