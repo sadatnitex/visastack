@@ -204,9 +204,15 @@ const HORIZONS: readonly {
  * The element around it carries the message's language (`t.lang`).
  */
 function Lines({ text }: { readonly text: string }) {
-  return text
-    .split('\n')
-    .flatMap((line, index) => (index === 0 ? [line] : [<br key={index} />, line]));
+  const [first, ...rest] = text.split('\n');
+  if (rest.length === 0) return <>{first}</>;
+  return (
+    <>
+      {first}
+      <br />
+      <Lines text={rest.join('\n')} />
+    </>
+  );
 }
 
 /**

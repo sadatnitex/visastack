@@ -21319,7 +21319,7 @@ body:lang(bn),
 }
 /* end WP-RT2 */
 
-/* WP-BN-LANDING Bengali type for the home page headings (13 Nov 2026). The Harbor sizes are drawn for short Latin words; Bengali words are longer and taller, so at those sizes the hero headline broke onto four very large lines with wide gaps. For a visitor who chose Bangla (data-locale on the html element) the hero headline, the dark section heading and the closing title, which are Bengali, get a Bengali size and a taller line, so vowel signs above and below the letters never clip, and the lines balance. The product card titles and the phone heading sit next to English fallbacks, so only the Bengali ones (marked lang="bn") change; an English card keeps its English look. The landing styles set tight or wide letter spacing and capitals for Latin; Bengali letters are never spaced apart (see WP-P17), so Bengali text in these places is reset, and English fallback text keeps its spacing. English pages are untouched. */
+/* WP-P18 Bengali type for the home page headings (13 Nov 2026). The Harbor sizes are drawn for short Latin words; Bengali words are longer and taller, so at those sizes the hero headline broke onto four very large lines with wide gaps. For a visitor who chose Bangla (data-locale on the html element) the hero headline, the dark section heading and the closing title, which are Bengali, get a Bengali size and a taller line, so vowel signs above and below the letters never clip, and the lines balance. The product card titles and the phone heading sit next to English fallbacks, so only the Bengali ones (marked lang="bn") change; an English card keeps its English look. The landing styles set tight or wide letter spacing and capitals for Latin; Bengali letters are never spaced apart (see WP-P17), so Bengali text in these places is reset, and English fallback text keeps its spacing. English pages are untouched. */
 .c1
   :is(
     .c1-nudge,
@@ -21399,4 +21399,4 @@ body:lang(bn),
     font-size: 24px;
   }
 }
-/* end WP-BN-LANDING */
+/* end WP-P18 */

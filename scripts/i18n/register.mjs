@@ -1320,9 +1320,9 @@ export class Register {
       if (!c.semantic_group) continue;
       this.census.set(`${c.file}|${c.line_start}|${c.english}`, c.semantic_group);
       const both = `${c.file}|${c.english}`;
-      let rows = this.censusByFile.get(both);
-      if (!rows) this.censusByFile.set(both, (rows = []));
+      const rows = this.censusByFile.get(both) ?? [];
       rows.push({ line: Number(c.line_start), group: c.semantic_group });
+      this.censusByFile.set(both, rows);
     }
   }
 
