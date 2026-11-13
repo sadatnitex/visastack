@@ -1,13 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useLocale, useT } from '../../../../../../../components/i18n-provider';
 import { UndoStatus } from '../../../../../../../components/lifecycle/undo-status';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import { formatTimestampDate } from '../../../../../../../lib/format-date';
 import type { ManageActionProps } from '../registry';
-import { REMOVAL_WORDS as W, refusalNode } from '../removal-words';
+import { type RefusalLine, REMOVAL_WORDS as W, refusalNode, said } from '../removal-words';
 import {
   type DeletePreviewResult,
   deleteDuplicateAction,
@@ -36,7 +36,7 @@ export function DeleteDuplicateAction({
   const locale = useLocale();
   const router = useRouter();
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [problem, setProblem] = useState<ReactNode>(null);
+  const [problem, setProblem] = useState<RefusalLine | null>(null);
   const [busy, setBusy] = useState(false);
   const [deletedDays, setDeletedDays] = useState<number | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -46,12 +46,12 @@ export function DeleteDuplicateAction({
   const load = useCallback(async () => {
     try {
       const loaded = await deletePreviewAction(applicantId, documentId);
-      if (!loaded.ok) setProblem(refusalNode(t, loaded));
+      if (!loaded.ok) setProblem(loaded);
       else setPreview(loaded);
     } catch {
-      setProblem(t.node(W.couldNotCheckCopy));
+      setProblem(said(W.couldNotCheckCopy));
     }
-  }, [applicantId, documentId, t]);
+  }, [applicantId, documentId]);
 
   useEffect(() => {
     void load();
@@ -71,13 +71,13 @@ export function DeleteDuplicateAction({
     try {
       const deleted = await deleteDuplicateAction(applicantId, documentId);
       if (!deleted.ok) {
-        setProblem(refusalNode(t, deleted));
+        setProblem(deleted);
         return;
       }
       setDeletedDays(deleted.days);
       heading.current?.focus();
     } catch {
-      setProblem(t.node(W.couldNotDeleteIt));
+      setProblem(said(W.couldNotDeleteIt));
     } finally {
       setBusy(false);
     }
@@ -91,7 +91,7 @@ export function DeleteDuplicateAction({
 
   const problemLine = problem ? (
     <p className="lc-delete-problem" role="alert">
-      {problem}
+      {refusalNode(t, problem)}
     </p>
   ) : null;
 

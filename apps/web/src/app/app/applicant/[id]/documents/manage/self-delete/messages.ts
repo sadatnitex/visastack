@@ -18,11 +18,6 @@ export const GONE = 'That file is no longer here. Refresh the page and try again
 export const TYPE_THE_WORD = 'Type DELETE to confirm.';
 export const SIGN_IN_AGAIN =
   'For your safety, sign in again first. You will come back to this screen.';
-export const CHANGED =
-  'Something changed since you opened this. Read it again before you delete the file.';
-
-/** Said after a refusal that Ask Us to Remove This File can still help with. */
-export const ASK_US_INSTEAD = 'You can use Ask Us to Remove This File instead.';
 
 /** What the file touches, one short line each, only for what is not zero. */
 export function impactLines(impact: SelfDeleteImpact): string[] {

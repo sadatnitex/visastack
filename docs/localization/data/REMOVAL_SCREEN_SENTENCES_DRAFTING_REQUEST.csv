@@ -1,7 +1,7 @@
 catalogue_key,register_group,english,register_status,where_shown
-appApplicant.appApplicantIdDocumentsManageRemoval.notOwnerOfRecord,SG-6255acc0,Only the owner of this record can do this.,NOT_DRAFTED,Delete My File
+appApplicant.appApplicantIdDocumentsManageRemoval.notOwnerOfRecord,SG-6255acc0,Only the owner of this record can do this.,NOT_DRAFTED,Delete My File; Delete Duplicate and Restore
 appApplicant.appApplicantIdDocumentsManageRemoval.fileNoLongerHere,SG-f9738b60,That file is no longer here. Refresh the page and try again.,NOT_DRAFTED,Delete My File
-appApplicant.appApplicantIdDocumentsManageRemoval.documentNoLongerHere,SG-440f3567,That document is no longer here. Refresh the page and try again.,NOT_DRAFTED,Delete My File
+appApplicant.appApplicantIdDocumentsManageRemoval.documentNoLongerHere,SG-440f3567,That document is no longer here. Refresh the page and try again.,NOT_DRAFTED,Delete Duplicate and Restore; Ask Us to Remove This File
 appApplicant.appApplicantIdDocumentsManageRemoval.deletingNotAvailable,SG-fe78f731,Deleting files is not available yet.,NOT_DRAFTED,Delete My File
 appApplicant.appApplicantIdDocumentsManageRemoval.deletedManyFilesLastHour,SG-c1e6692d,You have deleted several files in the last hour. Try again later.,NOT_DRAFTED,Delete My File
 appApplicant.appApplicantIdDocumentsManageRemoval.fileAlreadyDeletedOrRemoving,SG-5cbaeb71,This file is already in Recently Deleted or being removed. Refresh the page.,NOT_DRAFTED,Delete My File
@@ -11,7 +11,7 @@ appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswer,,"This fi
 appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs,,"This file answered a request from an agency, so it is kept. You can use Ask Us to Remove This File instead.",NO_ROW,Delete My File
 appApplicant.appApplicantIdDocumentsManageRemoval.fileCannotBeDeletedNow,SG-ac68a340,This file cannot be deleted right now. Refresh the page and try again.,NOT_DRAFTED,Delete My File
 appApplicant.appApplicantIdDocumentsManageRemoval.couldNotCheckFile,SG-e46fd058,We could not check this file. Close this and try again.,NOT_DRAFTED,Delete My File
-appApplicant.appApplicantIdDocumentsManageRemoval.couldNotDeleteIt,SG-11a6cdd8,We could not delete it. Check your connection and try again.,NOT_DRAFTED,Delete My File
+appApplicant.appApplicantIdDocumentsManageRemoval.couldNotDeleteIt,SG-11a6cdd8,We could not delete it. Check your connection and try again.,NOT_DRAFTED,Delete My File; Delete Duplicate
 appApplicant.appApplicantIdDocumentsManageRemoval.copyAlreadyRecentlyDeleted,SG-1ce16669,This copy is already in Recently Deleted. Refresh the page.,NOT_DRAFTED,Delete Duplicate and Restore
 appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptFinishedCase,,"A finished case used this copy, so it is kept with that case. You can archive it instead.",NO_ROW,Delete Duplicate and Restore
 appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptAgencyAnswer,,"This copy answered a request from an agency, so it is kept. You can archive it instead.",NO_ROW,Delete Duplicate and Restore

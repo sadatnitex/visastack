@@ -1,10 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
-import { REMOVAL_WORDS as W, refusalNode } from '../removal-words';
+import { type RefusalLine, REMOVAL_WORDS as W, refusalNode, said } from '../removal-words';
 import { type SelfDeletePreviewResult, selfDeleteAction, selfDeletePreviewAction } from './actions';
 import { BACKUP_NOTE, SIGN_IN_AGAIN, WHAT_HAPPENS, impactLines } from './messages';
 
@@ -27,7 +27,7 @@ export function SelfDeleteAction({
   const router = useRouter();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [typed, setTyped] = useState('');
-  const [problem, setProblem] = useState<ReactNode>(null);
+  const [problem, setProblem] = useState<RefusalLine | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -41,11 +41,11 @@ export function SelfDeleteAction({
     try {
       const loaded = await selfDeletePreviewAction(applicantId, documentId);
       if (loaded.ok) setPreview(loaded);
-      else setProblem(refusalNode(t, loaded));
+      else setProblem(loaded);
     } catch {
-      setProblem(t.node(W.couldNotCheckFile));
+      setProblem(said(W.couldNotCheckFile));
     }
-  }, [applicantId, documentId, t]);
+  }, [applicantId, documentId]);
 
   useEffect(() => {
     void load();
@@ -65,7 +65,7 @@ export function SelfDeleteAction({
   async function remove() {
     if (busy || !preview) return;
     if (typed.trim() === '') {
-      setProblem(t.node(W.typeTheWordToConfirm));
+      setProblem(said(W.typeTheWordToConfirm));
       return;
     }
     setBusy(true);
@@ -77,14 +77,14 @@ export function SelfDeleteAction({
       } else if ('signInHref' in done) {
         window.location.assign(done.signInHref);
       } else {
-        setProblem(refusalNode(t, done));
+        setProblem(done);
         if (done.stale) {
           setTyped('');
           await load();
         }
       }
     } catch {
-      setProblem(t.node(W.couldNotDeleteIt));
+      setProblem(said(W.couldNotDeleteIt));
     } finally {
       setBusy(false);
     }
@@ -126,7 +126,7 @@ export function SelfDeleteAction({
       </h3>
       {problem ? (
         <p id={problemId} className="lc-selfdelete-problem" role="alert">
-          {problem}
+          {refusalNode(t, problem)}
         </p>
       ) : null}
       {!preview && !problem ? (

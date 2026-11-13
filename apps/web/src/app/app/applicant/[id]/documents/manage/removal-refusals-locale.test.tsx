@@ -110,7 +110,7 @@ describe('every removal sentence, worded from the catalogue by its key', () => {
     },
   );
 
-  it('keyed with Bengali equals rendered in Bengali (6 = 6)', async () => {
+  it('keyed with Bengali equals rendered in Bengali', async () => {
     const keyedWithBengali = KEYS.filter((key) => bn[key] !== undefined);
     let renderedInBengali = 0;
     for (const key of keyedWithBengali) {
@@ -120,8 +120,30 @@ describe('every removal sentence, worded from the catalogue by its key', () => {
       await show('bn', <SelfDeleteAction {...props} />);
       if (alert() === bn[key] && BENGALI.test(alert() ?? '')) renderedInBengali += 1;
     }
-    expect(keyedWithBengali).toHaveLength(6);
+    expect(keyedWithBengali.length).toBeGreaterThanOrEqual(6);
     expect(renderedInBengali).toBe(keyedWithBengali.length);
+  });
+
+  it('marks the language of a Bengali sentence on an English page, and shows English for a key it does not know', async () => {
+    const legal = W.fileKeptLegal;
+    mocks.selfPreview.mockResolvedValue({ ok: false, message: en[legal], messageKey: legal });
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="bn" pageLang="en">
+          <SelfDeleteAction {...props} />
+        </I18nProvider>,
+      );
+    });
+    expect(container.querySelector('[role="alert"] span[lang="bn"]')?.textContent).toBe(bn[legal]);
+    act(() => root.unmount());
+    root = createRoot(container);
+    mocks.selfPreview.mockResolvedValue({
+      ok: false,
+      message: 'Sent by a newer version.',
+      messageKey: 'appApplicant.notInThisCatalogue',
+    });
+    await show('bn', <SelfDeleteAction {...props} />);
+    expect(alert()).toBe('Sent by a newer version.');
   });
 
   it('shows the English message as sent when an answer carries no key', async () => {

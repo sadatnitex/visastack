@@ -4,9 +4,10 @@ import { appApplicantCatalog } from '../../../../../../i18n/app-applicant';
 import type { PartsTranslator } from '../../../../../../lib/language-parts';
 
 /**
- * Every sentence the removal screens (Delete My File, Delete Duplicate and Restore, Ask Us to
- * Remove This File) can show after a refusal or a failed call, as a key in the applicant
- * catalogue. A server action returns the English `message` it always sent plus the `messageKey`;
+ * The sentences the removal screens (Delete My File, Delete Duplicate and Restore, Ask Us to
+ * Remove This File) show after a refusal or a failed call, as keys in the applicant catalogue.
+ * Not covered: the step-up sentence shared with other screens (lib/step-up) and the failed-Undo
+ * line (components/lifecycle/undo-status), which stay English for now. A server action returns the English `message` it always sent plus the `messageKey`;
  * the dialog words it in the visitor's language. English comes from the catalogue, so the two
  * can never drift apart. Not a server-action file: it exports values.
  */
@@ -71,14 +72,17 @@ export interface WordedRefusal {
   readonly messageKey: AppApplicantKey;
 }
 
+/** A refusal as a screen keeps it: the key is optional (an answer that sent none shows its English). */
+export type RefusalLine = { readonly message: string; readonly messageKey?: AppApplicantKey };
+
 export function said(key: (typeof REMOVAL_WORDS)[keyof typeof REMOVAL_WORDS]): WordedRefusal {
   return { message: appApplicantCatalog.en[key], messageKey: key };
 }
 
 /** The words to show for a failed action: from the catalogue when it sent a key, else its own. */
-export function refusalNode(
-  t: PartsTranslator<AppApplicantKey>,
-  refusal: { readonly message: string; readonly messageKey?: AppApplicantKey },
-): ReactNode {
-  return refusal.messageKey === undefined ? refusal.message : t.node(refusal.messageKey);
+export function refusalNode(t: PartsTranslator<AppApplicantKey>, refusal: RefusalLine): ReactNode {
+  const { message, messageKey } = refusal;
+  // A key this page's catalogue does not know (a tab left open across a deploy) shows the English
+  // the action sent, never the key itself.
+  return messageKey === undefined || t(messageKey) === messageKey ? message : t.node(messageKey);
 }

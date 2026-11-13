@@ -165,6 +165,34 @@ describe('the uploader under Bengali', () => {
     expect(await removeAndRead('en', kept)).toBe(kept.message);
   });
 
+  it('rewords a failed removal that is already on screen when the language is switched', async () => {
+    const R = 'appApplicant.appApplicantIdDocumentsManageRemoval.';
+    copy.remove.mockReset().mockRejectedValue(new Error('offline'));
+    const { host, root } = await upload('bn', {
+      kind: 'added',
+      message: 'Passport added.',
+      title: null,
+      removableCopyId: '11111111-1111-4111-8111-111111111111',
+    });
+    const remove = [...host.querySelectorAll('button')].find((b) =>
+      b.getAttribute('aria-label')?.includes('passport.jpg'),
+    );
+    await act(async () => {
+      remove?.click();
+    });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(bn[`${R}couldNotRemoveIt`]);
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="en" pageLang="en">
+          <DocumentUploader applicantId="a1" limitBytes={4 * 1024 * 1024} limitLabel="4 MB" />
+        </I18nProvider>,
+      );
+    });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      'We could not remove it. Check your connection and try again.',
+    );
+  });
+
   it('is the same English as before under English', async () => {
     const { text } = await upload('en', { kind: 'added', message: 'Passport added.', title: null });
     expect(text).not.toMatch(BENGALI);

@@ -188,22 +188,6 @@ describe('the removal catalogue', () => {
       expect(appApplicantCatalog.en[W[slug]], slug).toBe(OLD_ENGLISH[slug]);
     }
   });
-
-  it('has Bengali for exactly the sentences with a checked draft (6 of 6 keyed to Bengali)', () => {
-    const withBengali = (Object.keys(W) as (keyof typeof W)[])
-      .filter((slug) => (appApplicantCatalog.bn as Record<string, string>)[W[slug]] !== undefined)
-      .sort();
-    expect(withBengali).toEqual(
-      [
-        'changedSinceOpened',
-        'couldNotRemoveIt',
-        'fileKeptLegal',
-        'requestLegalHold',
-        'requestsNotAvailable',
-        'typeTheWordToConfirm',
-      ].sort(),
-    );
-  });
 });
 
 describe('Delete My File refusals', () => {

@@ -1,10 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
-import { REMOVAL_WORDS as W, refusalNode } from '../removal-words';
+import { type RefusalLine, REMOVAL_WORDS as W, refusalNode, said } from '../removal-words';
 import { requestRemovalAction } from './actions';
 import { BACKUP_NOTE, REASON_CHOICES, WHAT_HAPPENS } from './messages';
 
@@ -24,7 +24,7 @@ export function RequestRemovalAction({
   const router = useRouter();
   const [reason, setReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<ReactNode>(null);
+  const [problem, setProblem] = useState<RefusalLine | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -47,7 +47,7 @@ export function RequestRemovalAction({
   const send = async () => {
     if (busy) return;
     if (!reason) {
-      setProblem(t.node(W.chooseReasonFromList));
+      setProblem(said(W.chooseReasonFromList));
       return;
     }
     setBusy(true);
@@ -55,9 +55,9 @@ export function RequestRemovalAction({
     try {
       const sent = await requestRemovalAction(applicantId, documentId, reason);
       if (sent.ok) setResult(sent.message);
-      else setProblem(refusalNode(t, sent));
+      else setProblem(sent);
     } catch {
-      setProblem(t.node(W.requestSendFailed));
+      setProblem(said(W.requestSendFailed));
     } finally {
       setBusy(false);
     }
@@ -132,7 +132,7 @@ export function RequestRemovalAction({
       </fieldset>
       {problem ? (
         <p id={problemId} className="lc-request-problem" role="alert">
-          {problem}
+          {refusalNode(t, problem)}
         </p>
       ) : null}
       <div className="lc-request-actions">
