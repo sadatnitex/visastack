@@ -390,7 +390,8 @@ function parseArgs(argv) {
     else throw new Error(`unknown option ${x}`);
   }
   if (a.groupsFrom && !a.refill) throw new Error('--groups-from only works with --refill-bn');
-  if (a.keyPrefix !== undefined && !a.refill) throw new Error('--key-prefix only works with --refill-bn');
+  if (a.keyPrefix !== undefined && !a.refill)
+    throw new Error('--key-prefix only works with --refill-bn');
   return a;
 }
 
