@@ -1,5 +1,7 @@
+import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flagEmoji } from '../../../components/country-flag';
+import { I18nProvider } from '../../../components/i18n-provider';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 /**
@@ -55,6 +57,7 @@ vi.mock('next/headers', () => ({
 const { collectCatalog } = await import('../../../i18n/collect');
 const { default: AccountPage, metadata } = await import('./page');
 const { default: AnswersPage } = await import('./answers/page');
+const { ResponseForm } = await import('./response-form');
 
 /** The page's words as a reader hears them: the flags are hidden from readers, so they are left out. */
 const spoken = (html: string) =>
@@ -332,5 +335,139 @@ describe('/collect/account under Bengali (wording signed off 2026-11-12)', () =>
     );
     expect(text).toContain(bn['collect.collectAccountAnswersPage.submittedToAgency']);
     expect(text).toContain(bn['collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen']);
+  });
+});
+
+describe('/collect/account under Bengali (refill 3)', () => {
+  const bn = collectCatalog.bn as Record<string, string>;
+  const en = collectCatalog.en as Record<string, string>;
+  const P = 'collect.collectAccountPage.';
+  const F = 'collect.collectAccountResponseForm.';
+  const A = 'collect.collectAccountAnswersPage.';
+  const RAW = /collect\.collect[A-Z]/;
+  beforeEach(() => {
+    loc.locale = 'bn';
+  });
+
+  it('a closed link says so in Bengali', async () => {
+    mocks.cookie = undefined;
+    const html = await renderServer(AccountPage({}));
+    expect(textOf(html)).toContain(bn[`${P}theLinkMayHaveExpiredOr`]);
+    expect(textOf(html)).not.toContain(en[`${P}theLinkMayHaveExpiredOr`]);
+    expect(textOf(html)).toContain(bn[`${P}seeYourAnswers`]);
+    expect(html).not.toMatch(RAW);
+  });
+
+  it('with nobody in the record it asks to set one up first, in Bengali', async () => {
+    mocks.people.mockResolvedValue([]);
+    const html = await renderServer(AccountPage({}));
+    const text = textOf(html);
+    expect(text).toContain(bn[`${P}setUpYourRecordFirst`]);
+    expect(text).toContain(bn[`${P}yourAnswerComesFromYourOwn`]);
+    expect(text).toContain(bn[`${P}setUpYourRecord`]);
+    expect(html).not.toMatch(RAW);
+  });
+
+  it('with two people it asks whose record to answer from, in Bengali', async () => {
+    mocks.people.mockResolvedValue([
+      { id: PERSON, displayName: 'Synthetic Traveller' },
+      { id: 'other', displayName: 'Synthetic Child' },
+    ]);
+    const html = await renderServer(AccountPage({}));
+    const text = textOf(html);
+    expect(text).toContain(bn[`${P}whoIsThisFor`]);
+    expect(text).toContain(bn[`${P}chooseWhoseRecordToAnswerFrom`]);
+    expect(text).toContain('Synthetic Child');
+    expect(html).not.toMatch(RAW);
+  });
+
+  it('the answer page offers to answer for someone else in Bengali', async () => {
+    mocks.people.mockResolvedValue([
+      { id: PERSON, displayName: 'Synthetic Traveller' },
+      { id: 'other', displayName: 'Synthetic Child' },
+    ]);
+    const html = await renderServer(
+      AccountPage({ searchParams: Promise.resolve({ person: PERSON }) }),
+    );
+    const text = textOf(html);
+    expect(text).toContain(bn[`${P}answerForSomeoneElse`]);
+    // The hand-written line about missing items stays English.
+    expect(text).toContain('See Your Answers to withdraw one at any time.');
+    expect(html).not.toMatch(RAW);
+  });
+
+  it('the answer form counts copies and items in Bengali, with the agency note and the other copies', () => {
+    const choice = (key: string, matches: boolean) => ({
+      key,
+      title: 'Passport',
+      label: 'Current Copy',
+      detail: 'Saved 1 Dec 2026',
+      matches,
+    });
+    const item = (id: string, over: Record<string, unknown>) => ({
+      id,
+      label: 'Passport',
+      meta: 'Requested by Synthetic Agency One',
+      note: null,
+      blocking: true,
+      kind: 'DOCUMENT' as const,
+      proposedKey: null,
+      initialKeys: [] as string[],
+      choices: [] as ReturnType<typeof choice>[],
+      ...over,
+    });
+    const form = (items: ReturnType<typeof item>[]) =>
+      textOf(
+        renderToStaticMarkup(
+          <I18nProvider locale="bn" pageLang="bn">
+            <ResponseForm
+              personId={PERSON}
+              linkId={LINK}
+              revisionId="rev-1"
+              consentVersion="v1"
+              consentText="I agree"
+              items={items}
+            />
+          </I18nProvider>,
+        ),
+      );
+    const two = form([
+      item('i1', {
+        note: 'Bring the newest one',
+        initialKeys: ['a', 'b'],
+        choices: [choice('a', true), choice('b', true), choice('c', false)],
+      }),
+      item('i2', { initialKeys: ['d'], choices: [choice('d', false)] }),
+    ]);
+    expect(two).toContain('২টি কপি বেছে নেওয়া হয়েছে');
+    expect(two).toContain(
+      (bn[`${F}noteFromTheAgencyNote`] as string).replace('{note}', 'Bring the newest one'),
+    );
+    expect(two).toContain(bn[`${F}chooseADifferentDocument`]);
+    expect(two).toContain(bn[`${F}chooseFromYourDocuments`]);
+    expect(two).toContain(bn[`${F}everyItemHasSomethingChosen`]);
+    const none = form([item('i1', {}), item('i2', {})]);
+    expect(none).toContain('২টি আইটেম এখনো বাকি।');
+    expect(none).toContain(bn[`${F}stillMissing`]);
+    expect(none).toContain(bn[`${F}nothingInThisRecordMatchesYet`]);
+    expect(none).toContain(bn[`${F}reviewAndSubmit`]);
+    const one = form([
+      item('i1', { initialKeys: ['a'], choices: [choice('a', true)] }),
+      item('i2', {}),
+    ]);
+    expect(one).toContain(bn[`${F}oneCopyChosen`]);
+    expect(one).toContain(bn[`${F}oneItemIsStillMissingYou`]);
+    expect(one).not.toContain('One Copy Chosen');
+    expect(two + none).not.toMatch(RAW);
+  });
+
+  it('the list of answers says when one was withdrawn and when there is none, in Bengali', async () => {
+    mocks.own.mockResolvedValue({ ok: true, value: [] });
+    const text = textOf(
+      await renderServer(AnswersPage({ searchParams: Promise.resolve({ withdrawn: '1' }) })),
+    );
+    expect(text).toContain(bn[`${A}withdrawnTheAgencyCanNoLonger`]);
+    expect(text).toContain(bn[`${A}youHaveNotAnsweredAnyAgency`]);
+    expect(text).not.toContain(en[`${A}youHaveNotAnsweredAnyAgency`]);
   });
 });

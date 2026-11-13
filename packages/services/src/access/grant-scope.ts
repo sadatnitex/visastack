@@ -94,10 +94,15 @@ const NONE: CaseExclusionsByGrant = new Map();
  * The exceptions recorded against accepted grants, for every grant of one
  * applicant or for the named grants. Invitation-bound exceptions are not
  * included (they bind no live access until the invitation is accepted).
+ * `onlyGrants`, a query of grant ids, narrows one applicant's exceptions to
+ * those grants in the same statement (the access gate reads only the
+ * caller's own).
  */
 export async function loadCaseExclusions(
   db: Db,
-  scope: { readonly applicantId: string } | { readonly grantIds: readonly string[] },
+  scope:
+    | { readonly applicantId: string; readonly onlyGrants?: SQLWrapper }
+    | { readonly grantIds: readonly string[] },
 ): Promise<CaseExclusionsByGrant> {
   if ('grantIds' in scope && scope.grantIds.length === 0) return NONE;
   if (!(await caseExclusionsTablePresent(db))) return NONE;
@@ -109,7 +114,10 @@ export async function loadCaseExclusions(
       and(
         isNotNull(table.grantId),
         'applicantId' in scope
-          ? eq(table.applicantId, scope.applicantId)
+          ? and(
+              eq(table.applicantId, scope.applicantId),
+              scope.onlyGrants ? inArray(table.grantId, scope.onlyGrants) : undefined,
+            )
           : inArray(table.grantId, [...new Set(scope.grantIds)]),
       ),
     );

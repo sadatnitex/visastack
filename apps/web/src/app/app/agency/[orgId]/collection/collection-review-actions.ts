@@ -1,6 +1,6 @@
 'use server';
 
-import { serviceErrorMessage } from '../../../../../lib/service-error-message';
+import { serviceErrorMessage, serviceKeyMessage } from '../../../../../lib/service-error-message';
 
 import {
   agencyCollectionPrincipal,
@@ -41,7 +41,12 @@ export async function reviewAnswerAction(
   const answerId = String(formData.get('answerId') ?? '');
   const decision = formData.get('decision');
   if (typeof decision !== 'string' || decision === '') {
-    return { ok: false, message: 'Choose a decision.', field: 'decision' };
+    // The service's own words for this check, so both say the same thing in every language.
+    return {
+      ok: false,
+      message: await serviceKeyMessage('umpe_collection_response_review.choose_a_decision'),
+      field: 'decision',
+    };
   }
   const itemNotes: Record<string, string> = {};
   for (const [key, value] of formData.entries()) {

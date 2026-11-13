@@ -12,7 +12,7 @@ import {
 import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
-import { orgGrantPermits } from './agency';
+import { mayReadOrgCase, orgGrantPermits } from './agency';
 import { type TaskAddedBy, taskAddedByApps } from './ai-task-origins';
 import { getApplicant } from './applicants';
 import { latestTimeZoneName, recognisedTimeZone } from './attention';
@@ -26,6 +26,7 @@ import { type ServiceError, keyedError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
 import { type StoredCaseEvidence, readStoredCaseEvidence } from './finished-case-evidence';
 import { type SavedReadiness, readStoredReadiness } from './finished-case-readiness';
+import { caseFlowAEn } from './i18n/case-flow-a';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -117,7 +118,7 @@ const TRANSITIONS: Readonly<Record<MissionState, readonly MissionState[]>> = {
 };
 
 /** The plain line shown when someone tries to change a finished case (submitted, closed, cancelled). */
-export const CASE_FINISHED_NO_CHANGE = 'This case is finished, so it can no longer change.';
+export const CASE_FINISHED_NO_CHANGE = caseFlowAEn['missions.this_case_is_finished_so_it'];
 
 function finishedCaseRefusal(): ServiceError {
   return keyedError('invalid', 'missions.this_case_is_finished_so_it');
@@ -2275,8 +2276,7 @@ export async function snapshotMission(
 export type SelectedEvidence = typeof schema.selectedEvidence.$inferSelect;
 
 /** The plain line a traveller reads when a finished case's evidence is touched. */
-const CASE_FINISHED_SELECTION =
-  'This case is finished, so the files and answers it uses can no longer change.';
+const CASE_FINISHED_SELECTION = caseFlowAEn['missions.this_case_is_finished_so_the'];
 
 /**
  * A submitted, closed or cancelled case keeps the choice of which file or answer counts for each
@@ -2554,9 +2554,14 @@ export async function listSelectedEvidence(
  */
 export async function listSelectedEvidenceForOrg(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   missionId: string,
 ): Promise<Result<SelectedEvidence[], ServiceError>> {
+  // Someone who may not read this organization's view of the case gets what an unknown id gets.
+  if (!(await mayReadOrgCase(db, actorAccountId, organizationId, missionId))) {
+    return err(keyedError('not_found', 'missions.case_not_found'));
+  }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );

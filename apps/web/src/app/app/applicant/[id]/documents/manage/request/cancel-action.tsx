@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
-import { useT } from '../../../../../../../components/i18n-provider';
+import { usePageLanguage, useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
+import { type RefusalLine, REMOVAL_WORDS as W, refusalNode, said } from '../removal-words';
 import { cancelRemovalRequestAction } from './actions';
 
 /**
@@ -17,9 +18,10 @@ export function CancelRemovalRequestAction({
   onClose,
 }: ManageActionProps) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<RefusalLine | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -44,9 +46,9 @@ export function CancelRemovalRequestAction({
     try {
       const done = await cancelRemovalRequestAction(applicantId, documentId);
       if (done.ok) setResult(done.message);
-      else setProblem(done.message);
+      else setProblem(done);
     } catch {
-      setProblem('The request could not be cancelled. Check your connection and try again.');
+      setProblem(said(W.requestCancelFailed));
     } finally {
       setBusy(false);
     }
@@ -88,7 +90,7 @@ export function CancelRemovalRequestAction({
       </p>
       {problem ? (
         <p className="lc-request-problem" role="alert">
-          {problem}
+          {refusalNode(t, problem, pageLang)}
         </p>
       ) : null}
       <div className="lc-request-actions">

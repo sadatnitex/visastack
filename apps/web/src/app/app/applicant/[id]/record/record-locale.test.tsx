@@ -101,19 +101,18 @@ describe('the Record hub page under Bengali', () => {
     expect(text).toContain(bn[`${K}addADocument`]);
     expect(text).toContain(bn[`${K}updateYourProfile`]);
     expect(text).toContain('Synthetic Self-এর জন্য সংরক্ষিত সবকিছু');
-    // The small label above the title has no Bengali draft yet, so it stays English.
-    expect('appApplicant.appApplicantIdExpiryPage.record' in bn).toBe(false);
-    expect(text).toMatch(/^Record /);
+    // The small label above the title is Bengali too.
+    expect(text.startsWith(`${bn['appApplicant.appApplicantIdExpiryPage.record']} `)).toBe(true);
     expect(text).not.toMatch(/appApplicant\./);
   });
 
-  it('draws the not-yet-drafted empty-vault line in English, never a raw key', async () => {
+  it('draws the empty-vault line in Bengali, never a raw key', async () => {
     const text = textOf(await render('bn'));
-    expect(`${K}youHaveNotAddedADocument` in bn).toBe(false);
-    expect(text).toContain(en[`${K}youHaveNotAddedADocument`]);
+    expect(text).toContain(bn[`${K}youHaveNotAddedADocument`]);
+    expect(text).not.toContain(en[`${K}youHaveNotAddedADocument`]);
   });
 
-  it('shows the could-not-load state, which is held, in English, and gives the list its dates in Bengali digits', async () => {
+  it('shows the could-not-load state in Bengali, and gives the list its dates in Bengali digits', async () => {
     mocks.getWalletView.mockResolvedValue({ ok: true, value: [walletRow] });
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [summary] });
     const html = await render('bn');
@@ -123,7 +122,8 @@ describe('the Record hub page under Bengali', () => {
     expect(dates).toMatch(BENGALI);
     mocks.getWalletView.mockResolvedValue({ ok: false, error: { code: 'internal', message: 'x' } });
     const failed = textOf(await render('bn'));
-    expect(failed).toContain(en[`${K}yourDocumentsCouldNotBeLoaded`]);
+    expect(failed).toContain(bn[`${K}yourDocumentsCouldNotBeLoaded`]);
+    expect(failed).not.toContain(en[`${K}yourDocumentsCouldNotBeLoaded`]);
   });
 
   it('is the same English as before under English', async () => {

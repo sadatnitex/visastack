@@ -805,7 +805,9 @@ export async function recordDecisionAction(
  * Record an issuer confirmation (EVI-05, tier E3) against whatever a
  * requirement's evidence is currently selected as. The fact/document is
  * resolved server-side from `packRequirementId` via
- * `listSelectedEvidenceForOrg` (never trusted from the client directly);
+ * `listSelectedEvidenceForOrg` (never trusted from the client directly),
+ * which refuses anyone who may not read this agency's view of the case before
+ * it reads anything;
  * `recordIssuerVerification` itself re-authorizes independently with its
  * own MANAGE-grant check, so this action does not widen either.
  */
@@ -835,7 +837,10 @@ export async function recordIssuerVerificationAction(
   }
 
   const result = await withSession(async ({ db, accountId }) => {
-    const evidence = await listSelectedEvidenceForOrg(db, organizationId, missionId);
+    // The service checks first that this person may read this agency's view of the case, before
+    // it looks anything up: a stranger gets the same answer for a made-up agency, a made-up case,
+    // and a real case with or without evidence chosen.
+    const evidence = await listSelectedEvidenceForOrg(db, accountId, organizationId, missionId);
     if (!evidence.ok)
       return {
         ok: false,

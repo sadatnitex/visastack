@@ -64,13 +64,25 @@ export const applicantEvidenceCatalog = defineCatalog({
   bn: {
     'applicantEvidence.appApplicantIdEvidenceAnswerReceipt.answerSent': 'উত্তর পাঠানো হয়েছে',
     'applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.yourQuestion': 'আপনার প্রশ্ন',
+    'applicantEvidence.appApplicantIdEvidencePage.1RequestIsWaitingForYou':
+      '১টি অনুরোধ আপনার জন্য অপেক্ষা করছে।',
     'applicantEvidence.appApplicantIdEvidencePage.aboutRequests': 'অনুরোধ সম্পর্কে',
     'applicantEvidence.appApplicantIdEvidencePage.anAgencyIsAskingYouFor':
       'একটি এজেন্সি আপনার কাছে এটি চাইছে। এটি সরকারি নিয়ম নয়।',
+    'applicantEvidence.appApplicantIdEvidencePage.awaitingcountRequestsAreWaitingForYou':
+      '{awaitingCount}টি অনুরোধ আপনার জন্য অপেক্ষা করছে।',
+    'applicantEvidence.appApplicantIdEvidencePage.noEvidenceRequests': 'প্রমাণের কোনো অনুরোধ নেই',
     'applicantEvidence.appApplicantIdEvidencePage.nothingIsWaitingForYou':
       'আপনার জন্য কিছু অপেক্ষায় নেই।',
     'applicantEvidence.appApplicantIdEvidencePage.requestsFromAgencies': 'এজেন্সির অনুরোধ',
+    'applicantEvidence.appApplicantIdEvidencePage.thisIsWhereAnAgencyAsks':
+      'এখানে এজেন্সি আপনার কাছে কোনো ডকুমেন্ট বা তথ্য চায়। প্রতিটি অনুরোধ এখানে দেখা যায়: কী দরকার, কেন দরকার এবং কোন তারিখের মধ্যে দরকার। আপনার ডকুমেন্ট হালনাগাদ রাখলে দ্রুত উত্তর দেওয়া যায়।',
+    'applicantEvidence.appApplicantIdEvidencePage.yourRequestsCouldNotBeLoaded':
+      'আপনার অনুরোধগুলো লোড করা যায়নি। আবার চেষ্টা করতে রিফ্রেশ করুন।',
     'applicantEvidence.appApplicantIdEvidenceRequestPanes.requestReference': 'অনুরোধের রেফারেন্স',
+    'applicantEvidence.appApplicantIdEvidenceRequestPanes.youHaveAskedSeveralQuestionsAbout':
+      'এই আইটেম নিয়ে আপনি কয়েকটি প্রশ্ন করেছেন। এজেন্সি ভিসা ফাইলের নোটে উত্তর দেয়।',
+    'applicantEvidence.appApplicantIdEvidenceRequestPanes.yourQuestions': 'আপনার প্রশ্ন',
     'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.aboutSending': 'পাঠানো সম্পর্কে',
     'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheCopyToSend':
       'পাঠানোর জন্য কপি বেছে নিন',
@@ -79,7 +91,10 @@ export const applicantEvidenceCatalog = defineCatalog({
     'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.newest': 'সবচেয়ে নতুন',
     'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.noCopyOfThisDocumentType':
       'এই ধরনের ডকুমেন্টের কোনো কপি এখন পাঠানো যাচ্ছে না। ডকুমেন্ট পৃষ্ঠায় এটি যোগ করুন, তারপর ফিরে এসে পাঠান।',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.openDocuments': 'ডকুমেন্টস খুলুন',
     'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.sentBackByTheAgency':
       'এজেন্সি ফেরত পাঠিয়েছে',
+    'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.yourDocumentsCouldNotBeLoaded':
+      'আপনার ডকুমেন্ট লোড করা যায়নি। আবার চেষ্টা করতে রিফ্রেশ করুন।',
   },
 });

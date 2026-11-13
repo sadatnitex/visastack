@@ -1,8 +1,8 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import {
+  applicantsSharedWithOrganization,
   isActiveMember,
-  listApplicantsForOrganization,
   listOrganizationsWithAccessToApplicant,
 } from './agency';
 import { type Db, first, schema } from './db';
@@ -51,7 +51,7 @@ import { getOrganizationEvidenceBytes } from './quotas';
  * has no organization in its input at all. `checkStorageEntitlement`
  * derives every organization with current, active, accepted grant access to
  * that applicant (`listOrganizationsWithAccessToApplicant`, agency.ts -- the
- * exact reverse of `listApplicantsForOrganization`, so both directions of
+ * exact reverse of `applicantsSharedWithOrganization`, so both directions of
  * "which org sees which applicant" share one definition) and checks each
  * one's own cap independently, since more than one organization can have
  * real, simultaneous, billable access to the same applicant.
@@ -320,7 +320,7 @@ export async function checkCaseCreationEntitlement(
 
 /** Sum of currently-RESERVED, unexpired upload bytes across every applicant this organization has current grant access to -- the in-flight half of its storage entitlement, mirroring `uploads.ts`'s own `activeReservedBytesFor` shape but keyed by an organization's whole applicant set rather than a single id. */
 async function activeReservedBytesForOrganization(tx: Db, organizationId: string): Promise<number> {
-  const applicants = await listApplicantsForOrganization(tx, organizationId);
+  const applicants = await applicantsSharedWithOrganization(tx, organizationId);
   if (applicants.length === 0) return 0;
   const row = first(
     await tx

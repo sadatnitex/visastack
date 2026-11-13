@@ -36,6 +36,7 @@ vi.mock('../../../../../../../lib/session', () => ({
 }));
 vi.mock('../../../../../../../lib/env', () => ({ documentRemovalRequestsOn: mocks.switchOn }));
 
+import { REMOVAL_WORDS } from '../removal-words';
 import { cancelRemovalRequestAction, requestRemovalAction } from './actions';
 import { CANCELLED_MESSAGE, NOT_ALLOWED, REQUESTED_MESSAGE } from './messages';
 
@@ -60,6 +61,7 @@ describe('removal request actions', () => {
     expect(await requestRemovalAction('a1', 'd1', 'NO_LONGER_NEEDED')).toEqual({
       ok: false,
       message: NOT_ALLOWED,
+      messageKey: REMOVAL_WORDS.requestNotOwner,
     });
     expect(mocks.requireAccess).toHaveBeenCalledWith(
       {},

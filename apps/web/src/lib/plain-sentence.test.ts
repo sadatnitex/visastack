@@ -9,7 +9,16 @@ describe('plainSentence', () => {
   });
 
   it('Bangla ends with the Bangla stop, never an English one', () => {
-    expect(plainSentence('এই ডকুমেন্টে পরিবর্তন করা যাবে না')).toBe('এই ডকুমেন্টে পরিবর্তন করা যাবে না।');
-    expect(plainSentence('এটি শেষ হয়েছে।')).toBe('এটি শেষ হয়েছে।');
+    expect(plainSentence('এই ডকুমেন্টে পরিবর্তন করা যাবে না', 'bn')).toBe('এই ডকুমেন্টে পরিবর্তন করা যাবে না।');
+    expect(plainSentence('এটি শেষ হয়েছে।', 'bn')).toBe('এটি শেষ হয়েছে।');
+    expect(plainSentence('আবার চেষ্টা করবেন?', 'bn')).toBe('আবার চেষ্টা করবেন?');
+  });
+
+  it('decides by the language shown, not by the first character', () => {
+    // A Bangla sentence that starts with a Latin word keeps its case and takes the Bangla stop.
+    expect(plainSentence('e-পাসপোর্টের ছবি পাওয়া যায়নি', 'bn')).toBe('e-পাসপোর্টের ছবি পাওয়া যায়নি।');
+    expect(plainSentence('PDF ডকুমেন্টটি খোলা যায়নি', 'bn')).toBe('PDF ডকুমেন্টটি খোলা যায়নি।');
+    // English stays English even when it happens to quote Bangla first.
+    expect(plainSentence('ঢাকা is not a country')).toBe('ঢাকা is not a country.');
   });
 });
