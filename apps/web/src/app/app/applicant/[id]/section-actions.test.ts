@@ -33,6 +33,7 @@ vi.mock('../../../../lib/session', () => ({
 }));
 vi.mock('./actions', () => ({}));
 
+const { PROFILE_HIDDEN_LINE } = await import('../../../../lib/hidden-record');
 const {
   markEndedAction,
   markNotCurrentAction,
@@ -58,7 +59,12 @@ beforeEach(() => {
   mocks.setExemption.mockResolvedValue(ok);
   mocks.editFact.mockResolvedValue(ok);
   mocks.registerFieldDefinition.mockResolvedValue(undefined);
-  mocks.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner-edit' } });
+  // The ownership check ('self') sees the owner; the edit gate for the two lifecycle marks sees its proof.
+  mocks.requireAccess.mockImplementation(async (_db, _who, _action, _ref, options) =>
+    options.purpose === 'self'
+      ? { ok: true, value: { actor: { kind: 'applicant_owner' } } }
+      : { ok: true, value: { proof: 'owner-edit' } },
+  );
   mocks.markFactNotCurrent.mockResolvedValue(ok);
   mocks.markRecordEnded.mockResolvedValue(ok);
 });
@@ -368,5 +374,108 @@ describe('No Longer Current and Ended (LC-G1)', () => {
       field: 'endedOn',
     });
     expect(mocks.markRecordEnded).not.toHaveBeenCalled();
+  });
+});
+
+describe('a stranger cannot tell a real profile from a made-up one', () => {
+  const OWN_WORDS = 'The service says this in its own words.';
+  interface ProfileAction {
+    readonly name: string;
+    readonly run: () => Promise<unknown>;
+    readonly untouched: () => ReadonlyArray<ReturnType<typeof vi.fn>>;
+    readonly first: () => ReturnType<typeof vi.fn>;
+  }
+  const actions: readonly ProfileAction[] = [
+    {
+      name: 'setSectionOpenAction',
+      run: () =>
+        setSectionOpenAction(
+          initial,
+          form({ applicantId: 'a1', sectionKey: 'visa_history', open: 'true' }),
+        ),
+      untouched: () => [mocks.setSectionOpen],
+      first: () => mocks.setSectionOpen,
+    },
+    {
+      name: 'openSuggestedSectionsAction',
+      run: () => openSuggestedSectionsAction(initial, form({ applicantId: 'a1', family: 'study' })),
+      untouched: () => [mocks.listMissions, mocks.setSectionOpen],
+      first: () => mocks.setSectionOpen,
+    },
+    {
+      name: 'setExemptionAction',
+      run: () =>
+        setExemptionAction(
+          initial,
+          form({
+            applicantId: 'a1',
+            kind: 'RECORD_NONE',
+            targetKey: 'historical_passport',
+            on: 'true',
+          }),
+        ),
+      untouched: () => [mocks.setExemption],
+      first: () => mocks.setExemption,
+    },
+    {
+      name: 'saveOtherItemAction',
+      run: () =>
+        saveOtherItemAction(
+          initial,
+          form({ applicantId: 'a1', sectionKey: 'identity_basics', title: 'Village certificate' }),
+        ),
+      untouched: () => [mocks.editFact, mocks.registerFieldDefinition],
+      first: () => mocks.editFact,
+    },
+  ];
+  const refusals = [
+    {
+      gate: { code: 'forbidden', message: 'access denied (default_deny)' },
+      service: {
+        code: 'forbidden',
+        message: 'not authorized to change this profile (default_deny)',
+      },
+    },
+    {
+      gate: { code: 'not_found', message: 'record not found' },
+      service: { code: 'not_found', message: 'applicant not found' },
+    },
+  ] as const;
+
+  describe.each(actions)('$name', (action) => {
+    it('gives one identical, fixed answer for a real profile that is not theirs and a made-up one, and changes nothing', async () => {
+      const answers: unknown[] = [];
+      for (const refusal of refusals) {
+        vi.clearAllMocks();
+        mocks.requireAccess.mockResolvedValue({ ok: false, error: refusal.gate });
+        for (const service of [mocks.setSectionOpen, mocks.setExemption, mocks.editFact]) {
+          service.mockResolvedValue({ ok: false, error: refusal.service });
+        }
+        mocks.listMissions.mockResolvedValue({ ok: false, error: refusal.service });
+        answers.push(await action.run());
+        for (const untouched of action.untouched()) expect(untouched).not.toHaveBeenCalled();
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      }
+      expect(answers[0]).toEqual(answers[1]);
+      expect(answers[0]).toEqual({ ok: false, message: PROFILE_HIDDEN_LINE });
+    });
+
+    it('gives the fixed answer to someone who sees the profile only through a share', async () => {
+      mocks.requireAccess.mockResolvedValue({
+        ok: true,
+        value: { actor: { kind: 'organization_member' } },
+      });
+      expect(await action.run()).toEqual({ ok: false, message: PROFILE_HIDDEN_LINE });
+      for (const untouched of action.untouched()) expect(untouched).not.toHaveBeenCalled();
+    });
+
+    it('serves the real owner as before: the work runs and the service speaks in its own words', async () => {
+      action
+        .first()
+        .mockResolvedValue({ ok: false, error: { code: 'invalid', message: OWN_WORDS } });
+      const answer = await action.run();
+      expect(answer).toMatchObject({ ok: false, message: OWN_WORDS });
+      expect(action.first()).toHaveBeenCalled();
+    });
   });
 });

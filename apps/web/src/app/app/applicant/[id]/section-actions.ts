@@ -20,6 +20,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { caseCountriesForFamily } from '../../../../lib/case-choices';
+import { PROFILE_HIDDEN_LINE, ownsApplicant } from '../../../../lib/hidden-record';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
@@ -47,9 +48,12 @@ export async function setSectionOpenAction(
   const applicantId = text(formData, 'applicantId');
   const sectionKey = text(formData, 'sectionKey');
   const open = text(formData, 'open') === 'true';
-  const result = await withSession(({ db, accountId }) =>
-    setSectionOpen(db, { actorAccountId: accountId, applicantId, sectionKey, open }),
-  );
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsApplicant(db, accountId, applicantId))) {
+      return { ok: false, error: { message: PROFILE_HIDDEN_LINE } } as const;
+    }
+    return setSectionOpen(db, { actorAccountId: accountId, applicantId, sectionKey, open });
+  });
   if (!result.ok) return { ok: false, message: result.error.message };
   refresh(applicantId);
   return { ok: true, message: open ? 'Section opened.' : 'Section closed.' };
@@ -66,6 +70,9 @@ export async function openSuggestedSectionsAction(
     return { ok: false, message: 'Choose a purpose first.' };
   }
   const outcome = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsApplicant(db, accountId, applicantId))) {
+      return { error: null, opened: 0, hidden: true };
+    }
     // The same rule the profile screen uses to show the suggestions, so the button opens exactly
     // the sections the person was shown: only the countries their own cases are about.
     const cases = await listMissions(db, accountId, applicantId);
@@ -82,11 +89,12 @@ export async function openSuggestedSectionsAction(
         sectionKey,
         open: true,
       });
-      if (!result.ok) return { error: result.error.message, opened };
+      if (!result.ok) return { error: result.error.message, opened, hidden: false };
       opened += 1;
     }
-    return { error: null, opened };
+    return { error: null, opened, hidden: false };
   });
+  if (outcome.hidden) return { ok: false, message: PROFILE_HIDDEN_LINE };
   refresh(applicantId);
   if (outcome.error) return { ok: false, message: outcome.error };
   return {
@@ -106,9 +114,12 @@ export async function setExemptionAction(
   if (kind !== 'FIELD_NOT_APPLICABLE' && kind !== 'RECORD_NONE') {
     return { ok: false, message: 'Unknown choice.' };
   }
-  const result = await withSession(({ db, accountId }) =>
-    setExemption(db, { actorAccountId: accountId, applicantId, kind, targetKey, on }),
-  );
+  const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsApplicant(db, accountId, applicantId))) {
+      return { ok: false, error: { message: PROFILE_HIDDEN_LINE } } as const;
+    }
+    return setExemption(db, { actorAccountId: accountId, applicantId, kind, targetKey, on });
+  });
   if (!result.ok) return { ok: false, message: result.error.message };
   refresh(applicantId);
   return { ok: true, message: on ? 'Marked.' : 'Mark removed.' };
@@ -141,6 +152,9 @@ export async function saveOtherItemAction(
   ];
   const recordKey = randomUUID();
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsApplicant(db, accountId, applicantId))) {
+      return { ok: false, message: PROFILE_HIDDEN_LINE } satisfies ActionState;
+    }
     const encryption = createKeyManagementPort();
     for (const [suffix, value] of entries) {
       if (value === '') continue;
