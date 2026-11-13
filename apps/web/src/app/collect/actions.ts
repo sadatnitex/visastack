@@ -16,6 +16,7 @@ import { createKeyManagementPort } from '../../lib/providers';
 import { withPublicDb } from '../../lib/public-db';
 import { sendEmailNow } from '../../lib/send-now';
 import { reportServerError } from '../../lib/server-error';
+import { serviceErrorMessage, serviceKeyMessage } from '../../lib/service-error-message';
 import { createStorage } from '../../lib/storage';
 import {
   COLLECT_COOKIE,
@@ -73,7 +74,9 @@ export async function sendCodeAction(
     );
     if (!result.ok) {
       if (result.error.code === 'rate_limited') return BUSY_CODE;
-      if (result.error.code === 'invalid') return { ok: false, message: result.error.message };
+      if (result.error.code === 'invalid') {
+        return { ok: false, message: await serviceErrorMessage(result.error) };
+      }
       return CLOSED;
     }
     if ('codeId' in result.value) codeId = result.value.codeId;
@@ -110,8 +113,10 @@ export async function verifyCodeAction(
     );
     if (!result.ok) {
       const error = result.error;
-      if (error.code === 'wrong') return { ok: false, message: error.message, field: 'code' };
-      if (error.code === 'expired') return { ok: false, message: error.message };
+      if (error.code === 'wrong') {
+        return { ok: false, message: await serviceErrorMessage(error), field: 'code' };
+      }
+      if (error.code === 'expired') return { ok: false, message: await serviceErrorMessage(error) };
       if (error.code === 'rate_limited') {
         return { ok: false, message: 'Too many tries just now. Try again in an hour.' };
       }
@@ -138,9 +143,10 @@ export async function retentionAction(
   if (!session) return CLOSED;
   const days = Number(formData.get('retentionDays'));
   if (!Number.isInteger(days)) {
+    // The service's own words for this check, so both say the same thing in every language.
     return {
       ok: false,
-      message: 'Choose how long the agency may keep your files.',
+      message: await serviceKeyMessage('umpe_guest_collection.choose_how_long_the_agency_may'),
       field: 'retentionDays',
     };
   }
@@ -148,7 +154,7 @@ export async function retentionAction(
     const result = await withPublicDb((db) => saveGuestRetentionChoice(db, session, days));
     if (!result.ok) {
       return result.error.code === 'invalid'
-        ? { ok: false, message: result.error.message, field: 'retentionDays' }
+        ? { ok: false, message: await serviceErrorMessage(result.error), field: 'retentionDays' }
         : CLOSED;
     }
     revalidatePath('/collect');
@@ -198,7 +204,7 @@ export async function placeFileAction(
     );
     if (!result.ok) {
       return result.error.code === 'invalid'
-        ? { ok: false, message: result.error.message, field: 'itemId' }
+        ? { ok: false, message: await serviceErrorMessage(result.error), field: 'itemId' }
         : CLOSED;
     }
     revalidatePath('/collect');
@@ -244,7 +250,7 @@ export async function submitDocumentsAction(
   if (formData.get('consent') !== 'yes') {
     return {
       ok: false,
-      message: 'Tick the box to confirm what you are sending.',
+      message: await serviceKeyMessage('umpe_guest_uploads.tick_the_box_to_confirm_what'),
       field: 'consent',
     };
   }
@@ -258,7 +264,7 @@ export async function submitDocumentsAction(
         };
       }
       return result.error.code === 'invalid' || result.error.code === 'stale'
-        ? { ok: false, message: result.error.message }
+        ? { ok: false, message: await serviceErrorMessage(result.error) }
         : CLOSED;
     }
     revalidatePath('/collect');
