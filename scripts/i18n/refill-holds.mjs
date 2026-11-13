@@ -733,4 +733,12 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles',
     'Left English at review (refill 7): The English line on each paused file tells the person to use Try Again for All Paused Files by that name (label in name).',
   ],
+  [
+    'appApplicant.appApplicantIdReviewPage.readAgain',
+    'Left English at review (refill 7): The English reading status above the button tells the person to try Read Again by that name (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdNameReview.proposedFilename',
+    'Left English at review (refill 7): Unreachable: no screen renders the name review form any more (only an accessibility test imports it).',
+  ],
 ]);

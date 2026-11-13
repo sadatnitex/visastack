@@ -991,7 +991,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdImportImportPanel.yourFiles': 'আপনার ডকুমেন্ট',
     'appApplicant.appApplicantIdImportImportPanel.yourFilesAreSavedAndChecked':
       'আপনার ডকুমেন্টগুলো সংরক্ষণ ও পরীক্ষা করা হয়েছে। স্বয়ংক্রিয় পড়া বন্ধ আছে, তাই কিছুই পড়া হয়নি: তথ্য আপনি নিজেই যোগ করবেন। যেগুলোতে আপনার উত্তর দরকার, সেগুলো "একটি সিদ্ধান্ত দরকার" অংশে আছে।',
-    'appApplicant.appApplicantIdNameReview.proposedFilename': 'প্রস্তাবিত ডকুমেন্টের নাম',
     'appApplicant.appApplicantIdPage.aCaseIsWhereOneVisa':
       'ভিসা ফাইল হলো সেই জায়গা যেখানে একটি ভিসা আবেদনের সব প্রস্তুতি একসঙ্গে থাকে। আপনি যে রুটের পরিকল্পনা করছেন তার জন্য একটি ভিসা ফাইল শুরু করুন, তাহলে আপনার সংরক্ষিত ডকুমেন্টগুলো এর চেকলিস্টের সঙ্গে মিলিয়ে দেখা হবে।',
     'appApplicant.appApplicantIdPage.aboutTheseTotals': 'এই মোট সংখ্যাগুলো সম্পর্কে',
@@ -1197,7 +1196,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdReviewPage.filesNotReadYet': 'যেসব ডকুমেন্ট এখনো পড়া হয়নি',
     'appApplicant.appApplicantIdReviewPage.lengthFilesSaved': '{length}টি ডকুমেন্ট সংরক্ষণ করা হয়েছে',
     'appApplicant.appApplicantIdReviewPage.openMyProfile': 'আমার প্রোফাইল খুলুন',
-    'appApplicant.appApplicantIdReviewPage.readAgain': 'আবার পড়ুন',
     'appApplicant.appApplicantIdReviewPage.readThisDocument': 'এই ডকুমেন্ট পড়ুন',
     'appApplicant.appApplicantIdReviewPage.seeEverythingThatIsWaiting': 'অপেক্ষায় থাকা সব কিছু দেখুন',
     'appApplicant.appApplicantIdReviewPage.weCheckEachFileReadIt':

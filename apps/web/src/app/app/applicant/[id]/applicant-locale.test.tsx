@@ -156,6 +156,18 @@ describe('the record tabs and list under Bengali', () => {
   });
 });
 
+describe('the record filters when documents could not be read (refill 7)', () => {
+  it('says a document filter is not available right now in Bengali', () => {
+    const key = `${K}RecordBrowser.notAvailableRightNow`;
+    const text = client('bn', <RecordBrowser items={[]} documentsLoaded={false} />);
+    expect(text).toContain(bn[key]);
+    expect(text).not.toContain('Not Available Right Now');
+    expect(client('en', <RecordBrowser items={[]} documentsLoaded={false} />)).toContain(
+      'Not Available Right Now',
+    );
+  });
+});
+
 describe('the lists, tabs and decision cards under Bengali', () => {
   it('offers Previous in Bengali when the list has more than one page', () => {
     const items = Array.from({ length: 14 }, (_, i) => item(`d${i}`));

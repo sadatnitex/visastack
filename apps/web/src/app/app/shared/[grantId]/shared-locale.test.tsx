@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   generation: 0,
   workspace: null as unknown,
   offer: 'none',
+  safeCopiesOn: true,
 }));
 vi.mock('../../../../lib/locale', () => ({ getLocale: async () => state.locale }));
 // Outside the server runtime React's cache remembers nothing; stand in for one request per render.
@@ -41,7 +42,7 @@ vi.mock('../../../../components/visa-photo-sizes', () => ({
 vi.mock('../../../../lib/safe-copy', () => ({
   safeCopyOffers: async (_db: unknown, _account: unknown, ids: string[]) =>
     new Map(ids.map((id) => [id, state.offer])),
-  safeCopiesAvailable: () => true,
+  safeCopiesAvailable: () => state.safeCopiesOn,
 }));
 vi.mock('../../../../components/safe-copy-download', () => ({
   SafeCopyDownload: stub('SafeCopyDownload'),
@@ -87,6 +88,7 @@ async function render(locale: 'en' | 'bn', ws: unknown) {
 beforeEach(() => {
   state.workspace = null;
   state.offer = 'none';
+  state.safeCopiesOn = true;
 });
 
 describe('shared workspace under Bengali', () => {
@@ -127,6 +129,18 @@ describe('shared workspace under Bengali', () => {
       }),
     );
     expect(shown).toContain(bn[key('safeCopyNotAvailableForThis')]);
+  });
+
+  it('says safe copies are not available here yet in Bengali when they are switched off (refill 7)', async () => {
+    state.safeCopiesOn = false;
+    const shared = workspace({
+      documents: [{ id: 'cert-1', displayName: 'cert.pdf', docType: 'EMPLOYMENT_CERTIFICATE' }],
+    }) as { value: { grant: { actions: string[] } } };
+    shared.value.grant.actions = ['VIEW_METADATA', 'PREVIEW', 'DOWNLOAD_REDACTED'];
+    const shown = await render('bn', shared);
+    expect(shown).toContain(bn[key('safeCopiesAreNotAvailableHere')]);
+    expect(shown).not.toContain('Safe copies are not available here yet.');
+    expect(await render('en', shared)).toContain('Safe copies are not available here yet.');
   });
 
   it('a case-limited grant shows the access notice in Bengali', async () => {

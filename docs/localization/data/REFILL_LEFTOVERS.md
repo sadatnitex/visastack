@@ -360,3 +360,5 @@ Refill 7 fills keys of the applicant record screens, each with a test that rende
 | app-applicant | `appApplicant.appApplicantIdProfilePage.reviewPermissions` | Shown in the same consent state as the English Review Permissions action, so one action would show in two languages. |
 | app-applicant | `appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy` | Quotes the consent setting Let VisaStack Process My Details, which stays English on Home. |
 | app-applicant | `appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles` | The English line on each paused file tells the person to use Try Again for All Paused Files by that name (label in name). |
+| app-applicant | `appApplicant.appApplicantIdReviewPage.readAgain` | The English reading status above the button tells the person to try Read Again by that name (label in name). |
+| app-applicant | `appApplicant.appApplicantIdNameReview.proposedFilename` | Unreachable: no screen renders the name review form any more (only an accessibility test imports it). |
