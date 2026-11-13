@@ -48,6 +48,7 @@ import { CHECKLISTS_NOT_LOADED } from '../../../../lib/pack-labels';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { reportServerError } from '../../../../lib/server-error';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { checklistAttachedLine, evidenceChosenLine } from '../../../../lib/success-lines';
@@ -83,7 +84,8 @@ export async function attachPackAction(
     // The picker only offers checklists that fit the case; the same rule is applied here, on the
     // server, so a hand-made request cannot attach a reviewed checklist written for another route.
     const owned = await getMissionForOwner(db, accountId, missionId);
-    if (!owned.ok) return { ok: false, message: owned.error.message } satisfies ActionState;
+    if (!owned.ok)
+      return { ok: false, message: await serviceErrorMessage(owned.error) } satisfies ActionState;
     const choices = await selectableChecklists(db, { accountId, mission: owned.value });
     if (choices.lookupFailed) {
       return { ok: false, message: CHECKLISTS_NOT_LOADED } satisfies ActionState;
@@ -95,7 +97,11 @@ export async function attachPackAction(
       } satisfies ActionState;
     }
     const attached = await attachChecklistFor(db, accountId, missionId, packVersionId);
-    if (!attached.ok) return { ok: false, message: attached.error.message } satisfies ActionState;
+    if (!attached.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(attached.error),
+      } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {
       ok: true,
@@ -127,7 +133,10 @@ export async function transitionMissionAction(
     }
     const transitioned = await transitionMission(db, { actorAccountId: accountId, missionId, to });
     if (!transitioned.ok) {
-      return { ok: false, message: transitioned.error.message } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(transitioned.error),
+      } satisfies ActionState;
     }
     return {
       ok: true,
@@ -171,7 +180,11 @@ export async function deleteCancelledCaseAction(
     }
     try {
       const deleted = await deleteCancelledMission(access.value);
-      if (!deleted.ok) return { ok: false, message: deleted.error.message } satisfies ActionState;
+      if (!deleted.ok)
+        return {
+          ok: false,
+          message: await serviceErrorMessage(deleted.error),
+        } satisfies ActionState;
     } catch (error) {
       // The deletion is all or nothing: a fault leaves the case exactly as it was.
       reportServerError('deleteCancelledCaseAction', error);
@@ -199,7 +212,11 @@ export async function snapshotMissionAction(
       return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
     }
     const snapshot = await snapshotMission(db, { actorAccountId: accountId, missionId });
-    if (!snapshot.ok) return { ok: false, message: snapshot.error.message } satisfies ActionState;
+    if (!snapshot.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(snapshot.error),
+      } satisfies ActionState;
     return {
       ok: true,
       message: `Snapshot version ${snapshot.value.version} captured.`,
@@ -232,7 +249,11 @@ export async function selectEvidenceAction(
       ...(factId ? { factId } : {}),
       ...(documentId ? { documentId } : {}),
     });
-    if (!selected.ok) return { ok: false, message: selected.error.message } satisfies ActionState;
+    if (!selected.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(selected.error),
+      } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {
       ok: true,
@@ -262,7 +283,8 @@ export async function unselectEvidenceAction(
       missionId,
       selectionId,
     });
-    if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
+    if (!removed.ok)
+      return { ok: false, message: await serviceErrorMessage(removed.error) } satisfies ActionState;
     return { ok: true, message: 'Selection removed.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -304,7 +326,8 @@ export async function createTaskAction(
       ...(dueDate ? { dueDate } : {}),
       ...(dueTimezone ? { dueTimezone } : {}),
     });
-    if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;
+    if (!task.ok)
+      return { ok: false, message: await serviceErrorMessage(task.error) } satisfies ActionState;
     return { ok: true, message: 'Task added.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -327,7 +350,8 @@ export async function decideTaskAction(
       return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
     }
     const decided = await decideTask(db, { actorAccountId: accountId, missionId, taskId, status });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     const messages: Record<typeof status, string> = {
       IN_PROGRESS: 'Task started.',
       DONE: 'Task completed.',
@@ -377,7 +401,10 @@ export async function createAppointmentAction(
       ...(channel ? { channel } : {}),
     });
     if (!appointment.ok) {
-      return { ok: false, message: appointment.error.message } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(appointment.error),
+      } satisfies ActionState;
     }
     return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
   });
@@ -406,7 +433,8 @@ export async function decideAppointmentAction(
       appointmentId,
       status,
     });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     return {
       ok: true,
       message: status === 'DONE' ? 'Appointment completed.' : 'Appointment cancelled.',
@@ -433,7 +461,8 @@ export async function setItineraryRefAction(
       missionId,
       itineraryRef,
     });
-    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    if (!updated.ok)
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     return {
       ok: true,
       message: updated.value.itineraryRef ? 'Linked.' : 'Unlinked.',
@@ -478,7 +507,8 @@ export async function updateCaseDetailsAction(
       ...(targetDeadline !== undefined ? { targetDeadline } : {}),
       manualMode,
     });
-    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    if (!updated.ok)
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     // UMPE G2: a new post or travel date may mean the linked checklist no longer fits. Rebuilding
     // the trip package records that once as a "something changed" item (handoffs are never
     // touched). Best effort: the details are saved whatever this finds.
@@ -529,7 +559,8 @@ export async function createContributorRequestAction(
       ...(message.length > 0 ? { message } : {}),
       ...(encryption ? { encryption } : {}),
     });
-    if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
+    if (!created.ok)
+      return { ok: false, message: await serviceErrorMessage(created.error) } satisfies ActionState;
     const acceptUrl = `${resolveBaseUrl()}/app/contributor-requests/accept?token=${created.value.rawToken}`;
     return {
       ok: true,
@@ -582,7 +613,8 @@ export async function revokeContributorRequestAction(
       missionId,
       requestId,
     });
-    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    if (!revoked.ok)
+      return { ok: false, message: await serviceErrorMessage(revoked.error) } satisfies ActionState;
     return { ok: true, message: 'Request revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -637,7 +669,11 @@ export async function recordOutcomeAction(
       ...(evidenceDocumentId.length > 0 ? { evidenceDocumentId } : {}),
       stepUpSatisfied: true,
     });
-    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    if (!recorded.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(recorded.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Outcome recorded.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -706,7 +742,11 @@ export async function recordSubmissionAction(
       ...(submittedAt ? { submittedAt } : {}),
       stepUpSatisfied: true,
     });
-    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    if (!recorded.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(recorded.error),
+      } satisfies ActionState;
     // UMPE P12: the report becomes Attempt 1 with the package that was ready then. Best effort:
     // the report stands either way, and the Application Attempts card offers Track as Attempt.
     try {
@@ -748,7 +788,8 @@ export async function fileComplaintAction(
       return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
     }
     const filed = await fileComplaint(db, { actorAccountId: accountId, missionId, description });
-    if (!filed.ok) return { ok: false, message: filed.error.message } satisfies ActionState;
+    if (!filed.ok)
+      return { ok: false, message: await serviceErrorMessage(filed.error) } satisfies ActionState;
     return { ok: true, message: 'Complaint filed.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -770,7 +811,11 @@ export async function withdrawComplaintAction(
       return { ok: false, message: COMPLAINT_HIDDEN_LINE } satisfies ActionState;
     }
     const withdrawn = await withdrawOwnComplaint(db, { actorAccountId: accountId, complaintId });
-    if (!withdrawn.ok) return { ok: false, message: withdrawn.error.message } satisfies ActionState;
+    if (!withdrawn.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(withdrawn.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Complaint withdrawn.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -792,7 +837,11 @@ export async function submitFeedbackAction(
       return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
     }
     const submitted = await submitFeedback(db, { actorAccountId: accountId, missionId, comments });
-    if (!submitted.ok) return { ok: false, message: submitted.error.message } satisfies ActionState;
+    if (!submitted.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(submitted.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Feedback submitted. Thank you.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -811,7 +860,8 @@ export async function generateLetterAction(
       return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
     }
     const output = await generateCoverLetter(db, { actorAccountId: accountId, missionId });
-    if (!output.ok) return { ok: false, message: output.error.message } satisfies ActionState;
+    if (!output.ok)
+      return { ok: false, message: await serviceErrorMessage(output.error) } satisfies ActionState;
     return {
       ok: true,
       message: `Letter version ${output.value.version} generated.`,
@@ -846,7 +896,8 @@ export async function explainReadinessGapAction(
       return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
     }
     const mission = await getMissionForOwner(db, accountId, missionId);
-    if (!mission.ok) return { ok: false, message: mission.error.message } satisfies ActionState;
+    if (!mission.ok)
+      return { ok: false, message: await serviceErrorMessage(mission.error) } satisfies ActionState;
     if (!mission.value.packVersionId) {
       return {
         ok: false,
@@ -858,7 +909,11 @@ export async function explainReadinessGapAction(
       computeReadiness(db, missionId),
       listRequirements(db, mission.value.packVersionId),
     ]);
-    if (!readiness.ok) return { ok: false, message: readiness.error.message } satisfies ActionState;
+    if (!readiness.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(readiness.error),
+      } satisfies ActionState;
 
     const current = readiness.value.requirementResults.find(
       (r) => r.packRequirementId === packRequirementId,
@@ -896,7 +951,7 @@ export async function explainReadinessGapAction(
       // The case's owner, for themselves (checked above): the line when a paid plan would help.
       return {
         ok: false,
-        message: explained.error.message,
+        message: await serviceErrorMessage(explained.error),
         ...(await upgradeLineForRefusal(db, self, explained.error, 'ai_explanations')),
       } satisfies ActionState;
     }

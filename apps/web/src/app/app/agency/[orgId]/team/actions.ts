@@ -1,5 +1,7 @@
 'use server';
 
+import { serviceErrorMessage } from '../../../../../lib/service-error-message';
+
 import { agencyCollectionPrincipal, setMemberMayRequestDocuments } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import {
@@ -40,7 +42,7 @@ export async function setMemberRequestDocumentsAction(
         ok: false,
         message:
           changed.error.code === 'invalid'
-            ? changed.error.message
+            ? await serviceErrorMessage(changed.error)
             : 'This member could not be changed. Reload the page and try again.',
       } satisfies MemberPermissionState;
     }

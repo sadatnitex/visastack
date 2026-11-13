@@ -7,6 +7,7 @@ import {
   recordPackageChoice,
 } from '@visastack/services';
 import type { FormResult } from '../../../../components/form-feedback';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { UUID, withCaseProof } from './with-case-proof';
 
 type ActionState = FormResult;
@@ -54,7 +55,7 @@ export async function recordPackageChoiceAction(
   }
   return withCaseProof(missionId, 'packageAction', async (proof) => {
     const saved = await recordPackageChoice(proof, input);
-    if (!saved.ok) return { ok: false, message: saved.error.message };
+    if (!saved.ok) return { ok: false, message: await serviceErrorMessage(saved.error) };
     return { ok: true, message: 'Choice saved. Your package is up to date.' };
   });
 }
@@ -66,7 +67,7 @@ export async function markPackageChangeReviewedAction(
   const missionId = String(formData.get('missionId') ?? '');
   return withCaseProof(missionId, 'packageAction', async (proof) => {
     const reviewed = await markPackageChangeReviewed(proof, missionId);
-    if (!reviewed.ok) return { ok: false, message: reviewed.error.message };
+    if (!reviewed.ok) return { ok: false, message: await serviceErrorMessage(reviewed.error) };
     return { ok: true, message: 'Marked as reviewed.' };
   });
 }
@@ -85,7 +86,7 @@ export async function confirmPackageHandoffAction(
   }
   return withCaseProof(missionId, 'packageAction', async (proof) => {
     const confirmed = await confirmPackageHandoff(proof, { missionId, outsideStepsSeen: true });
-    if (!confirmed.ok) return { ok: false, message: confirmed.error.message };
+    if (!confirmed.ok) return { ok: false, message: await serviceErrorMessage(confirmed.error) };
     return {
       ok: true,
       message: 'Prepared for Handoff. Nothing has been sent to anyone.',

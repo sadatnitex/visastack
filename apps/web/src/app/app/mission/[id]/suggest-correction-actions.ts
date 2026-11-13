@@ -14,6 +14,7 @@ import {
   readCorrectionFields,
 } from '../../../../lib/checklist-correction-input';
 import { reportServerError } from '../../../../lib/server-error';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,7 +50,8 @@ export async function suggestCaseCorrectionAction(
         officialUrl: fields.officialUrl,
         detail: fields.detail,
       });
-      if (!sent.ok) return { ok: false, message: sent.error.message } satisfies FormResult;
+      if (!sent.ok)
+        return { ok: false, message: await serviceErrorMessage(sent.error) } satisfies FormResult;
       return {
         ok: true,
         message: sent.value.duplicate ? CORRECTION_ALREADY_SENT : CORRECTION_SENT,

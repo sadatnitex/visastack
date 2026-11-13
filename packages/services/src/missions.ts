@@ -22,7 +22,7 @@ import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
 import { type StoredCaseEvidence, readStoredCaseEvidence } from './finished-case-evidence';
 import { type SavedReadiness, readStoredReadiness } from './finished-case-readiness';
@@ -120,7 +120,7 @@ const TRANSITIONS: Readonly<Record<MissionState, readonly MissionState[]>> = {
 export const CASE_FINISHED_NO_CHANGE = 'This case is finished, so it can no longer change.';
 
 function finishedCaseRefusal(): ServiceError {
-  return serviceError('invalid', CASE_FINISHED_NO_CHANGE);
+  return keyedError('invalid', 'missions.this_case_is_finished_so_it');
 }
 
 async function ownedMission(
@@ -131,10 +131,10 @@ async function ownedMission(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'missions.case_not_found'));
   const applicant = await getApplicant(db, mission.applicantId);
   if (!applicant || applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized for this case'));
+    return err(keyedError('forbidden', 'missions.not_authorized_for_this_case'));
   }
   return ok(mission);
 }
@@ -146,9 +146,9 @@ export async function listMissions(
   applicantId: string,
 ): Promise<Result<Mission[], ServiceError>> {
   const applicant = await getApplicant(db, applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'missions.applicant_not_found'));
   if (applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized for this applicant'));
+    return err(keyedError('forbidden', 'missions.not_authorized_for_this_applicant'));
   }
   const rows = await db
     .select()
@@ -240,7 +240,7 @@ export async function getMissionSnapshot(
       )
       .limit(1),
   );
-  if (!snapshot) return err(serviceError('not_found', 'snapshot not found'));
+  if (!snapshot) return err(keyedError('not_found', 'missions.snapshot_not_found'));
   return ok(snapshot);
 }
 
@@ -279,13 +279,14 @@ export async function createMission(
   input: CreateMissionInput,
 ): Promise<Result<Mission, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'missions.applicant_not_found'));
   if (applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized for this applicant'));
+    return err(keyedError('forbidden', 'missions.not_authorized_for_this_applicant'));
   }
-  if (input.title.trim().length === 0) return err(serviceError('invalid', 'a title is required'));
+  if (input.title.trim().length === 0)
+    return err(keyedError('invalid', 'missions.a_title_is_required'));
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
-    return err(serviceError('consent_required', 'Core processing consent is required'));
+    return err(keyedError('consent_required', 'missions.core_processing_consent_is_required'));
   }
 
   return db.transaction((tx) => insertMissionInTransaction(tx, input));
@@ -536,9 +537,9 @@ export async function attachPackVersion(
       .where(eq(schema.packVersions.id, input.packVersionId))
       .limit(1),
   );
-  if (!packVersion) return err(serviceError('not_found', 'pack version not found'));
+  if (!packVersion) return err(keyedError('not_found', 'missions.pack_version_not_found'));
   if (packVersion.status !== 'PUBLISHED') {
-    return err(serviceError('invalid', 'only a PUBLISHED pack version can be attached'));
+    return err(keyedError('invalid', 'missions.only_a_published_pack_version_can'));
   }
 
   return db.transaction(async (tx) => {
@@ -671,9 +672,9 @@ export async function listMissionsUsingField(
   fieldKey: string,
 ): Promise<Result<MissionUsingField[], ServiceError>> {
   const applicant = await getApplicant(db, applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'missions.applicant_not_found'));
   if (applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized for this applicant'));
+    return err(keyedError('forbidden', 'missions.not_authorized_for_this_applicant'));
   }
 
   const rows = await db
@@ -1071,7 +1072,7 @@ export async function computeReadiness(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'missions.case_not_found'));
   if (!isInactiveCaseState(mission.state)) return computeLiveReadiness(db, mission, now);
   const saved = await finishedCaseCopy(db, mission);
   if (saved) return ok({ ...saved.readiness, savedCopy: 'AS_FINISHED' });
@@ -1162,7 +1163,7 @@ async function computeLiveReadiness(
 ): Promise<Result<Readiness, ServiceError>> {
   const missionId = mission.id;
   if (!mission.packVersionId) {
-    return err(serviceError('invalid', 'case has no attached pack version'));
+    return err(keyedError('invalid', 'missions.case_has_no_attached_pack_version'));
   }
 
   const { requirements, failClosed } = await loadPackRules(db, mission.packVersionId);
@@ -1607,12 +1608,7 @@ export async function transitionMission(
   if (input.to === 'SUBMISSION_READY') {
     const live = await getLiveAcknowledgement(db, input.missionId);
     if (!live) {
-      return err(
-        serviceError(
-          'invalid',
-          'this case needs a live applicant acknowledgement before it can become submission-ready',
-        ),
-      );
+      return err(keyedError('invalid', 'missions.this_case_needs_a_live_applicant'));
     }
   }
 
@@ -2132,7 +2128,7 @@ export async function listCaseEvidenceIds(
     !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
     proof.actor.kind !== 'applicant_owner'
   ) {
-    return err(serviceError('forbidden', 'Only the owner of this case can see what it uses.'));
+    return err(keyedError('forbidden', 'missions.only_the_owner_of_this_case'));
   }
   // A proof for one case covers that case only; a proof for the person covers each of their cases.
   if (
@@ -2140,7 +2136,7 @@ export async function listCaseEvidenceIds(
     resource.kind === 'document' ||
     (resource.kind === 'mission' && resource.mission.id !== missionId)
   ) {
-    return err(serviceError('not_found', 'That case is not available.'));
+    return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   }
   const mission = first(
     await proof.tx
@@ -2151,7 +2147,7 @@ export async function listCaseEvidenceIds(
       )
       .limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'That case is not available.'));
+  if (!mission) return err(keyedError('not_found', 'case_flow.that_case_is_not_available'));
   const evidence = await loadCaseEvidence(proof.tx, mission);
   return ok({
     evidenceScope: evidence.evidenceScope,
@@ -2288,7 +2284,7 @@ const CASE_FINISHED_SELECTION =
  * wording and trip package rules (`isInactiveCaseState`).
  */
 function refusal(): ServiceError {
-  return serviceError('invalid', CASE_FINISHED_SELECTION);
+  return keyedError('invalid', 'missions.this_case_is_finished_so_the');
 }
 
 /** Carries the finished-case refusal out of a transaction so every write in it is undone. */
@@ -2326,7 +2322,7 @@ async function loadOwnedRequirement(
   if (!owned.ok) return owned;
   const mission = owned.value;
   if (!mission.packVersionId) {
-    return err(serviceError('invalid', 'case has no attached pack version'));
+    return err(keyedError('invalid', 'missions.case_has_no_attached_pack_version'));
   }
   const requirement = first(
     await selectRequirementRows(
@@ -2338,7 +2334,7 @@ async function loadOwnedRequirement(
     ),
   );
   if (!requirement) {
-    return err(serviceError('not_found', "requirement not found on this case's attached pack"));
+    return err(keyedError('not_found', 'missions.requirement_not_found_on_this_case'));
   }
   return ok({ mission, requirement });
 }
@@ -2379,7 +2375,7 @@ export async function selectEvidence(
 
   if (requirement.kind === 'FIELD') {
     if (!input.factId || input.documentId) {
-      return err(serviceError('invalid', 'a FIELD requirement is satisfied by exactly one factId'));
+      return err(keyedError('invalid', 'missions.a_field_requirement_is_satisfied_by'));
     }
     const fact = first(
       await db
@@ -2396,16 +2392,14 @@ export async function selectEvidence(
         .limit(1),
     );
     if (!fact || fact.applicantId !== mission.applicantId) {
-      return err(serviceError('not_found', 'fact not found for this case'));
+      return err(keyedError('not_found', 'missions.fact_not_found_for_this_case'));
     }
     if (fact.fieldKey !== requirement.fieldKey) {
-      return err(serviceError('invalid', "this fact does not match the requirement's field"));
+      return err(keyedError('invalid', 'missions.this_fact_does_not_match_the'));
     }
   } else {
     if (!input.documentId || input.factId) {
-      return err(
-        serviceError('invalid', 'a DOCUMENT requirement is satisfied by exactly one documentId'),
-      );
+      return err(keyedError('invalid', 'missions.a_document_requirement_is_satisfied_by'));
     }
     const document = first(
       await db
@@ -2421,18 +2415,16 @@ export async function selectEvidence(
         .limit(1),
     );
     if (!document || document.applicantId !== mission.applicantId) {
-      return err(serviceError('not_found', 'document not found for this case'));
+      return err(keyedError('not_found', 'missions.document_not_found_for_this_case'));
     }
     if (document.docType !== requirement.docType) {
-      return err(
-        serviceError('invalid', "this document does not match the requirement's document type"),
-      );
+      return err(keyedError('invalid', 'missions.this_document_does_not_match_the'));
     }
   }
 
   return db.transaction(async (tx) => {
     const locked = await isSelectionLocked(tx, mission.id);
-    if (locked === null) return err(serviceError('not_found', 'case not found'));
+    if (locked === null) return err(keyedError('not_found', 'missions.case_not_found'));
     if (locked) return err(refusal());
     const existing = first(
       await tx
@@ -2514,9 +2506,9 @@ export async function unselectEvidence(
           .returning(),
       );
       const locked = await isSelectionLocked(tx, input.missionId);
-      if (locked === null) return err(serviceError('not_found', 'case not found'));
+      if (locked === null) return err(keyedError('not_found', 'missions.case_not_found'));
       if (locked) throw new SelectionLockedAbort();
-      if (!deleted) return err(serviceError('not_found', 'selection not found'));
+      if (!deleted) return err(keyedError('not_found', 'missions.selection_not_found'));
       await incrementMaterialRevision(tx, input.missionId);
       await appendAuditEvent(tx, {
         eventType: 'MISSION_EVIDENCE_UNSELECTED',
@@ -2568,12 +2560,12 @@ export async function listSelectedEvidenceForOrg(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'missions.case_not_found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
     // Answered exactly like an unknown id, so a case hidden from this
     // organization (a per-case sharing exception, ADR 0017) cannot be told
     // apart from one that does not exist.
-    return err(serviceError('not_found', 'case not found'));
+    return err(keyedError('not_found', 'missions.case_not_found'));
   }
   const rows = await db
     .select()
@@ -2603,7 +2595,8 @@ export async function createTask(
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
   const description = input.description.trim();
-  if (description.length === 0) return err(serviceError('invalid', 'a description is required'));
+  if (description.length === 0)
+    return err(keyedError('invalid', 'missions.a_description_is_required'));
 
   // Same cross-case check `loadOwnedRequirement` already applies for
   // `selectEvidence`/`recordMissionDecision` (finding #34, post-programme
@@ -2687,7 +2680,7 @@ export async function decideTask(
         )
         .limit(1),
     );
-    if (!task) return err(serviceError('not_found', 'task not found'));
+    if (!task) return err(keyedError('not_found', 'missions.task_not_found'));
     if (!(TASK_TRANSITIONS[task.status] ?? []).includes(input.status)) {
       return err(
         serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),
@@ -2766,7 +2759,7 @@ export async function updateTask(
         )
         .limit(1),
     );
-    if (!task) return err(serviceError('not_found', 'task not found'));
+    if (!task) return err(keyedError('not_found', 'missions.task_not_found'));
 
     let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
     if (input.assigneeAccountId !== undefined) {
@@ -2942,14 +2935,14 @@ export async function createAppointment(
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
   const title = input.title.trim();
-  if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
+  if (title.length === 0) return err(keyedError('invalid', 'missions.a_title_is_required'));
   if (input.timezone.trim().length === 0) {
-    return err(serviceError('invalid', 'a timezone is required'));
+    return err(keyedError('invalid', 'missions.a_timezone_is_required'));
   }
   // A known IANA name only, saved as typed (letter case corrected, never renamed): calendar files place the time in
   // UTC from it, so a name the runtime cannot read would leave the time unplaceable.
   const timezone = recognisedTimeZone(input.timezone);
-  if (!timezone) return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
+  if (!timezone) return err(keyedError('invalid', 'missions.enter_a_time_zone_name_such'));
 
   return db.transaction(async (tx) => {
     const appointment = required(
@@ -3003,8 +2996,7 @@ export async function updateAppointment(
 
   // A known IANA name only, saved as typed (letter case corrected), as when the appointment was made.
   const timezone = input.timezone === undefined ? undefined : recognisedTimeZone(input.timezone);
-  if (timezone === null)
-    return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
+  if (timezone === null) return err(keyedError('invalid', 'missions.enter_a_time_zone_name_such'));
 
   return db.transaction(async (tx) => {
     const appointment = first(
@@ -3019,7 +3011,7 @@ export async function updateAppointment(
         )
         .limit(1),
     );
-    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (!appointment) return err(keyedError('not_found', 'missions.appointment_not_found'));
 
     let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
     if (input.assigneeAccountId !== undefined) {
@@ -3110,9 +3102,9 @@ export async function decideAppointment(
         )
         .limit(1),
     );
-    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (!appointment) return err(keyedError('not_found', 'missions.appointment_not_found'));
     if (appointment.status !== 'OPEN') {
-      return err(serviceError('invalid', 'only an OPEN appointment can be decided'));
+      return err(keyedError('invalid', 'missions.only_an_open_appointment_can_be'));
     }
     const updated = required(
       first(
@@ -3179,7 +3171,7 @@ export async function getAppointment(
       )
       .limit(1),
   );
-  if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+  if (!appointment) return err(keyedError('not_found', 'missions.appointment_not_found'));
   return ok(appointment);
 }
 
@@ -3256,7 +3248,7 @@ export async function generateCoverLetter(
   const mission = owned.value;
   if (isInactiveCaseState(mission.state)) return err(finishedCaseRefusal());
   if (!mission.packVersionId) {
-    return err(serviceError('invalid', 'case has no attached pack version'));
+    return err(keyedError('invalid', 'missions.case_has_no_attached_pack_version'));
   }
 
   const { requirements, failClosed } = await loadPackRules(db, mission.packVersionId);
@@ -3275,7 +3267,7 @@ export async function generateCoverLetter(
   );
   const { content, groundedReferences } = buildCoverLetterContent(mission, mapping);
   if (groundedReferences.length === 0) {
-    return err(serviceError('invalid', 'no satisfied requirements to ground a letter in yet'));
+    return err(keyedError('invalid', 'missions.no_satisfied_requirements_to_ground_a'));
   }
 
   return db.transaction(async (tx) => {
@@ -3433,9 +3425,7 @@ function ownerProof<A extends PermissionAction>(
     proof.actor.kind !== 'applicant_owner' ||
     proof.resource.kind !== 'mission'
   ) {
-    return err(
-      serviceError('forbidden', 'Only the owner of this record can prepare a case again.'),
-    );
+    return err(keyedError('forbidden', 'missions.only_the_owner_of_this_record'));
   }
   return ok(proof.resource.mission);
 }
@@ -3767,8 +3757,6 @@ class PrepareAgainAbort extends Error {
   }
 }
 
-const PLAN_CHANGED = 'Something changed since you opened this page. Check the list again.';
-
 /**
  * Creates a new case from a previous one in one transaction: the new case
  * (fresh state, no dates, no agency, no tasks, notes, approvals,
@@ -3785,10 +3773,10 @@ export async function prepareCaseAgain(
   const source = ownerProof(proof, 'MANAGE');
   if (!source.ok) return source;
   const title = input.title.trim();
-  if (title.length === 0) return err(serviceError('invalid', 'Give the case a title.'));
+  if (title.length === 0) return err(keyedError('invalid', 'missions.give_the_case_a_title'));
   const ownerAccountId = proof.applicant.ownerAccountId;
   if (!(await hasConsent(proof.tx, ownerAccountId, 'CORE_PROCESSING'))) {
-    return err(serviceError('consent_required', 'Core processing consent is required'));
+    return err(keyedError('consent_required', 'missions.core_processing_consent_is_required'));
   }
 
   try {
@@ -3801,7 +3789,7 @@ export async function prepareCaseAgain(
       await lockCaseSharing(tx, proof.applicant.id);
       const plan = await buildPrepareAgainPlan(tx, source.value, new Date());
       if ((plan.packVersion?.id ?? null) !== input.expectedPackVersionId) {
-        abort(serviceError('invalid', PLAN_CHANGED));
+        abort(keyedError('invalid', 'missions.something_changed_since_you_opened_this'));
       }
       const carriable = new Set<string>();
       for (const item of plan.items) {
@@ -3822,7 +3810,7 @@ export async function prepareCaseAgain(
               : null;
         const key = target ? `${c.packRequirementId}:${target}` : null;
         if (!key || !carriable.has(key) || seen.has(key)) {
-          return abort(serviceError('invalid', PLAN_CHANGED));
+          return abort(keyedError('invalid', 'missions.something_changed_since_you_opened_this'));
         }
         seen.add(key);
       }
@@ -3877,7 +3865,7 @@ export async function prepareCaseAgain(
         );
         const refusal = target
           ? selectionRefusal(target, mission.ownerOrganizationId)
-          : serviceError('invalid', PLAN_CHANGED);
+          : keyedError('invalid', 'missions.something_changed_since_you_opened_this');
         if (refusal) abort(refusal);
         const attached = await attachPackVersion(tx, {
           actorAccountId: ownerAccountId,

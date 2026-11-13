@@ -18,7 +18,8 @@ export async function serviceErrorMessage(error: WordableServiceError): Promise<
   try {
     locale = await getLocale();
   } catch (failure) {
-    // Next's own signals must keep travelling; anything else (no request to read) is English.
+    // Next's own signals (dynamic rendering, redirects) must keep travelling; anything else (no
+    // request to read, as in a unit test) is English.
     unstable_rethrow(failure);
     locale = DEFAULT_LOCALE;
   }
