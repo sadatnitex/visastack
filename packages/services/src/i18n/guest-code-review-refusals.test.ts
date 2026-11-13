@@ -66,6 +66,10 @@ describe('guest code and review note refusals keep their English', () => {
     expect(COMPANION_NAME_PROBLEM).toBe('Enter a name of up to 120 characters.');
     expect(COMPANION_PAPERS_NOT_AVAILABLE).toBe('Choosing papers is not switched on yet.');
     expect(CASE_FINISHED_NO_CHANGE).toBe('This case is finished, so it can no longer change.');
+    // The finished-case selection line is private to missions.ts; its key carries the same words.
+    expect(serviceMessages.en['missions.this_case_is_finished_so_the']).toBe(
+      'This case is finished, so the files and answers it uses can no longer change.',
+    );
   });
 
   it('the wrong-code line has no Bengali until the register has a matching draft', () => {

@@ -375,7 +375,13 @@ export async function startGroupTripAction(
     return { ok: false, message: destinationRefusal(typedDestination), field: 'destination' };
   }
   const purpose = casePurpose(String(formData.get('purpose') ?? ''));
-  if (!purpose) return { ok: false, message: 'Choose why you are travelling.', field: 'purpose' };
+  if (!purpose) {
+    return {
+      ok: false,
+      message: await serviceKeyMessage('umpe_package_start.choose_why_you_are_travelling'),
+      field: 'purpose',
+    };
+  }
   const travellers = ticked(formData);
   const member = readNewMember(formData);
   if (member.status === 'refused') return member.result;

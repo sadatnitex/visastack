@@ -265,6 +265,16 @@ const ROWS: readonly Row[] = [
     },
   },
   {
+    name: 'start a group trip: no reason for travel, checked before the service',
+    key: 'umpe_package_start.choose_why_you_are_travelling',
+    field: 'purpose',
+    run: () =>
+      actions.startGroupTripAction(
+        PREV,
+        form({ destination: 'JP', purpose: '', traveller: [PERSON] }),
+      ),
+  },
+  {
     name: 'start a group trip',
     key: 'umpe_trip_service.the_trip_could_not_be_started',
     field: 'traveller',

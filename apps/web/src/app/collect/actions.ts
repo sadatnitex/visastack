@@ -250,7 +250,7 @@ export async function submitDocumentsAction(
   if (formData.get('consent') !== 'yes') {
     return {
       ok: false,
-      message: 'Tick the box to confirm what you are sending.',
+      message: await serviceKeyMessage('umpe_guest_uploads.tick_the_box_to_confirm_what'),
       field: 'consent',
     };
   }

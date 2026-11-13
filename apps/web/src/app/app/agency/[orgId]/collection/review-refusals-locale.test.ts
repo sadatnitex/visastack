@@ -39,16 +39,19 @@ const ROWS: readonly (readonly [
   ['umpe_collection_response_review.too_many_notes_at_once', undefined],
 ];
 
-function review() {
+const pickDecision = (decision: string) => {
   const data = new FormData();
   data.set('organizationId', 'org-1');
   data.set('requestId', 'req-1');
   data.set('answerId', 'ans-1');
-  data.set('decision', 'NEEDS_CORRECTION');
+  data.set('decision', decision);
   return reviewAnswerAction({ ok: true, message: '' }, data);
-}
+};
+
+const review = () => pickDecision('NEEDS_CORRECTION');
 
 beforeEach(() => {
+  svc.recordCollectionReview.mockReset();
   svc.agencyCollectionPrincipal.mockResolvedValue({ ok: true, value: {} });
   loc.locale = 'en';
 });
@@ -77,4 +80,23 @@ describe('review note refusals in the visitor language', () => {
       }
     },
   );
+
+  it('exactly one note refusal has checked Bangla so far', () => {
+    expect(ROWS.map(([key]) => key).filter((key) => bn[key] !== undefined)).toEqual([
+      'umpe_collection_response_review.choose_an_item_from_the_list',
+    ]);
+  });
+
+  it('no decision picked: the words of the service, checked before the service is asked', async () => {
+    const key = 'umpe_collection_response_review.choose_a_decision';
+    expect(await pickDecision('')).toEqual({
+      ok: false,
+      message: 'Choose a decision.',
+      field: 'decision',
+    });
+    loc.locale = 'bn';
+    expect(bn[key]).toMatch(BENGALI);
+    expect(await pickDecision('')).toEqual({ ok: false, message: bn[key], field: 'decision' });
+    expect(svc.recordCollectionReview).not.toHaveBeenCalled();
+  });
 });

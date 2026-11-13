@@ -138,6 +138,12 @@ const ROWS: readonly Row[] = [
       return actions.placeFileAction(INITIAL, form({ fileId: 'f', itemId: 'i' }));
     },
   },
+  {
+    name: 'send documents: the box not ticked, checked before the service',
+    key: 'umpe_guest_uploads.tick_the_box_to_confirm_what',
+    field: 'consent',
+    run: async () => actions.submitDocumentsAction(INITIAL, form({})),
+  },
   ...(
     [
       ['invalid', 'umpe_guest_uploads.this_checklist_cannot_be_used_right'],
@@ -188,6 +194,24 @@ describe('guest desk refusals in the visitor language', () => {
       expect(state.field).toBe(row.field);
     },
   );
+
+  it('exactly these refusals have checked Bangla (a new draft or a lost one must be noticed)', () => {
+    const withBangla = [...new Set(ROWS.map((row) => row.key))].filter(
+      (key) => bn[key] !== undefined,
+    );
+    expect(withBangla.sort()).toEqual([
+      'umpe_guest_collection.choose_how_long_the_agency_may',
+      'umpe_guest_collection.this_code_has_expired_or_was',
+      'umpe_guest_collection.this_link_can_no_longer_be',
+      'umpe_guest_collection.this_request_has_no_email_address',
+      'umpe_guest_uploads.choose_an_item_from_the_list',
+      'umpe_guest_uploads.place_at_least_one_file_under',
+      'umpe_guest_uploads.this_checklist_cannot_be_used_right',
+      'umpe_guest_uploads.tick_the_box_to_confirm_what',
+      'umpe_guest_uploads.wait_until_every_file_has_been',
+      'umpe_guest_uploads.your_documents_were_just_sent_reload',
+    ]);
+  });
 
   it('the wrong-code count stays English, with its exact count, until a draft exists', async () => {
     loc.locale = 'bn';
