@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { readIfExists } from './catalog.mjs';
+import { quote, readIfExists } from './catalog.mjs';
 import { decodeEntities } from './jsx-text.mjs';
 import { CENSUS_REL, Register, parseCsv, registerForm } from './register.mjs';
 
@@ -78,13 +78,14 @@ export function parseServiceCatalogue(code, file = 'catalogue.ts') {
     }
   }
   if (!sides.en || !sides.bn) throw new Error(`${file}: needs one ...En and one ...Bn object`);
-  const bnText = code.slice(sides.bn.start, sides.bn.end);
-  if (/^\s*(\/\/|\/\*)/m.test(bnText))
-    throw new Error(`${file}: ${sides.bn.name} holds a comment; refill would drop it`);
+  // A comment anywhere inside the Bengali object (own line or trailing) would be lost by a rewrite.
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard);
+  scanner.setText(code, sides.bn.start, sides.bn.end - sides.bn.start);
+  for (let k = scanner.scan(); k !== ts.SyntaxKind.EndOfFileToken; k = scanner.scan())
+    if (k === ts.SyntaxKind.SingleLineCommentTrivia || k === ts.SyntaxKind.MultiLineCommentTrivia)
+      throw new Error(`${file}: ${sides.bn.name} holds a comment; refill would drop it`);
   return sides;
 }
-
-const quote = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')}'`;
 
 /** The Bengali object in the English key order; Biome formats it afterwards. */
 export function renderBengaliObject(enValues, bnValues) {
@@ -139,9 +140,12 @@ const pass = (r) => r.bn !== null;
 // An undrafted row in a released queue (no Bengali, so no checks ran) says nothing about the
 // wording; any other refusal on the key's own rows (held, unreleased queue, a failing or
 // differently placeheld draft) keeps the key English.
+// Only an ordinary-screen row may lend its wording: an undrafted payment or legal row keeps its
+// key English rather than borrow Bengali written for another context.
 const blocking = (row, r) =>
   !pass(r) &&
   !(
+    row.review_queue === 'ORDINARY_UI' &&
     !(row.bn_BD_draft ?? '').trim() &&
     (r.reason === 'no_bn_draft' || r.reason.startsWith('checks_not_pass'))
   );
@@ -183,7 +187,9 @@ export function resolveServiceKey({ register, census, english, files }) {
   const ownResults = ownRows.map((r) => register.resolveRow(r, english, opts));
   const blocked = ownResults.find((r, i) => blocking(ownRows[i], r));
   if (blocked) return { bn: null, reason: blocked.reason, groups };
-  let results = [...ownResults, ...byEnglish.map((r) => register.resolveRow(r, english, opts))];
+  let results = own.length
+    ? [...ownResults, ...byEnglish.map((r) => register.resolveRow(r, english, opts))]
+    : ownResults;
   let wordings = [...new Set(results.filter(pass).map((r) => r.bn))];
   if (wordings.length > 1 && own.length) {
     results = ownResults;
@@ -193,6 +199,8 @@ export function resolveServiceKey({ register, census, english, files }) {
   if (!wordings.length) return { bn: null, reason: 'no_bn_draft', groups };
   const decoded = decodeEntities(wordings[0]);
   if (decoded.error) return { bn: null, reason: decoded.error, groups };
+  // An entity can spell an em dash the register check could not see.
+  if (/\u2014/.test(decoded.text)) return { bn: null, reason: 'bn_has_marker_or_em_dash', groups };
   return { bn: decoded.text, reason: null, groups };
 }
 

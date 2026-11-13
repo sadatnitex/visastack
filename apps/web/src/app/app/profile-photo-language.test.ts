@@ -2,7 +2,11 @@ import { keyedError } from '@visastack/services';
 import { serviceMessages } from '@visastack/services/i18n';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/** Every photo refusal the photo screen can show, in the visitor's language (table-driven). */
+/**
+ * Every refusal the photo service can send to the photo screen, in the visitor's language
+ * (table-driven). The screen's own early checks (no file, too large, not the owner) are worded on
+ * the screen and are not service refusals.
+ */
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', key: '' }));
 vi.mock('../../lib/locale', () => ({ getLocale: async () => state.locale }));

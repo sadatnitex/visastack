@@ -523,7 +523,8 @@ export const placeholdersOf = (msg) => {
 
 /**
  * The structure of a message's `{...}` parts: `{name}` and `{name, plural, sel {...} ...}`, nested,
- * as one comparable string (plural branch selectors left out: languages pick different ones).
+ * as one comparable string (plural branch selectors left out: languages pick different ones; the
+ * number sign in the other branch kept).
  * Null when the braces do not balance or a `{...}` part is neither shape.
  * @returns {{ text: string, everyPluralHasOther: boolean } | null}
  */
@@ -551,6 +552,7 @@ export function messageShape(msg) {
       else if (pl) {
         const branches = new Set();
         const bodies = [];
+        let otherHasNumber = false;
         let rest = pl[2];
         while (rest.trim()) {
           const m = rest.match(/^\s*(=\d+|zero|one|two|few|many|other)\s*\{/);
@@ -559,13 +561,17 @@ export function messageShape(msg) {
           const bEnd = close(rest, open);
           if (bEnd === -1) return null;
           branches.add(m[1]);
+          if (m[1] === 'other') otherHasNumber = rest.slice(open + 1, bEnd).includes('#');
           const body = walk(rest.slice(open + 1, bEnd));
           if (body === null) return null;
           bodies.push(body);
           rest = rest.slice(bEnd + 1);
         }
         if (!branches.has('other')) everyPluralHasOther = false;
-        parts.push(`${pl[1]}:plural[${[...new Set(bodies)].sort().join('|')}]`);
+        // The number (#) in the other branch is part of the shape: Bengali must not drop it.
+        parts.push(
+          `${pl[1]}:plural${otherHasNumber ? '#' : ''}[${[...new Set(bodies)].sort().join('|')}]`,
+        );
       } else return null;
       i = end;
     }

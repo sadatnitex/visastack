@@ -8,12 +8,12 @@ const bn = serviceMessages.bn as Partial<Record<string, string>>;
 const bnKeys = Object.keys(bn) as ServiceMessageKey[];
 const BENGALI = /[ঀ-৿]/;
 
-// One sample value per placeholder: a number for limits and counts, a word for anything else.
+// One sample value per placeholder: a number for plurals, limits and counts, a word otherwise.
 const paramsFor = (message: string) => {
   const params: Record<string, string | number> = {};
-  for (const m of message.matchAll(/\{(\w+)/g)) {
+  for (const m of message.matchAll(/\{(\w+)(\s*,\s*plural)?/g)) {
     const name = m[1] as string;
-    params[name] = /max|count|days|n$/i.test(name) ? 3 : 'Rahim';
+    params[name] = m[2] || /max|count|days|n$/i.test(name) ? 3 : 'Rahim';
   }
   return params;
 };
@@ -34,8 +34,8 @@ describe('every service message with Bangla', () => {
       const underBn = catalogResolve(serviceMessages, 'bn', key, params);
       expect(underBn.lang, key).toBe('bn');
       expect(underBn.text, key).toMatch(BENGALI);
-      // Every placeholder is filled in the Bangla, none left as {name}.
-      expect(underBn.text, key).not.toMatch(/\{\w+\}/);
+      // Every placeholder and plural is filled in the Bangla: no brace is left.
+      expect(underBn.text, key).not.toMatch(/[{}]/);
       const underEn = catalogResolve(serviceMessages, 'en', key, params);
       expect(underEn.lang, key).toBe('en');
       expect(underEn.text, key).toBe(keyedError('invalid', key, params).message);

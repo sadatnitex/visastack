@@ -31,6 +31,9 @@ const ENGLISH = {
   'x.countDraftDiffers': 'Keep {n} words.',
   'x.plural': '{count, plural, one {# file} other {# files}} left',
   'x.pluralNoOther': '{count, plural, one {# day} other {# days}} left',
+  'x.pluralNoNumber': '{count, plural, one {# week} other {# weeks}} left',
+  'x.dashEntity': 'dash sentence',
+  'x.payment': 'payment sentence',
   'x.homograph': 'not available',
   'x.homographNoCensus': 'not shown',
   'x.borrowed': 'borrowed sentence',
@@ -70,6 +73,16 @@ const register = new Register({
       '{count, plural, one {# দিন}} বাকি',
       'PASS',
     ],
+    [
+      'SG-plural3',
+      'ORDINARY_UI',
+      '{count, plural, one {# week} other {# weeks}} left',
+      '{count, plural, other {সপ্তাহ}} বাকি',
+      'PASS',
+    ],
+    ['SG-dash', 'ORDINARY_UI', 'dash sentence', 'ক &mdash; খ', 'PASS'],
+    ['SG-own-payment', 'COMMERCIAL', 'payment sentence', '', ''],
+    ['SG-pay-lender', 'ORDINARY_UI', 'payment sentence', 'অর্থের বাক্য', 'PASS'],
     ['SG-home-a', 'ORDINARY_UI', 'not available', 'পাওয়া যাচ্ছে না (ক)', 'PASS'],
     ['SG-home-b', 'ORDINARY_UI', 'not available', 'পাওয়া যাচ্ছে না (খ)', 'PASS'],
     ['SG-shown-a', 'ORDINARY_UI', 'not shown', 'দেখানো হয়নি (ক)', 'PASS'],
@@ -88,6 +101,7 @@ packages/services/src/area.ts,10,not available,SG-home-b
 packages/services/src/area.ts,11,borrowed sentence,SG-own-empty
 packages/services/src/area.ts,12,blocked sentence,SG-own-official
 packages/services/src/area.ts,13,Up to {PAPERS_MAX} papers.,SG-papers
+packages/services/src/area.ts,14,payment sentence,SG-own-payment
 `;
 
 const q = (s) => `'${s.replace(/'/g, "\\'")}'`;
@@ -147,6 +161,8 @@ describe('refillServiceBengali', () => {
     );
     assert.equal(reasonOf(r, 'x.failing'), 'checks_not_pass:FAIL');
     assert.equal(reasonOf(r, 'x.nodraft'), 'no_bn_draft');
+    // An entity that spells an em dash is caught after decoding.
+    assert.equal(reasonOf(r, 'x.dashEntity'), 'bn_has_marker_or_em_dash');
   });
 
   test('keeps placeholders exactly: a different name in the draft or the register stays English', () => {
@@ -164,6 +180,7 @@ describe('refillServiceBengali', () => {
     const r = run(dir);
     assert.equal(read(dir).bn.values['x.plural'], '{count, plural, other {#টি ফাইল}} বাকি');
     assert.equal(reasonOf(r, 'x.pluralNoOther'), 'bn_plural_differs');
+    assert.equal(reasonOf(r, 'x.pluralNoNumber'), 'bn_plural_differs');
     // Web catalogues keep refusing plurals: the default lookup is unchanged.
     assert.equal(
       register.resolveGroup('SG-plural', ENGLISH['x.plural']).reason,
@@ -186,6 +203,8 @@ describe('refillServiceBengali', () => {
       reasonOf(r, 'x.blockedByOfficial'),
       'review_queue_not_signed_off:OFFICIAL_VISA_REQUIREMENT',
     );
+    // An undrafted payment row does not borrow ordinary-screen Bengali either.
+    assert.equal(reasonOf(r, 'x.payment'), 'checks_not_pass:empty');
   });
 
   test('never changes Bengali already in the catalogue and never fills an English-only key', () => {
@@ -226,7 +245,7 @@ describe('refillServiceBengali', () => {
       file,
       fs
         .readFileSync(file, 'utf8')
-        .replace('export const areaBn = {\n', 'export const areaBn = {\n  // note\n'),
+        .replace("'x.existing': 'আগের বাংলা',", "'x.existing': 'আগের বাংলা', // owner wording"),
     );
     assert.throws(() => run(dir), /holds a comment/);
   });

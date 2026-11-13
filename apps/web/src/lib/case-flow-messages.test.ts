@@ -37,9 +37,10 @@ describe('case flow refusals on the screens', () => {
 
   it('shows English under bn when the key has no Bengali yet', async () => {
     locale.value = 'bn';
-    expect(
-      await serviceErrorMessage(keyedError('invalid', 'missions.enter_a_time_zone_name_such')),
-    ).toBe('enter a time zone name, such as Asia/Dhaka');
+    // The hidden-record answer is English-only by decision, so it stays English under bn.
+    expect(await serviceErrorMessage(keyedError('not_found', 'sharing.inviteUnavailable'))).toBe(
+      'Invitation unavailable.',
+    );
   });
 
   it('puts a raw number into the sentence for a refusal with a number', async () => {
