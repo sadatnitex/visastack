@@ -5,8 +5,14 @@ import type { StarterSheetRow } from './build';
  * Editable"): 485 lines for 33 countries, as the sheet has them. They are starting references from
  * the agency's shared files, not official and not a check against current rules. Loading them into
  * Pack Studio is an explicit admin action; nothing here reaches a traveller by itself.
+ *
+ * Source changed on 2026-11-13: the Tourist and Business lines of Germany, Italy, Japan, South
+ * Korea, Spain, Thailand, United Kingdom were replaced with 186 lines of the owner's research. The
+ * earlier agency lines for them are in git history. Written by
+ * scripts/country-packs/build-starter-seed.mjs from visastack_update_existing_countries.csv; this
+ * file now holds 552 lines. The lists stay starter lists, not official.
  */
-export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
+export const SHEET_SEED_ROWS: readonly StarterSheetRow[] = [
   {
     country: 'Australia',
     purpose: 'Tourist (base)',
@@ -703,109 +709,260 @@ export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
     keep: 'Yes',
     reference: 'France VisaRequirments.docx',
   },
+  // Germany: the Tourist and Business lines were replaced on 2026-11-13 with the owner's checked
+  // list (official pages where found, agency files otherwise; each line names its source, grade and
+  // Checked on date). The earlier agency lines are in git history.
   {
     country: 'Germany',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Airline & Hotel Reservation: Ticket Itinerary & Hotel Booking.',
+    text: 'Schengen visa application form filled in on the VIDEX website, printed in full with all barcode pages',
     keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Germany',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Cover letter stating applicant details, travel purpose, dates, planned expenses and who pays for travel and accommodation.',
-    keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
   },
   {
     country: 'Germany',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Germany Visa Application Form: Visa application form must be filled and signed by the applicant.',
+    text: 'Signed Declaration of Consent',
     keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Germany',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company registration certificate (original notarized English translated and photocopy of the original) if the applicant is a first time traveler or a proprietor.',
-    keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Germany',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'Salary slip for the last six months. (If Any)',
-    keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
   },
   {
     country: 'Germany',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Company or personal bank statement covering six months, showing the bank name and bank telephone number.',
+    text: 'Passport valid at least 3 months beyond the visa expiry, with at least 2 free visa pages; previous passports if any',
     keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Germany',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'Office ID card copy & Visiting cards.',
-    keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Germany',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Invitation Letter: (If Any)',
-    keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Germany',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Copies of previous passports and visas, including old passports if available.',
-    keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
   },
   {
     country: 'Germany',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Forwarding Letter / NOC from the applicant’s company authority on the company’s letter head stating applicant’s name, designation, passport number, purpose and duration of visit.',
+    text: 'One biometric photo 35x45 mm, white background, face covering 70-80% (loose, not glued or stapled)',
     keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
   },
   {
     country: 'Germany',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Passport: Original Passport with validity of minimum six months after the intended date of departure and minimum two blank pages for visa stamp.',
+    text: 'Overseas travel medical insurance for the whole visa period, valid in all Schengen states, minimum EUR 30,000 including repatriation. Credit card insurance is not accepted',
     keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
   },
   {
     country: 'Germany',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Photo Specification: Two recent passport size photographs with matt or semi matt finish, 60-80% face coverage, white background and without border (Size: 35mm x 45mm)',
+    text: 'Flight reservation or itinerary (a reservation is enough, no purchase needed)',
     keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
   },
   {
     country: 'Germany',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Student',
-    text: 'Visa request letter from the educational institute or student card/evidence of school enrollment (if student)',
+    appliesWhen: 'When employed in Bangladesh',
+    text: 'Letter from Bangladesh employer: company name, address, phone, position, start date, salary, leave period with expected return date, purpose of travel',
     keep: 'Yes',
-    reference: 'GERMANY VISA REQUIREMENT.pdf',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When self-employed',
+    text: 'Trade licence (City Corporation or Union Parishad) plus certificate of incorporation and memorandum with directors pages, where applicable',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When self-employed',
+    text: 'Original company bank statements for the past 6 months showing any overdraft limit',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When a student',
+    text: 'Proof of enrolment, plus certificate of leave of absence if travelling during the school year',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Original personal bank statements for at least the last 6 months, plus proof of other means (DPS, FDR, holding tax receipt). Do not submit property buy or sale deeds',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Copy of personal tax return certificate with annual tax paid, and proof of income tax payment where applicable (acknowledgement receipt for the latest fiscal year only)',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When married',
+    text: 'Marriage certificate if married (Nikah Nama in Bangla and English for Muslim marriage, A4 photocopy)',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When divorced',
+    text: 'Divorce certificate (Talak Nama)',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When widowed',
+    text: 'Death certificate of spouse',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When the applicant has children',
+    text: 'Birth certificates of children',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Photocopy of passport data pages, and copies of previous Schengen, US, Canada or UK visas',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When applicant is under 18',
+    text: 'Proof of parenthood (birth certificate, adoption proof, custody decree, or parent death certificate) with translation',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When applicant is under 18',
+    text: 'Letter of consent from legal guardian with passport copy, notarised if the guardian does not attend the appointment',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Valid hotel booking with full address and booking reference',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Personal covering letter stating the purpose of the visit and who pays',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Tour plan covering the full itinerary and activities in the Schengen area',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689080-2689080 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Invitation letter from the German company or authority with address, purpose and length of the business trip',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689064-2689064 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Business (extra)',
+    appliesWhen: 'Instead of or with the invitation letter',
+    text: 'Event details (congress, trade fair): organiser, address, dates, reason for attending, e.g. visitor ticket or confirmed participation',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689064-2689064 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Business (extra)',
+    appliesWhen: 'When exhibiting at a trade fair',
+    text: 'Exhibitor ticket, invoice or confirmation letter naming the applicant or employer; this gives a gratis visa',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689064-2689064 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Documents showing the business relationship between the German and Bangladeshi companies and who covers all trip costs',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689064-2689064 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Copy of Bangladesh company trade licence in English, plus certificate of incorporation and memorandum with directors pages',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689064-2689064 | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Germany',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Evidence of trade or work relations, e.g. L/C copy or bill of lading',
+    keep: 'Yes',
+    reference:
+      'German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/bd-en/service/2689064-2689064 | grade A | checked 2026-11-02',
   },
   {
     country: 'Hong Kong',
@@ -1415,181 +1572,362 @@ export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
     keep: 'Yes',
     reference: 'INDONESIA VISA REQUIREMENT.pdf',
   },
+  // Italy: the Tourist and Business lines were replaced on 2026-11-13 with the owner's checked list
+  // (official pages where found, agency files otherwise; each line names its source, grade and
+  // Checked on date). The earlier agency lines are in git history.
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Hotel booking or proof of accommodation covering the trip.',
+    text: 'Schengen C visa application form, original, in English or Italian and signed (both parents or guardian sign for a minor)',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
-  },
-  {
-    country: 'Italy',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Original completed and signed Schengen C visa form (English or Italian).',
-    keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
-  },
-  {
-    country: 'Italy',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Trade licence and incorporation/company registration documents.',
-    keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
-  },
-  {
-    country: 'Italy',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'Employer letter showing role, salary, service duration and approved leave.',
-    keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
-  },
-  {
-    country: 'Italy',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Student',
-    text: 'School or university enrolment and leave approval.',
-    keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
-  },
-  {
-    country: 'Italy',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Marriage, divorce or widowhood certificate as relevant.',
-    keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
-  },
-  {
-    country: 'Italy',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Minor / accompanying family',
-    text: 'Birth certificate, parent or guardian consent and financial evidence as applicable.',
-    keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
-  },
-  {
-    country: 'Italy',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company bank statements for the last six months.',
-    keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Personal bank statement for six months and other financial solvency evidence.',
+    text: 'Two identical ICAO photos, 4.0 x 3.5 cm, colour, white background, taken within 6 months',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Return airline booking and travel itinerary.',
+    text: 'Passport valid at least 3 months beyond visa validity with 2 blank pages, plus one copy of the bio-data page',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When visiting family or friends in Italy',
+    text: 'Invitation letter in the VFS format, proof of relationship, ID copy of the host and residence permit copy if the host is foreign',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When employed',
+    text: 'Original employer letter in English on stamped letterhead: company address, phone, fax; signer name and position; applicant name, position, salary, years of service; leave approval; confirmation of the job after return',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When self-employed',
+    text: 'Trade licence (City Corporation), incorporation certificate (RJSC), income tax return, TIN certificate and company bank statements for 6 months',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When a student',
+    text: 'Proof of enrolment, leave-of-absence certificate for travel in term time, and school letter for a school trip',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Travel invitation or accommodation proof, with host ID and relationship evidence where visiting someone.',
+    text: 'Personal bank statement from a Bangladesh bank for the last 6 months plus other proof of solvency such as credit card statements',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When the applicant lacks sufficient own funds',
+    text: 'Bank guarantee (fidejussione bancaria) from an Italian bank',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'ICAO-format colour photographs, 4.0 × 3.5 cm, white background (file specifies six-month recency).',
+    text: 'Return flight booking with reservation number and itinerary',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Original passport and photocopy of pages containing passport and personal data; validity at least 3 months beyond planned Schengen departure and two blank pages.',
+    text: 'Hotel confirmation or other proof of accommodation for the whole stay',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Income tax return / TIN evidence.',
+    text: 'Travel insurance valid across Schengen for the whole stay, covering medical costs, hospitalisation and repatriation up to EUR 30,000',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Schengen travel medical insurance with coverage of at least EUR 30,000 (per archived checklist).',
+    appliesWhen: 'When married or widowed',
+    text: 'Civil status documents (marriage certificate, Hindu marriage documents, spouse death certificate) translated into English and apostilled. Only one apostille per document is accepted',
     keep: 'Yes',
-    reference: 'checklist-for-tourismvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When applicant is a minor',
+    text: 'Consent of both parents or custodian in original and apostilled, parents passport copies and financial proof, original apostilled birth certificate; court documents for custody cases',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When the applicant is not Bangladeshi',
+    text: 'Valid Bangladeshi residence permit',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/TURISM_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Employment letter describing job, remuneration and approved absence.',
+    appliesWhen: 'All applicants',
+    text: 'Schengen C visa form in English or Italian, signed',
     keep: 'Yes',
-    reference: 'checklist-for-bussinessvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Business invitation on Italian company letterhead, signed and stamped; purpose, duration, programme and expense responsibility.',
+    appliesWhen: 'All applicants',
+    text: 'Two identical ICAO photos, 4.0 x 3.5 cm, within 6 months',
     keep: 'Yes',
-    reference: 'checklist-for-bussinessvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Event invitation or proof of registration payment and event programme.',
+    appliesWhen: 'All applicants',
+    text: 'Passport valid 3 months after leaving Schengen, 2 blank pages, plus copy of pages 2 and 3',
     keep: 'Yes',
-    reference: 'checklist-for-bussinessvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Italian host-company registration (Visura Camerale; source specifies issued within six months).',
+    appliesWhen: 'All applicants',
+    text: 'Invitation letter on stamped company paper in the VFS format only: company address and contacts, signer name and position as in the company register, purpose, duration, detailed programme, who pays, and whether the sponsor guarantees the return to Bangladesh',
     keep: 'Yes',
-    reference: 'checklist-for-bussinessvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Evidence of transactions/contracts between the applicant’s company and foreign business partners, where available.',
+    appliesWhen: 'All applicants',
+    text: 'ID or passport page copy of the signing officer of the inviting company',
     keep: 'Yes',
-    reference: 'checklist-for-bussinessvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Italy',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Copy of the Italian signatory’s passport or identity document.',
+    appliesWhen: 'All applicants',
+    text: 'Chamber of Commerce record of the inviting company, not older than 6 months',
     keep: 'Yes',
-    reference: 'checklist-for-bussinessvisa-new.pdf',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Company bank statements for the last 6 months, and trade licence plus incorporation certificate',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Business (extra)',
+    appliesWhen: 'When employed',
+    text: 'Original employer letter on seal and letterhead including who bears travel and living costs',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Business (extra)',
+    appliesWhen: 'When self-employed',
+    text: 'Income tax return in addition to the other documents',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Personal bank statement from a Bangladesh bank for the last 6 months plus other solvency proof',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Return flight booking with reservation number, and hotel confirmation or other accommodation proof',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Italy',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Proof of recent business contacts: bills of lading, receipts, contracts, letters of credit',
+    keep: 'Yes',
+    reference:
+      'Italian Embassy checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/italy/bangladesh/english/pdf/BUSINESS_updated.pdf | grade A | checked 2026-11-02',
+  },
+  // Japan: the Tourist and Business lines were replaced on 2026-11-13 with the owner's checked list
+  // (official pages where found, agency files otherwise; each line names its source, grade and
+  // Checked on date). The earlier agency lines are in git history.
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Latest 6 months personal or company bank statement',
+    keep: 'Yes',
+    reference:
+      'Official data pack (repo) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-10-14',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Hotel Booking During stay in Japan.',
+    text: 'Valid passport; a child needs a separate passport',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, required documents page (search snippet) | https://www.bd.emb-japan.go.jp/en/visa/visareqdoc.html | grade B | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Old passports, if any',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, required documents page (search snippet) | https://www.bd.emb-japan.go.jp/en/visa/visareqdoc.html | grade B | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Two photos, 3.5 x 4.5 cm, taken within the last 6 months',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, required documents page (search snippet) | https://www.bd.emb-japan.go.jp/en/visa/visareqdoc.html | grade B | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Visa application form obtained from the embassy gate',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, required documents page (search snippet) | https://www.bd.emb-japan.go.jp/en/visa/visareqdoc.html | grade B | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Valid passport',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Visa application form',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'One photo',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Itinerary with flight or ship number and arrival and departure dates',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When more than one applicant',
+    text: 'List of visa applicants',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Itinerary in Japan (accommodation, planned activities)',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When paying your own costs',
+    text: 'Proof you can pay travel costs: income certificate or tax return from a public agency, or bank statement or balance certificate',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Japan',
@@ -1597,127 +1935,251 @@ export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
     appliesWhen: 'All applicants',
     text: 'Application form',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
-  },
-  {
-    country: 'Japan',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Incorporation Certificate & Memorandum (If Have)',
-    keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
-  },
-  {
-    country: 'Japan',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Trade License notarized copy, Visiting Card, Company Pad',
-    keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'NID Card or Birth Certificate',
+    text: 'Valid passport and photocopy',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
-  },
-  {
-    country: 'Japan',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Minor / accompanying family',
-    text: 'Parental consent letter for applicants under 18.',
-    keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
-  },
-  {
-    country: 'Japan',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company Bank Statement & Solvency (6 months latest)',
-    keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Personal Bank Statement & Solvency (6 months latest)',
+    text: 'Old passport (if any) and photocopy',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
-  },
-  {
-    country: 'Japan',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'NOC-Leave letter, ID card, Visiting card, Pay slip/salary certificate/salary statement',
-    keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Invitation letter',
+    text: 'One photo, 2 inch x 1.4 inch',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Invitation letter (Not mandatory for tourist visa)',
+    text: 'Airline booking slip (round trip)',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Original & Old Passport with all Visa & Seal Page Photocopy.',
+    text: 'Hotel booking document for the stay in Japan',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'One Photo (2 inch X 1.4 inch)',
+    text: 'Visit schedule in Japan',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'TIN + Income Tax certificate with Acknowledgement Slip (Latest 3 years)',
+    text: 'Tax-income certificate and payment receipt, latest 3 years (if any)',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
-  },
-  {
-    country: 'Japan',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Provide English translations and notarisation of Bangla documents where the checklist requires them.',
-    keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Travel Plan or Tour Itinerary',
+    text: 'Bank statement, latest 6 months (personal or company)',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'If you have a guarantor',
+    text: 'Invitation letter and a document explaining the relation to the guarantor',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'If a guarantor living in Japan pays the costs',
+    text: 'Guarantee letter; tax certificate, bank statement or income certificate; citizen registration or foreigner registration with passport copy',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Japan',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Employment letter of Japanese Guarantor (Personal business invitation by guarantor only)',
+    appliesWhen: 'All applicants',
+    text: 'Personal and company bank statements for the last 3 months',
     keep: 'Yes',
-    reference: 'Japan Visa Requirement.pdf',
+    reference:
+      'Embassy of Japan Dhaka, required documents page (search snippet) | https://www.bd.emb-japan.go.jp/en/visa/visareqdoc.html | grade B | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'Upon request',
+    text: 'Employment certificate',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, required documents page (search snippet) | https://www.bd.emb-japan.go.jp/en/visa/visareqdoc.html | grade B | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Document showing business purpose: employer travel order or letter, or equivalent',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Certificate of employment',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Invitation letter from the Japanese organisation, or documents explaining activities such as a transaction agreement or conference materials',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'When the Japanese guarantor pays costs',
+    text: 'Letter of guarantee and corporate registry copy from the guarantor in Japan',
+    keep: 'Yes',
+    reference:
+      'Japan MOFA short-term checklist via VFS Global Dhaka (read 2026-11-02) | https://www.vfsglobal.com/one-pager/japan/bangladesh/english/pdf/Short_Term_Checklist_Update_tourism.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Hotel booking in Japan or residence letter from the guarantor',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Tentative schedule in Japan',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Employment certificate of the applicant or company trade licence',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Invitation letter, guarantee letter, and a contract or L/C for this visit (if any)',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Tax-income certificate and tax payment receipt of the applicant, latest 3 years',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Bank statement, latest 6 months (applicant or company)',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Company registration of the Japanese company (To-kibo To-hon)',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'Personal business invitation by a guarantor only',
+    text: 'Employment letter of the Japanese guarantor',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Document certifying your own company activities (if any)',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Brochures, leaflets or newspaper clippings (if any)',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Japan',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Visit schedule in Japan by the guarantor',
+    keep: 'Yes',
+    reference:
+      'Embassy of Japan Dhaka, Documents Required page (opened in a browser 2026-11-13; page dated 2017-06-14) | https://www.bd.emb-japan.go.jp/itpr_en/visadocuments.html | grade A | checked 2026-11-13',
   },
   {
     country: 'Malaysia',
@@ -2663,277 +3125,371 @@ export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
     keep: 'Yes',
     reference: 'South Africa family visa requirements (1).pdf',
   },
+  // South Korea: the Tourist and Business lines were replaced on 2026-11-13 with the owner's
+  // checked list (official pages where found, agency files otherwise; each line names its source,
+  // grade and Checked on date). The earlier agency lines are in git history.
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Hotel/accommodation booking.',
+    text: 'Visa application form completed online on the Korea Visa Portal (e-Form) and printed',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
-  },
-  {
-    country: 'South Korea',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Visa application form.',
-    keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
-  },
-  {
-    country: 'South Korea',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Trade licence, business-card/letterhead and company incorporation/memorandum if applicable.',
-    keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
-  },
-  {
-    country: 'South Korea',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'Employer NOC/leave letter, office ID, salary certificate or pay slips.',
-    keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
-  },
-  {
-    country: 'South Korea',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Marriage certificate or Nikahnama if married.',
-    keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean MOFA mission page (Canada) | https://overseas.mofa.go.kr/ca-en/brd/m_5238/view.do?seq=727672 | grade B | checked 2026-11-02',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'National ID or birth certificate.',
+    text: 'Valid passport with at least 6 months remaining validity, plus photocopy of the photo page',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
-  },
-  {
-    country: 'South Korea',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Minor / accompanying family',
-    text: 'Parental travel consent for applicants under 18.',
-    keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
-  },
-  {
-    country: 'South Korea',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company bank statement and company tax/TIN papers.',
-    keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean MOFA mission page (Canada) | https://overseas.mofa.go.kr/ca-en/brd/m_5238/view.do?seq=727672 | grade B | checked 2026-11-02',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Personal six-month bank statement and solvency evidence.',
+    text: 'Passport-type colour photo, 3.5 x 4.5 cm',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean MOFA mission page (Canada) | https://overseas.mofa.go.kr/ca-en/brd/m_5238/view.do?seq=727672 | grade B | checked 2026-11-02',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Return airline booking.',
+    text: 'Visa application form with bar code (printed from the e-Form on the Korea Visa Portal)',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Invitation letter if relevant (not mandatory for tourism according to this archived agency document).',
+    text: 'One colour photo taken within the last 6 months (3.5 x 4.5 cm)',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Two photographs, white background, 3.5 × 4.5 cm as described in source.',
+    text: 'Passport with minimum 6 months validity, and a photocopy',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Current passport and previous passports.',
+    text: 'Cover or forwarding letter of the applicant',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Personal TIN and income-tax returns/acknowledgement evidence.',
+    text: 'Valid air-ticket booking slip',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Translation/notarisation of Bangla documents where applicable.',
+    text: 'Tour itinerary with a detailed plan in Korea',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
   },
   {
     country: 'South Korea',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Travel plan/itinerary.',
+    text: 'Accommodation reservation slip',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Personal bank statement and bank solvency certificate, minimum last 6 months',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'If available',
+    text: 'Company certificate or trade licence, copy of the initial and current one',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Income tax certificate with tax challan copy and tax return acknowledgement receipt',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Employee, or student',
+    text: 'Employment certificate with office ID card copy; recommendation letter from the institute',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'If available',
+    text: 'Invitation letter and notarised affidavit of support',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13), page dated 2024-09-22 | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14 | grade A | checked 2026-11-13',
   },
   {
     country: 'South Korea',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Business invitation letter describing business visit and responsibility for travel/accommodation costs.',
+    appliesWhen: 'All applicants',
+    text: 'Invitation letter from the inviting company, sealed and signed by the company president',
     keep: 'Yes',
-    reference: 'Requirement for South Korea Visa update.pdf',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13) | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=5 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Guarantee letter or affidavit of support from the inviting company',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13) | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=5 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Business registration certificate of the inviting company, within the last 1 year',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13) | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=5 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Trade licence (initial and current); applicant income tax certificate with tax challan copy and tax return acknowledgement of the Bangladeshi company',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13) | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=5 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Personal bank statement with solvency certificate and company bank statement, issued within the last 6 months',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13) | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=5 | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'South Korea',
+    purpose: 'Business (extra)',
+    appliesWhen: 'All applicants',
+    text: 'Visiting (business) card',
+    keep: 'Yes',
+    reference:
+      'Korean Embassy Dhaka document list (read in a browser 2026-11-13) | https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=5 | grade A | checked 2026-11-13',
+  },
+  // Spain: the Tourist and Business lines were replaced on 2026-11-13 with the owner's checked list
+  // (official pages where found, agency files otherwise; each line names its source, grade and
+  // Checked on date). The earlier agency lines are in git history.
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Spanish Schengen visa application form, fully completed and signed (both parents sign for a minor); a letter of introduction detailing the trip is valued',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Business list asks for two forms and two photos',
+    text: 'Colour passport photo 35 x 45 mm, white background, glued to the form (not stapled)',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Hotel/accommodation confirmation covering stay.',
+    text: 'Original passport plus photocopy of the data page and earlier visas; passport issued within the last 10 years and valid 3 months beyond the visa',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Completed, signed Spanish Schengen visa application form.',
+    text: 'Medical insurance covering EUR 30,000 with repatriation, for the whole stay in all Schengen states',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
-  },
-  {
-    country: 'Spain',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'Employment certificate, salary information and leave approval.',
-    keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
-  },
-  {
-    country: 'Spain',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Minor / accompanying family',
-    text: 'Marriage/family relationship documents when travelling with spouse/children.',
-    keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
-  },
-  {
-    country: 'Spain',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Minor / accompanying family',
-    text: 'Parental permission/custodian consent and child’s birth certificate.',
-    keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
-  },
-  {
-    country: 'Spain',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Personal or company bank statements and evidence of means of support.',
-    keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Return ticket reservation.',
+    text: 'Photocopy of the full return ticket booking page',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Original and photocopy of current passport and previous visas.',
+    text: 'Hotel confirmation or voucher for the whole stay, or other accommodation proof',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'One colour passport photograph with white background attached to form.',
+    text: 'Original bank statements (personal and company) and credit card statements for the last 6 months, updated, signed and stamped by the bank or branch manager',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Student',
-    text: 'Study enrolment, leave letter and institution details.',
+    appliesWhen: 'When travelling with spouse or children',
+    text: 'Marriage certificate legalised by the Ministry of Foreign Affairs and translated into Spanish',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company incorporation, trade licence, memorandum and tax documents.',
+    appliesWhen: 'When applicable',
+    text: 'Civil status documents: marriage certificate, talak namah, death certificate, children birth certificates',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When applicant is a minor',
+    text: 'Consent of parents or custodian, parent passport copies, proof of parents economic means, original birth certificate of the minor',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When employed',
+    text: 'Employment certificate: company address, phone, fax; signer name and position; applicant name, position, salary, years of service; certificate of leave of absence',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When self-employed',
+    text: 'Certificate of incorporation, memorandum and articles, and trade licence legalised by the Ministry of Foreign Affairs and translated into Spanish',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When self-employed',
+    text: 'Income tax returns for the last year translated into Spanish, or TIN certificate',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When a student',
+    text: 'Proof of enrolment, leave-of-absence certificate for term time, and school letter for school trips',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'Spain',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When visiting family or friends',
+    text: 'Proof of sponsorship including family ties and letter of invitation',
+    keep: 'Yes',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Spanish translation/legalisation where specified in the archived checklist.',
+    text: 'Personal letter of introduction stating the reason for the trip and itinerary',
     keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
-  },
-  {
-    country: 'Spain',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Travel medical insurance covering Schengen area (archived checklist specifies EUR 30,000).',
-    keep: 'Yes',
-    reference: 'Spain Tourist Checklist.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-tourist.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Bangladesh company incorporation/trade licence and relevant translations/attestations.',
+    appliesWhen: 'All applicants',
+    text: 'Income tax returns translated into Spanish stating the amount of income',
     keep: 'Yes',
-    reference: 'checklist-business.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-business.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Invitation from Spanish company in Spanish, including company contact details, travel purpose and visit dates.',
+    appliesWhen: 'When applicable',
+    text: 'Salary slips for the last 6 months',
     keep: 'Yes',
-    reference: 'checklist-business.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-business.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Spain',
     purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Evidence of previous/current commercial transactions involving the businesses.',
+    appliesWhen: 'All applicants',
+    text: 'Original invitation letter (details on the checklist were cut off in the text read)',
     keep: 'Yes',
-    reference: 'checklist-business.pdf',
-  },
-  {
-    country: 'Spain',
-    purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'Letter from the Bangladesh company identifying applicant, business reason, dates and contact details.',
-    keep: 'Yes',
-    reference: 'checklist-business.pdf',
+    reference:
+      'Embassy of Spain Dhaka checklist via BLS (read 2026-11-02) | https://bgd.blsspainvisa.com/assets/pdf/checklist-business.pdf | grade A | checked 2026-11-02',
   },
   {
     country: 'Sri Lanka',
@@ -3319,125 +3875,278 @@ export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
     keep: 'Yes',
     reference: 'Checklist_Schengen_Tourism_visa_09.2023.pdf',
   },
+  // Thailand: the Tourist and Business lines were replaced on 2026-11-13 with the owner's checked
+  // list (official pages where found, agency files otherwise; each line names its source, grade and
+  // Checked on date). The earlier agency lines are in git history.
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Memorandum of article (for LTD Company).',
+    appliesWhen: 'All applicants',
+    text: 'Duly filled out and signed visa application form',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Official data pack (repo) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr?menu=5d83296315e39c2540006a6d&page=5d83296315e39c2540006a6c | grade A | checked 2026-10-14',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Trade license Photocopy. (Notarized Copy)',
+    text: 'Two colour passport-sized photos (3.5 x 4.5 cm) against white background taken within past 6 months',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Thailand',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company Pad & Visiting Card in English.',
-    keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Thailand',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Marriage certificate/Nikah Nama for newly married (Notarized Copy).',
-    keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Thailand',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Sponsored applicant',
-    text: "In case the applicant is sponsored by his/her company then company's bank statement and bank solvency letter and trade license should be attached.",
-    keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Official data pack (repo) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr?menu=5d83296315e39c2540006a6d&page=5d83296315e39c2540006a6c | grade A | checked 2026-10-14',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Six-month bank statement and solvency letter with original bank seal and signature; refer to source for recommended balance.',
+    text: 'Last 6 months bank statement and bank solvency certificate (minimum BDT 60,000 per person or BDT 120,000 per family)',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Official data pack (repo) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr?menu=5d83296315e39c2540006a6d&page=5d83296315e39c2540006a6c | grade A | checked 2026-10-14',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Passport biodata page',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Photograph taken within the last six months',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Document showing current location (valid visa, or proof of payment for airline tickets or accommodation)',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Travel booking confirmation',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Proof of accommodation in Thailand (bookings, or invitation letters from family or friends in Thailand)',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Financial evidence of no less than THB 20,000 (bank statements for the last three months, or a sponsorship letter)',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'MICE participants supported by TCEB',
+    text: 'Letter from the Thailand Convention and Exhibition Bureau (TCEB), on top of the base documents and THB 20,000 funds',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Recreation learning or training',
+    text: 'Letter of acceptance from the institute or company organising the activity (scuba, boxing, Thai massage, Thai cooking), plus base documents',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Visiting family',
+    text: 'Personal details of the family member in Thailand: ID card, passport and visa page or stay permit',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Medical treatment',
+    text: 'Letter of appointment from the hospital or medical centre',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Football trial',
+    text: 'Letter from the football club',
+    keep: 'Yes',
+    reference:
+      'Thailand e-Visa official portal (read in a browser 2026-11-13) | https://www.thaievisa.go.th/visa/tourist-visa | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Application form duly filled in and signed',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Passport with at least 6 months validity and 2 blank pages',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'One set of passport information page, latest Thai visa page and renewal page (if any)',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Active phone number',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Two colour passport photos 3.5 x 4.5 cm, white background, taken within 6 months',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Evidence of adequate finance: bank solvency and bank statement of the last 6 months, at least THB 20,000 per person and THB 40,000 per family, or BDT 60,000 per person and BDT 120,000 per family; only original statements and solvency letters are accepted',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Sponsored by a company',
+    text: 'Trade licence attached when a company bank statement or solvency letter is used for a company-sponsored applicant',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Copy of round-trip air ticket or booking confirmation',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
+  },
+  {
+    country: 'Thailand',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Visa request letter from the applicant',
+    keep: 'Yes',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
     appliesWhen: 'Employee',
-    text: 'For Employee: NOC letter, Salary Certificate/Pay Slip, Office ID Card & Visiting Card',
+    text: 'Recommendation letter from the employer with salary statement, pay slip or salary certificate',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Applicant name and parents’ names on supporting documents should match the passport.',
+    appliesWhen: 'Doctor',
+    text: 'BMDC certificate or hospital letter',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Government employee',
-    text: 'For Govt. Employee: GO & Note verbal (for official passport holders) (Notarized Copy).',
+    appliesWhen: 'Lawyer',
+    text: 'Bar Council certificate or law firm letter',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Thailand',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Original Passport 6 Months Validity. [If Have Old Passport, Must Be Taken With It]',
-    keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'Thailand',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Two Recent photo white background (Size: 3.5 x 4.5 mm) Mast be Matt Paper.',
-    keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
     appliesWhen: 'Student',
-    text: 'For Student : Student ID copy, School leave letter / Academic calendar',
+    text: 'Recommendation letter from the school or university, or student card or enrolment proof',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'Bangla-language documents translated into English and notarised, where required.',
+    appliesWhen: 'Applying with family',
+    text: 'Marriage certificate (Bengali original with notarised English translation and photocopy) and proof of relationship',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Retired applicant',
-    text: 'For Retired Person: Retirement documents. (Notarized Copy).',
+    appliesWhen: 'Business owner',
+    text: 'Trade licence (notarised English translation and photocopy) for a proprietorship, or Memorandum of Article for a limited company if the name is not on the licence',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
-    purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'For Business Visit: Business invitation letter & related documents.',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'Under 18',
+    text: 'Parents consent letter; birth certificate if the foreign passport does not show parents names',
     keep: 'Yes',
-    reference: 'THAILAND VISA REQUIREMENT.pdf',
+    reference:
+      'Royal Thai Embassy Dhaka Tourist Visa TR page (read in a browser 2026-11-13; page updated 30 Nov 2022) | https://dhaka.thaiembassy.org/en/publicservice/tourist-visa-tr | grade A | checked 2026-11-13',
   },
   {
     country: 'Thailand',
@@ -3607,157 +4316,197 @@ export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
     keep: 'Yes',
     reference: 'DUBAI VISA REQUIREMENT new 2.docx',
   },
+  // United Kingdom: the Tourist and Business lines were replaced on 2026-11-13 with the owner's
+  // checked list (official pages where found, agency files otherwise; each line names its source,
+  // grade and Checked on date). The earlier agency lines are in git history.
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Sponsored applicant',
-    text: 'Additional: Cover Letter, Sponsor Letter, Hotel Booking & Ticket Booking',
+    appliesWhen: 'All applicants',
+    text: 'Valid passport or travel document',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'Official data pack (repo) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-10-14',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When submitting any supporting document that is not in English or Welsh',
+    text: 'Certified English or Welsh translation of any non-English document',
+    keep: 'Yes',
+    reference:
+      'Official data pack (repo) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-10-14',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'IRC / ERC / Chamber Membership Certificate (Notarized).',
+    text: 'Bank statements detailing the origin of funds held',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'Official data pack (repo) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-10-14',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Memorandum of Association / Form XII (for LTD company)',
+    appliesWhen: 'When applicant is employed',
+    text: 'Employer letter on company headed paper',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Renewed trade licence, translated/notarised if required.',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company Pad & Visiting Card in English.',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Employee',
-    text: 'For Employee: Introduction & NOC letter, Salary Certificate/Pay Slip, Office ID & Visiting Card',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Family Proof: Marriage Certificate / Nikahnama (Translated & Notarized).',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'Official data pack (repo) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-10-14',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Identification: NID Card or Digital Birth Certificate (English Translated & Notarized).',
+    text: 'Evidence you are coming to do a permitted activity, with details of what you will do and who pays',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Agency recommendation only: bank balance around BDT 1,500,000 per applicant, subject to review (not an official minimum).',
+    text: 'Evidence you will leave the UK at the end of the visit (ties and circumstances in Bangladesh)',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
-    appliesWhen: 'Sponsored applicant',
-    text: "In case the applicant is sponsored by his/her company then the company's bank statement and bank solvency letter and trade license should be attached.",
+    appliesWhen: 'Alongside bank statements to show access to funds',
+    text: 'Proof of earnings, such as employer letter with start date, salary, role and company contact details',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Six-month personal bank statement and solvency evidence; company statement where applicable.',
+    appliesWhen: 'When applicant is a student',
+    text: 'Letter from education provider on headed paper confirming enrolment and leave of absence',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: '💰 Financial & Solvency Documents',
+    appliesWhen: 'When applicant is self-employed',
+    text: 'Business registration documents or recent invoices confirming ongoing self-employment',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'All applicants',
-    text: 'Evidence of assets: deeds, valuation documents, fixed deposits or other investments if available.',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Government employee',
-    text: 'For Govt. Employee: GO & Note verbal (for official passport holders) (Notarized Copy).',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'As applicable',
-    text: 'Passport: Original passport with at least 6 months validity & All previous passports (if any).',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Student',
-    text: 'For Student: Student ID copy, School leave letter / Academic calendar',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
-  },
-  {
-    country: 'United Kingdom',
-    purpose: 'Tourist (base)',
-    appliesWhen: 'Business owner',
-    text: 'Company TIN Certificate & Tax Return Receipt (Translated & Notarized).',
-    keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
   },
   {
     country: 'United Kingdom',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Tax Proof: Tax Certificate with Return Receipt for the last 3 years. (Translated & Notarized).',
+    text: 'Copies of previous passports showing travel to other countries',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
   },
   {
     country: 'United Kingdom',
-    purpose: 'Business (extra)',
-    appliesWhen: 'Business traveller',
-    text: 'For Business Visit: Business invitation letter & related documents.',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When someone else pays for travel, maintenance or accommodation',
+    text: 'Sponsor evidence: what support is given, how, relationship to you, sponsor has enough funds, sponsor legally in the UK',
     keep: 'Yes',
-    reference: 'Updated UK VISA REQUIREMENT.pdf',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When applicant is under 18',
+    text: 'Legal document showing relationship to at least one parent or guardian (e.g. birth certificate)',
+    keep: 'Yes',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When under 18 and the parent is not also applying',
+    text: 'Copy of photo page of at least one parent or guardian passport including signature and passport number',
+    keep: 'Yes',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When under 18 and not travelling with a parent or guardian',
+    text: 'Signed parent or guardian letter giving consent, naming travelling adult (with passport number), carer in UK and travel plan',
+    keep: 'Yes',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When visiting for private medical treatment',
+    text: 'Letter from a registered medical practitioner explaining the condition, plus estimated cost, duration and place of treatment',
+    keep: 'Yes',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When visiting for private medical treatment',
+    text: 'Evidence that costs of treatment already received have been met',
+    keep: 'Yes',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When coming for a permitted paid engagement as a speaker',
+    text: 'Invitation from the organiser confirming you are invited to speak',
+    keep: 'Yes',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Digital images of original documents, not copies where possible',
+    keep: 'Yes',
+    reference:
+      'UK Home Office guide (updated 8 Oct 2026) | https://www.gov.uk/government/publications/visitor-visa-guide-to-supporting-documents/guide-to-supporting-documents-visiting-the-uk | grade A | checked 2026-11-02',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Complete UKVI online Standard Visitor application',
+    keep: 'Yes',
+    reference:
+      'Second-AI pack, official gov (not independently verified) | https://www.gov.uk/standard-visitor/apply-standard-visitor-visa | grade B | checked 2026-11-04',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'All applicants',
+    text: 'Provide valid passport covering visit',
+    keep: 'Yes',
+    reference:
+      'Second-AI pack, official gov (not independently verified) | https://www.gov.uk/standard-visitor/apply-standard-visitor-visa | grade B | checked 2026-11-04',
+  },
+  {
+    country: 'United Kingdom',
+    purpose: 'Tourist (base)',
+    appliesWhen: 'When submitting documents in another language',
+    text: 'Provide certified translation in English or Welsh for other-language supporting documents',
+    keep: 'Yes',
+    reference:
+      'Second-AI pack, official gov (not independently verified) | https://www.gov.uk/standard-visitor/apply-standard-visitor-visa | grade B | checked 2026-11-04',
   },
   {
     country: 'United States',

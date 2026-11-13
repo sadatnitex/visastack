@@ -3,7 +3,7 @@ import { and, count, desc, eq, like, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { type MissionNote, addNote, evidenceRequestTriageGroup } from './agency';
 import { schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { referenceCodesFor } from './reference-codes';
 
 /**
@@ -63,7 +63,7 @@ function ownerOf(
   action: 'COMMENT' | 'VIEW_METADATA',
 ): Result<string, ServiceError> {
   if (!AuthorizedApplicant.isGenuine(proof, action) || proof.actor.kind !== 'applicant_owner') {
-    return err(serviceError('forbidden', 'Only the owner of this record can do this.'));
+    return err(keyedError('forbidden', 'request_items.only_the_owner_of_this_record'));
   }
   return ok(proof.applicant.ownerAccountId);
 }
@@ -84,18 +84,18 @@ export async function askAboutRequestItem(
   const owner = ownerOf(proof, 'COMMENT');
   if (!owner.ok) return owner;
   if (proof.resource.kind !== 'mission') {
-    return err(serviceError('forbidden', 'Only the owner of this record can do this.'));
+    return err(keyedError('forbidden', 'request_items.only_the_owner_of_this_record'));
   }
   const missionId = proof.resource.mission.id;
 
   const question = cleanQuestion(input.question);
-  if (question.length === 0) return err(serviceError('invalid', 'Write your question first.'));
+  if (question.length === 0)
+    return err(keyedError('invalid', 'request_items.write_your_question_first'));
   if (question.length > REQUEST_QUESTION_MAX_LENGTH) {
     return err(
-      serviceError(
-        'invalid',
-        `Keep your question under ${REQUEST_QUESTION_MAX_LENGTH} characters. You can add more in a second question.`,
-      ),
+      keyedError('invalid', 'request_items.keep_your_question_under', {
+        max: REQUEST_QUESTION_MAX_LENGTH,
+      }),
     );
   }
 
@@ -124,7 +124,7 @@ export async function askAboutRequestItem(
       request.missionId !== missionId ||
       evidenceRequestTriageGroup(request) === null
     ) {
-      return err(serviceError('not_found', 'request not found'));
+      return err(keyedError('not_found', 'request_items.request_not_found'));
     }
 
     // The visible code is read here, never taken from the caller: it is what ties the note to the
@@ -132,7 +132,7 @@ export async function askAboutRequestItem(
     // missing, or this request has none) means the item cannot take a question.
     const referenceCode = (await referenceCodesFor(tx, 'R', [request.id])).get(request.id);
     if (!referenceCode) {
-      return err(serviceError('invalid', 'This request cannot take a question yet.'));
+      return err(keyedError('invalid', 'request_items.this_request_cannot_take_a_question'));
     }
 
     const prefix = requestQuestionPrefix(referenceCode);
@@ -149,12 +149,7 @@ export async function askAboutRequestItem(
         ),
       );
     if ((earlier[0]?.total ?? 0) >= REQUEST_QUESTION_LIMIT) {
-      return err(
-        serviceError(
-          'invalid',
-          'You have asked several questions about this item. Wait for the agency to reply in the case notes.',
-        ),
-      );
+      return err(keyedError('invalid', 'request_items.you_have_asked_several_questions'));
     }
 
     return addNote(tx, {

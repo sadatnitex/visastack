@@ -23,6 +23,7 @@ import { caseCountriesForFamily } from '../../../../lib/case-choices';
 import { PROFILE_HIDDEN_LINE, ownsApplicant } from '../../../../lib/hidden-record';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort } from '../../../../lib/providers';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { otherItemSavedLine } from '../../../../lib/success-lines';
 import type { ActionState } from './actions';
@@ -54,7 +55,7 @@ export async function setSectionOpenAction(
     }
     return setSectionOpen(db, { actorAccountId: accountId, applicantId, sectionKey, open });
   });
-  if (!result.ok) return { ok: false, message: result.error.message };
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
   refresh(applicantId);
   return { ok: true, message: open ? 'Section opened.' : 'Section closed.' };
 }
@@ -89,7 +90,9 @@ export async function openSuggestedSectionsAction(
         sectionKey,
         open: true,
       });
-      if (!result.ok) return { error: result.error.message, opened, hidden: false };
+      if (!result.ok) {
+        return { error: await serviceErrorMessage(result.error), opened, hidden: false };
+      }
       opened += 1;
     }
     return { error: null, opened, hidden: false };
@@ -120,7 +123,7 @@ export async function setExemptionAction(
     }
     return setExemption(db, { actorAccountId: accountId, applicantId, kind, targetKey, on });
   });
-  if (!result.ok) return { ok: false, message: result.error.message };
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
   refresh(applicantId);
   return { ok: true, message: on ? 'Marked.' : 'Mark removed.' };
 }
@@ -169,7 +172,7 @@ export async function saveOtherItemAction(
         repeatingRecordKey: recordKey,
         ...(encryption ? { encryption } : {}),
       });
-      if (!edit.ok) return { ok: false, message: edit.error.message };
+      if (!edit.ok) return { ok: false, message: await serviceErrorMessage(edit.error) };
     }
     return { ok: true, message: otherItemSavedLine(module.label) };
   });

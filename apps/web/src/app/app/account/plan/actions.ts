@@ -15,6 +15,7 @@ import { bootstrapAdminEmails } from '../../../../lib/admin-emails';
 import { resolveBaseUrl } from '../../../../lib/base-url';
 import { paymentUrlFor } from '../../../../lib/payment-urls';
 import { paymentPorts } from '../../../../lib/providers';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 /**
@@ -51,9 +52,9 @@ const PERSON_REASONS = new Set([
  * A refusal in a traveller's words. The refusals written for them pass through; the rest (the
  * shared payment opening words some for agency invoices) are put plainly.
  */
-function personWords(error: ServiceError): FormResult {
+async function personWords(error: ServiceError): Promise<FormResult> {
   if (error.reason !== undefined && PERSON_REASONS.has(error.reason)) {
-    return { ok: false, message: error.message };
+    return { ok: false, message: await serviceErrorMessage(error) };
   }
   if (error.reason === 'test_mode_owner_only') {
     return {
@@ -62,7 +63,8 @@ function personWords(error: ServiceError): FormResult {
         'Paying for a plan is still being tested, so it is not open yet. Nothing was charged, and your plan stays as it is.',
     };
   }
-  if (error.code === 'rate_limited') return { ok: false, message: error.message };
+  if (error.code === 'rate_limited')
+    return { ok: false, message: await serviceErrorMessage(error) };
   if (error.code === 'not_found') return NO_PURCHASE;
   if (/already paid/i.test(error.message)) {
     return { ok: false, message: 'This purchase is already paid.' };

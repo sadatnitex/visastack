@@ -3199,12 +3199,7 @@ export async function submitEvidenceResponse(
     return err(keyedError('invalid', 'agency.choosing_an_exact_version_is_not'));
   }
   if (!fieldPins && input.factVersionId !== undefined) {
-    return err(
-      serviceError(
-        'invalid',
-        'Choosing an exact saved value is not available yet. Send the detail and its current value is used.',
-      ),
-    );
+    return err(keyedError('invalid', 'agency.choosing_an_exact_saved_value_is'));
   }
 
   return db.transaction(async (tx) => {
@@ -3264,12 +3259,7 @@ export async function submitEvidenceResponse(
         }
         const waiting = await waitingFieldSubmission(tx, request);
         if (waiting?.id !== earlier.id) {
-          return err(
-            serviceError(
-              'stale',
-              'This was already sent and has moved on. Refresh to see where it stands.',
-            ),
-          );
+          return err(keyedError('stale', 'agency.this_was_already_sent_and_has'));
         }
         return ok({ ...request, submissionId: earlier.id, replayed: true });
       }

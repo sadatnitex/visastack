@@ -7,7 +7,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { isRealCalendarDay } from './expiry';
 import { incrementMaterialRevision, missionsSelectingFact } from './material-revision';
 import {
@@ -200,7 +200,7 @@ export async function editFact(
 ): Promise<Result<EditFactResult, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
   if (!applicant) {
-    return err(serviceError('not_found', 'applicant not found'));
+    return err(keyedError('not_found', 'profile.applicant_not_found'));
   }
 
   // Authorization is the policy engine's decision, not this service's. Only the
@@ -237,9 +237,7 @@ export async function editFact(
   }
 
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
-    return err(
-      serviceError('consent_required', 'Core processing consent is required to edit facts'),
-    );
+    return err(keyedError('consent_required', 'profile.core_processing_consent_is_required'));
   }
 
   const fieldDef = await findFieldByKey(db, input.fieldKey);
@@ -249,7 +247,7 @@ export async function editFact(
   // A date field only ever holds a real calendar day (year-month-day), whoever writes it: a typo
   // or an unreadable reading cannot reach the profile as a date nobody can use.
   if (fieldDef.dataType === 'date' && !isRealCalendarDay(input.value.trim())) {
-    return err(serviceError('invalid', 'enter a real date, as year, month and day'));
+    return err(keyedError('invalid', 'profile.enter_a_real_date'));
   }
   const repeatingRecordKey = input.repeatingRecordKey ?? null;
   if (!fieldDef.repeating && repeatingRecordKey !== null) {

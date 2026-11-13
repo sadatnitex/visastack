@@ -3,7 +3,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
-import { type ServiceError, serviceError } from '../errors';
+import { type ServiceError, keyedError, serviceError } from '../errors';
 import { isMissingRelationError } from '../missing-relation';
 import { checkRateLimit } from '../rate-limit';
 
@@ -75,7 +75,7 @@ export async function startWhatsAppLink(
   },
 ): Promise<Result<StartLinkResult, ServiceError>> {
   if (!input.optIn) {
-    return err(serviceError('invalid', 'Agree to receive VisaStack messages on WhatsApp first.'));
+    return err(keyedError('invalid', 'whatsapp_link.agree_to_receive_messages_first'));
   }
   const now = input.now ?? new Date();
   const decision = await checkRateLimit(
@@ -112,12 +112,12 @@ export async function startWhatsAppLink(
       digits = candidate;
     } catch (error) {
       if (isMissingRelationError(error)) {
-        return err(serviceError('upstream_error', 'WhatsApp is not available yet.'));
+        return err(keyedError('upstream_error', 'whatsapp_link.whatsapp_is_not_available_yet'));
       }
       if (!isUniqueViolation(error)) throw error;
     }
   }
-  if (digits === '') return err(serviceError('upstream_error', 'Please try again.'));
+  if (digits === '') return err(keyedError('upstream_error', 'whatsapp_link.please_try_again'));
   const code = `${digits.slice(0, 5)}-${digits.slice(5)}`;
   const message = `LINK ${code}`;
   const number = input.businessNumber?.replace(/\D/g, '') ?? '';

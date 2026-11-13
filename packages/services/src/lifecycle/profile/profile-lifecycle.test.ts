@@ -217,6 +217,12 @@ describe('LC-G1 No Longer Current and Ended', () => {
     const access = await editAccess(db, owner.accountId, owner.applicantId);
     const marked = await markFactNotCurrent(access, { factId: saved.fact.id });
     expect(isErr(marked) && marked.error.code).toBe('consent_required');
+    // Keyed like editFact's refusal, with the English unchanged.
+    expect(isErr(marked) && marked.error).toEqual({
+      code: 'consent_required',
+      message: 'Core processing consent is required to edit facts',
+      messageKey: 'profile.core_processing_consent_is_required',
+    });
   });
 
   it('agency members cannot use either, even with an editing grant', async () => {

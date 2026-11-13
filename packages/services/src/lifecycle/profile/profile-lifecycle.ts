@@ -6,7 +6,7 @@ import { AuthorizedApplicant } from '../../access/require-access';
 import { appendAuditEvent } from '../../audit';
 import { hasConsent } from '../../consent';
 import { type Db, first, required, schema } from '../../db';
-import { type ServiceError, serviceError } from '../../errors';
+import { type ServiceError, keyedError, serviceError } from '../../errors';
 import { incrementMaterialRevision, missionsSelectingFact } from '../../material-revision';
 import type { KeyManagementPort } from '../../ports';
 import {
@@ -80,9 +80,7 @@ async function ownerOnly(
     return err(serviceError('forbidden', 'only the profile owner can change this'));
   }
   if (!(await hasConsent(access.tx, ownerAccountId, 'CORE_PROCESSING'))) {
-    return err(
-      serviceError('consent_required', 'Core processing consent is required to edit facts'),
-    );
+    return err(keyedError('consent_required', 'profile.core_processing_consent_is_required'));
   }
   return ok(ownerAccountId);
 }

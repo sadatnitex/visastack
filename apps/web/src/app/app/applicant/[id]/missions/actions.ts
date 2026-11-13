@@ -11,6 +11,7 @@ import {
   purposeMatchTerms,
 } from '../../../../../lib/case-choices';
 import { reportServerError } from '../../../../../lib/server-error';
+import { serviceErrorMessage } from '../../../../../lib/service-error-message';
 import { withSession } from '../../../../../lib/session';
 import { readCaseForm } from './case-form';
 import type { ActionState } from './case-form-fields';
@@ -88,7 +89,7 @@ export async function createMissionAction(
     if (!created.ok) {
       const state: ActionState = {
         ok: false,
-        message: REFUSAL_WORDS[created.error.code] ?? created.error.message,
+        message: REFUSAL_WORDS[created.error.code] ?? (await serviceErrorMessage(created.error)),
         values: read.values,
         attempt: (prev.attempt ?? 0) + 1,
       };
