@@ -8,7 +8,7 @@ import { KEY_HOLDBACK, loadKeyDrafts, refillBengali } from './refill.mjs';
 
 const SIGNOFF_NOTE =
   'Legal wording: OWNER_BLANKET_SIGNOFF_2026-11-12 (legal wording, not reviewed)';
-import { Register } from './register.mjs';
+import { HOLDBACK, Register } from './register.mjs';
 
 const BN = 'শর্ত';
 const header = 'semantic_group,review_queue,english,bn_BD_draft,automated_checks\n';
@@ -215,6 +215,96 @@ describe('refillBengali: drafts written for a catalogue key (no census row, no r
       /import \{ COMMERCIAL_RE, LEGAL_RE, OFFICIAL_RE \} from '\.\/review-queue\.mjs';/,
     );
     assert.doesNotMatch(src, /const (LEGAL|COMMERCIAL|OFFICIAL)_RE\s*=/);
+  });
+});
+
+describe('refillBengali: plural messages and renamed placeholders from a draft written for the key', () => {
+  const PLURAL = '{count, plural, one {# request waiting} other {# requests waiting}}';
+  const PLURAL_BN = '{count, plural, one {#টি অনুরোধ অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}';
+  const OF = 'Showing {length} of {length2}.';
+  const OF_BN = '{length2}টির মধ্যে {length}টি দেখানো হচ্ছে।';
+  const pluralReg = new Register({
+    registerCsv: [
+      'semantic_group,review_queue,english,bn_BD_draft,automated_checks',
+      'SG-P,ORDINARY_UI,{count} request{choice} waiting,{count}টি অনুরোধ অপেক্ষায়,PASS',
+      'SG-N,ORDINARY_UI,Showing {length} of {length}.,{length}টির মধ্যে {length}টি দেখানো হচ্ছে।,PASS',
+      'SG-H,OFFICIAL_VISA_REQUIREMENT,{count} fee{choice} due,{count}টি ফি বাকি,PASS',
+      'SG-F,ORDINARY_UI,{count} file{choice} held,{count}টি ডকুমেন্ট,CASE_UPLOAD_AMBIGUITY',
+      'SG-G,ORDINARY_UI,Close,বন্ধ করুন,PASS',
+      '',
+    ].join('\n'),
+  });
+  function mixedRoot(en, sources) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'refill-plural-'));
+    fs.mkdirSync(path.join(dir, 'apps/web/src/i18n'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'apps/web/src/i18n/x.ts'), renderCatalog('x', en, {}));
+    fs.writeFileSync(path.join(dir, 'apps/web/src/i18n/x.sources.json'), renderSources(sources));
+    return dir;
+  }
+  const drafts = (rows) => new Map(rows.map(([k, en, bn, note = '']) => [k, { en, bn, note }]));
+  const run = (dir, keyDrafts, extra = {}) =>
+    refillBengali({ root: dir, register: pluralReg, keyDrafts, ...extra })[0].filled;
+
+  test('a key with no group takes a plural draft whose variables and nesting match the English', () => {
+    const dir = mixedRoot({ 'x.waiting': PLURAL }, { 'x.waiting': null });
+    assert.deepEqual(run(dir, drafts([['x.waiting', PLURAL, PLURAL_BN]])), ['x.waiting']);
+    assert.equal(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.waiting'], PLURAL_BN);
+  });
+
+  test('a plural draft with another variable, a missing other branch, a flattened plural or an English word stays English', () => {
+    const en = { 'x.a': PLURAL, 'x.b': PLURAL, 'x.c': PLURAL, 'x.d': PLURAL };
+    const dir = mixedRoot(en, { 'x.a': null, 'x.b': null, 'x.c': null, 'x.d': null });
+    const rows = drafts([
+      ['x.a', PLURAL, '{total, plural, one {#টি অনুরোধ অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}'],
+      ['x.b', PLURAL, '{count, plural, one {#টি অনুরোধ অপেক্ষায়}}'],
+      ['x.c', PLURAL, '{count}টি অনুরোধ অপেক্ষায়'],
+      ['x.d', PLURAL, '{count, plural, one {# request অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}'],
+    ]);
+    assert.deepEqual(run(dir, rows), []);
+  });
+
+  test('a passing group that cannot fit the key (plural switch, other placeholder names) falls back to the key draft', () => {
+    const dir = mixedRoot(
+      { 'x.waiting': PLURAL, 'x.of': OF },
+      { 'x.waiting': 'SG-P', 'x.of': 'SG-N' },
+    );
+    // Without a draft for the key the group still fills nothing.
+    assert.deepEqual(run(dir, drafts([])), []);
+    const rows = drafts([
+      ['x.waiting', PLURAL, PLURAL_BN],
+      ['x.of', OF, OF_BN],
+    ]);
+    assert.deepEqual(run(dir, rows), ['x.of', 'x.waiting']);
+    const bn = readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn;
+    assert.equal(bn['x.of'], OF_BN);
+    assert.equal(bn['x.waiting'], PLURAL_BN);
+  });
+
+  test('a held, unreleased or failing group never falls back to a key draft, and neither does a release of named groups', () => {
+    const HELD = [...HOLDBACK.keys()][0];
+    const due = '{count, plural, one {# fee due} other {# fees due}}';
+    const heldFile = '{count, plural, one {# file held} other {# files held}}';
+    const en = { 'x.official': due, 'x.failing': heldFile, 'x.held': PLURAL, 'x.waiting': PLURAL };
+    const dir = mixedRoot(en, {
+      'x.official': 'SG-H',
+      'x.failing': 'SG-F',
+      'x.held': HELD,
+      'x.waiting': 'SG-P',
+    });
+    const rows = drafts([
+      ['x.official', due, '{count, plural, one {#টি ফি বাকি} other {#টি ফি বাকি}}'],
+      ['x.failing', heldFile, '{count, plural, one {#টি ডকুমেন্ট} other {#টি ডকুমেন্ট}}'],
+      ['x.held', PLURAL, PLURAL_BN],
+      ['x.waiting', PLURAL, PLURAL_BN],
+    ]);
+    assert.deepEqual(run(dir, rows, { groups: new Set(['SG-P']) }), []);
+    assert.deepEqual(run(dir, rows), ['x.waiting']);
+  });
+
+  test('a group that simply fills is never replaced by a key draft', () => {
+    const dir = mixedRoot({ 'x.close': 'Close' }, { 'x.close': 'SG-G' });
+    assert.deepEqual(run(dir, drafts([['x.close', 'Close', 'বন্ধ']])), ['x.close']);
+    assert.equal(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.close'], 'বন্ধ করুন');
   });
 });
 

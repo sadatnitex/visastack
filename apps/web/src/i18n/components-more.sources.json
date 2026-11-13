@@ -27,6 +27,7 @@
   "componentsMore.safeCopyEditor.aSafeCopyIsANew": "SG-24e6815a",
   "componentsMore.safeCopyEditor.accept": "SG-c67c0fbc",
   "componentsMore.safeCopyEditor.acceptBox": "SG-2e386e07",
+  "componentsMore.safeCopyEditor.acceptBoxNumber": null,
   "componentsMore.safeCopyEditor.addBox": "SG-66899eb0",
   "componentsMore.safeCopyEditor.backToEditing": "SG-a34d1d79",
   "componentsMore.safeCopyEditor.boxesOnThisPage": "SG-91427b2a",
@@ -53,6 +54,7 @@
   "componentsMore.safeCopyEditor.previousPage": "SG-e8f857b5",
   "componentsMore.safeCopyEditor.remove": "SG-5e7adbab",
   "componentsMore.safeCopyEditor.removeBox": "SG-cde6c4ca",
+  "componentsMore.safeCopyEditor.removeBoxNumber": null,
   "componentsMore.safeCopyEditor.removeSafeCopy": "SG-07f94c77",
   "componentsMore.safeCopyEditor.reviewPages": "SG-31407fda",
   "componentsMore.safeCopyEditor.safeCopiesAreNotAvailableHere": "SG-920bc939",
@@ -61,6 +63,7 @@
   "componentsMore.safeCopyEditor.safeCopy": "SG-83604a1d",
   "componentsMore.safeCopyEditor.saveSafeCopy": "SG-d23a4a27",
   "componentsMore.safeCopyEditor.select": "SG-f3c3a277",
+  "componentsMore.safeCopyEditor.selectBoxNumber": null,
   "componentsMore.safeCopyEditor.selectedBox": "SG-f8695c0c",
   "componentsMore.safeCopyEditor.showThePageAgain": "SG-f48ff9b0",
   "componentsMore.safeCopyEditor.suggestBoxes": "SG-551e64f1",
@@ -68,6 +71,7 @@
   "componentsMore.safeCopyEditor.thisPageCouldNotBeShown": "SG-22b66608",
   "componentsMore.safeCopyEditor.thisPageShowsWhenYouScroll": "SG-5e8ca709",
   "componentsMore.safeCopyEditor.tryAgain": "SG-1e782337",
+  "componentsMore.safeCopyEditor.tryAgainToShowPageNumber": null,
   "componentsMore.safeCopyEditor.youChoseNothingToHideOn": "SG-43614c58",
   "componentsMore.sourceNote.wordsCopiedFromTheSource": "SG-70f94137"
 }

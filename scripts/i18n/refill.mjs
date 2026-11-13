@@ -108,7 +108,9 @@ export function resolveKeyDraft(reg, key, english, draft) {
   const findings = all.filter((x) => !x.rule.startsWith('WARN_') || x.rule === 'WARN_LATIN_DIGITS');
   const checks = findings.length ? findings.map((x) => x.rule).join(' ; ') : 'PASS';
   // resolveRow applies the rest: the released queues, PASS, no marker or em dash, placeholders,
-  // plural shape and edge spaces.
+  // plural shape and edge spaces. A key draft is written for this key's own words, so it may carry
+  // a plural message: the web translator formats the same plural subset in both languages, and the
+  // variables, the plural variables and the nesting must match the English exactly.
   const r = reg.resolveRow(
     {
       semantic_group: key,
@@ -117,11 +119,23 @@ export function resolveKeyDraft(reg, key, english, draft) {
       bn_BD_draft: draft.bn,
     },
     english,
+    { plural: true },
   );
   return { bn: r.bn, reason: r.reason };
 }
 
 /** Surfaces that have a catalogue and a sources map. */
+/**
+ * The only reasons a key with a register group may fall back to a draft written for the key: the
+ * group's own row is released and passes, but it words the plural with an English-only switch or
+ * names a placeholder differently from the catalogue, so it can never fit this key. A held group,
+ * an unreleased queue or a failing row never falls back.
+ */
+export const KEY_DRAFT_FALLBACK_REASONS = new Set([
+  'english_is_plural_message',
+  'bn_placeholders_differ',
+]);
+
 export function listSurfaces(root) {
   const dir = path.join(root, 'apps/web/src/i18n');
   return fs
@@ -173,6 +187,10 @@ export function refillBengali({
         if (group.includes('|')) continue;
         if (groups && !groups.has(group)) continue;
         r = reg.resolveGroup(group, catalog.en[key]);
+        // The group's row passes but cannot fit this key's plural or placeholder names: a draft
+        // written for the key itself may fill it, through every gate a key draft has.
+        if (!r.bn && !groups && KEY_DRAFT_FALLBACK_REASONS.has(r.reason ?? '') && drafts.has(key))
+          r = resolveKeyDraft(reg, key, catalog.en[key], drafts.get(key));
       } else {
         // No register group: only a draft written for this exact key may fill it, and never in a
         // release of named groups.

@@ -254,8 +254,9 @@ export function check(enIn, bnIn, opts = {}) {
   // 6. forbidden Latin letters (a bn string that is still English)
   // A label quoted exactly as the English writes it ("Settings") is the person's own device label,
   // kept in Latin by the direction of 2026-11-13 (OWNER_DECISIONS.json); anything else in Latin is still a leftover.
-  const quotedLabels = stripMarkers(bn).replace(/"([^"\u0980-\u09FF]+)"/g, (m, label) =>
-    en.includes(label) ? ' ' : m,
+  const quotedLabels = withoutPluralScaffold(en, stripMarkers(bn)).replace(
+    /"([^"\u0980-\u09FF]+)"/g,
+    (m, label) => (en.includes(label) ? ' ' : m),
   );
   if (
     /[A-Za-z]{4,}/.test(
@@ -267,6 +268,23 @@ export function check(enIn, bnIn, opts = {}) {
   )
     f.push({ rule: 'LATIN_LEFTOVER', detail: 'long Latin word left in Bengali text' });
   return f;
+}
+
+/**
+ * The Bengali without the plural scaffolding the English also has: `{count, plural,` and the branch
+ * names (`=1`, `one`, `other`) in front of a brace. Those words are message syntax, not text a
+ * person reads, so they are not Latin leftovers. Only a variable the English pluralizes is
+ * removed, and only where the syntax stands: an English word inside a branch still fails.
+ * @param {string} en
+ * @param {string} bn
+ */
+function withoutPluralScaffold(en, bn) {
+  const variables = [...en.matchAll(/\{\s*(\w+)\s*,\s*plural\s*,/g)].map((m) => m[1]);
+  if (!variables.length) return bn;
+  let out = bn;
+  for (const name of new Set(variables))
+    out = out.replace(new RegExp(`\\{\\s*${name}\\s*,\\s*plural\\s*,`, 'g'), '{');
+  return out.replace(/(^|[\s{}])(=\d+|zero|one|two|few|many|other)\s*(?=\{)/g, '$1');
 }
 
 // ---- self-test: the existing catalogue must trip the guards
@@ -341,6 +359,30 @@ function selfTest() {
     ['fail', 'iPhone: open Settings.', 'iPhone: "Preferences" খুলুন।'],
     ['pass', 'iPhone: open Settings.', 'iPhone: "Settings" খুলুন।'],
     ['pass', 'Neon Auth handles sign-in.', 'Neon Auth সাইন ইন পরিচালনা করে।'],
+    // Plural messages (2026-11-13): the plural syntax the English also has is not a Latin leftover,
+    // an English word inside a branch still is, and the syntax excuses nothing in a plain sentence.
+    [
+      'pass',
+      '{count, plural, one {# request waiting} other {# requests waiting}}',
+      '{count, plural, one {#টি অনুরোধ অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}',
+    ],
+    [
+      'pass',
+      '{held, plural, =1 {{held} file is waiting.} other {{held} files are waiting.}}',
+      '{held, plural, =1 {{held}টি ডকুমেন্ট অপেক্ষা করছে।} other {{held}টি ডকুমেন্ট অপেক্ষা করছে।}}',
+    ],
+    [
+      'fail',
+      '{count, plural, one {# request waiting} other {# requests waiting}}',
+      '{count, plural, one {# request অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}',
+    ],
+    [
+      'fail',
+      '{count, plural, one {# request waiting} other {# requests waiting}}',
+      '{total, plural, one {#টি অনুরোধ অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}',
+    ],
+    ['fail', 'Requests waiting: {count}', '{count, plural, other {#টি অনুরোধ অপেক্ষায়}}'],
+    ['fail', 'Show the other requests.', 'other অনুরোধগুলো দেখান।'],
   ];
   for (const [want, en, bn] of cases) {
     const r = check(en, bn).filter((x) => !x.rule.startsWith('WARN_'));
