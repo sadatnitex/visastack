@@ -125,7 +125,10 @@ const drawPanels = (
       </I18nProvider>,
     ),
   );
-const job = (status: 'PENDING' | 'CLAIMED' | 'READY' | 'FAILED' | 'EXPIRED', lastError: string | null = null) => ({
+const job = (
+  status: 'PENDING' | 'CLAIMED' | 'READY' | 'FAILED' | 'EXPIRED',
+  lastError: string | null = null,
+) => ({
   id: 'j1',
   status,
   createdAt: '2026-10-01T00:00:00Z',
