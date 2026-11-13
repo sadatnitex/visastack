@@ -987,8 +987,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdImportImportPanel.stop': 'থামান',
     'appApplicant.appApplicantIdImportImportPanel.thisBrowserRemembersWhichFilesEarlier':
       'এই ব্রাউজার মনে রাখে আগের আমদানিতে এখানে কোন ডকুমেন্টগুলো যোগ হয়েছিল (নাম নয়), যাতে আগে যোগ হওয়া ডকুমেন্ট আবার পাঠানো না হয়। আমদানি শেষ করতে একই ফোল্ডার আবার যোগ করুন।',
-    'appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles':
-      'থেমে থাকা সব ডকুমেন্টের জন্য আবার চেষ্টা করুন',
     'appApplicant.appApplicantIdImportImportPanel.whoAreTheseFilesFor': 'এই ডকুমেন্টগুলো কার জন্য?',
     'appApplicant.appApplicantIdImportImportPanel.yourFiles': 'আপনার ডকুমেন্ট',
     'appApplicant.appApplicantIdImportImportPanel.yourFilesAreSavedAndChecked':

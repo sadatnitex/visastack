@@ -729,4 +729,8 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy',
     'Left English at review (refill 7): Quotes the consent setting Let VisaStack Process My Details, which stays English on Home.',
   ],
+  [
+    'appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles',
+    'Left English at review (refill 7): The English line on each paused file tells the person to use Try Again for All Paused Files by that name (label in name).',
+  ],
 ]);
