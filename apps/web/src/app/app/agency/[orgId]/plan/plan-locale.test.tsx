@@ -58,6 +58,8 @@ const { appAgencyCatalog } = await import('../../../../../i18n/app-agency');
 const { default: PlanPage } = await import('./page');
 const { default: InvoicesPage } = await import('./invoices/page');
 const { InvoiceCard } = await import('./invoices/invoice-card');
+const { primeLocale } = await import('../../../../../lib/i18n-server');
+const bnCat = appAgencyCatalog.bn as Record<string, string>;
 
 const BENGALI = /[ঀ-৿]/;
 
@@ -150,7 +152,6 @@ describe('Plan and Usage under Bengali', () => {
     expect(bn).toContain('the price is BDT 3,000.00');
     expect(bn).toMatch(BENGALI);
     // Every Bengali message whose English shows on the English page shows in Bengali on this page.
-    const bnCat = appAgencyCatalog.bn as Record<string, string>;
     const enCat = appAgencyCatalog.en as Record<string, string>;
     const shownInEnglish = Object.keys(bnCat).filter(
       (key) =>
@@ -177,74 +178,188 @@ describe('Plan and Usage under Bengali', () => {
     expect(bn).not.toContain((appAgencyCatalog.en as Record<string, string>)[key]);
   });
 
-  it('reads exactly as English when the plan cannot be read for this person', async () => {
+  it('says in Bengali that the plan cannot be read for this person', async () => {
     mocks.usage.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     const { en, bn } = await both(() =>
       renderServer(PlanPage({ params: Promise.resolve({ orgId: ORG }) })),
     );
     expect(en).toContain("You don't have access to this organization's plan.");
     expect(en).not.toContain('Current Plan');
-    expect(bn).toBe(en);
+    expect(bn).toContain(bnCat['appAgency.appAgencyOrgidPlanInvoicesPage.usageBilling']);
+    for (const key of ['yourAgencySPlanAndHow', 'youDonTHaveAccessTo'])
+      expect(bn, key).toContain(bnCat[`appAgency.appAgencyOrgidPlanPage.${key}`]);
+    expect(bn).not.toContain("You don't have access to this organization's plan.");
+    expect(bn).not.toMatch(/appAgency\./);
+  });
+
+  it('says in Bengali that no access offer is recorded, and that the usage is for information', async () => {
+    const base = usage();
+    mocks.usage.mockResolvedValue({
+      ...base,
+      value: {
+        ...base.value,
+        planAssigned: false,
+        plan: null,
+        meters: base.value.meters.map((meter) => ({ ...meter, shownOnly: true })),
+      },
+    });
+    const { en, bn } = await both(() =>
+      renderServer(PlanPage({ params: Promise.resolve({ orgId: ORG }) })),
+    );
+    expect(en).toContain('Access Offer Not Recorded');
+    for (const key of ['accessOfferNotRecorded', 'anAccessOfferHasNotBeen'])
+      expect(bn, key).toContain(bnCat[`appAgency.appAgencyOrgidPlanPage.${key}`]);
+    expect(bn).toContain(
+      (bnCat['appAgency.appAgencyOrgidPlanPage.shownForYourInformationItDoes'] ?? '?').trim(),
+    );
+    expect(bn).not.toContain('Access Offer Not Recorded');
+    expect(bn).not.toMatch(/appAgency\./);
   });
 });
 
 describe('Invoices under Bengali', () => {
   const page = () => renderServer(InvoicesPage({ params: Promise.resolve({ orgId: ORG }) }));
 
-  it('reads exactly as English with invoices listed (rows state)', async () => {
+  const inv = (key: string) => bnCat[`appAgency.appAgencyOrgidPlanInvoicesPage.${key}`] ?? key;
+
+  it('shows the invoices page in Bengali with invoices listed (rows state)', async () => {
     const { en, bn } = await both(page);
     expect(en).toContain('INV-2026-001');
-    expect(bn).toBe(en);
-    expect(bn).not.toMatch(BENGALI);
+    expect(bn).toContain('INV-2026-001');
+    expect(bn).toContain(inv('invoices'));
+    expect(bn).toContain(inv('payAnInvoiceOnlineOrTell'));
+    expect(bn).not.toContain('Pay an invoice online or tell us');
+    expect(bn).not.toMatch(/appAgency\./);
   });
 
-  it('reads exactly as English with no invoices (empty state)', async () => {
+  it('shows the invoices page in Bengali with no invoices (empty state)', async () => {
     mocks.list.mockResolvedValue({ ok: true, value: [] });
     const { en, bn } = await both(page);
     expect(en).toContain('No invoices yet.');
-    expect(bn).toBe(en);
+    expect(bn).toContain(inv('noInvoicesYetWhenVisastackIssues'));
+    expect(bn).not.toContain('No invoices yet.');
   });
 
-  it('reads exactly as English for a member who may not see invoices', async () => {
+  it('says in Bengali that a member may not see invoices', async () => {
     mocks.list.mockResolvedValue({ ok: false, error: { code: 'forbidden', message: 'no' } });
     const { en, bn } = await both(page);
     expect(en).toContain('Only owners and admins can see and pay invoices.');
-    expect(bn).toBe(en);
+    expect(bn).toContain(inv('onlyOwnersAndAdminsCanSee'));
+    expect(bn).not.toContain('Only owners and admins can see and pay invoices.');
   });
 
+  const card = (key: string) =>
+    bnCat[`appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.${key}`] ?? key;
+  const claim = {
+    id: 'cl1',
+    method: 'BANK_TRANSFER',
+    amountMinorUnits: 125050,
+    currency: 'BDT',
+    paidOn: new Date('2026-10-20T00:00:00Z'),
+    status: 'SUBMITTED',
+    decisionReason: null,
+    hasProofFile: true,
+    createdAt: new Date('2026-10-20T00:00:00Z'),
+  } as never;
+  const attempt = {
+    id: 'at1',
+    amountMinorUnits: 125050,
+    currency: 'BDT',
+    status: 'RECORDED',
+    mode: 'LIVE',
+    createdAt: new Date('2026-10-21T00:00:00Z'),
+    redirectedAt: null,
+  } as never;
+  const receipt = {
+    id: 'rc1',
+    number: 'RCP-1',
+    amountMinorUnits: 125050,
+    currency: 'BDT',
+    issuedAt: new Date('2026-10-28T00:00:00Z'),
+  } as never;
+
+  /** The card as a page renders it: the page primes the reader language first. */
+  const drawCard = (view: AgencyInvoiceView, online: 'pay' | null = 'pay') =>
+    both(async () => {
+      await primeLocale();
+      return renderServer(
+        InvoiceCard({
+          invoice: view,
+          organizationId: ORG,
+          online: online ? { BDT: online } : {},
+          latestDate: '2026-10-28',
+        }),
+      );
+    });
+
   it.each([
-    ['open and owed', invoice()],
-    [
-      'paid with a receipt',
+    ['reported, online payment offered', 'pay' as const, 'paymentReportedWeAreCheckingIt'],
+    ['reported, no online payment', null, 'paymentReportedWeAreCheckingIt7bdaca'],
+  ])('shows a reported payment in Bengali on the invoice card: %s', async (_name, online, key) => {
+    const { en, bn } = await drawCard(
+      invoice({ state: 'PAYMENT_REPORTED', claims: [claim] }),
+      online,
+    );
+    expect(en).toContain('Payment Reported: we are checking it.');
+    expect(bn).toContain(card(key));
+    for (const k of ['paymentReports', 'downloadProof']) expect(bn, k).toContain(card(k));
+    expect(bn).not.toContain('Payment Reported: we are checking it.');
+    expect(bn).not.toMatch(/appAgency\./);
+  });
+
+  it('shows the paid card with its online payment and receipt in Bengali', async () => {
+    const { en, bn } = await drawCard(
       invoice({
         status: 'PAID',
         state: 'PAID',
         collectedAmountMinorUnits: 125050,
         outstandingMinorUnits: 0,
-        receipts: [
-          {
-            id: 'rc1',
-            receiptNumber: 'RCP-1',
-            amountMinorUnits: 125050,
-            currency: 'BDT',
-            issuedAt: new Date('2026-10-28T00:00:00Z'),
-          } as never,
-        ],
+        attempts: [attempt],
+        receipts: [receipt],
       }),
-    ],
-    ['overdue', invoice({ dueDate: new Date(Date.now() - 2 * DAY) })],
-  ])('reads exactly as English on the invoice card: %s', async (_name, view) => {
-    const { en, bn } = await both(() =>
-      renderServer(
-        InvoiceCard({
-          invoice: view,
-          organizationId: ORG,
-          online: { BDT: 'pay' },
-          latestDate: '2026-10-28',
-        }),
-      ),
     );
-    expect(en).toContain('INV-2026-001');
-    expect(bn).toBe(en);
+    expect(en).toContain('Online Payments');
+    for (const k of ['onlinePayments', 'receipts', 'downloadReceiptPdf'])
+      expect(bn, k).toContain(card(k));
+    expect(bn).toContain('RCP-1');
+    expect(bn).not.toContain('Online Payments');
+    expect(bn).not.toMatch(/appAgency\./);
+  });
+
+  it('shows the refunded amounts in Bengali on the invoice card', async () => {
+    const { en, bn } = await drawCard(
+      invoice({
+        status: 'PAID',
+        state: 'PARTLY_REFUNDED',
+        collectedAmountMinorUnits: 25050,
+        refundedMinorUnits: 100000,
+        outstandingMinorUnits: 0,
+      }),
+    );
+    expect(en).toContain('Kept After Refunds');
+    for (const k of ['keptAfterRefunds', 'refunded']) expect(bn, k).toContain(card(k));
+    expect(bn).not.toContain('Kept After Refunds');
+  });
+
+  it('names the payment sections in Bengali for screen readers', async () => {
+    current.holder = null;
+    current.locale = 'bn';
+    await primeLocale();
+    const html = await renderServer(
+      InvoiceCard({
+        invoice: invoice({ claims: [claim], attempts: [attempt], receipts: [receipt] }),
+        organizationId: ORG,
+        online: { BDT: 'pay' },
+        latestDate: '2026-10-28',
+      }),
+    );
+    const named = (key: string) => card(key).replace('{invoiceRef}', 'INV-2026-001');
+    for (const key of [
+      'payInvoiceref',
+      'paymentReportsForInvoiceref',
+      'onlinePaymentsForInvoiceref',
+      'receiptsForInvoiceref',
+    ])
+      expect(html, key).toContain(`aria-label="${named(key)}"`);
   });
 });

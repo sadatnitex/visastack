@@ -150,6 +150,27 @@ describe('the agency Clients page under Bengali', () => {
     expect(text).not.toMatch(/appAgency\./);
   });
 
+  it('names a request for a profile detail Field in Bengali', async () => {
+    mocks.loadEvidenceRequestPage.mockResolvedValue({
+      ...page([
+        {
+          id: 'r2',
+          kind: 'FIELD',
+          docType: null,
+          fieldKey: 'passport_number',
+          status: 'OPEN',
+          applicantName: 'Rahim Uddin',
+          dueDate: null,
+          referenceCode: 'R-8K2Q9M',
+        },
+      ]),
+      viewCounts: counts,
+    });
+    const text = await show('bn');
+    expect(text).toContain(bn[k('field')]);
+    expect(text).not.toMatch(/appAgency\./);
+  });
+
   it('says in Bengali that an invitation saved without a valid email cannot be accepted', async () => {
     mocks.loadPendingClientInvitationPage.mockResolvedValue(
       page([
@@ -201,11 +222,13 @@ describe('the agency Clients page under Bengali', () => {
     expect(html).toContain(`aria-label="${bn[k('theRequestYouFollowedALink')]}"`);
   });
 
-  it('keeps the explanation in English for a member who is not an administrator', async () => {
+  it('shows the explanation in Bengali for a member who is not an administrator', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
     const text = await show('bn');
-    expect(text).toContain('Inviting clients and requesting evidence are limited');
-    expect(text).not.toContain(bn[k('inviteAClient')]);
+    expect(text).toContain(bn[k('invitingClientsAndRequestingEvidenceAre')]);
+    expect(text).not.toContain('Inviting clients and requesting evidence are limited');
+    // The Invite a Client button is absent (its Bengali name begins the sentence above, so match the whole word).
+    expect(text).not.toMatch(new RegExp(`${bn[k('inviteAClient')]}(?!\\p{M}|\\p{L})`, 'u'));
   });
 
   it('stays all English for English readers', async () => {

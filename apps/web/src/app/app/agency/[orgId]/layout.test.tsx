@@ -7,6 +7,20 @@ const mocks = vi.hoisted(() => ({
   getPlatformCapabilities: vi.fn(),
 }));
 
+// The reader language: English unless a test below sets Bengali. React's cache keeps one value per
+// cached function for one render (one request), so the language the layout primes reaches it.
+const lang = vi.hoisted(() => ({
+  locale: 'en' as 'en' | 'bn',
+  store: new Map<unknown, unknown>(),
+}));
+vi.mock('../../../../lib/locale', () => ({ getLocale: async () => lang.locale }));
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    if (!lang.store.has(build)) lang.store.set(build, build());
+    return lang.store.get(build);
+  },
+}));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'member@example.com' }),
@@ -34,6 +48,8 @@ const tabLabels = (html: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  lang.locale = 'en';
+  lang.store.clear();
   navigationState.pathname = '/app/agency/o1';
   mocks.loadOrgAccess.mockResolvedValue({ org, admin: true, member: true });
   mocks.getOrganizationBrandingForDisplay.mockResolvedValue({ accentColor: null, logoUrl: null });
@@ -94,6 +110,16 @@ describe('agency console layout', () => {
     expect(html).not.toContain('subnav');
     expect(html).not.toContain('id="page"');
     expect(textOf(html)).toContain('Dhaka Visa Desk');
+  });
+
+  it('tells someone with no role so in Bengali under Bengali', async () => {
+    const { appAgencyCatalog } = await import('../../../../i18n/app-agency');
+    const key = 'appAgency.appAgencyOrgidLayout.youDonTHaveARole';
+    mocks.loadOrgAccess.mockResolvedValue({ org, admin: false, member: false });
+    lang.locale = 'bn';
+    const text = textOf(await renderServer(Layout({ children: <p>the page</p>, params })));
+    expect(text).toContain((appAgencyCatalog.bn as Record<string, string>)[key]);
+    expect(text).not.toContain("You don't have a role in this organization");
   });
 
   it('answers not found for an organization that does not exist', async () => {

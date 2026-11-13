@@ -125,11 +125,13 @@ afterEach(() => {
 });
 
 describe('the Document Requests list under Bengali', () => {
-  it('shows the empty state with its Bengali hint and keeps the title English (nothing yet)', async () => {
+  it('shows the empty state with its Bengali title and hint (nothing yet)', async () => {
     mocks.list.mockResolvedValue({ ok: true, value: [] });
     const text = await list('bn');
     expect(text).toContain(bn[k('CollectionPage.startOneWithNewRequestYou')]);
-    expect(text).toContain('No Document Requests Yet');
+    expect(text).toContain(bn[k('CollectionPage.noDocumentRequestsYet')]);
+    expect(text).toContain(bn[k('CollectionPage.forPeopleWhoAreNotYour')]);
+    expect(text).not.toContain('No Document Requests Yet');
     expect(text).not.toMatch(/appAgency\./);
   });
 
@@ -157,9 +159,10 @@ describe('the Document Requests list under Bengali', () => {
     const text = await list('bn');
     expect(text).toContain(bn[k('CollectionCollectionForms.notSureYet')]);
     expect(text).toContain('২টি গ্রহণ করা হয়েছে');
-    // Held: the review and correction counts stay English next to it.
-    expect(text).toContain('2 Waiting for Review');
-    expect(text).toContain('1 Needs Correction');
+    // The review and correction counts are Bengali too, with Bengali digits.
+    expect(text).toContain('২টি পর্যালোচনার অপেক্ষায়');
+    expect(text).toContain('১টি সংশোধন দরকার');
+    expect(text).not.toContain('2 Waiting for Review');
     expect(text).not.toMatch(/appAgency\./);
   });
 
@@ -183,6 +186,29 @@ describe('the Document Requests list under Bengali', () => {
     );
     const text = await list('bn', { status: 'DRAFT', review: 'waiting' });
     expect(text).toContain(bn[k('CollectionPage.noRequestsMatchBothFiltersTurn')]);
+    expect(text).not.toMatch(/appAgency\./);
+  });
+
+  it('says in Bengali that nothing is waiting for review (waiting filter, none waiting)', async () => {
+    mocks.list.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          id: REQ,
+          status: 'SENT',
+          destination: 'GB',
+          purpose: null,
+          route: null,
+          recipientNameHint: null,
+          dueAt: null,
+          createdAt: at,
+          updatedAt: at,
+        },
+      ],
+    });
+    const text = await list('bn', { review: 'waiting' });
+    expect(text).toContain(bn[k('CollectionPage.nothingIsWaitingForReviewNow')]);
+    expect(text).not.toContain('Nothing is waiting for review now.');
     expect(text).not.toMatch(/appAgency\./);
   });
 
@@ -228,11 +254,12 @@ describe('a Document Request under Bengali', () => {
     expect(text).toContain('১০ ডিসে, ২০২৬');
     expect(text).toContain(bn[k('CollectionRequestPage.issuingFreezesThisChecklistAsA')]);
     expect(text).not.toContain('Issuing freezes this checklist');
-    expect(text).toContain('No items yet. Add what your agency needs below.');
+    expect(text).toContain(bn[k('CollectionRequestPage.noItemsYetAddWhatYour')]);
+    expect(text).not.toContain('No items yet. Add what your agency needs below.');
     expect(text).not.toMatch(/appAgency\./);
   });
 
-  it('shows the sent state: Bengali link words, held table and sign-in wording in English', async () => {
+  it('shows the sent state: Bengali link words and table, sign-in wording in English', async () => {
     mocks.get.mockResolvedValue({
       ok: true,
       value: detail({
@@ -268,9 +295,38 @@ describe('a Document Request under Bengali', () => {
     expect(text).toContain(bn[k('CollectionRequestPage.copiedLink')]);
     expect(text).toContain(bn[k('CollectionRequestPage.sentBy')]);
     expect(text).toContain(bn[k('CollectionRequestPage.share')]);
-    expect(text).toContain('This revision no longer matches what was issued');
+    expect(text).toContain(bn[k('CollectionRequestPage.thisRevisionNoLongerMatchesWhat')]);
+    expect(text).not.toContain('This revision no longer matches what was issued');
+    // Left English at review: its filled-in size label is English (REFILL_LEFTOVERS.md).
     expect(text).toContain('one-time code sent to the email address you entered');
-    expect(text).toContain('End This Request');
+    expect(text).toContain(bn[k('CollectionRequestPage.endThisRequest')]);
+    expect(text).not.toContain('End This Request');
+    expect(text).not.toMatch(/appAgency\./);
+  });
+
+  it('says in Bengali that a draft cannot be read, and that a queued email is being tried again', async () => {
+    mocks.get.mockResolvedValue({
+      ok: true,
+      value: detail({
+        draftItems: null,
+        links: [
+          {
+            id: 'l1',
+            revisionNo: 1,
+            state: 'OPEN',
+            emailed: true,
+            email: { ...NOT_EMAILED, status: 'QUEUED', retrying: true },
+            createdAt: at,
+            expiresAt: new Date('2026-11-16T00:00:00Z'),
+            lastOpenedAt: null,
+          },
+        ],
+      }),
+    });
+    const text = await request('bn');
+    expect(text).toContain(bn[k('CollectionRequestPage.thisDraftCannotBeReadStart')]);
+    expect(text).toContain(bn[k('CollectionRequestPage.tryingAgain')]);
+    expect(text).not.toContain('(Trying Again)');
     expect(text).not.toMatch(/appAgency\./);
   });
 

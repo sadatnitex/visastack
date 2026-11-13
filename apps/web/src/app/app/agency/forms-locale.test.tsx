@@ -70,6 +70,7 @@ const {
   NewRequestForm,
   ItemEditForm,
   EmailLinkForm,
+  PackChoiceForm,
   AddItemForm: CollectionAddItemForm,
 } = await import('./[orgId]/collection/collection-forms');
 const { CollectionLinkPanel } = await import('./[orgId]/collection/collection-link-panel');
@@ -106,6 +107,7 @@ describe('the team and client forms under Bengali', () => {
       'appAgencyOrgidClientInvitationForm.travellerName',
       'appAgencyOrgidClientInvitationForm.clientEmailAddress',
       'appAgencyOrgidClientInvitationForm.janeExampleCom',
+      'appAgencyOrgidClientInvitationForm.janeTraveller',
       'appAgencyOrgidClientInvitationForm.requestedRouteOptional',
       'appAgencyOrgidClientInvitationForm.usB1B2BusinessVisa',
       'appAgencyOrgidClientInvitationForm.caseOwner',
@@ -271,6 +273,18 @@ describe('the collection forms under Bengali', () => {
       <CollectionAddItemForm organizationId="o1" requestId="r1" necessities={necessities} />,
     );
     expectBengali(html, ['appAgencyOrgidCollectionCollectionForms.noteToThePersonOptional']);
+  });
+
+  it('draws the checklist choice in Bengali', () => {
+    const html = drawBn(
+      <PackChoiceForm
+        organizationId="o1"
+        requestId="r1"
+        choices={[{ packVersionId: 'pv1', label: 'UK Standard Visitor' }]}
+        current="pv1"
+      />,
+    );
+    expectBengali(html, ['appAgencyOrgidCollectionCollectionForms.checklistToFollow']);
   });
 
   it('draws the email link form in Bengali', () => {
