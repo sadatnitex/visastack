@@ -3230,3 +3230,23 @@ export {
   currentStarterPacks,
   previewStarterImport,
 } from './starter-packs';
+// --- What This Change Affects (contract; packages/services/src/change-impact/contract.ts) ---
+export {
+  type AssessChangeOptions,
+  type AssessDetailChangeInput,
+  type AssessDocumentChangeInput,
+  type ChangeImpact,
+  type ImpactAbout,
+  type ImpactArea,
+  type ImpactItem,
+  type ImpactNextStep,
+  type ImpactOutcome,
+  type ImpactReason,
+  type ImpactShareReach,
+  type ImpactSubject,
+  IMPACT_AREAS,
+  IMPACT_OUTCOMES,
+  IMPACT_REASON_OUTCOME,
+  emptyImpactCounts,
+  outcomeForReason,
+} from './change-impact/contract';
