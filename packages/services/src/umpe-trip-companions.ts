@@ -243,12 +243,12 @@ export async function addCompanion(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db)))
-    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
+    return err(keyedError('invalid', COMPANION_NOT_SWITCHED_ON_KEY));
   const consent = await consentProblem(db, owner.value);
   if (consent) return err(consent);
   const name = cleanName(input.name);
   if (name === null)
-    return err(keyedError('invalid', 'umpe_trip_companions.enter_a_name_of_up_to'));
+    return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
   const given = input.email?.trim() ?? '';
   const email = given === '' ? null : cleanEmail(given);
   if (given !== '' && email === null) {
@@ -545,7 +545,7 @@ export async function removeCompanion(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db)))
-    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
+    return err(keyedError('invalid', COMPANION_NOT_SWITCHED_ON_KEY));
   if (!UUID.test(companionId) || (await ownedTripId(db, owner.value, tripId)) === null) {
     return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
   }
@@ -600,7 +600,7 @@ export async function resendInvitation(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db)))
-    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
+    return err(keyedError('invalid', COMPANION_NOT_SWITCHED_ON_KEY));
   const consent = await consentProblem(db, owner.value);
   if (consent) return err(consent);
   if (!UUID.test(companionId) || (await ownedTripId(db, owner.value, tripId)) === null) {
@@ -787,7 +787,7 @@ export async function acceptCompanionInvitation(
   }
   const name = input.displayName === undefined ? undefined : cleanName(input.displayName);
   if (name === null)
-    return err(keyedError('invalid', 'umpe_trip_companions.enter_a_name_of_up_to'));
+    return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
   try {
     return await db.transaction(async (tx) => {
       // The proof is made again inside the transaction: the link must still be this account's.

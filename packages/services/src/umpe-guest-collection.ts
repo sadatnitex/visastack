@@ -703,10 +703,7 @@ function codeRefusal(
   key: ServiceMessageKey,
   params?: { readonly left: number },
 ): GuestCodeRefusalError {
-  const { message } = keyedError('invalid', key, params);
-  return params === undefined
-    ? { code, message, messageKey: key }
-    : { code, message, messageKey: key, params };
+  return { ...keyedError('invalid', key, params), code };
 }
 
 /**
