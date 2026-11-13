@@ -11,7 +11,8 @@
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 
-const SUBMISSION_TABLES = [
+/** The exact-copy tables of migration 0132. */
+export const SUBMISSION_TABLES = [
   'evidence_request_submissions',
   'evidence_request_decision_submissions',
 ] as const;

@@ -14,10 +14,16 @@ import {
   couldNotCheck,
   shareItem,
 } from './classify';
-import type { AssessChangeOptions, AssessDocumentChangeInput, ChangeImpact } from './contract';
+import type {
+  AssessChangeOptions,
+  AssessDocumentChangeInput,
+  ChangeImpact,
+  ImpactReason,
+} from './contract';
 import {
   type CaseRow,
   type DocumentSubject,
+  type LiveShare,
   type RequestHistory,
   casesKeepingCopy,
   casesSelecting,
@@ -52,6 +58,23 @@ export const SAME_DOCUMENT = 'a document cannot replace itself';
 const LATER_DOCUMENT_ID = 'ffffffff-ffff-4fff-bfff-ffffffffffff';
 
 /**
+ * The reason for one live share. When the chain of replacements is cut by a document removed for
+ * good, the newest document is not known: a share that lists other documents by name may list
+ * that one, so "it covers the earlier document only" would be a guess and is said as not known.
+ * A share that lists no other document cannot reach any newer one, and is still said.
+ */
+function documentShareReason(
+  share: LiveShare,
+  documentId: string,
+  chainCut: boolean,
+  reason: ImpactReason | null,
+): ImpactReason | null {
+  if (reason !== 'SHARE_COVERS_EARLIER_ONLY' || !chainCut) return reason;
+  const namesAnother = share.namedDocumentIds?.some((id) => id !== documentId) ?? false;
+  return namesAnother ? 'RECORD_INCOMPLETE' : reason;
+}
+
+/**
  * What replacing one document means for the traveller's live cases, the copies agencies hold,
  * sharing already set up and finished work (see `contract.ts`). A read: it writes nothing.
  *
@@ -83,19 +106,24 @@ export async function assessDocumentChangeImpact(
     const subject = await lockDocumentSubject(access, tx, documentId, present.lifecycle);
     if (!subject) return refused();
 
-    // The recorded chain, walked through every link (a removed document in the middle does not
-    // cut it); the replacement is the newest document in it that is still there.
+    // The recorded chain, walked through every link (a document in Recently Deleted in the middle
+    // does not cut it); the replacement is the newest document in it that is still there.
     const chain = await replacementChain(access, tx, subject, present.lifecycle);
     let replacement: DocumentSubject | null = chain.replacement;
     if (subject.supersededBy === null && candidate !== undefined) {
       const named = await ownDocument(access, tx, candidate.toLowerCase(), present.lifecycle);
       if (!named) return refused();
       if (named.id === subject.id) return err(serviceError('invalid', SAME_DOCUMENT));
+      // Only a document the replacement itself would take (lifecycle/replace): one that is not
+      // replaced already and is of the same kind. Anything else is refused like a made-up id.
+      const sameKind = subject.docType === null || named.docType === subject.docType;
+      if (named.supersededBy !== null || !sameKind) return refused();
       replacement = named;
     }
-    // Recorded only while there is a replacement to point at: when every later document has
-    // been removed, the document stands alone again and this is a preview.
-    const phase = subject.supersededBy !== null && replacement !== null ? 'RECORDED' : 'PREVIEW';
+    // Recorded once a replacement was ever recorded: the link is never cleared, and the document
+    // cannot be replaced again, so it stays the recorded change even when every later document
+    // has been removed (the replacement is then null).
+    const phase = subject.supersededBy !== null ? 'RECORDED' : 'PREVIEW';
     const replacementId = replacement?.id ?? null;
     /** Every document that stands in for this one: the later ones in the chain, or the candidate. */
     const newerIds = new Set(chain.laterIds);
@@ -142,21 +170,26 @@ export async function assessDocumentChangeImpact(
     const shares = await liveShares(access, tx, now);
     const category = documentCategory(subject.docType) ?? null;
     for (const share of shares) {
-      const reason = classifyDocumentShare(
-        shareReachOf(share, {
-          subject: { documentId, category },
-          ...(replacement
-            ? {
-                replacement: {
-                  documentId: replacement.id,
-                  category: documentCategory(replacement.docType) ?? null,
-                },
-              }
-            : // No replacement to ask about (none recorded, or every later document removed):
-              // ask about a document of the same kind added later, so a share that is not tied
-              // to named documents is never said to cover the earlier one only.
-              { laterDocument: { documentId: LATER_DOCUMENT_ID, category } }),
-        }),
+      const reason = documentShareReason(
+        share,
+        documentId,
+        chain.cut,
+        classifyDocumentShare(
+          shareReachOf(share, {
+            subject: { documentId, category },
+            ...(replacement
+              ? {
+                  replacement: {
+                    documentId: replacement.id,
+                    category: documentCategory(replacement.docType) ?? null,
+                  },
+                }
+              : // No replacement to ask about (none recorded, or every later document removed):
+                // ask about a document of the same kind added later, so a share that is not tied
+                // to named documents is never said to cover the earlier one only.
+                { laterDocument: { documentId: LATER_DOCUMENT_ID, category } }),
+          }),
+        ),
       );
       if (reason) drafts.push(shareItem(share, reason));
     }
@@ -198,11 +231,13 @@ export async function assessDocumentChangeImpact(
     if (present.collectionResponses) {
       const answers = await collectionAnswersCarrying(access, tx, { documentIds: carriedIds });
       drafts.push(
+        // An answer holds the current copy only when none of its lines still carries this one:
+        // the same strict rule as for a detail, where every value must be the current one.
         ...collectionAnswerDrafts(answers, (answer) =>
-          answer.carriedIds.some((id) => newerIds.has(id))
-            ? 'CURRENT'
-            : answer.carriedIds.includes(documentId)
-              ? 'EARLIER'
+          answer.carriedIds.includes(documentId)
+            ? 'EARLIER'
+            : answer.carriedIds.some((id) => newerIds.has(id))
+              ? 'CURRENT'
               : 'OTHER',
         ),
       );

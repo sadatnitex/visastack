@@ -1,17 +1,17 @@
 import { schema } from '@visastack/db';
 import { eq, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/pglite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Db } from '../db';
 import { UNPINNED_SEND_CLOCK_MARGIN_MS, assessDetailChangeImpact } from './detail';
 import { assessDocumentChangeImpact } from './document';
 import {
   HEAVY,
-  type ImpactWorld,
   askForDetail,
   askForDocument,
   buildImpactWorld,
   changeEmploymentDetail,
+  decide,
+  freshHandle,
   itemOf,
   ownerManage,
   readDetailImpact,
@@ -30,18 +30,6 @@ import {
  * Where no service can produce the state any more (a send from before exact versions were kept, a
  * contradiction), the rows are put into that state by hand, and each place says so.
  */
-
-/**
- * A new handle on the same database. The presence checks remember "present" per handle, so a
- * table dropped in a test is only seen as missing through a handle that never saw it.
- */
-function freshHandle(world: ImpactWorld): ImpactWorld {
-  const db = drizzle(world.client, {
-    schema,
-    logger: { logQuery: (statement: string) => world.log.push(statement) },
-  }) as unknown as Db;
-  return { ...world, db };
-}
 
 /** By hand: forget the exact value a detail send pinned, as a send from before 0135 looks. */
 async function forgetDetailPins(db: Db, requestId: string): Promise<void> {
@@ -185,6 +173,39 @@ describe('a document sent before exact copies were kept', () => {
         'LIVE_CASE_USES_REPLACED_DOCUMENT',
       );
       expect(impact.complete).toBe(true);
+    },
+    HEAVY,
+  );
+});
+
+describe('an answer still waiting with no recorded send time', () => {
+  it(
+    'is the latest round, after an older decision that sent the first answer back',
+    async () => {
+      const w = await buildImpactWorld();
+      const request = await askForDocument(w.db, w.agencyA, w.rahim);
+      await sendDocument(w.db, w.rahim, request, w.p1.documentId);
+      await decide(w.db, w.agencyA, request, 'NEEDS_REPLACEMENT');
+      // By hand, a request from before exact copies and send times were kept: the traveller
+      // answered again with the same passport and the agency has not decided yet.
+      await w.db.execute(
+        sql`delete from evidence_request_decision_submissions where submission_id in (select id from evidence_request_submissions where evidence_request_id = ${request})`,
+      );
+      await w.db.execute(
+        sql`delete from evidence_request_submissions where evidence_request_id = ${request}`,
+      );
+      await w.db
+        .update(schema.evidenceRequests)
+        .set({ status: 'RECEIVED', respondingDocumentId: w.p1.documentId, respondedAt: null })
+        .where(eq(schema.evidenceRequests.id, request));
+      await replaceWithNewerPassport(w);
+
+      // The waiting answer is the latest round (not the older decision, which would contradict
+      // the request's status). It was never pinned, so which copy went is not known: said so.
+      expect(itemOf(await readDocumentImpact(w), `request:${request}`)).toMatchObject({
+        outcome: 'UNKNOWN',
+        reason: 'SENT_BEFORE_EXACT_VERSIONS',
+      });
     },
     HEAVY,
   );
@@ -338,6 +359,41 @@ describe('a table that is not there yet', () => {
           ok: false,
           error: { code: 'upstream_error', message: 'the record could not be read' },
         });
+      }
+    },
+    HEAVY,
+  );
+
+  it(
+    'logs each failure once, by a fixed name and without the failing statement or its values',
+    async () => {
+      const built = await buildImpactWorld();
+      const proof = await ownerManage(built.db, built.rahim);
+      await built.client.exec('drop table selected_evidence cascade');
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const result = await assessDocumentChangeImpact(proof, {
+          documentId: built.p1.documentId,
+        });
+        expect(result).toEqual({
+          ok: false,
+          error: { code: 'upstream_error', message: 'the record could not be read' },
+        });
+        expect(logged).toHaveBeenCalledTimes(1);
+        const line = String(logged.mock.calls[0]?.[0]);
+        const parsed = JSON.parse(line) as {
+          name: string;
+          metadata: { where?: unknown; databaseCode?: unknown };
+        };
+        expect(parsed.name).toBe('server_error');
+        expect(parsed.metadata.where).toBe('change_impact_read');
+        expect(parsed.metadata.databaseCode).toBe('42P01');
+        expect(parsed.metadata).not.toHaveProperty('message');
+        for (const leak of [built.rahim.applicantId, built.p1.documentId, 'selected_evidence']) {
+          expect(line).not.toContain(leak);
+        }
+      } finally {
+        logged.mockRestore();
       }
     },
     HEAVY,

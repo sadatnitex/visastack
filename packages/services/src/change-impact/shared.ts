@@ -1,7 +1,9 @@
 import { type Result, err } from '@visastack/core';
 import { ACCESS_REFUSAL, AuthorizedApplicant } from '../access/require-access';
 import type { Db } from '../db';
+import { serverErrorEvent } from '../error-report';
 import { type ServiceError, serviceError } from '../errors';
+import { formatObservabilityLine } from '../observability-format';
 import { isInactiveCaseState } from '../umpe-package-tables';
 import {
   type DraftItem,
@@ -53,10 +55,25 @@ export function isOwnersProof(access: Proof): boolean {
 /** Shown to the caller when the database itself failed; the cause is never passed on. */
 export const READ_FAILED = 'the record could not be read';
 
+/** The fixed place name a failed read is logged under. */
+export const READ_FAILURE_PLACE = 'change_impact_read';
+
+/**
+ * The log line for a failed read: the error's type, its database code and where it was thrown,
+ * as every server error is logged. Not its message: a failed statement's message repeats the
+ * statement, and an error raised while assembling the answer could name a record.
+ */
+function readFailureLine(error: unknown): string {
+  const event = serverErrorEvent(READ_FAILURE_PLACE, error);
+  const { message: _message, ...metadata } = event.metadata ?? {};
+  return formatObservabilityLine({ ...event, metadata });
+}
+
 /**
  * Run one read: the presence checks on the caller's handle, then everything else in one
  * transaction, so the share lock the read takes on the changed item holds until its last
- * statement. A database failure comes back as a service error, never as a partial answer.
+ * statement. A database failure is logged once and comes back as a service error, never as a
+ * partial answer.
  */
 export async function runRead<T>(
   access: Proof,
@@ -65,7 +82,8 @@ export async function runRead<T>(
   try {
     const present = await tablesPresent(access);
     return await access.tx.transaction((tx) => read(tx as unknown as Db, present));
-  } catch {
+  } catch (error) {
+    console.error(readFailureLine(error));
     return err(serviceError('upstream_error', READ_FAILED));
   }
 }

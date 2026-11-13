@@ -1,4 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { schema } from '@visastack/db';
+import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from '../access';
 import type { KeyManagementPort } from '../ports';
@@ -7,6 +9,7 @@ import { revokeGrant } from '../sharing';
 import { recordPackageChoice } from '../umpe-package-service';
 import {
   AGENCY_A_NAME,
+  EMPLOYMENT_FIELD,
   E_VALUE_1,
   E_VALUE_2,
   E_VALUE_3,
@@ -423,6 +426,105 @@ describe('a detail saved again without changing it', () => {
       expect(impact.subject).toMatchObject({ savedValues: 2 });
       expect(itemOf(impact, `request:${request}`).reason).toBe('AGENCY_ACCEPTED_EARLIER_LIVE_WORK');
       expect(JSON.stringify(impact)).not.toContain('SAMPLE12345');
+    },
+    HEAVY,
+  );
+});
+
+describe('a saved value with the same text and a different meaning', () => {
+  it(
+    'is a change when the entry was ended: the agency and the finished case hold the earlier value',
+    async () => {
+      const w = await buildImpactWorld();
+      // By hand, what ending an entry writes: the same text carried forward, an end date and the
+      // reason "Ended", made the current value.
+      const [current] = await w.db
+        .select()
+        .from(schema.factVersions)
+        .where(eq(schema.factVersions.id, w.e.v1));
+      if (!current) throw new Error('current value');
+      const [ended] = await w.db
+        .insert(schema.factVersions)
+        .values({
+          factId: w.e.factId,
+          value: current.value,
+          normalizedValue: current.normalizedValue,
+          status: current.status,
+          effectiveFrom: current.effectiveFrom,
+          method: 'MANUAL',
+          actorAccountId: w.rahim.accountId,
+          reason: 'Ended',
+          validUntil: new Date(),
+          approvedAt: new Date(),
+        })
+        .returning();
+      if (!ended) throw new Error('ended value');
+      await w.db
+        .update(schema.facts)
+        .set({ currentVersionId: ended.id })
+        .where(eq(schema.facts.id, w.e.factId));
+
+      const impact = await readDetailImpact(w);
+      expect(itemOf(impact, `request:${w.detailRequestId}`)).toMatchObject({
+        outcome: 'REVIEW_RECOMMENDED',
+        reason: 'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      });
+      expect(itemOf(impact, `case:${w.finishedCaseId}`).reason).toBe('FINISHED_CASE_KEPT');
+      expect(impact.quiet).toBe(false);
+      expect(JSON.stringify(impact)).not.toContain(E_VALUE_1);
+    },
+    HEAVY,
+  );
+
+  it(
+    'is a change when the effective date or the status was corrected; an identical save is not',
+    async () => {
+      const w = await buildImpactWorld();
+      const save = async (effectiveFrom: Date, status?: 'DECLARED') =>
+        must(
+          await editFact(w.db, {
+            actorAccountId: w.rahim.accountId,
+            applicantId: w.rahim.applicantId,
+            fieldKey: EMPLOYMENT_FIELD,
+            value: E_VALUE_1,
+            effectiveFrom,
+            ...(status ? { status } : {}),
+          }),
+          'save',
+        );
+      const startDate = new Date('2025-01-01T00:00:00Z');
+
+      // The same text with a corrected start date: the first answer holds the earlier value.
+      await save(startDate);
+      expect(itemOf(await readDetailImpact(w), `request:${w.detailRequestId}`).reason).toBe(
+        'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      );
+      const dated = await askForDetail(w.db, w.agencyA, w.rahim);
+      await sendDetail(w.db, w.rahim, dated, w.e.factId);
+      await decide(w.db, w.agencyA, dated, 'ACCEPTED');
+      expect(itemOf(await readDetailImpact(w), `request:${dated}`).reason).toBe(
+        'AGENCY_HOLDS_CURRENT',
+      );
+
+      // The same text and date with another status: the dated answer holds the earlier value.
+      await save(startDate, 'DECLARED');
+      expect(itemOf(await readDetailImpact(w), `request:${dated}`).reason).toBe(
+        'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      );
+      const declared = await askForDetail(w.db, w.agencyA, w.rahim);
+      await sendDetail(w.db, w.rahim, declared, w.e.factId);
+      await decide(w.db, w.agencyA, declared, 'ACCEPTED');
+      await confirmCase(w.db, w.rahim, w.liveCaseId);
+
+      // Saved again exactly as it is: not a change for the answer, but the case's confirmation
+      // is still voided by the save and must be given again.
+      await save(startDate, 'DECLARED');
+      const identical = await readDetailImpact(w);
+      expect(itemOf(identical, `request:${declared}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+      expect(itemOf(identical, `request:${dated}`).reason).toBe(
+        'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      );
+      expect(itemOf(identical, `case:${w.liveCaseId}`).reason).toBe('LIVE_CASE_CONFIRMATION_VOID');
     },
     HEAVY,
   );

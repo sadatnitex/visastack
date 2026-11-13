@@ -129,8 +129,18 @@ export function roundsOf(
       decidedAt: null,
     });
   }
-  const at = (round: LatestRound) => (round.sentAt ?? round.decidedAt)?.getTime() ?? 0;
-  return rounds.sort((a, b) => at(a) - at(b));
+  return rounds.sort((a, b) => roundTime(a) - roundTime(b));
+}
+
+/**
+ * When a round happened, for ordering: its send time, else its decision time. Only an answer
+ * that still waits can have neither (sent before send times were kept); whatever was decided
+ * before it, it is the request's current answer, so it sorts as the newest round.
+ */
+function roundTime(round: LatestRound): number {
+  const at = round.sentAt ?? round.decidedAt;
+  if (at !== null) return at.getTime();
+  return round.state === 'AWAITING_DECISION' ? Number.MAX_SAFE_INTEGER : 0;
 }
 
 /** The request's latest round, or null when nothing is recorded as sent. */

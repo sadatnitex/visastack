@@ -11,13 +11,14 @@ import { grantPlatformRole } from '../platform-roles';
 import { revokeGrant } from '../sharing';
 import { recordPackageChoice } from '../umpe-package-service';
 import { assessRuleImpact } from '../umpe-rule-impact-service';
-import { assessDocumentChangeImpact } from './document';
+import { SAME_DOCUMENT, assessDocumentChangeImpact } from './document';
 import {
   AGENCY_A_NAME,
   AGENCY_B_NAME,
   FINISHED_CASE_TITLE,
   HEAVY,
   LIVE_CASE_TITLE,
+  MADE_UP_ID,
   PASSPORT_TYPE,
   askForDocument,
   buildImpactWorld,
@@ -174,11 +175,15 @@ describe('replacing a document: the shared scenario', () => {
       const statements = [...w.log];
 
       // Sharing is not viewing: the read touches no audit trail, access record or notice, so no
-      // item can rest on what a recipient opened.
+      // item can rest on what a recipient opened. The two checklist tables are read by the
+      // access layer's own "live answer" rule (`liveCollectionResponse`): whether an answer was
+      // withdrawn and whether its request was revoked, never what the agency decided.
       expect(tablesRead(statements)).toEqual([
         'accounts',
         'acknowledgements',
+        'agency_collection_requests',
         'agency_collection_response_items',
+        'agency_collection_response_withdrawals',
         'agency_collection_responses',
         'document_lifecycle',
         'document_versions',
@@ -695,7 +700,7 @@ describe('a chain of replacements with a document in Recently Deleted', () => {
   );
 
   it(
-    'falls back to the newest document still there, and to a preview when none is',
+    'falls back to the newest document still there, and stays recorded when none is',
     async () => {
       const w = await buildImpactWorld();
       const first = await replaceWithNewerPassport(w);
@@ -715,10 +720,12 @@ describe('a chain of replacements with a document in Recently Deleted', () => {
       // A copy of a later document in the chain is a copy of a newer document than this one.
       expect(itemOf(middle, `request:${holdsMiddle}`).reason).toBe('AGENCY_HOLDS_CURRENT');
 
-      // Both later passports removed: no replacement is left to point at.
+      // Both later passports removed: no replacement is left to point at, but the replacement
+      // was recorded (the link is never cleared, and the passport cannot be replaced again), so
+      // this is still the recorded change, not a preview.
       await remove(w, first.newer.documentId);
       const alone = await readDocumentImpact(w);
-      expect(alone.phase).toBe('PREVIEW');
+      expect(alone.phase).toBe('RECORDED');
       expect(alone.subject).toMatchObject({ replacement: null });
       // The whole-record share still covers whatever is added later; only the by-name share
       // covers the earlier passport alone.
@@ -729,6 +736,117 @@ describe('a chain of replacements with a document in Recently Deleted', () => {
       expect(itemOf(alone, `request:${w.documentRequestId}`).reason).toBe(
         'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
       );
+    },
+    HEAVY,
+  );
+
+  it(
+    'keeps a case confirmed again as a choice to review once the only replacement is removed',
+    async () => {
+      const w = await buildImpactWorld();
+      const { newer } = await replaceWithNewerPassport(w);
+      await confirmCase(w.db, w.rahim, w.liveCaseId);
+      expect(itemOf(await readDocumentImpact(w), `case:${w.liveCaseId}`).reason).toBe(
+        'LIVE_CASE_KEEPS_EARLIER_COPY',
+      );
+
+      await remove(w, newer.documentId);
+      const after = await readDocumentImpact(w);
+      expect(after.phase).toBe('RECORDED');
+      expect(after.subject).toMatchObject({ replacement: null });
+      // The traveller already confirmed the case with the earlier passport: no step is owed.
+      expect(itemOf(after, `case:${w.liveCaseId}`)).toMatchObject({
+        outcome: 'REVIEW_RECOMMENDED',
+        reason: 'LIVE_CASE_KEEPS_EARLIER_COPY',
+      });
+      expect(after.counts.ACTION_REQUIRED).toBe(0);
+    },
+    HEAVY,
+  );
+});
+
+describe('a chain of replacements cut by a document removed for good', () => {
+  /** By hand: the row is gone for good, as permanent removal leaves it (the link has no key). */
+  const removeForGood = (w: Awaited<ReturnType<typeof buildImpactWorld>>, documentId: string) =>
+    w.db.execute(sql`delete from documents where id = ${documentId}`);
+
+  it(
+    'says what depends on the newer document is not known, and invents no alert',
+    async () => {
+      const w = await buildImpactWorld();
+      const middle = await replaceWithNewerPassport(w);
+      const newest = await replaceWithNewerPassport(
+        w,
+        middle.newer.documentId,
+        'sample-passport-newest.pdf',
+      );
+      // A share that lists the earlier passport and the newest one by name.
+      const byName = await shareWith(w.db, w.rahim, w.unrelatedAgency, {
+        actions: ['VIEW_METADATA', 'PREVIEW'],
+        documentIds: [w.p1.documentId, newest.newer.documentId],
+      });
+      const holdsNewest = await askForDocument(w.db, w.agencyA, w.rahim);
+      await sendDocument(w.db, w.rahim, holdsNewest, newest.newer.documentId);
+      const before = await readDocumentImpact(w);
+      expect(itemOf(before, `share:${byName}`).reason).toBe('SHARE_ALREADY_COVERS');
+      expect(itemOf(before, `request:${holdsNewest}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+
+      await removeForGood(w, middle.newer.documentId);
+      const after = await readDocumentImpact(w);
+      // Still the recorded change; which document is the newest is no longer known.
+      expect(after.phase).toBe('RECORDED');
+      expect(after.subject).toMatchObject({ replacement: null });
+      // The share names another document that may be the newest: unknown, not "earlier only".
+      expect(itemOf(after, `share:${byName}`)).toMatchObject({
+        outcome: 'UNKNOWN',
+        reason: 'RECORD_INCOMPLETE',
+        nextStep: { kind: 'OPEN_SHARING', grantId: byName },
+      });
+      // A share that lists only the earlier passport cannot reach any newer one: still said.
+      expect(itemOf(after, `share:${w.agencyBShareId}`).reason).toBe('SHARE_COVERS_EARLIER_ONLY');
+      expect(itemOf(after, `share:${w.agencyAShareId}`).reason).toBe('SHARE_ALREADY_COVERS');
+      // Nothing that asks for a step or a review was added by the cut.
+      const flagged = (impact: typeof after) =>
+        impact.items
+          .filter(
+            (item) => item.outcome === 'ACTION_REQUIRED' || item.outcome === 'REVIEW_RECOMMENDED',
+          )
+          .map((item) => [item.id, item.reason]);
+      expect(flagged(after)).toEqual(flagged(before));
+      // Nothing left on record links the newest passport to this one, so its send is no longer
+      // found by this read (the agency's own request still shows it).
+      expect(after.items.some((item) => item.id === `request:${holdsNewest}`)).toBe(false);
+    },
+    HEAVY,
+  );
+});
+
+describe('a preview that names a newer document the replacement would refuse', () => {
+  it(
+    'is refused like a made-up id when that document is already replaced or of another kind',
+    async () => {
+      const w = await buildImpactWorld();
+      const proof = await ownerManage(w.db, w.rahim);
+      const ask = (replacementDocumentId: string) =>
+        assessDocumentChangeImpact(proof, { documentId: w.p1.documentId, replacementDocumentId });
+      const madeUp = await ask(MADE_UP_ID);
+      expect(madeUp.ok).toBe(false);
+
+      const spare = await makeDocument(w.db, w.rahim, PASSPORT_TYPE, 'sample-passport-spare.pdf');
+      await replaceWithNewerPassport(w, spare.documentId, 'sample-passport-spare-newer.pdf');
+      // Already replaced, then another kind of document (the utility bill).
+      expect(await ask(spare.documentId)).toEqual(madeUp);
+      expect(await ask(w.controlDocument.documentId)).toEqual(madeUp);
+      // The document itself, as the replacement says it.
+      expect(await ask(w.p1.documentId)).toEqual({
+        ok: false,
+        error: { code: 'invalid', message: SAME_DOCUMENT },
+      });
+      // A candidate the replacement would take is still read.
+      const fit = await makeDocument(w.db, w.rahim, PASSPORT_TYPE, 'sample-passport-fit.pdf');
+      expect(must(await ask(fit.documentId), 'fit').subject).toMatchObject({
+        replacement: { documentId: fit.documentId },
+      });
     },
     HEAVY,
   );

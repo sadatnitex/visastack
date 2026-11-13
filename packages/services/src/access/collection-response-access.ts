@@ -97,6 +97,13 @@ export class CollectionResponseAccess {
   }
 }
 
+/** The tables `collectionResponsesPresent` asks about. */
+export const COLLECTION_RESPONSE_TABLES = [
+  'agency_collection_responses',
+  'agency_collection_response_items',
+  'agency_collection_response_withdrawals',
+] as const;
+
 /**
  * Whether the response tables exist yet. Code goes live before its migration runs, so a missing
  * table means "no responses", which is exact because none can have been written. `to_regclass`
@@ -106,7 +113,10 @@ export async function collectionResponsesPresent(db: Db): Promise<boolean> {
   const row = first(
     await db
       .select({
-        present: sql<boolean>`to_regclass('agency_collection_responses') is not null and to_regclass('agency_collection_response_items') is not null and to_regclass('agency_collection_response_withdrawals') is not null`,
+        present: sql<boolean>`${sql.join(
+          COLLECTION_RESPONSE_TABLES.map((table) => sql`to_regclass(${table}::text) is not null`),
+          sql` and `,
+        )}`,
       })
       .from(sql`(select 1) as probe`),
   );

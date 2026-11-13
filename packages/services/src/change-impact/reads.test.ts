@@ -1,4 +1,8 @@
+import type { Result } from '@visastack/core';
 import { describe, expect, it } from 'vitest';
+import type { AuthorizedApplicant } from '../access';
+import type { ServiceError } from '../errors';
+import type { ChangeImpact } from './contract';
 import { assessDetailChangeImpact } from './detail';
 import { assessDocumentChangeImpact } from './document';
 import {
@@ -10,6 +14,7 @@ import {
   buildImpactWorld,
   changeEmploymentDetail,
   decide,
+  freshHandle,
   historyFingerprint,
   makeAgency,
   makeCase,
@@ -27,7 +32,10 @@ import {
  * how much the traveller has: the measured statement counts below are the budget.
  */
 
-/** Statements one read of the full scenario sends on a handle that has read before (measured). */
+/**
+ * Statements one read of the full scenario sends on a cold handle (measured). Production makes a
+ * handle per request, so every read pays for the presence check: the budget includes it.
+ */
 const DOCUMENT_STATEMENT_BUDGET = 13;
 const DETAIL_STATEMENT_BUDGET = 16;
 /**
@@ -45,30 +53,43 @@ async function bothChanges(): Promise<ImpactWorld> {
   return w;
 }
 
-async function measured(w: ImpactWorld) {
-  const proof = await ownerManage(w.db, w.rahim);
-  const options = { now: NOW };
-  // Warm the handle: the presence checks that remember "present" run once per handle.
-  await assessDocumentChangeImpact(proof, { documentId: w.p1.documentId }, options);
-  await assessDetailChangeImpact(proof, { factId: w.e.factId }, options);
+type Read = (proof: AuthorizedApplicant<'MANAGE'>) => Promise<Result<ChangeImpact, ServiceError>>;
+
+/** One read on a new handle (cold, as each request is in production): its answer, statements and time. */
+async function coldRead(w: ImpactWorld, read: Read) {
+  const handle = freshHandle(w);
+  const proof = await ownerManage(handle.db, handle.rahim);
   w.log.length = 0;
-  let started = Date.now();
-  const document = must(
-    await assessDocumentChangeImpact(proof, { documentId: w.p1.documentId }, options),
-    'document',
-  );
-  const documentMs = Date.now() - started;
-  const documentStatements = [...w.log];
-  w.log.length = 0;
-  started = Date.now();
-  const detail = must(
-    await assessDetailChangeImpact(proof, { factId: w.e.factId }, options),
-    'detail',
-  );
-  const detailMs = Date.now() - started;
-  const detailStatements = [...w.log];
-  return { document, detail, documentStatements, detailStatements, documentMs, detailMs };
+  const started = Date.now();
+  const impact = must(await read(proof), 'read');
+  return { impact, statements: [...w.log], ms: Date.now() - started };
 }
+
+const documentRead =
+  (documentId: string): Read =>
+  (proof) =>
+    assessDocumentChangeImpact(proof, { documentId }, { now: NOW });
+const detailRead =
+  (factId: string): Read =>
+  (proof) =>
+    assessDetailChangeImpact(proof, { factId }, { now: NOW });
+
+async function measured(w: ImpactWorld) {
+  const document = await coldRead(w, documentRead(w.p1.documentId));
+  const detail = await coldRead(w, detailRead(w.e.factId));
+  return {
+    document: document.impact,
+    detail: detail.impact,
+    documentStatements: document.statements,
+    detailStatements: detail.statements,
+    documentMs: document.ms,
+    detailMs: detail.ms,
+  };
+}
+
+/** How many of these statements are the presence check. */
+const presenceChecks = (statements: readonly string[]) =>
+  statements.filter((statement) => statement.includes('to_regclass')).length;
 
 describe('repeated reads', () => {
   it(
@@ -100,6 +121,46 @@ describe('repeated reads', () => {
 });
 
 describe('the cost of one read', () => {
+  it(
+    'is the measured count on a cold handle, the presence check asked once in one statement',
+    async () => {
+      const w = await buildImpactWorld();
+      const preview = await coldRead(w, documentRead(w.p1.documentId));
+      await replaceWithNewerPassport(w);
+      await changeEmploymentDetail(w);
+      const recorded = await coldRead(w, documentRead(w.p1.documentId));
+      const detail = await coldRead(w, detailRead(w.e.factId));
+      const controlDocument = await coldRead(w, documentRead(w.controlDocument.documentId));
+      const controlDetail = await coldRead(w, detailRead(w.controlDetail.factId));
+      const runs = { preview, recorded, detail, controlDocument, controlDetail };
+      expect(
+        Object.fromEntries(
+          Object.entries(runs).map(([name, run]) => [name, run.statements.length]),
+        ),
+      ).toEqual({
+        preview: 10,
+        recorded: DOCUMENT_STATEMENT_BUDGET,
+        detail: DETAIL_STATEMENT_BUDGET,
+        controlDocument: 8,
+        controlDetail: 9,
+      });
+      for (const run of Object.values(runs)) {
+        expect(presenceChecks(run.statements)).toBe(1);
+        expect(run.statements[0]).toContain('to_regclass');
+      }
+
+      // A second read on the same handle remembers that every table is there: one fewer.
+      const handle = freshHandle(w);
+      const proof = await ownerManage(handle.db, handle.rahim);
+      must(await documentRead(w.p1.documentId)(proof), 'cold');
+      w.log.length = 0;
+      must(await documentRead(w.p1.documentId)(proof), 'warm');
+      expect(presenceChecks(w.log)).toBe(0);
+      expect(w.log.length).toBe(recorded.statements.length - 1);
+    },
+    HEAVY,
+  );
+
   it(
     'stays inside the measured statement budget for the full scenario',
     async () => {
