@@ -100,8 +100,8 @@ describe('the uploader under Bengali', () => {
     const { text } = await upload('bn', undefined, { kindGroups });
     expect(text).toContain(bn[`${K}kindOfDocumentOptional`]);
     expect(text).toContain('Passport');
-    expect(`${K}notSureYet` in bn).toBe(false);
-    expect(text).toContain(en[`${K}notSureYet`]);
+    expect(text).toContain(bn[`${K}notSureYet`]);
+    expect(text).not.toContain(en[`${K}notSureYet`]);
   });
 
   it('says a saved file is saved in Bengali, and keeps the file name and server message as they are', async () => {
@@ -127,9 +127,8 @@ describe('the uploader under Bengali', () => {
     expect(host.innerHTML).toContain(
       `aria-label="${bn[`${K}removeThisNewCopyName`]?.replace('{name}', 'passport.jpg')}"`,
     );
-    // Held back: the promise about an identical copy stays in English.
-    expect(`${K}youAlreadyKeepAnIdenticalCopy` in bn).toBe(false);
-    expect(text).toContain('You already keep an identical copy of this file.');
+    expect(text).toContain(bn[`${K}youAlreadyKeepAnIdenticalCopy`]);
+    expect(text).not.toContain('You already keep an identical copy of this file.');
   });
 
   it('is the same English as before under English', async () => {
