@@ -12,6 +12,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectEveryLiveMessageRendered } from '../../applicant/[id]/bn-coverage.test-support';
+import { FORM_PARTS, SCREEN_PARTS, bengaliChecks } from './case-locale.test-support';
 
 // The case screen's server-drawn parts (and its snapshot and Start a Trip pages) under Bengali, one
 // visible state at a time, so that every live Bengali message of these parts has a test that shows it.
@@ -113,10 +114,6 @@ const { default: SnapshotsPage } = await import('./snapshots/page');
 const { default: SnapshotPage } = await import('./snapshots/[snapshotId]/page');
 const { default: TripStartPage } = await import('../start/page');
 
-const bn = appMissionCatalog.bn as Record<string, string>;
-const en = appMissionCatalog.en as Record<string, string>;
-const P = 'appMission.appMissionId';
-const RAW_KEY = /appMission\.app[A-Z]/;
 const MISSION = '00000000-0000-4000-8000-000000000101';
 const ok = <T,>(value: T) => ({ ok: true as const, value });
 
@@ -127,35 +124,14 @@ async function draw(node: ReactNode | Promise<ReactNode>) {
   loc.locale = 'bn';
   await primeLocale();
   const html = renderToStaticMarkup(
-    <I18nProvider locale="bn" pageLang="bn">
+    <I18nProvider locale="bn" pageLang="en">
       {await node}
     </I18nProvider>,
   );
   page = new JSDOM(`<body>${html}</body>`).window.document;
   return page;
 }
-const words = () => (page.body.textContent ?? '').replace(/\s+/g, ' ');
-/** What a reader meets: the words on screen plus every attribute (names, hints, placeholders). */
-const seen = () =>
-  [
-    words(),
-    ...[...page.body.querySelectorAll('*')].flatMap((el) => [...el.attributes].map((a) => a.value)),
-  ].join('\n');
-const full = (key: string) => (key.startsWith('appMission.') ? key : `${P}${key}`);
-/**
- * Each key's Bengali is on screen, and its English sentence is not (a short English word such as
- * "Case" or a tab name also appears in English elsewhere on the page, so only sentences are checked
- * for absence).
- */
-const expectBengali = (...keys: string[]) => {
-  const text = seen();
-  for (const key of keys.map(full)) {
-    expect(bn[key], key).toBeTruthy();
-    expect(text, key).toContain(bn[key]);
-    if ((en[key] ?? '').length >= 30) expect(words(), key).not.toContain(en[key]);
-  }
-  expect(text).not.toMatch(RAW_KEY);
-};
+const { words, expectBengali } = bengaliChecks(() => page.body);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -374,7 +350,7 @@ describe('the item panel under Bengali', () => {
 
   it('shows a missing item, your own wording, its source and the document chosen for it', async () => {
     await pane(
-      { chosen: ['Passport Scan'] },
+      { chosen: ['Removed by the traveller on 12 Oct'] },
       row({
         myWording: 'My passport',
         sourceInaccessible: true,
@@ -389,7 +365,8 @@ describe('the item panel under Bengali', () => {
       'CaseItemPane.provideEvidence',
     );
     expect(words()).toContain('মূল: Passport');
-    expect(words()).toContain('বেছে নেওয়া ডকুমেন্ট: Passport Scan');
+    // The chosen documents are named by English lifecycle lines with English dates, so it stays English.
+    expect(words()).toContain('Chosen document: Removed by the traveller on 12 Oct');
   });
 
   it('calls an item with no name unnamed', async () => {
@@ -939,62 +916,15 @@ describe('the Start a Trip page under Bengali', () => {
 });
 
 describe('every live Bengali message of these parts', () => {
-  it.each([
-    'AttemptPanel',
-    'CaseChecklist',
-    'CaseItemPane',
-    'CaseMobileBar',
-    'CaseRail',
-    'CaseSecondary',
-    'CaseStatusPanel',
-    'ChangesSinceConfirmed',
-    'PackagePanel',
-    'TripChecksPanel',
-    'SnapshotsPage',
-    'SnapshotsSnapshotidPage',
-  ])('%s is rendered under Bengali by a test above', (component) => {
-    expectEveryLiveMessageRendered(appMissionCatalog, `${P}${component}.`);
+  it.each(SCREEN_PARTS)('%s is rendered under Bengali by a test above', (part) => {
+    expectEveryLiveMessageRendered(appMissionCatalog, `appMission.${part}.`);
   });
 
-  it('the Start a Trip page is rendered under Bengali by a test above', () => {
-    expectEveryLiveMessageRendered(appMissionCatalog, 'appMission.appMissionStartPage.');
-  });
-
-  it('every live Bengali message of the case screens has a test (here or in case-forms-locale)', () => {
-    const covered = new Set([
-      ...[
-        'AttachPackForm',
-        'AttemptForms',
-        'CaseMoreMenu',
-        'CaseWelcome',
-        'ChecklistSearch',
-        'CollaborationPanels',
-        'ComplaintFeedbackPanel',
-        'ContributorRequestsPanel',
-        'MissionButtons',
-        'OutcomePanel',
-        'PackageForms',
-        'SubmissionReportPanel',
-        'SnapshotsSnapshotidAcknowledgementPanel',
-        'AttemptPanel',
-        'CaseChecklist',
-        'CaseItemPane',
-        'CaseMobileBar',
-        'CaseRail',
-        'CaseSecondary',
-        'CaseStatusPanel',
-        'ChangesSinceConfirmed',
-        'PackagePanel',
-        'TripChecksPanel',
-        'SnapshotsPage',
-        'SnapshotsSnapshotidPage',
-      ].map((c) => `appMissionId${c}`),
-      'appMissionStartPage',
-      'appMissionStartStartForm',
-    ]);
-    // A new component with Bengali must join one of the two lists above, with its own test.
+  it('every live Bengali message of the case screens belongs to a part one of the two tests draws', () => {
+    const drawn = new Set<string>([...FORM_PARTS, ...SCREEN_PARTS]);
+    // A new part with Bengali must join FORM_PARTS or SCREEN_PARTS, with its own test.
     expect(
-      Object.keys(appMissionCatalog.bn).filter((key) => !covered.has(key.split('.')[1] ?? '')),
+      Object.keys(appMissionCatalog.bn).filter((key) => !drawn.has(key.split('.')[1] ?? '')),
     ).toEqual([]);
   });
 });

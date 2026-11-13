@@ -300,7 +300,7 @@ Refill 3 filled 215 keys of the applicant record screens (calendar, requests, in
 
 ## Left English at review in refill 5
 
-Refill 5 filled 95 keys of the case screens (`app-mission`: the case page, its panels and forms, the snapshot pages and Start a Trip). These 21 have a passing draft and stay English for the reason given, and two values that were already live go back to English for the same kind of reason (marked "was live"). HOLDBACK is unchanged.
+Refill 5 filled 91 keys of the case screens (`app-mission`: the case page, its panels and forms, the snapshot pages and Start a Trip). These 25 have a passing draft and stay English for the reason given, and two values that were already live go back to English for the same kind of reason (marked "was live"). HOLDBACK is unchanged.
 
 | Surface | Key | Why it stays English |
 | --- | --- | --- |
@@ -325,6 +325,10 @@ Refill 5 filled 95 keys of the case screens (`app-mission`: the case page, its p
 | app-mission | `appMission.appMissionIdChangesSinceConfirmed.compareNameThenAndNow` | `name` is an English detail name ("Given Name"). |
 | app-mission | `appMission.appMissionIdCollaborationPanels.addedByAddedby` | The app name falls back to the English "an AI App"; the line is also about an AI app. |
 | app-mission | `appMission.appMissionIdChecklistSearch.searchTheChecklist` | The search box's spoken name is the English "Search the Checklist", so its placeholder stays English with it. |
+| app-mission | `appMission.appMissionIdCaseItemPane.chosenDocumentJoin` | The chosen documents are named by English lifecycle lines with English dates ("Removed by the traveller on 12 Oct"). |
+| app-mission | `appMission.appMissionIdCaseMoreMenu.keepTheCase` | The other answer of both questions ("Yes, Cancel This Case", "Yes, Delete This Case") is English. |
+| app-mission | `appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe` | It names Start a New Case from This One, which wide screens show only as an English button. |
+| app-mission | `appMission.appMissionIdContributorRequestsPanel.visastackRequest` | Title of the share sent to the contributor with an English message; it follows the message, not the sender's screen. |
 | app-mission | `appMission.appMissionIdAttemptForms.remove` | Was live. Its button's spoken name is the English "Remove {document}", so its visible text goes back to English. |
 | app-mission | `appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname` | Was live. `copyName` is English ("Your Saved Answer", "Document") or a name with an unformatted date ("2026-10-01"). |
 

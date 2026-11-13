@@ -3,6 +3,7 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectEveryLiveMessageRendered } from '../../applicant/[id]/bn-coverage.test-support';
+import { FORM_PARTS, bengaliChecks } from './case-locale.test-support';
 
 // The case screen's forms and panels drawn under Bengali, one visible state at a time, so that every
 // live Bengali message of these components has a test that shows it.
@@ -92,7 +93,6 @@ const { TripStartForm } = await import('../start/start-form');
 const bn = appMissionCatalog.bn as Record<string, string>;
 const en = appMissionCatalog.en as Record<string, string>;
 const P = 'appMission.appMissionId';
-const RAW_KEY = /appMission\.app[A-Z]/;
 const MISSION = '00000000-0000-4000-8000-000000000101';
 
 let root: Root;
@@ -111,31 +111,12 @@ afterEach(() => {
 const show = (node: React.ReactNode) =>
   act(() =>
     root.render(
-      <I18nProvider locale="bn" pageLang="bn">
+      <I18nProvider locale="bn" pageLang="en">
         {node}
       </I18nProvider>,
     ),
   );
-/** What a reader meets: the words on screen plus every attribute (placeholders, names, hints). */
-const seen = () =>
-  [
-    host.textContent ?? '',
-    ...[...host.querySelectorAll('*')].flatMap((el) => [...el.attributes].map((a) => a.value)),
-  ].join('\n');
-const full = (key: string) => (key.startsWith('appMission.') ? key : `${P}${key}`);
-/**
- * Each key's Bengali is on screen, and its English sentence is not (a short English word such as
- * "Date" also names other things on the page, so only sentences are checked for absence).
- */
-const expectBengali = (...keys: string[]) => {
-  const text = seen();
-  for (const key of keys.map(full)) {
-    expect(bn[key], key).toBeTruthy();
-    expect(text, key).toContain(bn[key]);
-    if ((en[key] ?? '').length >= 30) expect(host.textContent, key).not.toContain(en[key]);
-  }
-  expect(text).not.toMatch(RAW_KEY);
-};
+const { seen, expectBengali } = bengaliChecks(() => host);
 const START = 'appMission.appMissionStartStartForm.';
 const pick = (select: HTMLSelectElement, value: string) =>
   act(() => {
@@ -255,9 +236,11 @@ describe('the case menu under Bengali', () => {
       'CaseMoreMenu.cancelThisCase',
       'CaseMoreMenu.theCaseStopsForGoodIt',
       'CaseMoreMenu.nothingIsDeletedNowItsSnapshots',
-      'CaseMoreMenu.toApplyAgainLaterOpenThe',
-      'CaseMoreMenu.keepTheCase',
     );
+    // Both answers stay English together ("Yes, Cancel This Case" is English).
+    expect(host.textContent).toContain(en[`${P}CaseMoreMenu.keepTheCase`]);
+    // It names the wide-screen button "Start a New Case from This One", which is English.
+    expect(host.textContent).toContain(en[`${P}CaseMoreMenu.toApplyAgainLaterOpenThe`]);
   });
 
   it('asks before a cancelled case is deleted for good', () => {
@@ -271,8 +254,8 @@ describe('the case menu under Bengali', () => {
       'CaseMoreMenu.theCaseIsRemovedForGood',
       'CaseMoreMenu.yourProfileAndDocumentsAreNot',
       'CaseMoreMenu.thisCannotBeUndone',
-      'CaseMoreMenu.keepTheCase',
     );
+    expect(host.textContent).toContain(en[`${P}CaseMoreMenu.keepTheCase`]);
   });
 });
 
@@ -544,13 +527,11 @@ describe('complaints, feedback and contributor requests under Bengali', () => {
       'ContributorRequestsPanel.eGToSupportTheFinancial',
       'ContributorRequestsPanel.messageOptional',
     );
-    // The phone's share sheet is titled in Bengali.
+    // The share sheet goes to the contributor with an English message, so its title stays English.
     const more = [...host.querySelectorAll('.wa-share button')].at(0) as HTMLButtonElement;
     await act(async () => more.click());
-    expect(share).toHaveBeenCalledWith(
-      expect.objectContaining({ title: bn[`${P}ContributorRequestsPanel.visastackRequest`] }),
-    );
-    expect(bn[`${P}ContributorRequestsPanel.visastackRequest`]).toBe('VisaStack অনুরোধ');
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({ title: 'VisaStack Request' }));
+    expect(bn[`${P}ContributorRequestsPanel.visastackRequest`]).toBeUndefined();
     Reflect.deleteProperty(navigator, 'share');
     // An address is the same in both languages.
     expect(bn[`${P}ContributorRequestsPanel.sponsorExampleCom`]).toBe('sponsor@example.com');
@@ -737,25 +718,7 @@ describe('starting a trip under Bengali', () => {
 });
 
 describe('every live Bengali message of these components', () => {
-  it.each([
-    'AttachPackForm',
-    'AttemptForms',
-    'CaseMoreMenu',
-    'CaseWelcome',
-    'ChecklistSearch',
-    'CollaborationPanels',
-    'ComplaintFeedbackPanel',
-    'ContributorRequestsPanel',
-    'MissionButtons',
-    'OutcomePanel',
-    'PackageForms',
-    'SubmissionReportPanel',
-    'SnapshotsSnapshotidAcknowledgementPanel',
-  ])('%s is rendered under Bengali by a test above', (component) => {
-    expectEveryLiveMessageRendered(appMissionCatalog, `${P}${component}.`);
-  });
-
-  it('StartStartForm is rendered under Bengali by a test above', () => {
-    expectEveryLiveMessageRendered(appMissionCatalog, 'appMission.appMissionStartStartForm.');
+  it.each(FORM_PARTS)('%s is rendered under Bengali by a test above', (part) => {
+    expectEveryLiveMessageRendered(appMissionCatalog, `appMission.${part}.`);
   });
 });

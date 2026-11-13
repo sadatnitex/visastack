@@ -435,7 +435,6 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdCaseChecklist.evidenceChecklist': 'প্রমাণের চেকলিস্ট',
     'appMission.appMissionIdCaseChecklist.fromPackname': '{packName} থেকে',
     'appMission.appMissionIdCaseChecklist.sourcesForThisChecklist': 'এই চেকলিস্টের উৎস',
-    'appMission.appMissionIdCaseItemPane.chosenDocumentJoin': 'বেছে নেওয়া ডকুমেন্ট: {join}',
     'appMission.appMissionIdCaseItemPane.originalOfficialname': 'মূল: {officialName}',
     'appMission.appMissionIdCaseItemPane.provideEvidence': 'প্রমাণ দিন',
     'appMission.appMissionIdCaseItemPane.severalAreOnFileUntilYou':
@@ -457,7 +456,6 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdCaseMoreMenu.cancelThisCase': 'এই ভিসা ফাইলটি বাতিল করবেন?',
     'appMission.appMissionIdCaseMoreMenu.deleteCase': 'ভিসা ফাইল মুছে ফেলুন',
     'appMission.appMissionIdCaseMoreMenu.deleteThisCase': 'এই ভিসা ফাইলটি মুছে ফেলবেন?',
-    'appMission.appMissionIdCaseMoreMenu.keepTheCase': 'ভিসা ফাইলটি রাখুন',
     'appMission.appMissionIdCaseMoreMenu.more': 'আরও',
     'appMission.appMissionIdCaseMoreMenu.nothingIsDeletedNowItsSnapshots':
       'এখন কিছুই মুছে ফেলা হচ্ছে না। এর স্ন্যাপশটগুলো থাকবে, এবং আপনার প্রোফাইল ও ডকুমেন্টে হাত দেওয়া হবে না।',
@@ -468,8 +466,6 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdCaseMoreMenu.theCaseStopsForGoodIt':
       'ভিসা ফাইলটি চিরতরে বন্ধ হয়ে যায়। এটি আর খোলা বা অন্য ধাপে সরানো যায় না।',
     'appMission.appMissionIdCaseMoreMenu.thisCannotBeUndone': 'এটি আর ফেরানো যাবে না।',
-    'appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe':
-      'পরে আবার আবেদন করতে ভিসা ফাইলটি খুলে "এটি থেকে একটি নতুন ভিসা ফাইল শুরু করুন" বেছে নিন।',
     'appMission.appMissionIdCaseMoreMenu.yourProfileAndDocumentsAreNot':
       'আপনার প্রোফাইল ও ডকুমেন্টে কোনো পরিবর্তন হয় না।',
     'appMission.appMissionIdCaseRail.aboutThisCase': 'এই ভিসা ফাইল সম্পর্কে',
@@ -592,7 +588,6 @@ export const appMissionCatalog = defineCatalog({
       'যেমন: এই ভিসা ফাইলের আর্থিক স্পনসরশিপ অংশে সহায়তা করতে',
     'appMission.appMissionIdContributorRequestsPanel.messageOptional': 'বার্তা (ঐচ্ছিক)',
     'appMission.appMissionIdContributorRequestsPanel.sponsorExampleCom': 'sponsor@example.com',
-    'appMission.appMissionIdContributorRequestsPanel.visastackRequest': 'VisaStack অনুরোধ',
     'appMission.appMissionIdContributorRequestsPanel.whatSNeededExactlyOneDocument':
       'যা লাগবে (ঠিক একটি ডকুমেন্ট)',
     'appMission.appMissionIdContributorRequestsPanel.whyTheContributorWillSeeThis':
