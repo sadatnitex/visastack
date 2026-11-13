@@ -1,4 +1,4 @@
-import type { Result } from '@visastack/core';
+import { type Result, err } from '@visastack/core';
 import {
   type Db,
   type Mission,
@@ -18,6 +18,7 @@ import {
   listSelectablePackVersions,
   readTravellerCoverage,
   requireAccess,
+  serviceError,
 } from '@visastack/services';
 import { savedCaseMatchTerms, travellerMatchTerms } from './case-choices';
 import { reportServerError } from './server-error';
@@ -204,7 +205,9 @@ export async function attachChecklistFor(
   packVersionId: string,
 ): Promise<Result<Mission, ServiceError>> {
   const owned = await getMissionForOwner(db, accountId, missionId);
-  if (!owned.ok) return owned;
+  // A real case that is not theirs gets the same answer as a made-up one: the service's own
+  // "not authorized" line would tell a stranger the case exists.
+  if (!owned.ok) return err(serviceError('not_found', 'case not found'));
   const access = await requireAccess(
     db,
     accountPrincipal(accountId),

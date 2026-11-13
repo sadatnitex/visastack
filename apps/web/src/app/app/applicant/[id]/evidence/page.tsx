@@ -2,13 +2,14 @@ import {
   accountPrincipal,
   getApplicant,
   listApplicantProfile,
+  listAskingAgencies,
   listDocumentsDetailed,
   listEvidenceRequestsForApplicant,
   listRequestItemExtras,
   referenceCodesFor,
   requireAccess,
 } from '@visastack/services';
-import type { RequestItemExtras } from '@visastack/services';
+import type { AskingAgency, RequestItemExtras } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DepthScope, atLevel } from '../../../../../components/depth';
@@ -29,6 +30,7 @@ import {
   parseShow,
 } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { AnswerFromRecordsCard } from './answer-from-records-card';
 import { choiceBasisFor } from './choice-basis';
 import { AWAITING_SUBMISSION } from './due-label';
 import { OpenRequestFromHash } from './open-request-from-hash';
@@ -52,6 +54,28 @@ const ITEM_KEY = 'item';
 /** `done=answered` with `item=<request>` draws the receipt for that request after an answer (F2). */
 const DONE_KEY = 'done';
 
+/** Every agency that has asked this traveller for anything, or none when they cannot be read. */
+async function readAskingAgencies(
+  db: Parameters<typeof getApplicant>[0],
+  accountId: string,
+  applicantId: string,
+): Promise<readonly AskingAgency[]> {
+  try {
+    const manage = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { applicantId },
+      { purpose: 'self' },
+    );
+    if (!manage.ok) return [];
+    const asking = await listAskingAgencies(manage.value);
+    return asking.ok ? asking.value : [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function EvidencePage({
   params,
   searchParams,
@@ -60,7 +84,7 @@ export default async function EvidencePage({
   /** `show`: how many requests to list (WP-SB3: 10, then 10 more with each Show More). */
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(applicantEvidenceCatalog);
   const { id } = await params;
   const search = (await searchParams) ?? {};
@@ -87,6 +111,8 @@ export default async function EvidencePage({
       applicantId: id,
       requests: requestList,
     });
+    // Who is asking runs beside the reads below too; it never throws.
+    const askingRead = readAskingAgencies(db, accountId, id);
     // Visible request codes (ADR 0018), so the traveller and the agency can name the same request.
     const referenceCodes = await referenceCodesFor(
       db,
@@ -123,8 +149,13 @@ export default async function EvidencePage({
         ),
       ),
     });
+    // Who is waiting, for the card above the list and the "Asked by" line in each request. It needs
+    // the owner's full proof; if that cannot be had, or the read fails, the page simply shows
+    // neither: a card that cannot be drawn must never take the requests down with it.
+    const askingAgencies = await askingRead;
     const histories = await historiesRead;
     return {
+      askingAgencies,
       applicant,
       referenceCodes,
       requests: requestList,
@@ -155,6 +186,8 @@ export default async function EvidencePage({
   const requestsNext = data.moreRequests
     ? nextShow(data.requests.length, { step: TRAVELLER_LIST_STEP, max: REQUEST_SHOW_MAX })
     : null;
+  // The card appears only for an agency that waits on a document: the one thing it can answer.
+  const answerable = data.askingAgencies.filter((agency) => agency.waitingDocuments >= 1);
   const timeZone = data.applicant.timezone;
   const depth = await readDepth('evidence-requests');
   const entries: RequestEntry[] = sorted.map((req) => ({
@@ -208,6 +241,12 @@ export default async function EvidencePage({
     extras: data.extras,
     choiceBasis: data.choiceBasis,
     histories: data.histories,
+    locale,
+    askingAgencies: new Map(
+      data.askingAgencies.map(
+        (agency) => [agency.organizationId, agency.organizationName] as const,
+      ),
+    ),
     ...(answeredId ? { answeredId } : {}),
   });
 
@@ -251,6 +290,10 @@ export default async function EvidencePage({
               }
             />
           </div>
+        ) : null}
+
+        {answerable.length > 0 ? (
+          <AnswerFromRecordsCard applicantId={id} agencies={answerable} />
         ) : null}
 
         {!data.requestsRead ? (
