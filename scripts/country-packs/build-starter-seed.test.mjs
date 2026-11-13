@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { parseCsv } from '../../packages/core/src/csv.ts';
 import { readSheet, replaceCountries } from './build-starter-seed.mjs';
-import { parseCsv } from './validate-intake.mjs';
 
 const HEADER = '"country","purpose","appliesWhen","text","keep","reference"';
 const line = (country, purpose, text, keep = 'Yes', reference = 'Page | https://x.gov | grade A') =>
@@ -54,4 +54,13 @@ test('replaces only the Tourist and Business lines of the named countries, in pl
   const flat = entries.flatMap((e) => (e.row ? [e.row.text] : e.rows.map((r) => r.text)));
   assert.deepEqual(flat, ['new 1', 'kept', 'new 2', 'new 3', 'kept medical']);
   assert.throws(() => replaceCountries(original, [row('Peru', 'Tourist (base)', 'x')]), /Peru/);
+  // A country whose only lines are Medical has no slot: the new lines must not vanish silently.
+  assert.throws(
+    () =>
+      replaceCountries(
+        [row('India', 'Medical (extra)', 'm')],
+        [row('India', 'Tourist (base)', 'x')],
+      ),
+    /India has no Tourist or Business lines/,
+  );
 });

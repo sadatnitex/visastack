@@ -81,6 +81,10 @@ matching field exists, then `batch-001.json` was rebuilt and `validation-report.
   visa-on-arrival list; the e-visa status stays unconfirmed).
 - The corrections give no word-for-word text from the new pages, so where a row's source link changed
   its copied words are left empty and the row is flagged for a check. No quote was invented.
+- Rows whose shown words no longer match the corrected fact are set to MEDIUM confidence and "needs
+  check", so screens show "Needs checking": the US country, route and bond rows (their copied words
+  still say USD 15,000), the Netherlands and Poland. South Korea's apply link is now the embassy
+  notice about the application centre.
 
 Starter checklist work of the same day: `starter-diff-2026-11-13.md` (official items missing from
 eight countries' starter lists, for the owner to decide) and `staged/` (extended purposes, staged only).

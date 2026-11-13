@@ -63,52 +63,20 @@ export const STARTER_NOTICE =
   'Starter list from agency files. Not official. Check the official page.';
 
 /**
- * The two-letter codes of the countries in the first supplied sheet, by the name that sheet uses.
- * Kept as written because some names differ from the country intake (Hong Kong, Turkey).
+ * Names a sheet may use that the country intake spells differently. Every other name is read
+ * through the intake below.
  */
-const COUNTRY_CODES: Readonly<Record<string, string>> = {
-  Australia: 'AU',
-  Canada: 'CA',
-  China: 'CN',
-  Denmark: 'DK',
-  Egypt: 'EG',
-  France: 'FR',
-  Germany: 'DE',
+const NAME_ALIASES: Readonly<Record<string, string>> = {
   'Hong Kong': 'HK',
-  Hungary: 'HU',
-  India: 'IN',
-  Indonesia: 'ID',
-  Italy: 'IT',
-  Japan: 'JP',
-  Malaysia: 'MY',
-  Morocco: 'MA',
-  Myanmar: 'MM',
-  Nepal: 'NP',
-  'New Zealand': 'NZ',
-  Nigeria: 'NG',
-  Philippines: 'PH',
-  Singapore: 'SG',
-  'South Africa': 'ZA',
-  'South Korea': 'KR',
-  Spain: 'ES',
-  'Sri Lanka': 'LK',
-  Sweden: 'SE',
-  Switzerland: 'CH',
-  Thailand: 'TH',
-  Türkiye: 'TR',
   Turkey: 'TR',
-  'United Arab Emirates': 'AE',
-  'United Kingdom': 'GB',
-  'United States': 'US',
-  Vietnam: 'VN',
 };
 
 let intakeCodes: ReadonlyMap<string, string> | undefined;
 
 /**
- * Any other country, by the name the country intake sheets use (batch-001), taking a code only if
- * the ISO table (`country-codes.json`) has it. That table holds codes only, no names, so the names
- * come from the intake, which is the owner's own list.
+ * A country by the name the country intake sheets use (batch-001, 156 countries), taking a code
+ * only if the ISO table (`country-codes.json`) has it. That table holds codes only, no names, so
+ * the names come from the intake, which is the owner's own list.
  */
 function intakeCodeOf(name: string): string | undefined {
   if (intakeCodes === undefined) {
@@ -126,7 +94,7 @@ function intakeCodeOf(name: string): string | undefined {
 /** The two-letter code for a country name as a sheet writes it, or undefined when it is not known. */
 export function starterCountryCode(name: string): string | undefined {
   const trimmed = name.trim();
-  if (Object.hasOwn(COUNTRY_CODES, trimmed)) return COUNTRY_CODES[trimmed];
+  if (Object.hasOwn(NAME_ALIASES, trimmed)) return NAME_ALIASES[trimmed];
   return intakeCodeOf(trimmed);
 }
 
@@ -210,7 +178,7 @@ export function buildStarterPacks(rows: readonly StarterSheetRow[]): StarterBuil
   const base = new Map<string, StarterRequirement[]>();
   const extras = new Map<string, StarterRequirement[]>();
   const countries: string[] = [];
-  /** The name the sheet used for each code, for a country not in the fixed list. */
+  /** The name the sheet used first for each code. */
   const sheetNames = new Map<string, string>();
 
   for (const row of rows) {
@@ -257,10 +225,11 @@ export function buildStarterPacks(rows: readonly StarterSheetRow[]): StarterBuil
   }
 
   const packs: StarterPackDefinition[] = [];
-  const nameOf = (iso2: string) =>
-    Object.entries(COUNTRY_CODES).find(([, code]) => code === iso2)?.[0] ??
-    sheetNames.get(iso2) ??
-    iso2;
+  // A list is named as the sheet names its country; Turkey is written Türkiye, as the first sheet did.
+  const nameOf = (iso2: string) => {
+    const name = sheetNames.get(iso2) ?? iso2;
+    return name === 'Turkey' ? 'Türkiye' : name;
+  };
   for (const iso2 of countries) {
     const baseList = base.get(iso2) ?? [];
     const variants: [StarterPurpose, readonly StarterRequirement[]][] = [['tourist', baseList]];
@@ -276,7 +245,7 @@ export function buildStarterPacks(rows: readonly StarterSheetRow[]): StarterBuil
       const hash = starterContentHash(requirements);
       packs.push({
         key: `${STARTER_KEY_PREFIX}${iso2.toLowerCase()}.${purpose}`,
-        name: `${nameOf(iso2) === 'Turkey' ? 'Türkiye' : nameOf(iso2)} ${meta.label} Starter List`,
+        name: `${nameOf(iso2)} ${meta.label} Starter List`,
         description: STARTER_NOTICE,
         jurisdiction: iso2,
         purpose: meta.key,

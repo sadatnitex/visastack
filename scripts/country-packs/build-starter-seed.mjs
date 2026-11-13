@@ -67,6 +67,10 @@ export function replaceCountries(original, replacements) {
     done.add(row.country);
     out.push({ country: row.country, rows: replacements.filter((r) => r.country === row.country) });
   }
+  const noSlot = countries.filter((country) => !done.has(country));
+  if (noSlot.length > 0) {
+    throw new Error(`${noSlot.join(', ')} has no Tourist or Business lines to replace`);
+  }
   return out;
 }
 

@@ -55,8 +55,8 @@
         "exactWords": "Starting January 21, 2026, nationals of Bangladesh who are found otherwise eligible for a B1/B2 visa must post a bond of up to $15,000.",
         "translation": null,
         "where": "Nonimmigrant Visas main notice",
-        "confidence": "HIGH",
-        "needsCheck": false,
+        "confidence": "MEDIUM",
+        "needsCheck": true,
         "note": "MRV fee amount not stated on this embassy page (NOT_FOUND). Correction C01 (grade A, https://bd.usembassy.gov/visas/, checked 2026-11-13): the B1/B2 visa bond is now up to USD 20,000, paid before the visa is issued and only when the consular officer says so. The copied words below are from 2026-10-14 and say USD 15,000."
       }
     },
@@ -3476,7 +3476,7 @@
         "exactWords": null,
         "translation": null,
         "where": null,
-        "confidence": "HIGH",
+        "confidence": "MEDIUM",
         "needsCheck": true,
         "note": "Correction C05 (grade A, https://www.vfsglobal.com/one-pager/netherlands/bangladesh/english/index.html, checked 2026-11-13): VFS Global Dhaka; the Dutch embassy takes no short-stay applications. Channel is the application centre in Dhaka. The exact sentence was not copied from that page, so the copied words are empty and the row needs a check. The earlier source was the Swedish embassy news page in Dhaka read on 2026-10-14."
       }
@@ -3538,9 +3538,9 @@
         "exactWords": "Only apply if the main destination is Belgium, Finland, Iceland, Latvia, Luxemburg, the Netherlands, Poland, Slovenia, or Sweden.",
         "translation": null,
         "where": "Embassy of Sweden Dhaka notice",
-        "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Poland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90. Correction C06 (grade A, https://www.gov.pl/web/india/schengen-visa-for-citizens-of-bangladesh3, checked 2026-11-13): Netherlands Embassy in Dhaka represents Poland from 1 May 2026 (Polish government page dated 2026-05-01); Dutch short-stay channel is VFS Global Dhaka; Polish national D visa is separate."
+        "confidence": "MEDIUM",
+        "needsCheck": true,
+        "note": "Correction C06 (grade A, https://www.gov.pl/web/india/schengen-visa-for-citizens-of-bangladesh3, checked 2026-11-13): Netherlands Embassy in Dhaka represents Poland from 1 May 2026 (Polish government page dated 2026-05-01); Dutch short-stay channel is VFS Global Dhaka; Polish national D visa is separate. The source and copied words below are the Swedish embassy notice of 2026-10-14, which no longer names who handles Poland. Earlier note: Embassy of Sweden in Dhaka represents Poland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
       }
     },
     {
@@ -3949,7 +3949,7 @@
       "stayPeriodRule": null,
       "passportValidityRule": null,
       "howToApply": "APPLICATION_CENTRE",
-      "applyUrl": "https://overseas.mofa.go.kr/bd-en/wpge/m_2124/contents.do",
+      "applyUrl": "https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14",
       "bangladeshLocation": "Dhaka",
       "fee": {
         "amount": 40,
@@ -3965,7 +3965,7 @@
         "checkedOn": "2026-11-13",
         "exactWords": null,
         "translation": null,
-        "where": "Summary of a web search; wording not copied",
+        "where": null,
         "confidence": "LOW",
         "needsCheck": true,
         "note": "Correction C04 (grade A, https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14, checked 2026-11-13): Korea Visa Application Center (VFS) Dhaka since 2026-09-02; embassy keeps diplomatic and official visas; fee USD 40 single under 90 days, USD 70 double, USD 90 multiple, USD 60 single over 90 days (student), plus VFS service fee BDT 2,150. Fee 40 USD is the single-entry visa under 90 days. The exact sentence was not copied, so the copied words stay empty and the row stays low confidence and flagged for a check. Entry status was earlier read from visa-information sites, not this page."
@@ -3996,7 +3996,7 @@
         "checkedOn": "2026-11-13",
         "exactWords": null,
         "translation": null,
-        "where": "Summary of a web search; wording not copied",
+        "where": null,
         "confidence": "LOW",
         "needsCheck": true,
         "note": "Correction C11 (grade A, https://evisa.gov.vn/, checked 2026-11-13): USD 25 single entry, USD 50 multiple entry, valid up to 90 days, apply on the official portal. Fee 25 USD is the single-entry e-visa. The exact sentence was not copied, so the copied words stay empty and the row stays low confidence and flagged for a check."
@@ -4897,8 +4897,8 @@
         "exactWords": "Starting January 21, 2026, nationals of Bangladesh who are found otherwise eligible for a B1/B2 visa must post a bond of up to $15,000.",
         "translation": null,
         "where": "Nonimmigrant Visas main notice",
-        "confidence": "HIGH",
-        "needsCheck": false,
+        "confidence": "MEDIUM",
+        "needsCheck": true,
         "note": "Correction C01 (grade A, https://bd.usembassy.gov/visas/, checked 2026-11-13): the bond is up to USD 20,000. The copied words below are from the earlier reading on 2026-10-14 and still say USD 15,000."
       },
       "requirements": [
@@ -5002,7 +5002,7 @@
             "exactWords": null,
             "translation": null,
             "where": null,
-            "confidence": "HIGH",
+            "confidence": "MEDIUM",
             "needsCheck": true,
             "note": "Correction C01 (grade A, https://bd.usembassy.gov/visas/, checked 2026-11-13): Up to USD 20,000 before the visa is issued, regardless of place of application; pay only on the site the consular officer names, after being told to. The exact sentence was not copied from that page, so the copied words are empty and the row needs a check. The earlier figure of USD 15,000 came from https://bd.usembassy.gov/nonimmigrant-visas/ read on 2026-10-14."
           }
