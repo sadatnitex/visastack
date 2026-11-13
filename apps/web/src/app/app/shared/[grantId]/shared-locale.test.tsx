@@ -157,7 +157,7 @@ describe('shared workspace under Bengali', () => {
 });
 
 describe('the day shared access ends', () => {
-  // A far, fixed moment at midday, so no viewer time zone can move the day.
+  // A far, fixed moment at midday, so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines).
   const EXPIRY_AT = new Date('2099-11-01T12:00:00Z');
   // The purpose and the expiry share one line: take the line from the purpose to the year.
   const expiryLine = (shown: string) =>

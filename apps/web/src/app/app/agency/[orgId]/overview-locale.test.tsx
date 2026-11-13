@@ -271,7 +271,7 @@ describe('the agency overview numbers in English', () => {
 });
 
 describe('the day a traveller confirmed, on the agency overview', () => {
-  // A far, fixed moment at midday, so no viewer time zone can move the day.
+  // A far, fixed moment at midday, so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines).
   const CONFIRMED_AT = '2099-11-01T12:00:00.000Z';
   const confirmed = { ...inGoodShape, missionId: 'mc', liveAcknowledgementAt: CONFIRMED_AT };
 

@@ -66,7 +66,7 @@ const { default: Page } = await import('./page');
 const BENGALI = /[ঀ-৿]/;
 const LATIN_DIGIT = /[0-9]/;
 const ENGLISH_MONTH = /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/;
-// Far, fixed dates: a midday moment so no viewer time zone can move the day, and a plain day.
+// Far, fixed dates: a midday moment so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines), and a plain day.
 const EXPIRES_AT = '2099-11-01T12:00:00Z';
 const DUE_DATE = '2099-10-20T00:00:00Z';
 const bn = appAgencyCatalog.bn as Record<string, string>;

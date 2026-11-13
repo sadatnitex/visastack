@@ -250,7 +250,7 @@ describe('privacy screens under Bengali (owner-approved legal wording, signed of
 });
 
 describe('the moment a ready export expires', () => {
-  // A far, fixed moment at midday UTC, so no viewer time zone can move the day.
+  // A far, fixed moment at midday UTC, so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines).
   const EXPIRES_AT = '2099-11-01T12:00:00Z';
   // The same choices the panel makes: day, short month, year, hour and minute.
   const SHAPE = {

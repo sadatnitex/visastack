@@ -41,7 +41,7 @@ const LATIN_DIGIT = /[0-9]/;
 const ENGLISH_MONTH = /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/;
 const bn = collectCatalog.bn as Record<string, string>;
 const WITHDRAWN = 'collect.collectAccountAnswersPage.withdrawnFormattimestampdate';
-// Far, fixed moments at midday, so no viewer time zone can move the day.
+// Far, fixed moments at midday, so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines).
 const SUBMITTED_AT = new Date('2099-03-05T12:00:00Z');
 const WITHDRAWN_AT = new Date('2099-04-09T12:00:00Z');
 const PERSON = '22222222-2222-4333-8444-555555555555';

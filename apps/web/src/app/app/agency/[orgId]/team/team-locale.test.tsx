@@ -53,7 +53,7 @@ const LATIN_DIGIT = /[0-9]/;
 const ENGLISH_MONTH = /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/;
 const bn = appAgencyCatalog.bn as Record<string, string>;
 const INVITED = 'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate';
-// A far, fixed moment at midday, so no viewer time zone can move the day.
+// A far, fixed moment at midday, so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines).
 const EXPIRES_AT = '2099-11-01T12:00:00Z';
 
 async function showHtml(locale: 'en' | 'bn') {
