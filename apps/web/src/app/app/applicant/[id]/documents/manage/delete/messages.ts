@@ -1,4 +1,3 @@
-import type { DuplicateBlockReason } from '@visastack/services';
 import { agree, plural } from '../../../../../../../lib/plural';
 
 /*
@@ -29,15 +28,3 @@ export function casesLine(caseCount: number): string {
 export function deletedLine(days: number): string {
   return `Moved to Recently Deleted. ${removedInLine(days)}.`;
 }
-
-/** Why a duplicate cannot be deleted (owner decision D5), with Archive offered instead. */
-export const BLOCK_REASON_WORDS: Readonly<Record<DuplicateBlockReason, string>> = {
-  FINISHED_CASE: 'A finished case used this copy, so it is kept with that case.',
-  AGENCY_REQUEST_ANSWER: 'This copy answered a request from an agency, so it is kept.',
-  CONTRIBUTOR_HANDOVER: 'Someone you invited sent this copy, so it is kept.',
-  SHARED_BY_NAME: 'You shared this copy by name, so it is kept while that share is open.',
-  LEGAL_HOLD: 'This copy must be kept for a legal requirement.',
-};
-
-/** Added after a refusal: the way out the person still has. */
-export const ARCHIVE_INSTEAD = 'You can archive it instead.';

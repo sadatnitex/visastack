@@ -117,21 +117,27 @@ describe('calendar page under Bengali', () => {
     // The hidden group name of the button bar is Bengali too.
     expect(html).toContain(`<legend class="sr-only">${bn[`${PAGE}previewYourDates`]}</legend>`);
     expect(html).toMatch(new RegExp(`>${bn[`${PAGE}preview`]}</button>`));
-    // Held in English: what the case name does, the time-zone note and the reminder choices.
-    expect(text).toContain(en[`${PAGE}addsTheCaseNameAfterThe`]);
-    expect(text).toContain('Dates without a time are added');
+    // What the case name does and the all-day note are Bengali since refill 3; the reminder
+    // choices stay English.
+    expect(text).toContain(bn[`${PAGE}addsTheCaseNameAfterThe`]);
+    expect(text).not.toContain(en[`${PAGE}addsTheCaseNameAfterThe`]);
+    expect(text).toContain('যেসব তারিখে সময় নেই, সেগুলো সারাদিনের ইভেন্ট হিসেবে যোগ হয়।');
+    expect(text).not.toContain('Dates without a time are added');
     expect(text).toContain('Task Due');
     // No preview yet, so no preview heading and no download button.
     expect(html).not.toContain('calendar-preview-heading');
     expect(text).not.toContain('Download Calendar File');
+    expect(text).not.toContain(bn[`${PAGE}downloadCalendarFile`]);
     expect(html).not.toMatch(RAW_KEY);
   });
 
   it('the preview state shows the Bengali Preview heading and keeps the file wording in English', async () => {
     const { html, text } = await render('bn', { preview: '1', key: TASK_KEY });
     expect(html).toMatch(new RegExp(`id="calendar-preview-heading">${bn[`${PAGE}preview`]}</h3>`));
-    expect(text).toContain('Download Calendar File');
-    expect(text).toContain('Clear Choices');
+    expect(text).toContain(bn[`${PAGE}downloadCalendarFile`]);
+    expect(text).toContain(bn[`${PAGE}clearChoices`]);
+    expect(text).not.toContain('Download Calendar File');
+    // The count is an English noun from plural(), so this sentence stays English.
     expect(text).toContain('The file will hold 1 event');
     expect(html).not.toMatch(RAW_KEY);
   });
@@ -159,7 +165,18 @@ describe('calendar page under Bengali', () => {
     expect(html).toMatch(new RegExp(`<button[^>]*>${bn[`${PANEL}copyLink`]}</button>`));
     expect(text).toContain(bn[`${PANEL}yourPrivateCalendarLink`]);
     expect(text).toContain(bn[`${PANEL}thisLinkIsShownOnlyNow`]);
-    expect(text).toContain(en[`${PANEL}outlookChooseAddCalendarThenSubscribe`]);
+    for (const key of [
+      'thenAddItToYourCalendar',
+      'googleCalendarOnAComputerNext',
+      'outlookChooseAddCalendarThenSubscribe',
+      'iphoneOrIpadOpenSettingsThen',
+      'calendarOnAMacChooseFile',
+    ]) {
+      expect(text, key).toContain(bn[`${PANEL}${key}`]);
+      expect(text, key).not.toContain(en[`${PANEL}${key}`]);
+    }
+    // Held: the line on who can see the link stays English (the link panel test pins it).
+    expect(text).toContain(en[`${PANEL}anyoneWhoHasThisLinkCan`]);
     expect(text).toContain('Make a New Link');
     expect(text).toContain('Stop Sharing');
     expect(html).not.toMatch(RAW_KEY);
@@ -177,7 +194,9 @@ describe('calendar page under Bengali', () => {
     mocks.listCalendarDates.mockResolvedValue(listing([]));
     const { html, text } = await render('bn');
     expect(text).toContain(bn[`${PAGE}addDatesToMyCalendar`]);
-    expect(text).toContain('No Dates to Add');
+    expect(text).toContain(bn[`${PAGE}noDatesToAdd`]);
+    expect(text).toContain(bn[`${PAGE}appointmentsDueDatesAndDocumentExpiry`]);
+    expect(text).not.toContain('No Dates to Add');
     expect(text).not.toContain(bn[`${PAGE}chooseDates`]);
     expect(html).not.toMatch(RAW_KEY);
   });
@@ -185,8 +204,38 @@ describe('calendar page under Bengali', () => {
   it('the could-not-load state keeps the warning in English', async () => {
     mocks.listCalendarDates.mockResolvedValue({ ok: false, error: { code: 'unavailable' } });
     const { html, text } = await render('bn');
-    expect(text).toContain('We could not load your dates');
+    expect(text).toContain(bn[`${PAGE}weCouldNotLoadYourDates`]);
+    expect(text).not.toContain('We could not load your dates');
     expect(text).toContain(bn[`${PAGE}addDatesToMyCalendar`]);
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('nothing chosen and a failed download say so in Bengali (refill 3)', async () => {
+    const nothing = await render('bn', { error: 'nothing' });
+    expect(nothing.text).toContain(bn[`${PAGE}chooseAtLeastOneDateFirst`]);
+    expect(nothing.text).not.toContain(en[`${PAGE}chooseAtLeastOneDateFirst`]);
+    const failed = await render('bn', { error: 'failed' });
+    expect(failed.text).toContain(bn[`${PAGE}weCouldNotMakeTheFile`]);
+    expect(failed.text).not.toContain(en[`${PAGE}weCouldNotMakeTheFile`]);
+    expect(failed.html).not.toMatch(RAW_KEY);
+  });
+
+  it('a long list says only the earliest are listed, in Bengali digits (refill 3)', async () => {
+    mocks.listCalendarDates.mockResolvedValue({
+      ok: true,
+      value: { applicantId: 'a1', items: CALENDAR_ITEMS, truncated: true },
+    });
+    const { html, text } = await render('bn');
+    expect(text).toContain('প্রতিটি ধরনের তারিখের শুধু প্রথম');
+    expect(text).not.toContain('Only the earliest');
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('when subscribing is not available yet it says so in Bengali (refill 3)', async () => {
+    mocks.getCalendarFeedStatus.mockResolvedValue({ ok: true, value: { state: 'unavailable' } });
+    const { html, text } = await render('bn');
+    expect(text).toContain(bn[`${PANEL}subscribingInYourCalendarAppIs`]);
+    expect(text).not.toContain(en[`${PANEL}subscribingInYourCalendarAppIs`]);
     expect(html).not.toMatch(RAW_KEY);
   });
 

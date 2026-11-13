@@ -73,11 +73,25 @@ export const applicantCalendarCatalog = defineCatalog({
       'We could not make the file just now. Try again.',
   },
   bn: {
+    'applicantCalendar.appApplicantIdCalendarCalendarDateGroups.eventsInTheFile':
+      'ক্যালেন্ডার ডাউনলোডে থাকা ইভেন্ট',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.calendarOnAMacChooseFile':
+      'ম্যাকের ক্যালেন্ডারে: "File" বেছে নিন, তারপর "New Calendar Subscription" বেছে নিন এবং লিংকটি পেস্ট করুন।',
     'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.copyLink': 'লিংক কপি করুন',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.googleCalendarOnAComputerNext':
+      'কম্পিউটারে Google ক্যালেন্ডার: "Other calendars"-এর পাশে প্লাস চিহ্নটি বেছে নিন, তারপর "From URL" বেছে নিন এবং লিংকটি পেস্ট করুন।',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.iphoneOrIpadOpenSettingsThen':
+      'iPhone বা iPad: "Settings" খুলুন, তারপর "Calendar", "Accounts", "Add Account", "Other", "Add Subscribed Calendar"-এ যান এবং লিংকটি পেস্ট করুন।',
     'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.makingANewLinkStopsThe':
       'নতুন লিংক তৈরি করলে পুরোনোটি সঙ্গে সঙ্গে বন্ধ হয়ে যায়: নতুন লিংকটি আবার আপনার ক্যালেন্ডার অ্যাপে যোগ করুন। শেয়ার বন্ধ করুন চাপলে লিংকটি বন্ধ হয়ে যায়; তখন আপনার ক্যালেন্ডার অ্যাপে আর নতুন তারিখ আসে না।',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.outlookChooseAddCalendarThenSubscribe':
+      'Outlook: "Add Calendar" বেছে নিন, তারপর "Subscribe from web" বেছে নিন এবং লিংকটি পেস্ট করুন।',
     'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribeInYourCalendarApp':
       'আপনার ক্যালেন্ডার অ্যাপে সাবস্ক্রাইব করুন',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.subscribingInYourCalendarAppIs':
+      'আপনার ক্যালেন্ডার অ্যাপে সাবস্ক্রাইব করার সুবিধা এখনো চালু হয়নি। তবে উপরে থেকে একটি ক্যালেন্ডার ডকুমেন্ট ডাউনলোড করতে পারেন।',
+    'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thenAddItToYourCalendar':
+      'তারপর এটি আপনার ক্যালেন্ডার অ্যাপে যোগ করুন:',
     'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.thisLinkIsShownOnlyNow':
       'এই লিংকটি শুধু এখনই দেখানো হচ্ছে। হারিয়ে ফেললে নতুন লিংক তৈরি করুন।',
     'applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.turnOnAPrivateLinkAnd':
@@ -89,16 +103,33 @@ export const applicantCalendarCatalog = defineCatalog({
     'applicantCalendar.appApplicantIdCalendarPage.addCaseNames': 'ভিসা ফাইলের নাম যোগ করুন',
     'applicantCalendar.appApplicantIdCalendarPage.addDatesToMyCalendar':
       'আমার ক্যালেন্ডারে তারিখ যোগ করুন',
+    'applicantCalendar.appApplicantIdCalendarPage.addsTheCaseNameAfterThe':
+      'শিরোনামের পরে ভিসা ফাইলের নাম যোগ করে, যেমন "কাজের শেষ তারিখ - জাপান ভ্রমণ"। আপনার ক্যালেন্ডার যিনিই দেখতে পান, তিনি এটি দেখবেন। ভিসা ফাইলের নামে কোনো নম্বর, লিংক বা ইমেইল ঠিকানা থাকলে সেই নাম বাদ দেওয়া হয়।',
+    'applicantCalendar.appApplicantIdCalendarPage.appointmentsDueDatesAndDocumentExpiry':
+      'অ্যাপয়েন্টমেন্ট, শেষ তারিখ এবং ডকুমেন্টের মেয়াদ শেষের তারিখ ঠিক করা হলে এখানে দেখা যাবে। তারিখ নেই এমন আইটেম কখনো যোগ করা হয় না।',
     'applicantCalendar.appApplicantIdCalendarPage.calendar': 'ক্যালেন্ডার',
+    'applicantCalendar.appApplicantIdCalendarPage.chooseAtLeastOneDateFirst':
+      'আগে অন্তত একটি তারিখ বেছে নিন। প্রিভিউয়ের পর যে তারিখ শেষ হয়েছে বা সরানো হয়েছে, তা বাদ পড়ে।',
     'applicantCalendar.appApplicantIdCalendarPage.chooseDates': 'তারিখ বেছে নিন',
     'applicantCalendar.appApplicantIdCalendarPage.chooseTheDatesYouWantCheck':
       'আপনার পছন্দের তারিখগুলো বেছে নিন, প্রিভিউ দেখে নিন, তারপর আপনার ক্যালেন্ডার অ্যাপে খোলার জন্য একটি ডকুমেন্ট ডাউনলোড করুন।',
+    'applicantCalendar.appApplicantIdCalendarPage.clearChoices': 'বাছাই খালি করুন',
     'applicantCalendar.appApplicantIdCalendarPage.datesToAdd': 'যোগ করার তারিখ',
+    'applicantCalendar.appApplicantIdCalendarPage.datesWithoutATimeAreAdded':
+      'যেসব তারিখে সময় নেই, সেগুলো সারাদিনের ইভেন্ট হিসেবে যোগ হয়। আপনি ভিসা ফাইলের নাম যোগ করতে না চাইলে শিরোনাম সাধারণ থাকে, যেমন "কাজের শেষ তারিখ"। {CALENDAR_PAST_DAYS} দিনের বেশি আগের তারিখ তালিকায় থাকে না।',
+    'applicantCalendar.appApplicantIdCalendarPage.downloadCalendarFile': 'ক্যালেন্ডার ডাউনলোড করুন',
+    'applicantCalendar.appApplicantIdCalendarPage.noDatesToAdd': 'যোগ করার মতো কোনো তারিখ নেই',
+    'applicantCalendar.appApplicantIdCalendarPage.onlyTheEarliestCalendarSourceLimit':
+      'প্রতিটি ধরনের তারিখের শুধু প্রথম {CALENDAR_SOURCE_LIMIT}টি তালিকায় দেখানো হয়।',
     'applicantCalendar.appApplicantIdCalendarPage.preview': 'প্রিভিউ',
     'applicantCalendar.appApplicantIdCalendarPage.previewYourDates': 'আপনার তারিখগুলোর প্রিভিউ দেখুন',
     'applicantCalendar.appApplicantIdCalendarPage.remindMe': 'আমাকে মনে করিয়ে দিন',
     'applicantCalendar.appApplicantIdCalendarPage.thisIsAOneTimeCopy':
       'এটি একবারের কপি। পরে কোনো তারিখ বদলালে আপনার ক্যালেন্ডার আপডেট হবে না; নতুন একটি ডকুমেন্ট ডাউনলোড করুন। যেসব ক্যালেন্ডার অ্যাপ আপডেট সমর্থন করে, সেগুলো আগে যোগ করা তারিখগুলো বদলে দেয়; অন্যগুলো সেগুলো আবার যোগ করতে পারে।',
     'applicantCalendar.appApplicantIdCalendarPage.titles': 'শিরোনাম',
+    'applicantCalendar.appApplicantIdCalendarPage.weCouldNotLoadYourDates':
+      'এই মুহূর্তে আপনার তারিখগুলো লোড করা যায়নি। আবার চেষ্টা করতে রিফ্রেশ করুন।',
+    'applicantCalendar.appApplicantIdCalendarPage.weCouldNotMakeTheFile':
+      'এই মুহূর্তে আমরা ডাউনলোডটি তৈরি করতে পারিনি। আবার চেষ্টা করুন।',
   },
 });

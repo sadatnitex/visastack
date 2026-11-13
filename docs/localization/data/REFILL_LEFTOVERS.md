@@ -223,3 +223,77 @@ Also left out of refill 2 by scope: the `appApplicantIdDocumentsManage...` remov
 These have a passing draft and no content reason to stay English. They were not filled in refill 2 because no test renders their state under Bengali yet (rule 15: every live Bengali value is rendered by a test). The next refill fills them together with those tests.
 
 `appApplicant.appApplicantIdAppSuggestions.nothingWaiting`, `appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind`, `appApplicant.appApplicantIdDocumentSuggestionCard.whatIsIt`, `appApplicant.appApplicantIdDocumentUploader.notAdded`, `appApplicant.appApplicantIdDocumentUploader.removing`, `appApplicant.appApplicantIdDocumentUploader.tryAgain`, `appApplicant.appApplicantIdDocumentUploader.tryAgainName`, `appApplicant.appApplicantIdDocumentsNeedsDecision.addAClearerCopyIfYou`, `appApplicant.appApplicantIdDocumentsNeedsDecision.chooseSomeoneElse`, `appApplicant.appApplicantIdDocumentsNeedsDecision.filedUnderPersonname`, `appApplicant.appApplicantIdDocumentsNeedsDecision.linkedCopies`, `appApplicant.appApplicantIdDocumentsNeedsDecision.recognisedAutomatically`, `appApplicant.appApplicantIdDocumentsNeedsDecision.theseFilesWereAddedForSeveral`, `appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf`, `appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable`, `appApplicant.appApplicantIdDocumentsNeedsDecision.whichPerson`, `appApplicant.appApplicantIdExpiryPage.enteredByYou`, `appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck`, `appApplicant.appApplicantIdImportImportPanel.chooseWhichPerson`, `appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn`, `appApplicant.appApplicantIdImportImportPanel.mostFilesAreSortedOnTheir`, `appApplicant.appApplicantIdImportImportPanel.resume`, `appApplicant.appApplicantIdImportImportPanel.seeWhatWeFound`, `appApplicant.appApplicantIdImportImportPanel.seeWhatWeFoundForName`, `appApplicant.appApplicantIdImportImportPanel.sendAgain`, `appApplicant.appApplicantIdImportImportPanel.sendAgainName`, `appApplicant.appApplicantIdImportImportPanel.showAllLength`, `appApplicant.appApplicantIdImportImportPanel.showFewer`, `appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles`, `appApplicant.appApplicantIdNameReview.proposedFilename`, `appApplicant.appApplicantIdPage.casesAreUnavailable`, `appApplicant.appApplicantIdPage.datesAreUnavailable`, `appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections`, `appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections8284e6`, `appApplicant.appApplicantIdPage.personalApplication`, `appApplicant.appApplicantIdPage.refreshToTryAgain`, `appApplicant.appApplicantIdPage.someRecordsCouldNotBeLoaded`, `appApplicant.appApplicantIdPage.someSectionsAreUnavailableUnavailableTotals`, `appApplicant.appApplicantIdPage.suggestedDetailsAwaitingApproval`, `appApplicant.appApplicantIdPage.suggestionsFromAiAppsWaitingFor`, `appApplicant.appApplicantIdPage.unavailable`, `appApplicant.appApplicantIdProfileEditor.addAnother`, `appApplicant.appApplicantIdProfileEditor.dateItEnded`, `appApplicant.appApplicantIdProfileEditor.documentsForThisSection`, `appApplicant.appApplicantIdProfileEditor.doesNotApply`, `appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly`, `appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore`, `appApplicant.appApplicantIdProfileEditor.everySectionSuggestedForThisPurpose`, `appApplicant.appApplicantIdProfileEditor.noFieldsMatchTryAnotherField`, `appApplicant.appApplicantIdProfileEditor.notUploadedYet`, `appApplicant.appApplicantIdProfileEditor.openBecauseItHoldsYourDetails`, `appApplicant.appApplicantIdProfileEditor.otherOthertext`, `appApplicant.appApplicantIdProfileEditor.showEssentialsOnly`, `appApplicant.appApplicantIdProfileEditor.suggested`, `appApplicant.appApplicantIdProfileEditor.upload`, `appApplicant.appApplicantIdProfileEditor.uploaded`, `appApplicant.appApplicantIdProfileEditor.whereThisCameFrom`, `appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent`, `appApplicant.appApplicantIdProfileEditor.youSaidYouHaveNone`, `appApplicant.appApplicantIdProfilePage.chooseWhetherToSaveYourProfile`, `appApplicant.appApplicantIdProfilePage.profileDetail`, `appApplicant.appApplicantIdProfilePage.recordedUpdate`, `appApplicant.appApplicantIdProfilePage.reviewPermissions`, `appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy`, `appApplicant.appApplicantIdRecordBrowser.notAvailableRightNow`, `appApplicant.appApplicantIdReviewPage.addMoreDocuments`, `appApplicant.appApplicantIdReviewPage.allDone`, `appApplicant.appApplicantIdReviewPage.checkTheNameWeSuggestFor`, `appApplicant.appApplicantIdReviewPage.openMyProfile`, `appApplicant.appApplicantIdReviewPage.readAgain`, `appShared.appSharedGrantidPage.safeCopiesAreNotAvailableHere`
+
+## Left English at review in refill 3
+
+Refill 3 filled 215 keys of the applicant record screens (calendar, requests, insights, case history, cases, summaries, sharing), document collection, invitation, payments, status and trust. These 67 have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| applicant-calendar | `applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.anyoneWhoHasThisLinkCan` | The calendar test pins this privacy line out of the Bengali catalogue; releasing it is a separate decision, not a refill. |
+| applicant-calendar | `applicantCalendar.appApplicantIdCalendarPage.theFileWillHoldPluralAs` | `plural()` writes an English noun ("1 event"). |
+| applicant-evidence | `applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.everyoneWhoCanReadTheShared` | The evidence test pins this who-can-read warning out of the Bengali catalogue (its Send Question button is English). |
+| applicant-evidence | `applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment` | `formatMoment` writes an English date. |
+| applicant-insights | `applicantInsights.appApplicantIdInsightsPage.backsPluralJoin` | `plural()` writes an English noun, and the joined detail names are English. |
+| applicant-insights | `applicantInsights.appApplicantIdInsightsPage.backsPluralInJoin` | Same: English noun and English section labels. |
+| applicant-insights | `applicantInsights.appApplicantIdInsightsPage.canBackJoin` | The joined section labels are English. |
+| applicant-insights | `applicantInsights.appApplicantIdInsightsPage.showingShownOfTotalNoun` | The noun is passed in English ("details to check"). |
+| applicant-memory | `applicantMemory.appApplicantIdMemoryComparePage.compareNameThenAndNow` | Spoken name of the Compare link; the name holds an English detail label. |
+| applicant-memory | `applicantMemory.appApplicantIdMemoryComparePage.compare` | Visible text of the same link: kept with its spoken name in one language. |
+| applicant-missions | `applicantMissions.appApplicantIdMissionsCreateMissionForm.createTheCase` | Names the action bar whose only button, "Create Case", is English. |
+| applicant-missions | `applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.createTheNewCase` | Same: the bar's button "Create Case" is English. |
+| applicant-missions | `applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.optional` | Appended to an English checklist item label. |
+| applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.nothingToShow` | Waits for a test: every section a summary builds today has rows or its own note, so no test can show this line yet. |
+| applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly` | `longDay` writes an English date. |
+| applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.stepNumberOf3` | Spoken before an English step name ("Choose a Summary"). |
+| applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.summaryLabel` | The summary name is English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnectionTurnOff.keepItOn` | The other answer, "Yes, Turn Off", is English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnections.aifileslineButTurnedOffRightNow` | `aiFilesLine` is English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnections.yes` | Answer under an English row name (Full Numbers, Suggest Changes). |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnections.no` | Same. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow` | Same. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingCaseExceptions.keepItPrivate` | The other answer, "Yes, Allow This Case", is English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingGrantAiChoice.saveAiToolsChoiceForAgencyname` | Spoken name of a button whose visible text "Save" is English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingGrantOpButtons.keepAccess` | The other answer, "Yes, Revoke Access", and its question are English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingGrantPane.organization` | Suffix of a pane title whose status and actions are English. |
+| applicant-traveller-manage | `applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.cancel` | The confirmation heading, text and confirm button are English. |
+| applicant-traveller-manage | `applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manageName` | Spoken name of a button whose visible text "Manage" is English. |
+| collect | `collect.collectAccountAnswersPage.withdrawnFormattimestampdate` | `formatTimestampDate` is called without the locale: English date. |
+| collect | `collect.collectGuestProgress.chooseHowLongWhoMayKeep` | `who` falls back to the English "the agency". |
+| collect | `collect.collectRetentionChoice.chooseHowManyDaysAfterThis` | Same: "The agency" fallback is English. |
+| collect | `collect.collectGuestFiles.saveTheItemForFilename` | Spoken name of a button whose visible text "Save" is English. |
+| collect | `collect.collectGuestProgress.yourSubmission` | An `aria-label` value: the collect language-marking test requires Bengali to be marked, and a label cannot carry `lang`. |
+| collect | `collect.collectChecklist.suggestedFromItsNameCheckIt` | Guest checklist page: its title, intro, retention fold and trust line are hand-written English; fill with that page's conversion. |
+| collect | `collect.collectGuestDeskFiles.agencyNoteNote` | Same page. |
+| collect | `collect.collectGuestDeskFiles.changeItem` | Same page. |
+| collect | `collect.collectGuestDeskFiles.filesAlreadyPlaced` | Same page. |
+| collect | `collect.collectGuestFiles.checklistItemForFilename` | Same page (its Save button is English). |
+| collect | `collect.collectGuestFiles.notPlacedYet` | Same page. |
+| collect | `collect.collectGuestProgress.yourFilesAreStillBeingChecked` | Same page. |
+| collect | `collect.collectGuestUploader.addYourFiles` | Same page. |
+| collect | `collect.collectGuestUploader.dropFilesOrAFolderHere` | Same page. |
+| collect | `collect.collectGuestUploader.filesToAdd` | Same page. |
+| collect | `collect.collectGuestUploader.tryAgainForName` | Same page. |
+| collect | `collect.collectPage.addAndSendYourFiles` | Same page (names the English upload rail). |
+| collect | `collect.collectRetentionChoice.days` | Same page (inside the English retention fold). |
+| invitation | `invitation.invitationClientInvitationOffer.done` | Spoken after an English step name ("Sign In"). |
+| invitation | `invitation.invitationSwitchAccount.notYou` | Shares one line with the English button "Sign In with the Invited Email Address". |
+| oauth | `oauth.oauthAuthorizeAgencyConsentForm.howLong` | The rest-locale guard holds the whole oauth catalogue in English (AI access consent); its choices are English too. |
+| oauth | `oauth.oauthAuthorizeConsentForm.answerAppname` | Same guard; names a bar of English answers. |
+| oauth | `oauth.oauthAuthorizePage.chooseARecord` | Same guard. |
+| oauth | `oauth.oauthAuthorizePage.chooseTheRecordThisAppMay` | Same guard. |
+| oauth | `oauth.oauthAuthorizePage.connectAppname` | Same guard. |
+| oauth | `oauth.oauthAuthorizePage.connectForAnAgency` | Same guard. |
+| oauth | `oauth.oauthAuthorizePage.orConnectItForAnAgency` | Same guard. |
+| oauth | `oauth.oauthAuthorizePage.thisAppRunsOnThisComputer` | Same guard. |
+| oauth | `oauth.oauthAuthorizePage.youHaveNoRecordsToConnect` | Same guard. |
+| payments | `payments.paymentsResultPage.purchase` | The payment result test keeps the purchase and invoice line identical to English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnectionTurnOff.turnOffAppnameFromItsNext` | The question's answers, "Yes, Turn Off" and Keep It On, are English; the confirmation stays one language. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelWillBeAbleToSee` | Same: its answers "Yes, Allow This Case" and Keep It Private are English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiDrafts.showDraft` | The copy-failure message names it in English ("Choose Show Draft"). |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiDrafts.copyDraft` | Sits next to the English Delete Draft button, and the copy message names Show Draft in English. |
+| applicant-sharing | `applicantSharing.appApplicantIdSharingAiDrafts.copyDraftTitle` | Spoken name of Copy Draft, which stays English. |
+| payments | `payments.paymentsResultPage.checkAgain` | The English payment message names it ("choose Check Again"). |
+| payments | `payments.paymentsResultPage.goToPlanUsage` | The English payment message names it ("go back to Plan & Usage"). |
+| applicant-missions | `applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet` | Also an option of the English purpose list, under an English question. |
+| applicant-insights | `applicantInsights.appApplicantIdInsightsPage.openDocuments` | The Details to Check card on the same page writes Open Documents in English. |
