@@ -10,14 +10,17 @@
  *
  * A key with no register group at all (a sentence written after the census, so it has no census
  * row and no register group) can take a draft written for that catalogue key instead
- * (docs/localization/data/drafts/no-census-*.jsonl). Such a draft goes through the same gates as a
- * register row: the English it was written for must be the catalogue English exactly, the same
- * automated checks (guardrail-check) must PASS, official visa rule wording stays English, a hold
- * on the key keeps it English, and placeholders, edge spaces and markers must match (resolveRow).
+ * (docs/localization/data/drafts/no-census-*.jsonl, already in final form: owner term decisions
+ * and Bengali digits applied). Such a draft goes through the same gates as a register row: the
+ * English it was written for must be the catalogue English exactly, the automated checks
+ * (guardrail-check) must PASS, official visa rule wording stays English, legal and payment wording
+ * ships only with the owner's blanket sign-off recorded on the draft, a hold on the key
+ * (KEY_HOLDBACK) keeps it English, and placeholders, edge spaces and markers must match.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { check } from '../../docs/localization/tools/guardrail-check.mjs';
+import { queuesByWords } from '../../docs/localization/tools/review-queue.mjs';
 import { catalogRel, readCatalog, readSources, renderCatalog, sourcesRel } from './catalog.mjs';
 import { decodeEntities } from './jsx-text.mjs';
 import { Register } from './register.mjs';
@@ -27,23 +30,37 @@ export const KEY_DRAFTS_DIR = 'docs/localization/data/drafts';
 const KEY_DRAFT_FILE = /^no-census-.*\.jsonl$/;
 
 /**
- * Official visa rule wording, the same pattern build-register.mjs (OFFICIAL_RE) uses to put a
- * register row in the OFFICIAL_VISA_REQUIREMENT queue, which is not released. A key draft has no
- * queue of its own, so it is classified by the same words. refill.test.mjs pins the two equal.
+ * The owner's blanket sign-off of legal, consent, privacy and payment wording (2026-11-12), as a
+ * key draft records it in its note. Legal or payment wording in a key draft ships only with it:
+ * a register row in those queues needs the same release (RELEASE_CLASSIFICATION_2026-11-12.json).
  */
-export const OFFICIAL_RE =
-  /\b(embassy|consulate|visa (rule|requirement|route|centre|center|application centre)|official (source|checklist|rule|requirement|page|website|pack)|immigration authority|checklist pack|issuing authority)\b/i;
+export const OWNER_BLANKET_SIGNOFF = 'OWNER_BLANKET_SIGNOFF_2026-11-12';
 
 /**
- * Drafts keyed by catalogue key, from every no-census-*.jsonl file. A key drafted twice is
- * ambiguous and is left out, so neither draft fills it.
+ * Catalogue keys whose key draft stays English, each with the reason (the key-draft twin of
+ * HOLDBACK in register.mjs, which names register groups). Remove one only on that sign-off.
+ */
+export const KEY_HOLDBACK = new Map([
+  [
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs',
+    'Applicant removal screens: the sentence names the Ask Us to Remove This File action in quotes, but the Manage menu still shows it in English, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptFinishedCaseAskUs',
+    'Applicant removal screens: the sentence names the Ask Us to Remove This File action in quotes, but the Manage menu still shows it in English, so a Bengali name would not match what the person sees (label in name).',
+  ],
+]);
+
+/**
+ * Drafts keyed by catalogue key, from every no-census-*.jsonl file (files by name, rows in
+ * order). A later row for the same key is a correction and replaces the earlier one. A line that
+ * is not a complete JSON row (a torn last line) is skipped, so that key stays English.
  * @param {string} root
  * @returns {Map<string, { en: string, bn: string, note: string }>}
  */
 export function loadKeyDrafts(root) {
   const dir = path.join(root, KEY_DRAFTS_DIR);
   const out = new Map();
-  const twice = new Set();
   if (!fs.existsSync(dir)) return out;
   for (const f of fs
     .readdirSync(dir)
@@ -51,16 +68,19 @@ export function loadKeyDrafts(root) {
     .sort())
     for (const line of fs.readFileSync(path.join(dir, f), 'utf8').split('\n')) {
       if (!line.trim()) continue;
-      const d = JSON.parse(line);
-      if (typeof d.catalogue_key !== 'string' || typeof d.en !== 'string') continue;
-      if (out.has(d.catalogue_key)) twice.add(d.catalogue_key);
+      let d;
+      try {
+        d = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (typeof d?.catalogue_key !== 'string' || typeof d.en !== 'string') continue;
       out.set(d.catalogue_key, {
         en: d.en,
         bn: typeof d.bn === 'string' ? d.bn : '',
         note: typeof d.note === 'string' ? d.note : '',
       });
     }
-  for (const k of twice) out.delete(k);
   return out;
 }
 
@@ -74,20 +94,29 @@ export function loadKeyDrafts(root) {
  */
 export function resolveKeyDraft(reg, key, english, draft) {
   if (!draft) return { bn: null, reason: 'no_key_draft' };
+  if (KEY_HOLDBACK.has(key)) return { bn: null, reason: `held_back:${KEY_HOLDBACK.get(key)}` };
   // A draft written for other words (the English changed since) never fills the key.
   if (draft.en !== english) return { bn: null, reason: 'key_draft_english_differs' };
-  const queue =
-    OFFICIAL_RE.test(english) || /OFFICIAL_RULE/.test(draft.note)
-      ? 'OFFICIAL_VISA_REQUIREMENT'
-      : 'ORDINARY_UI';
-  const findings = draft.bn
-    ? check(english, draft.bn.normalize('NFC')).filter((x) => !x.rule.startsWith('WARN_'))
-    : [];
+  // The same queues build-register.mjs gives a register row with these words.
+  const queues = queuesByWords(english);
+  if (queues.includes('OFFICIAL_VISA_REQUIREMENT') || /OFFICIAL_RULE/.test(draft.note))
+    return { bn: null, reason: 'review_queue_not_signed_off:OFFICIAL_VISA_REQUIREMENT' };
+  if (queues.length && !draft.note.includes(OWNER_BLANKET_SIGNOFF))
+    return { bn: null, reason: `key_draft_not_released:${queues[0]}` };
+  const all = draft.bn ? check(english, draft.bn.normalize('NFC')) : [];
+  // A register draft has the owner's Bengali digits applied before its checks; a key draft is
+  // final as written, so Latin digits in its prose fail here instead of shipping.
+  const findings = all.filter((x) => !x.rule.startsWith('WARN_') || x.rule === 'WARN_LATIN_DIGITS');
   const checks = findings.length ? findings.map((x) => x.rule).join(' ; ') : 'PASS';
-  // resolveRow applies the rest: a hold on the key, the released queues, PASS, no marker or em
-  // dash, placeholders, plural shape and edge spaces.
+  // resolveRow applies the rest: the released queues, PASS, no marker or em dash, placeholders,
+  // plural shape and edge spaces.
   const r = reg.resolveRow(
-    { semantic_group: key, review_queue: queue, automated_checks: checks, bn_BD_draft: draft.bn },
+    {
+      semantic_group: key,
+      review_queue: queues[0] ?? 'ORDINARY_UI',
+      automated_checks: checks,
+      bn_BD_draft: draft.bn,
+    },
     english,
   );
   return { bn: r.bn, reason: r.reason };
@@ -107,9 +136,10 @@ export function listSurfaces(root) {
  * With `groups`, only keys of those register groups are filled: a release of named groups (the
  * owner's sign-off of a set of rows) fills nothing else, even where a draft now exists.
  *
- * With `keys`, only those catalogue keys are filled (one lane's own sentences).
+ * With `keyPrefix`, only catalogue keys that start with it are filled (one screen's own sentences,
+ * `--key-prefix` on codemod.mjs --refill-bn).
  *
- * @param {{ root: string, register?: Register, keyDrafts?: Map<string, { en: string, bn: string, note: string }>, surfaces?: string[], groups?: ReadonlySet<string>, keys?: ReadonlySet<string>, dryRun?: boolean, format?: (root: string, rels: string[]) => void }} o
+ * @param {{ root: string, register?: Register, keyDrafts?: Map<string, { en: string, bn: string, note: string }>, surfaces?: string[], groups?: ReadonlySet<string>, keyPrefix?: string, dryRun?: boolean, format?: (root: string, rels: string[]) => void }} o
  * @returns {{ surface: string, filled: string[] }[]}
  */
 export function refillBengali({
@@ -118,12 +148,13 @@ export function refillBengali({
   keyDrafts,
   surfaces,
   groups,
-  keys,
+  keyPrefix,
   dryRun = false,
   format,
 }) {
   const reg = register ?? Register.load(root);
-  const drafts = keyDrafts ?? loadKeyDrafts(root);
+  // A release of named groups never fills from key drafts, so they are not even read then.
+  const drafts = groups ? new Map() : (keyDrafts ?? loadKeyDrafts(root));
   const out = [];
   const written = [];
   for (const surface of surfaces ?? listSurfaces(root)) {
@@ -133,7 +164,7 @@ export function refillBengali({
     const bn = { ...catalog.bn };
     const filled = [];
     for (const key of Object.keys(catalog.en).sort()) {
-      if (keys && !keys.has(key)) continue;
+      if (keyPrefix !== undefined && !key.startsWith(keyPrefix)) continue;
       const group = sources[key];
       if (bn[key] !== undefined) continue;
       let r;

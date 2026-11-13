@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { useLocale, useT } from '../../../../../../../components/i18n-provider';
+import { useLocale, usePageLanguage, useT } from '../../../../../../../components/i18n-provider';
 import { UndoStatus } from '../../../../../../../components/lifecycle/undo-status';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import { formatTimestampDate } from '../../../../../../../lib/format-date';
@@ -33,6 +33,7 @@ export function DeleteDuplicateAction({
   onClose,
 }: ManageActionProps) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   const locale = useLocale();
   const router = useRouter();
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -91,7 +92,7 @@ export function DeleteDuplicateAction({
 
   const problemLine = problem ? (
     <p className="lc-delete-problem" role="alert">
-      {refusalNode(t, problem)}
+      {refusalNode(t, problem, pageLang)}
     </p>
   ) : null;
 

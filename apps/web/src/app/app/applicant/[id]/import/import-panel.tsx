@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
-import { useT } from '../../../../../components/i18n-provider';
+import { usePageLanguage, useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
@@ -225,6 +225,7 @@ const ImportRow = memo(function ImportRow({
   readonly actions: RowActions;
 }) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   const status = useRef<HTMLParagraphElement>(null);
   // An action's button goes away once used; the line's own status takes the focus first, so a
   // keyboard user stays on this line instead of being sent back to the top of the page.
@@ -305,7 +306,7 @@ const ImportRow = memo(function ImportRow({
             </button>
             {removal && typeof removal === 'object' && 'problem' in removal ? (
               <p className="field-msg-err" role="alert">
-                {refusalNode(t, removal.problem)}
+                {refusalNode(t, removal.problem, pageLang)}
               </p>
             ) : null}
           </div>

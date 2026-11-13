@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { useT } from '../../../../../../../components/i18n-provider';
+import { usePageLanguage, useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { type RefusalLine, REMOVAL_WORDS as W, refusalNode, said } from '../removal-words';
@@ -19,6 +19,7 @@ export function RestoreDeletedAction({
   onClose,
 }: ManageActionProps) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   const router = useRouter();
   const [days, setDays] = useState<number | null>(null);
   const [problem, setProblem] = useState<RefusalLine | null>(null);
@@ -110,7 +111,7 @@ export function RestoreDeletedAction({
       </h3>
       {problem ? (
         <p className="lc-delete-problem" role="alert">
-          {refusalNode(t, problem)}
+          {refusalNode(t, problem, pageLang)}
         </p>
       ) : null}
       {days === null && !problem ? (

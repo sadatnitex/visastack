@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
-import { useT } from '../../../../../../../components/i18n-provider';
+import { usePageLanguage, useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { type RefusalLine, REMOVAL_WORDS as W, refusalNode, said } from '../removal-words';
@@ -18,6 +18,7 @@ export function CancelRemovalRequestAction({
   onClose,
 }: ManageActionProps) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<RefusalLine | null>(null);
@@ -89,7 +90,7 @@ export function CancelRemovalRequestAction({
       </p>
       {problem ? (
         <p className="lc-request-problem" role="alert">
-          {refusalNode(t, problem)}
+          {refusalNode(t, problem, pageLang)}
         </p>
       ) : null}
       <div className="lc-request-actions">

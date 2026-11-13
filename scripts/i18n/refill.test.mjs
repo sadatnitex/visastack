@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { readCatalog, renderCatalog, renderSources } from './catalog.mjs';
-import { OFFICIAL_RE, loadKeyDrafts, refillBengali } from './refill.mjs';
-import { HOLDBACK, Register } from './register.mjs';
+import { KEY_HOLDBACK, OWNER_BLANKET_SIGNOFF, loadKeyDrafts, refillBengali } from './refill.mjs';
+import { Register } from './register.mjs';
 
 const BN = 'শর্ত';
 const header = 'semantic_group,review_queue,english,bn_BD_draft,automated_checks\n';
@@ -104,28 +104,37 @@ describe('refillBengali: drafts written for a catalogue key (no census row, no r
     assert.equal(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.kept'], KEPT_BN);
   });
 
-  test('loads key drafts from no-census-*.jsonl and leaves out a key drafted twice', () => {
-    const dir = keyRoot({ 'x.kept': KEPT, 'x.twice': 'Save' });
+  test('loads key drafts from no-census-*.jsonl: a later row is a correction, a torn line is skipped', () => {
+    const dir = keyRoot({ 'x.kept': KEPT, 'x.fixed': 'Save', 'x.torn': 'Close' });
     const d = path.join(dir, 'docs/localization/data/drafts');
     fs.mkdirSync(d, { recursive: true });
     const row = (k, en, bn) => JSON.stringify({ catalogue_key: k, en, bn, note: '' });
     fs.writeFileSync(
       path.join(d, 'no-census-A.jsonl'),
-      `${row('x.kept', KEPT, KEPT_BN)}\n${row('x.twice', 'Save', 'সেভ')}\n`,
+      `${row('x.kept', KEPT, KEPT_BN)}\n${row('x.fixed', 'Save', 'একটি নথি')}\n`,
     );
-    fs.writeFileSync(path.join(d, 'no-census-B.jsonl'), `${row('x.twice', 'Save', 'সংরক্ষণ')}\n`);
+    fs.writeFileSync(
+      path.join(d, 'no-census-B.jsonl'),
+      `${row('x.fixed', 'Save', 'সংরক্ষণ করুন')}\n{"catalogue_key": "x.torn", "en": "Close", "bn": "বন্`,
+    );
     fs.writeFileSync(path.join(d, 'bn-BD.part-Z.jsonl'), `${row('x.other', 'Save', 'সেভ')}\n`);
     const loaded = loadKeyDrafts(dir);
-    assert.deepEqual([...loaded.keys()], ['x.kept']);
-    assert.deepEqual(refillBengali({ root: dir, register: reg })[0].filled, ['x.kept']);
+    assert.deepEqual([...loaded.keys()].sort(), ['x.fixed', 'x.kept']);
+    assert.equal(loaded.get('x.fixed')?.bn, 'সংরক্ষণ করুন');
+    assert.deepEqual(refillBengali({ root: dir, register: reg })[0].filled, ['x.fixed', 'x.kept']);
   });
 
-  test('a draft written for other English, failing checks, a hold, or official wording stays English', () => {
-    const held = [...HOLDBACK.keys()][0];
+  test('other English, failing checks, Latin digits, a held key, official wording, or legal and payment wording without the sign-off stays English', () => {
+    const held = [...KEY_HOLDBACK.keys()][0];
+    const legal = 'This copy must be kept for a legal requirement.';
+    const paid = 'This copy is kept while a payment is open.';
     const en = {
       'x.changed': KEPT,
       'x.failing': 'Upload a document.',
+      'x.digits': 'It stays for 30 days.',
       'x.official': 'Check the embassy website before you go.',
+      'x.legal': legal,
+      'x.paid': paid,
       [held]: KEPT,
     };
     const dir = keyRoot(en);
@@ -135,12 +144,34 @@ describe('refillBengali: drafts written for a catalogue key (no census row, no r
         ['x.changed', 'This copy answered a request, so it is kept.', KEPT_BN],
         // নথি fails the guardrail check (NOT_STANDARD_DOCUMENT_WORD).
         ['x.failing', 'Upload a document.', 'একটি নথি আপলোড করুন।'],
+        // A key draft is final as written: Latin digits in Bengali prose do not ship.
+        ['x.digits', 'It stays for 30 days.', 'এটি 30 দিন থাকে।'],
         ['x.official', 'Check the embassy website before you go.', 'যাওয়ার আগে দূতাবাসের ওয়েবসাইট দেখুন।'],
-        [held, KEPT, KEPT_BN],
+        ['x.legal', legal, 'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে।'],
+        ['x.paid', paid, 'একটি পেমেন্ট চালু থাকা পর্যন্ত এই কপিটি রাখা থাকবে।'],
+        [held, KEPT, KEPT_BN, OWNER_BLANKET_SIGNOFF],
       ]),
     );
     assert.deepEqual(filled, []);
     assert.deepEqual(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn, {});
+  });
+
+  test('legal and payment wording ships with the owner blanket sign-off recorded on the draft, Bengali digits pass', () => {
+    const legal = 'This copy must be kept for a legal requirement.';
+    const dir = keyRoot({ 'x.legal': legal, 'x.digits': 'It stays for 30 days.' });
+    const filled = run(
+      dir,
+      drafts([
+        [
+          'x.legal',
+          legal,
+          'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে।',
+          `Legal wording: ${OWNER_BLANKET_SIGNOFF} (not reviewed)`,
+        ],
+        ['x.digits', 'It stays for 30 days.', 'এটি ৩০ দিন থাকে।'],
+      ]),
+    );
+    assert.deepEqual(filled, ['x.digits', 'x.legal']);
   });
 
   test('placeholder or edge-space mismatch stays English', () => {
@@ -155,25 +186,27 @@ describe('refillBengali: drafts written for a catalogue key (no census row, no r
     assert.deepEqual(filled, []);
   });
 
-  test('a register group always wins, and a release of named groups or a key list fills nothing else', () => {
+  test('a register group always wins, and a release of named groups or a key prefix fills nothing else', () => {
     const dir = keyRoot({ 'x.kept': KEPT, 'x.terms': 'Terms of use' }, { 'x.terms': 'SG-A' });
     const d = drafts([
       ['x.kept', KEPT, KEPT_BN],
       ['x.terms', 'Terms of use', 'অন্য'],
     ]);
     assert.deepEqual(run(dir, d, { groups: new Set(['SG-A']), dryRun: true }), ['x.terms']);
-    assert.deepEqual(run(dir, d, { keys: new Set(['x.kept']), dryRun: true }), ['x.kept']);
+    assert.deepEqual(run(dir, d, { keyPrefix: 'x.kep', dryRun: true }), ['x.kept']);
     run(dir, d);
     assert.equal(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.terms'], BN);
   });
 
-  test('OFFICIAL_RE is the pattern build-register.mjs uses for the official queue', () => {
+  test('build-register.mjs takes its queue words from review-queue.mjs, as the key drafts do', () => {
     const src = fs.readFileSync(
       path.join(import.meta.dirname, '../../docs/localization/tools/build-register.mjs'),
       'utf8',
     );
-    const m = src.match(/const OFFICIAL_RE =\s*(\/.*\/i);/);
-    assert.ok(m, 'OFFICIAL_RE not found in build-register.mjs');
-    assert.equal(m[1], String(OFFICIAL_RE));
+    assert.match(
+      src,
+      /import \{ COMMERCIAL_RE, LEGAL_RE, OFFICIAL_RE \} from '\.\/review-queue\.mjs';/,
+    );
+    assert.doesNotMatch(src, /const (LEGAL|COMMERCIAL|OFFICIAL)_RE\s*=/);
   });
 });

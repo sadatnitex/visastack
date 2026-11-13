@@ -67,8 +67,9 @@ const NONE = {
 };
 
 /**
- * The six sentences held in English (scripts/i18n/register.mjs HOLDBACK, label in name): each
- * names a list or an action in quotes whose own label is still English on screen.
+ * The six sentences held in English for label in name (HOLDBACK in scripts/i18n/register.mjs,
+ * KEY_HOLDBACK in scripts/i18n/refill.mjs): each names a list or an action in quotes whose own
+ * label is still English on screen.
  */
 const HELD: readonly WordKey[] = [
   'copyAlreadyRecentlyDeleted',

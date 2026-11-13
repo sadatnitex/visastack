@@ -6,7 +6,7 @@
  *   node scripts/i18n/codemod.mjs --surface documents --files apps/web/src/app/(app)/documents/page.tsx ...
  *   node scripts/i18n/codemod.mjs --surface documents --dry-run --files ...
  *   node scripts/i18n/codemod.mjs --all --dry-run          # counts per default surface (reports only)
- *   node scripts/i18n/codemod.mjs --refill-bn [--groups-from <classification.json>] [--dry-run]  # refill Bengali in every catalogue
+ *   node scripts/i18n/codemod.mjs --refill-bn [--groups-from <classification.json>] [--key-prefix <key prefix>] [--dry-run]  # refill Bengali in every catalogue
  *
  * Writes the edited files, apps/web/src/i18n/<surface>.ts, apps/web/src/i18n/<surface>.sources.json
  * and a report of everything not converted and why (default
@@ -382,6 +382,7 @@ function parseArgs(argv) {
     else if (x === '--all') a.all = true;
     else if (x === '--refill-bn') a.refill = true;
     else if (x === '--groups-from') a.groupsFrom = path.resolve(argv[++i]);
+    else if (x === '--key-prefix') a.keyPrefix = argv[++i];
     else if (x === '--report-dir') a.reportDir = path.resolve(argv[++i]);
     else if (x === '--files') {
       while (argv[i + 1] && !argv[i + 1].startsWith('--')) a.files.push(argv[++i]);
@@ -389,6 +390,7 @@ function parseArgs(argv) {
     else throw new Error(`unknown option ${x}`);
   }
   if (a.groupsFrom && !a.refill) throw new Error('--groups-from only works with --refill-bn');
+  if (a.keyPrefix !== undefined && !a.refill) throw new Error('--key-prefix only works with --refill-bn');
   return a;
 }
 
@@ -399,6 +401,7 @@ function main() {
       root: REPO_ROOT,
       dryRun: a.dryRun,
       ...(a.groupsFrom ? { groups: releasedGroupsOf(a.groupsFrom) } : {}),
+      ...(a.keyPrefix !== undefined ? { keyPrefix: a.keyPrefix } : {}),
       format: a.format ? biomeFormat : undefined,
     });
     say('surface\tbn_filled');

@@ -474,8 +474,6 @@ describe('holdback list', () => {
     'SG-f974eb5d',
     'SG-fe5feab6',
     'SG-ff7d2a1c',
-    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs',
-    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptFinishedCaseAskUs',
   ];
 
   test('names exactly the held groups, each with a reason', () => {

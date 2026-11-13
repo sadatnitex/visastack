@@ -4,7 +4,7 @@ import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { CapturePreview } from '../../../../components/capture-preview';
-import { useT } from '../../../../components/i18n-provider';
+import { usePageLanguage, useT } from '../../../../components/i18n-provider';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
 import { ReceiptCard } from '../../../../components/receipt-card';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
@@ -707,6 +707,7 @@ function NewCopyRemoval({
   readonly onUndo: () => Promise<void>;
 }) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   if (item.removal === 'removed') {
     return (
       <UndoStatus
@@ -737,7 +738,7 @@ function NewCopyRemoval({
       </button>
       {typeof item.removal === 'object' ? (
         <p className="field-msg-err" role="alert">
-          {refusalNode(t, item.removal.problem)}
+          {refusalNode(t, item.removal.problem, pageLang)}
         </p>
       ) : null}
     </div>

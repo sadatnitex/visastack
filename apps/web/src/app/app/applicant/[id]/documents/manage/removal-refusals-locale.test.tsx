@@ -144,12 +144,31 @@ describe('every removal sentence, worded from the catalogue by its key', () => {
     });
     await show('bn', <SelfDeleteAction {...props} />);
     expect(alert()).toBe('Sent by a newer version.');
+    // On a page marked Bengali, the English it falls back to is marked as English.
+    expect(container.querySelector('[role="alert"] span[lang="en"]')?.textContent).toBe(
+      'Sent by a newer version.',
+    );
   });
 
-  it('shows the English message as sent when an answer carries no key', async () => {
+  it('shows the English message as sent when an answer carries no key, marked as English on a Bengali page', async () => {
     mocks.selfPreview.mockResolvedValue({ ok: false, message: 'Something plain.' });
     await show('bn', <SelfDeleteAction {...props} />);
     expect(alert()).toBe('Something plain.');
+    expect(container.querySelector('[role="alert"] span[lang="en"]')?.textContent).toBe(
+      'Something plain.',
+    );
+    // On a page marked English it is plain text, with no extra marking.
+    act(() => root.unmount());
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="bn" pageLang="en">
+          <SelfDeleteAction {...props} />
+        </I18nProvider>,
+      );
+    });
+    expect(alert()).toBe('Something plain.');
+    expect(container.querySelector('[role="alert"] span')).toBeNull();
   });
 });
 

@@ -8,12 +8,13 @@
     "KEPT: stays English. Official visa rules and fees and invoice or receipt records stay English with a Bengali note (owner decisions); technical holds wait for the code fix named in the reason.",
     "Groups in review queue 04 (official visa requirements) are not listed: that queue stays refused.",
     "Only the groups that were held back, or sit in queue 02 or 03 with a draft, are classified. A new row that enters those queues later needs its own read.",
-    "Batch G (2026-11-13) added 49 groups from queue 02 (COMMERCIAL) as RELEASED: payment and plan screen wording drafted in data/drafts/bn-BD.part-G.jsonl, classified on the instruction that payment wording falls under the owner blanket sign-off. Invoice and receipt record fields were not drafted and stay English. Nothing was reviewed line by line."
+    "Batch G (2026-11-13) added 49 groups from queue 02 (COMMERCIAL) as RELEASED: payment and plan screen wording drafted in data/drafts/bn-BD.part-G.jsonl, classified on the instruction that payment wording falls under the owner blanket sign-off. Invoice and receipt record fields were not drafted and stay English. Nothing was reviewed line by line.",
+    "svc-s1c (2026-11-13) added 4 KEPT groups (technical, label in name): removal sentences that name the Recently Deleted list in quotes while its tab is still English. Their drafts pass the automated checks; English stays until that label is in Bengali."
   ],
   "counts": {
     "released": 588,
     "released_no_draft_or_pass": 22,
-    "kept": 113
+    "kept": 117
   },
   "groups": [
     {
@@ -695,6 +696,14 @@
       "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
       "queue": "COMMERCIAL",
       "english": "Payment reports for {invoiceRef}"
+    },
+    {
+      "group": "SG-1ce16669",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "label in name: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name",
+      "queue": "ORDINARY_UI",
+      "english": "This copy is already in Recently Deleted. Refresh the page."
     },
     {
       "group": "SG-1d11e900",
@@ -2023,6 +2032,14 @@
       "reason": "Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "Review and Confirm"
+    },
+    {
+      "group": "SG-5cbaeb71",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "label in name: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name",
+      "queue": "ORDINARY_UI",
+      "english": "This file is already in Recently Deleted or being removed. Refresh the page."
     },
     {
       "group": "SG-5cd4a77d",
@@ -3449,6 +3466,14 @@
       "english": "The case is removed for good, with its checklist, notes, tasks and what was sent for it."
     },
     {
+      "group": "SG-95ad8477",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "label in name: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name",
+      "queue": "ORDINARY_UI",
+      "english": "This document is already being removed or is in Recently Deleted."
+    },
+    {
       "group": "SG-95b07104",
       "state": "KEPT",
       "category": "official visa rule, fee, requirement or time",
@@ -3687,6 +3712,14 @@
       "reason": "Answer an AI app: authorization wording waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "Answer {appName}"
+    },
+    {
+      "group": "SG-a467fb90",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "label in name: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name",
+      "queue": "ORDINARY_UI",
+      "english": "This document is not in Recently Deleted. Refresh the page."
     },
     {
       "group": "SG-a5969851",

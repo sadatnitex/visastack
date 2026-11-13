@@ -1,7 +1,8 @@
 import type { CatalogKey } from '@visastack/i18n';
-import type { ReactNode } from 'react';
+import { type ReactNode, createElement } from 'react';
 import { appApplicantCatalog } from '../../../../../../i18n/app-applicant';
 import type { PartsTranslator } from '../../../../../../lib/language-parts';
+import type { PageLanguage } from '../../../../../../lib/page-language';
 
 /**
  * The sentences the removal screens (Delete My File, Delete Duplicate and Restore, Ask Us to
@@ -79,10 +80,18 @@ export function said(key: (typeof REMOVAL_WORDS)[keyof typeof REMOVAL_WORDS]): W
   return { message: appApplicantCatalog.en[key], messageKey: key };
 }
 
-/** The words to show for a failed action: from the catalogue when it sent a key, else its own. */
-export function refusalNode(t: PartsTranslator<AppApplicantKey>, refusal: RefusalLine): ReactNode {
+/**
+ * The words to show for a failed action: from the catalogue when it sent a key this page knows,
+ * else the English it sent, marked as English on a page in another language (WCAG 3.1.2).
+ */
+export function refusalNode(
+  t: PartsTranslator<AppApplicantKey>,
+  refusal: RefusalLine,
+  pageLang: PageLanguage,
+): ReactNode {
   const { message, messageKey } = refusal;
   // A key this page's catalogue does not know (a tab left open across a deploy) shows the English
   // the action sent, never the key itself.
-  return messageKey === undefined || t(messageKey) === messageKey ? message : t.node(messageKey);
+  if (messageKey !== undefined && t(messageKey) !== messageKey) return t.node(messageKey);
+  return pageLang === 'en' ? message : createElement('span', { lang: 'en' }, message);
 }
