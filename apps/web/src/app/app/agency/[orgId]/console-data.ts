@@ -260,8 +260,13 @@ export async function loadPendingTeamInvitations(
 }
 
 /** The applicants the "Request Evidence" form can target: only ever shown to an administrator. */
-export async function loadApplicants(db: Db, orgId: string, access: Pick<OrgAccess, 'admin'>) {
-  return access.admin ? listApplicantsForOrganization(db, orgId) : [];
+export async function loadApplicants(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  access: Pick<OrgAccess, 'admin'>,
+) {
+  return access.admin ? listApplicantsForOrganization(db, accountId, orgId) : [];
 }
 
 /**
@@ -283,8 +288,13 @@ export async function loadClientsJoined(db: Db, accountId: string, orgId: string
  * assignMember/unassignMember's own bar), though the read itself carries no more
  * than `listMissionsForOrganization` already exposes to this organization.
  */
-export async function loadUnassignedQueue(db: Db, orgId: string, access: Pick<OrgAccess, 'admin'>) {
-  return access.admin ? listUnassignedActiveMissions(db, orgId) : [];
+export async function loadUnassignedQueue(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  access: Pick<OrgAccess, 'admin'>,
+) {
+  return access.admin ? listUnassignedActiveMissions(db, accountId, orgId) : [];
 }
 
 /**
@@ -383,7 +393,7 @@ export async function loadOpenCase(
   const [codes, workspace, notes] = await Promise.all([
     referenceCodesFor(db, 'C', [mission.missionId]),
     readCaseWorkspace(db, accountId, orgId, mission),
-    listNotes(db, orgId, mission.applicantId, mission.missionId, {
+    listNotes(db, accountId, orgId, mission.applicantId, mission.missionId, {
       limit: options.notesLimit,
       withTotal: true,
       ...(options.notesBefore ? { before: options.notesBefore } : {}),
@@ -442,12 +452,12 @@ async function readCaseWorkspace(db: Db, accountId: string, orgId: string, missi
     readiness,
     liveAcknowledgement,
   ] = await Promise.all([
-    listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
-    listMissionRequirementsForOrg(db, orgId, mission.missionId),
+    listAssignmentsDetailed(db, accountId, orgId, mission.applicantId, mission.missionId),
+    listMissionRequirementsForOrg(db, accountId, orgId, mission.missionId),
     listMissionDecisions(db, accountId, mission.missionId),
-    listSelectedEvidenceForOrg(db, orgId, mission.missionId),
-    listTasksForOrg(db, orgId, mission.applicantId, mission.missionId),
-    listAppointmentsForOrg(db, orgId, mission.applicantId, mission.missionId),
+    listSelectedEvidenceForOrg(db, accountId, orgId, mission.missionId),
+    listTasksForOrg(db, accountId, orgId, mission.applicantId, mission.missionId),
+    listAppointmentsForOrg(db, accountId, orgId, mission.applicantId, mission.missionId),
     // Manual-mode cases never carry an official readiness claim
     // (CAS-01 §8), even if a pack happens to still be attached;
     // a case with no pack attached at all has nothing to compute.
@@ -563,7 +573,7 @@ export async function loadCaseActivity(
     .slice(0, ACTIVITY_CASE_LIMIT);
   const perCase = await Promise.all(
     selected.map(async (mission) => {
-      const notes = await listNotes(db, orgId, mission.applicantId, mission.missionId, {
+      const notes = await listNotes(db, accountId, orgId, mission.applicantId, mission.missionId, {
         limit: ACTIVITY_PAGE_SIZE,
         ...(page.before ? { before: page.before } : {}),
       });

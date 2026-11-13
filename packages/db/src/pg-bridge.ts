@@ -1,3 +1,4 @@
+import type { AddressInfo } from 'node:net';
 import { type Socket, connect } from 'node:net';
 import { neonConfig } from '@neondatabase/serverless';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -5,7 +6,9 @@ import { WebSocket, WebSocketServer } from 'ws';
 /**
  * Lets the application's own Neon database driver (WebSocket based, the one production uses) talk
  * to an ordinary local Postgres. The driver sends Postgres wire bytes inside WebSocket messages;
- * this bridge copies them to and from a TCP socket. It only ever listens on loopback.
+ * this bridge copies them to and from a TCP socket. It only ever listens on loopback, and only ever
+ * connects to the one Postgres it was started for. Used by the load runs (packages/load) and by the
+ * real-Postgres tests (real-postgres-testing.ts).
  */
 export interface Bridge {
   readonly port: number;
@@ -13,6 +16,7 @@ export interface Bridge {
 }
 
 export async function startBridge(input: {
+  /** 0 picks a free port; `Bridge.port` says which. */
   readonly listenPort: number;
   readonly pgHost: string;
   readonly pgPort: number;
@@ -56,7 +60,7 @@ export async function startBridge(input: {
     tcp.on('error', shut);
   });
   return {
-    port: input.listenPort,
+    port: (server.address() as AddressInfo).port,
     close: () =>
       new Promise<void>((resolve) => {
         for (const client of server.clients) client.terminate();
