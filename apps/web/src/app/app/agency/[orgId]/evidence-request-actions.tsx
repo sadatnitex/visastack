@@ -11,6 +11,8 @@ import {
   startEvidenceReviewAction,
 } from './actions';
 
+/** The English start of the stale sentence; other languages are told apart by the `stale` flag. */
+const STALE_START = 'A newer copy was sent';
 const INITIAL: ActionState = { ok: true, message: '' };
 
 const REASON_PLACEHOLDER: Record<
@@ -21,9 +23,6 @@ const REASON_PLACEHOLDER: Record<
   CONTRADICTION: "What this evidence contradicts on the traveller's profile",
   CORRECTION_PROPOSED: 'The correction you suggest, and why',
 };
-
-/** How the service starts the sentence it uses when a newer copy arrived or the copy was decided. */
-const STALE_START = 'A newer copy was sent';
 
 /**
  * The requesting org's side of a request awaiting their attention: start review, accept, ask for a
@@ -69,7 +68,8 @@ export function EvidenceRequestActions({
   const anyOk = reviewState.ok && decideState.ok && cancelState.ok;
   // One value per outcome, so the done strip is raised once for it and not again on every render.
   const anyResult = useMemo(() => ({ ok: anyOk, message: anyMessage }), [anyOk, anyMessage]);
-  const stale = !decideState.ok && decideState.message.startsWith(STALE_START);
+  const stale =
+    !decideState.ok && (decideState.stale === true || decideState.message.startsWith(STALE_START));
   const refreshHref = `/app/agency/${organizationId}/clients?request=${requestId}#request-${requestId}`;
   const pinned = submissionId ? (
     <input type="hidden" name="submissionId" value={submissionId} />

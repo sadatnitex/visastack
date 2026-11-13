@@ -1,5 +1,7 @@
 'use server';
 
+import { serviceErrorMessage } from '../../../../../lib/service-error-message';
+
 import {
   AGENCY_CHECKLIST_REFUSAL,
   type AgencyChecklistScope,
@@ -71,7 +73,7 @@ export async function copyListAction(
     const made = await makeAgencyCopy(db, scope, {
       fromPackVersionId: field(formData, 'packVersionId'),
     });
-    if (!made.ok) return { ok: false, message: made.error.message };
+    if (!made.ok) return { ok: false, message: await serviceErrorMessage(made.error) };
     target = `${editPath(orgId)}?pack=${made.value.packId}`;
     return { ok: true, message: 'Your copy is ready.' };
   });
@@ -93,7 +95,7 @@ export async function startUpdateAction(
     const started = await startAgencyListUpdate(db, scope, { packId });
     return started.ok
       ? { ok: true, message: 'A draft is open. Change it, then publish.' }
-      : { ok: false, message: started.error.message };
+      : { ok: false, message: await serviceErrorMessage(started.error) };
   });
   if (result.ok) revalidatePath(editPath(orgId));
   return result;
@@ -125,7 +127,7 @@ export async function saveItemAction(
     });
     return changed.ok
       ? { ok: true, message: 'Item saved.' }
-      : { ok: false, message: changed.error.message };
+      : { ok: false, message: await serviceErrorMessage(changed.error) };
   });
   if (result.ok) revalidatePath(editPath(orgId));
   return result;
@@ -143,7 +145,7 @@ export async function removeItemAction(
     });
     return removed.ok
       ? { ok: true, message: 'Item removed.' }
-      : { ok: false, message: removed.error.message };
+      : { ok: false, message: await serviceErrorMessage(removed.error) };
   });
   if (result.ok) revalidatePath(editPath(orgId));
   return result;
@@ -168,7 +170,7 @@ export async function addItemAction(
     });
     return added.ok
       ? { ok: true, message: 'Item added.' }
-      : { ok: false, message: added.error.message };
+      : { ok: false, message: await serviceErrorMessage(added.error) };
   });
   if (result.ok) revalidatePath(editPath(orgId));
   return result;
@@ -186,7 +188,7 @@ export async function publishDraftAction(
     });
     return published.ok
       ? { ok: true, message: 'Published. New cases use this version.' }
-      : { ok: false, message: published.error.message };
+      : { ok: false, message: await serviceErrorMessage(published.error) };
   });
   if (result.ok) {
     revalidatePath(editPath(orgId));
@@ -207,7 +209,7 @@ export async function discardDraftAction(
     });
     return discarded.ok
       ? { ok: true, message: 'Draft discarded.' }
-      : { ok: false, message: discarded.error.message };
+      : { ok: false, message: await serviceErrorMessage(discarded.error) };
   });
   if (result.ok) {
     revalidatePath(editPath(orgId));

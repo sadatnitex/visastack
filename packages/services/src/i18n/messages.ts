@@ -1,5 +1,6 @@
 import { type CatalogKey, defineCatalog } from '@visastack/i18n';
 import { caseFlowABn, caseFlowAEn } from './case-flow-a';
+import { caseFlowBBn, caseFlowBEn } from './case-flow-b';
 import { sharingBn, sharingEn } from './sharing';
 
 /**
@@ -13,8 +14,8 @@ import { sharingBn, sharingEn } from './sharing';
  * never come here.
  */
 export const serviceMessages = defineCatalog({
-  en: { ...caseFlowAEn, ...sharingEn },
-  bn: { ...caseFlowABn, ...sharingBn },
+  en: { ...caseFlowAEn, ...caseFlowBEn, ...sharingEn },
+  bn: { ...caseFlowABn, ...caseFlowBBn, ...sharingBn },
 });
 
 export type ServiceMessageKey = CatalogKey<typeof serviceMessages>;
