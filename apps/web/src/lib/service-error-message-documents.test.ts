@@ -49,9 +49,9 @@ describe('serviceErrorMessage for document refusals', () => {
 
   it('under bn keeps English where no checked Bangla exists', async () => {
     state.locale = 'bn';
-    expect(await serviceErrorMessage(keyedError('not_found', 'documents.documentNotFound'))).toBe(
-      'document not found',
-    );
+    expect(
+      await serviceErrorMessage(keyedError('not_found', 'suggestions.suggestedKindNotFound')),
+    ).toBe('suggested kind not found');
     expect(await serviceErrorMessage(serviceError('not_found', 'x not found'))).toBe('x not found');
   });
 

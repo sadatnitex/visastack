@@ -37,9 +37,9 @@ describe('case flow refusals on the screens', () => {
 
   it('shows English under bn when the key has no Bengali yet', async () => {
     locale.value = 'bn';
-    expect(await serviceErrorMessage(keyedError('not_found', 'missions.case_not_found'))).toBe(
-      'case not found',
-    );
+    expect(
+      await serviceErrorMessage(keyedError('invalid', 'missions.enter_a_time_zone_name_such')),
+    ).toBe('enter a time zone name, such as Asia/Dhaka');
   });
 
   it('puts a raw number into the sentence for a refusal with a number', async () => {

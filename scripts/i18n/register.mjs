@@ -521,6 +521,60 @@ export const placeholdersOf = (msg) => {
   return [...names].sort();
 };
 
+/**
+ * The structure of a message's `{...}` parts: `{name}` and `{name, plural, sel {...} ...}`, nested,
+ * as one comparable string (plural branch selectors left out: languages pick different ones).
+ * Null when the braces do not balance or a `{...}` part is neither shape.
+ * @returns {{ text: string, everyPluralHasOther: boolean } | null}
+ */
+export function messageShape(msg) {
+  let everyPluralHasOther = true;
+  const close = (s, from) => {
+    let depth = 0;
+    for (let i = from; i < s.length; i++) {
+      if (s[i] === '{') depth++;
+      else if (s[i] === '}' && --depth === 0) return i;
+    }
+    return -1;
+  };
+  const walk = (s) => {
+    const parts = [];
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '}') return null;
+      if (s[i] !== '{') continue;
+      const end = close(s, i);
+      if (end === -1) return null;
+      const inner = s.slice(i + 1, end);
+      const simple = inner.match(/^(\w+)$/);
+      const pl = inner.match(/^\s*(\w+)\s*,\s*plural\s*,([\s\S]*)$/);
+      if (simple) parts.push(simple[1]);
+      else if (pl) {
+        const branches = new Set();
+        const bodies = [];
+        let rest = pl[2];
+        while (rest.trim()) {
+          const m = rest.match(/^\s*(=\d+|zero|one|two|few|many|other)\s*\{/);
+          if (!m) return null;
+          const open = m[0].length - 1;
+          const bEnd = close(rest, open);
+          if (bEnd === -1) return null;
+          branches.add(m[1]);
+          const body = walk(rest.slice(open + 1, bEnd));
+          if (body === null) return null;
+          bodies.push(body);
+          rest = rest.slice(bEnd + 1);
+        }
+        if (!branches.has('other')) everyPluralHasOther = false;
+        parts.push(`${pl[1]}:plural[${[...new Set(bodies)].sort().join('|')}]`);
+      } else return null;
+      i = end;
+    }
+    return [...new Set(parts)].sort().join(',');
+  };
+  const text = walk(msg);
+  return text === null ? null : { text, everyPluralHasOther };
+}
+
 export class Register {
   constructor({ registerCsv = '', censusCsv = '' } = {}) {
     this.byGroup = new Map();
@@ -581,13 +635,20 @@ export class Register {
    * catalogues after the rules or the register change.
    * @returns {{ group: string, bn: string|null, reason: string|null }}
    */
-  resolveGroup(group, english) {
+  resolveGroup(group, english, options) {
     const row = this.byGroup.get(group);
     if (!row) return { group, bn: null, reason: 'no_register_match' };
-    return this.resolveRow(row, english);
+    return this.resolveRow(row, english, options);
   }
 
-  resolveRow(row, english) {
+  /**
+   * With `plural`, an ICU plural message may be filled: its variables, plural variables and
+   * nesting must match the English exactly and every Bengali plural must have an `other` branch.
+   * Only callers whose translator formats plurals (the services catalogue) pass it; web
+   * catalogues still refuse plural messages.
+   * @param {{ plural?: boolean }} [options]
+   */
+  resolveRow(row, english, { plural = false } = {}) {
     const group = row.semantic_group;
     if (HOLDBACK.has(group)) return { group, bn: null, reason: `held_back:${HOLDBACK.get(group)}` };
     const queue = row.review_queue ?? '';
@@ -600,12 +661,18 @@ export class Register {
     if (!draft.trim()) return { group, bn: null, reason: 'no_bn_draft' };
     if (/\u2014|\[U\+[0-9A-F]+\]/.test(draft))
       return { group, bn: null, reason: 'bn_has_marker_or_em_dash' };
-    if (/[{}]/.test(english.replace(/\{\w+\}/g, '')))
-      return { group, bn: null, reason: 'english_is_plural_message' };
+    const isPlural = /[{}]/.test(english.replace(/\{\w+\}/g, ''));
+    if (isPlural && !plural) return { group, bn: null, reason: 'english_is_plural_message' };
     const a = placeholdersOf(english).join(',');
     const b = placeholdersOf(draft).join(',');
     if (a !== b) return { group, bn: null, reason: 'bn_placeholders_differ' };
-    if (/[{}]/.test(draft.replace(/\{\w+\}/g, '')))
+    if (isPlural) {
+      const shapeEn = messageShape(english);
+      const shapeBn = messageShape(draft);
+      if (shapeEn === null) return { group, bn: null, reason: 'english_plural_unreadable' };
+      if (shapeBn === null || shapeBn.text !== shapeEn.text || !shapeBn.everyPluralHasOther)
+        return { group, bn: null, reason: 'bn_plural_differs' };
+    } else if (/[{}]/.test(draft.replace(/\{\w+\}/g, '')))
       return { group, bn: null, reason: 'bn_stray_brace' };
     // A space at the start or end of the English joins it to the text beside it; Bengali that drops
     // that space would run the two together.
