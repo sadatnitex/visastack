@@ -312,4 +312,57 @@ describe('one confirmation, one notice per administrator and channel', () => {
     },
     TIMEOUT,
   );
+
+  it(
+    'is written by whichever answer commits first, even when the smallest-id request is not sent',
+    async () => {
+      const w = await world();
+      const asks = [
+        await ask(w, 'passport', 'TEST passport.pdf', 'a'),
+        await ask(w, 'bank_statement', 'TEST statement.pdf', 'b'),
+        await ask(w, 'photo', 'TEST photo.jpg', 'c'),
+      ];
+      // The request every notice is keyed on is the one with the smallest id; make it the one that
+      // is NOT sent, so the notice must come from a later answer.
+      const smallest = [...asks].sort((x, y) => (x.requestId < y.requestId ? -1 : 1))[0];
+      await w.db
+        .update(schema.documentVersions)
+        .set({ safetyStatus: 'QUARANTINED' })
+        .where(eq(schema.documentVersions.id, smallest?.doc.versionId ?? ''));
+      const done = await confirm(w, keyOf(), asks);
+      expect(done.sent).toBe(2);
+      const rows = await arrivals(w.db);
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r) => r.resourceId === smallest?.requestId)).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'is cancelled while still queued when the agency decides the request it is keyed on, and only then',
+    async () => {
+      const w = await world();
+      const asks = [
+        await ask(w, 'passport', 'TEST passport.pdf', 'a'),
+        await ask(w, 'photo', 'TEST photo.jpg', 'c'),
+      ];
+      await confirm(w, keyOf(), asks);
+      const anchor = [...asks].sort((x, y) => (x.requestId < y.requestId ? -1 : 1));
+      // Deciding the OTHER request leaves the combined notice queued.
+      await decideEvidenceResponse(w.db, {
+        actorAccountId: w.north.accountId,
+        requestId: anchor[1]?.requestId ?? '',
+        outcome: 'ACCEPTED',
+      });
+      expect((await arrivals(w.db)).filter((r) => r.status === 'QUEUED')).toHaveLength(2);
+      // Deciding the request it is keyed on cancels it (the existing rule, keyed on that request).
+      await decideEvidenceResponse(w.db, {
+        actorAccountId: w.north.accountId,
+        requestId: anchor[0]?.requestId ?? '',
+        outcome: 'ACCEPTED',
+      });
+      expect((await arrivals(w.db)).filter((r) => r.status === 'QUEUED')).toHaveLength(0);
+    },
+    TIMEOUT,
+  );
 });
