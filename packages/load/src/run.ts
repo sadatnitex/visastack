@@ -246,7 +246,9 @@ function staffPages(
     {
       name: 'clients',
       weight: 15,
-      run: timed('client list', (db, a) => listApplicantsForOrganization(db, a.organizationId)),
+      run: timed('client list', (db, a, s) =>
+        listApplicantsForOrganization(db, s.accountId, a.organizationId),
+      ),
     },
     {
       name: 'case',
@@ -254,7 +256,9 @@ function staffPages(
       run: timed('case detail', async (db, a, s) => {
         const view = await listVisibleMissionsForMember(db, a.organizationId, s.accountId);
         const one = view.missions[0];
-        if (one) await listTasksForOrg(db, a.organizationId, one.applicantId, one.missionId);
+        if (one) {
+          await listTasksForOrg(db, s.accountId, a.organizationId, one.applicantId, one.missionId);
+        }
       }),
     },
     {
@@ -538,7 +542,9 @@ async function main(): Promise<void> {
             ),
           );
           const clients = await volume.time(`${name}: client list`, () =>
-            withDb('load', (db) => listApplicantsForOrganization(db, agency.organizationId)),
+            withDb('load', (db) =>
+              listApplicantsForOrganization(db, admin.accountId, agency.organizationId),
+            ),
           );
           if (name === 'biggest normal agency') {
             await volume.time(`${name}: evidence requests (old one-by-one method)`, () =>

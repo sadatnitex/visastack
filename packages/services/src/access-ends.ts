@@ -1,8 +1,11 @@
 import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { withCaseExclusions } from './access/grant-scope';
+import { isActiveMember, listAssignedMissionIds } from './agency';
 import { type Db, schema } from './db';
 import { presentApplicantCondition } from './lifecycle/foundation/conditions';
+import { isUuid } from './lifecycle/foundation/ids';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
+import { isOrgAdmin } from './organizations';
 
 /**
  * When an agency's access to each case it can see ends: the latest end date among the live grants
@@ -14,10 +17,24 @@ import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
  */
 export async function listAccessEndsForOrg(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   /** The cases the signed-in member can already see on the page; no other case is read or returned. */
-  missionIds: readonly string[],
+  requestedMissionIds: readonly string[],
 ): Promise<ReadonlyMap<string, Date | null>> {
+  // Only the cases this person may read for this organization, the same rule as `mayReadOrgCase`
+  // read in one pass for the whole page: an active owner or admin reads every case asked about,
+  // another active member only the ones assigned to them. Anyone else, and a made-up organization,
+  // get the same empty answer.
+  if (!isUuid(actorAccountId) || !isUuid(organizationId)) return new Map();
+  if (!(await isActiveMember(db, actorAccountId, organizationId))) return new Map();
+  const requested = [...new Set(requestedMissionIds)].filter(isUuid);
+  const missionIds = (await isOrgAdmin(db, actorAccountId, organizationId))
+    ? requested
+    : await (async () => {
+        const assigned = await listAssignedMissionIds(db, organizationId, actorAccountId);
+        return requested.filter((id) => assigned.has(id));
+      })();
   if (missionIds.length === 0) return new Map();
   const now = new Date();
   const lifecycle = await lifecycleTablesPresent(db);

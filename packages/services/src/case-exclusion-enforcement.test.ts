@@ -332,15 +332,18 @@ async function reachOnCase(s: Scenario, missionId: string) {
     aGate: isOk(await caseGate(s, s.a.adminId, missionId)),
     pGate: isOk(await caseGate(s, s.person.id, missionId)),
     aOrgGrant: await orgGrantPermits(db, aId, s.applicantId, 'MANAGE', missionId),
-    aListed: (await listMissionsForOrganization(db, aId)).some((m) => m.missionId === missionId),
+    aListed: (await listMissionsForOrganization(db, s.a.adminId, aId)).some(
+      (m) => m.missionId === missionId,
+    ),
     aVisible: (await listVisibleMissionsForMember(db, aId, s.a.adminId)).missions.some(
       (m) => m.missionId === missionId,
     ),
-    aNotes: (await listNotes(db, aId, s.applicantId, missionId)).length > 0,
-    aTasks: (await listTasksForOrg(db, aId, s.applicantId, missionId)).length > 0,
-    aAppointments: (await listAppointmentsForOrg(db, aId, s.applicantId, missionId)).length > 0,
-    aRequirements: isOk(await listMissionRequirementsForOrg(db, aId, missionId)),
-    aSelectedEvidence: isOk(await listSelectedEvidenceForOrg(db, aId, missionId)),
+    aNotes: (await listNotes(db, s.a.adminId, aId, s.applicantId, missionId)).length > 0,
+    aTasks: (await listTasksForOrg(db, s.a.adminId, aId, s.applicantId, missionId)).length > 0,
+    aAppointments:
+      (await listAppointmentsForOrg(db, s.a.adminId, aId, s.applicantId, missionId)).length > 0,
+    aRequirements: isOk(await listMissionRequirementsForOrg(db, s.a.adminId, aId, missionId)),
+    aSelectedEvidence: isOk(await listSelectedEvidenceForOrg(db, s.a.adminId, aId, missionId)),
     aDecisions: isOk(await listMissionDecisions(db, s.a.adminId, missionId)),
     aNewNote: isOk(
       await addNote(db, {
@@ -414,9 +417,9 @@ describe('per-case sharing exceptions on every read path', () => {
       // Organization B, not excluded, still reaches C2 everywhere.
       const bId = s.b.organizationId;
       expect(isOk(await caseGate(s, s.b.adminId, s.c2))).toBe(true);
-      expect((await listMissionsForOrganization(s.db, bId)).map((m) => m.missionId).sort()).toEqual(
-        [s.c1, s.c2].sort(),
-      );
+      expect(
+        (await listMissionsForOrganization(s.db, s.b.adminId, bId)).map((m) => m.missionId).sort(),
+      ).toEqual([s.c1, s.c2].sort());
       expect(await notificationDelivered(s, s.b.adminId, bId, s.c2)).toBe(true);
       expect(await caseTitlesFound(s, s.b.adminId, bId)).toEqual([
         'Japan trip 2025',
@@ -429,11 +432,13 @@ describe('per-case sharing exceptions on every read path', () => {
       ]);
       await s.db.delete(schema.assignments).where(eq(schema.assignments.missionId, s.c2));
       expect(
-        (await listUnassignedActiveMissions(s.db, s.a.organizationId)).map((m) => m.missionId),
+        (await listUnassignedActiveMissions(s.db, s.a.adminId, s.a.organizationId)).map(
+          (m) => m.missionId,
+        ),
       ).toEqual([]);
-      expect((await listUnassignedActiveMissions(s.db, bId)).map((m) => m.missionId)).toEqual([
-        s.c2,
-      ]);
+      expect(
+        (await listUnassignedActiveMissions(s.db, s.b.adminId, bId)).map((m) => m.missionId),
+      ).toEqual([s.c2]);
       const requests = await listEvidenceRequestsForOrg(s.db, s.a.adminId, s.a.organizationId);
       if (!isOk(requests)) throw new Error('requests');
       const listedIds = requests.value.map((r) => r.id);
@@ -1178,9 +1183,9 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       );
       const fresh = await shareAllCasesWith(s, s.a);
       await exclude(s, fresh, s.c2);
-      expect((await listMissionsForOrganization(s.db, aId)).map((m) => m.missionId)).toEqual([
-        s.c1,
-      ]);
+      expect(
+        (await listMissionsForOrganization(s.db, s.a.adminId, aId)).map((m) => m.missionId),
+      ).toEqual([s.c1]);
       expect(await listed()).not.toContain(s.requestC2);
       expect(await listed()).toEqual(expect.arrayContaining([s.requestC1, s.requestGeneral]));
       expect(await bell()).toEqual([`Update ${s.c1}`]);
@@ -1218,7 +1223,9 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       expect(isOk(await caseGate(s, s.a.adminId, c3))).toBe(false);
       expect(isOk(await caseGate(s, s.a.adminId, s.c1))).toBe(true);
       expect(
-        (await listMissionsForOrganization(s.db, s.a.organizationId)).map((m) => m.missionId),
+        (await listMissionsForOrganization(s.db, s.a.adminId, s.a.organizationId)).map(
+          (m) => m.missionId,
+        ),
       ).not.toContain(c3);
       const carried = await s.db
         .select()
@@ -1417,11 +1424,17 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       expect(await orgGrantPermits(s.db, aId, s.applicantId, 'COMMENT', foreign.value.id)).toBe(
         false,
       );
-      expect(await listNotes(s.db, aId, s.applicantId, foreign.value.id)).toEqual([]);
-      expect(await listTasksForOrg(s.db, aId, s.applicantId, foreign.value.id)).toEqual([]);
-      expect(await listAppointmentsForOrg(s.db, aId, s.applicantId, foreign.value.id)).toEqual([]);
+      expect(await listNotes(s.db, s.a.adminId, aId, s.applicantId, foreign.value.id)).toEqual([]);
+      expect(
+        await listTasksForOrg(s.db, s.a.adminId, aId, s.applicantId, foreign.value.id),
+      ).toEqual([]);
+      expect(
+        await listAppointmentsForOrg(s.db, s.a.adminId, aId, s.applicantId, foreign.value.id),
+      ).toEqual([]);
       // The matching pair still works.
-      expect((await listNotes(s.db, aId, s.applicantId, s.c1)).length).toBeGreaterThan(0);
+      expect((await listNotes(s.db, s.a.adminId, aId, s.applicantId, s.c1)).length).toBeGreaterThan(
+        0,
+      );
     },
     HEAVY_TIMEOUT_MS,
   );
@@ -1487,10 +1500,11 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       const aId = s.a.organizationId;
       const unknown = await listMissionRequirementsForOrg(
         s.db,
+        s.a.adminId,
         aId,
         '00000000-0000-4000-8000-000000000000',
       );
-      const hidden = await listMissionRequirementsForOrg(s.db, aId, s.c2);
+      const hidden = await listMissionRequirementsForOrg(s.db, s.a.adminId, aId, s.c2);
       expect(isErr(hidden) && hidden.error).toEqual(isErr(unknown) && unknown.error);
       const hiddenAssign = await assignMember(s.db, {
         actorAccountId: s.a.adminId,
@@ -1499,10 +1513,10 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
         memberAccountId: s.a.adminId,
       });
       expect(isErr(hiddenAssign) && hiddenAssign.error.code).toBe('not_found');
-      const hiddenEvidence = await listSelectedEvidenceForOrg(s.db, aId, s.c2);
+      const hiddenEvidence = await listSelectedEvidenceForOrg(s.db, s.a.adminId, aId, s.c2);
       expect(isErr(hiddenEvidence) && hiddenEvidence.error.code).toBe('not_found');
       // The case it still reaches is unaffected.
-      expect(isOk(await listMissionRequirementsForOrg(s.db, aId, s.c1))).toBe(true);
+      expect(isOk(await listMissionRequirementsForOrg(s.db, s.a.adminId, aId, s.c1))).toBe(true);
     },
     HEAVY_TIMEOUT_MS,
   );
@@ -1527,7 +1541,9 @@ describe('review fixes: one-shot answers, the sharing lock, recipient-level exce
       const third = await shareAllCasesWith(s, s.a);
       expect(await exceptionRows(s, s.c2)).toEqual([]);
       expect(
-        (await listMissionsForOrganization(s.db, s.a.organizationId)).map((m) => m.missionId),
+        (await listMissionsForOrganization(s.db, s.a.adminId, s.a.organizationId)).map(
+          (m) => m.missionId,
+        ),
       ).toContain(s.c2);
       expect(third).toBeTruthy();
     },
