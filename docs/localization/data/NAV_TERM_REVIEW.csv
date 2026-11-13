@@ -56,7 +56,7 @@ SG-0d39a232,Document lists,ডকুমেন্টের তালিকা,doc
 SG-6bc20b25,Document metadata list,ডকুমেন্টের মেটাডেটা তালিকা,documents_vault,jsx_attr_accessible
 SG-cfe57059,Document Name,ডকুমেন্টের নাম,documents_vault,jsx_text
 SG-beb78cab,document not found,ডকুমেন্টটি খুঁজে পাওয়া যায়নি,documents_vault,service_error_message
-SG-b9adfee5,Document pages,ডকুমেন্টের পেজ,documents_vault,jsx_attr_accessible
+SG-b9adfee5,Document pages,ডকুমেন্টের পাতা,documents_vault,jsx_attr_accessible
 SG-8c65b56e,Document Reference,ডকুমেন্ট রেফারেন্স,documents_vault,jsx_prop_display
 SG-e65dd06a,Document Restored,ডকুমেন্ট পুনরুদ্ধার করা হয়েছে,documents_vault,jsx_text
 SG-7325f836,Document state filters,ডকুমেন্টের অবস্থা অনুযায়ী ফিল্টার,documents_vault,jsx_attr_accessible
