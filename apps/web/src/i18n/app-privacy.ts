@@ -54,11 +54,16 @@ export const appPrivacyCatalog = defineCatalog({
   bn: {
     'appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired':
       'আমাদের উন্নতিতে সাহায্য করে - আবশ্যক নয়',
+    'appPrivacy.appPrivacyDeletionPanel.reasonOptional': 'কারণ (ঐচ্ছিক)',
     'appPrivacy.appPrivacyDeletionPanel.requestAccountDeletion': 'অ্যাকাউন্ট মুছে ফেলার অনুরোধ করুন',
     'appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount':
       'আপনার অ্যাকাউন্ট ও মালিকানাধীন সব তথ্য স্থায়ীভাবে মুছে ফেলার সময় নির্ধারণ করবেন? বাতিল করার জন্য আপনি ৭ দিনের অপেক্ষার সময় পাবেন।',
+    'appPrivacy.appPrivacyLargeExportPanel.downloadZip': 'ZIP ডাউনলোড করুন',
     'appPrivacy.appPrivacyLargeExportPanel.needTheActualDocumentFilesToo':
       'শুধু মেটাডেটা নয়, আসল ডকুমেন্টও দরকার? একটি বড় এক্সপোর্টের অনুরোধ করুন - এটি একটি ZIP, যাতে আগের কপিসহ ব্যবহারযোগ্য প্রতিটি আপলোড করা ডকুমেন্ট থাকে, যা ফরম্যাট পরীক্ষা পাস করেছে (ডকুমেন্টে এখনো ভাইরাস স্ক্যান করা হয় না), সঙ্গে উপরের একই ম্যানিফেস্ট ও CSV টেবিল। প্রস্তুত হতে কয়েক মিনিট লাগে এবং ২৪ ঘণ্টা ডাউনলোডের জন্য থাকে।',
+    'appPrivacy.appPrivacyLargeExportPanel.preparing': 'প্রস্তুত করা হচ্ছে…',
+    'appPrivacy.appPrivacyPage.aboutThis': 'এ সম্পর্কে',
+    'appPrivacy.appPrivacyPage.account': 'অ্যাকাউন্ট',
     'appPrivacy.appPrivacyPage.aiUseToday': 'আজ এআই-এর ব্যবহার',
     'appPrivacy.appPrivacyPage.consentHistory': 'সম্মতির ইতিহাস',
     'appPrivacy.appPrivacyPage.consentHistoryEntries': 'সম্মতির ইতিহাসের এন্ট্রি',
@@ -77,6 +82,7 @@ export const appPrivacyCatalog = defineCatalog({
     'appPrivacy.appPrivacyPage.exportYourData': 'আপনার ডেটা এক্সপোর্ট করুন',
     'appPrivacy.appPrivacyPage.howMuchYouUsedEachAi':
       'আজ আপনি প্রতিটি এআই ফিচার কতবার ব্যবহার করেছেন। এই গণনার জন্য শুধু সংখ্যাটি রাখা হয়, কী পড়া হয়েছে তা কখনো রাখা হয় না। এই ফিচারগুলো ছাড়াও VisaStack-এর সবকিছু কাজ করে।',
+    'appPrivacy.appPrivacyPage.noChangesYet': 'এখনো কোনো পরিবর্তন নেই',
     'appPrivacy.appPrivacyPage.portability': 'ডেটা পোর্টেবিলিটি',
     'appPrivacy.appPrivacyPage.privacyConsent': 'গোপনীয়তা ও সম্মতি',
     'appPrivacy.appPrivacyPage.reviewYourConsentHistory': 'আপনার সম্মতির ইতিহাস পর্যালোচনা করুন',
