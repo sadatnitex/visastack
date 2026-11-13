@@ -26,22 +26,26 @@ const render = async (locale: 'en' | 'bn') =>
   );
 
 describe('connect WhatsApp form under Bengali', () => {
-  it('code shown: the "I have sent it" link is Bengali, the instruction stays English', async () => {
+  it('code shown: the "I have sent it" link and the instruction are Bengali', async () => {
     form.state = { ok: true, code: 'ABC', whatsappMessage: 'LINK ABC', whatsappHref: 'https://w' };
     const shown = await render('bn');
     expect(shown).toContain(bn['appAccount.appAccountWhatsappConnectForm.iHaveSentIt']);
     expect(shown).toContain(
+      bn['appAccount.appAccountWhatsappConnectForm.sendThisMessageFromTheWhatsapp'],
+    );
+    expect(shown).not.toContain(
       en['appAccount.appAccountWhatsappConnectForm.sendThisMessageFromTheWhatsapp'],
     );
     expect(await render('en')).toContain('I Have Sent It');
   });
 
-  it('asking state: the agreement wording stays English under Bengali', async () => {
+  it('asking state: the agreement wording is Bengali (owner blanket sign-off on consent wording)', async () => {
     form.state = { ok: true, message: '' };
     const shown = await render('bn');
     expect(shown).toContain(
-      en['appAccount.appAccountWhatsappConnectForm.iAgreeToReceiveMessagesFrom'],
+      bn['appAccount.appAccountWhatsappConnectForm.iAgreeToReceiveMessagesFrom'],
     );
+    expect(shown).not.toMatch(/appAccount\./);
     expect(await render('en')).not.toMatch(BENGALI);
   });
 });

@@ -99,7 +99,12 @@ async function draw(page: () => unknown | Promise<unknown>, locale: 'en' | 'bn')
     </I18nProvider>,
   );
   const doc = new JSDOM(markup).window.document;
-  if (locale === 'bn') seen.push(doc.body.textContent ?? '');
+  if (locale === 'bn') {
+    seen.push(doc.body.textContent ?? '');
+    // Spoken names and field hints are read too, so they count as shown.
+    for (const el of doc.querySelectorAll('[placeholder], [aria-label]'))
+      seen.push(`${el.getAttribute('placeholder') ?? ''}\n${el.getAttribute('aria-label') ?? ''}`);
+  }
   return doc;
 }
 
@@ -124,6 +129,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('open invitation states under Bengali', () => {
+  it('client invitation: the name field hint is Bengali once both consents are on', async () => {
+    svc.previewClientInvitation.mockResolvedValue(ok(invite));
+    svc.getConsents.mockResolvedValue({ CORE_PROCESSING: true, SHARING: true });
+    const bn = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
+    const hints = [...bn.querySelectorAll('[placeholder]')].map((el) =>
+      el.getAttribute('placeholder'),
+    );
+    expect(hints).toContain(
+      bnByEn(appClientInvitationsCatalog, 'Leave blank to use the name the agency gave'),
+    );
+    expect(hints).not.toContain('Leave blank to use the name the agency gave');
+  });
+
   it('client invitation: consent steps shown when consents are off, in Bengali (signed off 2026-11-12) except the held toggle name', async () => {
     svc.previewClientInvitation.mockResolvedValue(ok(invite));
     svc.getConsents.mockResolvedValue({ CORE_PROCESSING: false, SHARING: false });
@@ -181,13 +199,14 @@ describe('open invitation states under Bengali', () => {
     );
   });
 
-  it('team invitation: open state with the matching email shows the form and no Bengali sentence', async () => {
+  it('team invitation: open state with the matching email shows the form under a Bengali title', async () => {
     svc.previewOrganizationInvitation.mockResolvedValue(
       ok({ organizationName: 'Acme', role: 'member', emailMatches: true, invitedEmail: 'x@y.z' }),
     );
     const bn = await draw(() => AcceptInvitationPage(withToken), 'bn');
     expect(bn.body.textContent).toContain('আমন্ত্রণ');
-    expect(bn.body.textContent).toContain('Join an Organization');
+    expect(bn.body.textContent).toContain(bnByEn(appInvitationsCatalog, 'Join an Organization'));
+    expect(bn.body.textContent).not.toContain('Join an Organization');
     const en = await draw(() => AcceptInvitationPage(withToken), 'en');
     expect(en.body.textContent).not.toMatch(BENGALI);
   });
@@ -209,13 +228,18 @@ describe('open invitation states under Bengali', () => {
       missionTitle: 'Japan',
       docType: 'BANK_STATEMENT',
       purpose: 'Proof of funds',
-      message: null,
+      message: 'Please send it this week.',
       recipientOrganizationNames: ['Acme'],
       emailMatches: true,
     };
     svc.previewContributorRequest.mockResolvedValue(ok(value));
     const open = await draw(() => AcceptContributorPage(withToken), 'bn');
-    expect(open.body.textContent).toContain('Provide One Document');
+    expect(open.body.textContent).toContain(
+      bnByEn(appContributorRequestsCatalog, 'Provide One Document'),
+    );
+    expect(open.body.textContent).not.toContain('Provide One Document');
+    expect(open.body.textContent).toContain(bnByEn(appContributorRequestsCatalog, 'Message:'));
+    expect(open.body.textContent).toContain('Please send it this week.');
     expect(open.body.textContent).toContain(
       bnByEn(
         appContributorRequestsCatalog,

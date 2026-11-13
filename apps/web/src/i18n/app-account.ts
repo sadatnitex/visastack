@@ -135,9 +135,16 @@ export const appAccountCatalog = defineCatalog({
   },
   bn: {
     'appAccount.appAccountPage.account': 'অ্যাকাউন্ট',
+    'appAccount.appAccountPage.agencyDesk': 'এজেন্সি ডেস্ক',
+    'appAccount.appAccountPage.askAboutYourCasesFromWhatsapp':
+      'WhatsApp থেকে আপনার ভিসা ফাইল নিয়ে জিজ্ঞেস করুন। যেকোনো সময় সংযোগটি বিচ্ছিন্ন করতে পারেন।',
     'appAccount.appAccountPage.dataRights': 'তথ্যের অধিকার',
     'appAccount.appAccountPage.exportYourDataReviewConsentHistory':
       'আপনার তথ্য এক্সপোর্ট করুন, সম্মতির ইতিহাস পর্যালোচনা করুন, অথবা আপনার অ্যাকাউন্ট মুছে ফেলুন।',
+    'appAccount.appAccountPage.openPlanUsage': 'প্ল্যান ও ব্যবহার খুলুন',
+    'appAccount.appAccountPage.openWhatsappSettings': 'WhatsApp সেটিংস খুলুন',
+    'appAccount.appAccountPage.otherAreasYouCanAccess': 'আপনি অ্যাক্সেস করতে পারেন এমন অন্যান্য অংশ',
+    'appAccount.appAccountPage.roles': 'ভূমিকা',
     'appAccount.appAccountPage.session': 'সেশন',
     'appAccount.appAccountPage.signOut': 'সাইন আউট করুন',
     'appAccount.appAccountPage.signOutOfThisDevice': 'এই ডিভাইস থেকে সাইন আউট করুন।',
@@ -145,22 +152,88 @@ export const appAccountCatalog = defineCatalog({
     'appAccount.appAccountPage.yourAccount': 'আপনার অ্যাকাউন্ট',
     'appAccount.appAccountPage.yourPlanWhatItIncludesAnd':
       'আপনার প্ল্যান, তাতে কী আছে এবং আপনি তার কতটা ব্যবহার করেছেন।',
+    'appAccount.appAccountPlanBillingPage.account': 'অ্যাকাউন্ট',
+    'appAccount.appAccountPlanBillingPage.amount': 'পরিমাণ',
+    'appAccount.appAccountPlanBillingPage.billingHistory': 'বিলিংয়ের ইতিহাস',
+    'appAccount.appAccountPlanBillingPage.downloadReceiptPdf': 'রসিদ ডাউনলোড করুন (PDF)',
+    'appAccount.appAccountPlanBillingPage.noPurchasesYet': 'এখনো কোনো কেনাকাটা নেই',
+    'appAccount.appAccountPlanBillingPage.receipts': 'রসিদ',
+    'appAccount.appAccountPlanBillingPage.receiptsForInvoiceref': '{invoiceRef}-এর রসিদ',
+    'appAccount.appAccountPlanBillingPage.refund': 'রিফান্ড',
+    'appAccount.appAccountPlanBillingPage.whatYouBoughtWithAnInvoice':
+      'আপনি যা কিনেছেন, সঙ্গে ডাউনলোড করার মতো ইনভয়েস ও রসিদ।',
+    'appAccount.appAccountPlanBillingPage.whenYouBuyAPlanIts':
+      'আপনি কোনো প্ল্যান কিনলে তার ইনভয়েস ও রসিদ এখানে দেখা যাবে। আপনি নিজে পেমেন্ট না করলে কোনো চার্জ নেওয়া হয় না।',
     'appAccount.appAccountPlanPage.aiFeatures': 'এআই সুবিধা',
+    'appAccount.appAccountPlanPage.beforeYouPay': 'পেমেন্ট করার আগে',
+    'appAccount.appAccountPlanPage.comparePlans': 'প্ল্যানগুলো তুলনা করুন',
     'appAccount.appAccountPlanPage.complimentaryDuringPublicBetaNoPayment':
       'পাবলিক বিটা চলাকালে বিনামূল্যে। কোনো পেমেন্ট পদ্ধতি লাগে না। ন্যায্য ব্যবহারের সুরক্ষা এবং আপনার গোপনীয়তার অনুমতি এখনও প্রযোজ্য।',
+    'appAccount.appAccountPlanPage.confirmYourPurchase': 'আপনার কেনাকাটা নিশ্চিত করুন',
+    'appAccount.appAccountPlanPage.coversYouFrom': 'যে তারিখ থেকে কার্যকর',
+    'appAccount.appAccountPlanPage.coversYouUntil': 'যে তারিখ পর্যন্ত কার্যকর',
     'appAccount.appAccountPlanPage.currentPlan': 'বর্তমান প্ল্যান',
+    'appAccount.appAccountPlanPage.everythingInVisastackStaysFreeDuring':
+      'বিটা চলাকালে VisaStack-এর সবকিছু বিনামূল্যে থাকছে। পেইড প্ল্যানে আপনি আরও জায়গা পান: বেশি স্টোরেজ ও বেশি দৈনিক সীমা, আপনার নিজের এবং যাঁদের রেকর্ড আপনি রাখেন তাঁদের সবার জন্য। এর দাম আগে দিতে হয়, আর এটি নিজে থেকে কখনো আবার চার্জ করে না।',
     'appAccount.appAccountPlanPage.inYourPlan': 'আপনার প্ল্যানে আছে',
+    'appAccount.appAccountPlanPage.moreRoom': 'আরও জায়গা',
+    'appAccount.appAccountPlanPage.noAutomaticChargeWeRemindYou':
+      'স্বয়ংক্রিয়ভাবে কোনো চার্জ নেই। মেয়াদ শেষ হওয়ার আগে আমরা আপনাকে মনে করিয়ে দিই, তখন আপনি ঠিক করবেন আবার পেমেন্ট করবেন কি না।',
+    'appAccount.appAccountPlanPage.notInYourPlan': 'আপনার প্ল্যানে নেই',
+    'appAccount.appAccountPlanPage.nothingStoredYet': 'এখনো কিছু রাখা হয়নি।',
     'appAccount.appAccountPlanPage.now': 'এখন:',
     'appAccount.appAccountPlanPage.paidPlansForTravellersAreNot':
       'ভ্রমণকারীদের জন্য পেইড প্ল্যান এখনও দেওয়া হচ্ছে না, তাই বেছে নেওয়ার বা আপগ্রেড করার কিছু নেই।',
+    'appAccount.appAccountPlanPage.price': 'দাম',
+    'appAccount.appAccountPlanPage.renewNow': 'এখনই নবায়ন করুন',
     'appAccount.appAccountPlanPage.storage': 'স্টোরেজ',
+    'appAccount.appAccountPlanPage.storageForTheWholeAccount': 'পুরো অ্যাকাউন্টের স্টোরেজ',
+    'appAccount.appAccountPlanPage.storagePerPerson': 'প্রতিজনের স্টোরেজ',
+    'appAccount.appAccountPlanPage.travellerFreeAndThePaidPlans':
+      'ভ্রমণকারীর ফ্রি প্ল্যান ও পেইড প্ল্যানগুলো পাশাপাশি',
+    'appAccount.appAccountPlanPage.whatYouGet': 'আপনি যা পাবেন',
     'appAccount.appAccountPlanPage.whatYourPlanIncludes': 'আপনার প্ল্যানে যা আছে',
     'appAccount.appAccountPlanPage.whetherYourPlanIncludesEachFeature':
       'আপনার প্ল্যানে প্রতিটি সুবিধা আছে কি না, এখন তা কাজ করছে কি না, এবং আজ আপনি কতটা ব্যবহার করেছেন। এই গণনার জন্য শুধু সংখ্যাটি রাখা হয়, কী পড়া হয়েছে তা কখনো নয়। এই সুবিধাগুলো ছাড়াও VisaStack-এর সবকিছু কাজ করে।',
+    'appAccount.appAccountPlanPage.youCanCompareItWithThe':
+      'নিচের পেইড প্ল্যানগুলোর সঙ্গে এটি তুলনা করতে পারেন।',
     'appAccount.appAccountPlanPage.yourAccount': 'আপনার অ্যাকাউন্ট',
+    'appAccount.appAccountPlanPage.yourPlan': 'আপনার প্ল্যান',
     'appAccount.appAccountPlanPage.yourWholeAccount': 'আপনার পুরো অ্যাকাউন্ট',
+    'appAccount.appAccountWhatsappConnectForm.iAgreeToReceiveMessagesFrom':
+      'আমি আমার ভিসা ফাইল সম্পর্কে WhatsApp-এ VisaStack থেকে বার্তা পেতে রাজি। যেকোনো সময় আমি STOP পাঠাতে পারি।',
     'appAccount.appAccountWhatsappConnectForm.iHaveSentIt': 'আমি পাঠিয়ে দিয়েছি',
+    'appAccount.appAccountWhatsappConnectForm.openWhatsapp': 'WhatsApp খুলুন',
+    'appAccount.appAccountWhatsappConnectForm.sendThisMessageFromTheWhatsapp':
+      'যে WhatsApp নম্বরটি যুক্ত করতে চান, সেখান থেকে এই বার্তাটি পাঠান। কোডটি ১০ মিনিট কাজ করে এবং শুধু একবার ব্যবহার করা যায়।',
+    'appAccount.appAccountWhatsappPage.askAboutYourCasesFromWhatsapp':
+      'WhatsApp থেকে আপনার ভিসা ফাইল নিয়ে জিজ্ঞেস করুন। বাকি সবকিছু VisaStack-এই থাকে।',
+    'appAccount.appAccountWhatsappPage.connectWhatsapp': 'WhatsApp সংযুক্ত করুন',
+    'appAccount.appAccountWhatsappPage.connected': 'সংযুক্ত',
+    'appAccount.appAccountWhatsappPage.connectedOn': 'সংযুক্ত করার তারিখ',
+    'appAccount.appAccountWhatsappPage.disconnectWhatsapp': 'WhatsApp বিচ্ছিন্ন করুন',
+    'appAccount.appAccountWhatsappPage.documentsAreAddedInVisastackNot':
+      'ডকুমেন্ট চ্যাটে নয়, VisaStack-এ যোগ করা হয়, তাই সেগুলো গোপন থাকে এবং পরীক্ষা করা হয়।',
+    'appAccount.appAccountWhatsappPage.getAOneTimeCodeHere':
+      'এখানে একটি এককালীন কোড নিন, তারপর আপনার WhatsApp থেকে সেটি পাঠান। কোডটি আপনার সাইন ইন করা অ্যাকাউন্ট থেকে আসে, তাই শুধু আপনিই এটি সংযুক্ত করতে পারেন।',
+    'appAccount.appAccountWhatsappPage.messages': 'মেসেজ',
+    'appAccount.appAccountWhatsappPage.messagesPassThroughWhatsappWhichIs':
+      'মেসেজ WhatsApp-এর মাধ্যমে যায়, যা Meta পরিচালনা করে।',
+    'appAccount.appAccountWhatsappPage.notConnected': 'সংযুক্ত নয়',
+    'appAccount.appAccountWhatsappPage.number': 'নম্বর',
+    'appAccount.appAccountWhatsappPage.offSendStartToTurnThem': 'বন্ধ (চালু করতে START পাঠান)',
     'appAccount.appAccountWhatsappPage.on': 'চালু',
     'appAccount.appAccountWhatsappPage.privacyAndConsent': 'গোপনীয়তা ও সম্মতি',
+    'appAccount.appAccountWhatsappPage.sendMenuInWhatsappToSee':
+      'কী জিজ্ঞেস করা যায় তা দেখতে WhatsApp-এ MENU পাঠান। বার্তা বন্ধ করতে STOP পাঠান।',
+    'appAccount.appAccountWhatsappPage.visastackNeverAsksForPassportId':
+      'VisaStack কখনো WhatsApp-এ পাসপোর্ট, আইডি বা ব্যাংকের তথ্য চায় না।',
+    'appAccount.appAccountWhatsappPage.whatHappensInWhatsapp': 'WhatsApp-এ কী হয়',
+    'appAccount.appAccountWhatsappPage.whatsappIsNotAvailableYet': 'WhatsApp এখনো চালু হয়নি',
+    'appAccount.appAccountWhatsappPage.youCanAskWhereYourCases':
+      'আপনার ভিসা ফাইলগুলো কোন অবস্থায় আছে, কী বাকি আছে এবং কোনটির মেয়াদ শিগগিরই শেষ হবে, তা জিজ্ঞেস করতে পারেন।',
+    'appAccount.appAccountWhatsappPage.youCanUseEverythingInVisastack':
+      'WhatsApp ছাড়াই আপনি VisaStack-এর সবকিছু ব্যবহার করতে পারেন।',
+    'appAccount.appAccountWhatsappPage.yourWhatsappIsConnected': 'আপনার WhatsApp সংযুক্ত আছে',
   },
 });

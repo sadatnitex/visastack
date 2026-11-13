@@ -226,6 +226,24 @@ describe('the agency overview under Bengali', () => {
     ).toEqual([]);
   });
 
+  it('marks a manual-mode case and one whose readiness cannot be read, in Bengali', async () => {
+    asAdmin([
+      { ...inGoodShape, missionId: 'mm', manualMode: true },
+      { ...inGoodShape, missionId: 'mr', applicantName: 'Karim Ali', readiness: null },
+    ]);
+    const { html } = await draw('bn');
+    expect(html).not.toMatch(/appAgency\./);
+    expect(
+      missingBengali(html, [`${OVERVIEW}.manualMode`, `${OVERVIEW}.readinessUnavailable`]),
+    ).toEqual([]);
+  });
+
+  it('says in Bengali that no case matches a search', async () => {
+    const { html, text } = await draw('bn', { q: 'zzzz-no-such-case' });
+    expect(missingBengali(html, [`${OVERVIEW}.noCasesMatchThatSearch`])).toEqual([]);
+    expect(text).not.toContain('No cases match that search.');
+  });
+
   it('draws the quick views and the search results in Bengali', async () => {
     const { html } = await draw('bn', { quick: 'overdue' });
     expect(html).not.toMatch(/appAgency\./);
