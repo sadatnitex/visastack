@@ -1,6 +1,7 @@
 import {
   type Db,
   accountPrincipal,
+  appendAuditEvent,
   listAccessForApplicant,
   listComplaintsForMission,
   requireAccess,
@@ -36,7 +37,37 @@ async function isOwner(
   const access = await requireAccess(db, accountPrincipal(accountId), 'VIEW_METADATA', ref, {
     purpose: 'self',
   });
+  if (!access.ok && access.error.code === 'forbidden') await recordRefusedProbe(db, accountId, ref);
   return access.ok && access.value.actor.kind === 'applicant_owner';
+}
+
+/**
+ * A signed-in account reached for a record that exists and is not theirs. The services this pre-check
+ * now stands in front of used to write a denied event for this; one is written here so the audit
+ * trail keeps the probe (ids only, never a value). A made-up id has no record to name and writes
+ * nothing. Writing can never change the answer the person gets: a failure here is swallowed.
+ */
+async function recordRefusedProbe(
+  db: Db,
+  accountId: string,
+  ref: { readonly missionId: string } | { readonly applicantId: string },
+): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'HIDDEN_RECORD_REFUSED',
+        actorAccountId: accountId,
+        action: 'VIEW_METADATA',
+        result: 'DENIED',
+        method: 'MANUAL',
+        resourceType: 'missionId' in ref ? 'case' : 'applicant',
+        resourceId: 'missionId' in ref ? ref.missionId : ref.applicantId,
+        metadata: {},
+      });
+    });
+  } catch {
+    // The answer to the person does not depend on the record of it.
+  }
 }
 
 /** True only when this account owns the case. A made-up, malformed or someone else's id is false. */

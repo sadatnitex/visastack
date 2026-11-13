@@ -176,6 +176,34 @@ describe('ownsCase and ownsApplicant', () => {
   });
 });
 
+describe("the audit trail keeps a probe of a real record that is not the caller's", () => {
+  const refused = async () =>
+    (await world.db.select().from(schema.auditEvents)).filter(
+      (row) => row.eventType === 'HIDDEN_RECORD_REFUSED',
+    );
+
+  it('writes one event naming ids only for a stranger on a real case or person, and nothing for anyone else', async () => {
+    const before = (await refused()).length;
+    expect(await ownsApplicant(world.db, world.owner, world.applicantId)).toBe(true);
+    expect(await ownsApplicant(world.db, world.stranger, MADE_UP)).toBe(false);
+    expect(await ownsCase(world.db, world.stranger, 'not-an-id')).toBe(false);
+    expect((await refused()).length).toBe(before);
+
+    expect(await ownsApplicant(world.db, world.stranger, world.applicantId)).toBe(false);
+    expect(await ownsCase(world.db, world.stranger, world.missionId)).toBe(false);
+    const rows = (await refused()).slice(before);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => [r.resourceType, r.actorAccountId, r.result])).toEqual([
+      ['applicant', world.stranger, 'DENIED'],
+      ['case', world.stranger, 'DENIED'],
+    ]);
+    // The same answer comes back either way: the probe record never changes it.
+    expect(await ownsApplicant(world.db, world.stranger, world.applicantId)).toBe(
+      await ownsApplicant(world.db, world.stranger, MADE_UP),
+    );
+  });
+});
+
 describe('ownsGrant', () => {
   const run = (who: Who, applicantId: string, grantId: string) =>
     ownsGrant(world.db, idOf(who), applicantId, grantId);
