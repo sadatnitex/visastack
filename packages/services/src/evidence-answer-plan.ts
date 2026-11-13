@@ -692,6 +692,15 @@ export async function confirmEvidenceAnswers(
         .limit(1),
     );
 
+  // Several answers to one agency in one confirmation give the agency one combined notice, keyed
+  // on this confirmation and on the smallest request id in it (the same for a repeat, however many
+  // answers were already sent), so it is written once, with the first answer to commit. A single
+  // answer keeps its own notice.
+  const agencyNotice =
+    input.answers.length > 1
+      ? { batchKey: input.confirmationKey, anchorRequestId: [...requestIds].sort()[0] ?? '' }
+      : undefined;
+
   const outcomes: EvidenceAnswerOutcome[] = [];
   for (const answer of input.answers) {
     const changed: EvidenceAnswerOutcome = { requestId: answer.requestId, outcome: 'CHANGED' };
@@ -766,6 +775,7 @@ export async function confirmEvidenceAnswers(
           documentId,
           documentVersionId: versionId,
           idempotencyKey: sendKey(input.confirmationKey, requestId),
+          ...(agencyNotice ? { agencyNotice } : {}),
         });
         if (sent.ok && sent.value.submissionId !== null) {
           return {
