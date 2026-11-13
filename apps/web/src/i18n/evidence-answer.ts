@@ -149,7 +149,7 @@ export const evidenceAnswerCatalog = defineCatalog({
       '{sent, plural, one {{agency}-কে #টি উত্তর পাঠানো হয়েছে।} other {{agency}-কে #টি উত্তর পাঠানো হয়েছে।}} {changed, plural, one {এই পাতা খোলার পর আপনার রেকর্ড বদলে যাওয়ায় #টি পাঠানো হয়নি।} other {এই পাতা খোলার পর আপনার রেকর্ড বদলে যাওয়ায় #টি পাঠানো হয়নি।}} নিচের তালিকাটি দেখে আবার পাঠান।',
     'evidenceAnswer.actions.theAgency': 'এজেন্সি',
     'evidenceAnswer.choices.expired': '{date} তারিখে মেয়াদ শেষ হয়েছে',
-    'evidenceAnswer.choices.expires': 'মেয়াদ শেষ {date}',
+    'evidenceAnswer.choices.expires': 'মেয়াদ শেষ হবে {date}',
     'evidenceAnswer.choices.noCurrent':
       'সংরক্ষিত প্রতিটি কপির মেয়াদ শেষ হয়েছে অথবা তারিখ মিলিয়ে দেখা দরকার। একটি বর্তমান কপি যোগ করুন, অথবা যেমন আছে তেমনই পাঠাতে নিজে একটি পুরোনো কপি বেছে নিন।',
     'evidenceAnswer.choices.uncertain':
@@ -179,7 +179,7 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.form.consentShort': 'অ্যাক্সেস থাকা অবস্থায় {agency} এই হুবহু কপিগুলো ডাউনলোড করতে পারবে।',
     'evidenceAnswer.form.doNotSend': 'এখন পাঠাবেন না',
     'evidenceAnswer.form.documentDate': 'তারিখ {date}',
-    'evidenceAnswer.form.expires': 'মেয়াদ শেষ {date}',
+    'evidenceAnswer.form.expires': 'মেয়াদ শেষ হবে {date}',
     'evidenceAnswer.form.groupChoose': 'আপনাকে বেছে নিতে হবে',
     'evidenceAnswer.form.groupOther': 'এই ধাপে নেই',
     'evidenceAnswer.form.groupReady': 'পাঠানোর জন্য প্রস্তুত',

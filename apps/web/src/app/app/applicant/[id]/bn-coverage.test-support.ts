@@ -46,3 +46,26 @@ export function expectEveryLiveMessageRendered(catalog: Catalog<string>, prefix 
     'live Bengali messages no test rendered',
   ).toEqual([]);
 }
+
+/**
+ * The Bengali text under `root` that no element marks as Bengali (`lang="bn"`), in page order.
+ * While a page itself is still marked English, every Bengali part must say its own language; a
+ * test compares this list with the parts known to be passed as plain strings, so the gap can only
+ * get shorter. Needs a DOM (the jsdom environment).
+ */
+export function bengaliWithoutLanguageMark(root: ParentNode | string): string[] {
+  let host: ParentNode;
+  if (typeof root === 'string') {
+    const parsed = document.createElement('div');
+    parsed.innerHTML = root;
+    host = parsed;
+  } else host = root;
+  const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  const loose: string[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const value = (node.nodeValue ?? '').trim();
+    if (/[\u0980-\u09FF]/.test(value) && !node.parentElement?.closest('[lang="bn"]'))
+      loose.push(value);
+  }
+  return loose;
+}

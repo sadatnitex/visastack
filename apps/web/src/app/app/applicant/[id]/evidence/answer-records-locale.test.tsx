@@ -11,7 +11,10 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { evidenceAnswerCatalog } from '../../../../../i18n/evidence-answer';
-import { expectEveryLiveMessageRendered } from '../bn-coverage.test-support';
+import {
+  bengaliWithoutLanguageMark,
+  expectEveryLiveMessageRendered,
+} from '../bn-coverage.test-support';
 import type { RequestHistory } from './request-thread-data';
 import type { SentBackRead } from './sent-back-copy';
 
@@ -216,23 +219,12 @@ const show = async (content: unknown) =>
 const text = () => host.textContent ?? '';
 const part = (testId: string) => host.querySelector(`[data-testid=${testId}]`)?.textContent ?? '';
 
-/** The Bengali inside `within` that no element marks as Bengali. */
-function bengaliOutsideALanguageMark(within: Element): string[] {
-  const walker = document.createTreeWalker(within, NodeFilter.SHOW_TEXT);
-  const loose: string[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const value = (node.nodeValue ?? '').trim();
-    if (BENGALI.test(value) && !node.parentElement?.closest('[lang="bn"]')) loose.push(value);
-  }
-  return loose;
-}
-
 describe('the card that says who waits, for a Bengali reader', () => {
   it('names the one agency and its count in Bengali digits, with the one button', async () => {
     await show(await card('bn', [asking('org-1', AGENCY, 6)]));
     expect(text()).toContain(`${AGENCY} ৬টি উত্তরের অপেক্ষায় আছে`);
     expect(text()).toContain('আপনার রেকর্ড থেকে উত্তর দিন');
-    expect(bengaliOutsideALanguageMark(host)).toEqual([]);
+    expect(bengaliWithoutLanguageMark(host)).toEqual([]);
   });
 
   it('lists several agencies under a Bengali heading, each name as written', async () => {
@@ -242,7 +234,7 @@ describe('the card that says who waits, for a Bengali reader', () => {
     expect(text()).toContain('উত্তরের অপেক্ষায়');
     expect(text()).toContain(`${AGENCY}: ১টি উত্তর`);
     expect(text()).toContain('TEST Agency North: ৩টি উত্তর');
-    expect(bengaliOutsideALanguageMark(host)).toEqual([]);
+    expect(bengaliWithoutLanguageMark(host)).toEqual([]);
   });
 
   it('is unchanged for an English reader', async () => {
@@ -264,7 +256,7 @@ describe('a request panel for a Bengali reader', () => {
 
   it('words the expiry of a current copy and of an expired one', async () => {
     await show(await pane('bn', { documents: [doc('a'), doc('b', { expiresAt: past })] }));
-    expect(text()).toMatch(/মেয়াদ শেষ [^ ]/);
+    expect(text()).toMatch(/মেয়াদ শেষ হবে [^ ]/);
     expect(text()).toMatch(/তারিখে মেয়াদ শেষ হয়েছে/);
   });
 
@@ -286,7 +278,7 @@ describe('a request panel for a Bengali reader', () => {
       'সংরক্ষিত প্রতিটি কপির মেয়াদ শেষ হয়েছে অথবা তারিখ মিলিয়ে দেখা দরকার। একটি বর্তমান কপি যোগ করুন, অথবা যেমন আছে তেমনই পাঠাতে নিজে একটি পুরোনো কপি বেছে নিন।',
     );
     expect(
-      bengaliOutsideALanguageMark(
+      bengaliWithoutLanguageMark(
         host.querySelector('[data-testid=no-current-copy-note]') as Element,
       ),
     ).toEqual([]);
@@ -307,7 +299,7 @@ describe('the copy an agency sent back, for a Bengali reader', () => {
     expect(note).toContain('এজেন্সি old-statement.pdf-এর কপি ১ ফেরত পাঠিয়েছে, যেটি আপনি');
     expect(note).toContain('তারিখে পাঠিয়েছিলেন।');
     expect(
-      bengaliOutsideALanguageMark(host.querySelector('[data-testid=sent-back-note]') as Element),
+      bengaliWithoutLanguageMark(host.querySelector('[data-testid=sent-back-note]') as Element),
     ).toEqual([]);
   });
 
@@ -360,7 +352,7 @@ describe('what you sent for a detail, for a Bengali reader', () => {
     expect(sent).toContain('এরপর এই তথ্যটি বদলেছে। এর নতুন মানটি পাঠানো হয়নি।');
     expect(sent).not.toContain('+8801700000999');
     expect(
-      bengaliOutsideALanguageMark(host.querySelector('[data-testid=field-answer-sent]') as Element),
+      bengaliWithoutLanguageMark(host.querySelector('[data-testid=field-answer-sent]') as Element),
     ).toEqual([]);
   });
 

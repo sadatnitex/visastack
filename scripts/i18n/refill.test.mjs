@@ -231,6 +231,8 @@ describe('refillBengali: plural messages and renamed placeholders from a draft w
       'SG-H,OFFICIAL_VISA_REQUIREMENT,{count} fee{choice} due,{count}টি ফি বাকি,PASS',
       'SG-F,ORDINARY_UI,{count} file{choice} held,{count}টি ডকুমেন্ট,CASE_UPLOAD_AMBIGUITY',
       'SG-G,ORDINARY_UI,Close,বন্ধ করুন,PASS',
+      'SG-L,PRIVACY_CONSENT_LEGAL,Kept {days} of {days}.,{days}টির মধ্যে {days}টি রাখা হয়েছে।,PASS',
+      'SG-C,COMMERCIAL,{count} seat{choice} left,{count}টি আসন বাকি,PASS',
       '',
     ].join('\n'),
   });
@@ -299,6 +301,27 @@ describe('refillBengali: plural messages and renamed placeholders from a draft w
     ]);
     assert.deepEqual(run(dir, rows, { groups: new Set(['SG-P']) }), []);
     assert.deepEqual(run(dir, rows), ['x.waiting']);
+  });
+
+  test('a group in a specialist queue never falls back, whatever its words are', () => {
+    // Neither sentence has a word the word-based queues catch: only the group's own queue says so.
+    const kept = 'Kept {days} of {total}.';
+    const seats = '{count, plural, one {# seat left} other {# seats left}}';
+    const dir = mixedRoot(
+      { 'x.kept': kept, 'x.seats': seats },
+      { 'x.kept': 'SG-L', 'x.seats': 'SG-C' },
+    );
+    const rows = drafts([
+      ['x.kept', kept, '{total}টির মধ্যে {days}টি রাখা হয়েছে।'],
+      ['x.seats', seats, '{count, plural, one {#টি আসন বাকি} other {#টি আসন বাকি}}'],
+    ]);
+    assert.deepEqual(run(dir, rows), []);
+    // The same drafts do fill a key that has no group at all, so the queue is what stopped them.
+    const free = mixedRoot(
+      { 'x.kept': kept, 'x.seats': seats },
+      { 'x.kept': null, 'x.seats': null },
+    );
+    assert.deepEqual(run(free, rows), ['x.kept', 'x.seats']);
   });
 
   test('a group that simply fills is never replaced by a key draft', () => {

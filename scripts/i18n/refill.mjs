@@ -129,7 +129,8 @@ export function resolveKeyDraft(reg, key, english, draft) {
  * The only reasons a key with a register group may fall back to a draft written for the key: the
  * group's own row is released and passes, but it words the plural with an English-only switch or
  * names a placeholder differently from the catalogue, so it can never fit this key. A held group,
- * an unreleased queue or a failing row never falls back.
+ * an unreleased queue or a failing row never falls back, and neither does a group outside the
+ * ordinary queue (legal, consent, privacy, payment or official wording keeps its own route).
  */
 export const KEY_DRAFT_FALLBACK_REASONS = new Set([
   'english_is_plural_message',
@@ -189,7 +190,15 @@ export function refillBengali({
         r = reg.resolveGroup(group, catalog.en[key]);
         // The group's row passes but cannot fit this key's plural or placeholder names: a draft
         // written for the key itself may fill it, through every gate a key draft has.
-        if (!r.bn && !groups && KEY_DRAFT_FALLBACK_REASONS.has(r.reason ?? '') && drafts.has(key))
+        // Only for a group in the ordinary queue: a key draft is read as ordinary wording, so it must
+        // never stand in for a row the register keeps in a specialist queue.
+        if (
+          !r.bn &&
+          !groups &&
+          KEY_DRAFT_FALLBACK_REASONS.has(r.reason ?? '') &&
+          reg.byGroup.get(group)?.review_queue === 'ORDINARY_UI' &&
+          drafts.has(key)
+        )
           r = resolveKeyDraft(reg, key, catalog.en[key], drafts.get(key));
       } else {
         // No register group: only a draft written for this exact key may fill it, and never in a

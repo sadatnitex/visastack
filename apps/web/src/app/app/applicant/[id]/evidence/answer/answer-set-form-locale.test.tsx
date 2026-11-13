@@ -4,7 +4,10 @@ import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../../components/i18n-provider';
 import { evidenceAnswerCatalog } from '../../../../../../i18n/evidence-answer';
-import { expectEveryLiveMessageRendered } from '../../bn-coverage.test-support';
+import {
+  bengaliWithoutLanguageMark,
+  expectEveryLiveMessageRendered,
+} from '../../bn-coverage.test-support';
 import type { AnswerCopyView, AnswerItemView, AnswerReviewView } from './answer-view';
 
 /**
@@ -134,17 +137,6 @@ const click = (el: HTMLElement) =>
   });
 const boxes = () => [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
 
-/** Every piece of Bengali text sits inside an element that says it is Bengali. */
-function bengaliOutsideALanguageMark(): string[] {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const loose: string[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const value = node.nodeValue ?? '';
-    if (BENGALI.test(value) && !node.parentElement?.closest('[lang="bn"]')) loose.push(value);
-  }
-  return loose;
-}
-
 describe('the review form for a Bengali reader', () => {
   it('words the groups, each copy and the send button in Bengali, with Bengali digits', () => {
     mount('bn');
@@ -154,7 +146,7 @@ describe('the review form for a Bengali reader', () => {
     expect(shown).toContain('এই ধাপে নেই');
     expect(shown).toContain('কপি ২');
     expect(shown).toContain('যোগ করা হয়েছে 12 Nov 2026, 10:00 GMT+6');
-    expect(shown).toContain('মেয়াদ শেষ 12 Mar 2031');
+    expect(shown).toContain('মেয়াদ শেষ হবে 12 Mar 2031');
     expect(shown).toContain('মেয়াদ শেষের কোনো তারিখ সংরক্ষিত নেই');
     expect(shown).toContain('তারিখ 1 Mar 2021');
     expect(shown).toContain('রেফারেন্স R-7K2Q9M');
@@ -225,7 +217,7 @@ describe('the review form for a Bengali reader', () => {
 
   it('marks every Bengali part as Bengali, because the page itself is still marked English', () => {
     mount('bn');
-    expect(bengaliOutsideALanguageMark()).toEqual([]);
+    expect(bengaliWithoutLanguageMark(container)).toEqual([]);
     expect(container.querySelectorAll('[lang="bn"]').length).toBeGreaterThan(20);
   });
 });

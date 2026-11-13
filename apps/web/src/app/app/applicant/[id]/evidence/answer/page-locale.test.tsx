@@ -2,7 +2,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { evidenceAnswerCatalog } from '../../../../../../i18n/evidence-answer';
 import { renderServer, stub, textOf } from '../../../../../../lib/next-mocks.test-support';
-import { expectEveryLiveMessageRendered } from '../../bn-coverage.test-support';
+import {
+  bengaliWithoutLanguageMark,
+  expectEveryLiveMessageRendered,
+} from '../../bn-coverage.test-support';
 
 /**
  * The Answer from Your Records page and its receipt under Bengali: every sentence of the page and
@@ -120,19 +123,6 @@ async function render(locale: 'en' | 'bn', search: Record<string, string> = {}) 
   return renderServer(
     AnswerPage({ params: Promise.resolve({ id: 'a1' }), searchParams: Promise.resolve(search) }),
   );
-}
-
-/** The Bengali text of a page that no element marks as Bengali, in page order. */
-function bengaliOutsideALanguageMark(html: string): string[] {
-  const host = document.createElement('div');
-  host.innerHTML = html;
-  const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
-  const loose: string[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const value = (node.nodeValue ?? '').trim();
-    if (BENGALI.test(value) && !node.parentElement?.closest('[lang="bn"]')) loose.push(value);
-  }
-  return loose;
 }
 
 beforeEach(() => {
@@ -262,7 +252,7 @@ describe('which language each part says it is in', () => {
     expect(html).toContain('lang="bn"');
     // The header and the empty-state action take a plain string, so their Bengali has no mark of
     // its own yet (the known gap of string props). This list may only get shorter.
-    expect([...new Set(bengaliOutsideALanguageMark(html))].sort()).toEqual(
+    expect([...new Set(bengaliWithoutLanguageMark(html))].sort()).toEqual(
       ['আপনার রেকর্ড থেকে উত্তর দিন', 'এজেন্সির অনুরোধ'].sort(),
     );
   });
@@ -277,7 +267,7 @@ describe('which language each part says it is in', () => {
       },
     });
     const html = await render('bn', { agency: ORG_A, done: KEY });
-    const loose = [...new Set(bengaliOutsideALanguageMark(html))].sort();
+    const loose = [...new Set(bengaliWithoutLanguageMark(html))].sort();
     expect(loose).toEqual(
       [
         'অনুরোধের রেফারেন্স',

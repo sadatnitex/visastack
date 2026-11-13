@@ -1,15 +1,19 @@
 # Bengali drafts batch I (13 Nov 2026)
 
-Drafts written for one catalogue key each, in `drafts/no-census-I.jsonl`. They are machine drafts, not reviewed by a person. A draft reaches a screen only through `node scripts/i18n/codemod.mjs --refill-bn`, which applies every gate a key draft has: the exact English, the automated checks, the holds, no legal, consent, privacy, payment or official wording, matching placeholders and plural shape, and matching edge spaces.
+Drafts written for one catalogue key each. They are machine drafts, not reviewed by a person. A draft reaches a screen only through `node scripts/i18n/codemod.mjs --refill-bn`, which applies every gate a key draft has: the exact English, the automated checks, the holds, no legal, consent, privacy, payment or official wording, matching placeholders and plural shape, and matching edge spaces.
 
 ## What is in the batch
 
-| Part | Keys | State |
+| File | Keys | State |
 |---|---|---|
-| Answer from Your Records (`evidence-answer` catalogue) | 91 | Filled in this pull request: all 91 pass and each is rendered under Bengali by a test |
-| Other screens (keys with no draft, a plural message, or placeholder names that differ from the register row) | 56 | Drafted only. A later refill pull request fills them, each with a test that renders it |
+| `drafts/no-census-I.jsonl` | 91 | Answer from Your Records (the `evidence-answer` catalogue). Filled in this pull request: all 91 pass the gates and each is rendered under Bengali by a test |
+| `drafts/staged-key-drafts-I.jsonl` | 56 | Other screens: keys with no draft, a plural message, or placeholder names that differ from the register row. STAGED, not read by the refill tool (its name does not start with `no-census-`). 54 pass every gate today and 2 are refused (below) |
 
-## Drafted here, refused by the gate (stay English)
+A staged row goes live in a refill pull request that moves the row into a `no-census-*.jsonl` file, gives the key a sources entry where it has none, and adds a test that renders it under Bengali. Keeping them staged means a plain `--refill-bn` on main fills nothing from this batch that no test renders.
+
+Six staged keys have no entry in their surface's sources file yet and need a `null` entry before a key draft can fill them: `appAccount.appAccountPage.language`, `appAccount.appAccountPage.preferences`, and the four `componentsMore.safeCopyEditor.*` keys (`acceptBoxNumber`, `removeBoxNumber`, `selectBoxNumber`, `tryAgainToShowPageNumber`).
+
+## Staged and refused by the gate (stay English)
 
 | Key | English | Why |
 |---|---|---|
@@ -42,9 +46,9 @@ Drafts written for one catalogue key each, in `drafts/no-census-I.jsonl`. They a
 
 ## Tool changes that came with the batch
 
-- The checker reads plural messages: the plural syntax the English also has (`{count, plural,`, `one`, `other`, `=1`) is not counted as English left in the Bengali. An English word inside a plural branch still fails, and so does plural syntax the English does not have.
+- The checker reads plural messages: the plural syntax the English also has (`{count, plural,` and the branch names that open a branch of that plural) is not counted as English left in the Bengali. An English word inside a branch, in front of a placeholder outside the plural, or plural syntax the English does not have, still fails.
 - A key draft may carry a plural message when its variables, plural variables and nesting match the English exactly and every plural has an `other` branch. The web translator formats the same plural subset in both languages.
-- A key whose register row is released and passes, but words the plural with an English-only switch or names a placeholder differently from the catalogue, may be filled from a draft written for that key. A held group, an unreleased queue or a failing row never falls back.
+- A key whose register row is in the ordinary queue, released and passing, but words the plural with an English-only switch or names a placeholder differently from the catalogue, may be filled from a draft written for that key. A held group, an unreleased queue, a failing row or a group in a specialist queue never falls back.
 
 ## Known gaps on the Answer from Your Records screens
 
@@ -52,3 +56,5 @@ Drafts written for one catalogue key each, in `drafts/no-census-I.jsonl`. They a
 - The sentence the send answers with is a plain string from the server and is shown as sent.
 - The date words beside each copy on a request (expires, expired, dates disagree) are passed to the form as plain strings.
 - Dates and times inside these sentences are worded by the existing formatters, not by this batch.
+- The catalogue file is written by the same generator as every other catalogue, so its header speaks of the codemod and the register; for this catalogue the keys were written with the screen and the Bengali comes from `drafts/no-census-I.jsonl`.
+- The fallback for placeholder names and plural shape works around a census that is older than the code. Refreshing the census, so that each register row fits its key, is the deeper fix and is not part of this batch.
