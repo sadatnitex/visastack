@@ -192,7 +192,8 @@ describe('Case History under Bengali', () => {
     const { html, text } = await memory('bn');
     expect(text).toContain(bn[`${PAGE}noCasesYet`]);
     expect(text).toContain('Open Cases');
-    expect(text).toContain(en[`${PAGE}whenYouPrepareACaseEach`]);
+    expect(text).toContain(bn[`${PAGE}whenYouPrepareACaseEach`]);
+    expect(text).not.toContain(en[`${PAGE}whenYouPrepareACaseEach`]);
     expect(html).not.toMatch(RAW_KEY);
   });
 
@@ -240,7 +241,8 @@ describe('Then and Now under Bengali', () => {
     expect(text).toContain(withVersion(bn[`${CMP}sinceSnapshotVersion`], '২'));
     expect(text).toContain(withVersion(bn[`${CMP}viewSnapshotVersion`], '২'));
     expect(text).toContain('That confirmation was set aside');
-    expect(text).toContain('4 details are still the versions this snapshot used.');
+    expect(text).toContain('৪টি তথ্য এখনো এই স্ন্যাপশটে ব্যবহৃত সংস্করণেই আছে।');
+    expect(text).not.toContain('4 details are still the versions this snapshot used.');
     expect(text).not.toContain(bn[`${CMP}result`]);
     expect(html).not.toMatch(RAW_KEY);
   });
@@ -258,8 +260,13 @@ describe('Then and Now under Bengali', () => {
     expect(text).toContain('Beta Ltd');
     expect(text).toContain('Legitimate change');
     expect(text).toContain('Changed jobs in March');
-    expect(text).toContain(en[`${CMP}whatToDoNext`]);
-    expect(text).toContain(en[`${CMP}thisComparesWhatWasRecordedIt`]);
+    expect(text).toContain(bn[`${CMP}whatToDoNext`]);
+    expect(text).toContain(bn[`${CMP}thisComparesWhatWasRecordedIt`]);
+    expect(text).not.toContain(en[`${CMP}thisComparesWhatWasRecordedIt`]);
+    // The Compare link and its spoken name stay English together: the name holds an English
+    // detail name, and a button's name and its text keep one language.
+    expect(`${CMP}compare` in bn).toBe(false);
+    expect(`${CMP}compareNameThenAndNow` in bn).toBe(false);
     expect(html).not.toMatch(RAW_KEY);
   });
 
@@ -279,11 +286,56 @@ describe('Then and Now under Bengali', () => {
       ),
     );
     const { text } = await compare('bn', { snapshot: SNAP, version: PRIOR });
-    expect(text.match(/Hidden here to keep it private/g)).toHaveLength(2);
+    expect(text.split(bn[`${CMP}hiddenHereToKeepItPrivate`] as string)).toHaveLength(3);
+    expect(text).not.toContain('Hidden here to keep it private');
     expect(text).toContain(bn[`${CMP}none`]);
     expect(text).toContain(bn[`${CMP}aNoteWasSavedHiddenHere`]);
     expect(text).not.toContain('A note was saved (hidden here to keep it private)');
     expect(text).not.toMatch(RAW_KEY);
+  });
+
+  it('an amount shows its currency and tax rows in Bengali, with the update link (refill 3)', async () => {
+    mocks.compareSnapshotDetail.mockResolvedValue(
+      ok(
+        detail({
+          comparison: {
+            ...detail().comparison,
+            fieldKey: 'monthly_income',
+            result: 'NEEDS_CLARIFICATION',
+            label: 'Needs clarification',
+            prior: side({ value: '50000', currency: 'BDT', basis: null }),
+            current: side({ factVersionId: CURRENT, value: '60000', currency: null }),
+          },
+        }),
+      ),
+    );
+    const { html, text } = await compare('bn', { snapshot: SNAP, version: PRIOR });
+    expect(text).toContain(bn[`${CMP}currency`]);
+    expect(text).toContain(bn[`${CMP}beforeOrAfterTax`]);
+    expect(text).toContain(bn[`${CMP}notRecorded`]);
+    expect(text).toContain(bn[`${CMP}updateThisDetail`]);
+    expect(text).toContain(bn[`${CMP}openTheCase`]);
+    expect(text).toContain('BDT');
+    expect(text).not.toContain('Update This Detail');
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('when one detail cannot be compared the list says so in Bengali (refill 3)', async () => {
+    mocks.compareSnapshotDetail.mockResolvedValue({ ok: false, error: { code: 'unavailable' } });
+    const { html, text } = await compare('bn', { snapshot: SNAP, version: PRIOR });
+    expect(text).toContain(bn[`${CMP}thisComparisonCannotBeShownRight`]);
+    expect(text).not.toContain(en[`${CMP}thisComparisonCannotBeShownRight`]);
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('a case whose files were removed says so in Bengali (refill 3)', async () => {
+    mocks.getApplicationMemory.mockResolvedValue(
+      ok({ recordShares: [], cases: [mission({ removed: true })] }),
+    );
+    const { html, text } = await memory('bn');
+    expect(text).toContain(bn[`${LIST}thisCaseSFilesWereRemoved`]);
+    expect(text).not.toContain(en[`${LIST}thisCaseSFilesWereRemoved`]);
+    expect(html).not.toMatch(RAW_KEY);
   });
 
   it('an older snapshot, an unchanged snapshot and a one-detail snapshot are Bengali (signed off 2026-11-12)', async () => {

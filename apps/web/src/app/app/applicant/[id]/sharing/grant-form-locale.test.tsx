@@ -18,7 +18,25 @@ const answer = vi.hoisted(() => ({
     invitationUrl?: string;
   },
 }));
-vi.mock('./actions', () => ({ createGrantAction: async () => answer.next }));
+vi.mock('./actions', () => ({
+  createGrantAction: async () => answer.next,
+  allowCaseAction: vi.fn(),
+}));
+vi.mock('./ai-connection-actions', () => ({
+  turnOffAiConnectionAction: vi.fn(),
+  changeAiAccessAction: vi.fn(),
+}));
+// The AI connections card is a server component: the locale is set here directly, and React's
+// cache stands in for one request per render (as in the other locale tests).
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 vi.mock('./grant-ai-actions', () => ({ setGrantAiAssistAction: vi.fn() }));
 vi.mock('./ai-draft-actions', () => ({ deleteAiDraftAction: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -26,6 +44,9 @@ vi.mock('./ai-draft-actions', () => ({ deleteAiDraftAction: vi.fn() }));
 const { GrantForm } = await import('./grant-form');
 const { GrantAiChoice } = await import('./grant-ai-choice');
 const { AiDraftsSection } = await import('./ai-drafts');
+const { AiConnectionsSection } = await import('./ai-connections');
+const { CaseExceptions } = await import('./case-exceptions');
+const { primeLocale } = await import('../../../../../lib/i18n-server');
 const { applicantSharingCatalog } = await import('../../../../../i18n/applicant-sharing');
 
 const bn = applicantSharingCatalog.bn as Record<string, string>;
@@ -182,6 +203,185 @@ describe('the sharing form under Bengali', () => {
         bn['applicantSharing.appApplicantIdSharingAiDrafts.draftsYourAiAppsSavedFor'],
       );
       expect(host.textContent).not.toMatch(RAW_KEY);
+    });
+  });
+
+  describe('the AI connections card and the case exceptions under Bengali (refill 3)', () => {
+    const AI = 'applicantSharing.appApplicantIdSharingAiConnections.';
+    const OFF = 'applicantSharing.appApplicantIdSharingAiConnectionTurnOff.';
+    const EXC = 'applicantSharing.appApplicantIdSharingCaseExceptions.';
+    const DRAFTS = 'applicantSharing.appApplicantIdSharingAiDrafts.';
+    const APPLICANT = '11111111-1111-4111-8111-111111111111';
+    const connection = (over: Record<string, unknown> = {}) => ({
+      id: '22222222-2222-4222-8222-222222222222',
+      clientName: 'Claude',
+      clientHost: 'claude.ai',
+      connectedAt: new Date('2026-10-06T10:00:00Z'),
+      scopes: [] as string[],
+      caseMode: 'ALL_CURRENT' as const,
+      missionId: null,
+      caseTitle: null,
+      revealIdentifiers: false,
+      expiresAt: null,
+      lastUsedAt: null,
+      endedAt: null,
+      endedBy: null,
+      ...over,
+    });
+    const list = (over: Record<string, unknown> = {}) => ({
+      available: true,
+      active: [] as ReturnType<typeof connection>[],
+      recentlyEnded: [] as ReturnType<typeof connection>[],
+      activeTotal: 0,
+      ...over,
+    });
+    let root: Root;
+    let host: HTMLDivElement;
+    beforeEach(async () => {
+      loc.holder = null;
+      loc.locale = 'bn';
+      await primeLocale();
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+    });
+    afterEach(() => {
+      act(() => root.unmount());
+      host.remove();
+      loc.locale = 'en';
+    });
+    const mount = (node: React.ReactNode) =>
+      act(() =>
+        root.render(
+          <I18nProvider locale="bn" pageLang="bn">
+            {node}
+          </I18nProvider>,
+        ),
+      );
+    const button = (label: string) => {
+      const found = [...host.querySelectorAll('button')].find((b) => b.textContent === label);
+      if (!found) throw new Error(`Missing button ${label}`);
+      return found;
+    };
+
+    it('a connection that reads nothing yet shows the Bengali row names, words and buttons', async () => {
+      mount(
+        <AiConnectionsSection
+          applicantId={APPLICANT}
+          connectorOn
+          notice="changed"
+          list={list({
+            active: [connection()],
+            activeTotal: 1,
+            recentlyEnded: [
+              connection({ id: '33333333-3333-4333-8333-333333333333', endedAt: new Date() }),
+            ],
+          })}
+        />,
+      );
+      const text = host.textContent ?? '';
+      for (const key of [
+        'aiApps',
+        'aiConnections',
+        'aiAppsYouConnectedToThis12cecd',
+        'accessChangedTheAppGetsThe',
+        'connected',
+        'canRead',
+        'nothingFromThisRecord',
+        'cases',
+        'ends',
+        'untilYouTurnItOff',
+        'lastUsed',
+        'notUsedYet',
+        'changeAccess',
+      ]) {
+        expect(text, key).toContain(bn[`${AI}${key}`]);
+      }
+      expect(text).toContain('সম্প্রতি বন্ধ করা হয়েছে (১)');
+      expect(host.innerHTML).toContain(
+        `aria-label="${bn[`${AI}changeAccessForClientname`]?.replace('{clientName}', 'Claude')}"`,
+      );
+      // The full-numbers row keeps its English name and its English answer together.
+      expect(text).toContain('No');
+      expect(text).not.toContain(en[`${AI}aiAppsYouConnectedToThis12cecd`]);
+      // Turn Off is Bengali; the question it opens stays English with its two English answers
+      // ("Yes, Turn Off" is written in the component), so the confirmation is one language.
+      expect(host.innerHTML).toContain(
+        `aria-label="${bn[`${OFF}turnOffAppname`]?.replace('{appName}', 'Claude')}"`,
+      );
+      await act(async () => button(bn[`${OFF}turnOff`] as string).click());
+      const asked = host.textContent ?? '';
+      expect(asked).toContain('Turn off Claude? From its next request');
+      expect(`${OFF}turnOffAppnameFromItsNext` in bn).toBe(false);
+      expect(asked).toContain('Yes, Turn Off');
+      expect(asked).toContain('Keep It On');
+      expect(host.innerHTML).not.toMatch(RAW_KEY);
+    });
+
+    it('an app that may suggest changes, a turned-off notice, no apps and an unreadable list are Bengali', () => {
+      mount(
+        <AiConnectionsSection
+          applicantId={APPLICANT}
+          connectorOn
+          notice="off"
+          list={list({ active: [connection({ scopes: ['suggest_changes'] })], activeTotal: 1 })}
+        />,
+      );
+      const suggest = host.textContent ?? '';
+      expect(suggest).toContain(bn[`${AI}aiAppsYouConnectedToThis`]);
+      expect(suggest).toContain(bn[`${AI}turnedOffThatAppCanNo`]);
+      mount(<AiConnectionsSection applicantId={APPLICANT} connectorOn list={list()} />);
+      expect(host.textContent).toContain(bn[`${AI}noAiAppsAreConnectedTo`]);
+      mount(
+        <AiConnectionsSection
+          applicantId={APPLICANT}
+          connectorOn
+          list={list({ available: false })}
+        />,
+      );
+      expect(host.textContent).toContain(bn[`${AI}aiConnectionsCannotBeShownRight`]);
+      mount(<AiDraftsSection applicantId={APPLICANT} drafts={[]} more={0} />);
+      expect(host.textContent).toContain(bn[`${DRAFTS}noDraftsFromAiApps`]);
+      expect(host.innerHTML).not.toMatch(RAW_KEY);
+    });
+
+    it('cases left out of an access are listed in Bengali, and allowing one asks in Bengali', async () => {
+      mount(
+        <CaseExceptions
+          applicantId={APPLICANT}
+          grantId="44444444-4444-4444-8444-444444444444"
+          recipientLabel="Harbor Visas"
+          exceptions={[
+            { missionId: 'm1', title: 'Japan Visit', sharedSeparately: false },
+            { missionId: 'm2', title: 'UK Study', sharedSeparately: true },
+          ]}
+        />,
+      );
+      const text = host.textContent ?? '';
+      expect(text).toContain(bn[`${EXC}thisAccessCoversEveryCaseExcept`]);
+      expect(text).toContain(`${bn[`${EXC}notShared`]}: Japan Visit`);
+      expect(text).toContain(`${bn[`${EXC}sharedSeparately`]}: UK Study`);
+      expect(text).toContain(
+        (bn[`${EXC}recipientlabelSeesThisCaseThroughAnother`] as string).replace(
+          '{recipientLabel}',
+          'Harbor Visas',
+        ),
+      );
+      expect(host.innerHTML).toContain(
+        `aria-label="${(bn[`${EXC}allowThisCaseTitle`] as string).replace('{title}', 'Japan Visit')}"`,
+      );
+      const allow = [...host.querySelectorAll('button')].find(
+        (b) => b.textContent === bn[`${EXC}allowThisCase`],
+      );
+      if (!allow) throw new Error('Missing Allow This Case');
+      await act(async () => allow.click());
+      const asked = host.textContent ?? '';
+      // The question and its two answers stay English together.
+      expect(asked).toContain('Harbor Visas will be able to see this case and its records.');
+      expect(`${EXC}recipientlabelWillBeAbleToSee` in bn).toBe(false);
+      expect(asked).toContain('Yes, Allow This Case');
+      expect(asked).toContain('Keep It Private');
+      expect(host.innerHTML).not.toMatch(RAW_KEY);
     });
   });
 
