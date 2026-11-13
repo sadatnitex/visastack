@@ -94,6 +94,31 @@ describe('the agency settings page under Bengali', () => {
     ).toEqual([]);
   });
 
+  it('draws the off state of the AI setting in Bengali', async () => {
+    mocks.getOrganizationAiSetting.mockResolvedValue({ ok: true, value: aiSetting(false) });
+    const html = await draw('bn');
+    expect(missingBengali(html, ['appAgencyOrgidSettingsPage.off'])).toEqual([]);
+    expect(html).not.toMatch(/appAgency\./);
+  });
+
+  it('tells a member who is not an administrator that settings are limited, in Bengali', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({
+      org: {
+        id: 'o1',
+        name: 'Dhaka Visa Desk',
+        accentColor: null,
+        requireDifferentReviewer: false,
+      },
+      admin: false,
+      member: true,
+    });
+    const html = await draw('bn');
+    expect(
+      missingBengali(html, ['appAgencyOrgidSettingsPage.settingsAreLimitedToThisOrganization']),
+    ).toEqual([]);
+    expect(html).not.toContain('Settings are limited to');
+  });
+
   it('keeps the English page as it was', async () => {
     const html = await draw('en');
     expect(html).toContain('Bulk Export');

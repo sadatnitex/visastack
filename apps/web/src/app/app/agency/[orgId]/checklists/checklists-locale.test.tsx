@@ -144,6 +144,38 @@ describe('the checklist pages under Bengali', () => {
     ).toEqual([]);
   });
 
+  it('draws more shared lists than fit, starters and our own copies, in Bengali', async () => {
+    const shared = Array.from({ length: 61 }, (_, n) => ({
+      packVersionId: `pv${n}`,
+      packName: `Shared List ${n}`,
+      jurisdiction: 'JP',
+      purpose: 'tourism',
+      starter: n === 0,
+      version: 1,
+      ownCopyPackId: n === 1 ? PACK : null,
+    }));
+    mocks.shared.mockResolvedValue({ ok: true, value: shared });
+    const html = await drawList('bn');
+    expect(
+      missingBengali(html, [
+        'appAgencyOrgidChecklistsPage.starterListNotOfficial',
+        'appAgencyOrgidChecklistsPage.openOurCopy',
+        'appAgencyOrgidChecklistsPage.showingTheFirstLengthSearchBy',
+      ]),
+    ).toEqual([]);
+    expect(html).toContain('৬০');
+    expect(html).not.toMatch(/appAgency\./);
+  });
+
+  it('draws a list with no items in Bengali', async () => {
+    const empty = detail('DRAFT');
+    mocks.detail.mockResolvedValue({ ...empty, value: { ...empty.value, items: [] } });
+    const html = await drawEdit('bn');
+    expect(
+      missingBengali(html, ['appAgencyOrgidChecklistsEditPage.thisListHasNoItemsYet']),
+    ).toEqual([]);
+  });
+
   it('keeps the English edit page as it was', async () => {
     mocks.detail.mockResolvedValue(detail('DRAFT'));
     expect(await drawEdit('en')).toContain('Draft, Version 2');

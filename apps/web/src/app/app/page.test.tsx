@@ -33,7 +33,21 @@ vi.mock('../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'me@example.com' }),
 }));
-vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
+// The reader language: English unless a test below sets Bengali. Each render is one request.
+const lang = vi.hoisted(() => ({
+  locale: 'en' as 'en' | 'bn',
+  store: new Map<unknown, unknown>(),
+}));
+vi.mock('../../lib/locale', () => ({ getLocale: async () => lang.locale }));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render,
+// one value per cached function, so the language primed by the page reaches its components.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    if (!lang.store.has(build)) lang.store.set(build, build());
+    return lang.store.get(build);
+  },
+}));
 vi.mock('../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../../lib/admin', () => ({ holdsPlatformRole: async () => data.platformAdmin }));
 vi.mock('@visastack/services', async (importOriginal) => {
@@ -176,6 +190,7 @@ const SELF = {
 };
 
 beforeEach(() => {
+  lang.locale = 'en';
   data.consents = {};
   data.applicants = [];
   data.documents = 0;
@@ -258,8 +273,10 @@ describe('home (characterization before WP-V3)', () => {
   });
 });
 
-const page = (params: Record<string, string> = {}) =>
-  renderServer(Page({ searchParams: Promise.resolve(params) }));
+const page = (params: Record<string, string> = {}) => {
+  lang.store.clear();
+  return renderServer(Page({ searchParams: Promise.resolve(params) }));
+};
 const CORE = { CORE_PROCESSING: { grantedAt: new Date() } };
 
 describe('task-first first run (WP-V3, D8)', () => {
@@ -1284,5 +1301,25 @@ describe('UMPE P13: entry points and package changes on Home', () => {
     data.applicants = [];
     data.memberships = [{ active: true }];
     expect(await page()).not.toContain('home-entry-points');
+  });
+});
+
+describe('home under Bengali', () => {
+  it('offers the one own person their calendar, and flags a person needing action, in Bengali', async () => {
+    const { appHomeCatalog } = await import('../../i18n/app-home');
+    const bn = appHomeCatalog.bn as Record<string, string>;
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.openRequests = 1;
+    lang.locale = 'bn';
+    const text = textOf(await page());
+    for (const key of [
+      'appHome.appPage.addDatesToMyCalendar',
+      'appHome.appHomeCards.actionNeeded',
+      'appHome.appRecentActivity.recentActivity',
+    ])
+      expect(text, key).toContain(bn[key]);
+    expect(text).not.toContain('Add Dates to My Calendar');
+    expect(text).not.toMatch(/appHome\.app[A-Z]/);
   });
 });

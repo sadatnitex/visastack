@@ -16,6 +16,7 @@ export const appInvitationsCatalog = defineCatalog({
   },
   bn: {
     'appInvitations.appInvitationsAcceptPage.invitation': 'আমন্ত্রণ',
+    'appInvitations.appInvitationsAcceptPage.joinAnOrganization': 'একটি প্রতিষ্ঠানে যোগ দিন',
     'appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsMissingIts':
       'এই আমন্ত্রণ লিংকে টোকেন নেই।',
     'appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsNotValid':

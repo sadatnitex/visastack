@@ -21,12 +21,13 @@ const mocks = vi.hoisted(() => ({
   loadOrgAccess: vi.fn(),
   loadMembers: vi.fn(),
   loadPendingTeamInvitations: vi.fn(),
+  requestsOn: false,
 }));
 vi.mock('@visastack/services', () => ({
   listMembershipsForAccount: mocks.listMembershipsForAccount,
   createOrganization: vi.fn(),
   withdrawOrganizationApplication: vi.fn(),
-  agencyCollectionRequestsEnabled: () => false,
+  agencyCollectionRequestsEnabled: () => mocks.requestsOn,
   getOrganizationBrandingForDisplay: async () => null,
 }));
 vi.mock('../../../lib/session', () => ({
@@ -109,6 +110,7 @@ const membership = (id: string, status: string) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.requestsOn = false;
   navigationState.pathname = '/app/agency/o1/team';
 });
 afterEach(() => {
@@ -188,6 +190,52 @@ describe('the team page rows under Bengali', () => {
     expect(text).toContain('owner@example.com');
     expect(text).toContain(bn[k('appAgencyOrgidTeamPage.active')]);
     expect(text).not.toMatch(/appAgency\./);
+  });
+});
+
+describe('the team page states under Bengali', () => {
+  const team = () =>
+    render('bn', () => renderServer(TeamPage({ params: Promise.resolve({ orgId: 'o1' }) })));
+
+  it('with document requests on: an inactive member, one who may request documents, and the rule', async () => {
+    mocks.requestsOn = true;
+    mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: true, member: true });
+    mocks.loadMembers.mockResolvedValue([
+      {
+        membershipId: 'ms1',
+        accountId: 'a1',
+        email: 'member@example.com',
+        role: 'MEMBER',
+        active: true,
+        mayRequestDocuments: true,
+      },
+      {
+        membershipId: 'ms2',
+        accountId: 'a2',
+        email: 'gone@example.com',
+        role: 'MEMBER',
+        active: false,
+        mayRequestDocuments: false,
+      },
+    ]);
+    mocks.loadPendingTeamInvitations.mockResolvedValue([]);
+    const text = await team();
+    for (const key of [
+      'appAgencyOrgidTeamPage.allowDocumentRequestsLetsAMember',
+      'appAgencyOrgidTeamPage.mayRequestDocuments',
+      'appAgencyOrgidTeamPage.inactive',
+    ]) {
+      expect(text, key).toContain(bn[k(key)]);
+      expect(text, key).not.toContain(en[k(key)]);
+    }
+    expect(text).not.toMatch(/appAgency\./);
+  });
+
+  it('for a member who is not an administrator: says managing the team is limited', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
+    const text = await team();
+    expect(text).toContain(bn[k('appAgencyOrgidTeamPage.managingTheTeamIsLimitedTo')]);
+    expect(text).not.toContain('Managing the team is limited');
   });
 });
 
@@ -271,15 +319,15 @@ describe('agency forms and headings under Bengali', () => {
     ).toContain('12');
   });
 
-  it('shows the triage summary in each state in English where no Bengali is approved', () => {
+  it('shows the triage summary in Bengali in each state, with the dated line in English', () => {
     const base = { state: 'IN_PROGRESS', stateLabel: 'In Progress', requestsLeftOut: false };
     const empty = client(
       'bn',
       <CaseTriageSummary view={{ ...base, groups: [] } as never} headingId="h1" />,
     );
-    // No approved Bengali yet for these lines: English shows, never a raw key.
-    expect(empty).toContain('Where Things Stand');
-    expect(empty).toContain('Nothing has been asked for or checked yet.');
+    expect(empty).toContain(bn[k('appAgencyOrgidCaseTriageSummary.whereThingsStand')]);
+    expect(empty).toContain(bn[k('appAgencyOrgidCaseTriageSummary.nothingHasBeenAskedForOr')]);
+    expect(empty).not.toContain('Where Things Stand');
     expect(empty).not.toMatch(/appAgency\./);
     const withItems = client(
       'bn',
@@ -302,6 +350,10 @@ describe('agency forms and headings under Bengali', () => {
     );
     // A date inside the sentence is not formatted for Bengali here, so the line stays English.
     expect(withItems).toContain('Due 3 Dec 2026');
+    expect(withItems).toContain(
+      bn[k('appAgencyOrgidCaseTriageSummary.itemsAskedOfTheTravellerAre')],
+    );
+    expect(withItems).not.toMatch(/appAgency\./);
     expect(k('appAgencyOrgidCaseTriageSummary.dueDue') in bn).toBe(false);
   });
 
@@ -320,6 +372,43 @@ describe('agency forms and headings under Bengali', () => {
       true,
     );
     expect(enText).not.toMatch(BENGALI);
+  });
+});
+
+describe('agency tray and filter states under Bengali', () => {
+  it('a full tray says, in Bengali, how many one send can carry', () => {
+    const items = Array.from({ length: 25 }, (_, n) => ({
+      id: `i${n}`,
+      label: `Item ${n}`,
+      hint: '',
+    }));
+    const text = client(
+      'bn',
+      <EvidenceTray items={items} onRemove={() => undefined} onClear={() => undefined} />,
+    );
+    // "{MAX_ASK_ITEMS} is the most in one send", with the number in Bengali digits.
+    expect(text).toContain(
+      bn[k('appAgencyOrgidEvidenceTray.maxAskItemsIsTheMost')]?.replace('{MAX_ASK_ITEMS}', '২৫'),
+    );
+    expect(text).not.toContain('is the most in one send');
+  });
+
+  it('a filtered case list offers Clear in Bengali', async () => {
+    const props = {
+      orgId: 'o1',
+      members: [],
+      query: 'rina',
+      stage: '',
+      destination: '',
+      assignee: '',
+    };
+    const text = await render(
+      'bn',
+      () => renderToStaticMarkup(<CaseSearchForm {...props} />),
+      true,
+    );
+    expect(text).toContain(bn[k('appAgencyOrgidCaseSearchForm.clear')]);
+    expect(text).not.toMatch(/appAgency\./);
   });
 });
 

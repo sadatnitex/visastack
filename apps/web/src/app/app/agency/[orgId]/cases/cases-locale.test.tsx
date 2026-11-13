@@ -123,21 +123,24 @@ describe('the agency Cases page under Bengali', () => {
     expect(text).toContain('Invite a Client');
   });
 
-  it('shows the Bengali empty state title and keeps the assignment sentence in English (member)', async () => {
+  it('shows the Bengali empty state title and the Bengali assignment sentence (member)', async () => {
     state.admin = false;
     const text = await show('bn');
     expect(text).toContain(bn[k('noCasesYet')]);
-    expect(text).toContain("You aren't assigned to any cases yet.");
-    expect(text).toContain("Leave case notes and record decisions on cases you're assigned to.");
+    expect(text).toContain(bn[k('youArenTAssignedToAny')]);
+    expect(text).toContain(bn[k('leaveCaseNotesAndRecordDecisions')]);
+    expect(text).not.toContain("You aren't assigned to any cases yet.");
+    expect(text).not.toMatch(/appAgency\./);
   });
 
-  it('keeps the closed-case message in English (it is about access)', async () => {
+  it('shows the closed-case message in Bengali', async () => {
     state.cases = [row()];
     const text = await show('bn', { case: M1 });
-    expect(text).toContain('That case is not open to you.');
+    expect(text).toContain(bn[k('thatCaseIsNotOpenTo')]);
+    expect(text).not.toContain('That case is not open to you.');
   });
 
-  it('labels the open case workspace in Bengali, and marks the open row in English', async () => {
+  it('labels the open case workspace and marks the open row in Bengali', async () => {
     state.cases = [row()];
     state.open = {
       ...row(),
@@ -164,6 +167,7 @@ describe('the agency Cases page under Bengali', () => {
       }),
     );
     expect(html).toContain(`aria-label="${bn[k('openCasedd4d13')]}"`);
-    expect(textOf(html)).toContain('Open Now');
+    expect(textOf(html)).toContain(bn[k('openNow')]);
+    expect(textOf(html)).not.toContain('Open Now');
   });
 });

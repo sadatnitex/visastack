@@ -86,6 +86,48 @@ describe('the copies on a request card under Bengali', () => {
     );
   });
 
+  it('says in Bengali that a copy cannot be opened, and shows the reason given to the traveller', async () => {
+    const html = await draw({
+      available: true,
+      submissions: [
+        sent({ id: 's2', roundNo: 2, fileAvailable: false }),
+        sent({
+          state: 'NEEDS_REPLACEMENT',
+          decidedAt: new Date('2026-11-04T08:00:00Z'),
+          reason: 'The pages are cut off.',
+        }),
+      ],
+      legacy: [],
+    });
+    expect(html).not.toMatch(/appAgency\./);
+    expect(
+      missingBengali(html, [
+        'appAgencyOrgidEvidenceCopies.cannotBeOpenedRightNow',
+        'appAgencyOrgidEvidenceCopies.whyNot',
+        'appAgencyOrgidEvidenceCopies.thisCopyCannotBeOpenedFrom',
+        'appAgencyOrgidEvidenceCopies.yourReasonShownToTheTraveller',
+      ]),
+    ).toEqual([]);
+    expect(html).toContain('The pages are cut off.');
+  });
+
+  it('says in Bengali that an old send kept no send time', async () => {
+    const html = await draw({
+      available: false,
+      submissions: [],
+      legacy: [
+        {
+          label: 'Sent before exact versions were kept' as const,
+          documentId: 'd9',
+          sentAt: null as never,
+          state: 'AWAITING_DECISION' as const,
+          decidedAt: null,
+        },
+      ],
+    });
+    expect(missingBengali(html, ['appAgencyOrgidEvidenceCopies.sendTimeNotKept'])).toEqual([]);
+  });
+
   it('titles an accepted copy in Bengali, with the earlier sends folded below', async () => {
     const html = await draw(
       {
@@ -217,6 +259,48 @@ describe('the Answers panel under Bengali', () => {
     expect(
       missingBengali(html, [
         'appAgencyOrgidCollectionCollectionResponsePanel.titleVersionVersionnumber',
+      ]),
+    ).toEqual([]);
+  });
+
+  it('says in Bengali that a file cannot be downloaded, a detail is protected and an item is missing', async () => {
+    const base = account(true);
+    const response = {
+      ...base,
+      hasProtectedDetails: true,
+      lines: [
+        {
+          itemId: 'f1',
+          item: { ...ITEM, id: 'f1', kind: 'FIELD', fieldKey: 'passport_number', docType: null },
+          source: 'account' as const,
+          versions: [{ kind: 'FIELD' as const, value: null }],
+          missing: false,
+        },
+        {
+          itemId: 'm1',
+          item: { ...ITEM, id: 'm1' },
+          source: 'account' as const,
+          versions: [],
+          missing: true,
+        },
+      ],
+    };
+    const html = await inBengali(() =>
+      renderServer(
+        <CollectionResponsesPanel
+          organizationId="o1"
+          requestId="q1"
+          fileUnavailable
+          responses={[response as never]}
+        />,
+      ),
+    );
+    expect(html).not.toMatch(/appAgency\./);
+    expect(
+      missingBengali(html, [
+        'appAgencyOrgidCollectionCollectionResponsePanel.thatFileCannotBeDownloadedRight',
+        'appAgencyOrgidCollectionCollectionResponsePanel.protectedDetail',
+        'appAgencyOrgidCollectionCollectionResponsePanel.stillMissing',
       ]),
     ).toEqual([]);
   });
