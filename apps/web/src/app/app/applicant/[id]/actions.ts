@@ -67,6 +67,7 @@ import {
   FLAG_HIDDEN_LINE,
   NAME_HIDDEN_LINE,
   SUGGESTION_HIDDEN_LINE,
+  refusalLine,
 } from '../../../../lib/hidden-record';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
@@ -1079,14 +1080,9 @@ function plainError(error: ServiceError): string {
   return plainSentence(error.message);
 }
 
-/**
- * The fixed "not available" line for a refusal that would reveal whether an id is real, else the
- * service's own words in the visitor's language (same rule as `refusalLine`, which is English only).
- */
+/** `refusalLine` with the other refusals worded in the visitor's language. */
 async function refusalText(error: ServiceError, hiddenLine: string): Promise<string> {
-  return error.code === 'forbidden' || error.code === 'not_found'
-    ? hiddenLine
-    : await serviceErrorMessage(error);
+  return refusalLine(error, hiddenLine, await serviceErrorMessage(error));
 }
 
 /** The same, worded in the visitor's language when the refusal has a key. */

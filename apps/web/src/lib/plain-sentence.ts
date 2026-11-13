@@ -1,8 +1,8 @@
-const BENGALI = /[ঀ-৿]/;
+const BENGALI = /^[ঀ-৿]/;
 
 /**
  * A service refusal as a sentence a person can read: English gets a capital and a full stop,
- * Bangla (already worded for the person) ends with its own stop, "।", and is never recased.
+ * Bangla (a message that starts in Bengali script, already worded for the person) ends with its own stop, "।", and is never recased.
  */
 export function plainSentence(message: string): string {
   const text = message.trim();
