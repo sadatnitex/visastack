@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { appContributorRequestsCatalog } from '../../../../i18n/app-contributor-requests';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../lib/labels';
+import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
 import { SubmitEvidenceForm } from './submit-evidence-form';
 
@@ -72,7 +73,7 @@ export default async function AcceptContributorRequestPage({
           <p className="card-body">
             {data.preview.error.code === 'not_found'
               ? t.node('appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsNotValid')
-              : data.preview.error.message}
+              : serviceErrorNode(data.preview.error)}
           </p>
         ) : (
           <>

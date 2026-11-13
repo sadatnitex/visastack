@@ -7,7 +7,8 @@ import { appendAuditEvent } from './audit';
 import { logoVersion, readOrganizationLogo } from './branding';
 import { type Db, first, required, schema } from './db';
 import { isEmailAddress } from './email-address';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
+import type { ServiceMessageKey } from './i18n';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { createMission } from './missions';
@@ -91,13 +92,13 @@ async function isIntendedRecipient(
 }
 
 /** The same neutral refusal sharing invitations give: it names no person, route or case. */
-const WRONG_RECIPIENT_MESSAGE = 'Use the email address that received this invitation.';
+const WRONG_RECIPIENT_KEY = 'client_invitations.use_the_email_address_that_received';
 
 /** For an older invitation sent to a phone number: what to do instead, naming nothing else. */
-const PHONE_INVITATION_MESSAGE =
-  'This invitation can no longer be used. Ask the agency to send you a new one by email.';
+const PHONE_INVITATION_KEY = 'client_invitations.this_invitation_can_no_longer_be_used';
 
-const ALREADY_USED_MESSAGE = 'this invitation has already been used or revoked';
+/** The same key as every other used or revoked answer, so each path reads alike in every language. */
+const ALREADY_USED_KEY = 'client_invitations.already_used_or_revoked';
 
 /**
  * Why someone was refused, worked out once. A phone invitation is refused for everyone, so its
@@ -107,13 +108,16 @@ const ALREADY_USED_MESSAGE = 'this invitation has already been used or revoked';
 function refusalOf(invitation: {
   readonly contactDestination: string;
   readonly status: string;
-}): { readonly reason: 'wrong_recipient' | 'phone_invitation'; readonly message: string } {
+}): {
+  readonly reason: 'wrong_recipient' | 'phone_invitation';
+  readonly key: ServiceMessageKey;
+} {
   if (!isPhoneContact(invitation.contactDestination)) {
-    return { reason: 'wrong_recipient', message: WRONG_RECIPIENT_MESSAGE };
+    return { reason: 'wrong_recipient', key: WRONG_RECIPIENT_KEY };
   }
   return {
     reason: 'phone_invitation',
-    message: invitation.status === 'PENDING' ? PHONE_INVITATION_MESSAGE : ALREADY_USED_MESSAGE,
+    key: invitation.status === 'PENDING' ? PHONE_INVITATION_KEY : ALREADY_USED_KEY,
   };
 }
 
@@ -353,7 +357,7 @@ export async function previewClientInvitation(
       .where(eq(schema.clientInvitations.tokenHash, tokenHash))
       .limit(1),
   );
-  if (!row) return err(serviceError('not_found', 'invitation not found'));
+  if (!row) return err(keyedError('not_found', 'client_invitations.invitation_not_found'));
   // First, so someone else's link says nothing about whether it was used, revoked or expired.
   if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
     const refusal = refusalOf(row);
@@ -365,13 +369,13 @@ export async function previewClientInvitation(
       'preview',
       refusal.reason,
     );
-    return err(serviceError('forbidden', refusal.message));
+    return err(keyedError('forbidden', refusal.key));
   }
   if (row.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this invitation has already been used or revoked'));
+    return err(keyedError('invalid', 'client_invitations.already_used_or_revoked'));
   }
   if (row.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this invitation has expired'));
+    return err(keyedError('invalid', 'client_invitations.this_invitation_has_expired'));
   }
   return ok({
     organizationId: row.organizationId,
@@ -591,7 +595,7 @@ export async function acceptClientInvitation(
       .where(eq(schema.clientInvitations.tokenHash, tokenHash))
       .limit(1),
   );
-  if (!invitation) return err(serviceError('not_found', 'invitation not found'));
+  if (!invitation) return err(keyedError('not_found', 'client_invitations.invitation_not_found'));
   // Checked first, before anything is claimed or created: a forwarded link
   // cannot spend the invitation or learn whether it was used, revoked or expired.
   if (!(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))) {
@@ -604,13 +608,13 @@ export async function acceptClientInvitation(
       'accept',
       refusal.reason,
     );
-    return err(serviceError('forbidden', refusal.message));
+    return err(keyedError('forbidden', refusal.key));
   }
   if (invitation.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this invitation has already been used or revoked'));
+    return err(keyedError('invalid', 'client_invitations.already_used_or_revoked'));
   }
   if (invitation.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this invitation has expired'));
+    return err(keyedError('invalid', 'client_invitations.this_invitation_has_expired'));
   }
   if (input.applicantChoice.kind === 'existing') {
     const applicant = await getApplicant(db, input.applicantChoice.applicantId);
@@ -640,7 +644,7 @@ export async function acceptClientInvitation(
       );
       if (!claimed) {
         throw new ClientInvitationAcceptAborted(
-          serviceError('invalid', 'this invitation has already been used or revoked'),
+          keyedError('invalid', 'client_invitations.already_used_or_revoked'),
         );
       }
 

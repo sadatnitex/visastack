@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { triggerAccountExportWorker } from '../../../lib/jobs';
+import { serviceErrorMessage } from '../../../lib/service-error-message';
 import { withSession } from '../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
 
@@ -45,7 +46,9 @@ export async function requestDeletionAction(
       accountId,
       ...(reason.length > 0 ? { reason } : {}),
     });
-    if (!req.ok) return { ok: false, message: req.error.message } satisfies ActionState;
+    if (!req.ok) {
+      return { ok: false, message: await serviceErrorMessage(req.error) } satisfies ActionState;
+    }
     const when = req.value.scheduledFor.toLocaleDateString();
     return {
       ok: true,
@@ -104,7 +107,12 @@ export async function cancelDeletionAction(
 ): Promise<ActionState> {
   const result = await withSession(async ({ db, accountId }) => {
     const cancelled = await cancelAccountDeletion(db, { actorAccountId: accountId, accountId });
-    if (!cancelled.ok) return { ok: false, message: cancelled.error.message } satisfies ActionState;
+    if (!cancelled.ok) {
+      return {
+        ok: false,
+        message: await serviceErrorMessage(cancelled.error),
+      } satisfies ActionState;
+    }
     return { ok: true, message: 'Deletion request cancelled.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/privacy');

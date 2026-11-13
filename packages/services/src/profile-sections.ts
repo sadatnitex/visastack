@@ -11,7 +11,7 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 
 /**
  * Opened sections and "does not apply" marks for one profile (Master Profile enrichment).
@@ -73,7 +73,7 @@ async function authorizeOwner(
   metadata: Readonly<Record<string, unknown>>,
 ): Promise<Result<true, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'profile.applicant_not_found'));
 
   const owns = applicant.ownerAccountId === input.actorAccountId;
   const decision = owns
@@ -105,7 +105,7 @@ async function authorizeOwner(
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
     return err(
-      serviceError('consent_required', 'Core processing consent is required to change a profile'),
+      keyedError('consent_required', 'profile_sections.core_processing_consent_is_required'),
     );
   }
   return ok(true);
@@ -125,7 +125,7 @@ export async function setSectionOpen(
     return err(serviceError('invalid', `unknown section: ${input.sectionKey}`));
   }
   if (!input.open && DEFAULT_OPEN.has(input.sectionKey)) {
-    return err(serviceError('invalid', 'this section is always open and cannot be closed'));
+    return err(keyedError('invalid', 'profile_sections.this_section_is_always_open'));
   }
   const allowed = await authorizeOwner(db, input, 'PROFILE_SECTION_CHANGE', {
     sectionKey: input.sectionKey,

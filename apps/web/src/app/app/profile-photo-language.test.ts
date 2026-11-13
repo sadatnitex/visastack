@@ -81,3 +81,39 @@ describe('the photo screen words each refusal in the visitor language', () => {
     expect((await removeProfilePhotoAction(removeForm())).message).toBe(bn[key]);
   });
 });
+
+describe('the photo-size check made before the service is asked', () => {
+  const tooLarge = () => {
+    const data = new FormData();
+    data.set('applicantId', 'ap-1');
+    data.set(
+      'photo',
+      new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.jpg', { type: 'image/jpeg' }),
+    );
+    return data;
+  };
+
+  it('says the service own words: exact English under en, the checked Bangla under bn', async () => {
+    state.locale = 'en';
+    expect(await saveProfilePhotoAction(tooLarge())).toEqual({
+      ok: false,
+      message: 'Choose a photo smaller than 5 MB.',
+    });
+    state.locale = 'bn';
+    expect(bn['photos.chooseAPhotoSmallerThan5']).toMatch(BENGALI);
+    expect(await saveProfilePhotoAction(tooLarge())).toEqual({
+      ok: false,
+      message: bn['photos.chooseAPhotoSmallerThan5'],
+    });
+  });
+
+  it('the other early checks stay English until a matching draft exists', async () => {
+    state.locale = 'bn';
+    const empty = new FormData();
+    empty.set('applicantId', 'ap-1');
+    expect(await saveProfilePhotoAction(empty)).toEqual({
+      ok: false,
+      message: 'Choose a photo first.',
+    });
+  });
+});
