@@ -8,16 +8,23 @@ import { type ChangeImpactSummary, hasImpactCounts } from './impact-words';
  * The compact form of What This Change Affects, shown under the line that says a detail was
  * saved: the title, how many things need the person's action, are worth a look or cannot be
  * told, and a link to the full list. A quiet change (a null summary, or nothing to count) shows
- * nothing at all: no notice for a change that affects nothing. Announced politely, never as an
- * alert. It uses no hooks, so the form that shows the saved line can render it as it is.
+ * nothing at all: no notice for a change that affects nothing. When the check itself failed
+ * (`unavailable`), one plain line says so instead, claiming nothing about the change. Announced
+ * politely, never as an alert. It uses no hooks, so the form that shows the saved line can render
+ * it as it is.
  */
 export function ChangeImpactNotice({
   summary,
+  unavailable = false,
   t,
 }: {
   readonly summary: ChangeImpactSummary | null | undefined;
+  readonly unavailable?: boolean | undefined;
   readonly t: PartsTranslator<ChangeImpactKey>;
 }) {
+  if (unavailable && !summary) {
+    return <output className="ci-notice">{t.node('changeImpact.notice.unavailable')}</output>;
+  }
   if (!summary || !hasImpactCounts(summary)) return null;
   return (
     <output className="ci-notice">

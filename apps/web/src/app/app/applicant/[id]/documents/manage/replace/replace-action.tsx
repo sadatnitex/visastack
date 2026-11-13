@@ -273,6 +273,11 @@ export function ReplaceAction({
   }
 
   if (step === 'confirm' && chosenCandidate && options) {
+    // The review stands in for the plain list of cases only once it is whole. While it is still
+    // being worked out, could not be read, or is missing a part, the list the app already knows
+    // stays, with its count, so the person never confirms without seeing which cases change.
+    const reviewDrawn = typeof preview !== 'string' && preview.complete;
+    const showCases = !reviewDrawn;
     return (
       <div ref={root} className="lc-replace" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-replace-heading">
@@ -285,22 +290,26 @@ export function ReplaceAction({
         </h3>
         <p>
           The newer document is <strong>{chosenCandidate.name}</strong>.
-          {preview === 'unavailable' ? <> {confirmMessage(options.cases.length)}</> : null}
+          {showCases ? <> {confirmMessage(options.cases.length)}</> : null}
         </p>
-        {preview === 'loading' ? (
-          <output className="lc-replace-note">{impactT.node('changeImpact.review.loading')}</output>
-        ) : preview === 'unavailable' ? (
-          <>
-            {options.cases.length > 0 ? (
-              <ul className="lc-replace-cases">
-                {options.cases.map((c) => (
-                  <li key={c.missionId}>{c.title}</li>
-                ))}
-              </ul>
-            ) : null}
-            <p className="lc-replace-note">{impactT.node('changeImpact.review.previewFailed')}</p>
-          </>
-        ) : (
+        {showCases && options.cases.length > 0 ? (
+          <ul className="lc-replace-cases">
+            {options.cases.map((c) => (
+              <li key={c.missionId}>{c.title}</li>
+            ))}
+          </ul>
+        ) : null}
+        {/* One polite line that changes in place, so the review arriving is announced. */}
+        <output className={reviewDrawn ? 'sr-only' : 'lc-replace-note'}>
+          {impactT.node(
+            preview === 'loading'
+              ? 'changeImpact.review.loading'
+              : preview === 'unavailable'
+                ? 'changeImpact.review.previewFailed'
+                : 'changeImpact.review.ready',
+          )}
+        </output>
+        {typeof preview === 'string' ? null : (
           <ChangeImpactReview
             impact={preview}
             applicantId={applicantId}

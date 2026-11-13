@@ -322,7 +322,11 @@ function FieldRow({
       ) : null}
       {assurance ? <AssuranceDetail assurance={assurance} /> : null}
       <FormMessage id={messageId} result={state} />
-      <ChangeImpactNotice summary={state.changeImpact} t={impactT} />
+      <ChangeImpactNotice
+        summary={state.changeImpact}
+        unavailable={state.changeImpactUnavailable}
+        t={impactT}
+      />
     </form>
   );
 }

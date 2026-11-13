@@ -29,9 +29,13 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.notice.link': 'See the Full List',
     'changeImpact.notice.more':
       '{count, plural, one {and # more detail may also affect something.} other {and # more details may also affect something.}}',
+    'changeImpact.notice.moreAlone':
+      '{count, plural, one {# detail was not checked here. Open it to see what it affects.} other {# details were not checked here. Open each one to see what they affect.}}',
     'changeImpact.notice.review':
       '{count, plural, one {# item is worth a look.} other {# items are worth a look.}}',
     'changeImpact.notice.title': 'What This Change Affects',
+    'changeImpact.notice.unavailable':
+      'We could not work out what this change affects. Open Documents or your cases to check.',
     'changeImpact.notice.unknown':
       '{count, plural, one {We cannot tell about # item.} other {We cannot tell about # items.}}',
     'changeImpact.page.backToDocuments': 'Documents',
@@ -190,6 +194,7 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.review.quiet': 'Nothing else uses this. No action is needed.',
     'changeImpact.review.quietWithItems':
       'No action is needed. What relates to this change is listed below.',
+    'changeImpact.review.ready': 'The list of what this change affects is ready below.',
     'changeImpact.review.recordedFailed':
       'We could not work out what else this change affects this time. The replacement itself is done.',
     'changeImpact.review.title': 'What This Change Affects',

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+/** What happened, in order: the save, the session callback returning, the read. Not a mock. */
+const order = vi.hoisted(() => [] as string[]);
 const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listReplacementOptions: vi.fn(),
@@ -27,8 +29,11 @@ vi.mock('@visastack/services', () => ({
   },
 }));
 vi.mock('../../../../../../../lib/session', () => ({
-  withSession: (fn: (ctx: { db: object; accountId: string }) => unknown) =>
-    fn({ db: {}, accountId: 'acct-1' }),
+  withSession: async (fn: (ctx: { db: object; accountId: string }) => unknown) => {
+    const out = await fn({ db: {}, accountId: 'acct-1' });
+    order.push('callback returned');
+    return out;
+  },
 }));
 vi.mock('../../../../../../../lib/upload-preflight', () => ({ pdfUploadsAccepted: () => false }));
 
@@ -40,6 +45,7 @@ const proof = (applicantId: string) => ({ ok: true, value: { applicant: { id: ap
 const REVIEW = { phase: 'RECORDED', items: [], quiet: true };
 
 beforeEach(() => {
+  order.length = 0;
   mocks.readImpact.mockResolvedValue('failed');
 });
 afterEach(() => {
@@ -49,10 +55,16 @@ afterEach(() => {
 describe('what the replacement affects', () => {
   const replaced = { ok: true, value: { flaggedMissionIds: [], cases: [] } };
 
-  it('is read for the old document only after the replacement is saved', async () => {
+  it('is read for the old document only after the replacement is saved and its session has returned', async () => {
     mocks.requireAccess.mockResolvedValue(proof('a1'));
-    mocks.replaceDocument.mockResolvedValue(replaced);
-    mocks.readImpact.mockResolvedValue(REVIEW);
+    mocks.replaceDocument.mockImplementation(async () => {
+      order.push('saved');
+      return replaced;
+    });
+    mocks.readImpact.mockImplementation(async () => {
+      order.push('read');
+      return REVIEW;
+    });
     expect(await replaceDocumentAction('a1', 'old', 'new')).toEqual({
       ok: true,
       message: 'Replaced. The old document stays in your records, marked Replaced.',
@@ -60,9 +72,8 @@ describe('what the replacement affects', () => {
     });
     // The recorded review names no candidate: the saved replacement is what it reads.
     expect(mocks.readImpact.mock.calls).toEqual([['a1', 'old']]);
-    expect(mocks.replaceDocument.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.readImpact.mock.invocationCallOrder[0] ?? 0,
-    );
+    // The read is its own step: it never runs inside the session that saved the replacement.
+    expect(order).toEqual(['saved', 'callback returned', 'read']);
   });
 
   it('never turns a finished replacement into a failure when the read fails or is refused', async () => {

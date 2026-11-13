@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * What This Change Affects after "Accept N Clear Details": the batch is saved first, and only
  * then are the first few saved details looked at, one after another. A look can only add to a
  * success: a quiet detail, a refused, failed or thrown read, or a detail past the cap never turns
- * a saved batch into a problem.
+ * a saved batch into a problem. A refused read stays silent (it looks like a missing record); a
+ * failed or thrown one is counted with the details not looked at, so it never looks quieter than
+ * a detail that was simply not read.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -25,7 +27,11 @@ vi.mock('../../../../lib/change-impact-read', () => ({
 }));
 vi.mock('../../../../lib/server-error', () => ({ reportServerError: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('next/navigation', () => ({ redirect: vi.fn(), unstable_rethrow: vi.fn() }));
+// The real unstable_rethrow, so a sign-in redirect thrown by a read is shown to travel on.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  redirect: vi.fn(),
+}));
 vi.mock('next/server', () => ({ after: vi.fn() }));
 vi.mock('../../../../lib/jobs', () => ({ triggerIntakeWorker: vi.fn() }));
 vi.mock('../../../../lib/providers', () => ({ createKeyManagementPort: () => undefined }));
@@ -178,7 +184,7 @@ describe('accepting clear details together', () => {
     expect('changeImpactBatch' in result).toBe(false);
   });
 
-  it('keeps the batch saved, with nothing added for that detail, when a read is refused, fails or throws', async () => {
+  it('keeps the batch saved when a read is refused, fails or throws, counting only the failed and thrown ones', async () => {
     approvedWith(['fact-1', 'fact-2', 'fact-3', 'fact-4'], (factId) => {
       if (factId === 'fact-1') return 'refused';
       if (factId === 'fact-2') return 'failed';
@@ -189,14 +195,35 @@ describe('accepting clear details together', () => {
     expect(result.ok).toBe(true);
     expect(result.message).not.toBe('');
     expect(result.changeImpactBatch?.items.map((one) => one.label)).toEqual(['Label fact-4']);
-    expect(result.changeImpactBatch?.more).toBe(0);
+    // The refused one is silent; the failed one and the thrown one are not ruled out.
+    expect(result.changeImpactBatch?.more).toBe(2);
   });
 
-  it('adds nothing when every read is refused or fails', async () => {
-    approvedWith(['fact-1', 'fact-2'], (factId) => (factId === 'fact-1' ? 'refused' : 'failed'));
+  it('adds nothing when every read is refused, so a refusal looks like a missing record', async () => {
+    approvedWith(['fact-1', 'fact-2'], () => 'refused');
     const result = await accept();
     expect(result.ok).toBe(true);
     expect('changeImpactBatch' in result).toBe(false);
+  });
+
+  it('says the details were not checked when every read fails or throws', async () => {
+    approvedWith(['fact-1', 'fact-2'], (factId) => {
+      if (factId === 'fact-1') return 'failed';
+      throw new Error('database went away');
+    });
+    const result = await accept();
+    expect(result.ok).toBe(true);
+    expect(result.changeImpactBatch).toEqual({ items: [], more: 2 });
+  });
+
+  it('lets a sign-in redirect thrown by a read travel on, instead of hiding it', async () => {
+    const redirect = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/signin;307;',
+    });
+    approvedWith(['fact-1', 'fact-2'], () => {
+      throw redirect;
+    });
+    await expect(accept()).rejects.toBe(redirect);
   });
 
   it('does not read when nothing was approved, or when the approval was refused', async () => {

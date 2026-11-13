@@ -149,6 +149,19 @@ describe('what you sent, on a detail request', () => {
     expect(link()).toEqual([]);
   });
 
+  it('tells this link apart from the others on the page: it names the request it belongs to', async () => {
+    await act(async () => root.render(pane(history(read([round()])))));
+    const link = host.querySelector<HTMLAnchorElement>('[data-testid=field-answer-sent] a');
+    const describedBy = link?.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const title = host.querySelector(`#${describedBy}`);
+    expect(title?.tagName).toBe('H3');
+    expect(title?.textContent).toBe(host.querySelector('.lp-pane-title')?.textContent);
+    expect(title?.textContent).not.toBe('');
+    const ids = [...host.querySelectorAll('[id]')].map((node) => node.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('does not say it changed when the version sent is still the current one', async () => {
     const current = round({
       version: { ...baseVersion, stillCurrent: true },

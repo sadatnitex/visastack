@@ -59,6 +59,14 @@ describe('the What This Change Affects page', () => {
     const html = await page({ detail: 'f-employer' });
     expect(textOf(html)).toContain('Nothing else uses this. No action is needed.');
     expect(html).not.toMatch(/role="alert"/);
+    // The page is read as a page: the calm line is plain text in the flow, not a live region that
+    // would speak over the page title when it opens. The short notice is the polite one.
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    expect(host.querySelector('p.ci-quiet')).not.toBeNull();
+    expect(
+      host.querySelectorAll('output, [aria-live], [role="status"], [role="alert"]'),
+    ).toHaveLength(0);
   });
 
   it('is the ordinary not-found when the read is refused', async () => {

@@ -107,7 +107,10 @@ function FieldAnswerSent({
   timeZone,
   impactHref,
   impactT,
+  describedBy,
 }: {
+  /** The id of the title of the request this answer belongs to, so each link says which one it is for. */
+  readonly describedBy: string;
   /** The review of this detail's latest change, when the request names the detail it answers with. */
   readonly impactHref: string | null;
   readonly impactT: ReturnType<typeof getServerT<ChangeImpactKey>>;
@@ -174,7 +177,7 @@ function FieldAnswerSent({
                 {impactHref && round === changedRound ? (
                   <>
                     {' '}
-                    <Link className="ci-step" href={impactHref}>
+                    <Link className="ci-step" href={impactHref} aria-describedby={describedBy}>
                       {impactT.node('changeImpact.review.title')}
                     </Link>
                   </>
@@ -286,7 +289,9 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
   });
   return (
     <div className="lp-pane-content rt-pane">
-      <h3 className="lp-pane-title">{itemName}</h3>
+      <h3 className="lp-pane-title" id={`request-title-${req.id}`}>
+        {itemName}
+      </h3>
       {askedBy ? (
         <p className="case-row-meta">
           {answerT.node('evidenceAnswer.panes.askedBy', { agency: askedBy })}
@@ -337,6 +342,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           answerT={answerT}
           timeZone={timeZone}
           impactT={getServerT(changeImpactCatalog)}
+          describedBy={`request-title-${req.id}`}
           impactHref={
             req.respondingFactId
               ? changeImpactHref(id, { kind: 'DETAIL', id: req.respondingFactId })

@@ -485,8 +485,11 @@ export function DocumentFindings({
     return lastResult === INITIAL ? null : (
       <div className="document-findings">
         <FormMessage result={lastResult} />
-        <ChangeImpactNotice summary={lastResult.changeImpact} t={impactT} />
-        <ChangeImpactBatchNotice batch={lastResult.changeImpactBatch} t={impactT} />
+        <ChangeImpactNotice
+          summary={lastResult.changeImpact}
+          unavailable={lastResult.changeImpactUnavailable}
+          t={impactT}
+        />
         <ChangeImpactBatchNotice batch={lastResult.changeImpactBatch} t={impactT} />
       </div>
     );
@@ -531,7 +534,12 @@ export function DocumentFindings({
         </form>
       ) : null}
       <FormMessage result={lastResult} />
-      <ChangeImpactNotice summary={lastResult.changeImpact} t={impactT} />
+      <ChangeImpactNotice
+        summary={lastResult.changeImpact}
+        unavailable={lastResult.changeImpactUnavailable}
+        t={impactT}
+      />
+      <ChangeImpactBatchNotice batch={lastResult.changeImpactBatch} t={impactT} />
       {ordered.map((proposal) => (
         <AiProposalReview
           key={proposal.id}

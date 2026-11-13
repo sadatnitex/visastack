@@ -276,6 +276,75 @@ describe('check what we found', () => {
   });
 });
 
+describe('what accepting clear details affects', () => {
+  const BATCH = {
+    items: [
+      {
+        label: 'Employer Name',
+        summary: {
+          href: '/app/applicant/a1/change-impact?detail=f1',
+          actionRequired: 1,
+          reviewRecommended: 0,
+          unknown: 0,
+        },
+      },
+    ],
+    more: 2,
+  };
+  const two = [
+    finding({ id: 'a', fieldLabel: 'Given Name' }),
+    finding({ id: 'b', fieldLabel: 'Occupation' }),
+  ];
+  const notices = () => host.querySelectorAll('output.ci-notice');
+
+  async function acceptBoth() {
+    vi.mocked(actions.acceptClearDetailsAction).mockResolvedValue({
+      ok: true,
+      message: 'Saved 2 details to your profile.',
+      changeImpactBatch: BATCH,
+    });
+    await act(async () => {
+      (host.querySelector('.document-findings-bulk button') as HTMLButtonElement).click();
+    });
+  }
+
+  it('shows it once while other readings are still waiting for a decision', async () => {
+    render([...two, finding({ id: 'c', fieldLabel: 'City', clear: false })]);
+    await acceptBoth();
+    expect(notices()).toHaveLength(1);
+    expect(notices()[0]?.textContent).toContain('What This Change Affects');
+    expect(notices()[0]?.textContent).toContain('Employer Name');
+    expect(notices()[0]?.textContent).toContain('and 2 more details may also affect something.');
+  });
+
+  it('shows it once when nothing is left to decide', async () => {
+    render(two);
+    await acceptBoth();
+    render([]);
+    expect(host.querySelector('.finding-card')).toBeNull();
+    expect(notices()).toHaveLength(1);
+    expect(notices()[0]?.textContent).toContain('Employer Name');
+  });
+
+  it('says the check did not happen after a saved detail, with the detail still saved', async () => {
+    vi.mocked(actions.decideProposalAction).mockResolvedValue({
+      ok: true,
+      message: 'Saved to your profile.',
+      changeImpactUnavailable: true,
+    });
+    render([finding({ id: 'a', fieldLabel: 'Given Name' })]);
+    await act(async () => {
+      (host.querySelector('button[value="approve"]') as HTMLButtonElement).click();
+    });
+    expect(notices()).toHaveLength(1);
+    expect(notices()[0]?.textContent).toBe(
+      'We could not work out what this change affects. Open Documents or your cases to check.',
+    );
+    render([]);
+    expect(notices()).toHaveLength(1);
+  });
+});
+
 describe('where each suggestion came from (S6)', () => {
   it('names the source under each suggestion, in plain words', () => {
     render([

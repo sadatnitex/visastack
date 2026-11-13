@@ -48,10 +48,12 @@ import {
   BATCH_IMPACT_READS,
   BATCH_IMPACT_SHOWN,
   type ChangeImpactBatch,
+  type ChangeImpactSummary,
   SECTION_ORDER,
   changeImpactBatch,
   changeImpactHref,
   changeImpactSummary,
+  hasImpactCounts,
 } from './impact-words';
 
 /**
@@ -486,6 +488,21 @@ describe('a quiet change', () => {
       expect(dom(markup).querySelectorAll('.ci-quiet')).toHaveLength(impact.quiet ? 1 : 0);
     }
   });
+
+  it('announces the short notice of every review politely, as one output and never as an alert', () => {
+    for (const [name, impact] of Object.entries(ALL_REVIEWS)) {
+      const summary = changeImpactSummary(impact, APPLICANT_ID);
+      const markup = renderToStaticMarkup(<ChangeImpactNotice summary={summary} t={t} />);
+      if (!summary || !hasImpactCounts(summary)) {
+        expect(markup, name).toBe('');
+        continue;
+      }
+      const host = dom(markup);
+      // The polite live region is what makes the short notice heard; dropping it fails here.
+      expect(host.querySelectorAll('output.ci-notice'), name).toHaveLength(1);
+      expect(host.querySelectorAll('[role], [aria-live]'), name).toHaveLength(0);
+    }
+  });
 });
 
 describe('a review that could not check everything', () => {
@@ -661,10 +678,16 @@ describe('the short notice under a batch of accepted details', () => {
     );
   });
 
-  it('can have only the line about the rest', () => {
+  it('can have only the line about the rest, as a whole sentence that does not start with "and"', () => {
     const host = dom(notice({ items: [], more: 4 }));
     expect(host.querySelectorAll('li')).toHaveLength(1);
     expect(host.querySelector('a')).toBeNull();
+    expect(words(host.querySelector('li'))).toBe(
+      '4 details were not checked here. Open each one to see what they affect.',
+    );
+    expect(words(dom(notice({ items: [], more: 1 })).querySelector('li'))).toBe(
+      '1 detail was not checked here. Open it to see what it affects.',
+    );
   });
 
   it('shows nothing when there is no batch, and no line about the rest when there is none', () => {
@@ -696,6 +719,31 @@ describe('the short notice under a batch of accepted details', () => {
     expect(changeImpactBatch(reads, APPLICANT_ID, 94)?.more).toBe(96);
     expect(changeImpactBatch([quiet], APPLICANT_ID, 0)).toBeNull();
     expect(changeImpactBatch([quiet], APPLICANT_ID, 2)).toEqual({ items: [], more: 2 });
+  });
+});
+
+describe('the short notice when the check did not happen', () => {
+  const unavailable = (summary: ChangeImpactSummary | null = null) =>
+    renderToStaticMarkup(<ChangeImpactNotice summary={summary} unavailable t={t} />);
+
+  it('says so in one polite line and claims nothing about the change', () => {
+    const markup = unavailable();
+    const host = dom(markup);
+    expect(host.querySelectorAll('output.ci-notice')).toHaveLength(1);
+    expect(words(host)).toBe(
+      'We could not work out what this change affects. Open Documents or your cases to check.',
+    );
+    expect(host.querySelectorAll('a')).toHaveLength(0);
+    expect(markup).not.toMatch(/role="alert"|aria-live="assertive"/);
+  });
+
+  it('gives way to the real notice when there is one, and is never shown on its own for nothing', () => {
+    const summary = changeImpactSummary(DETAIL_RECORDED, APPLICANT_ID);
+    expect(words(dom(unavailable(summary)))).toContain('See the Full List');
+    expect(words(dom(unavailable(summary)))).not.toContain('We could not work out');
+    expect(
+      renderToStaticMarkup(<ChangeImpactNotice summary={null} unavailable={false} t={t} />),
+    ).toBe('');
   });
 });
 

@@ -133,6 +133,12 @@ export interface ActionState {
    */
   readonly changeImpact?: ChangeImpactSummary;
   /**
+   * After a saved detail: true when what the change affects could not be worked out this time
+   * (the read failed; a refusal stays silent, so it looks like a missing record). The save itself
+   * is fine: the form shows one polite line saying the check did not happen.
+   */
+  readonly changeImpactUnavailable?: boolean;
+  /**
    * After a batch of accepted details: the first few that affect something, and how many more
    * may. Absent when nothing affects anything, and when none could be looked at.
    */
@@ -205,7 +211,10 @@ async function assertOwned(db: Db, accountId: string, applicantId: string): Prom
  * Adds What This Change Affects to the result of a save that has already been committed. It is a
  * separate read with its own access check, made only after the save's own work has returned, and
  * it can only add to a success: a quiet change, a refusal or a failed read leaves the result
- * exactly as it was, so a saved detail is never reported as a problem because of this.
+ * exactly as it was, so a saved detail is never reported as a problem because of this. The one
+ * exception is a read that failed: the save stays a success, with `changeImpactUnavailable` so
+ * the form can say the check did not happen. A refused read stays silent, so it looks exactly
+ * like a missing record. A sign-in redirect still travels on.
  */
 async function withChangeImpact(
   saved: ActionState,
@@ -213,17 +222,26 @@ async function withChangeImpact(
   factId: string | undefined,
 ): Promise<ActionState> {
   if (!saved.ok || !factId) return saved;
-  const read = await readDetailChangeImpact(applicantId, factId);
-  const summary = typeof read === 'string' ? null : changeImpactSummary(read, applicantId);
-  return summary ? { ...saved, changeImpact: summary } : saved;
+  try {
+    const read = await readDetailChangeImpact(applicantId, factId);
+    if (read === 'refused') return saved;
+    if (read === 'failed') return { ...saved, changeImpactUnavailable: true };
+    const summary = changeImpactSummary(read, applicantId);
+    return summary ? { ...saved, changeImpact: summary } : saved;
+  } catch (error) {
+    // A sign-in redirect or a not-found still travels on; anything else is a read that failed.
+    unstable_rethrow(error);
+    return { ...saved, changeImpactUnavailable: true };
+  }
 }
 
 /**
  * The batch twin of `withChangeImpact`, for details approved together. It looks at the first few
  * details one after another (never in parallel, so a batch cannot flood the database), only
- * after the approval has returned. A refused, failed or thrown look adds nothing for that detail
- * and never turns a saved batch into a problem. Details beyond the cap are not looked at; they
- * are counted so the line can say they may also affect something.
+ * after the approval has returned. A refused look adds nothing, so it reads like a missing
+ * record. A failed or thrown look is counted with the details beyond the cap: none of them were
+ * looked at, so the line says they may also affect something. Nothing here turns a saved batch
+ * into a problem.
  */
 async function withChangeImpactBatch(
   saved: ActionState,
@@ -233,16 +251,20 @@ async function withChangeImpactBatch(
   if (!saved.ok || factIds.length === 0) return saved;
   const looked = factIds.slice(0, BATCH_IMPACT_READS);
   const impacts: ChangeImpact[] = [];
+  // Details not looked at: past the cap, or whose look failed. A refused look is not counted.
+  let unread = factIds.length - looked.length;
   for (const factId of looked) {
     try {
       const read = await readDetailChangeImpact(applicantId, factId);
-      if (typeof read !== 'string') impacts.push(read);
+      if (read === 'failed') unread += 1;
+      else if (read !== 'refused') impacts.push(read);
     } catch (error) {
-      // A sign-in redirect still travels on; anything else only loses this one detail's notice.
+      // A sign-in redirect still travels on; anything else is a look that failed.
       unstable_rethrow(error);
+      unread += 1;
     }
   }
-  const batch = changeImpactBatch(impacts, applicantId, factIds.length - looked.length);
+  const batch = changeImpactBatch(impacts, applicantId, unread);
   return batch ? { ...saved, changeImpactBatch: batch } : saved;
 }
 

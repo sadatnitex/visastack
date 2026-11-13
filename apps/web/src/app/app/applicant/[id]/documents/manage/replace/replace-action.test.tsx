@@ -22,8 +22,11 @@ import {
   APPLICANT_ID,
   DOCUMENT_PREVIEW,
   DOCUMENT_RECORDED,
+  DOCUMENT_SUBJECT,
   LIVE_CASE,
   QUIET_EMPTY,
+  item,
+  review,
 } from '../../../change-impact/fixtures.test-support';
 import { ManageMenu } from '../manage-menu';
 import { MANAGE_ACTIONS } from '../registry';
@@ -150,6 +153,67 @@ describe('What This Change Affects in the replace flow', () => {
       'We could not work out what else this change affects this time. The replacement itself is done.',
     );
     expect(container.querySelector('a')).toBeNull();
+  });
+
+  const caseNames = () =>
+    [...container.querySelectorAll('.lc-replace-cases li')].map((li) => li.textContent);
+  const COUNT_LINE = '2 cases will be updated and will need to be confirmed again.';
+
+  it('keeps the plain list of cases and their count when the review could not check the cases', async () => {
+    mocks.preview.mockResolvedValue(
+      review(DOCUMENT_SUBJECT, 'PREVIEW', [
+        item('COULD_NOT_CHECK', { kind: 'AREA', area: 'CASES' }),
+      ]),
+    );
+    await toConfirm();
+    expect(caseNames()).toEqual(['Japan Visit', 'UK Visit']);
+    expect(container.textContent).toContain(COUNT_LINE);
+    // The review is drawn as well, with its own note that it may be missing something.
+    expect(container.querySelector('.ci-review')).not.toBeNull();
+    expect(container.querySelector('.ci-incomplete')).not.toBeNull();
+  });
+
+  it('keeps the plain list of cases and their count while the review is still being worked out', async () => {
+    mocks.preview.mockReturnValue(new Promise(() => undefined));
+    await toConfirm();
+    expect(caseNames()).toEqual(['Japan Visit', 'UK Visit']);
+    expect(container.textContent).toContain(COUNT_LINE);
+    expect(container.querySelector('output')?.textContent).toBe(
+      'Working out what this change affects.',
+    );
+    expect(container.querySelector('.ci-review')).toBeNull();
+  });
+
+  it.each([
+    ['returned nothing', () => Promise.resolve(null)],
+    ['threw', () => Promise.reject(new Error('network'))],
+  ])('keeps the plain list of cases and their count when the review %s', async (_name, failed) => {
+    mocks.preview.mockImplementation(failed);
+    await toConfirm();
+    expect(caseNames()).toEqual(['Japan Visit', 'UK Visit']);
+    expect(container.textContent).toContain(COUNT_LINE);
+    expect(container.querySelector('.ci-review')).toBeNull();
+  });
+
+  it('announces that the review is ready in the one polite line that said it was being worked out', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    mocks.preview.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await toConfirm();
+    const line = container.querySelector('output');
+    expect(line?.textContent).toBe('Working out what this change affects.');
+    await act(async () => {
+      finish(DOCUMENT_PREVIEW);
+    });
+    // The same element, so a screen reader hears the change; only one output is in the step.
+    expect(container.querySelectorAll('output')).toHaveLength(1);
+    expect(container.querySelector('output')).toBe(line);
+    expect(line?.textContent).toBe('The list of what this change affects is ready below.');
+    expect(container.querySelector('.ci-review')).not.toBeNull();
+    expect(container.querySelector('.lc-replace-cases')).toBeNull();
   });
 
   it('never makes the person wait for the preview before replacing', async () => {

@@ -780,3 +780,33 @@ describe('No Longer Current and Ended (LC-G1)', () => {
     ).toBe('SYNTHETIC');
   });
 });
+
+describe('what a saved detail affects', () => {
+  const saveOne = async (saved: {
+    ok: boolean;
+    message: string;
+    changeImpactUnavailable?: true;
+  }) => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockResolvedValue(saved);
+    const form = container.querySelector<HTMLFormElement>('form.field-row');
+    if (!form) throw new Error('Missing a detail form');
+    await act(async () => {
+      form.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+    });
+  };
+
+  it('says the check did not happen, in one polite line, when it could not be worked out', async () => {
+    await saveOne({ ok: true, message: 'Saved.', changeImpactUnavailable: true });
+    const notices = container.querySelectorAll('output.ci-notice');
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.textContent).toBe(
+      'We could not work out what this change affects. Open Documents or your cases to check.',
+    );
+  });
+
+  it('adds nothing when the save carries no notice', async () => {
+    await saveOne({ ok: true, message: 'Saved.' });
+    expect(container.querySelectorAll('output.ci-notice')).toHaveLength(0);
+  });
+});

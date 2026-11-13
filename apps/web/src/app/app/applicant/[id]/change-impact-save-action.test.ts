@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * What This Change Affects after a saved detail: the review is read in its own step, only after
- * the save has returned, and it can only add a notice to a success. A quiet change, a refusal or
- * a failed read leaves the saved result exactly as it was.
+ * the save has returned, and it can only add a notice to a success. A quiet change or a refusal
+ * leaves the saved result exactly as it was. A read that failed leaves it a success too, with one
+ * flag so the form can say the check did not happen.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -28,7 +29,11 @@ vi.mock('../../../../lib/change-impact-read', () => ({
 }));
 vi.mock('../../../../lib/server-error', () => ({ reportServerError: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
+// The real unstable_rethrow, so a sign-in redirect thrown by a read is shown to travel on.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  redirect: vi.fn(),
+}));
 vi.mock('next/server', () => ({ after: vi.fn() }));
 vi.mock('../../../../lib/jobs', () => ({ triggerIntakeWorker: vi.fn() }));
 vi.mock('../../../../lib/providers', () => ({ createKeyManagementPort: () => undefined }));
@@ -117,15 +122,36 @@ describe.each([
     }
   });
 
-  it('keeps the save a success, with nothing added, when the read fails or is refused', async () => {
-    const plain = await (async () => {
-      mocks.readDetail.mockResolvedValue(QUIET_EMPTY);
-      return act();
-    })();
-    for (const read of ['failed', 'refused']) {
-      mocks.readDetail.mockResolvedValue(read);
-      expect(await act()).toEqual(plain);
+  it('keeps the save a success, with nothing added, when the read is refused', async () => {
+    mocks.readDetail.mockResolvedValue(QUIET_EMPTY);
+    const plain = await act();
+    mocks.readDetail.mockResolvedValue('refused');
+    const refused = await act();
+    expect(refused).toEqual(plain);
+    expect('changeImpactUnavailable' in refused).toBe(false);
+  });
+
+  it('keeps the save a success and flags that the check did not happen when the read fails or throws', async () => {
+    mocks.readDetail.mockResolvedValue(QUIET_EMPTY);
+    const plain = await act();
+    for (const read of [
+      () => Promise.resolve('failed'),
+      () => Promise.reject(new Error('database went away')),
+    ]) {
+      mocks.readDetail.mockImplementation(read);
+      const result = await act();
+      expect(result).toEqual({ ...plain, changeImpactUnavailable: true });
+      expect(result.ok).toBe(true);
+      expect('changeImpact' in result).toBe(false);
     }
+  });
+
+  it('lets a sign-in redirect thrown by the read travel on, instead of hiding it', async () => {
+    const redirect = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/signin;307;',
+    });
+    mocks.readDetail.mockRejectedValue(redirect);
+    await expect(act()).rejects.toBe(redirect);
   });
 
   it('counts what could not be checked as something to look at', async () => {

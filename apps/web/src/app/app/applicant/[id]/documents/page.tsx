@@ -833,6 +833,7 @@ export default async function ApplicantDocumentsPage({
                       <span
                         className="row-key"
                         data-value="name"
+                        id={`doc-name-${doc.id}`}
                         style={{ wordBreak: 'break-word' }}
                       >
                         {doc.approvedName ?? doc.originalName}
@@ -853,6 +854,7 @@ export default async function ApplicantDocumentsPage({
                                 <Link
                                   className="ci-step"
                                   href={changeImpactHref(id, { kind: 'DOCUMENT', id: doc.id })}
+                                  aria-describedby={`doc-name-${doc.id}`}
                                 >
                                   {impactT.node('changeImpact.review.title')}
                                 </Link>

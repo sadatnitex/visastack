@@ -67,6 +67,10 @@ type RequestPage = Awaited<ReturnType<typeof readRequestPage>>;
  * service's own ceiling, only to find where the request is; the page then shows as many whole
  * steps as it takes to include it, never more. A request that is not in the traveller's own list
  * is not found by this read either, so nothing new becomes visible and the page stays as it was.
+ * The widest read stops at the same ceiling as the list (500), so a request beyond that position
+ * still cannot be opened by a link; it is reached only by showing more of the list. The spot
+ * where Show More lands (`landPosition`) is counted from the rows asked for, and widening for a
+ * named request does not move it, so it is left as it is.
  */
 async function includeNamedRequest(
   db: Db,

@@ -484,8 +484,8 @@ export interface ChangeImpactBatch {
 }
 
 /**
- * Words up a batch from the reads that worked. `unread` is how many approved details were never
- * read (the read cap stopped first). `more` counts the affecting details beyond the ones named
+ * Words up a batch from the reads that worked. `unread` is how many approved details were not
+ * read (the read cap stopped first, or the read failed; a refused read is not counted). `more` counts the affecting details beyond the ones named
  * plus every unread one. One sentence is truthful for both: a counted detail does affect
  * something and an unread one has not been ruled out, so the line says only that more "may also"
  * affect something. Null when nothing affects anything and nothing is unread.
