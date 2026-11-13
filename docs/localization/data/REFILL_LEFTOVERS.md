@@ -378,3 +378,24 @@ Refill 5 filled 91 keys of the case screens (`app-mission`: the case page, its p
 | app-mission | `appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname` | Was live. `copyName` is English ("Your Saved Answer", "Document") or a name with an unformatted date ("2026-10-01"). |
 
 Filled after review although the first pass held them: `appMission.appMissionIdSnapshotsSnapshotidPage.showAllLengthLabel` and `...showFewerLabel`, whose `{label}` is itself a Bengali catalogue value (Requirements, Facts, Documents) and whose `{length}` is a number.
+
+## Left English at review in refill 6
+
+Refill 6 filled 20 of the 32 keys deferred from refill 4 (shared components), each with a test that draws its state under Bengali. These 10 stay English for the reason given; HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| components | `components.capturePreview.thisDeviceCannotShowThePhoto` | Names the Use This button, which is English. |
+| components | `components.loadingSlowNote.stillLoadingYouCanKeepThis` | Sits in one status line with the page's English loading label. |
+| components-more | `componentsMore.safeCopyEditor.continuePreparing` | The line that names it (`eachPageIsDrawnOnceWith`) is held English. |
+| components-more | `componentsMore.safeCopyEditor.showThePageAgain` | The retry for the held English line "This page could not be shown"; the two stay one language. |
+| components-profile-photo | `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto` | The same button reads the held English "Save Photo" before it saves. |
+| components-pwa | `componentsPwa.pwaPwaRuntime.browserTip` | Names a tip whose text (`BROWSER_HINT_TEXT`) is English. |
+| components-pwa | `componentsPwa.pwaPwaRuntime.dismiss` | Closes the English browser tip. |
+| components | `components.documentWalletBrowser.showAll` | The same toggle reads the English "Show Them" / "Show It" before it is pressed. |
+| components | `components.documentWalletBrowser.clearTheSearchOrChooseAnother` | The draft calls the category filter বিভাগ; the filter itself reads ক্যাটাগরি. Needs a redraft. |
+| components-more | `componentsMore.safeCopyEditor.youChoseNothingToHideOn` | Sits above the English page captions ("Page 1 of 2: nothing hidden.") that say the same thing. |
+
+## Refill 6: what stays deferred
+
+Still deferred until a test renders their state (passing drafts, no content reason): `components.visaPhotoSizes.makingYourPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, and all 71 keys deferred from refill 2 (applicant screens and one shared page), listed above under "Deferred from refill 2 until a test renders their state". The staged key drafts in `drafts/staged-key-drafts-I.jsonl` wait for the pull request that adds them.

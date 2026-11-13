@@ -797,4 +797,44 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname',
     'Left English at review (refill 5): Was live. `copyName` is English ("Your Saved Answer", "Document") or a name with an unformatted date ("2026-10-01").',
   ],
+  [
+    'components.capturePreview.thisDeviceCannotShowThePhoto',
+    'Left English at review (refill 6): Names the Use This button, which is English.',
+  ],
+  [
+    'components.loadingSlowNote.stillLoadingYouCanKeepThis',
+    "Left English at review (refill 6): Sits in one status line with the page's English loading label.",
+  ],
+  [
+    'componentsMore.safeCopyEditor.continuePreparing',
+    'Left English at review (refill 6): The line that names it (`eachPageIsDrawnOnceWith`) is held English.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.showThePageAgain',
+    'Left English at review (refill 6): The retry for the held English line "This page could not be shown"; the two stay one language.',
+  ],
+  [
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto',
+    'Left English at review (refill 6): The same button reads the held English "Save Photo" before it saves.',
+  ],
+  [
+    'componentsPwa.pwaPwaRuntime.browserTip',
+    'Left English at review (refill 6): Names a tip whose text (`BROWSER_HINT_TEXT`) is English.',
+  ],
+  [
+    'componentsPwa.pwaPwaRuntime.dismiss',
+    'Left English at review (refill 6): Closes the English browser tip.',
+  ],
+  [
+    'components.documentWalletBrowser.showAll',
+    'Left English at review (refill 6): The same toggle reads the English "Show Them" / "Show It" before it is pressed.',
+  ],
+  [
+    'components.documentWalletBrowser.clearTheSearchOrChooseAnother',
+    'Left English at review (refill 6): The draft calls the category filter \u09ac\u09bf\u09ad\u09be\u0997; the filter itself reads \u0995\u09cd\u09af\u09be\u099f\u09be\u0997\u09b0\u09bf. Needs a redraft.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.youChoseNothingToHideOn',
+    'Left English at review (refill 6): Sits above the English page captions ("Page 1 of 2: nothing hidden.") that say the same thing.',
+  ],
 ]);
