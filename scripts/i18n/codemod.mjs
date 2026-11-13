@@ -197,6 +197,7 @@ export function runCodemod({
       bengaliMissing: [],
     };
     const accepted = [];
+    const analysed = [];
     const perFile = [];
     for (const rel of g.files) {
       const level = g.levels.get(rel);
@@ -206,6 +207,7 @@ export function runCodemod({
       }
       const sf = program.getSourceFile(path.join(root, rel));
       const { units, skips } = analyzeFile({ rel, sf, checker });
+      analysed.push(...units);
       report.notConverted.push(...skips);
       const asSkip = (u, reason) => ({
         file: u.file,
@@ -234,10 +236,14 @@ export function runCodemod({
     // keys, in file then position order
     // Register rows first: English with two meanings (a homograph the census keeps apart) gets
     // one key per meaning, so each keeps its own Bengali.
+    const claimed = reg.claimedBy(analysed);
     const lookups = new Map(
       accepted.map((u) => [
         u,
-        reg.lookup({ file: u.file, line: u.line, censusText: u.censusText, english: u.english }),
+        reg.lookup(
+          { file: u.file, line: u.line, censusText: u.censusText, english: u.english },
+          claimed,
+        ),
       ]),
     );
     const meanings = new Map();

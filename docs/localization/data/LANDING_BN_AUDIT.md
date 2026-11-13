@@ -165,3 +165,9 @@ The release PR released the privacy, consent and legal queue and lifted several 
 - Refilled with `codemod.mjs --refill-bn --groups-from RELEASE_CLASSIFICATION_2026-11-12.json`: the header link "Privacy and Control" (গোপনীয়তা ও নিয়ন্ত্রণ) and the footer link "Privacy" (গোপনীয়তা). Both shipped on the blanket sign-off, not as reviewed translations.
 - Main's refill already filled these page strings that this audit listed as held: Record sharing starts with your permission, Select records, review the scope ..., Privacy and sharing are governed by ..., Please use made-up details ..., and the home error sentence.
 - The Public Trust hold (SG-c1f08b9e) is now also a KEPT row in `RELEASE_CLASSIFICATION_2026-11-12.json`, because the HOLDBACK map must equal that file's KEPT list.
+
+## After batch G (#562) merged
+
+Batch G added passing Bengali drafts for five strings this audit lists as "no draft": the card titles Keep the details. Lose the repetition. (SG-74fd0ada), See exactly what's missing. (SG-af96c079) and Yesterday stays yesterday. (SG-8f263ff5), the header form name Language (SG-ce01db35) and the footer link Status (SG-32a41c45). They are not refilled on this branch: main itself has the same refill pending, and it lands with the next `--refill-bn` PR. That PR turns these keys Bengali and updates the landing locale tests that pin them as English today (`landing-locale.test.tsx`).
+
+A passing draft for the identical English "Public Trust" also exists (SG-11509b8f, the trust page's own kicker, পাবলিক ট্রাস্ট, the same name as the home page link). The footer still waits for the owner term decision: if the owner picks that name, point the footer's census row at SG-11509b8f (or correct SG-c1f08b9e's draft) and remove the HOLDBACK entry in the same change.

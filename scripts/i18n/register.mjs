@@ -555,11 +555,13 @@ export class Register {
    * found by file and English within CENSUS_LINE_DRIFT lines of where the text is now, and only
    * when every such census row names the same register group. Two meanings of one word in one
    * file are never merged, and a far-away row (perhaps a different text that has since gone)
-   * is never borrowed.
+   * is never borrowed. A census row that another text of the same run still matches exactly
+   * (`claimed`, see claimedBy) belongs to that text and is never lent to a new one.
    */
-  censusGroupIgnoringLine(file, form, line) {
+  censusGroupIgnoringLine(file, form, line, claimed = new Set()) {
     const near = (this.censusByFile.get(`${file}|${form}`) ?? []).filter(
-      (r) => Math.abs(r.line - line) <= CENSUS_LINE_DRIFT,
+      (r) =>
+        Math.abs(r.line - line) <= CENSUS_LINE_DRIFT && !claimed.has(`${file}|${r.line}|${form}`),
     );
     const groups = new Set(near.map((r) => r.group));
     if (groups.size !== 1) return null;
@@ -575,12 +577,34 @@ export class Register {
     return new Register({ registerCsv: read(REGISTER_REL), censusCsv: read(CENSUS_REL) });
   }
 
+  formsOf(unit) {
+    return [...new Set([registerForm(unit.censusText), registerForm(unit.english)])];
+  }
+
+  /**
+   * The census rows that these texts (every text found in a run's files, converted or not) still
+   * match at their exact line. Pass the set to lookup, so the moved-line fallback never lends a
+   * row that still belongs to a text in place.
+   * @param {Array<{ file: string, line: number, censusText: string, english: string }>} units
+   * @returns {Set<string>}
+   */
+  claimedBy(units) {
+    const claimed = new Set();
+    for (const u of units)
+      for (const f of this.formsOf(u)) {
+        const key = `${u.file}|${u.line}|${f}`;
+        if (this.census.has(key)) claimed.add(key);
+      }
+    return claimed;
+  }
+
   /**
    * @param {{ file: string, line: number, censusText: string, english: string }} unit
+   * @param {Set<string>} [claimed] census rows other texts of the run match exactly (claimedBy)
    * @returns {{ group: string|null, bn: string|null, reason: string|null }}
    */
-  lookup(unit) {
-    const forms = [...new Set([registerForm(unit.censusText), registerForm(unit.english)])];
+  lookup(unit, claimed = new Set()) {
+    const forms = this.formsOf(unit);
     let row = null;
     for (const f of forms) {
       const g = this.census.get(`${unit.file}|${unit.line}|${f}`);
@@ -591,7 +615,7 @@ export class Register {
     }
     for (const f of forms) {
       if (row) break;
-      const g = this.censusGroupIgnoringLine(unit.file, f, unit.line);
+      const g = this.censusGroupIgnoringLine(unit.file, f, unit.line, claimed);
       if (g) row = this.byGroup.get(g);
     }
     if (!row) {

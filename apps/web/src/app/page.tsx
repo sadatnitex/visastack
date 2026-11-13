@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { CountryChecklistPicker } from '../components/country-checklist-picker';
 import { Icon, type IconName } from '../components/icons';
 import { countryStartData } from '../lib/country-start';
@@ -204,15 +204,14 @@ const HORIZONS: readonly {
  * The element around it carries the message's language (`t.lang`).
  */
 function Lines({ text }: { readonly text: string }) {
-  const [first, ...rest] = text.split('\n');
-  if (rest.length === 0) return <>{first}</>;
-  return (
-    <>
-      {first}
-      <br />
-      <Lines text={rest.join('\n')} />
-    </>
-  );
+  return text.split('\n').map((line, index) => (
+    // The lines of one fixed message never reorder, so their position is a stable key.
+    // biome-ignore lint/suspicious/noArrayIndexKey: see above
+    <Fragment key={index}>
+      {index > 0 ? <br /> : null}
+      {line}
+    </Fragment>
+  ));
 }
 
 /**

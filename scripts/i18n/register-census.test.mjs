@@ -73,4 +73,27 @@ describe('census row for a file whose lines moved', () => {
     const r = lookup(census([['b.tsx', '11', 'Terms', 'SG-A']]));
     assert.equal(r.reason, 'register_ambiguous');
   });
+
+  test('a census row another text still matches at its line is never lent to a new text', () => {
+    const reg = new Register({
+      registerCsv: REGISTER,
+      censusCsv: census([['a.tsx', '10', 'Terms', 'SG-A']]),
+    });
+    const inPlace = { file: 'a.tsx', line: 10, censusText: 'Terms', english: 'Terms' };
+    const added = { file: 'a.tsx', line: 30, censusText: 'Terms', english: 'Terms' };
+    const claimed = reg.claimedBy([inPlace, added]);
+    assert.equal(reg.lookup(inPlace, claimed).group, 'SG-A');
+    const r = reg.lookup(added, claimed);
+    assert.equal(r.reason, 'register_ambiguous');
+    assert.equal(r.bn, null);
+  });
+
+  test('a moved text still finds its row when no text claims it', () => {
+    const reg = new Register({
+      registerCsv: REGISTER,
+      censusCsv: census([['a.tsx', '10', 'Terms', 'SG-A']]),
+    });
+    const moved = { file: 'a.tsx', line: 30, censusText: 'Terms', english: 'Terms' };
+    assert.equal(reg.lookup(moved, reg.claimedBy([moved])).group, 'SG-A');
+  });
 });
