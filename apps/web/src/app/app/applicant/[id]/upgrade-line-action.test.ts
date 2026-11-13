@@ -330,6 +330,20 @@ describe('an AI feature refused for its daily limit', () => {
     expect(mocks.upgradeWouldHelp).not.toHaveBeenCalled();
   });
 
+  it('gives a stranger one answer for a real traveller and a made-up id, never the gate’s own words', async () => {
+    const answers: unknown[] = [];
+    for (const error of [
+      { code: 'forbidden', message: 'access denied (default_deny)' },
+      { code: 'not_found', message: 'record not found' },
+    ]) {
+      mocks.requireAccess.mockResolvedValueOnce({ ok: false, error });
+      answers.push(await runClassificationAction(initial, onDocument()));
+    }
+    expect(answers[0]).toEqual(answers[1]);
+    expect(answers[0]).toEqual({ ok: false, message: 'Not authorized.' });
+    expect(mocks.suggestDocumentKind).not.toHaveBeenCalled();
+  });
+
   it('is never offered to someone the access gate lets ask who is not the record’s owner', async () => {
     // Agency staff or anyone else with access to the record: their refusal keeps its words only.
     mocks.getApplicant.mockResolvedValue({ id: 'a-1', ownerAccountId: 'someone-else' });

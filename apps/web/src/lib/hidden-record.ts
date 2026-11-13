@@ -26,6 +26,23 @@ export const CASE_HIDDEN_LINE = 'This case is not available to you.';
 export const PROFILE_HIDDEN_LINE = 'This profile is not available to you.';
 export const GRANT_HIDDEN_LINE = 'This access is not available to you.';
 export const COMPLAINT_HIDDEN_LINE = 'This complaint is not available to you.';
+export const SUGGESTION_HIDDEN_LINE = 'This suggestion is not available to you.';
+export const FLAG_HIDDEN_LINE = 'This item is not available to you.';
+export const NAME_HIDDEN_LINE = 'This naming proposal is not available to you.';
+
+/**
+ * For an action that already proved the caller owns the traveller named in the form and then acts on
+ * a SECOND id (a suggestion, a flag, a naming proposal): the service says `not_found` for a made-up
+ * id and `forbidden` for a real one that belongs to someone else, and printing either tells a
+ * signed-in stranger which ids are real. Both get the one line; every other refusal keeps the
+ * service's own words.
+ */
+export function refusalLine(
+  error: { readonly code: string; readonly message: string },
+  hiddenLine: string,
+): string {
+  return error.code === 'forbidden' || error.code === 'not_found' ? hiddenLine : error.message;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
