@@ -3,7 +3,7 @@ import { OpenCaseFromLink } from '../../src/app/app/agency/[orgId]/cases/open-ca
 import { RequestEvidenceForm } from '../../src/app/app/agency/[orgId]/request-evidence-form';
 import { NeedsDecision } from '../../src/app/app/applicant/[id]/documents/needs-decision';
 import { AttachPackForm } from '../../src/app/app/mission/[id]/attach-pack-form';
-import { CaseStageTracker } from '../../src/components/case-preparation-summary';
+import { CaseStageTrackerView } from '../../src/components/case-stage-tracker-view';
 import { CaseReadinessRing } from '../../src/components/case-readiness-ring';
 import { DocumentReviewPanel } from '../../src/components/document-review-panel';
 import { NextStepCard, PageHeader, StatusBadge } from '../../src/components/ui';
@@ -129,7 +129,8 @@ function CaseCard({ packs }: { readonly packs: boolean }) {
         description="One place for this application: where it stands and what comes next."
         back={{ href: '/app/applicant/synthetic/missions', label: 'Cases' }}
       />
-      <CaseStageTracker
+      <CaseStageTrackerView
+        ariaLabel="Actual case workflow state"
         state="IN_PROGRESS"
         labels={CASE_STATE_LABELS}
         nextStates={['READY_FOR_REVIEW']}
