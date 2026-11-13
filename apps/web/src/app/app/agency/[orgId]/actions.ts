@@ -1,5 +1,7 @@
 'use server';
 
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
+
 import type { MembershipRole } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import {
@@ -55,6 +57,9 @@ import {
   requestsSentLine,
 } from '../../../../lib/success-lines';
 
+/** The refusal for a copy that was replaced or already decided; the screen offers a refresh. */
+const STALE_COPY_KEY = 'agency.a_newer_copy_was_sent_or';
+
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
   readonly ok: boolean;
@@ -62,6 +67,8 @@ export interface ActionState {
   readonly invitationUrl?: string;
   /** The invitation the message is about, so a screen can drop it once it is revoked. */
   readonly invitationId?: string;
+  /** The decision was refused because a newer copy arrived or the copy was already decided. */
+  readonly stale?: true;
 }
 
 /**
@@ -142,7 +149,10 @@ export async function requestEvidenceAction(
         ...(dueDate ? { dueDate } : {}),
       });
       if (!requested.ok) {
-        return { ok: false, message: requested.error.message } satisfies ActionState;
+        return {
+          ok: false,
+          message: await serviceErrorMessage(requested.error),
+        } satisfies ActionState;
       }
       return { ok: true, message: requestsSentLine(requested.value.length) } satisfies ActionState;
     });
@@ -182,7 +192,11 @@ export async function requestEvidenceAction(
       ...(missionId.length > 0 ? { missionId } : {}),
       ...(dueDate ? { dueDate } : {}),
     });
-    if (!requested.ok) return { ok: false, message: requested.error.message } satisfies ActionState;
+    if (!requested.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(requested.error),
+      } satisfies ActionState;
     return { ok: true, message: REQUEST_SENT_LINE } satisfies ActionState;
   });
 
@@ -207,7 +221,8 @@ export async function startEvidenceReviewAction(
   const requestId = String(formData.get('requestId') ?? '');
   const result = await withSession(async ({ db, accountId }) => {
     const started = await startEvidenceReview(db, { actorAccountId: accountId, requestId });
-    if (!started.ok) return { ok: false, message: started.error.message } satisfies ActionState;
+    if (!started.ok)
+      return { ok: false, message: await serviceErrorMessage(started.error) } satisfies ActionState;
     return { ok: true, message: 'Marked under review.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -266,7 +281,11 @@ export async function decideEvidenceResponseAction(
       ...(submissionId ? { submissionId } : {}),
     });
     if (!decided.ok) {
-      return { ok: false, message: decided.error.message } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(decided.error),
+        ...(decided.error.messageKey === STALE_COPY_KEY ? { stale: true as const } : {}),
+      } satisfies ActionState;
     }
     return { ok: true, message: EVIDENCE_OUTCOME_MESSAGES[outcome] } satisfies ActionState;
   });
@@ -295,7 +314,11 @@ export async function cancelEvidenceRequestAction(
       requestId,
       ...(reason.length > 0 ? { reason } : {}),
     });
-    if (!cancelled.ok) return { ok: false, message: cancelled.error.message } satisfies ActionState;
+    if (!cancelled.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(cancelled.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Request cancelled.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -327,7 +350,8 @@ export async function addMemberAction(
       ...(encryption ? { encryption } : {}),
       role,
     });
-    if (!outcome.ok) return { ok: false, message: outcome.error.message } satisfies ActionState;
+    if (!outcome.ok)
+      return { ok: false, message: await serviceErrorMessage(outcome.error) } satisfies ActionState;
     if (outcome.value.kind === 'added') {
       return { ok: true, message: memberAddedLine(humanizeCode(role)) };
     }
@@ -370,7 +394,8 @@ export async function revokeInvitationAction(
       organizationId,
       invitationId,
     });
-    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    if (!revoked.ok)
+      return { ok: false, message: await serviceErrorMessage(revoked.error) } satisfies ActionState;
     return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -404,7 +429,8 @@ export async function inviteClientAction(
       ...(encryption ? { encryption } : {}),
       ...(requestedRoute.length > 0 ? { requestedRoute } : {}),
     });
-    if (!invited.ok) return { ok: false, message: invited.error.message } satisfies ActionState;
+    if (!invited.ok)
+      return { ok: false, message: await serviceErrorMessage(invited.error) } satisfies ActionState;
     const acceptUrl = `${resolveBaseUrl()}/invitation?kind=client&token=${invited.value.rawToken}`;
     return {
       ok: true,
@@ -447,7 +473,8 @@ export async function revokeClientInvitationAction(
       organizationId,
       invitationId,
     });
-    if (!revoked.ok) return { ok: false, message: revoked.error.message } satisfies ActionState;
+    if (!revoked.ok)
+      return { ok: false, message: await serviceErrorMessage(revoked.error) } satisfies ActionState;
     return { ok: true, message: 'Invitation revoked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -475,7 +502,11 @@ export async function assignMemberAction(
       memberAccountId,
       missionId,
     });
-    if (!assigned.ok) return { ok: false, message: assigned.error.message } satisfies ActionState;
+    if (!assigned.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(assigned.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Member assigned.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -504,7 +535,10 @@ export async function unassignMemberAction(
       missionId,
     });
     if (!unassigned.ok) {
-      return { ok: false, message: unassigned.error.message } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(unassigned.error),
+      } satisfies ActionState;
     }
     return { ok: true, message: 'Member unassigned.' } satisfies ActionState;
   });
@@ -542,7 +576,8 @@ export async function createTaskForOrgAction(
       ...(dueDate ? { dueDate } : {}),
       ...(assigneeAccountId ? { assigneeAccountId } : {}),
     });
-    if (!task.ok) return { ok: false, message: task.error.message } satisfies ActionState;
+    if (!task.ok)
+      return { ok: false, message: await serviceErrorMessage(task.error) } satisfies ActionState;
     return { ok: true, message: 'Task added.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -571,7 +606,8 @@ export async function updateTaskForOrgAction(
       taskId,
       assigneeAccountId: assigneeAccountId.length > 0 ? assigneeAccountId : null,
     });
-    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    if (!updated.ok)
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     return { ok: true, message: 'Task reassigned.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -600,7 +636,8 @@ export async function decideTaskForOrgAction(
       taskId,
       status,
     });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     return {
       ok: true,
       message: `Task ${status.toLowerCase().replace('_', ' ')}.`,
@@ -646,7 +683,10 @@ export async function createAppointmentForOrgAction(
       ...(channel ? { channel } : {}),
     });
     if (!appointment.ok) {
-      return { ok: false, message: appointment.error.message } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(appointment.error),
+      } satisfies ActionState;
     }
     return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
   });
@@ -680,7 +720,8 @@ export async function decideAppointmentForOrgAction(
       appointmentId,
       status,
     });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
     return {
       ok: true,
       message: status === 'DONE' ? 'Appointment completed.' : 'Appointment cancelled.',
@@ -714,7 +755,8 @@ export async function addNoteAction(_prev: ActionState, formData: FormData): Pro
       body,
       visibility: visibilityRaw,
     });
-    if (!note.ok) return { ok: false, message: note.error.message } satisfies ActionState;
+    if (!note.ok)
+      return { ok: false, message: await serviceErrorMessage(note.error) } satisfies ActionState;
     return { ok: true, message: 'Note added.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -745,7 +787,11 @@ export async function recordDecisionAction(
       outcome,
       ...(reason ? { reason } : {}),
     });
-    if (!decision.ok) return { ok: false, message: decision.error.message } satisfies ActionState;
+    if (!decision.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(decision.error),
+      } satisfies ActionState;
     return { ok: true, message: `Decision recorded: ${outcome}.` } satisfies ActionState;
   });
   if (result.ok) {
@@ -790,7 +836,11 @@ export async function recordIssuerVerificationAction(
 
   const result = await withSession(async ({ db, accountId }) => {
     const evidence = await listSelectedEvidenceForOrg(db, organizationId, missionId);
-    if (!evidence.ok) return { ok: false, message: evidence.error.message } satisfies ActionState;
+    if (!evidence.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(evidence.error),
+      } satisfies ActionState;
     const selection = evidence.value.find((e) => e.packRequirementId === packRequirementId);
     if (!selection || (!selection.factId && !selection.documentId)) {
       return {
@@ -811,7 +861,11 @@ export async function recordIssuerVerificationAction(
       response,
       validUntil,
     });
-    if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    if (!recorded.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(recorded.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Issuer confirmation recorded.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -837,7 +891,8 @@ export async function toggleMemberAction(
       membershipId,
       active,
     });
-    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    if (!updated.ok)
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     return {
       ok: true,
       message: active ? 'Member reactivated.' : 'Member deactivated.',
@@ -860,7 +915,8 @@ export async function setRequireDifferentReviewerAction(
       organizationId,
       required,
     });
-    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    if (!updated.ok)
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     return {
       ok: true,
       message: required
@@ -887,7 +943,8 @@ export async function updateBrandingAction(
       ...(typeof nameRaw === 'string' && nameRaw.trim().length > 0 ? { name: nameRaw } : {}),
       accentColor: accentColorRaw.length > 0 ? accentColorRaw : null,
     });
-    if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    if (!updated.ok)
+      return { ok: false, message: await serviceErrorMessage(updated.error) } satisfies ActionState;
     return { ok: true, message: 'Branding updated.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -914,7 +971,11 @@ export async function uploadLogoAction(
       contentType: file.type,
       bytes,
     });
-    if (!uploaded.ok) return { ok: false, message: uploaded.error.message } satisfies ActionState;
+    if (!uploaded.ok)
+      return {
+        ok: false,
+        message: await serviceErrorMessage(uploaded.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Logo updated.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');
@@ -933,7 +994,8 @@ export async function removeLogoAction(
       actorAccountId: accountId,
       organizationId,
     });
-    if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
+    if (!removed.ok)
+      return { ok: false, message: await serviceErrorMessage(removed.error) } satisfies ActionState;
     return { ok: true, message: 'Logo removed.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/agency/${organizationId}`, 'layout');

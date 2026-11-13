@@ -10,7 +10,7 @@ import {
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { isEmailAddress } from './email-address';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { isUuid } from './lifecycle/foundation/ids';
@@ -80,7 +80,7 @@ export const COLLECTION_STATUS_LABELS: Readonly<Record<CollectionDisplayStatus, 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function missing(): ServiceError {
-  return serviceError('not_found', 'no such document request');
+  return keyedError('not_found', 'umpe_collection_request_service.no_such_document_request');
 }
 
 // --- Input -----------------------------------------------------------------------------------
@@ -748,8 +748,6 @@ function editable(request: RequestRow): boolean {
   return request.status === 'DRAFT' || request.status === 'SENT';
 }
 
-const CLOSED_MESSAGE = 'This request has ended. Start a new request instead.';
-
 /** The published official checklists that fit this request, for the operator to choose from. */
 export async function listCollectionPackChoices(
   db: Db,
@@ -787,12 +785,17 @@ export async function chooseCollectionPack(
         ? await listFittingPublicPacks(db, withRequestDetails(choice.packTerms, request))
         : [];
     if (!fitting.some((pack) => pack.packVersionId === choice.packVersionId)) {
-      return err(serviceError('invalid', 'That checklist does not fit this request.'));
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.that_checklist_does_not_fit_this'),
+      );
     }
     const items = await officialProposal(db, choice.packVersionId);
     if (!items) {
       return err(
-        serviceError('stale', 'That official checklist no longer matches its published version.'),
+        keyedError(
+          'stale',
+          'umpe_collection_request_service.that_official_checklist_no_longer_matches',
+        ),
       );
     }
     proposal = items;
@@ -800,10 +803,15 @@ export async function chooseCollectionPack(
   return db.transaction(async (tx) => {
     const request = await loadRequest(tx, scope, requestId, true);
     if (!request) return err(missing());
-    if (!editable(request)) return err(serviceError('invalid', CLOSED_MESSAGE));
+    if (!editable(request))
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.this_request_has_ended_start_a'),
+      );
     const current = parseItems(request.draftItems);
     if (!current)
-      return err(serviceError('invalid', 'This draft cannot be read. Start a new request.'));
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.this_draft_cannot_be_read_start'),
+      );
     const items = replaceOfficialItems(current, proposal);
     await tx
       .update(schema.agencyCollectionRequests)
@@ -830,10 +838,15 @@ export async function editCollectionDraft(
   return db.transaction(async (tx) => {
     const request = await loadRequest(tx, scope, requestId, true);
     if (!request) return err(missing());
-    if (!editable(request)) return err(serviceError('invalid', CLOSED_MESSAGE));
+    if (!editable(request))
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.this_request_has_ended_start_a'),
+      );
     const current = parseItems(request.draftItems);
     if (!current)
-      return err(serviceError('invalid', 'This draft cannot be read. Start a new request.'));
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.this_draft_cannot_be_read_start'),
+      );
     const next = applyDraftEdit(current, edit);
     if (!next.ok) return err(serviceError('invalid', next.message));
     await tx
@@ -969,12 +982,19 @@ export async function issueCollectionRequest(
   return db.transaction(async (tx) => {
     const request = await loadRequest(tx, scope, requestId, true);
     if (!request) return err(missing());
-    if (!editable(request)) return err(serviceError('invalid', CLOSED_MESSAGE));
+    if (!editable(request))
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.this_request_has_ended_start_a'),
+      );
     const items = parseItems(request.draftItems);
     if (!items)
-      return err(serviceError('invalid', 'This draft cannot be read. Start a new request.'));
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.this_draft_cannot_be_read_start'),
+      );
     if (items.length === 0) {
-      return err(serviceError('invalid', 'Add at least one item before you issue the request.'));
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.add_at_least_one_item_before'),
+      );
     }
 
     let packChecksum: string | null = null;
@@ -987,20 +1007,28 @@ export async function issueCollectionRequest(
         !(await verifyPackChecksum(tx, packVersionId))
       ) {
         return err(
-          serviceError(
+          keyedError(
             'stale',
-            'The official checklist is no longer published as it was, so the request was not issued. Choose a checklist again.',
+            'umpe_collection_request_service.the_official_checklist_is_no_longer',
           ),
         );
       }
       if (!officialItemsMatch(items, await listRequirements(tx, packVersionId))) {
         return err(
-          serviceError('stale', 'The official checklist changed. Choose it again, then issue.'),
+          keyedError(
+            'stale',
+            'umpe_collection_request_service.the_official_checklist_changed_choose_it',
+          ),
         );
       }
       packChecksum = version.checksum;
     } else if (items.some((item) => item.provenance !== 'AGENCY_ADDED')) {
-      return err(serviceError('stale', 'Choose an official checklist again, then issue.'));
+      return err(
+        keyedError(
+          'stale',
+          'umpe_collection_request_service.choose_an_official_checklist_again_then',
+        ),
+      );
     }
 
     const { brand } = await organizationBrand(tx, scope.organizationId);
@@ -1112,7 +1140,9 @@ export async function createCollectionLink(
   const now = options.now ?? new Date();
   const address = options.email ? options.email.address.trim().toLowerCase() : null;
   if (address !== null && (address.length > 320 || !isEmailAddress(address))) {
-    return err(serviceError('invalid', 'Enter a valid email address, like name@example.com.'));
+    return err(
+      keyedError('invalid', 'umpe_collection_request_service.enter_a_valid_email_address_like'),
+    );
   }
   const limited = await linkRateLimit(db, scope);
   if (limited) return err(limited);
@@ -1121,7 +1151,9 @@ export async function createCollectionLink(
     const request = await loadRequest(tx, scope, requestId, true);
     if (!request) return err(missing());
     if (request.status !== 'SENT' || !request.currentRevisionId) {
-      return err(serviceError('invalid', 'Issue the request before you share it.'));
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.issue_the_request_before_you_share'),
+      );
     }
     const open = await tx
       .select({ id: schema.agencyCollectionLinks.id })
@@ -1192,7 +1224,10 @@ export async function endCollectionRequest(
   return db.transaction(async (tx) => {
     const request = await loadRequest(tx, scope, requestId, true);
     if (!request) return err(missing());
-    if (!editable(request)) return err(serviceError('invalid', 'This request has already ended.'));
+    if (!editable(request))
+      return err(
+        keyedError('invalid', 'umpe_collection_request_service.this_request_has_already_ended'),
+      );
     const closed = await tx
       .update(schema.agencyCollectionLinks)
       .set({ revokedAt: now })

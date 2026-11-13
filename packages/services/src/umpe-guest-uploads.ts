@@ -5,7 +5,7 @@ import { GuestCollectionSessionProof } from './access/guest-collection';
 import { guestUploadsPresent } from './access/guest-submission-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { enqueueNotificationBothChannels } from './notifications';
 import { OPEN_ORGANIZATION_STATUSES } from './organization-admission';
@@ -65,7 +65,7 @@ export const GUEST_CONSENT_TEXT =
 const SAFETY = { receiving: 'RECEIVING', clean: 'CLEAN', rejected: 'REJECTED' } as const;
 
 function missing(): ServiceError {
-  return serviceError('not_found', 'no such document request');
+  return keyedError('not_found', 'umpe_guest_collection.no_such_document_request');
 }
 
 function sha256Hex(bytes: Uint8Array): string {
@@ -317,10 +317,11 @@ export async function addGuestFile(
   if (!GuestCollectionSessionProof.isGenuine(proof)) return err(missing());
   const desk = await uploadDesk(db, proof, now);
   if (!desk) return err(missing());
-  if (!isUploadId(input.uploadId)) return err(serviceError('invalid', 'Choose the file again.'));
+  if (!isUploadId(input.uploadId))
+    return err(keyedError('invalid', 'umpe_guest_uploads.choose_the_file_again'));
   const uploadId = input.uploadId.toLowerCase();
   const size = input.bytes.byteLength;
-  if (size < 1) return err(serviceError('invalid', 'This file is empty.'));
+  if (size < 1) return err(keyedError('invalid', 'umpe_guest_uploads.this_file_is_empty'));
   const name = sanitizeOriginalFileName(
     typeof input.originalName === 'string' ? input.originalName : null,
   );
@@ -569,7 +570,8 @@ export async function setGuestFileItem(
       : typeof input.itemId === 'string' && items.some((item) => item.id === input.itemId)
         ? input.itemId
         : undefined;
-  if (itemId === undefined) return err(serviceError('invalid', 'Choose an item from the list.'));
+  if (itemId === undefined)
+    return err(keyedError('invalid', 'umpe_guest_uploads.choose_an_item_from_the_list'));
   const files = schema.agencyCollectionGuestFiles;
   return db.transaction(async (tx) => {
     const updated = await tx
@@ -856,11 +858,11 @@ export async function submitGuestDocuments(
   const desk = await uploadDesk(db, proof, now);
   if (!desk) return err(missing());
   if (input.consent !== true) {
-    return err(serviceError('invalid', 'Tick the box to confirm what you are sending.'));
+    return err(keyedError('invalid', 'umpe_guest_uploads.tick_the_box_to_confirm_what'));
   }
   const items = await issuedItems(db, desk);
   if (!items) {
-    return err(serviceError('invalid', 'This checklist cannot be used right now. Ask the agency.'));
+    return err(keyedError('invalid', 'umpe_guest_uploads.this_checklist_cannot_be_used_right'));
   }
   const draft = first(
     await db
@@ -877,9 +879,7 @@ export async function submitGuestDocuments(
   );
   const retention = draft?.retentionDays ?? null;
   if (!isGuestRetentionDays(retention)) {
-    return err(
-      serviceError('invalid', 'Choose how long the agency may keep your files, then submit.'),
-    );
+    return err(keyedError('invalid', 'umpe_guest_uploads.choose_how_long_the_agency_may'));
   }
   const decision = await checkRateLimits(
     db,
@@ -897,7 +897,7 @@ export async function submitGuestDocuments(
   } catch (error) {
     // Two submits at once: the second loses the number race and asks to try again.
     if ((error as { code?: unknown })?.code === '23505' || /duplicate key/i.test(String(error))) {
-      return err(serviceError('stale', 'Your documents were just sent. Reload to see them.'));
+      return err(keyedError('stale', 'umpe_guest_uploads.your_documents_were_just_sent_reload'));
     }
     throw error;
   }
@@ -919,7 +919,7 @@ async function submitInTransaction(
     .for('update');
   // A file still being checked holds the submission; one whose upload stopped is left out.
   if (current.some((f) => f.safetyStatus === SAFETY.receiving && !stalled(f, now))) {
-    return err(serviceError('invalid', 'Wait until every file has been checked, then submit.'));
+    return err(keyedError('invalid', 'umpe_guest_uploads.wait_until_every_file_has_been'));
   }
   const byItem = new Map<string, FileRow[]>();
   for (const file of current) {
@@ -941,7 +941,7 @@ async function submitInTransaction(
   });
   const fileCount = lines.filter((l) => l.kind === 'FILE').length;
   if (fileCount === 0) {
-    return err(serviceError('invalid', 'Place at least one file under an item, then submit.'));
+    return err(keyedError('invalid', 'umpe_guest_uploads.place_at_least_one_file_under'));
   }
   const submissions = schema.agencyCollectionGuestSubmissions;
   const previous = first(

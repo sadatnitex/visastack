@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CaseStageTracker } from '../../src/components/case-preparation-summary';
+import { CaseStageTrackerView } from '../../src/components/case-stage-tracker-view';
 import { CollapsibleGroups } from '../../src/components/collapsible-group';
 import { Icon } from '../../src/components/icons';
 import { ShowMore } from '../../src/components/show-more';
@@ -209,7 +209,8 @@ function CaseView({ capped }: { readonly capped: boolean }) {
           </ul>
         </div>
         <div className="lift-status-stages">
-          <CaseStageTracker
+          <CaseStageTrackerView
+            ariaLabel="Actual case workflow state"
             state="IN_PROGRESS"
             labels={CASE_STATE_LABELS}
             nextStates={['READY_FOR_REVIEW']}

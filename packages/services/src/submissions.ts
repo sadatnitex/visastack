@@ -2,7 +2,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { getLiveAcknowledgement } from './material-revision';
 import { getMissionForOwner } from './missions';
@@ -70,20 +70,21 @@ export async function recordSubmission(
 
   if (!input.stepUpSatisfied) {
     return err(
-      serviceError('step_up_required', 'recording a submission requires reauthentication'),
+      keyedError(
+        'step_up_required',
+        'submissions.recording_a_submission_requires_reauthentication',
+      ),
     );
   }
 
   const description = input.externalReportDescription.trim();
   if (description.length === 0) {
-    return err(
-      serviceError('invalid', 'a description of the external submission report is required'),
-    );
+    return err(keyedError('invalid', 'submissions.a_description_of_the_external_submission'));
   }
 
   const submittedAt = input.submittedAt ?? new Date();
   if (submittedAt.getTime() > Date.now()) {
-    return err(serviceError('invalid', 'submission date/time cannot be in the future'));
+    return err(keyedError('invalid', 'submissions.submission_date_time_cannot_be_in'));
   }
 
   const externalReference = input.externalReference?.trim();
@@ -101,17 +102,12 @@ export async function recordSubmission(
     );
 
     if (mission.state !== 'SUBMISSION_READY') {
-      return err(
-        serviceError(
-          'invalid',
-          'a case must be submission-ready before a submission can be recorded',
-        ),
-      );
+      return err(keyedError('invalid', 'submissions.a_case_must_be_submission_ready'));
     }
 
     const live = await getLiveAcknowledgement(tx, input.missionId);
     if (!live) {
-      return err(serviceError('stale', 'this case has no current live acknowledgement to submit'));
+      return err(keyedError('stale', 'submissions.this_case_has_no_current_live'));
     }
 
     const lifecycle = await lifecycleTablesPresent(tx);
@@ -126,21 +122,11 @@ export async function recordSubmission(
       .innerJoin(schema.documents, eq(schema.documents.id, schema.selectedEvidence.documentId))
       .where(eq(schema.selectedEvidence.missionId, input.missionId));
     if (selectedDocumentExpiries.some((row) => !row.present)) {
-      return err(
-        serviceError(
-          'stale',
-          'selected evidence was deleted and must be replaced before this case can be submitted',
-        ),
-      );
+      return err(keyedError('stale', 'submissions.selected_evidence_was_deleted_and_must'));
     }
     const now = Date.now();
     if (selectedDocumentExpiries.some((row) => row.expiresAt && row.expiresAt.getTime() <= now)) {
-      return err(
-        serviceError(
-          'stale',
-          'selected evidence has expired and must be replaced before this case can be submitted',
-        ),
-      );
+      return err(keyedError('stale', 'submissions.selected_evidence_has_expired_and_must'));
     }
 
     const record = required(
