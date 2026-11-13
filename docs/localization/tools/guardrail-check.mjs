@@ -93,6 +93,9 @@ const CLAIMS = [
   },
   { en: /\b(clean)\b/i, bn: /পরিষ্কার/, name: 'cleanliness claim' },
 ];
+// Words that make "version" a real version (owner decision 2026-11-13), not a document's copy.
+const REAL_VERSION_CONTEXT =
+  /\b(snapshots?|packs?|checklists?|releases?|products?|VisaStack|apps?|notices?|terms|polic(y|ies)|privacy|letters?|names?|fields?|drafts?|published|publish|beta|test version|browsers?|software|editions?|version (one|two|1|2))\b/i;
 const BANNED_BN = [
   [/নাবালক|নাবালিকা/, 'Gendered word for a minor; use অপ্রাপ্তবয়স্ক'],
   [/\u2014/, 'Em dash character'],
@@ -132,7 +135,11 @@ export function check(enIn, bnIn, opts = {}) {
     f.push({ rule: 'MARKUP_MISMATCH', detail: `en ${tgE.join(' ')} vs bn ${tgB.join(' ')}` });
   // 2. glossary stems for terms found in the English
   // Placeholders, typed keywords (DELETE) and all-capital words are not English terms to translate.
-  const enTerms = en.replace(/\{[^}]*\}/g, ' ').replace(/\b[A-Z]{3,}\b/g, ' ');
+  // Email addresses are typed examples, not words to translate (name@example.com is not the term Name).
+  const enTerms = en
+    .replace(/\S+@\S+\.\S+/g, ' ')
+    .replace(/\{[^}]*\}/g, ' ')
+    .replace(/\b[A-Z]{3,}\b/g, ' ');
   const present = GLOSS.filter((t) => WORD(t.english).test(enTerms));
   // longest term wins: drop a term contained in a longer present term (Verify inside Verified is not an issue; Mandatory inside Mandatory if applicable is)
   const longest = present.filter(
@@ -211,12 +218,20 @@ export function check(enIn, bnIn, opts = {}) {
       rule: 'BANNED_WORDING',
       detail: 'Version wording where the English says copy or document (no Version 2 semantics)',
     });
-  if (/\b(versions?|revisions?)\b/i.test(enNoPh) && !/সংস্করণ|ভার্সন/.test(bn))
-    f.push({
-      rule: 'VERSION_CONCEPT_REVIEW',
-      detail:
-        'English says version; Bengali dropped it. Fine for a document copy, wrong for a snapshot, pack or product version: editor to confirm',
-    });
+  // Owner decision 2026-11-13: a document's version is কপি; সংস্করণ is only for a product, release,
+  // snapshot, pack or name version. Where the English names such a thing, the version word is still
+  // required; elsewhere the version is a document's and কপি is accepted. A row with neither word fails.
+  if (/\b(versions?|revisions?)\b/i.test(enNoPh)) {
+    const realVersion = REAL_VERSION_CONTEXT.test(enNoPh) || /\brevisions?\b/i.test(enNoPh);
+    const accepted = realVersion ? /সংস্করণ|ভার্সন/ : /সংস্করণ|ভার্সন|কপি/;
+    if (!accepted.test(bn))
+      f.push({
+        rule: 'VERSION_CONCEPT_REVIEW',
+        detail: realVersion
+          ? 'English names a product, release, snapshot, pack or name version; Bengali dropped the version word (সংস্করণ)'
+          : 'English says version of a document; Bengali has neither কপি nor সংস্করণ',
+      });
+  }
   // 4. banned wording
   for (const [re, why] of BANNED_BN)
     if (re.test(bn)) f.push({ rule: 'BANNED_WORDING', detail: why });
@@ -237,10 +252,15 @@ export function check(enIn, bnIn, opts = {}) {
       detail: `bn ${bn.length} chars vs en ${en.length} (narrow button risk)`,
     });
   // 6. forbidden Latin letters (a bn string that is still English)
+  // A label quoted exactly as the English writes it ("Settings") is the person's own device label,
+  // kept in Latin by the direction of 2026-11-13 (OWNER_DECISIONS.json); anything else in Latin is still a leftover.
+  const quotedLabels = stripMarkers(bn).replace(/"([^"\u0980-\u09FF]+)"/g, (m, label) =>
+    en.includes(label) ? ' ' : m,
+  );
   if (
     /[A-Za-z]{4,}/.test(
-      stripMarkers(bn).replace(
-        /\{\w+\}|https?:\/\/\S*|\S+@\S+\.\S+|\b[A-Z][A-Z0-9/.-]{2,}\b|VisaStack|WhatsApp|ChatGPT|Claude|Meta|PDF|OCR|ICS|CSV|URL|WiFi|Wi-Fi|Google|Apple|Microsoft|iPhone|iPad|Android|Safari|Outlook|Vercel|Cloudflare|ImmiAccount|clamav|zip|JPG|JPEG|PNG|HEIC|Word|Excel|COVID/g,
+      quotedLabels.replace(
+        /\{\w+\}|https?:\/\/\S*|\S+@\S+\.\S+|\b[A-Z][A-Z0-9/.-]{2,}\b|VisaStack|WhatsApp|ChatGPT|Claude|Meta|PDF|OCR|ICS|CSV|URL|WiFi|Wi-Fi|Google|Apple|Microsoft|iPhone|iPad|Android|Safari|Outlook|Vercel|Cloudflare|Neon Auth|Neon|Resend|ImmiAccount|clamav|zip|JPG|JPEG|PNG|HEIC|Word|Excel|COVID/g,
         '',
       ),
     )
@@ -300,6 +320,33 @@ function selfTest() {
     const ok = r.length === 0;
     say(
       `${ok ? 'PASSES AS EXPECTED' : 'UNEXPECTED FINDING'}  ${k}  ${r.map((x) => x.rule).join(',')}`,
+    );
+    if (!ok) bad++;
+  }
+  // Fixed cases for the refinements of 2026-11-13 (owner decisions on version wording and device
+  // labels, and email addresses in the English). Each must keep failing or passing as listed.
+  const cases = [
+    ['fail', 'A new version of VisaStack is ready.', 'VisaStack-এর একটি নতুন আপডেট প্রস্তুত।'],
+    ['fail', 'Snapshot version {version} captured.', 'স্ন্যাপশটের কপি {version} নেওয়া হয়েছে।'],
+    ['fail', 'Previous Versions', 'আগের ডকুমেন্ট'],
+    ['pass', 'Previous Versions', 'আগের কপি'],
+    ['pass', 'A new version of VisaStack is ready.', 'VisaStack-এর একটি নতুন সংস্করণ প্রস্তুত।'],
+    ['fail', 'Enter your name.', 'আপনার ইমেইল ঠিকানা লিখুন।'],
+    [
+      'pass',
+      'Enter a valid email address, like name@example.com.',
+      'সঠিক একটি ইমেইল ঠিকানা লিখুন, যেমন name@example.com।',
+    ],
+    ['fail', 'iPhone: open Settings.', 'iPhone: Settings খুলুন।'],
+    ['fail', 'iPhone: open Settings.', 'iPhone: "Preferences" খুলুন।'],
+    ['pass', 'iPhone: open Settings.', 'iPhone: "Settings" খুলুন।'],
+    ['pass', 'Neon Auth handles sign-in.', 'Neon Auth সাইন ইন পরিচালনা করে।'],
+  ];
+  for (const [want, en, bn] of cases) {
+    const r = check(en, bn).filter((x) => !x.rule.startsWith('WARN_'));
+    const ok = want === 'fail' ? r.length > 0 : r.length === 0;
+    say(
+      `${ok ? (want === 'fail' ? 'FAILS AS EXPECTED' : 'PASSES AS EXPECTED') : want === 'fail' ? 'UNEXPECTEDLY PASSES' : 'UNEXPECTED FINDING'}  ${en} => ${bn}  ${r.map((x) => x.rule).join(',')}`,
     );
     if (!ok) bad++;
   }
