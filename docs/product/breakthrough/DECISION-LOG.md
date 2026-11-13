@@ -263,3 +263,32 @@ wallet make. The guard is untouched and passes.
 An existing guard accepts only whole, closed blocks with known name shapes at the end of the style
 file. The block is named as the second Requests block and closed with its end line; the guard is
 untouched and passes.
+
+## Post-flagship decisions (owner, 13 Nov 2026)
+
+### D24. Where the detail pin lives
+
+Both: a new send table for detail answers (one row per answer, like documents) pinned to the existing
+immutable fact version, and a link from each decision to the send it judged. Two new tables rather
+than new columns on the request and decision tables, because a column added to an existing table
+breaks every read of it between a deploy and the migration, while a missing new table is tolerated.
+No second fact model: the pin is a reference.
+
+### D25. What an agency sees of a detail answer
+
+The version identity (number, when saved, changed since) but not the text. Today the agency reads
+the shared profile, which is policy-checked; showing the pinned text inside the request is a
+disclosure decision left to the owner.
+
+### D26. Access refusals are corrected at the caller, not in the gate
+
+The gate's two answers are a deliberate contract and other code relies on them. Each action that
+works on one record checks ownership first and returns one fixed line, so the services' messages and
+the gate stay as they are. A probe of a real record leaves an audit event.
+
+### D27. Combined agency notice
+
+One notice per administrator and channel per confirmation of two or more answers, keyed on the
+confirmation and the smallest request id in it so it is written once with the first answer to
+commit and is never lost between answers. Each answer keeps its own submission, audit entry and
+review. Words stay neutral.
