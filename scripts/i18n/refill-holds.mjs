@@ -18,18 +18,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'Left English at review (refill 1): `uploadLimitLabel` is an English size label with Latin digits.',
   ],
   [
-    'appAgency.appAgencyOrgidClientsPage.dueFormatdateonly',
-    'Left English at review (refill 1): The call site formats the date without the reader language, so it is English. Fix: pass the locale.',
-  ],
-  [
-    'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
-    'Left English at review (refill 1): The call site formats the date without the reader language, so it is English. Fix: pass the locale. the date is formatted in English at both call sites (clients and team pages).',
-  ],
-  [
-    'appAgency.appAgencyOrgidPage.acknowledgedFormattimestampdate',
-    'Left English at review (refill 1): The call site formats the date without the reader language, so it is English. Fix: pass the locale. the date is formatted in English.',
-  ],
-  [
     'appAgency.appAgencyOrgidEvidenceCopies.decidedFormatmoment',
     'Left English at review (refill 1): `formatMoment` writes an English date and time.',
   ],
@@ -254,14 +242,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'Left English at review (refill 2): Unreachable: the panel shows only an active export.',
   ],
   [
-    'appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime',
-    'Left English at review (refill 2): `formatDateTime` writes an English date.',
-  ],
-  [
-    'appShared.appSharedGrantidPage.expiresFormattimestampdate',
-    'Left English at review (refill 2): The date is formatted in English.',
-  ],
-  [
     'appSharingInvitations.appSharingInvitationsAcceptPage.pluralCapturedWhenInvited',
     'Left English at review (refill 2): `plural()` writes an English noun.',
   ],
@@ -307,7 +287,7 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
   ],
   [
     'applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment',
-    'Left English at review (refill 3): `formatMoment` writes an English date.',
+    'Left English at review (refill 3): The draft says the item was requested, not that a question was asked, and `formatMoment` is called without the reader language here. Fix: a draft written for this key, then pass the reader language.',
   ],
   [
     'applicantInsights.appApplicantIdInsightsPage.backsPluralJoin',
@@ -348,10 +328,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
   [
     'applicantOutputs.appApplicantIdOutputsPage.nothingToShow',
     'Left English at review (refill 3): Waits for a test: every section a summary builds today has rows or its own note, so no test can show this line yet.',
-  ],
-  [
-    'applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly',
-    'Left English at review (refill 3): `longDay` writes an English date.',
   ],
   [
     'applicantOutputs.appApplicantIdOutputsPage.stepNumberOf3',
@@ -404,10 +380,6 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
   [
     'applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manageName',
     'Left English at review (refill 3): Spoken name of a button whose visible text "Manage" is English.',
-  ],
-  [
-    'collect.collectAccountAnswersPage.withdrawnFormattimestampdate',
-    'Left English at review (refill 3): `formatTimestampDate` is called without the locale: English date.',
   ],
   [
     'collect.collectGuestProgress.chooseHowLongWhoMayKeep',

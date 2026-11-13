@@ -1,3 +1,5 @@
+import { formatDate } from '@visastack/i18n';
+import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bengaliMarking } from '../../../lib/bengali-marked.test-support';
@@ -244,6 +246,58 @@ describe('privacy screens under Bengali (owner-approved legal wording, signed of
     expect(
       Object.values(bn).filter((value) => !elsewhere.has(value) && !shownValue(value)),
     ).toEqual([]);
+  });
+});
+
+describe('the moment a ready export expires', () => {
+  // A far, fixed moment at midday UTC, so no viewer time zone can move the day.
+  const EXPIRES_AT = '2099-11-01T12:00:00Z';
+  // The same choices the panel makes: day, short month, year, hour and minute.
+  const SHAPE = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  } as const;
+  const ready = { ...job('READY'), expiresAt: EXPIRES_AT };
+
+  /** The words beside the download link of the one ready export, exactly as a reader gets them. */
+  function expiryLine(locale: 'en' | 'bn'): string {
+    const html = renderToStaticMarkup(
+      <I18nProvider locale={locale} pageLang="en">
+        <LargeExportPanel jobs={[ready]} />
+      </I18nProvider>,
+    );
+    expect(html).not.toMatch(/appPrivacy\./);
+    const found = new JSDOM(`<body>${html}</body>`).window.document.querySelectorAll(
+      'a[download] + span',
+    );
+    expect(found.length).toBe(1);
+    return found[0]?.textContent ?? '';
+  }
+
+  it('is written in Bengali with a Bengali date and time', () => {
+    const line = expiryLine('bn');
+    expect(line).toBe(
+      (bn['appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime'] ?? '').replace(
+        '{formatDateTime}',
+        formatDate(new Date(EXPIRES_AT), 'bn', SHAPE),
+      ),
+    );
+    // The hour depends on where the reader is; the day, month and year do not.
+    expect(line).toMatch(/^মেয়াদ শেষ ১ নভে, ২০৯৯, [০-৯]{2}:[০-৯]{2} \S+$/);
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(/[0-9]/);
+    expect(line).not.toMatch(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
+    expect(line).not.toContain('expires');
+  });
+
+  it('reads exactly as it did in English', () => {
+    const line = expiryLine('en');
+    expect(line).toBe(`expires ${new Date(EXPIRES_AT).toLocaleString(undefined, SHAPE)}`);
+    expect(line).toMatch(/^expires Nov 1, 2099, \d{2}:\d{2} [AP]M$/);
+    expect(line).not.toMatch(BENGALI);
   });
 });
 

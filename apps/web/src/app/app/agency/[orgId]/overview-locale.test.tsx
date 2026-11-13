@@ -1,7 +1,8 @@
 import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { navigationState, renderServer, textOf } from '../../../../lib/next-mocks.test-support';
-import { missingBengali } from '../agency-bn.test-support';
+import { bnText, missingBengali } from '../agency-bn.test-support';
 
 // The language switch is off in the product, so the locale is set here directly.
 const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
@@ -266,5 +267,46 @@ describe('the agency overview numbers in English', () => {
     const { text } = await draw('bn');
     expect(text).toContain('১,২৩৪');
     expect(text).toContain('১,৫০০');
+  });
+});
+
+describe('the day a traveller confirmed, on the agency overview', () => {
+  // A far, fixed moment at midday, so no viewer time zone can move the day.
+  const CONFIRMED_AT = '2099-11-01T12:00:00.000Z';
+  const confirmed = { ...inGoodShape, missionId: 'mc', liveAcknowledgementAt: CONFIRMED_AT };
+
+  /** The words of the last cell of the one case row, exactly as a reader gets them. */
+  function confirmedCell(html: string): string {
+    const cells = new JSDOM(`<body>${html}</body>`).window.document.querySelectorAll(
+      'tbody tr td:last-child',
+    );
+    expect(cells.length).toBe(1);
+    return cells[0]?.textContent ?? '';
+  }
+
+  it('writes it in Bengali with a Bengali date', async () => {
+    asAdmin([confirmed]);
+    const { html } = await draw('bn');
+    const line = confirmedCell(html);
+    expect(line).toBe(
+      bnText(`${OVERVIEW}.acknowledgedFormattimestampdate`).replace(
+        '{formatTimestampDate}',
+        formatTimestampDate(CONFIRMED_AT, 'bn'),
+      ),
+    );
+    expect(line).toBe('স্বীকার করা হয়েছে ১ নভে, ২০৯৯');
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(/[0-9]/);
+    expect(line).not.toMatch(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
+    expect(html).not.toMatch(/appAgency\./);
+  });
+
+  it('keeps it exactly as it was in English', async () => {
+    asAdmin([confirmed]);
+    const { html } = await draw('en');
+    const line = confirmedCell(html);
+    expect(line).toBe('Acknowledged 1 Nov 2099');
+    expect(line).not.toMatch(/[ঀ-৿]/);
+    expect(html).not.toMatch(/appAgency\./);
   });
 });

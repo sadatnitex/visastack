@@ -51,6 +51,26 @@ export function formatTimestampDate(value: string | Date, locale: Locale = 'en')
   return new Date(value).toLocaleDateString('en-GB', options);
 }
 
+/**
+ * A plain day (`2026-10-27`, or a longer value that starts with one) with the month in full, in
+ * Bengali for a Bengali reader. Returns null for English and for anything that is not a plain day,
+ * so the caller keeps the exact English wording it already had.
+ */
+export function formatLongDay(iso: string | null | undefined, locale: Locale): string | null {
+  if (locale !== 'bn' || !iso) return null;
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  const day = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  // A day that does not exist (month 13, day 32) rolls over: leave it to the English wording.
+  if (day.toISOString().slice(0, 10) !== match[0]) return null;
+  return formatDate(day, locale, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 /** A real moment with its time, for example "6 Oct 2026, 14:05", in the viewer's timezone. */
 export function formatTimestamp(value: string | Date): string {
   return new Date(value).toLocaleString('en-GB', {
