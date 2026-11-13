@@ -435,8 +435,6 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdCaseChecklist.evidenceChecklist': 'প্রমাণের চেকলিস্ট',
     'appMission.appMissionIdCaseChecklist.fromPackname': '{packName} থেকে',
     'appMission.appMissionIdCaseChecklist.sourcesForThisChecklist': 'এই চেকলিস্টের উৎস',
-    'appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname':
-      'একটি নতুন কপি পাওয়া যাচ্ছে: {copyName}। আপনি না বদলানো পর্যন্ত আপনার বেছে নেওয়া কপিটিই থাকবে।',
     'appMission.appMissionIdCaseItemPane.chosenDocumentJoin': 'বেছে নেওয়া ডকুমেন্ট: {join}',
     'appMission.appMissionIdCaseItemPane.originalOfficialname': 'মূল: {officialName}',
     'appMission.appMissionIdCaseItemPane.provideEvidence': 'প্রমাণ দিন',
