@@ -403,6 +403,10 @@ export const HOLDBACK = new Map([
     'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
   ],
   [
+    'SG-e6123c0d',
+    'Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.',
+  ],
+  [
     'SG-e70b69ad',
     'Official visa rule content stays English with a Bengali note (owner decision 2026-11-12): visa Fee label.',
   ],

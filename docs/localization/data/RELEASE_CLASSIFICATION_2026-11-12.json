@@ -10,9 +10,9 @@
     "Only the groups that were held back, or sit in queue 02 or 03 with a draft, are classified. A new row that enters those queues later needs its own read."
   ],
   "counts": {
-    "released": 541,
+    "released": 540,
     "released_no_draft_or_pass": 22,
-    "kept": 105
+    "kept": 106
   },
   "groups": [
     {
@@ -4793,9 +4793,9 @@
     },
     {
       "group": "SG-e6123c0d",
-      "state": "RELEASED",
-      "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
-      "reason": "Applicant screens: AI processing or AI approval wording (waits for the owner sign-off with the other AI and consent text).",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.",
       "queue": "ORDINARY_UI",
       "english": "{plural} your AI apps suggested for your profile. Nothing is saved until you accept it. Check each one: an app can be wrong."
     },

@@ -413,7 +413,6 @@ describe('dates and held wording', () => {
   // count wording keys have Bengali now. Each is also drawn under Bengali by its own surface test.
   it('has Bengali for the signed-off AI, file-promise and disclaimer wording', () => {
     const live = [
-      'AppSuggestions.pluralYourAiAppsSuggestedFor',
       'AiReview.changeItIfItIsNot',
       'DocumentSuggestionCard.nothingIsSavedUntilYouAccept',
       'DocumentsAddPage.dropYourFilesOrAWhole',

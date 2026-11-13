@@ -637,8 +637,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdAiReview.sensitive': 'সংবেদনশীল',
     'appApplicant.appApplicantIdAiReview.weCouldNotFindTheseExact':
       'ডকুমেন্টে এই হুবহু শব্দগুলো খুঁজে পাওয়া যায়নি। গ্রহণ করার আগে ডকুমেন্টটি দেখে নিন।',
-    'appApplicant.appApplicantIdAppSuggestions.pluralYourAiAppsSuggestedFor':
-      'আপনার এআই অ্যাপগুলো আপনার প্রোফাইলের জন্য {plural} প্রস্তাব করেছে। আপনি গ্রহণ না করা পর্যন্ত কিছুই সংরক্ষণ হবে না। প্রতিটি দেখে নিন: কোনো অ্যাপ ভুলও করতে পারে।',
     'appApplicant.appApplicantIdDocumentExpiryForm.expiryDate': 'মেয়াদ শেষের তারিখ',
     'appApplicant.appApplicantIdDocumentRenameForm.documentName': 'ডকুমেন্টের নাম',
     'appApplicant.appApplicantIdDocumentSuggestionCard.cancel': 'বাতিল করুন',

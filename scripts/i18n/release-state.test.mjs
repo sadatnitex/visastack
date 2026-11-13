@@ -49,6 +49,20 @@ describe('owner blanket approval of 2026-11-12', () => {
       assert.equal(HOLDBACK.has(g.group), false, g.group);
   });
 
+  test('every Bengali draft that ships from queue 02 or 03 was approved, or is held', () => {
+    const released = new Set(
+      cl.groups.filter((g) => g.state.startsWith('RELEASED')).map((g) => g.group),
+    );
+    for (const f of ['02-commercial', '03-privacy-consent-legal'])
+      for (const r of parseCsv(read(`docs/localization/data/review-queues/${f}.csv`))) {
+        if (!/PASS/.test(r.automated_checks) || !r.bn_BD_draft) continue;
+        assert.ok(
+          released.has(r.semantic_group) || HOLDBACK.has(r.semantic_group),
+          `${r.semantic_group} in ${f} has a draft that is neither approved nor held`,
+        );
+      }
+  });
+
   test('every group has a reason', () => {
     for (const g of cl.groups) assert.ok(g.reason.length > 5, g.group);
   });

@@ -92,9 +92,10 @@ describe('signed-off wording on the applicant screens, under Bengali', () => {
       />,
     );
     const key = `${K}AppSuggestions.pluralYourAiAppsSuggestedFor`;
-    // The count word comes from the English plural helper; the Bengali sentence around it is shown.
-    const parts = (bn[key] ?? '').split('{plural}');
-    for (const part of parts) expect(textOf(html)).toContain(part.trim());
+    // Held in English: the count word comes from the English plural helper, so a Bengali sentence
+    // around it would mix scripts. It waits for a proper plural message.
+    expect(bn[key]).toBeUndefined();
+    expect(textOf(html)).toContain('1 change your AI apps suggested for your profile.');
     expect(html).not.toMatch(RAW_KEY);
   });
 

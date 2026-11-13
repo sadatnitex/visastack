@@ -44,8 +44,8 @@ export function refillBengali({ root, register, surfaces, groups, dryRun = false
       const group = sources[key];
       if (typeof group !== 'string' || group.includes('|')) continue;
       if (groups && !groups.has(group)) continue;
-      const r = reg.resolveGroup(group, catalog.en[key]);
       if (bn[key] !== undefined) continue;
+      const r = reg.resolveGroup(group, catalog.en[key]);
       if (!r.bn) continue;
       bn[key] = r.bn;
       filled.push(key);
