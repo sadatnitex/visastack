@@ -1,4 +1,5 @@
 import {
+  type AccessRefusal,
   type Db,
   accountPrincipal,
   appendAuditEvent,
@@ -10,10 +11,11 @@ import {
 /**
  * One answer for "not yours" and "not there".
  *
- * The services tell a made-up id (`not_found`) from a real record the caller may not touch
- * (`forbidden`), and that difference is deliberate for them. A screen action that prints the
- * service's own refusal would pass it on, so a signed-in stranger who knows an id could tell a real
- * record from a nonexistent one. Each action that works on one record therefore asks here first
+ * The central access gate now gives one refusal for both (owner decision, 13 Nov 2026), but many
+ * services behind an action still tell a made-up id (`not_found`) from a real record of someone
+ * else (`forbidden`). A screen action that prints such a refusal would pass it on, so a signed-in
+ * stranger who knows an id could tell a real record from a nonexistent one. These checks stay as a
+ * second layer: each action that works on one record asks here first
  * whether the signed-in account is the owner, and a stranger gets the fixed line below whichever
  * of the two it was, before any work starts. The real owner is never affected: these only return
  * true for them, and every later message is the service's own, as before.
@@ -53,10 +55,15 @@ async function isOwner(
   accountId: string,
   ref: { readonly missionId: string } | { readonly applicantId: string },
 ): Promise<boolean> {
+  let refusal: AccessRefusal | undefined;
   const access = await requireAccess(db, accountPrincipal(accountId), 'VIEW_METADATA', ref, {
     purpose: 'self',
+    // The gate's answer is the same for every refusal; only this hook hears whether the record is real.
+    onRefused: (heard) => {
+      refusal = heard;
+    },
   });
-  if (!access.ok && access.error.code === 'forbidden') await recordRefusedProbe(db, accountId, ref);
+  if (refusal?.recordExists === true) await recordRefusedProbe(db, accountId, ref, refusal);
   return access.ok && access.value.actor.kind === 'applicant_owner';
 }
 
@@ -70,6 +77,7 @@ async function recordRefusedProbe(
   db: Db,
   accountId: string,
   ref: { readonly missionId: string } | { readonly applicantId: string },
+  refusal: AccessRefusal,
 ): Promise<void> {
   try {
     await db.transaction(async (tx) => {
@@ -81,6 +89,8 @@ async function recordRefusedProbe(
         method: 'MANUAL',
         resourceType: 'missionId' in ref ? 'case' : 'applicant',
         resourceId: 'missionId' in ref ? ref.missionId : ref.applicantId,
+        // The gate's own reason (for example `grant_revoked`), kept here and never shown.
+        reason: refusal.reason,
         metadata: {},
       });
     });

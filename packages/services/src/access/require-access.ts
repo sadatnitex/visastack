@@ -15,7 +15,6 @@ import {
   type Grant as PolicyGrant,
   type Resource as PolicyResource,
   authorize,
-  grantCoversMission,
 } from '@visastack/policy';
 import { and, eq, ne } from 'drizzle-orm';
 import { type Applicant, getApplicant } from '../applicants';
@@ -23,7 +22,7 @@ import { type ContributorRequest, isInFlightContributorRow } from '../contributo
 import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
 import { listMembershipsForAccount } from '../organizations';
-import { documentCategory, loadGrantsForPolicy } from '../sharing';
+import { documentCategory, loadRecipientGrantsForPolicy } from '../sharing';
 import { loadSupportGrantsForPolicy } from '../support-access';
 import type { AccountPrincipal, Principal } from './principal';
 import {
@@ -183,7 +182,39 @@ export interface RequireAccessOptions {
   readonly contributorRequestId?: string;
   /** Which non-owner relationship to act through; see `ActingFor`. */
   readonly actingFor?: ActingFor;
+  /**
+   * Hears the precise reason for a refusal, for audit and logs only. The returned error never
+   * carries it: every refusal returns the same `ACCESS_REFUSAL` (see `requireAccess`). Called at
+   * most once, synchronously, just before the refusal is returned; anything it throws is ignored,
+   * so it can never change the answer.
+   */
+  readonly onRefused?: (refusal: AccessRefusal) => void;
 }
+
+/**
+ * Why `requireAccess` refused, for audit and logs only. `recordExists` says whether the named
+ * record is real, which is exactly what the caller must never learn from the answer.
+ */
+export interface AccessRefusal {
+  readonly reason: DenyReason | 'not_found' | 'malformed_id' | 'not_an_account';
+  readonly recordExists: boolean;
+}
+
+/** The internal log line for a refusal: never shown, never returned. */
+export function accessRefusalDetail(refusal: AccessRefusal): string {
+  return `access denied (${refusal.reason})`;
+}
+
+/**
+ * The one answer every refused caller gets, whatever the reason: a made-up or malformed id, a real
+ * record of someone else, access that was revoked, paused, expired or never covered this case, an
+ * agency without a grant, or a caller that is not a signed-in account. Its words are the ones a
+ * made-up id always had. Frozen, and copied for each refusal, so no caller can change it for the
+ * next one.
+ */
+export const ACCESS_REFUSAL: ServiceError = Object.freeze(
+  serviceError('not_found', 'record not found'),
+);
 
 /**
  * Document types whose preview or download needs a recent identity
@@ -272,6 +303,17 @@ function refTarget(ref: ApplicantResourceRef): { key: RefKey; id: unknown } | un
   return { key, id: (ref as Partial<Record<RefKey, unknown>>)[key] };
 }
 
+/**
+ * Stands in for the applicant of a record that does not exist, so the lookups after it still run:
+ * no applicant, grant or contributor request ever has this id.
+ */
+const NO_APPLICANT = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Loads the record and its applicant. A record that does not exist sends the same statements as one
+ * that does (its applicant is looked up under `NO_APPLICANT`, and a document's protection switches
+ * are read either way), so the work done cannot tell the two apart.
+ */
 async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedResource | undefined> {
   switch (key) {
     case 'applicantId': {
@@ -287,9 +329,8 @@ async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedReso
       const mission = first(
         await tx.select().from(schema.missions).where(eq(schema.missions.id, id)).limit(1),
       );
-      if (!mission) return undefined;
-      const applicant = await getApplicant(tx, mission.applicantId);
-      if (!applicant) return undefined;
+      const applicant = await getApplicant(tx, mission?.applicantId ?? NO_APPLICANT);
+      if (!mission || !applicant) return undefined;
       return {
         applicant,
         resource: { kind: 'mission', applicantId: applicant.id, mission },
@@ -303,15 +344,14 @@ async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedReso
       const document = first(
         await tx.select().from(schema.documents).where(eq(schema.documents.id, id)).limit(1),
       );
-      if (!document) return undefined;
-      const applicant = await getApplicant(tx, document.applicantId);
-      if (!applicant) return undefined;
-      // Same document-to-category mapping the shared-workspace view and the
-      // wallet use, so a category-scoped grant covers the same documents here.
-      const category = documentCategory(document.docType);
+      const applicant = await getApplicant(tx, document?.applicantId ?? NO_APPLICANT);
       // The rule as platform admins have set it, read in this transaction;
       // every document restricted if it cannot be read.
       const protection = await loadDocumentProtectionSettings(tx, DEFAULT_DOCUMENT_PROTECTION);
+      if (!document || !applicant) return undefined;
+      // Same document-to-category mapping the shared-workspace view and the
+      // wallet use, so a category-scoped grant covers the same documents here.
+      const category = documentCategory(document.docType);
       return {
         applicant,
         resource: { kind: 'document', applicantId: applicant.id, document },
@@ -381,11 +421,9 @@ function pickReason(current: DenyReason | undefined, next: DenyReason): DenyReas
   return current;
 }
 
-function denied(reason: DenyReason): ServiceError {
-  if (reason === 'step_up_required') {
-    return serviceError('step_up_required', 'this action requires reauthentication');
-  }
-  return serviceError('forbidden', `access denied (${reason})`);
+/** The step-up answer: only for a caller who is otherwise allowed, so it reveals nothing. */
+function stepUpRequired(): ServiceError {
+  return serviceError('step_up_required', 'this action requires reauthentication');
 }
 
 /**
@@ -399,12 +437,14 @@ async function contributorPermits(
   tx: Db,
   principal: AccountPrincipal,
   action: PermissionAction,
-  loaded: LoadedResource,
+  key: RefKey,
+  applicantId: string,
+  loaded: LoadedResource | undefined,
   contributorRequestId: string,
 ): Promise<boolean> {
+  // Decided from the request alone (never from the record), so a missing record takes the same path.
   if (!CONTRIBUTOR_ACTIONS.includes(action) || !isUuid(contributorRequestId)) return false;
-  const { resource } = loaded;
-  if (resource.kind === 'applicant') return false;
+  if (key === 'applicantId') return false;
   const request: ContributorRequest | undefined = first(
     await tx
       .select()
@@ -416,13 +456,17 @@ async function contributorPermits(
     !request ||
     !isInFlightContributorRow(request, {
       actorAccountId: principal.accountId,
-      applicantId: loaded.applicant.id,
+      applicantId,
     }) ||
     // A claimed request still ends when its link expires.
-    request.expiresAt.getTime() <= Date.now()
+    request.expiresAt.getTime() <= Date.now() ||
+    // No record: `applicantId` is `NO_APPLICANT`, which no request names, so this is unreachable.
+    loaded === undefined
   ) {
     return false;
   }
+  const { resource } = loaded;
+  if (resource.kind === 'applicant') return false;
   if (resource.kind === 'mission') return request.missionId === resource.mission.id;
 
   // A document belongs to this request only if this contributor uploaded it
@@ -475,9 +519,17 @@ async function contributorPermits(
  * considered, never ordinary sharing grants. System and staff principals are
  * refused here: they act through `SystemScope` and `StaffScope`.
  *
- * Unknown or malformed ids return `not_found`; a refusal returns `forbidden`,
- * or `step_up_required` when the caller is otherwise allowed but has not
- * reauthenticated.
+ * Every refusal is the same `ACCESS_REFUSAL` (`not_found`, "record not found"): an unknown or
+ * malformed id, a real record of someone else, revoked, paused or expired access, a grant that does
+ * not cover this case or action, an agency without a grant, and a principal that is not a signed-in
+ * account all look alike, so no caller can pass on whether a record exists. The precise reason goes
+ * only to `opts.onRefused`, for audit and logs. Two answers differ, and only for a caller who is
+ * otherwise allowed: `step_up_required` (reauthenticate first) and `invalid` when more than one
+ * relationship would allow the request.
+ *
+ * A well-formed id that names no record does the same database work as a real record the caller
+ * may not use: the same lookups run, with `NO_APPLICANT` standing in for the missing applicant, and
+ * only this caller's own grants are read.
  */
 export async function requireAccess<A extends PermissionAction>(
   tx: Db,
@@ -486,13 +538,26 @@ export async function requireAccess<A extends PermissionAction>(
   ref: ApplicantResourceRef,
   opts: RequireAccessOptions,
 ): Promise<Result<AuthorizedApplicant<A>, ServiceError>> {
+  const refuse = (
+    reason: AccessRefusal['reason'],
+    recordExists: boolean,
+  ): Result<never, ServiceError> => {
+    try {
+      opts.onRefused?.({ reason, recordExists });
+    } catch {
+      // The answer never depends on whoever listens for the reason.
+    }
+    return err({ ...ACCESS_REFUSAL });
+  };
+
   const target = refTarget(ref);
   if (!target) {
     return err(serviceError('invalid', 'name exactly one applicant, case or document'));
   }
-  if (principal.kind !== 'account') return err(denied('default_deny'));
-  if (!isUuid(principal.accountId)) return err(denied('default_deny'));
-  if (!isUuid(target.id)) return err(serviceError('not_found', 'record not found'));
+  if (principal.kind !== 'account' || !isUuid(principal.accountId)) {
+    return refuse('not_an_account', false);
+  }
+  if (!isUuid(target.id)) return refuse('malformed_id', false);
   // Previews and downloads are decided one document at a time, so the
   // restricted-document rule and the step-up binding always apply.
   if ((action === 'PREVIEW' || action.startsWith('DOWNLOAD_')) && target.key !== 'documentId') {
@@ -502,9 +567,7 @@ export async function requireAccess<A extends PermissionAction>(
   }
 
   const loaded = await loadResource(tx, target.key, target.id);
-  if (!loaded) return err(serviceError('not_found', 'record not found'));
-
-  const { applicant, policyResource } = loaded;
+  const applicantId = loaded?.applicant.id ?? NO_APPLICANT;
   // Always the real time: a caller-chosen clock could revive an expired grant.
   const now = new Date();
   const stepUpSatisfied = StepUpProof.covers(opts.stepUp, {
@@ -513,38 +576,65 @@ export async function requireAccess<A extends PermissionAction>(
     resourceId: target.id,
   });
   const accountId = principal.accountId as AccountId;
-  const issue = (actor: AccessActor): AuthorizedApplicant<A> =>
-    mint({ tx, applicant, actor, resource: loaded.resource, action, purpose: opts.purpose });
+  const policyResource: PolicyResource = loaded?.policyResource ?? {
+    applicantId: NO_APPLICANT as ApplicantId,
+  };
   const evaluate = (actor: Actor, grants: readonly PolicyGrant[]): Decision =>
     decide(actor, action, policyResource, grants, opts.purpose, now, stepUpSatisfied);
+  /** A refusal of a real record: step-up keeps its own answer (the caller is otherwise allowed). */
+  const deny = (reason: DenyReason) =>
+    reason === 'step_up_required' ? err(stepUpRequired()) : refuse(reason, true);
+  /** Turns a decision into the answer. Only a real record is ever issued. */
+  const answer = (actor: AccessActor, decision: Decision) => {
+    if (!loaded) return refuse('not_found', false);
+    if (!decision.allowed) return deny(decision.reason);
+    return ok(
+      mint({
+        tx,
+        applicant: loaded.applicant,
+        actor,
+        resource: loaded.resource,
+        action,
+        purpose: opts.purpose,
+      }),
+    );
+  };
 
   if (principal.asSupport === true) {
     const actor: Actor = { kind: 'support_admin', accountId };
-    const decision = evaluate(actor, await loadSupportGrantsForPolicy(tx, applicant.id));
-    if (!decision.allowed) return err(denied(decision.reason));
-    return ok(issue(actor));
+    return answer(actor, evaluate(actor, await loadSupportGrantsForPolicy(tx, applicantId)));
   }
 
-  if (applicant.ownerAccountId === principal.accountId) {
-    const actor: Actor = { kind: 'applicant_owner', applicantId: applicant.id as ApplicantId };
-    const decision = evaluate(actor, []);
-    if (!decision.allowed) return err(denied(decision.reason));
-    return ok(issue(actor));
+  if (loaded !== undefined && loaded.applicant.ownerAccountId === principal.accountId) {
+    const actor: Actor = { kind: 'applicant_owner', applicantId: applicantId as ApplicantId };
+    return answer(actor, evaluate(actor, []));
   }
 
   if (
     opts.contributorRequestId !== undefined &&
-    (await contributorPermits(tx, principal, action, loaded, opts.contributorRequestId))
+    (await contributorPermits(
+      tx,
+      principal,
+      action,
+      target.key,
+      applicantId,
+      loaded,
+      opts.contributorRequestId,
+    ))
   ) {
-    return ok(
-      issue({ kind: 'contributor', accountId, contributorRequestId: opts.contributorRequestId }),
+    return answer(
+      { kind: 'contributor', accountId, contributorRequestId: opts.contributorRequestId },
+      { allowed: true },
     );
   }
 
-  const [grants, memberships] = await Promise.all([
-    loadGrantsForPolicy(tx, applicant.id),
-    listMembershipsForAccount(tx, principal.accountId),
-  ]);
+  // Memberships first, then only the grants that could reach this caller: other people's grants
+  // never change what is read, so a missing record and a foreign one do the same work.
+  const memberships = await listMembershipsForAccount(tx, principal.accountId);
+  const grants = await loadRecipientGrantsForPolicy(tx, applicantId, {
+    accountId: principal.accountId,
+    organizationIds: memberships.map((membership) => membership.organization.id),
+  });
   const actingFor = opts.actingFor;
   const candidates: { actor: Actor; grants: readonly PolicyGrant[] }[] = [];
   for (const membership of memberships) {
@@ -591,8 +681,9 @@ export async function requireAccess<A extends PermissionAction>(
     if (decision.allowed) allowed.push(candidate.actor);
     else reason = pickReason(reason, decision.reason);
   }
+  if (!loaded) return refuse('not_found', false);
   const [only, ...others] = allowed;
-  if (only !== undefined && others.length === 0) return ok(issue(only));
+  if (only !== undefined && others.length === 0) return answer(only, { allowed: true });
   if (only !== undefined) {
     return err(
       serviceError(
@@ -601,23 +692,5 @@ export async function requireAccess<A extends PermissionAction>(
       ),
     );
   }
-  const finalReason = reason ?? 'default_deny';
-  // A grantee none of whose grants reaches this case by case scope (a per-case
-  // sharing exception, ADR 0017, or grants for other cases only) gets exactly
-  // what an unknown id gets, so a hidden case cannot be told apart from one
-  // that does not exist. A grantee who can see the case but lacks the action
-  // still gets `forbidden` (it already knows the case), and so does someone
-  // with no grant on this person at all, as before. The specific reason
-  // never leaves this function.
-  if (
-    loaded.resource.kind === 'mission' &&
-    finalReason !== 'step_up_required' &&
-    candidates.some((c) => c.grants.length > 0)
-  ) {
-    const missionId = loaded.resource.mission.id as MissionId;
-    if (!candidates.some((c) => c.grants.some((g) => grantCoversMission(g, missionId)))) {
-      return err(serviceError('not_found', 'record not found'));
-    }
-  }
-  return err(denied(finalReason));
+  return deny(reason ?? 'default_deny');
 }

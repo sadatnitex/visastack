@@ -10,6 +10,7 @@ import {
 import { type Result, err, ok } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { isSharingCategory } from '@visastack/core/catalogue/packs';
+import { catalogResolve } from '@visastack/i18n';
 import {
   type Actor as PolicyActor,
   type Grant as PolicyGrant,
@@ -31,11 +32,13 @@ import {
 } from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
 import { StepUpProof } from './access/step-up-proof';
+import { getAccountByEmail } from './accounts';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, keyedError, serviceError } from './errors';
+import { serviceMessages } from './i18n';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -105,6 +108,42 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
   const exclusions = rows.some((row) => row.missionId === null)
     ? await loadCaseExclusions(db, { applicantId })
     : undefined;
+  return rows.map((row) => toPolicyGrant(row, exclusions?.get(row.id)));
+}
+
+/**
+ * The grants on this applicant that could ever reach this caller: made to the account itself, or
+ * to one of the named organizations (the caller's memberships). The access gate judges a caller
+ * only against these, exactly as it did against the full list, so the answer is the same; reading
+ * only these means other people's grants never change what work the gate does, so the work cannot
+ * hint at whether a record exists. Case exceptions are read only for this caller's applicant-wide
+ * grants.
+ */
+export async function loadRecipientGrantsForPolicy(
+  db: Db,
+  applicantId: string,
+  recipient: { readonly accountId: string; readonly organizationIds: readonly string[] },
+): Promise<PolicyGrant[]> {
+  const organizationIds = [...new Set(recipient.organizationIds)];
+  const rows = await db
+    .select()
+    .from(schema.grants)
+    .where(
+      and(
+        eq(schema.grants.applicantId, applicantId),
+        organizationIds.length > 0
+          ? or(
+              eq(schema.grants.recipientAccountId, recipient.accountId),
+              inArray(schema.grants.recipientOrganizationId, organizationIds),
+            )
+          : eq(schema.grants.recipientAccountId, recipient.accountId),
+      ),
+    );
+  const applicantWide = rows.filter((row) => row.missionId === null).map((row) => row.id);
+  const exclusions =
+    applicantWide.length > 0
+      ? await loadCaseExclusions(db, { grantIds: applicantWide })
+      : undefined;
   return rows.map((row) => toPolicyGrant(row, exclusions?.get(row.id)));
 }
 
@@ -385,6 +424,59 @@ export async function createGrant(
     });
     return ok(grant);
   });
+}
+
+/** What `shareWithEmail` says: the same words whether or not the email has an account. */
+export interface SharedWithEmail {
+  readonly message: string;
+  readonly messageKey: 'sharing.sharedIfAccount';
+}
+
+/**
+ * Share with a person named only by their email, when sharing invitations are switched off.
+ *
+ * The answer never says whether the email has a VisaStack account. An existing account gets a
+ * pending grant exactly as `createGrant` makes it. An email with no account gets nothing (there is
+ * no invitation without the switch): the same checks still run, in the same order (owner, consent,
+ * permissions, purpose, expiry, chosen case and documents, the rate limit), so a refusal is the
+ * same either way, and on success both get the one `sharing.sharedIfAccount` line. Only the audit
+ * trail tells the two apart: `GRANT_CREATED` for a grant, `GRANT_RECIPIENT_NOT_REGISTERED` (no email
+ * and no email hash, only the owner, the traveller and how many permissions) for no account.
+ */
+export async function shareWithEmail(
+  db: Db,
+  input: Omit<CreateGrantInput, 'recipientAccountId' | 'recipientOrganizationId'> & {
+    readonly email: string;
+  },
+): Promise<Result<SharedWithEmail, ServiceError>> {
+  const { email, ...grant } = input;
+  const recipient = await getAccountByEmail(db, email);
+  if (recipient?.id === input.actorAccountId) {
+    // Only the person's own address, which they already know.
+    return err(keyedError('invalid', 'sharing.cannotShareSelf'));
+  }
+  if (recipient) {
+    const created = await createGrant(db, { ...grant, recipientAccountId: recipient.id });
+    if (!created.ok) return created;
+  } else {
+    const prepared = await prepareGrantScope(db, grant);
+    if (!prepared.ok) return prepared;
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'GRANT_RECIPIENT_NOT_REGISTERED',
+        actorAccountId: input.actorAccountId,
+        action: 'SHARE',
+        method: 'MANUAL',
+        result: 'DENIED',
+        applicantId: input.applicantId,
+        resourceType: 'grant',
+        reason: 'recipient_has_no_account',
+        metadata: { actions: input.actions.length },
+      });
+    });
+  }
+  const key = 'sharing.sharedIfAccount';
+  return ok({ message: catalogResolve(serviceMessages, 'en', key).text, messageKey: key });
 }
 
 async function loadGrant(db: Db, grantId: string): Promise<Grant | undefined> {

@@ -7,6 +7,7 @@ import {
   lockCaseSharing,
 } from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
+import { getAccountByEmail } from './accounts';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -84,6 +85,9 @@ export async function createSharingInvitation(
       rawToken,
       encryption: input.encryption,
     });
+    // Everyone gets the same invitation and the same answer; only the audit trail records whether
+    // the address already had an account (a yes or no, never the address).
+    const recipientHasAccount = (await getAccountByEmail(tx, email)) !== undefined;
     await appendAuditEvent(tx, {
       eventType: 'SHARING_INVITATION_CREATED',
       actorAccountId: input.actorAccountId,
@@ -92,6 +96,7 @@ export async function createSharingInvitation(
       resourceId: invitation.id,
       method: 'MANUAL',
       result: 'ALLOWED',
+      metadata: { recipientHasAccount },
     });
     // Exceptions follow the recipient: an earlier "no" for this email (or
     // the account behind it) binds this invitation too (ADR 0017 amendment).
