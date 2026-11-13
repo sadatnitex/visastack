@@ -3,7 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { cleanDocumentName } from './naming';
 
@@ -54,7 +54,7 @@ export async function proposeDocumentName(
   input: ProposeDocumentNameInput,
 ): Promise<Result<DocumentNameVersion, ServiceError>> {
   if (input.proposedName.trim().length === 0) {
-    return err(serviceError('invalid', 'a proposed name is required'));
+    return err(keyedError('invalid', 'naming.aProposedNameIsRequired'));
   }
 
   const lifecycle = await lifecycleTablesPresent(db);
@@ -73,7 +73,7 @@ export async function proposeDocumentName(
         .limit(1)
         .for('update'),
     );
-    if (!document) return err(serviceError('not_found', 'document not found'));
+    if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
     const nextNumber = await nextNameVersionNumber(tx, input.documentId);
 
     const version = required(
@@ -134,9 +134,9 @@ export async function decideDocumentName(
       .where(eq(schema.documentNameVersions.id, input.nameVersionId))
       .limit(1),
   );
-  if (!version) return err(serviceError('not_found', 'name version not found'));
+  if (!version) return err(keyedError('not_found', 'naming.nameVersionNotFound'));
   if (version.decision !== 'PENDING') {
-    return err(serviceError('invalid', 'this naming proposal has already been decided'));
+    return err(keyedError('invalid', 'naming.thisNamingProposalHasAlreadyBeen'));
   }
 
   const lifecycle = await lifecycleTablesPresent(db);
@@ -153,7 +153,7 @@ export async function decideDocumentName(
       )
       .limit(1),
   );
-  if (!document) return err(serviceError('not_found', 'document not found'));
+  if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
 
   const applicant = first(
     await db
@@ -163,12 +163,12 @@ export async function decideDocumentName(
       .limit(1),
   );
   if (!applicant || applicant.ownerAccountId !== input.actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to decide this document name'));
+    return err(keyedError('forbidden', 'naming.notAuthorizedToDecideThisDocument'));
   }
 
   const accepting = input.decision !== 'REJECTED';
   if (accepting && (!input.finalName || input.finalName.trim().length === 0)) {
-    return err(serviceError('invalid', 'a final name is required to accept a naming proposal'));
+    return err(keyedError('invalid', 'naming.aFinalNameIsRequiredTo'));
   }
 
   return db.transaction(async (tx) => {
@@ -266,10 +266,10 @@ export async function renameDocument(
     proof.actor.kind !== 'applicant_owner' ||
     proof.resource.kind !== 'document'
   ) {
-    return err(serviceError('forbidden', 'only the owner can rename this document'));
+    return err(keyedError('forbidden', 'naming.onlyTheOwnerCanRenameThis'));
   }
   const name = cleanDocumentName(input.name);
-  if (name.length === 0) return err(serviceError('invalid', 'enter a name for this document'));
+  if (name.length === 0) return err(keyedError('invalid', 'naming.enterANameForThisDocument'));
   const documentId = proof.resource.document.id;
   const actorAccountId = proof.applicant.ownerAccountId;
 
@@ -290,7 +290,7 @@ export async function renameDocument(
         .limit(1)
         .for('update'),
     );
-    if (!document) return err(serviceError('not_found', 'document not found'));
+    if (!document) return err(keyedError('not_found', 'documents.documentNotFound'));
     const versionNumber = await nextNameVersionNumber(tx, documentId);
     const decidedAt = new Date();
     const version = required(

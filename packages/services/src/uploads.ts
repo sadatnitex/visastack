@@ -4,7 +4,7 @@ import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { type Db, first, required, schema } from './db';
 import { checkStorageEntitlement } from './entitlement-enforcement';
-import { type ServiceError, refusal, serviceError } from './errors';
+import { type ServiceError, keyedError, refusal, serviceError } from './errors';
 import type { ObservabilityPort } from './ports';
 import {
   type UploadQuotaConfig,
@@ -112,7 +112,7 @@ async function checkQuotaTiers(
       .where(eq(schema.applicants.id, input.applicantId))
       .limit(1),
   );
-  if (!owner) return err(serviceError('not_found', 'applicant not found'));
+  if (!owner) return err(keyedError('not_found', 'documents.applicantNotFound'));
   const limits = await storageLimitsForOwner(tx, owner.id, config);
   // This record's own room is shown to anyone who may open it (the Documents page meter). The
   // owner's whole-account limit is theirs: someone uploading into another person's record is told
@@ -147,12 +147,7 @@ async function checkQuotaTiers(
   const platformReserved = await activePlatformReservedBytes(tx);
   const platformCommitted = await getPlatformEvidenceBytes(tx);
   if (platformCommitted + platformReserved + addedBytes > config.platformHardStopBytes) {
-    return err(
-      serviceError(
-        'invalid',
-        'platform storage capacity reached; new uploads are temporarily paused',
-      ),
-    );
+    return err(keyedError('invalid', 'uploads.platformStorageCapacityReachedNewUploads'));
   }
 
   // COM-02: a fifth, org-scoped tier layered on top of the four
@@ -267,10 +262,10 @@ export async function growUploadReservation(
   config: UploadQuotaConfig = loadUploadQuotaConfig(),
 ): Promise<Result<UploadIntent, ServiceError>> {
   if (!AuthorizedApplicant.isGenuine(proof, 'MANAGE')) {
-    return err(serviceError('forbidden', 'not authorized'));
+    return err(keyedError('forbidden', 'uploads.notAuthorized'));
   }
   if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 1) {
-    return err(serviceError('invalid', 'the file size is not valid'));
+    return err(keyedError('invalid', 'uploads.theFileSizeIsNotValid'));
   }
   if (input.sizeBytes > config.maxUploadBytes) {
     return err(
@@ -294,7 +289,7 @@ export async function growUploadReservation(
         .limit(1)
         .for('update'),
     );
-    if (!intent) return err(serviceError('not_found', 'this upload is no longer in progress'));
+    if (!intent) return err(keyedError('not_found', 'uploads.thisUploadIsNoLongerIn'));
     const addedBytes = input.sizeBytes - intent.reservedBytes;
     if (addedBytes <= 0) return ok(intent);
 

@@ -8,6 +8,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { photoAccess, profilePhotoPorts } from '../../lib/profile-photos';
+import { serviceErrorMessage } from '../../lib/service-error-message';
 import { withSession } from '../../lib/session';
 import { createStorage } from '../../lib/storage';
 
@@ -40,7 +41,7 @@ export async function saveProfilePhotoAction(formData: FormData): Promise<Profil
       contentType: file.type,
       bytes: new Uint8Array(await file.arrayBuffer()),
     });
-    if (!saved.ok) return { ok: false, message: saved.error.message };
+    if (!saved.ok) return { ok: false, message: await serviceErrorMessage(saved.error) };
     return {
       ok: true,
       message: 'Photo saved.',
@@ -58,7 +59,7 @@ export async function removeProfilePhotoAction(formData: FormData): Promise<Prof
     const access = await photoAccess(db, accountId, applicantId, 'MANAGE');
     if (!access) return NOT_ALLOWED;
     const removed = await removeApplicantPhoto(access, createStorage(db));
-    if (!removed.ok) return { ok: false, message: removed.error.message };
+    if (!removed.ok) return { ok: false, message: await serviceErrorMessage(removed.error) };
     return { ok: true, message: 'Photo removed.', photoUrl: null };
   });
   if (result.ok) revalidatePath('/app', 'layout');
