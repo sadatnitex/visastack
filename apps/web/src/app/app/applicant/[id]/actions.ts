@@ -63,6 +63,12 @@ import {
   resolveOcrAdapter,
 } from '../../../../lib/ai';
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
+import {
+  FLAG_HIDDEN_LINE,
+  NAME_HIDDEN_LINE,
+  SUGGESTION_HIDDEN_LINE,
+  refusalLine,
+} from '../../../../lib/hidden-record';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort } from '../../../../lib/providers';
@@ -618,7 +624,12 @@ export async function decideDocumentNameAction(
             : 'ACCEPTED_EDITED',
       ...(action === 'accept' ? { finalName } : {}),
     });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok) {
+      return {
+        ok: false,
+        message: refusalLine(decided.error, NAME_HIDDEN_LINE),
+      } satisfies ActionState;
+    }
     return {
       ok: true,
       message: action === 'reject' ? 'Naming proposal rejected.' : 'Filename approved.',
@@ -938,7 +949,12 @@ export async function runClassificationAction(
       // only when a line could be shown.
       return {
         ok: false,
-        message: plainError(kind.error),
+        // The gate words a real traveller (`forbidden`) and a made-up id (`not_found`) differently;
+        // both get one line, so a stranger cannot tell which ids are real.
+        message:
+          kind.error.code === 'forbidden' || kind.error.code === 'not_found'
+            ? 'Not authorized.'
+            : plainError(kind.error),
         ...(await upgradeLineForRefusal(db, self, kind.error, 'ai_document_kind', {
           isOwner: () => assertOwned(db, accountId, applicantId),
         })),
@@ -1266,14 +1282,24 @@ export async function decideClassificationProposalAction(
         actorAccountId: accountId,
         proposalId,
       });
-      if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
+      if (!rejected.ok) {
+        return {
+          ok: false,
+          message: refusalLine(rejected.error, SUGGESTION_HIDDEN_LINE),
+        } satisfies ActionState;
+      }
       return { ok: true, message: 'Suggestion rejected.' } satisfies ActionState;
     }
     const approved = await approveDocumentTypeProposal(db, {
       actorAccountId: accountId,
       proposalId,
     });
-    if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    if (!approved.ok) {
+      return {
+        ok: false,
+        message: refusalLine(approved.error, SUGGESTION_HIDDEN_LINE),
+      } satisfies ActionState;
+    }
     // UMPE G4: the kind is decided; a fresh reading checks protection against it.
     const access = await requireAccess(
       db,
@@ -1349,7 +1375,12 @@ export async function decideProposalAction(
         proposalId,
         ...(resolutionRaw === 'keep' ? { reason: 'kept_existing' } : {}),
       });
-      if (!rejected.ok) return { ok: false, message: rejected.error.message } satisfies ActionState;
+      if (!rejected.ok) {
+        return {
+          ok: false,
+          message: refusalLine(rejected.error, SUGGESTION_HIDDEN_LINE),
+        } satisfies ActionState;
+      }
       return {
         ok: true,
         message:
@@ -1369,7 +1400,12 @@ export async function decideProposalAction(
       ...(effectiveFrom ? { effectiveFrom } : {}),
       ...(encryption ? { encryption } : {}),
     });
-    if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    if (!approved.ok) {
+      return {
+        ok: false,
+        message: refusalLine(approved.error, SUGGESTION_HIDDEN_LINE),
+      } satisfies ActionState;
+    }
     return {
       ok: true,
       message:
@@ -1506,7 +1542,12 @@ export async function decideInconsistencyFlagAction(
     const decided = await (decision === 'acknowledge'
       ? acknowledgeInconsistencyFlag(db, { actorAccountId: accountId, flagId })
       : dismissInconsistencyFlag(db, { actorAccountId: accountId, flagId }));
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok) {
+      return {
+        ok: false,
+        message: refusalLine(decided.error, FLAG_HIDDEN_LINE),
+      } satisfies ActionState;
+    }
     return {
       ok: true,
       message: decision === 'acknowledge' ? 'Flag acknowledged.' : 'Flag dismissed.',

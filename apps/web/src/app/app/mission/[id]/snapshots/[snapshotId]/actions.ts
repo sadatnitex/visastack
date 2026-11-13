@@ -3,6 +3,7 @@
 import { decideAcknowledgement } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { CASE_HIDDEN_LINE, ownsCase } from '../../../../../../lib/hidden-record';
 import { serviceErrorMessage } from '../../../../../../lib/service-error-message';
 import { withSession } from '../../../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../../../lib/step-up';
@@ -58,6 +59,9 @@ export async function decideAcknowledgementAction(
   }
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'MISSION_ACKNOWLEDGEMENT', resourceId: missionId },
       `/app/mission/${missionId}/snapshots/${snapshotId}`,

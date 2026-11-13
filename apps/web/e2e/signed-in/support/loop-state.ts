@@ -1,7 +1,7 @@
 /**
- * What the exact-copy loop learns as it goes, kept in one module so the last stage (the one that
- * ends the grant, agency-loop-revoke.spec.ts) can use it. Both files run in the same worker, one
- * after the other. If a worker restarts between them the values are simply missing and the last
- * stage falls back to the agency's clients page.
+ * What the exact-copy loop learns as it goes (agency-loop.spec.ts), kept in one module so its steps
+ * can share it. It lives in one worker only: the last stages (answer-from-records.spec.ts and
+ * agency-loop-revoke.spec.ts) run in later projects, which get fresh workers, so they must not
+ * read it and read the pages they need again instead.
  */
-export const loop: { requestPath?: string; firstCopyName?: string } = {};
+export const loop: { requestPath?: string; requestId?: string; firstCopyName?: string } = {};

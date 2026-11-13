@@ -1912,6 +1912,7 @@ export {
   setDocumentExpiry,
 } from './document-expiry';
 export type { ExpiryOrigin, ExpiryState } from './document-expiry-rules';
+export { expiryDay, expiryDayCountsAsExpired } from './document-expiry-rules';
 export { CONVERTED_FROM_HEIC_SOURCE, type RegisteredDocumentWithVersion } from './documents';
 export { type GrowUploadReservationInput, growUploadReservation } from './uploads';
 export {
@@ -3166,6 +3167,37 @@ export {
   type RequestHistoryDecision,
   listRequestHistoriesForOwner,
 } from './evidence-request-histories';
+export {
+  MAX_ANSWERS_PER_CONFIRMATION,
+  type AnswerAgencyGroup,
+  type AnswerCopy,
+  type AnswerCopyState,
+  type AnswerItem,
+  type AnswerReadiness,
+  type AnswerReceiptLine,
+  type AnswerReceiptState,
+  type AskingAgency,
+  type EvidenceAnswer,
+  type EvidenceAnswerConfirmation,
+  type EvidenceAnswerOutcome,
+  type EvidenceAnswerPlan,
+  type EvidenceAnswerReceipt,
+  confirmEvidenceAnswers,
+  listAskingAgencies,
+  planEvidenceAnswers,
+  readEvidenceAnswerReceipt,
+} from './evidence-answer-plan';
+export {
+  LEGACY_FIELD_ANSWER_LABEL,
+  type FieldAnswerHistory,
+  type FieldAnswerRound,
+  type FieldAnswerState,
+  type FieldAnswerVersion,
+  FIELD_ANSWER_MAX_REQUESTS,
+  evidenceFieldPinsPresent,
+  listFieldAnswersForOwner,
+  readEvidenceFieldAnswer,
+} from './evidence-field-answers';
 export {
   LEGACY_SEND_LABEL,
   type EvidenceSubmissionDownloadInput,

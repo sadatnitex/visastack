@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
   requests: { ok: true, value: [] } as unknown,
   documents: [] as unknown[],
   decisions: [] as unknown[],
+  /** Sends recorded without an exact copy; a send-back names its document here (the request's own pointer is cleared). */
+  legacy: [] as unknown[],
   codes: new Map<string, string>(),
   rules: new Map<string, unknown>(),
   questions: new Map<string, unknown>(),
@@ -55,7 +57,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
         id,
         {
           decisions: state.decisions,
-          sends: { available: false, submissions: [], legacy: [] },
+          sends: { available: false, submissions: [], legacy: state.legacy },
           olderSends: 0,
         },
       ]),
@@ -113,6 +115,7 @@ registerParity({
     state.requests = { ok: true, value: [] };
     state.documents = [];
     state.decisions = [];
+    state.legacy = [];
     state.codes = new Map();
     state.rules = new Map();
     state.questions = new Map();
@@ -187,8 +190,17 @@ registerParity({
       setup: () => {
         state.requests = {
           ok: true,
-          value: [{ ...base, id: 'r7', status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd7' }],
+          value: [{ ...base, id: 'r7', status: 'NEEDS_REPLACEMENT', respondingDocumentId: null }],
         };
+        state.legacy = [
+          {
+            label: 'Sent before exact copies were kept',
+            documentId: 'd7',
+            sentAt: null,
+            state: 'NEEDS_REPLACEMENT',
+            decidedAt: new Date('2026-10-21T09:00:00Z'),
+          },
+        ];
         state.documents = [
           {
             id: 'd7',
@@ -229,6 +241,7 @@ describe('evidence request levels', () => {
   const pane = (doc: Document, id: string) => doc.getElementById(`lp-pane-${id}`);
   beforeEach(() => {
     state.decisions = [];
+    state.legacy = [];
     state.codes = new Map([['r1', 'R-7K2Q9M']]);
     state.questions = new Map([
       ['r1', [{ text: 'Is a photo enough?', askedAt: new Date('2026-10-27T08:32:00Z') }]],
@@ -308,8 +321,17 @@ describe('evidence request levels', () => {
   it('keeps Upload a Clearer Copy in the panel of a request sent back', async () => {
     state.requests = {
       ok: true,
-      value: [{ ...base, id: 'r7', status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd7' }],
+      value: [{ ...base, id: 'r7', status: 'NEEDS_REPLACEMENT', respondingDocumentId: null }],
     };
+    state.legacy = [
+      {
+        label: 'Sent before exact copies were kept',
+        documentId: 'd7',
+        sentAt: null,
+        state: 'NEEDS_REPLACEMENT',
+        decidedAt: new Date('2026-10-21T09:00:00Z'),
+      },
+    ];
     state.documents = [
       {
         id: 'd7',

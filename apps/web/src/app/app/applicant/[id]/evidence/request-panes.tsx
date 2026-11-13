@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { Locale } from '@visastack/i18n';
 import {
   type DocumentSummary,
   type EvidenceRequest,
@@ -14,6 +15,7 @@ import { RequestThread } from '../../../../../components/request-thread/request-
 import { buildThread } from '../../../../../components/request-thread/thread-model';
 import { StatusPill } from '../../../../../components/ui-lift';
 import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
+import { evidenceAnswerCatalog } from '../../../../../i18n/evidence-answer';
 import { formatDateOnly } from '../../../../../lib/format-date';
 import { getServerT } from '../../../../../lib/i18n-server';
 import { formatMoment } from '../../../../../lib/save-status';
@@ -25,7 +27,8 @@ import { AWAITING_SUBMISSION, dueLabel } from './due-label';
 import type { RequestItemView } from './request-item';
 import { ANSWERED_STATUSES, requestChip, requestName } from './request-model';
 import type { RequestHistory } from './request-thread-data';
-import { buildDocumentChoices, clearerCopyTarget } from './response-choices';
+import { buildDocumentChoices, clearerCopyTarget, isCurrentCopy } from './response-choices';
+import type { SentBackRead } from './sent-back-copy';
 import { SubmitResponseForm } from './submit-response-form';
 
 /** One request as the panes need it. */
@@ -52,6 +55,13 @@ export interface RequestPanesProps {
   readonly histories: ReadonlyMap<string, RequestHistory>;
   /** The request just answered, named by the address (`done=answered`); its panel shows the receipt. */
   readonly answeredId?: string;
+  /**
+   * The name of each agency that asks, by organization id, so a request can say who asked. Left out
+   * when the names are not known: the panel then shows no such line.
+   */
+  readonly askingAgencies?: ReadonlyMap<string, string>;
+  /** The page's language, for dates in the copy notes; English when left out. */
+  readonly locale?: Locale;
 }
 
 /** How long after an answer its receipt may be drawn: it is for the visit that sent it, not for a bookmark. */
@@ -82,14 +92,119 @@ export function answerReceiptFor(
   return { respondedAt: new Date(at).toISOString(), honestLine };
 }
 
+/**
+ * What the traveller sent in answer to a detail request, round by round, newest first: the exact
+ * saved value and version, where it stands, and whether the detail has changed since. An answer
+ * sent before the exact value was kept says so in words; it is never filled in with the detail as
+ * it is now. A protected detail is named by version only.
+ */
+function FieldAnswerSent({
+  read,
+  answerT,
+  timeZone,
+}: {
+  readonly read: RequestHistory['fieldAnswer'];
+  readonly answerT: ReturnType<
+    typeof getServerT<keyof (typeof evidenceAnswerCatalog)['en'] & string>
+  >;
+  readonly timeZone: string;
+}) {
+  if (read.state === 'none') return null;
+  if (read.state === 'unread') {
+    return (
+      <p className="case-row-meta" data-testid="field-answer-sent">
+        {answerT('evidenceAnswer.fieldAnswer.unread')}
+      </p>
+    );
+  }
+  const rounds = [...read.value.rounds].reverse().slice(0, 3);
+  if (rounds.length === 0) return null;
+  const stateWord = (state: (typeof rounds)[number]['state']) =>
+    state === 'ACCEPTED'
+      ? answerT('evidenceAnswer.fieldAnswer.accepted')
+      : state === 'AWAITING_DECISION'
+        ? answerT('evidenceAnswer.fieldAnswer.waiting')
+        : state === 'WITHDRAWN'
+          ? answerT('evidenceAnswer.fieldAnswer.withdrawn')
+          : answerT('evidenceAnswer.fieldAnswer.sentBack');
+  return (
+    <div className="request-questions lc-questions" data-testid="field-answer-sent">
+      <p className="request-questions-title u-m-0">{answerT('evidenceAnswer.fieldAnswer.title')}</p>
+      <ul className="request-questions-list">
+        {rounds.map((round) => (
+          <li
+            key={round.submissionId ?? `legacy-${round.state}-${round.decidedAt?.getTime() ?? 0}`}
+          >
+            <span className="case-row-meta">{stateWord(round.state)}</span>{' '}
+            {round.version ? (
+              <span>
+                {round.version.protected
+                  ? answerT('evidenceAnswer.fieldAnswer.protected', {
+                      version: round.version.number,
+                      savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
+                    })
+                  : answerT('evidenceAnswer.fieldAnswer.pinned', {
+                      version: round.version.number,
+                      savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
+                      value: round.version.value ?? '',
+                    })}
+                {round.version.stillCurrent ? null : (
+                  <> {answerT('evidenceAnswer.fieldAnswer.changedSince')}</>
+                )}
+              </span>
+            ) : (
+              <span>{answerT('evidenceAnswer.fieldAnswer.legacy')}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The one plain line naming the copy sent back and why, or the plain admission that it is not known. */
+function sentBackNoteFor(
+  read: SentBackRead,
+  answerT: ReturnType<typeof getServerT<keyof (typeof evidenceAnswerCatalog)['en'] & string>>,
+  documents: readonly DocumentSummary[],
+  timeZone: string,
+): string | null {
+  if (read.state === 'none') return null;
+  if (read.state === 'unknown') return answerT('evidenceAnswer.sentBack.unknown');
+  const { copy } = read;
+  const named = documents.find((doc) => doc.id.toLowerCase() === copy.documentId.toLowerCase());
+  const name =
+    copy.title ??
+    named?.approvedName ??
+    named?.originalName ??
+    answerT('evidenceAnswer.sentBack.thisDocument');
+  const line =
+    copy.precision === 'exact' && copy.versionNumber !== null && copy.sentAt
+      ? answerT('evidenceAnswer.sentBack.exact', {
+          name,
+          version: copy.versionNumber,
+          date: formatMoment(copy.sentAt.toISOString(), timeZone),
+        })
+      : answerT('evidenceAnswer.sentBack.document', { name });
+  return line;
+}
+
 function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & RequestPanesProps) {
   const t = getServerT(applicantEvidenceCatalog);
+  const answerT = getServerT(evidenceAnswerCatalog);
   const { req, item } = entry;
   const { applicantId: id, timeZone, choiceBasis } = data;
   const awaitingReply = AWAITING_SUBMISSION.has(req.status);
   // The file sent could not be used: its guidance and the question box are the way forward.
   const unusableFile = !awaitingReply && item.group === 'NEEDS_CORRECTION';
   const itemName = requestName(req);
+  const history = data.histories.get(req.id);
+  // Which copy was sent back comes from the decision history: the request's own answer pointer is
+  // cleared by a send-back. If the history is missing, the page says it does not know.
+  const sentBackRead: SentBackRead =
+    history?.sentBack ??
+    (req.status === 'NEEDS_REPLACEMENT' ? { state: 'unknown' } : { state: 'none' });
+  const sentBackInfo = sentBackRead.state === 'copy' ? sentBackRead.copy : null;
   const candidateFacts =
     req.kind === 'FIELD'
       ? data.profile.filter((fact) => fact.fieldKey === req.fieldKey && fact.value !== null)
@@ -103,19 +218,31 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           everyday: choiceBasis.everyday,
           scan: choiceBasis.scan,
           timeZone,
-          sentBackDocumentId: req.status === 'NEEDS_REPLACEMENT' ? req.respondingDocumentId : null,
+          sentBackDocumentId: sentBackInfo?.documentId ?? null,
+          sentBackVersionId: sentBackInfo?.versionId ?? null,
+          locale: data.locale ?? 'en',
+          words: {
+            expires: (date) => answerT('evidenceAnswer.choices.expires', { date }),
+            expired: (date) => answerT('evidenceAnswer.choices.expired', { date }),
+            uncertain: answerT('evidenceAnswer.choices.uncertain'),
+          },
         })
       : [];
   const sentBackCopy =
     req.status === 'NEEDS_REPLACEMENT' ? clearerCopyTarget(documentChoices) : null;
-  const otherCopyUsable = documentChoices.some((choice) => choice.usable && !choice.sentBack);
+  // A copy the person can rely on: sendable, not sent back, not out of date, date not in doubt.
+  const otherCopyUsable = documentChoices.some(isCurrentCopy);
+  // Copies exist and can be sent, but every one is out of date or of an uncertain date.
+  const onlyOutdatedCopies =
+    !otherCopyUsable && documentChoices.some((choice) => choice.usable && !choice.sentBack);
+  const sentBackNote = sentBackNoteFor(sentBackRead, answerT, data.documents, timeZone);
   const due = req.dueDate ? dueLabel(req.dueDate, req.status, timeZone) : null;
   const code = data.referenceCodes.get(req.id);
+  const askedBy = data.askingAgencies?.get(req.organizationId);
   const receipt = answerReceiptFor(req, data.answeredId);
   const questions = data.extras.questions.get(req.id) ?? [];
   const canAsk = Boolean(req.missionId && code && item.group !== null);
   const chip = requestChip(item);
-  const history = data.histories.get(req.id);
   const thread = buildThread({
     viewer: 'traveller',
     request: {
@@ -132,6 +259,11 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
   return (
     <div className="lp-pane-content rt-pane">
       <h3 className="lp-pane-title">{itemName}</h3>
+      {askedBy ? (
+        <p className="case-row-meta">
+          {answerT.node('evidenceAnswer.panes.askedBy', { agency: askedBy })}
+        </p>
+      ) : null}
       <p className="lp-pane-line">
         {due ? <StatusPill tone={due.tone}>{due.label}</StatusPill> : null}
         <StatusPill tone={chip.tone}>{chip.word}</StatusPill>
@@ -171,11 +303,24 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
         </p>
       ) : null}
       <RequestThread thread={thread} viewer="traveller" timeZone={timeZone} />
+      {req.kind === 'FIELD' && history ? (
+        <FieldAnswerSent read={history.fieldAnswer} answerT={answerT} timeZone={timeZone} />
+      ) : null}
+      {awaitingReply && req.kind === 'DOCUMENT' && sentBackNote ? (
+        <p className="case-row-meta" data-testid="sent-back-note">
+          {sentBackNote}
+        </p>
+      ) : null}
+      {awaitingReply && req.kind === 'DOCUMENT' && !sentBackNote && onlyOutdatedCopies ? (
+        <p className="case-row-meta" data-testid="no-current-copy-note">
+          {answerT('evidenceAnswer.choices.noCurrent')}
+        </p>
+      ) : null}
       {item.group !== null ? (
         <SubmitResponseForm
           // A new round (the status or the answer changed) or a changed list of copies starts
           // the form afresh, with its own retry key.
-          key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${documentChoices.map((choice) => choice.documentId).join(',')}`}
+          key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${sentBackRead.state}:${sentBackInfo?.versionId ?? ''}:${documentChoices.map((choice) => `${choice.documentId}/${choice.versionId}`).join(',')}`}
           applicantId={id}
           requestId={req.id}
           kind={req.kind}
@@ -187,9 +332,10 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           documentsRead={data.documentsRead && choiceBasis.read}
           candidateFacts={candidateFacts.map((f) => ({ factId: f.factId, value: f.value ?? '' }))}
           documentChoices={documentChoices}
+          preselect={sentBackRead.state !== 'unknown'}
         />
       ) : null}
-      {awaitingReply && req.kind === 'DOCUMENT' && req.status === 'NEEDS_REPLACEMENT' ? (
+      {awaitingReply && req.kind === 'DOCUMENT' ? (
         sentBackCopy ? (
           <ClearerCopyPanel
             applicantId={id}
@@ -198,7 +344,10 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
             documentName={sentBackCopy.name}
             primary={!otherCopyUsable}
           />
-        ) : !otherCopyUsable && data.documentsRead && choiceBasis.read ? (
+        ) : !otherCopyUsable &&
+          data.documentsRead &&
+          choiceBasis.read &&
+          (req.status === 'NEEDS_REPLACEMENT' || documentChoices.length > 0) ? (
           <Link
             className="btn btn-primary evidence-add-link"
             href={`/app/applicant/${id}/documents/add`}

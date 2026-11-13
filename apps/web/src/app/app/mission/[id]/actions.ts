@@ -38,6 +38,12 @@ import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
 import { attachChecklistFor, selectableChecklists } from '../../../../lib/case-checklist-match';
 import { caseStateLabel } from '../../../../lib/case-stages';
+import {
+  CASE_HIDDEN_LINE,
+  COMPLAINT_HIDDEN_LINE,
+  ownsCase,
+  ownsComplaint,
+} from '../../../../lib/hidden-record';
 import { CHECKLISTS_NOT_LOADED } from '../../../../lib/pack-labels';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
@@ -72,6 +78,9 @@ export async function attachPackAction(
   if (packVersionId.length === 0) return { ok: false, message: 'Choose a pack to attach.' };
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     // The picker only offers checklists that fit the case; the same rule is applied here, on the
     // server, so a hand-made request cannot attach a reviewed checklist written for another route.
     const owned = await getMissionForOwner(db, accountId, missionId);
@@ -119,6 +128,9 @@ export async function transitionMissionAction(
     return { ok: false, message: 'Confirm that you want to cancel this case, then try again.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const transitioned = await transitionMission(db, { actorAccountId: accountId, missionId, to });
     if (!transitioned.ok) {
       return {
@@ -196,6 +208,9 @@ export async function snapshotMissionAction(
   const missionId = String(formData.get('missionId') ?? '');
   if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const snapshot = await snapshotMission(db, { actorAccountId: accountId, missionId });
     if (!snapshot.ok)
       return {
@@ -224,6 +239,9 @@ export async function selectEvidenceAction(
     return { ok: false, message: 'Choose an instance to select.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const selected = await selectEvidence(db, {
       actorAccountId: accountId,
       missionId,
@@ -257,6 +275,9 @@ export async function unselectEvidenceAction(
     return { ok: false, message: 'Missing selection.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const removed = await unselectEvidence(db, {
       actorAccountId: accountId,
       missionId,
@@ -294,6 +315,9 @@ export async function createTaskAction(
   }
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const task = await createTask(db, {
       actorAccountId: accountId,
       missionId,
@@ -322,6 +346,9 @@ export async function decideTaskAction(
     return { ok: false, message: 'Missing task.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const decided = await decideTask(db, { actorAccountId: accountId, missionId, taskId, status });
     if (!decided.ok)
       return { ok: false, message: await serviceErrorMessage(decided.error) } satisfies ActionState;
@@ -361,6 +388,9 @@ export async function createAppointmentAction(
   const channel = String(formData.get('channel') ?? '').trim();
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const appointment = await createAppointment(db, {
       actorAccountId: accountId,
       missionId,
@@ -394,6 +424,9 @@ export async function decideAppointmentAction(
     return { ok: false, message: 'Missing appointment.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const decided = await decideAppointment(db, {
       actorAccountId: accountId,
       missionId,
@@ -420,6 +453,9 @@ export async function setItineraryRefAction(
   const itineraryRef = String(formData.get('itineraryRef') ?? '');
   if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const updated = await setMissionItineraryRef(db, {
       actorAccountId: accountId,
       missionId,
@@ -458,6 +494,9 @@ export async function updateCaseDetailsAction(
   const manualMode = formData.get('manualMode') === 'true';
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const updated = await updateMissionCaseDetails(db, {
       actorAccountId: accountId,
       missionId,
@@ -608,6 +647,9 @@ export async function recordOutcomeAction(
   }
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'MISSION_OUTCOME', resourceId: missionId },
       `/app/mission/${missionId}`,
@@ -679,6 +721,9 @@ export async function recordSubmissionAction(
   }
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'MISSION_SUBMISSION', resourceId: missionId },
       `/app/mission/${missionId}`,
@@ -739,6 +784,9 @@ export async function fileComplaintAction(
     return { ok: false, message: 'Describe the complaint.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const filed = await fileComplaint(db, { actorAccountId: accountId, missionId, description });
     if (!filed.ok)
       return { ok: false, message: await serviceErrorMessage(filed.error) } satisfies ActionState;
@@ -759,6 +807,9 @@ export async function withdrawComplaintAction(
     return { ok: false, message: 'Missing complaint.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsComplaint(db, accountId, missionId, complaintId))) {
+      return { ok: false, message: COMPLAINT_HIDDEN_LINE } satisfies ActionState;
+    }
     const withdrawn = await withdrawOwnComplaint(db, { actorAccountId: accountId, complaintId });
     if (!withdrawn.ok)
       return {
@@ -782,6 +833,9 @@ export async function submitFeedbackAction(
     return { ok: false, message: 'Enter your feedback.' };
   }
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const submitted = await submitFeedback(db, { actorAccountId: accountId, missionId, comments });
     if (!submitted.ok)
       return {
@@ -802,6 +856,9 @@ export async function generateLetterAction(
   const missionId = String(formData.get('missionId') ?? '');
   if (missionId.length === 0) return { ok: false, message: 'Missing case.' };
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const output = await generateCoverLetter(db, { actorAccountId: accountId, missionId });
     if (!output.ok)
       return { ok: false, message: await serviceErrorMessage(output.error) } satisfies ActionState;
@@ -835,6 +892,9 @@ export async function explainReadinessGapAction(
   }
 
   const result = await withSession(async ({ db, accountId, self }) => {
+    if (!(await ownsCase(db, accountId, missionId))) {
+      return { ok: false, message: CASE_HIDDEN_LINE } satisfies ActionState;
+    }
     const mission = await getMissionForOwner(db, accountId, missionId);
     if (!mission.ok)
       return { ok: false, message: await serviceErrorMessage(mission.error) } satisfies ActionState;

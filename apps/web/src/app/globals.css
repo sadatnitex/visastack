@@ -21246,3 +21246,75 @@ body:lang(bn),
   text-transform: none;
 }
 /* end WP-P17 */
+/* WP-RT2 Answer from Your Records (12 Nov 2026): requests from agencies, second block. */
+/* The review step that answers everything one agency waits for from saved records: its groups, the rows that are not part of this step, the receipt of what was sent, and the card on the Requests page. Flat: 1px edges, no shadow, gradient or translucency; tokens only; every control is 44 px or taller through the shared choice and button classes. */
+.answer-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.answer-card-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.answer-set-form {
+  gap: var(--space-4);
+}
+.answer-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.answer-group-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  color: var(--text);
+}
+.answer-choose {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.answer-choose:last-of-type {
+  border-bottom: 0;
+}
+.answer-other-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.answer-send {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--hairline-soft);
+}
+.answers-sent-summary {
+  display: block;
+  margin: 0 0 var(--space-3);
+  color: var(--text);
+  font-size: var(--text-body);
+}
+.answers-sent-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.answers-sent-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.answers-sent-line:last-child {
+  border-bottom: 0;
+}
+/* end WP-RT2 */
