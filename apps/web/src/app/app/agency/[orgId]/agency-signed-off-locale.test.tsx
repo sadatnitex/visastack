@@ -170,16 +170,13 @@ describe('signed-off wording on the agency screens, under Bengali', () => {
     expectBengali(`${P}MissionCollaboration.expired`);
   });
 
-  it('turning the agency AI setting on asks to confirm the statement, in Bengali', async () => {
+  it('turning the agency AI setting on: a Bengali heading, the statement and its confirmation in English', async () => {
     await show(
       <AgencyAiSettingForm organizationId="o1" organizationName="Acme Visas" enabled={false} />,
     );
-    expectBengali(`${P}AgencyAiSettingForm.statement`);
-    // "I Confirm This Statement for {organizationName}", with the agency's own name.
-    const [before, after] = (
-      bn[`${P}AgencyAiSettingForm.iConfirmThisStatementForOrganizationname`] ?? ''
-    ).split('{organizationName}') as [string, string];
-    expect(host.textContent).toContain(`${before}Acme Visas${after}`);
+    expect(host.querySelector('legend')?.textContent).toBe(bn[`${P}AgencyAiSettingForm.statement`]);
+    // Left English at review: the confirmation sits beside the English statement it confirms.
+    expect(host.textContent).toContain('I Confirm This Statement for Acme Visas');
   });
 
   it('a case with someone to assign, viewed by a member not assigned to it', async () => {
@@ -340,9 +337,8 @@ describe('signed-off wording on the agency screens, under Bengali', () => {
     expectBengali(`${P}CollectionCollectionReviewForms.yourDecision`);
     expectBengali(`${P}CollectionCollectionReviewForms.addNotesForThePerson`);
     expectBengali(`${P}CollectionCollectionReviewForms.generalNote`);
-    expect(host.textContent).toContain(
-      bn[`${P}CollectionCollectionReviewForms.noteOnLabel`]?.replace('{label}', 'Passport'),
-    );
+    // Left English at review: the item label filled into it is the English checklist label.
+    expect(host.textContent).toContain('Note on Passport');
   });
 
   it('placing a legal hold asks for its reason in Bengali', async () => {

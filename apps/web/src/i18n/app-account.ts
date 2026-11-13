@@ -149,7 +149,6 @@ export const appAccountCatalog = defineCatalog({
     'appAccount.appAccountPage.signOut': 'সাইন আউট করুন',
     'appAccount.appAccountPage.signOutOfThisDevice': 'এই ডিভাইস থেকে সাইন আউট করুন।',
     'appAccount.appAccountPage.signedIn': 'সাইন ইন করা আছে',
-    'appAccount.appAccountPage.whatsapp': 'WhatsApp',
     'appAccount.appAccountPage.yourAccount': 'আপনার অ্যাকাউন্ট',
     'appAccount.appAccountPage.yourPlanWhatItIncludesAnd':
       'আপনার প্ল্যান, তাতে কী আছে এবং আপনি তার কতটা ব্যবহার করেছেন।',

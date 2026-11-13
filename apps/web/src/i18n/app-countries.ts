@@ -55,7 +55,6 @@ export const appCountriesCatalog = defineCatalog({
     'appCountries.appCountriesCountryView.needsChecking': 'দেখে নেওয়া দরকার',
     'appCountries.appCountriesCountryView.notYetResearched': 'এখনো তথ্য খোঁজা হয়নি',
     'appCountries.appCountriesCountryView.officialReportingPage': 'অফিসিয়াল রিপোর্টিং পাতা',
-    'appCountries.appCountriesCountryView.onlyWhenOnlywhen': 'শুধু যখন: {onlyWhen}',
     'appCountries.appCountriesCountryView.optional': '(ঐচ্ছিক)',
     'appCountries.appCountriesCountryView.passport': 'পাসপোর্ট',
     'appCountries.appCountriesCountryView.reportAScam': 'প্রতারণার খবর দিন',

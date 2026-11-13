@@ -81,12 +81,7 @@ describe('country pages under Bengali', () => {
   });
 
   it('leaves no raw placeholder in any Bengali string', () => {
-    for (const [key, text] of Object.entries(bn)) {
-      // A named value such as {onlyWhen} is filled at render time; it must match the English one.
-      const names = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join();
-      expect(names(text), key).toBe(names(en[key] ?? ''));
-      expect(text, key).not.toMatch(/\{[^}\w]|[^\w]\}/);
-    }
+    for (const [key, text] of Object.entries(bn)) expect(text, key).not.toMatch(/\{[^}]*\}/);
   });
 });
 

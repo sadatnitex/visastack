@@ -159,10 +159,9 @@ describe('the Document Requests list under Bengali', () => {
     const text = await list('bn');
     expect(text).toContain(bn[k('CollectionCollectionForms.notSureYet')]);
     expect(text).toContain('২টি গ্রহণ করা হয়েছে');
-    // The review and correction counts are Bengali too, with Bengali digits.
-    expect(text).toContain('২টি পর্যালোচনার অপেক্ষায়');
-    expect(text).toContain('১টি সংশোধন দরকার');
-    expect(text).not.toContain('2 Waiting for Review');
+    // Left English at review: the review and correction counts sit beside the English answer total.
+    expect(text).toContain('2 Waiting for Review');
+    expect(text).toContain('1 Needs Correction');
     expect(text).not.toMatch(/appAgency\./);
   });
 

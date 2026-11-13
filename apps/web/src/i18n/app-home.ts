@@ -246,7 +246,6 @@ export const appHomeCatalog = defineCatalog({
     'appHome.appWorkspaceRecordToolbar.searchResults': 'খোঁজের ফলাফল',
     'appHome.appWorkspaceRecordToolbar.searching': 'খোঁজা হচ্ছে...',
     'appHome.appWorkspaceRecordToolbar.typeAtLeastTwoCharacters': 'কমপক্ষে দুটি অক্ষর লিখুন।',
-    'appHome.appWorkspaceRecordToolbar.visastack': 'VisaStack',
     'appHome.appWorkspaceRecordToolbar.visastackHome': 'VisaStack হোম',
     'appHome.appWorkspaceShell.accountOverview': 'অ্যাকাউন্টের সারসংক্ষেপ',
     'appHome.appWorkspaceShell.agencies': 'এজেন্সি',

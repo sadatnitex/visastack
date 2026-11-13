@@ -16,8 +16,9 @@ vi.mock('react', async (importOriginal) => ({
 }));
 
 /**
- * Plan, Usage and Invoices are payment and AI wording, which waits for the owner sign-off. Under
- * Bengali these screens must read exactly as they do in English, in every state, with no raw keys.
+ * Plan, Usage and Invoices under Bengali: the owner signed off the payment and AI wording
+ * (2026-11-12), so every message with a register draft shows in Bengali, in every state, with no
+ * raw keys. Amounts and billing dates keep the English form their helpers write.
  */
 
 const ORG = '11111111-2222-4333-8444-555555555555';
@@ -339,6 +340,18 @@ describe('Invoices under Bengali', () => {
     expect(en).toContain('Kept After Refunds');
     for (const k of ['keptAfterRefunds', 'refunded']) expect(bn, k).toContain(card(k));
     expect(bn).not.toContain('Kept After Refunds');
+  });
+
+  it.each([
+    ['open and owed', invoice()],
+    ['overdue', invoice({ dueDate: new Date(Date.now() - 2 * DAY) })],
+  ])('shows the invoice card in Bengali when it is %s', async (_name, view) => {
+    const { en, bn } = await drawCard(view);
+    expect(en).toContain('Invoiced');
+    expect(bn).toContain(card('invoiced'));
+    expect(bn).toContain('INV-2026-001');
+    expect(bn).not.toContain('Invoiced');
+    expect(bn).not.toMatch(/appAgency\./);
   });
 
   it('names the payment sections in Bengali for screen readers', async () => {

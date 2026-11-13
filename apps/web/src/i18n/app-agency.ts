@@ -780,8 +780,6 @@ export const appAgencyCatalog = defineCatalog({
       'আপনি যেসব ভিসা ফাইলে অ্যাক্সেস পান, সেগুলোর সাম্প্রতিক নোট। এটি ভিসা ফাইলের কার্যকলাপ, প্রতিষ্ঠানের সম্পূর্ণ অডিট লগ নয়।',
     'appAgency.appAgencyOrgidActivityPage.showingNotesFromTheTenMost':
       'সম্প্রতি হালনাগাদ হওয়া দশটি অ্যাক্সেসযোগ্য ভিসা ফাইলের নোট দেখানো হচ্ছে। পুরো ইতিহাস দেখতে ভিসা ফাইল খুলুন।',
-    'appAgency.appAgencyOrgidAgencyAiSettingForm.iConfirmThisStatementForOrganizationname':
-      '{organizationName}-এর পক্ষে আমি এই বিবৃতি নিশ্চিত করছি',
     'appAgency.appAgencyOrgidAgencyAiSettingForm.statement': 'বিবৃতি',
     'appAgency.appAgencyOrgidAgencyAiTurnOff.ended': 'শেষ হয়েছে',
     'appAgency.appAgencyOrgidAiConnectionsPage.aiConnections': 'এআই সংযোগ',
@@ -791,7 +789,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase':
       'প্রতিটি অ্যাপ, তার নিজের মালিক বা অ্যাডমিন যে ভিসা ফাইলগুলো দেখতে পারেন তার প্রতিটির ক্ষেত্রে, শুধু সেটুকুই পড়ে, যা ওই ভিসা ফাইলের ভ্রমণকারী এই এজেন্সির এআই টুলকে পড়তে দিয়েছেন। এটি সর্বোচ্চ ৩০ দিন কাজ করে।',
     'appAgency.appAgencyOrgidAiConnectionsPage.noAiAppsConnected': 'কোনো এআই অ্যাপ সংযুক্ত নেই',
-    'appAgency.appAgencyOrgidBrandingForm.087a68': '#087a68',
     'appAgency.appAgencyOrgidBrandingForm.accentColour': 'অ্যাকসেন্ট রং',
     'appAgency.appAgencyOrgidBrandingForm.accentColourAsASixDigit': 'ছয় অঙ্কের কোডে অ্যাকসেন্ট রং',
     'appAgency.appAgencyOrgidBrandingForm.agencyName': 'এজেন্সির নাম',
@@ -861,7 +858,6 @@ export const appAgencyCatalog = defineCatalog({
       'আপনার এজেন্সির ভিসা ফাইলগুলোতে এই সংস্করণটি দেওয়া হচ্ছে। বদলাতে চাইলে একটি খসড়া খুলুন।',
     'appAgency.appAgencyOrgidChecklistsEditPage.draftVersionVersion': 'খসড়া, সংস্করণ {version}',
     'appAgency.appAgencyOrgidChecklistsEditPage.finish': 'শেষ করুন',
-    'appAgency.appAgencyOrgidChecklistsEditPage.forInterpretation': 'যে ক্ষেত্রে: {interpretation}',
     'appAgency.appAgencyOrgidChecklistsEditPage.items': 'আইটেম',
     'appAgency.appAgencyOrgidChecklistsEditPage.ourList': 'আমাদের তালিকা',
     'appAgency.appAgencyOrgidChecklistsEditPage.publishedVersionVersion':
@@ -942,13 +938,11 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidCollectionCollectionForms.forYourOwnReferenceOnlyNothing':
       'শুধু আপনার নিজের রেফারেন্সের জন্য। লিংক খুললে কেউ এখানকার কিছু দেখতে পাবেন না।',
     'appAgency.appAgencyOrgidCollectionCollectionForms.howNecessary': 'কতটা দরকার',
-    'appAgency.appAgencyOrgidCollectionCollectionForms.howNecessaryLabel': 'কতটা দরকার: {label}',
     'appAgency.appAgencyOrgidCollectionCollectionForms.itemYourAgencyNeeds':
       'আপনার এজেন্সির দরকারি আইটেম',
     'appAgency.appAgencyOrgidCollectionCollectionForms.name': 'নাম',
     'appAgency.appAgencyOrgidCollectionCollectionForms.nationality': 'জাতীয়তা',
     'appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet': 'এখনো নিশ্চিত নই',
-    'appAgency.appAgencyOrgidCollectionCollectionForms.noteLabel': 'নোট: {label}',
     'appAgency.appAgencyOrgidCollectionCollectionForms.noteToThePersonOptional':
       'ব্যক্তির জন্য নোট (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.purpose': 'উদ্দেশ্য',
@@ -999,7 +993,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidCollectionCollectionReviewForms.addNotesForThePerson':
       'ব্যক্তির জন্য নোট যোগ করুন',
     'appAgency.appAgencyOrgidCollectionCollectionReviewForms.generalNote': 'সাধারণ নোট',
-    'appAgency.appAgencyOrgidCollectionCollectionReviewForms.noteOnLabel': '{label} নিয়ে নোট',
     'appAgency.appAgencyOrgidCollectionCollectionReviewForms.reasonForTheHold': 'আইনি হোল্ডের কারণ',
     'appAgency.appAgencyOrgidCollectionCollectionReviewForms.yourDecision': 'আপনার সিদ্ধান্ত',
     'appAgency.appAgencyOrgidCollectionNewPage.documentRequests': 'ডকুমেন্টের অনুরোধ',
@@ -1014,8 +1007,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidCollectionPage.for': 'জন্য:',
     'appAgency.appAgencyOrgidCollectionPage.forPeopleWhoAreNotYour':
       'যাঁরা এখনো আপনার ক্লায়েন্ট নন, তাঁদের জন্য। তাঁরা উত্তর দেওয়ার সিদ্ধান্ত না নেওয়া পর্যন্ত কিছুই শেয়ার করা হয় না।',
-    'appAgency.appAgencyOrgidCollectionPage.needscorrectionNeedsCorrection':
-      '{needsCorrection}টি সংশোধন দরকার',
     'appAgency.appAgencyOrgidCollectionPage.newRequest': 'নতুন অনুরোধ',
     'appAgency.appAgencyOrgidCollectionPage.noAnswersYet': 'এখনো কোনো উত্তর নেই',
     'appAgency.appAgencyOrgidCollectionPage.noDocumentRequestsYet': 'এখনো কোনো ডকুমেন্টের অনুরোধ নেই',
@@ -1031,7 +1022,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidCollectionPage.startOneWithNewRequestYou':
       'নতুন অনুরোধ দিয়ে শুরু করুন। আপনি এটি ব্যক্তিগত লিংক হিসেবে বা ইমেইলে ইস্যু করতে পারবেন।',
     'appAgency.appAgencyOrgidCollectionPage.status': 'অবস্থা',
-    'appAgency.appAgencyOrgidCollectionPage.waitingWaitingForReview': '{waiting}টি পর্যালোচনার অপেক্ষায়',
     'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.suggestAChecklistCorrection':
       'চেকলিস্টে সংশোধনের প্রস্তাব দিন',
     'appAgency.appAgencyOrgidCollectionRequestPage.aboutThisRequest': 'এই অনুরোধ সম্পর্কে',
@@ -1099,7 +1089,6 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidEvidenceCopies.earlierSendsEarliercount': 'আগে পাঠানো ({earlierCount})',
     'appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted':
       'পাওয়া গেছে মানে গ্রহণ করা হয়েছে, এমন নয়।',
-    'appAgency.appAgencyOrgidEvidenceCopies.sendRoundnoTitle': 'পাঠানো {roundNo}: {title}',
     'appAgency.appAgencyOrgidEvidenceCopies.sendTimeNotKept': 'পাঠানোর সময় রাখা হয়নি',
     'appAgency.appAgencyOrgidEvidenceCopies.thisCopyCannotBeOpenedFrom':
       'এই কপিটি এখন এখান থেকে খোলা যাচ্ছে না। হয়তো এটি এখনো পরীক্ষা করা হচ্ছে, অথবা অ্যাক্সেস শেষ হয়ে থাকতে পারে।',
@@ -1120,7 +1109,6 @@ export const appAgencyCatalog = defineCatalog({
       '“{trim}”-এর সঙ্গে কিছু মেলেনি। তালিকায় নেই? অন্য ডকুমেন্ট বেছে নিন এবং মেসেজে ব্যাখ্যা করুন।',
     'appAgency.appAgencyOrgidEvidencePicker.onlyTheFirstMaxAskItems':
       'শুধু প্রথম {MAX_ASK_ITEMS}টিতে টিক দেওয়া আছে। এগুলো পাঠান, তারপর বাকিগুলো চান।',
-    'appAgency.appAgencyOrgidEvidencePicker.pickedSelected': ', {picked}টি বেছে নেওয়া হয়েছে',
     'appAgency.appAgencyOrgidEvidencePicker.searchDocumentsAndDetails': 'ডকুমেন্ট ও তথ্য খুঁজুন',
     'appAgency.appAgencyOrgidEvidencePicker.theTravellerNeedsOnlyOneOf':
       'ভ্রমণকারীর এগুলোর মধ্যে শুধু একটি দিলেই চলবে।',

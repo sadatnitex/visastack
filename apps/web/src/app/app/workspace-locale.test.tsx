@@ -295,6 +295,10 @@ describe('the record search and account menu under Bengali', () => {
       />,
     );
     expectBengali(['appAccountMenu.account'], true);
+    // The phone-width name itself is the fallback word, not a longer label that contains it.
+    expect(container.querySelector('.account-name-mobile')?.textContent).toBe(
+      v('appAccountMenu.account'),
+    );
   });
 });
 
@@ -307,6 +311,10 @@ describe('the workspace list under Bengali', () => {
       </WorkspaceShell>,
     );
     expectBengali(['appWorkspaceShell.agencies'], true);
+    // The heading itself, not a longer caption that contains the same word.
+    expect([...container.querySelectorAll('p')].map((p) => p.textContent)).toContain(
+      v('appWorkspaceShell.agencies'),
+    );
     act(() => root.unmount());
     root = createRoot(container);
     route.pathname = '/app/admin';

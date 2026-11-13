@@ -135,7 +135,7 @@ Not listed row by row:
 
 ## Left English at review in the refill pull requests
 
-Values the refill would place, left in English because the sentence would carry English text inside Bengali, or because a button's spoken name would differ in language from its visible text. The HOLDBACK map was not changed (owner instruction). A later refill run would fill these again, so each needs a decision: a holdback entry with its content reason, or a fix at the call site (then refill).
+Values the refill would place (34 in the first refill pull request), left in English because the sentence would carry English text inside Bengali, or because a button's spoken name would differ in language from its visible text. The HOLDBACK map was not changed (owner instruction). A later refill run would fill these again, so each needs a decision: a holdback entry with its content reason, or a fix at the call site (then refill).
 
 | Surface | Key | English | Why it stays English |
 | --- | --- | --- | --- |
@@ -160,3 +160,16 @@ Values the refill would place, left in English because the sentence would carry 
 | app-agency | `appAgency.appAgencyOrgidEvidencePicker.missingForThisCase` | Missing for This Case | The section name; its visible heading button "Missing for This Case" is an English literal. |
 | app-home | `appHome.appFirstRun.seeYourCountrynameChecklist` | See Your {countryName} Checklist | The country name comes from an English-only list. |
 | app-home | `appHome.appWorkspaceShell.nameCaptionSwitchWorkspace` | {name}, {caption}, Switch Workspace | `caption` is an English workspace caption (for example "Agency Workspace"). |
+| app-account | `appAccount.appAccountPage.whatsapp` | WhatsApp | The draft is the English brand name unchanged; filling it would mark an English word as Bengali. |
+| app-agency | `appAgency.appAgencyOrgidBrandingForm.087a68` | #087a68 | A colour code; the draft is the same text. |
+| app-home | `appHome.appWorkspaceRecordToolbar.visastack` | VisaStack | The product name; the draft is the same text. |
+| app-agency | `appAgency.appAgencyOrgidCollectionCollectionForms.noteLabel` | Note: {label} | `label` is the English checklist item label, and the Save Note button beside it stays English. |
+| app-agency | `appAgency.appAgencyOrgidCollectionCollectionForms.howNecessaryLabel` | How Necessary: {label} | Same: English checklist item label inside the sentence. |
+| app-agency | `appAgency.appAgencyOrgidCollectionCollectionReviewForms.noteOnLabel` | Note on {label} | Same: English checklist item label inside the sentence. |
+| app-agency | `appAgency.appAgencyOrgidChecklistsEditPage.forInterpretation` | For: {interpretation} | `interpretation` is English checklist text. |
+| app-agency | `appAgency.appAgencyOrgidEvidencePicker.pickedSelected` | , {picked} selected | Joined onto the English "{length} of {length2}" in one button name, which would mix languages and digit systems. |
+| app-agency | `appAgency.appAgencyOrgidCollectionPage.waitingWaitingForReview` | {waiting} Waiting for Review | Sits beside the English answer total and the English "Waiting for Review" filter (that key maps to two register groups). |
+| app-agency | `appAgency.appAgencyOrgidCollectionPage.needscorrectionNeedsCorrection` | {needsCorrection} Needs Correction | Same row as above. |
+| app-agency | `appAgency.appAgencyOrgidAgencyAiSettingForm.iConfirmThisStatementForOrganizationname` | I Confirm This Statement for {organizationName} | It confirms the English AI statement (`agencyAiStatement` in lib/agency-ai.ts) beside the English Turn On button; the confirmation and what it confirms stay in one language. |
+| app-agency | `appAgency.appAgencyOrgidEvidenceCopies.sendRoundnoTitle` | Send {roundNo}: {title} | The rest of the earlier-send card (status pill, "Sent ... Decided ..." line) is English. |
+| app-countries | `appCountries.appCountriesCountryView.onlyWhenOnlywhen` | Only when: {onlyWhen} | `onlyWhen` is English official visa rule text. |
