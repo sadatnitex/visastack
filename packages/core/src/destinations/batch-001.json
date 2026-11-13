@@ -57,7 +57,7 @@
         "where": "Nonimmigrant Visas main notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "MRV fee amount not stated on this embassy page (NOT_FOUND)."
+        "note": "MRV fee amount not stated on this embassy page (NOT_FOUND). Correction C01 (grade A, https://bd.usembassy.gov/visas/, checked 2026-11-13): the B1/B2 visa bond is now up to USD 20,000, paid before the visa is issued and only when the consular officer says so. The copied words below are from 2026-10-14 and say USD 15,000."
       }
     },
     {
@@ -389,7 +389,7 @@
         "where": "1. General Information on eVISA",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Permissible stay is 30 days per entry; exact fee requires login to eVISA portal (NOT_FOUND on public terms page)."
+        "note": "Permissible stay is 30 days per entry; exact fee requires login to eVISA portal (NOT_FOUND on public terms page). Correction C08 (grade A, https://malaysiavisa.imi.gov.my/terms-and-conditions/, checked 2026-11-13): Visa-free social visits apply only to Indian nationals (to 31 Dec 2026) and Myanmar nationals (14 days); Bangladeshis need an eVISA, valid for a single journey within 6 months of issue; apply at least 14 days before travel; approval in 2 to 7 working days."
       }
     },
     {
@@ -448,7 +448,7 @@
         "where": "Visa Requirements for Bangladesh",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Applications submitted via a local contact in Singapore (SAVE) or an authorised visa agent in Dhaka."
+        "note": "Applications submitted via a local contact in Singapore (SAVE) or an authorised visa agent in Dhaka. Correction C02 (grade A, https://dhaka.mfa.gov.sg/consular-services/visa-information/visa-application/, checked 2026-11-13): Online through one of the Singapore High Commission authorised visa agents in Dhaka (22 listed); fee is the BDT equivalent of SGD 30 plus the agent charge; processing at least 5 working days. The sheet has no agent value for how to apply, so it stays APPLICATION_CENTRE."
       }
     },
     {
@@ -3106,7 +3106,7 @@
         "where": "Embassy of Sweden Dhaka notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Finland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
+        "note": "Embassy of Sweden in Dhaka represents Finland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90. Correction C07 (grade A, https://www.swedenabroad.se/en/about-sweden-non-swedish-citizens/bangladesh/going-to-sweden/visiting-sweden/how-to-apply/, checked 2026-11-13): Sweden represents these countries in Dhaka; VFS Global Dhaka collects applications. From 15 Oct 2026 the Swedish embassy no longer decides on Schengen visas (who decides is not stated on the page). The apply link is a representation page, not an error."
       }
     },
     {
@@ -3261,7 +3261,7 @@
         "where": "Embassy of Sweden Dhaka notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Iceland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
+        "note": "Embassy of Sweden in Dhaka represents Iceland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90. Correction C07 (grade A, https://www.swedenabroad.se/en/about-sweden-non-swedish-citizens/bangladesh/going-to-sweden/visiting-sweden/how-to-apply/, checked 2026-11-13): Sweden represents these countries in Dhaka; VFS Global Dhaka collects applications. From 15 Oct 2026 the Swedish embassy no longer decides on Schengen visas (who decides is not stated on the page). The apply link is a representation page, not an error."
       }
     },
     {
@@ -3323,7 +3323,7 @@
         "where": "Embassy of Sweden Dhaka notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Latvia for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
+        "note": "Embassy of Sweden in Dhaka represents Latvia for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90. Correction C07 (grade A, https://www.swedenabroad.se/en/about-sweden-non-swedish-citizens/bangladesh/going-to-sweden/visiting-sweden/how-to-apply/, checked 2026-11-13): Sweden represents these countries in Dhaka; VFS Global Dhaka collects applications. From 15 Oct 2026 the Swedish embassy no longer decides on Schengen visas (who decides is not stated on the page). The apply link is a representation page, not an error."
       }
     },
     {
@@ -3416,7 +3416,7 @@
         "where": "Embassy of Sweden Dhaka notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Luxembourg for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
+        "note": "Embassy of Sweden in Dhaka represents Luxembourg for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90. Correction C07 (grade A, https://www.swedenabroad.se/en/about-sweden-non-swedish-citizens/bangladesh/going-to-sweden/visiting-sweden/how-to-apply/, checked 2026-11-13): Sweden represents these countries in Dhaka; VFS Global Dhaka collects applications. From 15 Oct 2026 the Swedish embassy no longer decides on Schengen visas (who decides is not stated on the page). The apply link is a representation page, not an error."
       }
     },
     {
@@ -3459,7 +3459,7 @@
       "stayPeriodRule": "in any 180-day period",
       "passportValidityRule": "The passport's expiry date should be at least 3 months after the date of your departure from the Schengen area.",
       "howToApply": "APPLICATION_CENTRE",
-      "applyUrl": "https://www.swedenabroad.se/en/embassies/bangladesh-dhaka/current/news/make-sure-to-apply-for-a-schengen-visa-at-the-correct-embassy/",
+      "applyUrl": "https://www.vfsglobal.com/one-pager/netherlands/bangladesh/english/index.html",
       "bangladeshLocation": "Dhaka",
       "fee": {
         "amount": 90,
@@ -3467,18 +3467,18 @@
       },
       "routeTypes": ["visit", "study", "work", "family", "transit", "business"],
       "source": {
-        "url": "https://www.swedenabroad.se/en/embassies/bangladesh-dhaka/current/news/make-sure-to-apply-for-a-schengen-visa-at-the-correct-embassy/",
-        "title": "Make sure to apply for a Schengen visa at the correct Embassy - Sweden Abroad",
-        "publisher": "Embassy of Sweden in Dhaka",
-        "type": "embassy",
+        "url": "https://www.vfsglobal.com/one-pager/netherlands/bangladesh/english/index.html",
+        "title": null,
+        "publisher": "VFS Global",
+        "type": "visa application centre",
         "language": "English",
-        "checkedOn": "2026-10-14",
-        "exactWords": "Only apply if the main destination is Belgium, Finland, Iceland, Latvia, Luxemburg, the Netherlands, Poland, Slovenia, or Sweden.",
+        "checkedOn": "2026-11-13",
+        "exactWords": null,
         "translation": null,
-        "where": "Embassy of Sweden Dhaka notice",
+        "where": null,
         "confidence": "HIGH",
-        "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Netherlands for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
+        "needsCheck": true,
+        "note": "Correction C05 (grade A, https://www.vfsglobal.com/one-pager/netherlands/bangladesh/english/index.html, checked 2026-11-13): VFS Global Dhaka; the Dutch embassy takes no short-stay applications. Channel is the application centre in Dhaka. The exact sentence was not copied from that page, so the copied words are empty and the row needs a check. The earlier source was the Swedish embassy news page in Dhaka read on 2026-10-14."
       }
     },
     {
@@ -3521,7 +3521,7 @@
       "stayPeriodRule": "in any 180-day period",
       "passportValidityRule": "The passport's expiry date should be at least 3 months after the date of your departure from the Schengen area.",
       "howToApply": "APPLICATION_CENTRE",
-      "applyUrl": "https://www.swedenabroad.se/en/embassies/bangladesh-dhaka/current/news/make-sure-to-apply-for-a-schengen-visa-at-the-correct-embassy/",
+      "applyUrl": "https://www.gov.pl/web/india/schengen-visa-for-citizens-of-bangladesh3",
       "bangladeshLocation": "Dhaka",
       "fee": {
         "amount": 90,
@@ -3540,7 +3540,7 @@
         "where": "Embassy of Sweden Dhaka notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Poland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
+        "note": "Embassy of Sweden in Dhaka represents Poland for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90. Correction C06 (grade A, https://www.gov.pl/web/india/schengen-visa-for-citizens-of-bangladesh3, checked 2026-11-13): Netherlands Embassy in Dhaka represents Poland from 1 May 2026 (Polish government page dated 2026-05-01); Dutch short-stay channel is VFS Global Dhaka; Polish national D visa is separate."
       }
     },
     {
@@ -3664,7 +3664,7 @@
         "where": "Embassy of Sweden Dhaka notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Embassy of Sweden in Dhaka represents Slovenia for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90."
+        "note": "Embassy of Sweden in Dhaka represents Slovenia for short-stay Schengen visas via VFS Global Dhaka; statutory fee EUR 90. Correction C07 (grade A, https://www.swedenabroad.se/en/about-sweden-non-swedish-citizens/bangladesh/going-to-sweden/visiting-sweden/how-to-apply/, checked 2026-11-13): Sweden represents these countries in Dhaka; VFS Global Dhaka collects applications. From 15 Oct 2026 the Swedish embassy no longer decides on Schengen visas (who decides is not stated on the page). The apply link is a representation page, not an error."
       }
     },
     {
@@ -3695,7 +3695,7 @@
         "where": "Article 3(1); Bangladesh is named in the list in Annex I",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": "Submission location: Dhaka (BLS International). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence."
+        "note": "Submission location: Dhaka (BLS International). Adult Schengen short-stay fee is EUR 90 per EC DG HOME. Checked on 2026-10-15: Article 3(1) and Annex I (which names Bangladesh) are on the cited page. The 90 days in any 180 days is the general short-stay rule, not part of this sentence. Correction C03 (grade A, https://bgd.blsspainvisa.com/contact.php, checked 2026-11-13): application centre: BLS Solutions (Pvt.) Limited, Concord Niharika Tower, Plot-138, Level-2, Road-04, Block-C, Banani, Dhaka-1213. The Spain checklist PDFs are undated and old."
       }
     },
     {
@@ -3948,24 +3948,27 @@
       "maximumStayDays": null,
       "stayPeriodRule": null,
       "passportValidityRule": null,
-      "howToApply": "EMBASSY",
+      "howToApply": "APPLICATION_CENTRE",
       "applyUrl": "https://overseas.mofa.go.kr/bd-en/wpge/m_2124/contents.do",
-      "bangladeshLocation": null,
-      "fee": null,
+      "bangladeshLocation": "Dhaka",
+      "fee": {
+        "amount": 40,
+        "currency": "USD"
+      },
       "routeTypes": [],
       "source": {
-        "url": "https://www.visago.dev/visa/south-korea/from-bangladesh/",
-        "title": "South Korea Visa Requirements for Bangladeshi Citizens",
-        "publisher": "VisaGo",
-        "type": "other",
+        "url": "https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14",
+        "title": null,
+        "publisher": null,
+        "type": "embassy",
         "language": "English",
-        "checkedOn": "2026-10-14",
+        "checkedOn": "2026-11-13",
         "exactWords": null,
         "translation": null,
         "where": "Summary of a web search; wording not copied",
         "confidence": "LOW",
         "needsCheck": true,
-        "note": "Not from an official page. Read from web-search summaries of visa-information sites that mostly agree on this point; some sites disagree. Fee, stay and passport rule left empty because the sources conflict. Check on the official site before relying on it."
+        "note": "Correction C04 (grade A, https://overseas.mofa.go.kr/bd-en/brd/m_23302/view.do?seq=14, checked 2026-11-13): Korea Visa Application Center (VFS) Dhaka since 2026-09-02; embassy keeps diplomatic and official visas; fee USD 40 single under 90 days, USD 70 double, USD 90 multiple, USD 60 single over 90 days (student), plus VFS service fee BDT 2,150. Fee 40 USD is the single-entry visa under 90 days. The exact sentence was not copied, so the copied words stay empty and the row stays low confidence and flagged for a check. Entry status was earlier read from visa-information sites, not this page."
       }
     },
     {
@@ -3973,27 +3976,30 @@
       "iso2": "VN",
       "researched": true,
       "entryStatus": "E_VISA",
-      "maximumStayDays": null,
+      "maximumStayDays": 90,
       "stayPeriodRule": null,
       "passportValidityRule": null,
       "howToApply": "E_VISA_PORTAL",
       "applyUrl": "https://evisa.gov.vn/",
       "bangladeshLocation": null,
-      "fee": null,
+      "fee": {
+        "amount": 25,
+        "currency": "USD"
+      },
       "routeTypes": [],
       "source": {
-        "url": "https://www.visarequirements.info/countries/bangladesh/viet-nam/",
-        "title": "Vietnam visa requirements for Bangladeshi citizens in 2026",
-        "publisher": "visarequirements.info",
-        "type": "other",
+        "url": "https://evisa.gov.vn/",
+        "title": null,
+        "publisher": null,
+        "type": "government",
         "language": "English",
-        "checkedOn": "2026-10-14",
+        "checkedOn": "2026-11-13",
         "exactWords": null,
         "translation": null,
         "where": "Summary of a web search; wording not copied",
         "confidence": "LOW",
         "needsCheck": true,
-        "note": "Not from an official page. Read from web-search summaries of visa-information sites that mostly agree on this point; some sites disagree. Fee, stay and passport rule left empty because the sources conflict. Check on the official site before relying on it."
+        "note": "Correction C11 (grade A, https://evisa.gov.vn/, checked 2026-11-13): USD 25 single entry, USD 50 multiple entry, valid up to 90 days, apply on the official portal. Fee 25 USD is the single-entry e-visa. The exact sentence was not copied, so the copied words stay empty and the row stays low confidence and flagged for a check."
       }
     },
     {
@@ -4049,7 +4055,7 @@
         "where": "Summary of a web search; wording not copied",
         "confidence": "LOW",
         "needsCheck": true,
-        "note": "Not from an official page. Read from web-search summaries of visa-information sites that mostly agree on this point; some sites disagree. Fee, stay and passport rule left empty because the sources conflict. Check on the official site before relying on it."
+        "note": "Not from an official page. Read from web-search summaries of visa-information sites that mostly agree on this point; some sites disagree. Fee, stay and passport rule left empty because the sources conflict. Check on the official site before relying on it. Correction C12 (grade A, https://www.evisa.gov.bh/list-of-onarrival-visa-country.html, checked 2026-11-13): Bangladesh is not on the official visa-on-arrival list; online eVisa eligibility could not be read (list loads dynamically). The e-visa status in this row stays unconfirmed (low confidence, needs check) and is not backed by that page. Do not claim visa on arrival."
       }
     },
     {
@@ -4873,7 +4879,7 @@
       "name": "Visitor Visa (Business / Tourism)",
       "code": "B1/B2",
       "purpose": "visit",
-      "description": "Allows Bangladeshi nationals to travel to the United States temporarily for business (B-1) or tourism/medical treatment (B-2). Starting January 21, 2026, eligible Bangladeshi applicants must post a bond of up to USD 15,000.",
+      "description": "Allows Bangladeshi nationals to travel to the United States temporarily for business (B-1) or tourism/medical treatment (B-2). Starting January 21, 2026, eligible Bangladeshi applicants must post a bond of up to USD 20,000.",
       "appliesTo": "Bangladesh",
       "appliesFrom": "Bangladesh",
       "rulesTakeEffectOn": "2026-01-21",
@@ -4893,7 +4899,7 @@
         "where": "Nonimmigrant Visas main notice",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": null
+        "note": "Correction C01 (grade A, https://bd.usembassy.gov/visas/, checked 2026-11-13): the bond is up to USD 20,000. The copied words below are from the earlier reading on 2026-10-14 and still say USD 15,000."
       },
       "requirements": [
         {
@@ -4982,23 +4988,23 @@
         },
         {
           "kind": "DETAIL",
-          "text": "Visa bond of up to USD 15,000 for eligible Bangladeshi B1/B2 applicants",
+          "text": "Visa bond of up to USD 20,000 for eligible Bangladeshi B1/B2 applicants",
           "optional": false,
           "onlyWhen": "When found otherwise eligible for a B1/B2 visa on or after January 21, 2026",
           "maxAgeDays": null,
           "source": {
-            "url": "https://bd.usembassy.gov/nonimmigrant-visas/",
-            "title": "Nonimmigrant Visas - U.S. Embassy in Bangladesh",
+            "url": "https://bd.usembassy.gov/visas/",
+            "title": null,
             "publisher": "U.S. Embassy in Bangladesh",
             "type": "embassy",
             "language": "English",
-            "checkedOn": "2026-10-14",
-            "exactWords": "Starting January 21, 2026, nationals of Bangladesh who are found otherwise eligible for a B1/B2 visa must post a bond of up to $15,000.",
+            "checkedOn": "2026-11-13",
+            "exactWords": null,
             "translation": null,
-            "where": "Nonimmigrant Visas main notice",
+            "where": null,
             "confidence": "HIGH",
-            "needsCheck": false,
-            "note": null
+            "needsCheck": true,
+            "note": "Correction C01 (grade A, https://bd.usembassy.gov/visas/, checked 2026-11-13): Up to USD 20,000 before the visa is issued, regardless of place of application; pay only on the site the consular officer names, after being told to. The exact sentence was not copied from that page, so the copied words are empty and the row needs a check. The earlier figure of USD 15,000 came from https://bd.usembassy.gov/nonimmigrant-visas/ read on 2026-10-14."
           }
         }
       ]
@@ -6605,8 +6611,8 @@
         "amount": 30,
         "currency": "SGD"
       },
-      "channelName": "ICA SAVE / Authorised Visa Agent Dhaka",
-      "channelUrl": "https://www.ica.gov.sg/enter-transit-depart/entering-singapore/visa_requirements/visa-detail-page/bangladesh",
+      "channelName": "Singapore High Commission authorised visa agents in Dhaka (online)",
+      "channelUrl": "https://dhaka.mfa.gov.sg/consular-services/visa-information/visa-application/",
       "fraudReportingUrl": null,
       "source": {
         "url": "https://www.ica.gov.sg/enter-transit-depart/entering-singapore/visa_requirements/visa-detail-page/bangladesh",
@@ -6620,7 +6626,7 @@
         "where": "Visa processing fee",
         "confidence": "HIGH",
         "needsCheck": false,
-        "note": null
+        "note": "Correction C02 (grade A, https://dhaka.mfa.gov.sg/consular-services/visa-information/visa-application/, checked 2026-11-13): Online through one of the Singapore High Commission authorised visa agents in Dhaka (22 listed); fee is the BDT equivalent of SGD 30 plus the agent charge; processing at least 5 working days."
       },
       "requirements": [
         {
