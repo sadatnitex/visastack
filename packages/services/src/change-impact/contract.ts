@@ -17,8 +17,9 @@
  *                      confirmation voided when the replacement was recorded);
  *                    - a live case was confirmed with an earlier value of the detail and that
  *                      confirmation is now void;
- *                    - an agency sent back the earlier copy or answer and its request is waiting
- *                      on the traveller.
+ *                    - the agency sent the copy or answer back and its request waits on the
+ *                      traveller (for a detail this holds even when the value sent is still the
+ *                      current one).
  *                    Never used for a guess about what a visa authority requires.
  *
  * REVIEW_RECOMMENDED A live relationship holds the earlier copy or value, but nothing proves a
@@ -27,7 +28,7 @@
  *                    - an agency accepted the earlier copy or answer and its work with the
  *                      traveller is still live;
  *                    - a share reaches the replaced document but not the newer one;
- *                    - a live case holds a deliberate choice of the earlier copy.
+ *                    - a live case holds a deliberate choice of the earlier copy or value.
  *
  * HISTORY_PRESERVED  A finished record holds the earlier copy or value and stays exactly as it
  *                    was: a finished case with a saved copy, or an accepted send whose work is
@@ -53,6 +54,8 @@
  * - A request waiting on the traveller is not an accepted send.
  * - A product rule is not a visa requirement. No item claims a legal or official obligation.
  * - A next step is an offer. Nothing happens until the traveller does it in the existing screen.
+ * - A share limited to one case reaches no document or detail through this read; its consequence
+ *   shows through that case's own item.
  *
  * Who may read it: only the record's own traveller. Every other caller (a stranger, an agency
  * member with or without a live share, a revoked or expired recipient, a helper acting for the
@@ -79,7 +82,8 @@ export const IMPACT_REASON_OUTCOME = {
   LIVE_CASE_USES_REPLACED_DOCUMENT: 'ACTION_REQUIRED',
   // A live case was confirmed with an earlier value of the detail; that confirmation is void.
   LIVE_CASE_CONFIRMATION_VOID: 'ACTION_REQUIRED',
-  // The agency sent the earlier copy or answer back; the request waits on the traveller.
+  // The agency sent the copy or answer back and its request waits on the traveller (for a detail
+  // this holds even when the value sent is still the current one).
   AGENCY_WAITING_FOR_REPLACEMENT: 'ACTION_REQUIRED',
 
   // The agency has not decided on the earlier copy or answer yet.
@@ -89,7 +93,7 @@ export const IMPACT_REASON_OUTCOME = {
   // A live share reaches the replaced document but not the newer one (for example it lists the
   // earlier document by name).
   SHARE_COVERS_EARLIER_ONLY: 'REVIEW_RECOMMENDED',
-  // A live case holds a deliberate choice of the earlier copy.
+  // A live case holds a deliberate choice of the earlier copy or value.
   LIVE_CASE_KEEPS_EARLIER_COPY: 'REVIEW_RECOMMENDED',
 
   // The send was recorded before exact versions were kept: which value went is not known.
@@ -140,7 +144,10 @@ export type ImpactAbout =
       readonly source: 'EVIDENCE_REQUEST' | 'COLLECTION_RESPONSE';
       readonly requestId: string;
       readonly organizationId: string;
-      /** Empty when the agency is not active; the interface then names no agency. */
+      /**
+       * Empty for a checklist answer whose agency is not active; the interface then names no
+       * agency.
+       */
       readonly organizationName: string;
       /** The case the request belongs to, when it names one the traveller can still open. */
       readonly missionId: string | null;

@@ -398,57 +398,103 @@ export const appMissionCatalog = defineCatalog({
   bn: {
     'appMission.appMissionIdAttachPackForm.chooseARequirementPack': 'একটি প্রয়োজনীয়তার প্যাক বেছে নিন…',
     'appMission.appMissionIdAttachPackForm.requirementPack': 'প্রয়োজনীয়তার প্যাক',
+    'appMission.appMissionIdAttemptForms.aLetterOrReceiptFromYour':
+      'আপনার নিজের ডকুমেন্ট থেকে একটি চিঠি বা রসিদ। এটি না থাকলে এটি শুধু আপনার নিজের দেওয়া তথ্য হিসেবেই থাকবে।',
+    'appMission.appMissionIdAttemptForms.aReceiptOrConfirmationFromYour':
+      'আপনার নিজের ডকুমেন্ট থেকে একটি রসিদ বা নিশ্চিতকরণ। এটি না থাকলে এটি শুধু আপনার নিজের দেওয়া তথ্য হিসেবেই থাকবে।',
+    'appMission.appMissionIdAttemptForms.addDocument': 'ডকুমেন্ট যোগ করুন',
     'appMission.appMissionIdAttemptForms.attachADocumentOptional': 'ডকুমেন্ট যুক্ত করুন (ঐচ্ছিক)',
     'appMission.appMissionIdAttemptForms.choose': 'বেছে নিন…',
+    'appMission.appMissionIdAttemptForms.chooseADocument': 'একটি ডকুমেন্ট বেছে নিন…',
+    'appMission.appMissionIdAttemptForms.dayItHappened': 'যেদিন ঘটেছে',
     'appMission.appMissionIdAttemptForms.dayItWasSent': 'যেদিন পাঠানো হয়েছিল',
     'appMission.appMissionIdAttemptForms.decision': 'সিদ্ধান্ত',
+    'appMission.appMissionIdAttemptForms.documentToAdd': 'যে ডকুমেন্ট যোগ করবেন',
+    'appMission.appMissionIdAttemptForms.documentsTheyAskedFor': 'তাঁরা যে ডকুমেন্টগুলো চেয়েছেন',
     'appMission.appMissionIdAttemptForms.howItWasSent': 'কীভাবে পাঠানো হয়েছিল',
-    'appMission.appMissionIdAttemptForms.remove': 'সরান',
+    'appMission.appMissionIdAttemptForms.noDocument': 'কোনো ডকুমেন্ট নেই',
+    'appMission.appMissionIdAttemptForms.whatHappenedAfterAttemptAttemptno':
+      'প্রচেষ্টা {attemptNo}-এর পর কী হয়েছে',
+    'appMission.appMissionIdAttemptForms.whoAsked': 'কে চেয়েছেন',
+    'appMission.appMissionIdAttemptPanel.addWhatHappened': 'কী ঘটেছে তা যোগ করুন',
+    'appMission.appMissionIdAttemptPanel.afterSubmission': 'জমা দেওয়ার পরে',
+    'appMission.appMissionIdAttemptPanel.applicationAttempts': 'আবেদনের প্রচেষ্টা',
+    'appMission.appMissionIdAttemptPanel.attemptAttemptno': 'প্রচেষ্টা {attemptNo}',
+    'appMission.appMissionIdAttemptPanel.attemptsCanBeRecordedHereSoon':
+      'শিগগিরই এখানে প্রচেষ্টাগুলো রেকর্ড করা যাবে।',
     'appMission.appMissionIdAttemptPanel.forAResubmissionANewApplication':
       'পুনরায় জমা দেওয়ার জন্য, প্রত্যাখ্যানের পর নতুন আবেদনের জন্য, অথবা একই প্যাকেজ দ্বিতীয় কোনো অফিসে পাঠানোর জন্য।',
+    'appMission.appMissionIdAttemptPanel.noDecisionRecorded': 'কোনো সিদ্ধান্ত রেকর্ড করা হয়নি',
+    'appMission.appMissionIdAttemptPanel.nothingRecordedYetReportTheSubmission':
+      'এখনো কিছু রেকর্ড করা হয়নি। আগে এই ভিসা ফাইল জমা দেওয়ার খবর জানান; সেটি হবে প্রচেষ্টা ১।',
+    'appMission.appMissionIdAttemptPanel.officialOffice': 'অফিসিয়াল দপ্তর',
+    'appMission.appMissionIdAttemptPanel.otherDecision': 'অন্য সিদ্ধান্ত',
+    'appMission.appMissionIdAttemptPanel.recordAnotherAttempt': 'আরেকটি প্রচেষ্টা রেকর্ড করুন',
     'appMission.appMissionIdCaseChecklist.documentsThatExpireBeforeYourTrip':
       'ভ্রমণ শেষ হওয়ার আগেই যেসব ডকুমেন্টের মেয়াদ শেষ হবে',
     'appMission.appMissionIdCaseChecklist.evidenceChecklist': 'প্রমাণের চেকলিস্ট',
     'appMission.appMissionIdCaseChecklist.fromPackname': '{packName} থেকে',
-    'appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname':
-      'একটি নতুন কপি পাওয়া যাচ্ছে: {copyName}। আপনি না বদলানো পর্যন্ত আপনার বেছে নেওয়া কপিটিই থাকবে।',
+    'appMission.appMissionIdCaseChecklist.sourcesForThisChecklist': 'এই চেকলিস্টের উৎস',
     'appMission.appMissionIdCaseItemPane.originalOfficialname': 'মূল: {officialName}',
     'appMission.appMissionIdCaseItemPane.provideEvidence': 'প্রমাণ দিন',
     'appMission.appMissionIdCaseItemPane.severalAreOnFileUntilYou':
       'একাধিকটি রাখা আছে। আপনি একটি বেছে না নেওয়া পর্যন্ত যেকোনো যোগ্যটি প্রস্তুতির হিসাবে গণ্য হতে পারে।',
+    'appMission.appMissionIdCaseItemPane.sourceCurrentlyUnreachableUnderReview':
+      'উৎস এখন পাওয়া যাচ্ছে না - পর্যালোচনা চলছে',
+    'appMission.appMissionIdCaseItemPane.theChosenCopyCanNoLonger':
+      'বেছে নেওয়া কপিটি আর ব্যবহার করা যাবে না।',
+    'appMission.appMissionIdCaseItemPane.unnamed': '(নামহীন)',
+    'appMission.appMissionIdCaseItemPane.viewSource': 'উৎস দেখুন',
     'appMission.appMissionIdCaseItemPane.whichFileCounts': 'কোন ডকুমেন্টটি গণ্য হবে',
     'appMission.appMissionIdCaseItemPane.whichFileGoesInTheHandoff': 'হস্তান্তরে কোন ডকুমেন্টটি যাবে',
     'appMission.appMissionIdCaseItemPane.yourWording': 'আপনার লেখা',
+    'appMission.appMissionIdCaseMobileBar.doneOfTotal': '{total}টির মধ্যে {done}টি',
     'appMission.appMissionIdCaseMobileBar.nextStep': 'পরবর্তী ধাপ',
     'appMission.appMissionIdCaseMobileBar.requiredItemsOnFile': 'আবশ্যক আইটেম রাখা আছে',
     'appMission.appMissionIdCaseMoreMenu.addEvidence': 'প্রমাণ যোগ করুন',
     'appMission.appMissionIdCaseMoreMenu.cancelCase': 'ভিসা ফাইল বাতিল করুন',
+    'appMission.appMissionIdCaseMoreMenu.cancelThisCase': 'এই ভিসা ফাইলটি বাতিল করবেন?',
     'appMission.appMissionIdCaseMoreMenu.deleteCase': 'ভিসা ফাইল মুছে ফেলুন',
     'appMission.appMissionIdCaseMoreMenu.deleteThisCase': 'এই ভিসা ফাইলটি মুছে ফেলবেন?',
     'appMission.appMissionIdCaseMoreMenu.more': 'আরও',
+    'appMission.appMissionIdCaseMoreMenu.nothingIsDeletedNowItsSnapshots':
+      'এখন কিছুই মুছে ফেলা হচ্ছে না। এর স্ন্যাপশটগুলো থাকবে, এবং আপনার প্রোফাইল ও ডকুমেন্টে হাত দেওয়া হবে না।',
     'appMission.appMissionIdCaseMoreMenu.openCaseHistory': 'ভিসা ফাইলের ইতিহাস খুলুন',
     'appMission.appMissionIdCaseMoreMenu.startANewCaseFromThis': 'এটি থেকে একটি নতুন ভিসা ফাইল শুরু করুন',
     'appMission.appMissionIdCaseMoreMenu.theCaseIsRemovedForGood':
       'চেকলিস্ট, নোট, কাজ এবং এর জন্য যা পাঠানো হয়েছিল, সবসহ ভিসা ফাইলটি স্থায়ীভাবে মুছে ফেলা হয়।',
+    'appMission.appMissionIdCaseMoreMenu.theCaseStopsForGoodIt':
+      'ভিসা ফাইলটি চিরতরে বন্ধ হয়ে যায়। এটি আর খোলা বা অন্য ধাপে সরানো যায় না।',
+    'appMission.appMissionIdCaseMoreMenu.thisCannotBeUndone': 'এটি আর ফেরানো যাবে না।',
+    'appMission.appMissionIdCaseMoreMenu.yourProfileAndDocumentsAreNot':
+      'আপনার প্রোফাইল ও ডকুমেন্টে কোনো পরিবর্তন হয় না।',
     'appMission.appMissionIdCaseRail.aboutThisCase': 'এই ভিসা ফাইল সম্পর্কে',
     'appMission.appMissionIdCaseRail.advanceTheCase': 'ভিসা ফাইলটি এগিয়ে নিন',
     'appMission.appMissionIdCaseRail.anOptionalLabelLinkingThisCase':
       'একটি ঐচ্ছিক লেবেল, যা এই ভিসা ফাইলকে পরিবারের অন্য সদস্যের ভিসা ফাইলের সঙ্গে যুক্ত করে - শুধু দেখানোর জন্য। অ্যাক্সেস ও অনুমতি প্রতিটি ভিসা ফাইলে সম্পূর্ণ আলাদাই থাকে।',
+    'appMission.appMissionIdCaseRail.applicationPacket': 'আবেদনের প্যাকেট',
+    'appMission.appMissionIdCaseRail.case': 'ভিসা ফাইল',
     'appMission.appMissionIdCaseRail.caseDetails': 'ভিসা ফাইলের বিবরণ',
     'appMission.appMissionIdCaseRail.editCaseDetails': 'ভিসা ফাইলের বিবরণ সম্পাদনা করুন',
     'appMission.appMissionIdCaseRail.familyTrip': 'পারিবারিক ভ্রমণ',
     'appMission.appMissionIdCaseRail.history': 'ইতিহাস',
     'appMission.appMissionIdCaseRail.itineraryReference': 'ভ্রমণসূচির রেফারেন্স',
     'appMission.appMissionIdCaseRail.linkToAFamilyTrip': 'পারিবারিক ভ্রমণের সঙ্গে যুক্ত করুন',
+    'appMission.appMissionIdCaseRail.noChecklistWasLinkedToThis':
+      'এই ভিসা ফাইলের সঙ্গে কোনো চেকলিস্ট যুক্ত করা হয়নি।',
     'appMission.appMissionIdCaseRail.noSnapshotsYetCaptureOneTo':
       'এখনো কোনো স্ন্যাপশট নেই। এই ভিসা ফাইলের প্রমাণ ও চেকসাম স্থির করে রাখতে একটি স্ন্যাপশট নিন।',
     'appMission.appMissionIdCaseRail.pickAChecklistAttachAPublished':
       'একটি চেকলিস্ট বেছে নিন: কতগুলো আইটেম প্রস্তুত তা দেখতে প্রকাশিত একটি প্রয়োজনীয়তার প্যাক যুক্ত করুন।',
     'appMission.appMissionIdCaseRail.requirements': 'প্রয়োজনীয়তা',
     'appMission.appMissionIdCaseRail.reviewed': 'পর্যালোচনা করা হয়েছে',
+    'appMission.appMissionIdCaseRail.seeAllSnapshots': 'সব স্ন্যাপশট দেখুন',
     'appMission.appMissionIdCaseRail.snapshots': 'স্ন্যাপশট',
     'appMission.appMissionIdCaseRail.targetDeadlineFormatdateonly':
       'লক্ষ্যমাত্রার শেষ তারিখ: {formatDateOnly}',
+    'appMission.appMissionIdCaseRail.thereIsNoFurtherStageFrom':
+      'এখান থেকে আর কোনো ধাপ নেই। ভিসা ফাইলটি বন্ধ করতে পাতার ওপরে আরও ব্যবহার করুন।',
+    'appMission.appMissionIdCaseRail.thisCaseIsInATerminal': 'এই ভিসা ফাইলটি চূড়ান্ত অবস্থায় আছে।',
     'appMission.appMissionIdCaseRail.tripDateChecks': 'ভ্রমণের তারিখ পরীক্ষা',
     'appMission.appMissionIdCaseRail.workflow': 'ওয়ার্কফ্লো',
     'appMission.appMissionIdCaseSecondary.askAContributor': 'একজন সহযোগীর কাছে চান',
@@ -466,10 +512,21 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdCaseSecondary.unknown': 'জানা নেই',
     'appMission.appMissionIdCaseStatusPanel.noChecklistYet': 'এখনো কোনো চেকলিস্ট নেই',
     'appMission.appMissionIdCaseStatusPanel.whatIsAChecklist': 'চেকলিস্ট কী?',
+    'appMission.appMissionIdCaseStatusPanel.whyIsThereNoChecklist': 'চেকলিস্ট নেই কেন?',
     'appMission.appMissionIdCaseWelcome.aboutThis': 'এ সম্পর্কে',
+    'appMission.appMissionIdCaseWelcome.gotIt': 'বুঝেছি',
+    'appMission.appMissionIdChangesSinceConfirmed.noDetailDocumentOrCaseDate':
+      'কোনো তথ্য, ডকুমেন্ট বা ভিসা ফাইলের তারিখ সেই স্ন্যাপশট থেকে আলাদা নয়। হয়তো প্রমাণ বেছে নেওয়ায় পরিবর্তন হয়েছে; তুলনা করতে স্ন্যাপশটগুলো খুলুন।',
+    'appMission.appMissionIdChangesSinceConfirmed.seeAllLengthChanges':
+      'সব {length}টি পরিবর্তন দেখুন',
+    'appMission.appMissionIdChangesSinceConfirmed.seeWhatChanged': 'কী বদলেছে দেখুন',
     'appMission.appMissionIdChangesSinceConfirmed.thisOlderSnapshotDidNotRecord':
       'এই পুরোনো স্ন্যাপশটে হুবহু সংস্করণ রেকর্ড করা হয়নি, তাই পরিবর্তনগুলোর তালিকা দেওয়া যাচ্ছে না। তুলনা করতে স্ন্যাপশটগুলো খুলুন।',
+    'appMission.appMissionIdChecklistSearch.matchesOfRowsItemsMatch':
+      '{rows}টির মধ্যে {matches}টি আইটেম মিলেছে।',
+    'appMission.appMissionIdChecklistSearch.noItemsMatch': 'কোনো আইটেম মেলেনি',
     'appMission.appMissionIdCollaborationPanels.addATask': 'কাজ যোগ করুন…',
+    'appMission.appMissionIdCollaborationPanels.addToCalendar': 'ক্যালেন্ডারে যোগ করুন',
     'appMission.appMissionIdCollaborationPanels.appointmentTitle': 'অ্যাপয়েন্টমেন্টের শিরোনাম',
     'appMission.appMissionIdCollaborationPanels.appointments': 'অ্যাপয়েন্টমেন্ট',
     'appMission.appMissionIdCollaborationPanels.channel': 'মাধ্যম',
@@ -488,6 +545,8 @@ export const appMissionCatalog = defineCatalog({
       'শুধু নিশ্চিত করা, যোগ্য প্রমাণ থেকে তৈরি - কিছুই বানানো নয়। এটি এআই দিয়ে লেখা নয়; একই তথ্য থেকে সবসময় একই ফল আসে এবং প্রতিটি সংস্করণ আলাদাভাবে রাখা হয়।',
     'appMission.appMissionIdCollaborationPanels.groundedDocuments':
       'যেসব ডকুমেন্টের ওপর ভিত্তি করা হয়েছে',
+    'appMission.appMissionIdCollaborationPanels.inProgress': 'চলমান',
+    'appMission.appMissionIdCollaborationPanels.lengthPast': '{length}টি পেরিয়ে গেছে',
     'appMission.appMissionIdCollaborationPanels.meetings': 'মিটিং',
     'appMission.appMissionIdCollaborationPanels.moreThanOneInstanceIsOn':
       'এই প্রয়োজনীয়তাগুলোর জন্য একাধিক ডকুমেন্ট আছে - প্রতিটির সমর্থনে ঠিক কোনটি ব্যবহার হবে তা বেছে নিন। আপনি না বাছা পর্যন্ত যেকোনো যোগ্য ডকুমেন্ট গণ্য হতে পারে।',
@@ -517,8 +576,11 @@ export const appMissionCatalog = defineCatalog({
       'শুধু আপনি এবং অনুমতিপ্রাপ্ত মান নিয়ন্ত্রণ কর্মীরা এটি দেখতে পান - এজেন্সি কখনো নয়, এবং এটি কখনো প্রকাশ্য রিভিউ বা র‍্যাংকিং হিসেবে প্রকাশ করা হয় না।',
     'appMission.appMissionIdComplaintFeedbackPanel.oversight': 'তদারকি',
     'appMission.appMissionIdComplaintFeedbackPanel.privateFeedback': 'ব্যক্তিগত মতামত',
+    'appMission.appMissionIdComplaintFeedbackPanel.resolutionResolution': 'সমাধান: {resolution}',
     'appMission.appMissionIdComplaintFeedbackPanel.reviewedOnlyByAuthorizedQualityStaff':
       'শুধু অনুমতিপ্রাপ্ত মান নিয়ন্ত্রণ কর্মীরা এটি পর্যালোচনা করেন - এই ভিসা ফাইলে কাজ করা এজেন্সি নিজের বিরুদ্ধে করা কোনো অভিযোগ কখনো দেখতে পায় না।',
+    'appMission.appMissionIdComplaintFeedbackPanel.shareFeedbackOnHowThisCase':
+      'এই ভিসা ফাইলটি কীভাবে সামলানো হয়েছে, সে বিষয়ে আপনার মতামত শেয়ার করুন',
     'appMission.appMissionIdContributorRequestsPanel.contributorEmail': 'সহযোগীর ইমেইল',
     'appMission.appMissionIdContributorRequestsPanel.eGSponsorBankStatement':
       'যেমন: স্পনসরের ব্যাংক স্টেটমেন্ট',
@@ -542,50 +604,108 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdOutcomePanel.evidenceOptional': 'প্রমাণ (ঐচ্ছিক)',
     'appMission.appMissionIdOutcomePanel.exactWordingFromTheDecisionLetter':
       'সিদ্ধান্তের চিঠির হুবহু ভাষা, কোনো সম্পাদনা ছাড়া',
+    'appMission.appMissionIdOutcomePanel.interpretationAgencyinterpretation':
+      'ব্যাখ্যা: {agencyInterpretation}',
     'appMission.appMissionIdOutcomePanel.keptSeparateFromTheWordingAbove':
       'উপরের লেখা থেকে আলাদা রাখা হয়',
     'appMission.appMissionIdOutcomePanel.noOutcomeRecordedYet': 'এখনো কোনো ফলাফল রেকর্ড করা হয়নি।',
+    'appMission.appMissionIdOutcomePanel.none': 'কিছু নেই',
     'appMission.appMissionIdOutcomePanel.officialWordingOptional': 'অফিসিয়াল ভাষা (ঐচ্ছিক)',
     'appMission.appMissionIdOutcomePanel.theOfficialWordingAndYourOwn':
       'সিদ্ধান্তের অফিসিয়াল ভাষা এবং সে বিষয়ে আপনার নিজের পাঠ আলাদা রাখা হয় - এ দুটো কখনো একটি সারসংক্ষেপে মেশানো হয় না, আর ফলাফল রেকর্ড করলে এই ভিসা ফাইলের কাজের ধাপ নিজে থেকে বদলায় না।',
     'appMission.appMissionIdOutcomePanel.yourInterpretationOptional': 'আপনার ব্যাখ্যা (ঐচ্ছিক)',
+    'appMission.appMissionIdPackageForms.goBackToTheSuggestedCopy': 'প্রস্তাবিত কপিতে ফিরে যান',
+    'appMission.appMissionIdPackageForms.iHaveReadTheStepsOutside':
+      'আমি VisaStack-এর বাইরের ধাপগুলো পড়েছি এবং নিজেই সেগুলো করব।',
     'appMission.appMissionIdPackageForms.leaveMissingForNow': 'আপাতত অনুপস্থিত রাখুন',
     'appMission.appMissionIdPackageForms.leaveOutOfThisPackage': 'এই প্যাকেজ থেকে বাদ দিন',
     'appMission.appMissionIdPackageForms.neededOnlyWhenYouLeaveThis':
       'আপনি এই আইটেমটি বাদ দিলে তবেই এটি দরকার। এটি এই ভিসা ফাইলের সঙ্গেই থাকে।',
     'appMission.appMissionIdPackageForms.reasonForLeavingOut': 'বাদ দেওয়ার কারণ',
+    'appMission.appMissionIdPackagePanel.addYourTravelDatesUnderEdit':
+      '"ভিসা ফাইলের বিবরণ সম্পাদনা করুন" অংশে আপনার ভ্রমণের তারিখ যোগ করুন।',
+    'appMission.appMissionIdPackagePanel.freshnessCheck': 'হালনাগাদ কি না দেখা',
+    'appMission.appMissionIdPackagePanel.otherItemsInThisPackage': 'এই প্যাকেজের অন্যান্য আইটেম',
     'appMission.appMissionIdPackagePanel.outsideVisastack': 'VisaStack-এর বাইরে',
+    'appMission.appMissionIdPackagePanel.questionsForThisChecklist': 'এই চেকলিস্ট নিয়ে প্রশ্ন',
     'appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady':
       'এখানে দেখানো হয়েছে আপনার কী কী প্রস্তুত আছে। এটি জমা দেওয়া নয় এবং আপনি নিজে শেয়ার না করা পর্যন্ত কিছুই পাঠানো হয় না।',
     'appMission.appMissionIdPackagePanel.toChooseWhichFileAnItem':
       'কোনো আইটেম কোন ডকুমেন্ট ব্যবহার করবে তা বেছে নিতে প্রমাণের চেকলিস্টে আইটেমটি খুলুন।',
     'appMission.appMissionIdPackagePanel.tripPackage': 'ভ্রমণ প্যাকেজ',
     'appMission.appMissionIdSnapshotsPage.allSnapshots': 'সব স্ন্যাপশট',
+    'appMission.appMissionIdSnapshotsPage.backToTheNewestSnapshots': 'সবচেয়ে নতুন স্ন্যাপশটে ফিরে যান',
+    'appMission.appMissionIdSnapshotsPage.case': 'ভিসা ফাইল',
     'appMission.appMissionIdSnapshotsPage.eachSnapshotKeepsExactlyWhatThis':
       'প্রতিটি স্ন্যাপশটে এই ভিসা ফাইলটি তোলার সময় যা ছিল ঠিক তা-ই থাকে, নতুনটি আগে।',
+    'appMission.appMissionIdSnapshotsPage.moreSnapshots': 'আরও স্ন্যাপশট',
     'appMission.appMissionIdSnapshotsPage.noSnapshotsYetTakeOneFrom':
       'এখনও কোনো স্ন্যাপশট নেই। এই ভিসা ফাইলটি যেমন আছে তেমন একটি কপি রাখতে ভিসা ফাইলের পাতা থেকে একটি স্ন্যাপশট নিন।',
     'appMission.appMissionIdSnapshotsPage.showOlderSnapshots': 'পুরোনো স্ন্যাপশট দেখান',
+    'appMission.appMissionIdSnapshotsPage.theseAreTheOldestSnapshotsOf':
+      'এগুলো এই ভিসা ফাইলের সবচেয়ে পুরোনো স্ন্যাপশট।',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.confirmThisPreparedFile':
+      'এই প্রস্তুত করা কপিটি নিশ্চিত করুন',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.finalReview': 'শেষ পর্যালোচনা',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.ifTheCaseChangesAfterwardsThis':
+      'পরে ভিসা ফাইলটি বদলালে এই নিশ্চিতকরণ আর গণ্য হবে না এবং আপনাকে আবার সিদ্ধান্ত নিতে বলা হবে।',
     'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.reasonRequiredToRejectOrRequest':
       'কারণ (প্রত্যাখ্যান বা সংশোধনের অনুরোধ করতে আবশ্যক)',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.thatYouHaveReadItAcknowledging':
+      'শুধু এটুকু যে আপনি এটি পড়েছেন। স্বীকার করা আর জমা দেওয়া এক নয়।',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.theCaseChangedAfterYouLast':
+      'ভিসা ফাইলটি আপনি শেষবার স্বীকার করার পর বদলেছে। এই সংস্করণটি পর্যালোচনা করে আবার সিদ্ধান্ত নিন।',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.thisPageIsTheExactEvidence':
+      'এই পাতায় ঠিক সেই প্রমাণের সেট, বেছে নেওয়া তথ্য এবং নিয়মের প্রেক্ষাপট আছে, যার ওপর এই সিদ্ধান্ত প্রযোজ্য। এটি স্বীকার করার মানে এই নয় যে এটি জমা দেওয়া হয়েছে, অফিসিয়ালি যাচাই করা হয়েছে বা কেউ অনুমোদন করেছে - শুধু এটুকু যে আপনি ঠিক এই বিষয়বস্তু পর্যালোচনা করেছেন।',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.whatNeedsToChangeOrWhy':
+      'কী বদলাতে হবে, অথবা আপনি কেন এটি প্রত্যাখ্যান করছেন?',
+    'appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.whatYouAreConfirming':
+      'আপনি যা নিশ্চিত করছেন',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.applicationPacket': 'আবেদনের প্যাকেট',
     'appMission.appMissionIdSnapshotsSnapshotidPage.documents': 'ডকুমেন্টস',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.downloadJson': 'JSON ডাউনলোড করুন',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.eachPackRequirementResolvedToThe':
+      'এই স্ন্যাপশট অনুযায়ী প্যাকের প্রতিটি প্রয়োজনীয়তা, তাকে সমর্থনকারী নির্দিষ্ট প্রমাণের সঙ্গে মিলিয়ে দেখানো হয়েছে।',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.facts': 'তথ্য',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.noDocumentsRecorded':
+      'কোনো ডকুমেন্ট রেকর্ড করা হয়নি।',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.noEligibleDocument': '(কোনো উপযুক্ত ডকুমেন্ট নেই)',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.noEligibleValue': '(কোনো যোগ্য মান নেই)',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.noFactsRecorded': 'কোনো তথ্য রেকর্ড করা হয়নি।',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.notSatisfied': 'পূরণ হয়নি',
     'appMission.appMissionIdSnapshotsSnapshotidPage.requirements': 'প্রয়োজনীয়তা',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.satisfied': 'পূরণ হয়েছে',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.showAllLengthLabel':
+      'সব {length}টি {label} দেখান',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.showFewerLabel': 'কম {label} দেখান',
     'appMission.appMissionIdSnapshotsSnapshotidPage.versionVersion': 'সংস্করণ {version}',
+    'appMission.appMissionIdSnapshotsSnapshotidPage.workingSnapshot': 'চলতি স্ন্যাপশট',
+    'appMission.appMissionIdSubmissionReportPanel.description': 'বিবরণ',
+    'appMission.appMissionIdSubmissionReportPanel.eGTrackingOrReceiptNumber':
+      'যেমন ট্র্যাকিং বা রসিদ নম্বর',
     'appMission.appMissionIdSubmissionReportPanel.filing': 'আবেদন দাখিল',
     'appMission.appMissionIdSubmissionReportPanel.howWasItSubmitted': 'এটি কীভাবে জমা দেওয়া হয়েছিল?',
     'appMission.appMissionIdSubmissionReportPanel.noSubmissionReportedYet':
       'জমা দেওয়ার কোনো খবর এখনো জানানো হয়নি।',
+    'appMission.appMissionIdSubmissionReportPanel.refExternalreference':
+      ' · রেফারেন্স: {externalReference}',
     'appMission.appMissionIdSubmissionReportPanel.referenceNumberOptional': 'রেফারেন্স নম্বর (ঐচ্ছিক)',
     'appMission.appMissionIdSubmissionReportPanel.submissionReport': 'জমার প্রতিবেদন',
     'appMission.appMissionIdSubmissionReportPanel.submittedOnOptionalDefaultsToNow':
       'জমার তারিখ (ঐচ্ছিক - না দিলে এখনকার সময়)',
     'appMission.appMissionIdSubmissionReportPanel.thisCaseMustReachSubmissionReady':
       'জমা দেওয়ার খবর জানানোর আগে এই ভিসা ফাইলকে “জমা দেওয়ার জন্য প্রস্তুত” অবস্থায় (একটি সক্রিয় স্বীকৃতিসহ) পৌঁছাতে হবে।',
+    'appMission.appMissionIdSubmissionReportPanel.whatWasActuallyFiledAndWhere':
+      'আসলে কী জমা দেওয়া হয়েছিল, এবং কোথায়',
     'appMission.appMissionIdTripChecksPanel.aboutTheseChecks': 'এই পরীক্ষাগুলো সম্পর্কে',
     'appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates':
       'আপনার ভ্রমণের তারিখ পাসপোর্ট ও ট্রাভেল ইনসুরেন্সের সঙ্গে মিলিয়ে দেখার কিছু সাধারণ পরীক্ষা। এগুলো কোনো দেশের নিয়ম নয়, তাই আপনার গন্তব্যের নিয়মগুলোও পড়ে নিন।',
     'appMission.appMissionIdTripChecksPanel.dates': 'তারিখসমূহ',
+    'appMission.appMissionIdTripChecksPanel.noDateChecksApplyYet':
+      'এখনো কোনো তারিখ-পরীক্ষা প্রযোজ্য নয়।',
     'appMission.appMissionIdTripChecksPanel.tripDateChecks': 'ভ্রমণের তারিখ পরীক্ষা',
+    'appMission.appMissionIdTripChecksPanel.weCouldNotCheckYourDates':
+      'এইমাত্র আপনার তারিখগুলো পরীক্ষা করা যায়নি। আবার চেষ্টা করতে পাতাটি আবার লোড করুন।',
     'appMission.appMissionStartPage.aboutStartingATrip': 'ভ্রমণ শুরু করা সম্পর্কে',
     'appMission.appMissionStartPage.startATrip': 'ভ্রমণ শুরু করুন',
     'appMission.appMissionStartPage.tellUsWhereYouAreGoing':
@@ -594,8 +714,12 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionStartStartForm.eachTravellerGetsTheirOwnCase':
       'প্রত্যেক ভ্রমণকারীর নিজস্ব ভিসা ফাইল থাকে। চেকলিস্টে দরকার হলেই আমরা তারিখ বা অন্য তথ্য চাই।',
     'appMission.appMissionStartStartForm.forExampleJapan': 'যেমন: জাপান',
+    'appMission.appMissionStartStartForm.openTheCaseForName': '{name}-এর ভিসা ফাইল খুলুন',
+    'appMission.appMissionStartStartForm.openTheExistingCaseForName':
+      '{name}-এর বিদ্যমান ভিসা ফাইলটি খুলুন',
     'appMission.appMissionStartStartForm.startTheTrip': 'ভ্রমণ শুরু করুন',
     'appMission.appMissionStartStartForm.typeANameOrOpenThe': 'একটি নাম লিখুন অথবা তালিকা খুলুন।',
     'appMission.appMissionStartStartForm.whereAreYouGoing': 'আপনি কোথায় যাচ্ছেন?',
+    'appMission.appMissionStartStartForm.whoSTravelling': 'কে কে ভ্রমণ করছেন?',
   },
 });

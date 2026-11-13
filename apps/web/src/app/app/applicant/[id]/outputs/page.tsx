@@ -20,6 +20,7 @@ import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { applicantOutputsCatalog } from '../../../../../i18n/applicant-outputs';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
+import { formatLongDay } from '../../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { plural } from '../../../../../lib/plural';
 import { composeShareMessage } from '../../../../../lib/whatsapp-link';
@@ -185,7 +186,7 @@ export default async function OutputsPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams: Promise<OutputsQuery>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(applicantOutputsCatalog);
   const { id } = await params;
   const query = await searchParams;
@@ -624,7 +625,7 @@ export default async function OutputsPage({
           </h3>
           <p className="muted">
             {t.node('applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly', {
-              longDay: longDay(output.preparedOn),
+              longDay: formatLongDay(output.preparedOn, locale) ?? longDay(output.preparedOn),
             })}
           </p>
           <SelectedScopeSummary

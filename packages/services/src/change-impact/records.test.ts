@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
 import type { Db } from '../db';
-import { assessDetailChangeImpact } from './detail';
+import { UNPINNED_SEND_CLOCK_MARGIN_MS, assessDetailChangeImpact } from './detail';
 import { assessDocumentChangeImpact } from './document';
 import {
   HEAVY,
@@ -90,7 +90,22 @@ describe('a detail sent before exact values were kept', () => {
       await sendDetail(w.db, w.rahim, waiting, w.e.factId);
       await forgetDetailPins(w.db, waiting);
 
-      // Sent after the current value was saved, and that value is the newest: it is the current one.
+      // Sent moments after the current value was saved. The send is timed by the application and
+      // the saved value by the database, so "moments after" proves nothing: unknown.
+      expect(itemOf(await readDetailImpact(w), `request:${waiting}`).reason).toBe(
+        'SENT_BEFORE_EXACT_VERSIONS',
+      );
+      const at = (offsetMs: number) =>
+        w.db
+          .update(schema.evidenceRequests)
+          .set({ respondedAt: new Date(saved.version.createdAt.getTime() + offsetMs) })
+          .where(eq(schema.evidenceRequests.id, waiting));
+      // By hand: dated just inside the margin, then clearly past it. Only the second is proof.
+      await at(UNPINNED_SEND_CLOCK_MARGIN_MS - 1);
+      expect(itemOf(await readDetailImpact(w), `request:${waiting}`).reason).toBe(
+        'SENT_BEFORE_EXACT_VERSIONS',
+      );
+      await at(UNPINNED_SEND_CLOCK_MARGIN_MS);
       expect(itemOf(await readDetailImpact(w), `request:${waiting}`).reason).toBe(
         'AGENCY_HOLDS_CURRENT',
       );
@@ -136,8 +151,8 @@ describe('a detail sent before exact values were kept', () => {
       expect(itemOf(impact, `request:${w.detailRequestId}`).reason).toBe(
         'SENT_BEFORE_EXACT_VERSIONS',
       );
-      // Sent after the current value was saved: provably the current one.
-      expect(itemOf(impact, `request:${later}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+      // Sent moments after the current value was saved: too close to prove which value went.
+      expect(itemOf(impact, `request:${later}`).reason).toBe('SENT_BEFORE_EXACT_VERSIONS');
       expect(impact.complete).toBe(true);
     },
     HEAVY,

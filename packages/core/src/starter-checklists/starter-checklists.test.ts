@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CATALOGUE_DOCUMENTS } from '../catalogue/documents';
 import { parseCsv } from '../csv';
 import {
+  STARTER_NOTICE,
   STARTER_SEED_ROWS,
   buildStarterPacks,
   isOtherType,
@@ -10,8 +11,11 @@ import {
   mapDocType,
   necessityFor,
   readStarterSheet,
+  starterCountryCode,
   starterSheetCsv,
 } from './index';
+import { SHEET_SEED_ROWS } from './seed-rows';
+import { NEW_COUNTRY_SEED_ROWS } from './seed-rows-new-countries';
 
 const DASH = String.fromCharCode(0x2014);
 const KNOWN_TYPES = new Set(CATALOGUE_DOCUMENTS.map((d) => d.key));
@@ -20,16 +24,22 @@ describe('the supplied country checklists', () => {
   const built = buildStarterPacks(STARTER_SEED_ROWS);
 
   it('builds every line of the sheet, leaving none out', () => {
-    expect(STARTER_SEED_ROWS).toHaveLength(485);
+    // 13 Nov 2026, owner's research: the first sheet's 485 lines lost the 119 Tourist and Business
+    // lines of seven countries (Germany, Italy, Japan, South Korea, Spain, Thailand, United Kingdom)
+    // and gained 186 replacement lines, so it holds 552; ten new countries added 150 lines. 702 in all.
+    expect(SHEET_SEED_ROWS).toHaveLength(552);
+    expect(NEW_COUNTRY_SEED_ROWS).toHaveLength(150);
+    expect(STARTER_SEED_ROWS).toHaveLength(702);
     expect(built.skipped).toEqual([]);
     const lines = built.packs.reduce((sum, pack) => sum + pack.requirements.length, 0);
     // Business and Medical lists repeat the base, so there are more lines than sheet rows.
-    expect(lines).toBeGreaterThan(485);
+    expect(lines).toBeGreaterThan(702);
   });
 
-  it('makes one Tourist list for each of the 33 countries and extras only where the sheet has them', () => {
+  it('makes one Tourist list for each of the 43 countries and extras only where the sheet has them', () => {
+    // 33 countries from the first sheet plus the 10 added on 13 Nov 2026.
     const tourist = built.packs.filter((p) => p.starterPurpose === 'tourist');
-    expect(tourist).toHaveLength(33);
+    expect(tourist).toHaveLength(43);
     const extraRows = STARTER_SEED_ROWS.filter((r) => !/^tourist/i.test(r.purpose));
     const businessCountries = new Set(
       extraRows.filter((r) => /^business/i.test(r.purpose)).map((r) => r.country),
@@ -43,6 +53,87 @@ describe('the supplied country checklists', () => {
     expect(built.packs.filter((p) => p.starterPurpose === 'medical')).toHaveLength(
       medicalCountries.size,
     );
+  });
+
+  it('finds a two-letter code for every country the seed names', () => {
+    const unknown = [...new Set(STARTER_SEED_ROWS.map((r) => r.country))].filter(
+      (country) => starterCountryCode(country) === undefined,
+    );
+    expect(unknown).toEqual([]);
+    expect(
+      [...new Set(NEW_COUNTRY_SEED_ROWS.map((r) => r.country))].map((country) => [
+        country,
+        starterCountryCode(country),
+      ]),
+    ).toEqual([
+      ['Botswana', 'BW'],
+      ['Colombia', 'CO'],
+      ['Cuba', 'CU'],
+      ['Gambia', 'GM'],
+      ['Ireland', 'IE'],
+      ['Kazakhstan', 'KZ'],
+      ['Kyrgyzstan', 'KG'],
+      ['Montenegro', 'ME'],
+      ['Netherlands', 'NL'],
+      ['Peru', 'PE'],
+    ]);
+    // The fixed names still win, and a name no list knows, or an object property name, is not a country.
+    expect(starterCountryCode(' Turkey ')).toBe('TR');
+    expect(starterCountryCode('Hong Kong')).toBe('HK');
+    expect(starterCountryCode('Atlantis')).toBeUndefined();
+    expect(starterCountryCode('toString')).toBeUndefined();
+  });
+
+  it('names a new country list by the name the sheet uses', () => {
+    expect(built.packs.find((p) => p.key === 'starter.nl.tourist')?.name).toBe(
+      'Netherlands Tourist Starter List',
+    );
+    expect(built.packs.find((p) => p.key === 'starter.pe.business')?.name).toBe(
+      'Peru Business Starter List',
+    );
+  });
+
+  it('keeps the lines of 13 Nov 2026 as Tourist base and Business extra only, each naming its source and Checked on date', () => {
+    const replaced = [
+      'Germany',
+      'Italy',
+      'Japan',
+      'South Korea',
+      'Spain',
+      'Thailand',
+      'United Kingdom',
+    ];
+    const researched = [
+      ...NEW_COUNTRY_SEED_ROWS,
+      ...SHEET_SEED_ROWS.filter(
+        (r) => replaced.includes(r.country) && !/^medical/i.test(r.purpose),
+      ),
+    ];
+    expect(researched).toHaveLength(336);
+    for (const row of researched) {
+      expect(['Tourist (base)', 'Business (extra)']).toContain(row.purpose);
+      expect(row.keep).toBe('Yes');
+      expect(row.reference, row.text).toMatch(
+        / \| https:\/\/\S+ \| grade [ABD] \| checked \d{4}-\d{2}-\d{2}$/,
+      );
+    }
+    // Thailand's Medical line from the first sheet stays; only Tourist and Business were replaced.
+    expect(
+      SHEET_SEED_ROWS.filter((r) => r.country === 'Thailand' && /^medical/i.test(r.purpose)),
+    ).toHaveLength(1);
+  });
+
+  it('leaves out the five countries held back for having no Tourist base', () => {
+    const countries = new Set(STARTER_SEED_ROWS.map((r) => r.country));
+    for (const held of ['Croatia', 'Mauritius', 'Namibia', 'Taiwan', 'Tunisia']) {
+      expect(countries.has(held), held).toBe(false);
+    }
+  });
+
+  it('labels every list, new ones included, as a starter list that is not official', () => {
+    for (const pack of built.packs) {
+      expect(pack.description).toBe(STARTER_NOTICE);
+    }
   });
 
   it('names every list so it cannot be read as official, and keys it as a starter list', () => {

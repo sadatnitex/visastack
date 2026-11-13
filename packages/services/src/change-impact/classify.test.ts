@@ -28,13 +28,28 @@ const AT = new Date('2026-11-01T00:00:00Z');
 const CASE = { missionId: 'm1', title: 'Sample Case', createdAt: AT };
 
 describe('a case and a replaced document', () => {
-  const facts = (live: boolean, selects: boolean, keepsCopy: boolean, savedCopyLists: boolean) =>
-    classifyDocumentCase({ ...CASE, live, selects, keepsCopy, savedCopyLists })?.item.reason ??
-    null;
+  const facts = (
+    live: boolean,
+    selects: boolean,
+    keepsCopy: boolean,
+    savedCopyLists: boolean,
+    confirmedSinceReplaced = false,
+  ) =>
+    classifyDocumentCase({
+      ...CASE,
+      live,
+      selects,
+      keepsCopy,
+      savedCopyLists,
+      confirmedSinceReplaced,
+    })?.item.reason ?? null;
   it('follows the rules in order of strength', () => {
     expect(facts(true, true, false, false)).toBe('LIVE_CASE_USES_REPLACED_DOCUMENT');
     expect(facts(true, true, true, false)).toBe('LIVE_CASE_USES_REPLACED_DOCUMENT');
     expect(facts(true, false, true, false)).toBe('LIVE_CASE_KEEPS_EARLIER_COPY');
+    // Confirmed again with the earlier document still selected: no step is owed any more.
+    expect(facts(true, true, false, false, true)).toBe('LIVE_CASE_KEEPS_EARLIER_COPY');
+    expect(facts(false, true, false, false, true)).toBe('FINISHED_CASE_KEPT');
     expect(facts(true, false, false, true)).toBeNull();
     expect(facts(false, true, false, false)).toBe('FINISHED_CASE_KEPT');
     expect(facts(false, false, false, true)).toBe('FINISHED_CASE_KEPT');
@@ -69,6 +84,8 @@ describe('a case and a changed detail', () => {
     everConfirmed: true,
     confirmationLive: false,
     recorded: { kind: 'VERSIONS', versionIds: ['v1'] },
+    keepsEarlierValue: false,
+    couldHoldEarlier: true,
   };
   const reason = (facts: Partial<DetailCaseFacts>, of = detail) =>
     classifyDetailCase({ ...base, ...facts }, of)?.item.reason ?? null;
@@ -90,7 +107,7 @@ describe('a case and a changed detail', () => {
   });
 
   it('treats a value saved again unchanged as the current value, except for a void confirmation', () => {
-    const finished = { live: false, everConfirmed: false };
+    const finished = { live: false, everConfirmed: false, couldHoldEarlier: false };
     // A finished case whose copy names the earlier saved value with the same text: nothing to say.
     expect(reason(finished, resaved)).toBeNull();
     expect(reason({ ...finished, recorded: recorded('NO_COPY') }, resaved)).toBeNull();
@@ -100,6 +117,26 @@ describe('a case and a changed detail', () => {
     expect(reason({ confirmationLive: true }, resaved)).toBe('LIVE_CASE_FOLLOWS_CURRENT');
   });
 
+  it('offers a deliberate choice of an earlier value for review, after a void confirmation', () => {
+    const chosen = { keepsEarlierValue: true };
+    // The void confirmation is a step the product already requires: it comes first.
+    expect(reason(chosen)).toBe('LIVE_CASE_CONFIRMATION_VOID');
+    expect(reason({ ...chosen, confirmationLive: true })).toBe('LIVE_CASE_KEEPS_EARLIER_COPY');
+    expect(reason({ ...chosen, everConfirmed: false })).toBe('LIVE_CASE_KEEPS_EARLIER_COPY');
+    expect(reason({ ...chosen, selects: false })).toBe('LIVE_CASE_KEEPS_EARLIER_COPY');
+    expect(reason({ ...chosen, recorded: recorded('INEXACT') })).toBe(
+      'LIVE_CASE_KEEPS_EARLIER_COPY',
+    );
+  });
+
+  it('does not list a finished case that can only have held the current value', () => {
+    const later = { live: false, everConfirmed: false, couldHoldEarlier: false };
+    expect(reason({ ...later, recorded: recorded('NO_COPY') })).toBeNull();
+    expect(reason({ ...later, recorded: recorded('INEXACT') })).toBeNull();
+    // A copy that names an earlier value is still what it says.
+    expect(reason(later)).toBe('FINISHED_CASE_KEPT');
+  });
+
   it('judges a finished case by its saved copy', () => {
     const finished = { live: false, everConfirmed: false };
     expect(reason(finished)).toBe('FINISHED_CASE_KEPT');
@@ -107,11 +144,15 @@ describe('a case and a changed detail', () => {
     expect(reason({ ...finished, recorded: recorded('NO_COPY') })).toBe(
       'FINISHED_CASE_NO_SAVED_COPY',
     );
-    expect(reason({ ...finished, recorded: recorded('NO_COPY') }, once)).toBeNull();
+    expect(
+      reason({ ...finished, couldHoldEarlier: false, recorded: recorded('NO_COPY') }, once),
+    ).toBeNull();
     expect(reason({ ...finished, recorded: recorded('NO_COPY'), selects: false })).toBeNull();
     expect(reason({ ...finished, recorded: recorded('ABSENT') })).toBeNull();
     expect(reason({ ...finished, recorded: recorded('INEXACT') })).toBe('RECORD_INCOMPLETE');
-    expect(reason({ ...finished, recorded: recorded('INEXACT') }, once)).toBeNull();
+    expect(
+      reason({ ...finished, couldHoldEarlier: false, recorded: recorded('INEXACT') }, once),
+    ).toBeNull();
   });
 });
 

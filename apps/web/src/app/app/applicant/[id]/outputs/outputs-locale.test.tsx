@@ -14,7 +14,9 @@ import {
   verifyStepUp,
 } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/pglite';
+import { JSDOM } from 'jsdom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { formatLongDay } from '../../../../../lib/format-date';
 import { renderServer, textOf } from '../../../../../lib/next-mocks.test-support';
 import { expectEveryLiveMessageRendered } from '../bn-coverage.test-support';
 
@@ -68,13 +70,28 @@ vi.mock('../../../../../lib/step-up', () => ({
 
 // Two states the real database cannot reach in a test (the identity check is not set up; the case
 // list cannot be read) are given here; every other render runs the real preparation.
-const loadOverride = vi.hoisted(() => ({ value: null as unknown }));
+// `preparedOn` replaces only the day a really prepared summary carries, so a test of that day never
+// reads the clock.
+const loadOverride = vi.hoisted(() => ({
+  value: null as unknown,
+  preparedOn: null as string | null,
+}));
 vi.mock('./load', async (importOriginal) => {
   const real = await importOriginal<typeof import('./load')>();
   return {
     ...real,
-    prepareOutput: async (...args: Parameters<typeof real.prepareOutput>) =>
-      loadOverride.value ?? real.prepareOutput(...args),
+    prepareOutput: async (...args: Parameters<typeof real.prepareOutput>) => {
+      if (loadOverride.value) return loadOverride.value;
+      const result = await real.prepareOutput(...args);
+      if (loadOverride.preparedOn === null || result.state !== 'ready') return result;
+      return {
+        ...result,
+        prepared: {
+          ...result.prepared,
+          output: { ...result.prepared.output, preparedOn: loadOverride.preparedOn },
+        },
+      };
+    },
   };
 });
 
@@ -164,6 +181,7 @@ beforeAll(async () => {
 afterEach(() => {
   current.locale = 'en';
   loadOverride.value = null;
+  loadOverride.preparedOn = null;
 });
 
 describe('the summaries page under Bengali', () => {
@@ -340,6 +358,55 @@ describe('the summaries page under Bengali', () => {
     expect(text).toContain('Download Text File');
     expect(text).toContain('Tell Them on WhatsApp');
     expect(text).toContain('Preview: Agency Brief');
+  });
+});
+
+describe('the day a previewed summary was prepared', () => {
+  // A far, fixed day in a month whose full name differs from its short one.
+  const PREPARED_ON = '2099-11-09';
+  const previewed = () => ({
+    output: 'agency_brief',
+    preview: '1',
+    case: missionId,
+    layer: ['travel_documents'],
+  });
+
+  /** The line under the preview heading, exactly as a reader gets it. */
+  function preparedLine(html: string): string {
+    const found = new JSDOM(`<body>${html}</body>`).window.document.querySelectorAll(
+      '#output-preview > h3 + p.muted',
+    );
+    expect(found.length).toBe(1);
+    return found[0]?.textContent ?? '';
+  }
+
+  it('is written in Bengali with the Bengali long date', async () => {
+    loadOverride.preparedOn = PREPARED_ON;
+    const { html } = await render('bn', previewed());
+    const line = preparedLine(html);
+    expect(line).toBe(
+      (bn[`${P}preparedOnLongdayThisIsExactly`] ?? '').replace(
+        '{longDay}',
+        formatLongDay(PREPARED_ON, 'bn') ?? 'no Bengali day',
+      ),
+    );
+    expect(line).toBe('৯ নভেম্বর, ২০৯৯ তারিখে প্রস্তুত করা হয়েছে। কপি বা ডাউনলোডে ঠিক এটুকুই থাকবে।');
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(/[0-9]/);
+    expect(line).not.toMatch(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
+    expect(line).not.toContain('Prepared on');
+    expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('reads exactly as it did in English', async () => {
+    loadOverride.preparedOn = PREPARED_ON;
+    const { html } = await render('en', previewed());
+    const line = preparedLine(html);
+    expect(line).toBe(
+      'Prepared on 9 November 2099. This is exactly what the copy or file will hold.',
+    );
+    expect(line).not.toMatch(BENGALI);
+    expect(html).not.toMatch(RAW_KEY);
   });
 });
 

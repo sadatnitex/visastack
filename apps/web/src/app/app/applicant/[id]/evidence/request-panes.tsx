@@ -19,7 +19,7 @@ import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence
 import { type ChangeImpactKey, changeImpactCatalog } from '../../../../../i18n/change-impact';
 import { evidenceAnswerCatalog } from '../../../../../i18n/evidence-answer';
 import { formatDateOnly } from '../../../../../lib/format-date';
-import { getServerT } from '../../../../../lib/i18n-server';
+import { getServerLocale, getServerT } from '../../../../../lib/i18n-server';
 import { formatMoment } from '../../../../../lib/save-status';
 import { changeImpactHref } from '../change-impact/impact-words';
 import { AnswerReceipt } from './answer-receipt';
@@ -153,11 +153,19 @@ function FieldAnswerSent({
                 {round.version.protected
                   ? answerT.node('evidenceAnswer.fieldAnswer.protected', {
                       version: round.version.number,
-                      savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
+                      savedAt: formatMoment(
+                        round.version.savedAt.toISOString(),
+                        timeZone,
+                        getServerLocale(),
+                      ),
                     })
                   : answerT.node('evidenceAnswer.fieldAnswer.pinned', {
                       version: round.version.number,
-                      savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
+                      savedAt: formatMoment(
+                        round.version.savedAt.toISOString(),
+                        timeZone,
+                        getServerLocale(),
+                      ),
                       value: round.version.value ?? '',
                     })}
                 {round.version.stillCurrent ? null : (
@@ -203,7 +211,7 @@ function sentBackNoteFor(
       ? answerT.node('evidenceAnswer.sentBack.exact', {
           name,
           version: copy.versionNumber,
-          date: formatMoment(copy.sentAt.toISOString(), timeZone),
+          date: formatMoment(copy.sentAt.toISOString(), timeZone, getServerLocale()),
         })
       : answerT.node('evidenceAnswer.sentBack.document', { name });
   return line;

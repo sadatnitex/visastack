@@ -1,4 +1,6 @@
+import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { navigationState, renderServer, textOf } from '../../../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -62,19 +64,61 @@ import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 const { default: Page } = await import('./page');
 
 const BENGALI = /[ঀ-৿]/;
+const LATIN_DIGIT = /[0-9]/;
+const ENGLISH_MONTH = /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/;
+// Far, fixed dates: a midday moment so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines), and a plain day.
+const EXPIRES_AT = '2099-11-01T12:00:00Z';
+const DUE_DATE = '2099-10-20T00:00:00Z';
 const bn = appAgencyCatalog.bn as Record<string, string>;
 const k = (key: string) => `appAgency.appAgencyOrgidClientsPage.${key}`;
 const page = (items: unknown[]) => ({ items, nextCursor: null, total: items.length });
 const counts = { all: 1, open: 1, review: 0, replacement: 0, closed: 0 };
 
-async function show(locale: 'en' | 'bn', search: Record<string, string> = {}) {
+async function showHtml(locale: 'en' | 'bn', search: Record<string, string> = {}) {
   current.holder = null;
   current.locale = locale;
-  return textOf(
-    await renderServer(
-      Page({ params: Promise.resolve({ orgId: 'o1' }), searchParams: Promise.resolve(search) }),
-    ),
+  return renderServer(
+    Page({ params: Promise.resolve({ orgId: 'o1' }), searchParams: Promise.resolve(search) }),
   );
+}
+
+async function show(locale: 'en' | 'bn', search: Record<string, string> = {}) {
+  return textOf(await showHtml(locale, search));
+}
+
+/** The words of the one element a selector finds, exactly as a reader gets them. */
+function sentence(html: string, selector: string): string {
+  const found = new JSDOM(`<body>${html}</body>`).window.document.querySelectorAll(selector);
+  expect(found.length).toBe(1);
+  return found[0]?.textContent ?? '';
+}
+
+function withDatedRows() {
+  mocks.loadPendingClientInvitationPage.mockResolvedValue(
+    page([
+      {
+        id: 'ci1',
+        displayName: 'Karim Hossain',
+        contactDestination: 'karim@example.com',
+        expiresAt: EXPIRES_AT,
+      },
+    ]),
+  );
+  mocks.loadEvidenceRequestPage.mockResolvedValue({
+    ...page([
+      {
+        id: 'r1',
+        kind: 'DOCUMENT',
+        docType: 'PASSPORT',
+        fieldKey: null,
+        status: 'RECEIVED',
+        applicantName: 'Rahim Uddin',
+        dueDate: DUE_DATE,
+        referenceCode: 'R-7K2Q9M',
+      },
+    ]),
+    viewCounts: counts,
+  });
 }
 
 beforeEach(() => {
@@ -113,14 +157,14 @@ describe('the agency Clients page under Bengali', () => {
     expect(text).not.toMatch(/appAgency\./);
   });
 
-  it('shows the request list in Bengali, with invitation lines and the due date left English (rows state)', async () => {
+  it('shows the request list in Bengali, with the invitation line and the due date in Bengali too (rows state)', async () => {
     mocks.loadPendingClientInvitationPage.mockResolvedValue(
       page([
         {
           id: 'ci1',
           displayName: 'Karim Hossain',
           contactDestination: 'karim@example.com',
-          expiresAt: '2099-11-01T00:00:00Z',
+          expiresAt: '2099-11-01T12:00:00Z',
         },
       ]),
     );
@@ -143,9 +187,11 @@ describe('the agency Clients page under Bengali', () => {
     expect(text).toContain(bn[k('evidenceRequests')]);
     expect(text).toContain(bn[k('requestReference')]);
     expect(text).toContain('Karim Hossain');
-    // Held: the invitation expiry line and the due date inside a sentence.
-    expect(text).toContain('Invited · expires');
-    expect(text).toContain('· due Oct 20, 2026');
+    // The invitation expiry line and the due date: Bengali words around a Bengali date.
+    expect(text).toContain('আমন্ত্রিত · মেয়াদ শেষ ১ নভে, ২০৯৯');
+    expect(text).toContain('· শেষ তারিখ ২০ অক্টো, ২০২৬');
+    expect(text).not.toContain('Invited · expires');
+    expect(text).not.toContain('· due Oct 20, 2026');
     expect(text).not.toContain(bn[k('noClientsInvitedYet')]);
     expect(text).not.toMatch(/appAgency\./);
   });
@@ -229,6 +275,51 @@ describe('the agency Clients page under Bengali', () => {
     expect(text).not.toContain('Inviting clients and requesting evidence are limited');
     // The Invite a Client button is absent (its Bengali name begins the sentence above, so match the whole word).
     expect(text).not.toMatch(new RegExp(`${bn[k('inviteAClient')]}(?!\\p{M}|\\p{L})`, 'u'));
+  });
+
+  it('writes the invitation expiry line in Bengali with a Bengali date', async () => {
+    withDatedRows();
+    const html = await showHtml('bn');
+    const line = sentence(html, '.badge-warning');
+    expect(line).toBe(
+      (bn[k('invitedExpiresFormattimestampdate')] ?? '').replace(
+        '{formatTimestampDate}',
+        formatTimestampDate(EXPIRES_AT, 'bn'),
+      ),
+    );
+    expect(line).toBe('আমন্ত্রিত · মেয়াদ শেষ ১ নভে, ২০৯৯');
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(LATIN_DIGIT);
+    expect(line).not.toMatch(ENGLISH_MONTH);
+    expect(html).not.toMatch(/appAgency\./);
+  });
+
+  it('writes the due date of a request in Bengali with a Bengali date', async () => {
+    withDatedRows();
+    const html = await showHtml('bn');
+    const line = sentence(html, '.request-row .muted.u-fs-085');
+    expect(line).toBe(
+      `Rahim Uddin${(bn[k('dueFormatdateonly')] ?? '').replace(
+        '{formatDateOnly}',
+        formatDateOnly(DUE_DATE, 'bn'),
+      )}`,
+    );
+    expect(line).toBe('Rahim Uddin · শেষ তারিখ ২০ অক্টো, ২০৯৯');
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(LATIN_DIGIT);
+    expect(line).not.toMatch(ENGLISH_MONTH);
+    expect(html).not.toMatch(/appAgency\./);
+  });
+
+  it('keeps the invitation expiry line and the due date exactly as they were in English', async () => {
+    withDatedRows();
+    const html = await showHtml('en');
+    const invited = sentence(html, '.badge-warning');
+    expect(invited).toBe('Invited · expires 1 Nov 2099');
+    expect(invited).not.toMatch(BENGALI);
+    const due = sentence(html, '.request-row .muted.u-fs-085');
+    expect(due).toBe('Rahim Uddin · due Oct 20, 2099');
+    expect(due).not.toMatch(BENGALI);
   });
 
   it('stays all English for English readers', async () => {

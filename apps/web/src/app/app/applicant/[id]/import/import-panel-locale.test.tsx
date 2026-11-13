@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { formatNumber } from '@visastack/i18n';
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,21 +34,29 @@ class FakeRequest {
   onerror: (() => void) | null = null;
   ontimeout: (() => void) | null = null;
   onabort: (() => void) | null = null;
-  open() {}
+  open(_method: string, url: string) {
+    this.url = url;
+  }
   setRequestHeader(name: string, value: string) {
     this.headers[name] = value;
   }
-  getResponseHeader() {
-    return null;
+  getResponseHeader(name: string) {
+    return name === 'Retry-After' ? this.retryAfter : null;
   }
   send(body: Blob) {
     this.body = body;
     FakeRequest.sent.push(this);
   }
-  answer(status: number, body: unknown) {
+  retryAfter: string | null = null;
+  url = '';
+  answer(status: number, body: unknown, retryAfter: string | null = null) {
     this.status = status;
+    this.retryAfter = retryAfter;
     this.responseText = JSON.stringify(body);
     this.onload?.();
+  }
+  drop() {
+    this.ontimeout?.();
   }
 }
 
@@ -248,5 +257,163 @@ describe('the import panel under Bengali', () => {
     expect(text()).not.toMatch(BENGALI);
     expect(text()).toContain('Drop Files or a Folder Here');
     expect(text()).toContain('Karim (This Person)');
+  });
+});
+
+/** Refill 7: the states of the panel the earlier tests did not reach, each under Bengali. */
+describe('the import panel under Bengali, every later state', () => {
+  const U = 'appApplicant.appApplicantIdDocumentUploader.';
+  const photo = (name: string) => new File([new Uint8Array(10)], name, { type: 'image/jpeg' });
+  async function chooseFiles(files: File[]) {
+    const input = host.querySelector('[data-testid="import-files"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: files, configurable: true });
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await flush();
+  }
+  async function answer(index: number, status = 201, body: unknown = {}, retryAfter?: string) {
+    await act(async () => FakeRequest.sent[index]?.answer(status, body, retryAfter ?? null));
+    await flush();
+  }
+  const line = (name: string) =>
+    [...host.querySelectorAll('.upload-list li')].find(
+      (row) => row.querySelector('.upload-item-name')?.textContent === name,
+    );
+  const button = (label: string) =>
+    [...host.querySelectorAll('button')].find((each) => each.textContent === label);
+
+  it('offers Try Again on a lost file and Send Again after a reload, in Bengali with the file name', async () => {
+    await mount('bn');
+    await chooseFiles([photo('lost.jpg')]);
+    await act(async () => FakeRequest.sent[0]?.drop());
+    await flush();
+    const retry = line('lost.jpg')?.querySelector('button') as HTMLButtonElement;
+    expect(retry.textContent).toBe(bn[`${U}tryAgain`]);
+    expect(retry.getAttribute('aria-label')).toBe(
+      bn[`${U}tryAgainName`]?.replace('{name}', 'lost.jpg'),
+    );
+    expect(retry.textContent).not.toBe('Try Again');
+    await act(async () => retry.click());
+    await flush();
+    await answer(1, 201, { message: 'Added.', title: 'Lost' });
+
+    act(() => root.unmount());
+    root = createRoot(host);
+    FakeRequest.sent = [];
+    await mount('bn');
+    await chooseFiles([photo('lost.jpg')]);
+    expect(FakeRequest.sent).toHaveLength(0);
+    const again = line('lost.jpg')?.querySelector('button') as HTMLButtonElement;
+    expect(again.textContent).toBe(bn[`${K}sendAgain`]);
+    expect(again.getAttribute('aria-label')).toBe(
+      bn[`${K}sendAgainName`]?.replace('{name}', 'lost.jpg'),
+    );
+    expect(text()).not.toContain('Send Again');
+    expect(text()).not.toMatch(/appApplicant\./);
+  });
+
+  it('keeps Try Again for All Paused Files English, as the English line on each paused file names it', async () => {
+    await mount('bn');
+    await chooseFiles(['h0.jpg', 'h1.jpg', 'h2.jpg'].map(photo));
+    await answer(0, 429, { message: 'Too many uploads in a short time.' }, '1800');
+    await answer(1);
+    // Held (REFILL_LEFTOVERS.md, refill 7): the line below names the button by its English words.
+    expect(bn[`${K}tryAgainForAllPausedFiles`]).toBeUndefined();
+    expect(button('Try Again for All Paused Files'), 'the held button').toBeTruthy();
+    expect(text()).toContain('Use Try Again for All Paused Files once the hour is up.');
+  });
+
+  it('turns Pause into Resume in Bengali', async () => {
+    await mount('bn');
+    await chooseFiles(['p0.jpg', 'p1.jpg', 'p2.jpg', 'p3.jpg'].map(photo));
+    await act(async () => button(bn[`${K}pause`] ?? '')?.click());
+    expect(button(bn[`${K}resume`] ?? ''), 'Resume').toBeTruthy();
+    expect(text()).not.toContain('Resume');
+  });
+
+  it('shows all lines and fewer again, with the count in Bengali digits', async () => {
+    await mount('bn');
+    await chooseFiles(Array.from({ length: 51 }, (_, i) => photo(`s${i}.jpg`)));
+    const showAll = bn[`${K}showAllLength`]?.replace('{length}', formatNumber(51, 'bn')) ?? '';
+    expect(showAll).toMatch(/৫১/);
+    const all = button(showAll);
+    expect(all, showAll).toBeTruthy();
+    await act(async () => all?.click());
+    expect(button(bn[`${K}showFewer`] ?? ''), 'Show Fewer').toBeTruthy();
+    expect(text()).not.toMatch(/Show (All|Fewer)/);
+  });
+
+  it('says most files are sorted on their own and offers See What We Found, in Bengali', async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="bn" pageLang="bn">
+          <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" readingOn />
+        </I18nProvider>,
+      );
+    });
+    await chooseFiles([photo('one.jpg')]);
+    await answer(0, 201, {
+      message: 'Added.',
+      title: 'One',
+      documentId: '66666666-6666-4666-8666-666666666666',
+    });
+    expect(text()).toContain(bn[`${K}mostFilesAreSortedOnTheir`]);
+    expect(text()).not.toContain(en[`${K}mostFilesAreSortedOnTheir`]);
+    const found = host.querySelector('a.btn-primary');
+    expect(found?.textContent).toBe(bn[`${K}seeWhatWeFound`]);
+    // The saved count beside it is still English (not in a catalogue yet).
+    expect(text()).toContain('1 file is saved.');
+  });
+
+  it('says files for several people wait, and offers Choose Which Person, in Bengali', async () => {
+    await mount('bn', people, true);
+    const select = host.querySelector('select') as HTMLSelectElement;
+    await act(async () => {
+      select.value = '__not_sure';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await chooseFiles([photo('f1.jpg')]);
+    expect(FakeRequest.sent[0]?.url).toBe('/api/documents/hold?applicantId=a-1');
+    await answer(0, 201, { message: 'Added. It waits in Needs One Decision.', title: 'Waiting' });
+    expect(text()).toContain(bn[`${K}filesForSeveralPeopleWaitIn`]);
+    expect(text()).not.toContain(en[`${K}filesForSeveralPeopleWaitIn`]);
+    const links = [...host.querySelectorAll('a')].map((a) => a.textContent);
+    expect(links).toContain(bn[`${K}chooseWhichPerson`]);
+    expect(links).not.toContain('Choose Which Person');
+  });
+
+  it('offers See What We Found for another person by name, in Bengali', async () => {
+    await mount('bn', people, true);
+    const select = host.querySelector('select') as HTMLSelectElement;
+    await act(async () => {
+      select.value = 'a-2';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await chooseFiles([photo('hers.jpg')]);
+    await answer(0, 201, { message: 'Added.', documentId: '77777777-7777-4777-8777-777777777777' });
+    const links = [...host.querySelectorAll('a.btn-primary')].map((a) => a.textContent);
+    expect(links).toEqual([bn[`${K}seeWhatWeFoundForName`]?.replace('{name}', 'Rina')]);
+  });
+
+  it('says Removing in Bengali while a new copy is being removed', async () => {
+    removal.remove.mockReset().mockReturnValue(new Promise(() => undefined));
+    await mount('bn', people);
+    await chooseFiles([photo('copy.jpg')]);
+    await answer(0, 201, {
+      message: 'Added. This is an exact copy of a document you already keep.',
+      title: 'Scan',
+      removableCopyId: '11111111-1111-4111-8111-111111111111',
+    });
+    const remove = [...host.querySelectorAll('button')].find((b) =>
+      b.getAttribute('aria-label')?.includes('copy.jpg'),
+    );
+    await act(async () => remove?.click());
+    await flush();
+    expect(remove?.textContent).toBe(bn[`${U}removing`]);
+    expect(remove?.getAttribute('aria-label')).toBe(
+      bn[`${U}removeThisNewCopyName`]?.replace('{name}', 'copy.jpg'),
+    );
+    expect(text()).not.toContain('Removing');
   });
 });

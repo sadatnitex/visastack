@@ -90,6 +90,11 @@ export interface DocumentCaseFacts extends CaseFacts {
   readonly selects: boolean;
   /** The case holds a deliberate choice of this document's copy. */
   readonly keepsCopy: boolean;
+  /**
+   * The replacement is recorded and a confirmation of the case stands now: the traveller
+   * confirmed the case again while it still used the earlier document.
+   */
+  readonly confirmedSinceReplaced: boolean;
   /** A finished case whose saved copy lists the document. */
   readonly savedCopyLists: boolean;
 }
@@ -97,8 +102,17 @@ export interface DocumentCaseFacts extends CaseFacts {
 /** One case and a replaced (or about to be replaced) document. Null when the case is not affected. */
 export function classifyDocumentCase(facts: DocumentCaseFacts): DraftItem | null {
   if (facts.live) {
-    // A selection is the stronger tie: the case was flagged and its confirmation voided.
-    if (facts.selects) return caseItem(facts, 'LIVE_CASE_USES_REPLACED_DOCUMENT');
+    // A selection is the stronger tie: the case was flagged and its confirmation voided. Once
+    // the traveller has confirmed the case again with the earlier document still selected, no
+    // step is owed any more: keeping it is their choice, offered for review.
+    if (facts.selects) {
+      return caseItem(
+        facts,
+        facts.confirmedSinceReplaced
+          ? 'LIVE_CASE_KEEPS_EARLIER_COPY'
+          : 'LIVE_CASE_USES_REPLACED_DOCUMENT',
+      );
+    }
     if (facts.keepsCopy) return caseItem(facts, 'LIVE_CASE_KEEPS_EARLIER_COPY');
     return null;
   }
@@ -126,6 +140,17 @@ export interface DetailCaseFacts extends CaseFacts {
   readonly confirmationLive: boolean;
   /** Live case: what the latest confirmed copy recorded. Finished case: what its saved copy holds. */
   readonly recorded: RecordedDetail;
+  /**
+   * Live case: it holds a deliberate, still-standing choice of a saved value that is not the
+   * current value.
+   */
+  readonly keepsEarlierValue: boolean;
+  /**
+   * Finished case: it existed while the detail held another value than the current one, so it
+   * could have used an earlier value. A case made after the detail came to hold its current
+   * value can only have held that value.
+   */
+  readonly couldHoldEarlier: boolean;
 }
 
 export interface DetailFacts {
@@ -162,30 +187,13 @@ function holdsCurrentValue(recorded: RecordedDetail, detail: DetailFacts): boole
 /** One case and a changed detail. Null when the case is not affected. */
 export function classifyDetailCase(facts: DetailCaseFacts, detail: DetailFacts): DraftItem | null {
   if (facts.live) {
-    if (!facts.selects) return null;
-    if (!facts.everConfirmed || facts.confirmationLive || detail.savedValues <= 1) {
-      return caseItem(facts, 'LIVE_CASE_FOLLOWS_CURRENT');
-    }
-    // Confirmed once, and that confirmation is void. A live case is judged by the saved value it
-    // was confirmed with, not by its text: saving the detail again, even unchanged, voids the
-    // confirmation by a product rule that is already enforced, and the traveller really must
-    // confirm again. So a confirmed copy whose text equals the current one is still void.
-    switch (facts.recorded.kind) {
-      case 'VERSIONS':
-        return caseItem(
-          facts,
-          recordedCurrentVersion(facts.recorded, detail)
-            ? 'LIVE_CASE_FOLLOWS_CURRENT'
-            : 'LIVE_CASE_CONFIRMATION_VOID',
-        );
-      case 'ABSENT':
-        // The detail was added after the confirmation: nothing was confirmed about it.
-        return caseItem(facts, 'LIVE_CASE_FOLLOWS_CURRENT');
-      case 'INEXACT':
-      case 'NO_COPY':
-        // A void confirmation whose copy cannot say which value it held.
-        return caseItem(facts, 'RECORD_INCOMPLETE');
-    }
+    if (!facts.selects && !facts.keepsEarlierValue) return null;
+    const voided = facts.selects ? voidedConfirmation(facts, detail) : null;
+    // A step the product already requires comes first; then a deliberate choice of an earlier
+    // value, which the case keeps whatever the detail says now.
+    if (voided === 'LIVE_CASE_CONFIRMATION_VOID') return caseItem(facts, voided);
+    if (facts.keepsEarlierValue) return caseItem(facts, 'LIVE_CASE_KEEPS_EARLIER_COPY');
+    return caseItem(facts, voided ?? 'LIVE_CASE_FOLLOWS_CURRENT');
   }
   // A finished case is judged by what its copy says: a copy that holds the same text as the
   // current value holds the current value, whichever saved value it names.
@@ -197,11 +205,36 @@ export function classifyDetailCase(facts: DetailCaseFacts, detail: DetailFacts):
     case 'ABSENT':
       return null;
     case 'INEXACT':
-      return detail.valueChanged ? caseItem(facts, 'RECORD_INCOMPLETE') : null;
+      return facts.couldHoldEarlier ? caseItem(facts, 'RECORD_INCOMPLETE') : null;
     case 'NO_COPY':
-      return facts.selects && detail.valueChanged
+      return facts.selects && facts.couldHoldEarlier
         ? caseItem(facts, 'FINISHED_CASE_NO_SAVED_COPY')
         : null;
+  }
+}
+
+/**
+ * What a live case's confirmation says about the detail: null when there is nothing to say (never
+ * confirmed, a confirmation still stands, or the detail was only ever saved once).
+ */
+function voidedConfirmation(facts: DetailCaseFacts, detail: DetailFacts): ImpactReason | null {
+  if (!facts.everConfirmed || facts.confirmationLive || detail.savedValues <= 1) return null;
+  // Confirmed once, and that confirmation is void. A live case is judged by the saved value it
+  // was confirmed with, not by its text: saving the detail again, even unchanged, voids the
+  // confirmation by a product rule that is already enforced, and the traveller really must
+  // confirm again. So a confirmed copy whose text equals the current one is still void.
+  switch (facts.recorded.kind) {
+    case 'VERSIONS':
+      return recordedCurrentVersion(facts.recorded, detail)
+        ? 'LIVE_CASE_FOLLOWS_CURRENT'
+        : 'LIVE_CASE_CONFIRMATION_VOID';
+    case 'ABSENT':
+      // The detail was added after the confirmation: nothing was confirmed about it.
+      return 'LIVE_CASE_FOLLOWS_CURRENT';
+    case 'INEXACT':
+    case 'NO_COPY':
+      // A void confirmation whose copy cannot say which value it held.
+      return 'RECORD_INCOMPLETE';
   }
 }
 

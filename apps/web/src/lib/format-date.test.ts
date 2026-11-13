@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   daysUntilDateOnly,
   formatDateOnly,
+  formatLongDay,
   formatTimestamp,
   formatTimestampDate,
 } from './format-date';
@@ -84,5 +85,49 @@ describe('formatDateOnly for a Bengali reader', () => {
   it('leaves the English output exactly as it was', () => {
     expect(formatDateOnly('2027-01-15', 'en')).toBe(formatDateOnly('2027-01-15'));
     expect(formatDateOnly('2027-01-15')).toBe('Jan 15, 2027');
+  });
+});
+
+describe('formatTimestampDate for a Bengali reader', () => {
+  it('uses Bengali digits and month names', () => {
+    expect(formatTimestampDate('2099-11-01T12:00:00.000Z', 'bn')).toBe('১ নভে, ২০৯৯');
+    expect(formatTimestampDate(new Date('2099-04-09T12:00:00.000Z'), 'bn')).toBe('৯ এপ্রি, ২০৯৯');
+    expect(formatTimestampDate('2099-11-01T12:00:00.000Z', 'bn')).not.toMatch(/[0-9A-Za-z]/);
+  });
+  it('leaves the English output exactly as it was', () => {
+    expect(formatTimestampDate('2099-11-01T12:00:00.000Z', 'en')).toBe('1 Nov 2099');
+    expect(formatTimestampDate('2099-11-01T12:00:00.000Z')).toBe('1 Nov 2099');
+  });
+});
+
+describe('formatLongDay', () => {
+  it('writes a real day in Bengali with the month in full', () => {
+    expect(formatLongDay('2099-11-09', 'bn')).toBe('৯ নভেম্বর, ২০৯৯');
+    expect(formatLongDay('2099-03-31', 'bn')).toBe('৩১ মার্চ, ২০৯৯');
+    expect(formatLongDay('2099-11-09', 'bn')).not.toMatch(/[0-9A-Za-z]/);
+  });
+  it('reads the day at the start of a longer value, whatever the time after it', () => {
+    expect(formatLongDay('2099-11-09T23:59:59.000Z', 'bn')).toBe('৯ নভেম্বর, ২০৯৯');
+    expect(formatLongDay('2099-11-09T00:00:00.000+14:00', 'bn')).toBe('৯ নভেম্বর, ২০৯৯');
+  });
+  it('gives nothing for English, so the caller keeps its English wording', () => {
+    expect(formatLongDay('2099-11-09', 'en')).toBeNull();
+    expect(formatLongDay('2099-11-09T12:00:00.000Z', 'en')).toBeNull();
+  });
+  it('gives nothing for an empty value', () => {
+    expect(formatLongDay('', 'bn')).toBeNull();
+    expect(formatLongDay(null, 'bn')).toBeNull();
+    expect(formatLongDay(undefined, 'bn')).toBeNull();
+  });
+  it('gives nothing for a value that is not a day', () => {
+    expect(formatLongDay('soon', 'bn')).toBeNull();
+    expect(formatLongDay('9 November 2099', 'bn')).toBeNull();
+    expect(formatLongDay('99-11-09', 'bn')).toBeNull();
+  });
+  it('gives nothing for a day that does not exist, where a roll-over would name another day', () => {
+    expect(formatLongDay('2026-13-40', 'bn')).toBeNull();
+    expect(formatLongDay('2099-02-30', 'bn')).toBeNull();
+    expect(formatLongDay('2099-11-31', 'bn')).toBeNull();
+    expect(formatLongDay('2099-00-10', 'bn')).toBeNull();
   });
 });

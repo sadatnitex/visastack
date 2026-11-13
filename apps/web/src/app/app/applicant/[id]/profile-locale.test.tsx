@@ -303,3 +303,57 @@ describe('the profile editor under Bengali', () => {
     expect(text).toContain('Add the Date This Became True');
   });
 });
+
+/** Refill 7: the profile page and the AI app suggestions in states the tests above miss. */
+describe('the profile page under Bengali, in its later states', () => {
+  it('names a change to a detail it does not know, made in a way it does not know, in Bengali', async () => {
+    service.listApplicantProfile.mockResolvedValue([
+      {
+        factId: 'f9',
+        fieldKey: 'made_up_field_key',
+        repeatingRecordKey: null,
+        value: 'Made-up value',
+        status: 'DECLARED',
+        method: 'MADE_UP_METHOD',
+        updatedAt: '2026-10-10T12:00:00Z',
+        effectiveFrom: null,
+        isProtected: false,
+        sourceDocumentId: null,
+      },
+    ]);
+    const text = await page('bn');
+    expect(text).toContain(`${bn[`${P}profileDetail`]} ${bn[`${P}recordedUpdate`]}`);
+    expect(text).not.toContain('Profile Detail');
+    expect(text).not.toContain('Recorded Update');
+    expect(await page('en')).toContain('Profile Detail Recorded Update');
+  });
+
+  it('says nothing is waiting from AI apps in Bengali once every suggestion is decided', async () => {
+    const { AppSuggestionsSection } = await import('./app-suggestions');
+    const render = (locale: 'en' | 'bn') =>
+      textOf(
+        renderToStaticMarkup(
+          <I18nProvider locale={locale} pageLang={locale}>
+            <AppSuggestionsSection applicantId="person" proposals={[]} canApprove />
+          </I18nProvider>,
+        ),
+      );
+    const key = `${K}AppSuggestions.nothingWaiting`;
+    expect(render('bn')).toContain(bn[key]);
+    expect(render('bn')).not.toContain('Nothing waiting.');
+    expect(render('en')).toContain('Nothing waiting.');
+  });
+
+  it('keeps the consent state of the page English (held in refill 7)', async () => {
+    service.hasConsent.mockResolvedValue(false);
+    const text = await page('bn');
+    for (const key of [
+      'chooseWhetherToSaveYourProfile',
+      'reviewPermissions',
+      'turnOnLetVisastackProcessMy',
+    ]) {
+      expect(bn[`${P}${key}`], key).toBeUndefined();
+      expect(text, key).toContain(en[`${P}${key}`]);
+    }
+  });
+});

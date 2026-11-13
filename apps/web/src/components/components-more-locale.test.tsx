@@ -553,6 +553,15 @@ describe('safe copy editor under Bengali', () => {
     await settle();
   });
 
+  it('review after Nothing to Hide: the line stays English above the English page captions', async () => {
+    await mount();
+    await click(bn('safeCopyEditor.prepareSafeCopy'));
+    await click(bn('safeCopyEditor.nothingToHideOnThisDocument'));
+    expect(container.textContent).toContain('You chose Nothing to Hide on This Document.');
+    expect(container.textContent).toContain('nothing hidden.');
+    expect(container.textContent).not.toMatch(RAW_KEY);
+  });
+
   it('review with a page that did not show: the waiting line is Bengali with the counts', async () => {
     failingPages = new Set([2]);
     await mount();

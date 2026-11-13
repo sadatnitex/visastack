@@ -129,18 +129,31 @@ export async function lockDocumentSubject(
 /** How far a chain of replacements is followed before it is taken as it stands. */
 export const REPLACEMENT_CHAIN_LIMIT = 32;
 
+export interface ReplacementChain {
+  /**
+   * Every document recorded after `subject` in its chain of replacements, in order, whether or
+   * not it is still there. A copy of any of them is a copy of a newer document than the subject.
+   */
+  readonly laterIds: readonly string[];
+  /** The newest of them that is still there (not in Recently Deleted); null when none is. */
+  readonly replacement: DocumentSubject | null;
+}
+
 /**
- * The end of the chain of recorded replacements that starts at `subject`, read from this
- * traveller's own replaced documents in one statement and walked in memory (a loop in the stored
- * links, or a chain longer than the limit, stops at the last document reached).
+ * The chain of recorded replacements that starts at `subject`. The links are read from all of
+ * this traveller's own replaced documents in one statement (ids only, including documents in
+ * Recently Deleted, so a removed document in the middle does not cut the chain) and walked in
+ * memory: a loop in the stored links, or a chain longer than the limit, stops at the last
+ * document reached. A second statement reads which of the later documents are still there
+ * (`presentDocumentCondition`); the replacement is the last of those.
  */
-export async function recordedReplacementId(
+export async function replacementChain(
   access: Proof,
   tx: Db,
   subject: DocumentSubject,
   lifecycle: boolean,
-): Promise<string | null> {
-  if (subject.supersededBy === null) return null;
+): Promise<ReplacementChain> {
+  if (subject.supersededBy === null) return { laterIds: [], replacement: null };
   const links = await tx
     .select({ id: schema.documents.id, next: schema.documents.supersededByDocumentId })
     .from(schema.documents)
@@ -148,20 +161,30 @@ export async function recordedReplacementId(
       and(
         eq(schema.documents.applicantId, access.applicant.id),
         isNotNull(schema.documents.supersededByDocumentId),
-        // The chain is followed through documents that are still there.
-        lifecycle ? presentDocumentCondition() : undefined,
       ),
     );
   const nextOf = new Map(links.map((link) => [link.id, link.next]));
   const seen = new Set([subject.id]);
-  let end = subject.supersededBy;
-  for (let depth = 1; depth < REPLACEMENT_CHAIN_LIMIT; depth += 1) {
-    seen.add(end);
-    const next = nextOf.get(end);
-    if (!next || seen.has(next)) break;
-    end = next;
+  const laterIds: string[] = [];
+  let next: string | null | undefined = subject.supersededBy;
+  while (next && !seen.has(next) && laterIds.length < REPLACEMENT_CHAIN_LIMIT) {
+    seen.add(next);
+    laterIds.push(next);
+    next = nextOf.get(next);
   }
-  return end;
+  const present = await tx
+    .select(documentColumns)
+    .from(schema.documents)
+    .where(
+      and(
+        inArray(schema.documents.id, laterIds),
+        eq(schema.documents.applicantId, access.applicant.id),
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    );
+  const last = [...laterIds].reverse().find((id) => present.some((row) => row.id === id));
+  const row = present.find((candidate) => candidate.id === last);
+  return { laterIds, replacement: row ? toDocumentSubject(row) : null };
 }
 
 /**
@@ -323,6 +346,31 @@ export async function casesKeepingCopy(
     );
 }
 
+/**
+ * This traveller's cases that hold a deliberate, still-standing choice of one saved value of
+ * this detail, with the saved value each one chose.
+ */
+export async function casesKeepingValue(
+  access: Proof,
+  tx: Db,
+  factId: string,
+): Promise<(CaseRow & { readonly chosenVersionId: string | null })[]> {
+  const choices = schema.umpePackageChoices;
+  return tx
+    .selectDistinct({ ...caseColumns, chosenVersionId: choices.factVersionId })
+    .from(choices)
+    .innerJoin(schema.missions, eq(schema.missions.id, choices.missionId))
+    .where(
+      and(
+        eq(choices.applicantId, access.applicant.id),
+        eq(choices.factId, factId),
+        eq(choices.choice, 'USE_COPY'),
+        isNull(choices.supersededAt),
+        eq(schema.missions.applicantId, access.applicant.id),
+      ),
+    );
+}
+
 /** This traveller's finished cases with any copy that lists the document or the detail. */
 export async function finishedCasesWithCopyOf(
   access: Proof,
@@ -442,12 +490,14 @@ export interface CaseConfirmation {
 /**
  * For each of these cases that was ever confirmed: whether a confirmation still stands, and
  * which saved values the latest confirmed copy recorded. A case that was never confirmed has no
- * entry. Two statements.
+ * entry. Two statements; one when only "does a confirmation stand" is asked
+ * (`withRecordedValues: false`).
  */
 export async function confirmationsOf(
   access: Proof,
   tx: Db,
   cases: readonly CaseRow[],
+  options: { readonly withRecordedValues: boolean } = { withRecordedValues: true },
 ): Promise<Map<string, CaseConfirmation>> {
   const out = new Map<string, CaseConfirmation>();
   if (cases.length === 0) return out;
@@ -473,6 +523,15 @@ export async function confirmationsOf(
   const latest = new Map<string, (typeof rows)[number]>();
   for (const row of rows) if (!latest.has(row.missionId)) latest.set(row.missionId, row);
   if (latest.size === 0) return out;
+  if (!options.withRecordedValues) {
+    for (const missionId of latest.keys()) {
+      out.set(missionId, {
+        live: rows.some((r) => r.missionId === missionId && r.invalidatedAt === null),
+        recordedFactVersionIds: null,
+      });
+    }
+    return out;
+  }
   const copies = await tx
     .select({
       id: schema.missionSnapshots.id,
@@ -580,13 +639,15 @@ function historiesOf(
 /**
  * This traveller's document requests that ever carried one of `documentIds` (as the request's
  * answer, in a pinned send or in a decision), each with every send and decision. Three
- * statements; two when exact copies are not kept yet.
+ * statements; two when exact copies are not kept yet. `onlyRequestIds` narrows the read to those
+ * requests, for reading a few of them again.
  */
 export async function documentRequestHistories(
   access: Proof,
   tx: Db,
   documentIds: readonly string[],
   pinsPresent: boolean,
+  onlyRequestIds?: readonly string[],
 ): Promise<RequestHistory[]> {
   const requests = schema.evidenceRequests;
   const sendsTable = schema.evidenceRequestSubmissions;
@@ -596,6 +657,7 @@ export async function documentRequestHistories(
     and(
       eq(requests.applicantId, access.applicant.id),
       eq(requests.kind, 'DOCUMENT'),
+      onlyRequestIds ? inArray(requests.id, [...onlyRequestIds]) : undefined,
       or(
         inArray(requests.respondingDocumentId, ids),
         pinsPresent
@@ -673,7 +735,8 @@ export async function documentRequestHistories(
 
 /**
  * This traveller's detail requests that ever carried `factId`, each with every send and
- * decision. Three statements; two when exact saved values are not kept yet.
+ * decision. Three statements; two when exact saved values are not kept yet. `onlyRequestIds`
+ * narrows the read to those requests, for reading a few of them again.
  */
 export async function detailRequestHistories(
   access: Proof,
@@ -681,6 +744,7 @@ export async function detailRequestHistories(
   factId: string,
   knownVersionIds: ReadonlySet<string>,
   pinsPresent: boolean,
+  onlyRequestIds?: readonly string[],
 ): Promise<RequestHistory[]> {
   const requests = schema.evidenceRequests;
   const sendsTable = schema.evidenceRequestFactSubmissions;
@@ -689,6 +753,7 @@ export async function detailRequestHistories(
     and(
       eq(requests.applicantId, access.applicant.id),
       eq(requests.kind, 'FIELD'),
+      onlyRequestIds ? inArray(requests.id, [...onlyRequestIds]) : undefined,
       or(
         eq(requests.respondingFactId, factId),
         pinsPresent

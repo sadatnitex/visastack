@@ -129,6 +129,8 @@ export const collectCatalog = defineCatalog({
     'collect.collectAccountAnswersPage.submittedToAgency': 'এজেন্সির কাছে জমা দেওয়া হয়েছে',
     'collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen':
       'এজেন্সির কাছে জমা দেওয়া হয়েছে। আপনি পাঠানোর সময় যা বেছে নিয়েছিলেন, ঠিক সেটুকুই তারা খুলতে পারবে।',
+    'collect.collectAccountAnswersPage.withdrawnFormattimestampdate':
+      'প্রত্যাহার করা হয়েছে {formatTimestampDate}',
     'collect.collectAccountAnswersPage.withdrawnTheAgencyCanNoLonger':
       'তুলে নেওয়া হয়েছে। এজেন্সি ওই উত্তরের কিছুই আর খুলতে পারবে না।',
     'collect.collectAccountAnswersPage.youHaveNotAnsweredAnyAgency':

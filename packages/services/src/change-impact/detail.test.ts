@@ -1,8 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from '../access';
 import type { KeyManagementPort } from '../ports';
 import { editFact, registerFieldDefinition } from '../profile';
 import { revokeGrant } from '../sharing';
+import { recordPackageChoice } from '../umpe-package-service';
 import {
   AGENCY_A_NAME,
   E_VALUE_1,
@@ -421,6 +423,96 @@ describe('a detail saved again without changing it', () => {
       expect(impact.subject).toMatchObject({ savedValues: 2 });
       expect(itemOf(impact, `request:${request}`).reason).toBe('AGENCY_ACCEPTED_EARLIER_LIVE_WORK');
       expect(JSON.stringify(impact)).not.toContain('SAMPLE12345');
+    },
+    HEAVY,
+  );
+});
+
+describe('a live case that deliberately keeps an earlier value', () => {
+  it(
+    'is offered for review instead of being said to follow the current value',
+    async () => {
+      const w = await buildImpactWorld();
+      const keeper = await makeCase(w.db, w.rahim, w.checklist, {
+        title: 'Sample Case Keeping a Value',
+        confirm: false,
+      });
+      const caseProof = must(
+        await requireAccess(
+          w.db,
+          accountPrincipal(w.rahim.accountId),
+          'MANAGE',
+          { missionId: keeper },
+          { purpose: 'self' },
+        ),
+        'case proof',
+      );
+      must(
+        await recordPackageChoice(caseProof, {
+          missionId: keeper,
+          packRequirementId: w.checklist.detailRequirementId,
+          choice: 'USE_COPY',
+          factVersionId: w.e.v1,
+        }),
+        'use this value',
+      );
+      // The chosen value is the current one: the case simply follows it.
+      expect(itemOf(await readDetailImpact(w), `case:${keeper}`).reason).toBe(
+        'LIVE_CASE_FOLLOWS_CURRENT',
+      );
+
+      await changeEmploymentDetail(w);
+      expect(itemOf(await readDetailImpact(w), `case:${keeper}`)).toMatchObject({
+        outcome: 'REVIEW_RECOMMENDED',
+        reason: 'LIVE_CASE_KEEPS_EARLIER_COPY',
+        nextStep: { kind: 'OPEN_CASE', missionId: keeper },
+      });
+
+      // Confirmed, then the detail changes again: the void confirmation is the stronger item.
+      await confirmCase(w.db, w.rahim, keeper);
+      expect(itemOf(await readDetailImpact(w), `case:${keeper}`).reason).toBe(
+        'LIVE_CASE_KEEPS_EARLIER_COPY',
+      );
+      await changeEmploymentDetail(w, E_VALUE_3);
+      expect(itemOf(await readDetailImpact(w), `case:${keeper}`).reason).toBe(
+        'LIVE_CASE_CONFIRMATION_VOID',
+      );
+
+      // Changed back to the chosen text: the choice holds the current value again.
+      await confirmCase(w.db, w.rahim, keeper);
+      await changeEmploymentDetail(w, E_VALUE_1);
+      await confirmCase(w.db, w.rahim, keeper);
+      expect(itemOf(await readDetailImpact(w), `case:${keeper}`).reason).toBe(
+        'LIVE_CASE_FOLLOWS_CURRENT',
+      );
+    },
+    HEAVY,
+  );
+});
+
+describe('a case made after the detail last changed', () => {
+  it(
+    'is not listed when it finishes without a saved copy: it can only have held the current value',
+    async () => {
+      const w = await buildImpactWorld();
+      const earlier = await makeCase(w.db, w.rahim, w.checklist, {
+        title: 'Sample Earlier Case',
+        factId: w.e.factId,
+        confirm: false,
+      });
+      await changeEmploymentDetail(w);
+      const later = await makeCase(w.db, w.rahim, w.checklist, {
+        title: 'Sample Later Case',
+        factId: w.e.factId,
+        confirm: false,
+      });
+      await cancelCase(w.db, w.rahim, earlier);
+      await cancelCase(w.db, w.rahim, later);
+
+      const impact = await readDetailImpact(w);
+      expect(impact.items.some((item) => item.id === `case:${later}`)).toBe(false);
+      // The case that existed while the detail held the earlier value is still unknown.
+      expect(itemOf(impact, `case:${earlier}`).reason).toBe('FINISHED_CASE_NO_SAVED_COPY');
     },
     HEAVY,
   );

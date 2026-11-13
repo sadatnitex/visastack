@@ -52,6 +52,7 @@ vi.mock('next/navigation', () => ({
 import { componentsCatalog } from '../i18n/components';
 import { componentsProfilePhotoCatalog } from '../i18n/components-profile-photo';
 import { componentsPwaCatalog } from '../i18n/components-pwa';
+import { setInstallPrompt } from '../lib/pwa/install-prompt';
 import { ActivityLog, type ActivityLogEntry } from './activity-log';
 import { CapturePreview } from './capture-preview';
 import { ChecklistCorrectionForm } from './checklist-correction-form';
@@ -67,6 +68,7 @@ import { ReceiptCard } from './receipt-card';
 import { ReferenceCode } from './reference-code';
 import { SiteNavigation } from './site-navigation';
 import { TimeZoneSelect } from './time-zone-select';
+import { ToastHost, resetToastForTest, showToast } from './toast';
 import { VersionNotice } from './version-notice';
 import { VisaPhotoSizes } from './visa-photo-sizes';
 
@@ -347,6 +349,214 @@ describe('every live Bengali message of the shared components is shown under bn'
     );
     await act(async () => window.dispatchEvent(new Event('online')));
   });
+
+  // Refill 6: the states the refills deferred until a test drew them.
+  const bnOf = (key: string) =>
+    (componentsCatalog.bn as Record<string, string>)[key] ??
+    (componentsPwaCatalog.bn as Record<string, string>)[key] ??
+    (componentsProfilePhotoCatalog.bn as Record<string, string>)[key] ??
+    '';
+  const typeInto = (input: Element | null, value: string) => {
+    if (!input) throw new Error('Missing input');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+  /** Each key's Bengali is on screen (words or an attribute such as a spoken name). */
+  const expectShown = (...keys: string[]) => {
+    const seen = [
+      host.textContent ?? '',
+      ...[...host.querySelectorAll('*')].flatMap((el) => [...el.attributes].map((a) => a.value)),
+    ].join('\n');
+    for (const key of keys) {
+      expect(bnOf(key), key).not.toBe('');
+      expect(seen, key).toContain(bnOf(key));
+    }
+    noRawKey();
+  };
+  /** Some element's own text is exactly this key's Bengali (not a longer line that contains it). */
+  const expectExact = (key: string) =>
+    expect(
+      [...host.querySelectorAll('*')].some((el) => el.textContent === bnOf(key)),
+      key,
+    ).toBe(true);
+
+  it('activity log: a search that matches nothing, with the way to clear it', () => {
+    show(<ActivityLog entries={logEntries} label="Access Log Entries" />);
+    typeInto(host.querySelector('input[type="search"]'), 'nothing like this');
+    expectShown(
+      'components.activityLog.nothingMatchesTheseFilters',
+      'components.activityLog.clearFilters',
+    );
+  });
+
+  it('country browser: a search that matches no country', () => {
+    show(
+      <CountryBrowser
+        items={countries}
+        filters={[{ status: 'VISA_REQUIRED', label: 'Visa Needed', statusLabel: 'Visa Needed' }]}
+      />,
+    );
+    typeInto(host.querySelector('input'), 'Atlantis');
+    expectShown(
+      'components.countryBrowser.noCountriesMatch',
+      'components.countryBrowser.clearTheSearchOrChooseAnother',
+    );
+    expectExact('components.countryBrowser.noCountriesMatche4ae64');
+    expect(host.textContent).not.toContain('No Countries Match');
+  });
+
+  it('document review panel: no documents, no match, and a file that cannot be previewed', () => {
+    show(
+      <DocumentReviewPanel applicantId="p" documents={[]} previewAction={async () => undefined} />,
+    );
+    expectShown('components.documentReviewPanel.uploadADocumentToReviewIts');
+    const docs = wallet(2).map((d) => ({
+      id: d.id,
+      name: d.name,
+      safetyLabel: 'Clean',
+      processingLabel: 'Approved',
+      previewAllowed: false,
+    }));
+    show(
+      <DocumentReviewPanel
+        applicantId="p"
+        documents={docs}
+        previewAction={async () => undefined}
+      />,
+    );
+    expectShown('components.documentReviewPanel.thisDocumentIsNotAvailableTo');
+    typeInto(host.querySelector('input[type="search"]'), 'nothing like this');
+    expectShown('components.documentReviewPanel.noDocumentsMatchTryAnotherName');
+  });
+
+  it('wallet browser: a search that matches nothing, and the chosen file outside it', () => {
+    show(<DocumentWalletBrowser applicantId="p" documents={wallet(4)} initialSelection="doc-1" />);
+    typeInto(host.querySelector('input[type="search"]'), 'nothing like this');
+    expectShown(
+      'components.documentWalletBrowser.noDocumentsMatch',
+      'components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe',
+    );
+    // It names a filter the screen calls by another word, so it stays English for now.
+    expect(host.textContent).toContain('Clear the search or choose another category or status.');
+  });
+
+  it('wallet browser: the unsorted toggle stays in one language both ways', () => {
+    show(<DocumentWalletBrowser applicantId="p" documents={wallet(4)} />);
+    const toggle = () => host.querySelector('.u-btn-xs');
+    const before = toggle()?.textContent;
+    click(toggle());
+    expect(toggle()?.textContent).toBe('Show All');
+    expect(before).not.toMatch(/[\u0980-\u09FF]/);
+  });
+
+  it('purpose choice: back to the common purposes from the full list', () => {
+    show(
+      <PurposeChoice
+        id="p"
+        purposes={[
+          {
+            family: 'visit',
+            label: 'Visit',
+            options: [
+              { key: 'tourism', label: 'Tourism' },
+              { key: 'other', label: 'Other' },
+            ],
+          },
+        ]}
+        value=""
+        onChange={() => undefined}
+      />,
+    );
+    click(byText('button', bnOf('components.purposeChoice.morePurposes')));
+    expectShown('components.purposeChoice.showCommonPurposes');
+  });
+
+  it('toast: the close button is named in Bengali', () => {
+    resetToastForTest();
+    show(<ToastHost />);
+    act(() => showToast('Saved.'));
+    expect(host.querySelector('.toast-close')?.getAttribute('aria-label')).toBe(
+      bnOf('components.toast.dismiss'),
+    );
+    expectShown('components.toast.dismiss');
+    act(() => resetToastForTest());
+  });
+
+  it('install card: the install offer, and the lines after a no and after installing', async () => {
+    try {
+      await installCard();
+    } finally {
+      setInstallPrompt(null);
+    }
+  });
+  async function installCard() {
+    const prompt = vi.fn(async () => undefined);
+    setInstallPrompt(
+      Object.assign(new Event('beforeinstallprompt'), {
+        prompt,
+        userChoice: Promise.resolve({ outcome: 'dismissed' as const }),
+      }) as never,
+    );
+    show(<InstallAppCard />);
+    expectShown('componentsPwa.pwaInstallAppCard.installVisastack');
+    await act(async () => {
+      byText('button', bnOf('componentsPwa.pwaInstallAppCard.installVisastack'))?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    expectShown('componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime');
+    setInstallPrompt(
+      Object.assign(new Event('beforeinstallprompt'), {
+        prompt,
+        userChoice: Promise.resolve({ outcome: 'accepted' as const }),
+      }) as never,
+    );
+    show(<InstallAppCard key="again" />);
+    await act(async () => {
+      byText('button', bnOf('componentsPwa.pwaInstallAppCard.installVisastack'))?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    expectShown('componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice');
+  }
+
+  it('app update: the notice, Later, and Reload Now while it reloads', async () => {
+    const waiting = { postMessage: vi.fn(), addEventListener: vi.fn() };
+    const registration = Object.assign(new EventTarget(), {
+      waiting,
+      installing: null,
+      update: vi.fn(async () => undefined),
+      unregister: vi.fn(async () => true),
+    });
+    const container = Object.assign(new EventTarget(), {
+      controller: {},
+      register: vi.fn(async () => registration),
+      getRegistrations: vi.fn(async () => [registration]),
+    });
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: container });
+    try {
+      await appUpdate();
+    } finally {
+      Reflect.deleteProperty(navigator, 'serviceWorker');
+    }
+  });
+  async function appUpdate() {
+    show(<PwaRuntime enabled />);
+    await act(async () => undefined);
+    expectShown(
+      'componentsPwa.pwaPwaRuntime.appUpdate',
+      'componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs',
+      'componentsPwa.pwaPwaRuntime.reloadNow',
+      'componentsPwa.pwaPwaRuntime.later',
+    );
+    const reload = byText('button', bnOf('componentsPwa.pwaPwaRuntime.reloadNow')) as
+      | HTMLButtonElement
+      | undefined;
+    await act(async () => reload?.click());
+    expectShown('componentsPwa.pwaPwaRuntime.reloading');
+  }
 
   afterAll(() => {
     const live = [

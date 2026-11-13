@@ -1,5 +1,5 @@
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { cancelEvidenceRequest } from '../agency';
 import { listFieldAnswersForOwner } from '../evidence-field-answers';
@@ -171,6 +171,119 @@ describe('the batched reading of request rounds', () => {
             sentAt: round.sentAt,
             decidedAt: round.decidedAt,
           })),
+        );
+      }
+    },
+    HEAVY,
+  );
+});
+
+describe('the batched reading of rounds recorded before exact versions were kept', () => {
+  it(
+    'matches what the traveller sees for unpinned sends and decisions too',
+    async () => {
+      const w = await buildImpactWorld();
+      const { db, rahim, agencyA } = w;
+      const waitingDocument = await askForDocument(db, agencyA, rahim);
+      await sendDocument(db, rahim, waitingDocument, w.p1.documentId);
+      const sentBackDocument = await askForDocument(db, agencyA, rahim);
+      await sendDocument(db, rahim, sentBackDocument, w.p1.documentId);
+      await decide(db, agencyA, sentBackDocument, 'NEEDS_REPLACEMENT');
+      const waitingDetail = await askForDetail(db, agencyA, rahim);
+      await sendDetail(db, rahim, waitingDetail, w.e.factId);
+      const sentBackDetail = await askForDetail(db, agencyA, rahim);
+      await sendDetail(db, rahim, sentBackDetail, w.e.factId);
+      await decide(db, agencyA, sentBackDetail, 'CORRECTION_PROPOSED');
+      // By hand: every exact send is forgotten, as records from before exact versions look
+      // (accepted, sent back and still waiting, for a document and for a detail).
+      await db.execute(sql`delete from evidence_request_decision_submissions`);
+      await db.execute(sql`delete from evidence_request_submissions`);
+      await db.execute(sql`delete from evidence_request_decision_fact_submissions`);
+      await db.execute(sql`delete from evidence_request_fact_submissions`);
+
+      const proof = await ownerManage(db, rahim);
+      const key = (round: { state: unknown; sentAt: Date | null; decidedAt: Date | null }) =>
+        `${String(round.state)}|${round.sentAt?.toISOString()}|${round.decidedAt?.toISOString()}`;
+      const sorted = <T extends { state: unknown; sentAt: Date | null; decidedAt: Date | null }>(
+        rounds: T[],
+      ) => [...rounds].sort((a, b) => (key(a) < key(b) ? -1 : 1));
+
+      const documentHistories = await documentRequestHistories(proof, db, [w.p1.documentId], true);
+      expect(documentHistories.map((h) => h.request.id).sort()).toEqual(
+        [w.documentRequestId, waitingDocument, sentBackDocument].sort(),
+      );
+      for (const history of documentHistories) {
+        const mine = roundsOf(
+          history.request,
+          history.sends,
+          history.decisions,
+          (send) => send.subjectId === history.request.respondingId,
+        );
+        const shown = must(
+          await listEvidenceSubmissions(proof, { requestId: history.request.id }),
+          'sends',
+        );
+        expect(shown.submissions).toEqual([]);
+        expect(shown.legacy.length).toBeGreaterThan(0);
+        expect(
+          sorted(
+            mine.map((round) => ({
+              precision: round.precision,
+              state: round.state,
+              subjectId: round.precision === 'legacy' ? round.subjectId : 'pinned',
+              sentAt: round.sentAt,
+              decidedAt: round.decidedAt,
+            })),
+          ),
+          history.request.id,
+        ).toEqual(
+          sorted(
+            shown.legacy.map((round) => ({
+              precision: 'legacy' as const,
+              state: STATE[round.state],
+              subjectId: round.documentId,
+              sentAt: round.sentAt,
+              decidedAt: round.decidedAt,
+            })),
+          ),
+        );
+      }
+
+      const versionIds = new Set([w.e.v1]);
+      const detailHistories = await detailRequestHistories(proof, db, w.e.factId, versionIds, true);
+      expect(detailHistories.map((h) => h.request.id).sort()).toEqual(
+        [w.detailRequestId, waitingDetail, sentBackDetail].sort(),
+      );
+      const shownDetails = must(
+        await listFieldAnswersForOwner(proof, {
+          requestIds: detailHistories.map((h) => h.request.id),
+        }),
+        'answers',
+      );
+      for (const history of detailHistories) {
+        const mine = roundsOf(history.request, history.sends, history.decisions, () => true);
+        const theirs = shownDetails.get(history.request.id)?.rounds ?? [];
+        expect(theirs.length).toBeGreaterThan(0);
+        expect(theirs.every((round) => round.precision === 'legacy')).toBe(true);
+        expect(
+          sorted(
+            mine.map((round) => ({
+              precision: round.precision,
+              state: round.state,
+              sentAt: round.sentAt,
+              decidedAt: round.decidedAt,
+            })),
+          ),
+          history.request.id,
+        ).toEqual(
+          sorted(
+            theirs.map((round) => ({
+              precision: round.precision,
+              state: STATE[round.state],
+              sentAt: round.sentAt,
+              decidedAt: round.decidedAt,
+            })),
+          ),
         );
       }
     },
