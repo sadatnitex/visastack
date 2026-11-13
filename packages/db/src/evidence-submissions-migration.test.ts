@@ -76,7 +76,7 @@ describe('Lane D evidence request submissions migration', () => {
       client.exec("update evidence_request_submissions set title_at_send = 'b.pdf'"),
     ).rejects.toThrow(/never changed/);
     const triggers = await client.query<{ n: number }>(
-      "select count(*)::int as n from pg_trigger where tgname like 'evidence_request%no_update'",
+      "select count(*)::int as n from pg_trigger where tgname in ('evidence_request_submissions_no_update', 'evidence_request_decision_submissions_no_update')",
     );
     expect(triggers.rows[0]?.n).toBe(2);
   });

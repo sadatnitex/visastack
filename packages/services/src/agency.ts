@@ -38,6 +38,14 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import {
+  type FieldPin,
+  evidenceFieldPinsPresent,
+  findFieldSubmissionByKey,
+  linkFieldDecision,
+  recordFieldSubmission,
+  waitingFieldSubmission,
+} from './evidence-field-answers';
+import {
   evidenceSubmissionsPresent,
   newerUnlinkedDecision,
   pinnedVersionIntact,
@@ -181,6 +189,50 @@ async function missionBelongsTo(db: Db, missionId: string, applicantId: string):
       .limit(1),
   );
   return mission !== undefined && mission.applicantId === applicantId;
+}
+
+/**
+ * Whether the account has ANY relationship with this traveller beyond ownership: it is the named
+ * recipient of a grant on them (whatever its state), or belongs (in any state) to an organization
+ * that holds one. A signed-in stranger has none of these. The services that refuse a caller who
+ * lacks one specific right (`forbidden`) use this to answer a stranger exactly as they answer an
+ * id that does not exist, so a real case or request cannot be told apart from a made-up one.
+ * Never used to grant anything.
+ */
+async function hasAnyStandingOnApplicant(
+  db: Db,
+  accountId: string,
+  applicantId: string,
+): Promise<boolean> {
+  const grantRows = await db
+    .select({
+      recipientAccountId: schema.grants.recipientAccountId,
+      recipientOrganizationId: schema.grants.recipientOrganizationId,
+    })
+    .from(schema.grants)
+    .where(eq(schema.grants.applicantId, applicantId));
+  if (grantRows.some((row) => row.recipientAccountId === accountId)) return true;
+  const organizationIds = [
+    ...new Set(
+      grantRows.flatMap((row) =>
+        row.recipientOrganizationId ? [row.recipientOrganizationId] : [],
+      ),
+    ),
+  ];
+  if (organizationIds.length === 0) return false;
+  const membership = first(
+    await db
+      .select({ id: schema.memberships.id })
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, accountId),
+          inArray(schema.memberships.organizationId, organizationIds),
+        ),
+      )
+      .limit(1),
+  );
+  return membership !== undefined;
 }
 
 /**
@@ -1424,6 +1476,11 @@ export async function addNote(
   }
 
   if (!authorized) {
+    const stranger = !(await hasAnyStandingOnApplicant(
+      db,
+      input.actorAccountId,
+      mission.applicantId,
+    ));
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'MISSION_NOTE_DENIED',
@@ -1436,6 +1493,10 @@ export async function addNote(
         resourceId: null,
       });
     });
+    // Someone with no relationship to this traveller at all is answered exactly like an unknown
+    // case id, so a real case cannot be told apart from a made-up one. The denied attempt is
+    // still recorded above.
+    if (stranger) return err(serviceError('not_found', 'case not found'));
     return err(serviceError('forbidden', 'not authorized to comment on this case'));
   }
 
@@ -2974,6 +3035,14 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,200}$/;
  * `idempotencyKey` is answered with the first result and writes nothing. While migration 0132 has
  * not run, the older pointers alone are written (the same hardening applies) and no exact copy is
  * kept; nothing is faked.
+ *
+ * A detail (FIELD) send pins the same way (migration 0135): inside the same locked transaction the
+ * detail's row is locked and its current saved version is read and written to
+ * `evidence_request_fact_submissions`, so the send names the exact version, never "whatever the
+ * detail says later". When the screen names the version the person saw (`factVersionId`) and the
+ * detail has changed since, nothing is sent and the person is told the page is out of date. A
+ * retry with the same key is answered like a document retry. Until 0135 has run the older pointer
+ * alone is written and no exact value is kept.
  */
 export async function submitEvidenceResponse(
   db: Db,
@@ -2983,7 +3052,18 @@ export async function submitEvidenceResponse(
     readonly factId?: string;
     readonly documentId?: string;
     readonly documentVersionId?: string;
+    /** The saved version of the detail the person saw; must still be the current one. */
+    readonly factVersionId?: string;
     readonly idempotencyKey?: string;
+    /**
+     * Set by one confirmation that answers several requests of this agency together: the agency's
+     * administrators get one combined notice for the whole confirmation instead of one per answer.
+     * Each answer is still its own send, audit entry and review. `anchorRequestId` is the same for
+     * every answer of the confirmation, so the notice's retry key is the same too and the first
+     * answer to commit writes it; the rest find it already there. Left out, the notice is the
+     * single-answer one, exactly as before.
+     */
+    readonly agencyNotice?: { readonly batchKey: string; readonly anchorRequestId: string };
   },
 ): Promise<Result<EvidenceSubmitResult, ServiceError>> {
   if (input.idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
@@ -2996,10 +3076,14 @@ export async function submitEvidenceResponse(
   ) {
     return err(serviceError('not_found', 'document not found for this applicant'));
   }
-  if (input.factId !== undefined && !isUuid(input.factId)) {
+  if (
+    (input.factId !== undefined && !isUuid(input.factId)) ||
+    (input.factVersionId !== undefined && !isUuid(input.factVersionId))
+  ) {
     return err(serviceError('not_found', 'fact not found for this applicant'));
   }
   const exact = await evidenceSubmissionsPresent(db);
+  const fieldPins = await evidenceFieldPinsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
   // Until the exact-copy tables exist a chosen version could not be kept, so it is not accepted.
   if (!exact && input.documentVersionId !== undefined) {
@@ -3007,6 +3091,14 @@ export async function submitEvidenceResponse(
       serviceError(
         'invalid',
         'Choosing an exact version is not available yet. Send the document and its newest version is used.',
+      ),
+    );
+  }
+  if (!fieldPins && input.factVersionId !== undefined) {
+    return err(
+      serviceError(
+        'invalid',
+        'Choosing an exact saved value is not available yet. Send the detail and its current value is used.',
       ),
     );
   }
@@ -3060,6 +3152,32 @@ export async function submitEvidenceResponse(
       }
     }
 
+    // The same for a detail: a retry of a send already recorded, while it is still the newest and
+    // undecided and names the same detail, is answered with it and writes nothing.
+    if (fieldPins && request.kind === 'FIELD' && input.idempotencyKey !== undefined) {
+      const earlier = await findFieldSubmissionByKey(tx, request.id, input.idempotencyKey);
+      if (earlier) {
+        if (
+          input.factId !== earlier.factId ||
+          (input.factVersionId !== undefined && input.factVersionId !== earlier.factVersionId)
+        ) {
+          return err(
+            serviceError('invalid', 'this retry key was already used for a different detail'),
+          );
+        }
+        const waiting = await waitingFieldSubmission(tx, request);
+        if (waiting?.id !== earlier.id) {
+          return err(
+            serviceError(
+              'stale',
+              'This was already sent and has moved on. Refresh to see where it stands.',
+            ),
+          );
+        }
+        return ok({ ...request, submissionId: earlier.id, replayed: true });
+      }
+    }
+
     if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
       return err(serviceError('invalid', 'this request is not awaiting a submission'));
     }
@@ -3082,6 +3200,7 @@ export async function submitEvidenceResponse(
     }
 
     let pin: SendPin | undefined;
+    let fieldPin: FieldPin | undefined;
     if (request.kind === 'FIELD') {
       if (!input.factId || input.documentId || input.documentVersionId) {
         return err(serviceError('invalid', 'a FIELD request is satisfied by exactly one factId'));
@@ -3106,8 +3225,17 @@ export async function submitEvidenceResponse(
       if (fact.fieldKey !== request.fieldKey) {
         return err(serviceError('invalid', "this fact does not match the request's field"));
       }
+      if (fieldPins) {
+        const pinned = await pinFieldVersion(tx, {
+          factId: input.factId,
+          fieldKey: fact.fieldKey,
+          ...(input.factVersionId !== undefined ? { expectedVersionId: input.factVersionId } : {}),
+        });
+        if (!pinned.ok) return pinned;
+        fieldPin = pinned.value;
+      }
     } else {
-      if (!input.documentId || input.factId) {
+      if (!input.documentId || input.factId || input.factVersionId) {
         return err(
           serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
         );
@@ -3219,8 +3347,20 @@ export async function submitEvidenceResponse(
       );
       submissionId = row.id;
     }
+    if (fieldPin) {
+      const row = await recordFieldSubmission(tx, {
+        requestId: request.id,
+        pin: fieldPin,
+        sentByAccountId: input.actorAccountId,
+        grantIdAtSend: grantId,
+        ...(input.idempotencyKey !== undefined ? { idempotencyKey: input.idempotencyKey } : {}),
+      });
+      submissionId = row.id;
+      roundNo = row.roundNo;
+    }
     await noticeAgencyOfEvidence(tx, {
       request,
+      ...(input.agencyNotice ? { group: input.agencyNotice } : {}),
       // Keyed on the send's own row (never on its round number, which can be reused once an
       // earlier send is removed with its document); the time covers a send with no exact copy.
       threshold:
@@ -3240,7 +3380,14 @@ export async function submitEvidenceResponse(
       metadata: {
         factId: input.factId,
         documentId: input.documentId,
-        ...(submissionId ? { submissionId, documentVersionId: pin?.version.id, roundNo } : {}),
+        ...(submissionId
+          ? {
+              submissionId,
+              roundNo,
+              ...(pin ? { documentVersionId: pin.version.id } : {}),
+              ...(fieldPin ? { factVersionId: fieldPin.factVersionId } : {}),
+            }
+          : {}),
       },
     });
     await recordProductEvent(tx, {
@@ -3261,9 +3408,18 @@ export async function submitEvidenceResponse(
  */
 async function noticeAgencyOfEvidence(
   tx: Db,
-  input: { readonly request: EvidenceRequest; readonly threshold: string },
+  input: {
+    readonly request: EvidenceRequest;
+    readonly threshold: string;
+    /** One combined notice for a whole confirmation (see `submitEvidenceResponse`). */
+    readonly group?: { readonly batchKey: string; readonly anchorRequestId: string };
+  },
 ): Promise<void> {
   const { request } = input;
+  // A combined notice is about the confirmation, not about this answer: its retry key, its driving
+  // request and its words are the same for every answer in it, and the deep link opens the first
+  // request of the group, where the agency's list of waiting answers is.
+  const anchor = input.group?.anchorRequestId ?? request.id;
   const admins = await tx
     .select({ accountId: schema.memberships.accountId })
     .from(schema.memberships)
@@ -3277,19 +3433,58 @@ async function noticeAgencyOfEvidence(
   for (const admin of admins) {
     await enqueueNotificationBothChannels(tx, {
       eventType: 'EVIDENCE_RESPONSE_RECEIVED',
-      resourceId: request.id,
-      threshold: input.threshold,
+      resourceId: anchor,
+      threshold: input.group ? `group-${input.group.batchKey}` : input.threshold,
       recipientAccountId: admin.accountId,
       applicantId: request.applicantId,
       organizationId: request.organizationId,
       ...(request.missionId ? { missionId: request.missionId } : {}),
       payload: {
         subject: 'New Evidence Received',
-        summary: 'A traveller sent evidence for one of your requests.',
-        deepLinkPath: `/app/agency/${request.organizationId}/clients?request=${request.id}#request-${request.id}`,
+        summary: input.group
+          ? 'A traveller sent evidence for several of your requests.'
+          : 'A traveller sent evidence for one of your requests.',
+        deepLinkPath: `/app/agency/${request.organizationId}/clients?request=${anchor}#request-${anchor}`,
       },
     });
   }
+}
+
+/**
+ * Pin the version a send will carry: the detail's current saved version at this moment. The fact
+ * row is locked first, so an edit that lands at the same moment either finishes before (and is what
+ * is pinned) or waits until this send has committed; the pin is never a version that was already
+ * replaced. When the screen names the version the person saw (`expectedVersionId`) and the detail
+ * has moved on since, nothing is sent and the person is told the page is out of date.
+ */
+async function pinFieldVersion(
+  tx: Db,
+  input: {
+    readonly factId: string;
+    readonly fieldKey: string;
+    readonly expectedVersionId?: string;
+  },
+): Promise<Result<FieldPin, ServiceError>> {
+  const fact = first(
+    await tx
+      .select({ currentVersionId: schema.facts.currentVersionId })
+      .from(schema.facts)
+      .where(eq(schema.facts.id, input.factId))
+      .for('update'),
+  );
+  const current = fact?.currentVersionId ?? null;
+  if (current === null) {
+    return err(serviceError('invalid', 'this detail has no saved value to send yet'));
+  }
+  if (input.expectedVersionId !== undefined && input.expectedVersionId !== current) {
+    return err(
+      serviceError(
+        'stale',
+        'This detail changed after you opened the page. Refresh to see the value now saved, then send it.',
+      ),
+    );
+  }
+  return ok({ factId: input.factId, factVersionId: current, fieldKey: input.fieldKey });
 }
 
 /** The exact version a send pins, with what the record needs to remember about it. */
@@ -3433,6 +3628,7 @@ export async function decideEvidenceResponse(
     return err(serviceError('not_found', 'evidence request not found'));
   }
   const exact = await evidenceSubmissionsPresent(db);
+  const fieldPins = await evidenceFieldPinsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
 
   // CAS-03's own request-status enum has no CONTRADICTION/CORRECTION_PROPOSED
@@ -3476,7 +3672,10 @@ export async function decideEvidenceResponse(
     // request still points at it. Anything else is an older, unpinned send.
     const pinned =
       exact && request.kind === 'DOCUMENT' ? await waitingSubmission(tx, request) : undefined;
-    if (input.submissionId !== undefined && input.submissionId !== pinned?.id) {
+    // A detail answer is judged the same way: the newest send, only while nobody has decided it.
+    const pinnedField =
+      fieldPins && request.kind === 'FIELD' ? await waitingFieldSubmission(tx, request) : undefined;
+    if (input.submissionId !== undefined && input.submissionId !== (pinned ?? pinnedField)?.id) {
       return err(
         serviceError(
           'stale',
@@ -3566,6 +3765,7 @@ export async function decideEvidenceResponse(
         .insert(schema.evidenceRequestDecisionSubmissions)
         .values({ decisionId: decision.id, submissionId: pinned.id });
     }
+    if (pinnedField) await linkFieldDecision(tx, decision.id, pinnedField.id);
     // The agency's "evidence arrived" notice is obsolete once the request has been decided; the
     // notices to the traveller about this decision are not touched.
     await cancelQueuedNotificationsForResource(tx, request.id, 'EVIDENCE_RESPONSE_RECEIVED');
@@ -3577,7 +3777,10 @@ export async function decideEvidenceResponse(
       applicantId: request.applicantId,
       resourceType: 'evidence_request',
       resourceId: request.id,
-      metadata: { outcome: input.outcome, ...(pinned ? { submissionId: pinned.id } : {}) },
+      metadata: {
+        outcome: input.outcome,
+        ...((pinned ?? pinnedField) ? { submissionId: (pinned ?? pinnedField)?.id } : {}),
+      },
     });
     // OPS-04 reworked evidence: the reviewer sent a submission back. The
     // dimension is which of the three kinds of "send back" it was, never the
@@ -3804,6 +4007,10 @@ export async function listEvidenceRequestDecisions(
       request.missionId ?? undefined,
     ));
   if (!isOwner && !isAuthorizedOrgMember) {
+    // A stranger gets exactly what an unknown request id gets.
+    if (!(await hasAnyStandingOnApplicant(db, actorAccountId, request.applicantId))) {
+      return err(serviceError('not_found', 'evidence request not found'));
+    }
     return err(serviceError('forbidden', 'not authorized to view this request'));
   }
 
@@ -4208,6 +4415,13 @@ export async function listMissionDecisions(
       }
     }
     if (!authorized) {
+      // A stranger gets exactly what an unknown case id gets.
+      if (
+        assignments.length === 0 &&
+        !(await hasAnyStandingOnApplicant(db, actorAccountId, mission.applicantId))
+      ) {
+        return err(serviceError('not_found', 'case not found'));
+      }
       return err(serviceError('forbidden', 'not authorized to view decisions on this case'));
     }
   }

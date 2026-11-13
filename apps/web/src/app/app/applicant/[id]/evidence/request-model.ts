@@ -1,6 +1,4 @@
 import type { DocumentSummary, EvidenceRequest, TriageDocumentState } from '@visastack/services';
-import { humanizeCode } from '../../../../../lib/format-code';
-import { fieldLabel } from '../../../../../lib/master-profile';
 import type { StatusWord } from '../../../../../lib/status-words';
 import { AWAITING_SUBMISSION } from './due-label';
 import type { RequestItemView } from './request-item';
@@ -30,27 +28,9 @@ export function respondingDocumentState(
   return { processingStatus: found.processingStatus, safetyStatus: found.safetyStatus };
 }
 
-/** A person-readable name for what is being asked for, never the stored key. */
-export function requestTarget(req: {
-  readonly kind: string;
-  readonly fieldKey?: string | null;
-  readonly docType?: string | null;
-}): string {
-  if (req.kind === 'FIELD') {
-    const label = req.fieldKey ? fieldLabel(req.fieldKey) : undefined;
-    return label ?? (req.fieldKey ? humanizeCode(req.fieldKey) : 'Not specified');
-  }
-  return req.docType ? humanizeCode(req.docType) : 'Not specified';
-}
-
-/** "Detail: Passport Number" or "Document: Bank Statement". */
-export function requestName(req: {
-  readonly kind: string;
-  readonly fieldKey?: string | null;
-  readonly docType?: string | null;
-}): string {
-  return `${req.kind === 'FIELD' ? 'Detail' : 'Document'}: ${requestTarget(req)}`;
-}
+// The names of what is asked live in `request-name.ts`, which holds no server code, so the browser
+// measurement fixtures and the review step can use them without the services package.
+export { requestName, requestTarget } from './request-name';
 
 /**
  * The word and tone on a request's chip: the labels and colours the agency's own summary uses, so

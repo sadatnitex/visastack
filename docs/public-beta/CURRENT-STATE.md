@@ -138,3 +138,16 @@ This section supersedes the sections above where they differ.
 - **Readiness, 1 Nov 2026** (fallback address): ready, controlled pilot; AI reading, Safe Copies, the AI connector and public sign-up available; malware scanning and payments unconfigured; real applicant data and commercial claims disabled.
 - **Not verified:** a signed-in live click-through of the lifecycle actions, (the owner checked that Ask Us to Remove This File appears on screen); signed-in Scroll Budget pages on the live site; the main domain from a cloud session (only the fallback was probed).
 
+## Update, 2026-11-12: Answer from Your Records
+
+Ships with the pull request from branch `claude/fable-5-2-flagship-zypvhr`; live once that merge is
+deployed. No migration.
+
+| Area | What a traveller can do now | What stays protected |
+|---|---|---|
+| Requests from Agencies | See which agency asks each request; open Answer from Your Records to review everything one agency waits for and send the ready copies with one confirmation; read a receipt of exactly what went | Nothing is sent without the press; only to the agency named; only the exact version reviewed; nothing expired, replaced, unsafe or already turned down by that agency; an agency whose access ended receives nothing |
+| Reply form | See each copy's expiry date before sending | The copy chosen in advance is unchanged (an owner decision is pending, see below) |
+
+Trust rules now run as tests (`packages/services/src/trust-rules/`). Four findings in existing
+behaviour wait for the owner's decision: `docs/product/breakthrough/REPORT.md`, section 6. Not
+verified: a signed-in browser run of the new step (staging has no accounts).
