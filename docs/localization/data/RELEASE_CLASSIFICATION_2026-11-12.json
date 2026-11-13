@@ -10,9 +10,9 @@
     "Only the groups that were held back, or sit in queue 02 or 03 with a draft, are classified. A new row that enters those queues later needs its own read."
   ],
   "counts": {
-    "released": 540,
+    "released": 539,
     "released_no_draft_or_pass": 22,
-    "kept": 111
+    "kept": 112
   },
   "groups": [
     {
@@ -2457,9 +2457,9 @@
     },
     {
       "group": "SG-742d2250",
-      "state": "RELEASED",
-      "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
-      "reason": "Access end date and extension by the traveller: access control wording waits for the owner sign-off.",
+      "state": "KEPT",
+      "category": "technical",
+      "reason": "Held in English for a technical reason: the end date is written as an English date inside the sentence; waits until dates are localised.",
       "queue": "ORDINARY_UI",
       "english": "Access ends on {day}. The traveller can extend it."
     },

@@ -187,6 +187,10 @@ export const HOLDBACK = new Map([
     'Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).',
   ],
   [
+    'SG-742d2250',
+    'Held in English for a technical reason: the end date is written as an English date inside the sentence; waits until dates are localised.',
+  ],
+  [
     'SG-75b245d1',
     'Opening words of the show-all toggle must match its English closing words; stays English until the toggle is converted.',
   ],
