@@ -15,6 +15,20 @@ const mocks = vi.hoisted(() => ({
   listOwnBilling: vi.fn(),
 }));
 
+// The reader language: English unless a test below sets Bengali. React's cache keeps one value per
+// cached function for the test (one request), so the language the page primes reaches its parts.
+const lang = vi.hoisted(() => ({
+  locale: 'en' as 'en' | 'bn',
+  store: new Map<unknown, unknown>(),
+}));
+vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => lang.locale }));
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    if (!lang.store.has(build)) lang.store.set(build, build());
+    return lang.store.get(build);
+  },
+}));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com', self: SELF }),
@@ -65,6 +79,8 @@ const waiting = {
 };
 
 beforeEach(() => {
+  lang.locale = 'en';
+  lang.store.clear();
   navigationState.pathname = '/app/account/plan/billing';
   mocks.hasOwnBilling.mockReset().mockResolvedValue(false);
   mocks.listOwnBilling.mockReset().mockResolvedValue({ ok: true, value: [paid, waiting] });
@@ -266,5 +282,49 @@ describe('Billing History within the scroll budget (WP-SB9)', () => {
   it('passes the automated accessibility rules with a full page of rows', async () => {
     mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(11) });
     expect(await axeViolations(await renderServer(Page({})))).toEqual([]);
+  });
+});
+
+const { appAccountCatalog } = await import('../../../../../i18n/app-account');
+
+describe('Billing History under Bengali', () => {
+  const bn = appAccountCatalog.bn as Record<string, string>;
+  const en = appAccountCatalog.en as Record<string, string>;
+  const k = (key: string) => `appAccount.appAccountPlanBillingPage.${key}`;
+  const draw = async () => {
+    lang.locale = 'bn';
+    lang.store.clear();
+    return renderServer(Page({}));
+  };
+
+  it('lists the purchases with Bengali headings, receipts and the refund request', async () => {
+    const html = await draw();
+    const text = textOf(html);
+    for (const key of [
+      'billingHistory',
+      'whatYouBoughtWithAnInvoice',
+      'amount',
+      'receipts',
+      'downloadReceiptPdf',
+      'refund',
+    ]) {
+      expect(text, key).toContain(bn[k(key)]);
+      // "Refund" also starts English sentences on the page that have no Bengali draft yet.
+      if (key !== 'refund') expect(text, key).not.toContain(en[k(key)]);
+    }
+    expect(html).toContain(
+      `aria-label="${bn[k('receiptsForInvoiceref')]?.replace('{invoiceRef}', paid.invoiceRef)}"`,
+    );
+    expect(text).toContain('R-000001');
+    expect(text).not.toMatch(/appAccount\./);
+  });
+
+  it('shows the empty state in Bengali', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: [] });
+    const text = textOf(await draw());
+    for (const key of ['noPurchasesYet', 'whenYouBuyAPlanIts']) {
+      expect(text, key).toContain(bn[k(key)]);
+      expect(text, key).not.toContain(en[k(key)]);
+    }
   });
 });
