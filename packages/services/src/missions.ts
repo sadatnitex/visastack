@@ -12,7 +12,7 @@ import {
 import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
-import { orgGrantPermits } from './agency';
+import { mayReadOrgCase, orgGrantPermits } from './agency';
 import { type TaskAddedBy, taskAddedByApps } from './ai-task-origins';
 import { getApplicant } from './applicants';
 import { latestTimeZoneName, recognisedTimeZone } from './attention';
@@ -2554,9 +2554,14 @@ export async function listSelectedEvidence(
  */
 export async function listSelectedEvidenceForOrg(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   missionId: string,
 ): Promise<Result<SelectedEvidence[], ServiceError>> {
+  // Someone who may not read this organization's view of the case gets what an unknown id gets.
+  if (!(await mayReadOrgCase(db, actorAccountId, organizationId, missionId))) {
+    return err(keyedError('not_found', 'missions.case_not_found'));
+  }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );

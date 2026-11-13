@@ -174,7 +174,9 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       visibility: 'AGENCY_INTERNAL',
     });
     expect(isOk(note)).toBe(true);
-    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(1);
+    expect(
+      await listNotes(db, agentAcc.value.id, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(1);
 
     const later = await addNote(db, {
       actorAccountId: agentAcc.value.id,
@@ -183,13 +185,29 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       visibility: 'AGENCY_INTERNAL',
     });
     if (!isOk(later)) throw new Error('later note');
-    const recent = await listNotes(db, org.value.id, applicantId, mission.value.id, { limit: 1 });
+    const recent = await listNotes(
+      db,
+      agentAcc.value.id,
+      org.value.id,
+      applicantId,
+      mission.value.id,
+      { limit: 1 },
+    );
     expect(recent.items.map((item) => item.id)).toEqual([later.value.id]);
-    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(2);
     expect(
-      await listNotes(db, '00000000-0000-4000-8000-000000000001', applicantId, mission.value.id, {
-        limit: 50,
-      }),
+      await listNotes(db, agentAcc.value.id, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(2);
+    expect(
+      await listNotes(
+        db,
+        agentAcc.value.id,
+        '00000000-0000-4000-8000-000000000001',
+        applicantId,
+        mission.value.id,
+        {
+          limit: 50,
+        },
+      ),
     ).toEqual({ items: [], nextCursor: null, total: 0 });
 
     // A non-admin cannot assign.
@@ -352,6 +370,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
 
     const fromOrgA = await listAssignmentsDetailed(
       db,
+      agentAccA.value.id,
       orgA.value.id,
       applicantId,
       mission.value.id,
@@ -361,6 +380,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
 
     const fromOrgB = await listAssignmentsDetailed(
       db,
+      agentAccB.value.id,
       orgB.value.id,
       applicantId,
       mission.value.id,
@@ -1212,6 +1232,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
 
     const assignments = await listAssignmentsDetailed(
       db,
+      agentAcc.value.id,
       org.value.id,
       applicantId,
       mission.value.id,
@@ -1235,7 +1256,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     await activateOrg(db, org.value.id);
 
     // No grant yet — the mission isn't visible.
-    expect(await listMissionsForOrganization(db, org.value.id)).toHaveLength(0);
+    expect(await listMissionsForOrganization(db, agentAcc.value.id, org.value.id)).toHaveLength(0);
 
     const grant = await createGrant(db, {
       actorAccountId: account.id,
@@ -1250,11 +1271,11 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     // Still pending acceptance — still not visible (regression guard: a
     // grant must be actually accepted, not merely created, before it grants
     // any standing at all).
-    expect(await listMissionsForOrganization(db, org.value.id)).toHaveLength(0);
+    expect(await listMissionsForOrganization(db, agentAcc.value.id, org.value.id)).toHaveLength(0);
 
     await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
 
-    const missions = await listMissionsForOrganization(db, org.value.id);
+    const missions = await listMissionsForOrganization(db, agentAcc.value.id, org.value.id);
     expect(missions).toHaveLength(1);
     expect(missions[0]?.missionId).toBe(mission.value.id);
     expect(missions[0]?.title).toBe('Business trip');
@@ -1293,7 +1314,7 @@ describe('agency collaboration — assignments, notes, evidence', () => {
       purpose: 'review',
     });
 
-    const applicants = await listApplicantsForOrganization(db, org.value.id);
+    const applicants = await listApplicantsForOrganization(db, agentAcc.value.id, org.value.id);
     expect(applicants).toHaveLength(1);
     expect(applicants[0]?.applicantId).toBe(a.applicantId);
     expect(applicants[0]?.displayName).toBe('Owner');
@@ -1868,7 +1889,7 @@ describe('scope and read-authorization hardening (post-programme defect register
     if (!isOk(activeGrant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: activeGrant.value.id });
 
-    const applicants = await listApplicantsForOrganization(db, org.value.id);
+    const applicants = await listApplicantsForOrganization(db, agentAcc.value.id, org.value.id);
     expect(applicants).toHaveLength(1);
     expect(applicants[0]?.applicantId).toBe(active.applicantId);
   });
@@ -1966,9 +1987,17 @@ describe('scope and read-authorization hardening (post-programme defect register
     expect(isOk(assignResult)).toBe(true);
     // Confirm the seeded rows are genuinely readable while MANAGE is active
     // (rules out a fixture mistake before we assert the negative below).
-    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(1);
     expect(
-      await listAssignmentsDetailed(db, org.value.id, applicantId, mission.value.id),
+      await listNotes(db, agentAcc.value.id, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(1);
+    expect(
+      await listAssignmentsDetailed(
+        db,
+        agentAcc.value.id,
+        org.value.id,
+        applicantId,
+        mission.value.id,
+      ),
     ).toHaveLength(1);
 
     // Revoke MANAGE and replace it with a PREVIEW-only grant for the SAME
@@ -1992,14 +2021,22 @@ describe('scope and read-authorization hardening (post-programme defect register
 
     // The mission is still visible via listMissionsForOrganization (a real,
     // active, accepted grant exists)...
-    const missions = await listMissionsForOrganization(db, org.value.id);
+    const missions = await listMissionsForOrganization(db, agentAcc.value.id, org.value.id);
     expect(missions).toHaveLength(1);
 
     // ...but the previously-seeded, still-existing notes/assignments must
     // no longer be readable without COMMENT/MANAGE.
-    expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
     expect(
-      await listAssignmentsDetailed(db, org.value.id, applicantId, mission.value.id),
+      await listNotes(db, agentAcc.value.id, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(0);
+    expect(
+      await listAssignmentsDetailed(
+        db,
+        agentAcc.value.id,
+        org.value.id,
+        applicantId,
+        mission.value.id,
+      ),
     ).toHaveLength(0);
   });
 
@@ -2087,7 +2124,7 @@ describe('scope and read-authorization hardening (post-programme defect register
     if (!isOk(scopedGrant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: scopedGrant.value.id });
 
-    const missions = await listMissionsForOrganization(db, org.value.id);
+    const missions = await listMissionsForOrganization(db, agentAcc.value.id, org.value.id);
     expect(missions).toHaveLength(1);
     expect(missions[0]?.missionId).toBe(mission.value.id);
   });
@@ -2159,7 +2196,12 @@ describe("SHR-02: a suspended/closed organization loses standing everywhere orgG
     if (isErr(assignedAfter)) expect(assignedAfter.error.code).toBe('not_found');
 
     // Reading collaboration data through the same gate is denied too.
-    const requirements = await listMissionRequirementsForOrg(db, org.value.id, mission.value.id);
+    const requirements = await listMissionRequirementsForOrg(
+      db,
+      agentAcc.value.id,
+      org.value.id,
+      mission.value.id,
+    );
     expect(isErr(requirements)).toBe(true);
     if (isErr(requirements)) expect(requirements.error.code).toBe('not_found');
   });
@@ -2379,7 +2421,9 @@ describe('CAS-02 - case workspace: authorized visibility, search fields, task ro
     await activateOrg(db, org.value.id);
 
     // No grant yet at all -- denied.
-    expect(await listTasksForOrg(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
+    expect(
+      await listTasksForOrg(db, agentAcc.value.id, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(0);
 
     const previewGrant = await createGrant(db, {
       actorAccountId: account.id,
@@ -2392,7 +2436,9 @@ describe('CAS-02 - case workspace: authorized visibility, search fields, task ro
     await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: previewGrant.value.id });
 
     // PREVIEW alone is not COMMENT-or-MANAGE -- still denied.
-    expect(await listTasksForOrg(db, org.value.id, applicantId, mission.value.id)).toHaveLength(0);
+    expect(
+      await listTasksForOrg(db, agentAcc.value.id, org.value.id, applicantId, mission.value.id),
+    ).toHaveLength(0);
 
     const commentGrant = await createGrant(db, {
       actorAccountId: account.id,
@@ -2404,7 +2450,13 @@ describe('CAS-02 - case workspace: authorized visibility, search fields, task ro
     if (!isOk(commentGrant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: commentGrant.value.id });
 
-    const tasks = await listTasksForOrg(db, org.value.id, applicantId, mission.value.id);
+    const tasks = await listTasksForOrg(
+      db,
+      agentAcc.value.id,
+      org.value.id,
+      applicantId,
+      mission.value.id,
+    );
     expect(tasks).toHaveLength(1);
     expect(tasks[0]?.id).toBe(task.value.id);
     expect(tasks[0]?.dueDate?.toISOString()).toBe(dueDate.toISOString());
@@ -2566,7 +2618,13 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
     expect(isOk(created)).toBe(true);
     if (!isOk(created)) return;
 
-    const listed = await listAppointmentsForOrg(db, organizationId, applicantId, missionId);
+    const listed = await listAppointmentsForOrg(
+      db,
+      memberAccountId,
+      organizationId,
+      applicantId,
+      missionId,
+    );
     expect(listed.map((a) => a.id)).toEqual([created.value.id]);
 
     const decided = await decideAppointmentForOrg(db, {
@@ -2731,7 +2789,7 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
       await setUpAssignedOrg(db, 'queue');
 
     // Assigned -- not in the queue.
-    expect(await listUnassignedActiveMissions(db, organizationId)).toEqual([]);
+    expect(await listUnassignedActiveMissions(db, adminAccountId, organizationId)).toEqual([]);
 
     await unassignMember(db, {
       actorAccountId: adminAccountId,
@@ -2739,7 +2797,7 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
       memberAccountId,
       missionId,
     });
-    const queue = await listUnassignedActiveMissions(db, organizationId);
+    const queue = await listUnassignedActiveMissions(db, adminAccountId, organizationId);
     expect(queue.map((m) => m.missionId)).toEqual([missionId]);
 
     // A second, CANCELLED mission with no assignee at all never appears --
@@ -2766,7 +2824,7 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
     if (!isOk(grant)) throw new Error('grant');
     await acceptGrant(db, { actorAccountId: adminAccountId, grantId: grant.value.id });
 
-    const queueAfter = await listUnassignedActiveMissions(db, organizationId);
+    const queueAfter = await listUnassignedActiveMissions(db, adminAccountId, organizationId);
     expect(queueAfter.map((m) => m.missionId)).toEqual([missionId]);
   });
 
@@ -2838,7 +2896,7 @@ describe('CAS-04 - org-side tasks/appointments, unassignment, and the reassignme
         ),
       );
     expect(soleAssignments).toHaveLength(0);
-    const queue = await listUnassignedActiveMissions(db, organizationId);
+    const queue = await listUnassignedActiveMissions(db, adminAccountId, organizationId);
     expect(queue.map((m) => m.missionId)).toContain(missionId);
 
     // Co-assigned mission: BOTH assignments survive untouched -- the admin's
@@ -3600,8 +3658,12 @@ describe('agency views and the resource lifecycle (LC-A2)', () => {
     const detailed = await listEvidenceRequestsForOrgDetailed(db, s.agentId, s.orgId);
     if (!isOk(detailed)) throw new Error('detailed');
     return {
-      missions: (await listMissionsForOrganization(db, s.orgId)).map((m) => m.applicantId),
-      applicants: (await listApplicantsForOrganization(db, s.orgId)).map((a) => a.applicantId),
+      missions: (await listMissionsForOrganization(db, s.agentId, s.orgId)).map(
+        (m) => m.applicantId,
+      ),
+      applicants: (await listApplicantsForOrganization(db, s.agentId, s.orgId)).map(
+        (a) => a.applicantId,
+      ),
       requests: detailed.value.map((r) => r.applicantId),
     };
   }
@@ -3627,7 +3689,7 @@ describe('agency views and the resource lifecycle (LC-A2)', () => {
     expect(after.missions).toEqual([s.kept.applicantId]);
     expect(after.applicants).toEqual([s.kept.applicantId]);
     expect(after.requests).toEqual([s.kept.applicantId, s.kept.applicantId]);
-    const missions = await listMissionsForOrganization(db, s.orgId);
+    const missions = await listMissionsForOrganization(db, s.agentId, s.orgId);
     expect(missions[0]?.missionId).toBe(s.keptMission);
   });
 

@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import BalancedShardSequencer from './vitest-shards';
 
 // Tests here start an in-process Postgres for each case. Under a busy machine (all packages
@@ -14,5 +14,8 @@ export default defineConfig({
     // CI shards are split by how long each file takes (see vitest-shards.ts), so no shard waits
     // on a much slower one. Without --shard this changes nothing.
     sequence: { sequencer: BalancedShardSequencer },
+    // Tests that need a real Postgres server (two connections at once) run on their own, against a
+    // server CI starts for them: `pnpm --filter @visastack/services test:pg` (vitest.pg.config.ts).
+    exclude: [...configDefaults.exclude, '**/*.pg.test.ts'],
   },
 });
