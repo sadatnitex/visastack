@@ -3010,7 +3010,7 @@ export async function submitEvidenceResponse(
      * answer to commit writes it; the rest find it already there. Left out, the notice is the
      * single-answer one, exactly as before.
      */
-    readonly agencyNotice?: { readonly groupKey: string; readonly anchorRequestId: string };
+    readonly agencyNotice?: { readonly batchKey: string; readonly anchorRequestId: string };
   },
 ): Promise<Result<EvidenceSubmitResult, ServiceError>> {
   if (input.idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
@@ -3359,7 +3359,7 @@ async function noticeAgencyOfEvidence(
     readonly request: EvidenceRequest;
     readonly threshold: string;
     /** One combined notice for a whole confirmation (see `submitEvidenceResponse`). */
-    readonly group?: { readonly groupKey: string; readonly anchorRequestId: string };
+    readonly group?: { readonly batchKey: string; readonly anchorRequestId: string };
   },
 ): Promise<void> {
   const { request } = input;
@@ -3381,7 +3381,7 @@ async function noticeAgencyOfEvidence(
     await enqueueNotificationBothChannels(tx, {
       eventType: 'EVIDENCE_RESPONSE_RECEIVED',
       resourceId: anchor,
-      threshold: input.group ? `group-${input.group.groupKey}` : input.threshold,
+      threshold: input.group ? `group-${input.group.batchKey}` : input.threshold,
       recipientAccountId: admin.accountId,
       applicantId: request.applicantId,
       organizationId: request.organizationId,

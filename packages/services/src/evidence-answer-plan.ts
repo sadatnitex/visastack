@@ -698,7 +698,7 @@ export async function confirmEvidenceAnswers(
   // answer keeps its own notice.
   const agencyNotice =
     input.answers.length > 1
-      ? { groupKey: input.confirmationKey, anchorRequestId: [...requestIds].sort()[0] ?? '' }
+      ? { batchKey: input.confirmationKey, anchorRequestId: [...requestIds].sort()[0] ?? '' }
       : undefined;
 
   const outcomes: EvidenceAnswerOutcome[] = [];
