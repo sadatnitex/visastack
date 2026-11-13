@@ -13,7 +13,7 @@ const paramsFor = (message: string) => {
   const params: Record<string, string | number> = {};
   for (const m of message.matchAll(/\{(\w+)(\s*,\s*plural)?/g)) {
     const name = m[1] as string;
-    params[name] = m[2] || /max|count|days|n$/i.test(name) ? 3 : 'Rahim';
+    params[name] = m[2] || /(?:max|count|days|n)$/i.test(name) ? 3 : 'Rahim';
   }
   return params;
 };

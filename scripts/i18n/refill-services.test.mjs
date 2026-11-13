@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { quote as q } from './catalog.mjs';
 import {
   ENGLISH_ONLY,
   SERVICES_I18N_REL,
@@ -104,7 +105,6 @@ packages/services/src/area.ts,13,Up to {PAPERS_MAX} papers.,SG-papers
 packages/services/src/area.ts,14,payment sentence,SG-own-payment
 `;
 
-const q = (s) => `'${s.replace(/'/g, "\\'")}'`;
 const catalogueSource = (en, bn) =>
   `/** Area refusals. */\nexport const areaEn = {\n${Object.entries(en)
     .map(([k, v]) => `  ${q(k)}: ${q(v)},`)
@@ -245,7 +245,7 @@ describe('refillServiceBengali', () => {
       file,
       fs
         .readFileSync(file, 'utf8')
-        .replace("'x.existing': 'আগের বাংলা',", "'x.existing': 'আগের বাংলা', // owner wording"),
+        .replace(`${q('x.existing')}: ${q('আগের বাংলা')},`, '$& // owner wording'),
     );
     assert.throws(() => run(dir), /holds a comment/);
   });
