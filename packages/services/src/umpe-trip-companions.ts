@@ -43,6 +43,7 @@ import { hasConsent } from './consent';
 import { type Db, first, isUniqueViolation, schema } from './db';
 import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError } from './errors';
+import { caseFlowAEn } from './i18n/case-flow-a';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
@@ -136,7 +137,8 @@ export interface CompanionTripView {
 }
 
 /** What every companion writer says while the switch is off or the table is missing. */
-export const COMPANION_NOT_SWITCHED_ON = 'Travelling with someone else is not switched on yet.';
+export const COMPANION_NOT_SWITCHED_ON_KEY = 'umpe_trip_companions.not_switched_on';
+export const COMPANION_NOT_SWITCHED_ON = caseFlowAEn[COMPANION_NOT_SWITCHED_ON_KEY];
 
 const ORGANISER_ORGANISER = 'The organiser';
 
@@ -159,10 +161,9 @@ function cleanName(raw: string): string | null {
   return name;
 }
 
-const NAME_PROBLEM = 'Enter a name of up to 120 characters.';
-
 /** The same name rule and wording, for a screen that checks before it makes anything else. */
-export const COMPANION_NAME_PROBLEM = NAME_PROBLEM;
+export const COMPANION_NAME_PROBLEM_KEY = 'umpe_trip_companions.enter_a_name_of_up_to';
+export const COMPANION_NAME_PROBLEM = caseFlowAEn[COMPANION_NAME_PROBLEM_KEY];
 export const cleanCompanionName = cleanName;
 
 /** The address as stored (lower case), or null when it is not an address. */
@@ -242,12 +243,11 @@ export async function addCompanion(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db)))
-    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
+    return err(keyedError('invalid', COMPANION_NOT_SWITCHED_ON_KEY));
   const consent = await consentProblem(db, owner.value);
   if (consent) return err(consent);
   const name = cleanName(input.name);
-  if (name === null)
-    return err(keyedError('invalid', 'umpe_trip_companions.enter_a_name_of_up_to'));
+  if (name === null) return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
   const given = input.email?.trim() ?? '';
   const email = given === '' ? null : cleanEmail(given);
   if (given !== '' && email === null) {
@@ -544,7 +544,7 @@ export async function removeCompanion(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db)))
-    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
+    return err(keyedError('invalid', COMPANION_NOT_SWITCHED_ON_KEY));
   if (!UUID.test(companionId) || (await ownedTripId(db, owner.value, tripId)) === null) {
     return err(keyedError('not_found', 'umpe_trip_companion_email.that_person_is_not_on_this'));
   }
@@ -599,7 +599,7 @@ export async function resendInvitation(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db)))
-    return err(keyedError('invalid', 'umpe_trip_companions.not_switched_on'));
+    return err(keyedError('invalid', COMPANION_NOT_SWITCHED_ON_KEY));
   const consent = await consentProblem(db, owner.value);
   if (consent) return err(consent);
   if (!UUID.test(companionId) || (await ownedTripId(db, owner.value, tripId)) === null) {
@@ -785,8 +785,7 @@ export async function acceptCompanionInvitation(
     return err(keyedError('invalid', 'umpe_trip_companions.choose_how_much_you_want_to'));
   }
   const name = input.displayName === undefined ? undefined : cleanName(input.displayName);
-  if (name === null)
-    return err(keyedError('invalid', 'umpe_trip_companions.enter_a_name_of_up_to'));
+  if (name === null) return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
   try {
     return await db.transaction(async (tx) => {
       // The proof is made again inside the transaction: the link must still be this account's.

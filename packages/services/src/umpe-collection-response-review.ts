@@ -11,7 +11,7 @@ import {
 import { guestUploadsPresent, liveGuestSubmission } from './access/guest-submission-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
-import { type ServiceError, keyedError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { isUuid } from './lifecycle/foundation/ids';
 import { parseItems } from './umpe-collection-request-items';
 import { queueGuestCorrectionNotice } from './umpe-guest-correction-notice';
@@ -62,19 +62,23 @@ export interface CollectionReview {
 function cleanNotes(
   raw: Readonly<Record<string, unknown>> | undefined,
   allowed: ReadonlySet<string> | null,
-): { itemId: string; note: string }[] | string {
+): { itemId: string; note: string }[] | ServiceError {
   const notes: { itemId: string; note: string }[] = [];
   for (const [itemId, value] of Object.entries(raw ?? {})) {
     const note = typeof value === 'string' ? value.trim() : '';
     if (note.length === 0) continue;
     if (itemId.length > 64 || (allowed && !allowed.has(itemId)))
-      return 'Choose an item from the list.';
+      return keyedError('invalid', 'umpe_collection_response_review.choose_an_item_from_the_list');
     if (note.length > REVIEW_NOTE_LIMIT) {
-      return `Keep each note to ${REVIEW_NOTE_LIMIT} characters.`;
+      return keyedError('invalid', 'umpe_collection_response_review.keep_each_note_to', {
+        max: REVIEW_NOTE_LIMIT,
+      });
     }
     notes.push({ itemId, note });
   }
-  if (notes.length > MAX_ITEM_NOTES) return 'Too many notes at once.';
+  if (notes.length > MAX_ITEM_NOTES) {
+    return keyedError('invalid', 'umpe_collection_response_review.too_many_notes_at_once');
+  }
   return notes;
 }
 
@@ -93,7 +97,9 @@ export async function recordCollectionReview(
   const general = typeof input.note === 'string' ? input.note.trim() : '';
   if (general.length > REVIEW_GENERAL_NOTE_LIMIT) {
     return err(
-      serviceError('invalid', `Keep the note to ${REVIEW_GENERAL_NOTE_LIMIT} characters.`),
+      keyedError('invalid', 'umpe_collection_response_review.keep_the_note_to', {
+        max: REVIEW_GENERAL_NOTE_LIMIT,
+      }),
     );
   }
 
@@ -143,7 +149,7 @@ export async function recordCollectionReview(
   }
 
   const notes = cleanNotes(input.itemNotes, allowed);
-  if (typeof notes === 'string') return err(serviceError('invalid', notes));
+  if (!Array.isArray(notes)) return err(notes);
   if (input.decision === 'NEEDS_CORRECTION' && notes.length === 0 && general.length === 0) {
     return err(
       keyedError('invalid', 'umpe_collection_response_review.say_what_needs_correcting_add_a'),
