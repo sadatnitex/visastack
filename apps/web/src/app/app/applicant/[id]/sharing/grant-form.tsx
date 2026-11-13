@@ -15,13 +15,9 @@ import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { PERMISSION_ACTION_LABELS } from '../../../../../lib/labels';
 import { permissionPhrase } from '../../../../../lib/permission-phrases';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
-import { SHARE_CREATED_LINE } from '../../../../../lib/success-lines';
 import { type ActionState, createGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
-
-/** The receipt's line for a request to someone who already has an account. */
-const DIRECT_RECEIPT_LINE = SHARE_CREATED_LINE.replace(/^Shared\.\s*/, '');
 
 /** Every grant ends; with no days given the service applies its 30-day default. */
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -534,7 +530,9 @@ export function GrantForm({
                 ? t('applicantSharing.appApplicantIdSharingGrantForm.invitationCreated')
                 : t('applicantSharing.appApplicantIdSharingGrantForm.sharingRequestCreated')
             }
-            what={receipt.invited ? state.message : DIRECT_RECEIPT_LINE}
+            // The action's own line: without invitations it is the same whether or not the email
+            // has an account, and tells the person what to do if it has none.
+            what={state.message}
             at={receipt.at}
             to={receipt.to || undefined}
             toLabel="To"

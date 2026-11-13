@@ -4,7 +4,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { accountPrincipal, requireAccess } from './access';
+import { type AccessRefusal, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { CASE_KEPT_REASONS, deleteCancelledMission } from './case-deletion';
@@ -16,16 +16,29 @@ import { createMission, transitionMission } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import { acceptGrant, createGrant } from './sharing';
 
+// Every refusal is now one public answer; the reason the old code implied reaches only the gate's
+// `onRefused` hook, remembered here per result so each refusal is checked for both.
+const heardFor = new WeakMap<object, AccessRefusal>();
+
 /** What the web layer does: prove the caller may manage this case, then ask for the deletion. */
 async function remove(db: Db, accountId: string, missionId: string) {
+  let heard: AccessRefusal | undefined;
   const access = await requireAccess(
     db,
     accountPrincipal(accountId),
     'MANAGE',
     { missionId },
-    { purpose: 'owner_delete_cancelled_case' },
+    {
+      purpose: 'owner_delete_cancelled_case',
+      onRefused: (refusal) => {
+        heard = refusal;
+      },
+    },
   );
-  if (!access.ok) return access;
+  if (!access.ok) {
+    if (heard !== undefined) heardFor.set(access, heard);
+    return access;
+  }
   return deleteCancelledMission(access.value);
 }
 
@@ -165,7 +178,12 @@ describe('deleteCancelledMission (the owner deletes a cancelled case)', () => {
     const stranger = await account(db, 'stranger@example.com');
     const result = await remove(db, stranger.id, missionId);
     expect(isOk(result)).toBe(false);
-    if (!isOk(result)) expect(result.error.code).toBe('forbidden');
+    if (!isOk(result)) {
+      expect([result.error.code, heardFor.get(result)?.reason]).toEqual([
+        'not_found',
+        'default_deny',
+      ]);
+    }
     expect(await rowCount(missionId)).toBe(1);
   });
 
@@ -199,7 +217,12 @@ describe('deleteCancelledMission (the owner deletes a cancelled case)', () => {
 
     const result = await remove(db, agent.id, missionId);
     expect(isOk(result)).toBe(false);
-    if (!isOk(result)) expect(result.error.code).toBe('forbidden');
+    if (!isOk(result)) {
+      expect([result.error.code, heardFor.get(result)?.reason]).toEqual([
+        'not_found',
+        'purpose_mismatch',
+      ]);
+    }
     expect(await rowCount(missionId)).toBe(1);
   });
 
