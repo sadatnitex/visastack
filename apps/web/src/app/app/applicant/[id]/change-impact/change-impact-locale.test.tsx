@@ -56,7 +56,7 @@ describe('the change-impact catalogue', () => {
 
   it('keeps plural messages complete: every plural has its other branch', () => {
     const plurals = Object.values(changeImpactCatalog.en).filter((v) => v.includes(', plural,'));
-    expect(plurals).toHaveLength(3);
+    expect(plurals).toHaveLength(4);
     for (const value of plurals) expect(value).toMatch(/one \{[^{}]+\} other \{[^{}]+\}\}$/);
   });
 });

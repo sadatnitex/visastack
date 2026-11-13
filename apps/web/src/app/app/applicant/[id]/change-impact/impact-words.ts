@@ -453,3 +453,55 @@ export function changeImpactSummary(
     unknown: impact.counts.UNKNOWN,
   };
 }
+
+/** True when a summary has something to count: the notice shows nothing for a summary with none. */
+export function hasImpactCounts(summary: ChangeImpactSummary): boolean {
+  return summary.actionRequired + summary.reviewRecommended + summary.unknown > 0;
+}
+
+/**
+ * How many details of one batch are looked at. Each look is a full read of what the detail
+ * touches (about 15 statements), and a batch can hold 100 details, so the rest are not read.
+ */
+export const BATCH_IMPACT_READS = 6;
+
+/** How many details the batch notice names. Any others are counted, never listed. */
+export const BATCH_IMPACT_SHOWN = 3;
+
+export interface ChangeImpactBatchItem {
+  /** The detail's plain name ("Employer Name"), never its value. */
+  readonly label: string;
+  readonly summary: ChangeImpactSummary;
+}
+
+/**
+ * What a batch of approved details affects: the first few details that affect something, and how
+ * many more may. Plain values, so a server action can hand it to the form that shows the result.
+ */
+export interface ChangeImpactBatch {
+  readonly items: readonly ChangeImpactBatchItem[];
+  readonly more: number;
+}
+
+/**
+ * Words up a batch from the reads that worked. `unread` is how many approved details were never
+ * read (the read cap stopped first). `more` counts the affecting details beyond the ones named
+ * plus every unread one. One sentence is truthful for both: a counted detail does affect
+ * something and an unread one has not been ruled out, so the line says only that more "may also"
+ * affect something. Null when nothing affects anything and nothing is unread.
+ */
+export function changeImpactBatch(
+  impacts: readonly ChangeImpact[],
+  applicantId: string,
+  unread: number,
+): ChangeImpactBatch | null {
+  const affecting = impacts.flatMap((impact): ChangeImpactBatchItem[] => {
+    const summary = changeImpactSummary(impact, applicantId);
+    if (!summary) return [];
+    const label = impact.subject.kind === 'DETAIL' ? impact.subject.label : impact.subject.title;
+    return [{ label, summary }];
+  });
+  const items = affecting.slice(0, BATCH_IMPACT_SHOWN);
+  const more = affecting.length - items.length + unread;
+  return items.length === 0 && more === 0 ? null : { items, more };
+}

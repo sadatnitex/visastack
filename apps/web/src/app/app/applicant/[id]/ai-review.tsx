@@ -21,6 +21,7 @@ import {
   runClassificationAction,
   runInconsistencyCheckAction,
 } from './actions';
+import { ChangeImpactBatchNotice } from './change-impact/change-impact-batch-notice';
 import { ChangeImpactNotice } from './change-impact/change-impact-notice';
 import { ReadingSourceNote } from './reading-status';
 
@@ -485,6 +486,8 @@ export function DocumentFindings({
       <div className="document-findings">
         <FormMessage result={lastResult} />
         <ChangeImpactNotice summary={lastResult.changeImpact} t={impactT} />
+        <ChangeImpactBatchNotice batch={lastResult.changeImpactBatch} t={impactT} />
+        <ChangeImpactBatchNotice batch={lastResult.changeImpactBatch} t={impactT} />
       </div>
     );
   }

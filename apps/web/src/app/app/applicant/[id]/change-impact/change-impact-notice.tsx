@@ -1,7 +1,8 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import type { ChangeImpactKey } from '../../../../../i18n/change-impact';
 import type { PartsTranslator } from '../../../../../lib/language-parts';
-import type { ChangeImpactSummary } from './impact-words';
+import { type ChangeImpactSummary, hasImpactCounts } from './impact-words';
 
 /**
  * The compact form of What This Change Affects, shown under the line that says a detail was
@@ -17,12 +18,32 @@ export function ChangeImpactNotice({
   readonly summary: ChangeImpactSummary | null | undefined;
   readonly t: PartsTranslator<ChangeImpactKey>;
 }) {
-  if (!summary) return null;
-  const { actionRequired, reviewRecommended, unknown } = summary;
-  if (actionRequired + reviewRecommended + unknown === 0) return null;
+  if (!summary || !hasImpactCounts(summary)) return null;
   return (
     <output className="ci-notice">
-      <strong className="ci-notice-title">{t.node('changeImpact.notice.title')}</strong>{' '}
+      <ImpactLine title={t.node('changeImpact.notice.title')} summary={summary} t={t} />
+    </output>
+  );
+}
+
+/**
+ * One piece of the notice: a name, the counts that need a look, and the link to the full list.
+ * The saved-detail notice names itself; the batch notice names each detail. One place for the
+ * counts wording, so the two never drift apart.
+ */
+export function ImpactLine({
+  title,
+  summary,
+  t,
+}: {
+  readonly title: ReactNode;
+  readonly summary: ChangeImpactSummary;
+  readonly t: PartsTranslator<ChangeImpactKey>;
+}) {
+  const { actionRequired, reviewRecommended, unknown } = summary;
+  return (
+    <>
+      <strong className="ci-notice-title">{title}</strong>{' '}
       <span className="ci-notice-counts">
         {actionRequired > 0 ? (
           <span>{t.node('changeImpact.notice.action', { count: actionRequired })} </span>
@@ -37,6 +58,6 @@ export function ChangeImpactNotice({
       <Link className="ci-step" href={summary.href}>
         {t.node('changeImpact.notice.link')}
       </Link>
-    </output>
+    </>
   );
 }

@@ -2,7 +2,13 @@
 
 import { createHash } from 'node:crypto';
 import type { ApplicantId, Result } from '@visastack/core';
-import type { Actor, Db, DocumentKindSuggestion, ServiceError } from '@visastack/services';
+import type {
+  Actor,
+  ChangeImpact,
+  Db,
+  DocumentKindSuggestion,
+  ServiceError,
+} from '@visastack/services';
 import type { RegisteredDocumentWithVersion } from '@visastack/services';
 import {
   CONVERTED_FROM_HEIC_SOURCE,
@@ -53,7 +59,7 @@ import {
   suggestDocumentKind,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import {
@@ -97,7 +103,13 @@ import {
   runAutomaticReading,
   triggerIntakeAndReading,
 } from '../../../api/jobs/process-ai-reading/run';
-import { type ChangeImpactSummary, changeImpactSummary } from './change-impact/impact-words';
+import {
+  BATCH_IMPACT_READS,
+  type ChangeImpactBatch,
+  type ChangeImpactSummary,
+  changeImpactBatch,
+  changeImpactSummary,
+} from './change-impact/impact-words';
 
 /**
  * UMPE G4: after a kind is decided, the fresh reading queued for the file runs now, in a small pass
@@ -120,6 +132,11 @@ export interface ActionState {
    * look at. Absent for a quiet change, and when it could not be worked out.
    */
   readonly changeImpact?: ChangeImpactSummary;
+  /**
+   * After a batch of accepted details: the first few that affect something, and how many more
+   * may. Absent when nothing affects anything, and when none could be looked at.
+   */
+  readonly changeImpactBatch?: ChangeImpactBatch;
   /** An added document's title ("Passport, Nazmus"), for an upload list to show. */
   readonly title?: string;
   /** The added document's id, so the page after an upload can follow that file by itself. */
@@ -199,6 +216,34 @@ async function withChangeImpact(
   const read = await readDetailChangeImpact(applicantId, factId);
   const summary = typeof read === 'string' ? null : changeImpactSummary(read, applicantId);
   return summary ? { ...saved, changeImpact: summary } : saved;
+}
+
+/**
+ * The batch twin of `withChangeImpact`, for details approved together. It looks at the first few
+ * details one after another (never in parallel, so a batch cannot flood the database), only
+ * after the approval has returned. A refused, failed or thrown look adds nothing for that detail
+ * and never turns a saved batch into a problem. Details beyond the cap are not looked at; they
+ * are counted so the line can say they may also affect something.
+ */
+async function withChangeImpactBatch(
+  saved: ActionState,
+  applicantId: string,
+  factIds: readonly string[],
+): Promise<ActionState> {
+  if (!saved.ok || factIds.length === 0) return saved;
+  const looked = factIds.slice(0, BATCH_IMPACT_READS);
+  const impacts: ChangeImpact[] = [];
+  for (const factId of looked) {
+    try {
+      const read = await readDetailChangeImpact(applicantId, factId);
+      if (typeof read !== 'string') impacts.push(read);
+    } catch (error) {
+      // A sign-in redirect still travels on; anything else only loses this one detail's notice.
+      unstable_rethrow(error);
+    }
+  }
+  const batch = changeImpactBatch(impacts, applicantId, factIds.length - looked.length);
+  return batch ? { ...saved, changeImpactBatch: batch } : saved;
 }
 
 /** Save a Master Profile fact (append-only immutable version). */
@@ -1476,6 +1521,7 @@ export async function acceptClearDetailsAction(
     .slice(0, 100);
   if (proposalIds.length === 0) return { ok: false, message: 'Nothing to accept.' };
 
+  let approvedFactIds: readonly string[] = [];
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
@@ -1488,11 +1534,12 @@ export async function acceptClearDetailsAction(
       ...(encryption ? { encryption } : {}),
     });
     if (!accepted.ok) return { ok: false, message: accepted.error.message } satisfies ActionState;
+    approvedFactIds = accepted.value.factIds;
     return { ok: true, message: describeClearAcceptance(accepted.value) } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
-  return result;
+  return withChangeImpactBatch(result, applicantId, approvedFactIds);
 }
 
 /**

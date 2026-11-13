@@ -13,6 +13,7 @@ import { formatTimestampDate } from '../../../../../lib/format-date';
 import { partsTranslator } from '../../../../../lib/language-parts';
 import '../../../../../lib/next-mocks.test-support';
 import { isTitleCase } from '../../../../../lib/title-case';
+import { ChangeImpactBatchNotice } from './change-impact-batch-notice';
 import { ChangeImpactFailed } from './change-impact-failed';
 import { ChangeImpactNotice } from './change-impact-notice';
 import { ChangeImpactReview } from './change-impact-review';
@@ -43,7 +44,15 @@ import {
   review,
   share,
 } from './fixtures.test-support';
-import { SECTION_ORDER, changeImpactHref, changeImpactSummary } from './impact-words';
+import {
+  BATCH_IMPACT_READS,
+  BATCH_IMPACT_SHOWN,
+  type ChangeImpactBatch,
+  SECTION_ORDER,
+  changeImpactBatch,
+  changeImpactHref,
+  changeImpactSummary,
+} from './impact-words';
 
 /**
  * What This Change Affects, as a person reads it: every reason has its own whole sentence and the
@@ -603,6 +612,93 @@ describe('the short notice under a saved detail', () => {
   });
 });
 
+describe('the short notice under a batch of accepted details', () => {
+  const detail = (factId: string, label: string): ChangeImpact => ({
+    ...DETAIL_RECORDED,
+    subject: { kind: 'DETAIL', factId, label, changedAt: null, savedValues: 2 },
+  });
+  const notice = (batch: ChangeImpactBatch | null | undefined) =>
+    renderToStaticMarkup(<ChangeImpactBatchNotice batch={batch} t={t} />);
+  const BATCH: ChangeImpactBatch = {
+    items: [
+      {
+        label: 'Employer Name',
+        summary: { href: '/one', actionRequired: 1, reviewRecommended: 0, unknown: 0 },
+      },
+      {
+        label: 'Home City',
+        summary: { href: '/two', actionRequired: 0, reviewRecommended: 2, unknown: 1 },
+      },
+    ],
+    more: 3,
+  };
+
+  it('gives one polite output: the title, a line for each detail with a link, then the rest', () => {
+    const markup = notice(BATCH);
+    const host = dom(markup);
+    expect(host.querySelectorAll('output')).toHaveLength(1);
+    expect(host.firstElementChild?.tagName).toBe('OUTPUT');
+    expect(markup).not.toMatch(/role="alert"|aria-live="assertive"/);
+    expect(words(host.querySelector('strong'))).toBe('What This Change Affects');
+    const lines = [...host.querySelectorAll('li')];
+    expect(lines.map(words)).toEqual([
+      'Employer Name 1 item needs your action. See the Full List',
+      'Home City 2 items are worth a look. We cannot tell about 1 item. See the Full List',
+      'and 3 more details may also affect something.',
+    ]);
+    expect(lines.slice(0, 2).map((line) => line.querySelector('a')?.getAttribute('href'))).toEqual([
+      '/one',
+      '/two',
+    ]);
+    // The rest are only counted: that line has no link.
+    expect(lines[2]?.querySelector('a')).toBeNull();
+    expect(host.querySelectorAll('a')).toHaveLength(2);
+  });
+
+  it('counts one more as one', () => {
+    expect(words(dom(notice({ ...BATCH, more: 1 })).querySelector('.ci-notice-more'))).toBe(
+      'and 1 more detail may also affect something.',
+    );
+  });
+
+  it('can have only the line about the rest', () => {
+    const host = dom(notice({ items: [], more: 4 }));
+    expect(host.querySelectorAll('li')).toHaveLength(1);
+    expect(host.querySelector('a')).toBeNull();
+  });
+
+  it('shows nothing when there is no batch, and no line about the rest when there is none', () => {
+    expect(notice(null)).toBe('');
+    expect(notice(undefined)).toBe('');
+    expect(notice({ items: [], more: 0 })).toBe('');
+    expect(dom(notice({ ...BATCH, more: 0 })).querySelector('.ci-notice-more')).toBeNull();
+  });
+
+  it('is worked out from the reads: three named, the rest counted, quiet ones left out', () => {
+    const quiet: ChangeImpact = {
+      ...QUIET_EMPTY,
+      subject: { kind: 'DETAIL', factId: 'q', label: 'Quiet', changedAt: null, savedValues: 1 },
+    };
+    const reads = [
+      detail('f-1', 'One'),
+      quiet,
+      detail('f-2', 'Two'),
+      detail('f-3', 'Three'),
+      detail('f-4', 'Four'),
+      detail('f-5', 'Five'),
+    ];
+    const batch = changeImpactBatch(reads, APPLICANT_ID, 0);
+    expect(batch?.items.map((one) => one.label)).toEqual(['One', 'Two', 'Three']);
+    expect(batch?.more).toBe(2);
+    expect(BATCH_IMPACT_SHOWN).toBe(3);
+    expect(BATCH_IMPACT_READS).toBe(6);
+    // Details never read are added to the count: they are not ruled out.
+    expect(changeImpactBatch(reads, APPLICANT_ID, 94)?.more).toBe(96);
+    expect(changeImpactBatch([quiet], APPLICANT_ID, 0)).toBeNull();
+    expect(changeImpactBatch([quiet], APPLICANT_ID, 2)).toEqual({ items: [], more: 2 });
+  });
+});
+
 describe('when the list did not load', () => {
   it('says nothing was changed and offers the same address again', () => {
     const href = changeImpactHref(APPLICANT_ID, { kind: 'DETAIL', id: 'f-employer' });
@@ -624,6 +720,16 @@ describe('accessibility scan', () => {
       await axeViolations(
         renderToStaticMarkup(
           <ChangeImpactNotice summary={changeImpactSummary(DETAIL_RECORDED, APPLICANT_ID)} t={t} />,
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await axeViolations(
+        renderToStaticMarkup(
+          <ChangeImpactBatchNotice
+            batch={changeImpactBatch([DETAIL_RECORDED, DETAIL_INCOMPLETE], APPLICANT_ID, 4)}
+            t={t}
+          />,
         ),
       ),
     ).toEqual([]);

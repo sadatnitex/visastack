@@ -210,7 +210,13 @@ describe('accepting all clear details at once', () => {
     if (!isOk(result)) return;
     // Only the given name: the others are an unfound quote, low confidence, a restricted field and
     // a difference with a confirmed value.
-    expect(result.value).toEqual({ approved: 2, leftForReview: 6, alreadyDecided: 0 });
+    expect(result.value).toMatchObject({ approved: 2, leftForReview: 6, alreadyDecided: 0 });
+    // One detail id for each approved reading, no repeats.
+    expect(result.value.factIds).toHaveLength(2);
+    expect(new Set(result.value.factIds).size).toBe(2);
+    for (const factId of result.value.factIds) {
+      expect((await getCurrentFactVersion(db, factId))?.factId).toBe(factId);
+    }
     const left = (await listPendingProposals(db, applicantId)).map(
       ({ proposal }) => proposal.fieldKey,
     );
@@ -248,6 +254,7 @@ describe('accepting all clear details at once', () => {
       approved: 0,
       leftForReview: 1,
       alreadyDecided: 0,
+      factIds: [],
     });
     expect(
       (await listPendingProposals(db, owner.applicantId)).some(
@@ -344,7 +351,12 @@ describe('decisions that must not happen twice or go wrong', () => {
       applicantId,
       proposalIds: [idOf('given_name')],
     });
-    expect(isOk(bulk) && bulk.value).toEqual({ approved: 0, leftForReview: 0, alreadyDecided: 1 });
+    expect(isOk(bulk) && bulk.value).toEqual({
+      approved: 0,
+      leftForReview: 0,
+      alreadyDecided: 1,
+      factIds: [],
+    });
   }, 60_000);
 
   it('refuses "it changed" for a date of birth', async () => {

@@ -111,7 +111,7 @@ describe('accepting clear details at once', () => {
   it('reports what was saved, what was already decided and what needs a closer look', async () => {
     mocks.approveClearProposals.mockResolvedValue({
       ok: true,
-      value: { approved: 2, leftForReview: 1, alreadyDecided: 1 },
+      value: { approved: 2, leftForReview: 1, alreadyDecided: 1, factIds: [] },
     });
     const form = new FormData();
     form.set('applicantId', 'a-1');

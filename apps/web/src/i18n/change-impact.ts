@@ -27,6 +27,8 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.notice.action':
       '{count, plural, one {# item needs your action.} other {# items need your action.}}',
     'changeImpact.notice.link': 'See the Full List',
+    'changeImpact.notice.more':
+      '{count, plural, one {and # more detail may also affect something.} other {and # more details may also affect something.}}',
     'changeImpact.notice.review':
       '{count, plural, one {# item is worth a look.} other {# items are worth a look.}}',
     'changeImpact.notice.title': 'What This Change Affects',
