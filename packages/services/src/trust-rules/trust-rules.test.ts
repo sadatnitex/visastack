@@ -16,6 +16,7 @@ import { approveProposal, listPendingProposals, rejectProposal } from '../ai';
 import { listConsentHistory, setConsent } from '../consent';
 import { renameDocument } from '../document-naming';
 import { recheckDocumentAccess } from '../documents';
+import { readEvidenceFieldAnswer } from '../evidence-field-answers';
 import { listEvidenceSubmissions } from '../evidence-submissions';
 import {
   type Agency,
@@ -850,16 +851,15 @@ describe('Rule 7: AI output never becomes a confirmed fact without a person appr
 });
 
 // ---------------------------------------------------------------------------------------------
-describe('KNOWN GAP: an accepted detail answer follows the detail, not the value accepted', () => {
+describe('An accepted detail answer stays the value that was accepted', () => {
   /**
-   * What a traveller would expect: once an agency accepted "my phone is A", the accepted answer
-   * still says A even after the traveller later changes the detail to B. Today the request keeps
-   * only the id of the detail, so following it gives B.
-   *
-   * This test pins today's exact behaviour, step by step, so the gap is on record in every run
-   * and nothing else can hide behind it. The day the record starts pinning the accepted value, its
-   * last assertion fails on purpose: change it then to expect the value that was accepted.
-   * Documents do not have this gap. See docs/product/breakthrough/TRUST-RULES.md.
+   * Until 13 Nov 2026 the request kept only the id of the detail, so once an agency accepted "my
+   * phone is A" and the traveller later changed it to B, following the request gave B. A detail
+   * send now pins the exact saved version (migration 0135) and the decision is tied to that send,
+   * as documents always were. This probe is the one the earlier known gap pinned, turned round: the
+   * accepted answer still says A, and the traveller's detail says B. The full life cycle (two
+   * rounds, retries, races, access ending, answers sent before the change) is in
+   * `evidence-field-answers.test.ts`. See docs/product/breakthrough/TRUST-RULES.md.
    */
   it(
     'probe: an accepted detail answer after the fact changes',
@@ -897,17 +897,24 @@ describe('KNOWN GAP: an accepted detail answer follows the detail, not the value
       });
       expect(isOk(changed)).toBe(true);
 
-      // What the record points at now: follow the accepted request to the value it names.
       const request = await requestRow(w.db, field.value.id);
       expect(request.status).toBe('ACCEPTED');
-      // The record still names the same detail, and the detail's earlier value is kept unchanged
-      // in its history (rule 5); but nothing on the request says which value was accepted.
-      expect(request.respondingFactId).toBe(first.value.fact.id);
-      const pointed = request.respondingFactId
+      // The detail itself now says the new value...
+      const current = request.respondingFactId
         ? await getCurrentFactVersion(w.db, request.respondingFactId)
         : undefined;
-      // The gap: this is the new value. A traveller would expect '+8801700000111' here.
-      expect(pointed?.value).toBe('+8801700000222');
+      expect(current?.value).toBe('+8801700000222');
+      // ...and the accepted answer still names the value that was accepted.
+      const read = await readEvidenceFieldAnswer(await ownerProof(w.db, w.rahim), {
+        requestId: field.value.id,
+      });
+      expect(isOk(read)).toBe(true);
+      const round = isOk(read) ? read.value.rounds[0] : undefined;
+      expect(round).toMatchObject({
+        precision: 'pinned',
+        state: 'ACCEPTED',
+        version: { value: '+8801700000111', stillCurrent: false },
+      });
     },
     TIMEOUT,
   );

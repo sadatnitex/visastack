@@ -296,7 +296,7 @@ describe('Lane D: sending an exact copy', () => {
     expect(await submissionRows(w.db, requestId)).toEqual([]);
   });
 
-  it('keeps no record for a fact (a value is not a file) and still guards the status', async () => {
+  it('keeps no document record for a fact (a value is not a file), pins the saved value instead, and still guards the status', async () => {
     const { registerFieldDefinition, editFact } = await import('./profile');
     await registerFieldDefinition(w.db, { key: 'given_name', dataType: 'string' });
     const fact = await editFact(w.db, {
@@ -321,7 +321,9 @@ describe('Lane D: sending an exact copy', () => {
       factId: fact.value.fact.id,
     });
     expect(isOk(sent) ? 'ok' : JSON.stringify(sent.error)).toBe('ok');
-    if (isOk(sent)) expect(sent.value.submissionId).toBeNull();
+    // Since migration 0135 a detail send names the exact saved version (before 13 Nov 2026 it kept
+    // no record at all). It still writes no document send.
+    if (isOk(sent)) expect(sent.value.submissionId).not.toBeNull();
     expect(await submissionRows(w.db, request.value.id)).toEqual([]);
     const again = await submitEvidenceResponse(w.db, {
       actorAccountId: w.alice.accountId,

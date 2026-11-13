@@ -3188,6 +3188,17 @@ export {
   readEvidenceAnswerReceipt,
 } from './evidence-answer-plan';
 export {
+  LEGACY_FIELD_ANSWER_LABEL,
+  type FieldAnswerHistory,
+  type FieldAnswerRound,
+  type FieldAnswerState,
+  type FieldAnswerVersion,
+  FIELD_ANSWER_MAX_REQUESTS,
+  evidenceFieldPinsPresent,
+  listFieldAnswersForOwner,
+  readEvidenceFieldAnswer,
+} from './evidence-field-answers';
+export {
   LEGACY_SEND_LABEL,
   type EvidenceSubmissionDownloadInput,
   type EvidenceSubmissionList,

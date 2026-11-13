@@ -96,7 +96,7 @@ export interface EvidenceSubmissionList {
 
 type EvidenceRequestRow = typeof schema.evidenceRequests.$inferSelect;
 
-interface Audience {
+export interface EvidenceAudience {
   readonly request: EvidenceRequestRow;
   /** Present when the caller is the requesting agency. */
   readonly agency?: { readonly accountId: string; readonly organizationId: string };
@@ -107,10 +107,10 @@ interface Audience {
  * OWNER or ADMIN of the organization that raised it, which still holds a current MANAGE grant for
  * it. Anyone else, and any request that does not exist, get the same "not found".
  */
-async function audienceOf(
+export async function evidenceAudienceOf(
   access: AuthorizedApplicant<'MANAGE'>,
   requestId: string,
-): Promise<Result<Audience, ServiceError>> {
+): Promise<Result<EvidenceAudience, ServiceError>> {
   const db = access.tx;
   const notFound = err(serviceError('not_found', 'evidence request not found'));
   if (!isUuid(requestId)) return notFound;
@@ -151,7 +151,7 @@ export async function listEvidenceSubmissions(
   access: AuthorizedApplicant<'MANAGE'>,
   input: { readonly requestId: string },
 ): Promise<Result<EvidenceSubmissionList, ServiceError>> {
-  const audience = await audienceOf(access, input.requestId);
+  const audience = await evidenceAudienceOf(access, input.requestId);
   if (!audience.ok) return audience;
   const { request, agency } = audience.value;
   const db = access.tx;
@@ -375,7 +375,7 @@ export async function downloadEvidenceSubmissionFile(
       .limit(1),
   );
   if (!submission) return notFound;
-  const audience = await audienceOf(access, submission.evidenceRequestId);
+  const audience = await evidenceAudienceOf(access, submission.evidenceRequestId);
   if (!audience.ok || !audience.value.agency) return notFound;
   const { request, agency } = audience.value;
 
