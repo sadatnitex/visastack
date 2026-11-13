@@ -52,6 +52,8 @@ export const caseFlowBEn = {
   'agency.choosing_an_exact_version_is_not':
     'Choosing an exact version is not available yet. Send the document and its newest version is used.',
   'agency.this_retry_key_was_already_used': 'this retry key was already used for a different file',
+  'agency.choosing_an_exact_saved_value_is':
+    'Choosing an exact saved value is not available yet. Send the detail and its current value is used.',
   'agency.this_was_already_sent_and_has':
     'This was already sent and has moved on. Refresh to see where it stands.',
   'agency.this_request_is_not_awaiting_a': 'this request is not awaiting a submission',

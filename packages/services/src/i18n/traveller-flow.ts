@@ -48,10 +48,6 @@ export const travellerFlowEn = {
     'Keep your question under {max} characters. You can add more in a second question.',
   'request_items.you_have_asked_several_questions':
     'You have asked several questions about this item. Wait for the agency to reply in the case notes.',
-  'agency_evidence.choosing_an_exact_saved_value':
-    'Choosing an exact saved value is not available yet. Send the detail and its current value is used.',
-  'agency_evidence.already_sent_and_has_moved_on':
-    'This was already sent and has moved on. Refresh to see where it stands.',
 } as const;
 
 export const travellerFlowBn = {
@@ -68,6 +64,4 @@ export const travellerFlowBn = {
   'invitations.already_used_or_revoked': 'এই আমন্ত্রণ আগেই ব্যবহার করা হয়েছে বা প্রত্যাহার করা হয়েছে',
   'invitations.this_invitation_has_expired': 'এই আমন্ত্রণের মেয়াদ শেষ হয়ে গেছে',
   'deletion.an_active_legal_hold_blocks_deletion': 'চালু আইনি হোল্ড থাকায় মুছে ফেলা যাবে না',
-  'agency_evidence.already_sent_and_has_moved_on':
-    'এটি আগেই পাঠানো হয়েছে এবং পরের ধাপে চলে গেছে। এখন কী অবস্থায় আছে দেখতে রিফ্রেশ করুন।',
 } as const;

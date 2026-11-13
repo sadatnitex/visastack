@@ -85,6 +85,10 @@ const OLD_ENGLISH: ReadonlyArray<readonly [string, string]> = [
     'this retry key was already used for a different file',
   ],
   [
+    'agency.choosing_an_exact_saved_value_is',
+    'Choosing an exact saved value is not available yet. Send the detail and its current value is used.',
+  ],
+  [
     'agency.this_was_already_sent_and_has',
     'This was already sent and has moved on. Refresh to see where it stands.',
   ],
