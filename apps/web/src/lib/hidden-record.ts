@@ -1,7 +1,10 @@
 import {
+  type AccessRefusal,
   type Db,
+  RATE_LIMITS,
   accountPrincipal,
   appendAuditEvent,
+  checkRateLimit,
   listAccessForApplicant,
   listComplaintsForMission,
   requireAccess,
@@ -10,10 +13,11 @@ import {
 /**
  * One answer for "not yours" and "not there".
  *
- * The services tell a made-up id (`not_found`) from a real record the caller may not touch
- * (`forbidden`), and that difference is deliberate for them. A screen action that prints the
- * service's own refusal would pass it on, so a signed-in stranger who knows an id could tell a real
- * record from a nonexistent one. Each action that works on one record therefore asks here first
+ * The central access gate now gives one refusal for both (owner decision, 13 Nov 2026), but many
+ * services behind an action still tell a made-up id (`not_found`) from a real record of someone
+ * else (`forbidden`). A screen action that prints such a refusal would pass it on, so a signed-in
+ * stranger who knows an id could tell a real record from a nonexistent one. These checks stay as a
+ * second layer: each action that works on one record asks here first
  * whether the signed-in account is the owner, and a stranger gets the fixed line below whichever
  * of the two it was, before any work starts. The real owner is never affected: these only return
  * true for them, and every later message is the service's own, as before.
@@ -53,18 +57,29 @@ async function isOwner(
   accountId: string,
   ref: { readonly missionId: string } | { readonly applicantId: string },
 ): Promise<boolean> {
+  let refusal: AccessRefusal | undefined;
   const access = await requireAccess(db, accountPrincipal(accountId), 'VIEW_METADATA', ref, {
     purpose: 'self',
+    // The gate's answer is the same for every refusal; only this hook hears whether the record is real.
+    onRefused: (heard) => {
+      refusal = heard;
+    },
   });
-  if (!access.ok && access.error.code === 'forbidden') await recordRefusedProbe(db, accountId, ref);
+  // Every refused id that could name a record is kept, real or made up, in the same words: the row
+  // goes into the prober's own data export, and writing it takes time, so neither may differ.
+  if (refusal !== undefined && refusal.reason !== 'malformed_id') {
+    await recordRefusedProbe(db, accountId, ref);
+  }
   return access.ok && access.value.actor.kind === 'applicant_owner';
 }
 
 /**
- * A signed-in account reached for a record that exists and is not theirs. The services this pre-check
- * now stands in front of used to write a denied event for this; one is written here so the audit
- * trail keeps the probe (ids only, never a value). A made-up id has no record to name and writes
- * nothing. Writing can never change the answer the person gets: a failure here is swallowed.
+ * A signed-in account reached for a record id that is not theirs. The services this pre-check now
+ * stands in front of used to write a denied event for this; one is written here so the audit trail
+ * keeps the probe (ids only, never a value, never the reason). It is written alike for a real
+ * record and a made-up id, so the row cannot tell the prober, who can read their own audit rows in
+ * their data export, which ids are real; staff tell them apart from the id itself. Writing can
+ * never change the answer the person gets: a failure here is swallowed.
  */
 async function recordRefusedProbe(
   db: Db,
@@ -72,6 +87,35 @@ async function recordRefusedProbe(
   ref: { readonly missionId: string } | { readonly applicantId: string },
 ): Promise<void> {
   try {
+    // Bounded per account, so a loop of made-up ids cannot flood the audit chain; the bound is
+    // the same for every id, so skipping a row says nothing about which ids are real.
+    const budget = await checkRateLimit(
+      db,
+      { subjectId: accountId, action: 'hidden_record.probe_audit' },
+      RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT,
+    );
+    if (!budget.allowed) {
+      // Past the bound: one row an hour records that probing went on. It names the account only
+      // (no id, no person, no reason), so it is the same whichever id tripped it, and stays out of
+      // any traveller's Access Log and Recent Activity.
+      const marker = await checkRateLimit(
+        db,
+        { subjectId: accountId, action: 'hidden_record.probe_audit_capped' },
+        RATE_LIMITS.HIDDEN_RECORD_PROBES_CAPPED_AUDIT,
+      );
+      if (!marker.allowed) return;
+      await db.transaction(async (tx) => {
+        await appendAuditEvent(tx, {
+          eventType: 'HIDDEN_RECORD_PROBES_CAPPED',
+          actorAccountId: accountId,
+          action: 'VIEW_METADATA',
+          result: 'DENIED',
+          method: 'MANUAL',
+          metadata: { capped: true, limit: RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT.limit },
+        });
+      });
+      return;
+    }
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'HIDDEN_RECORD_REFUSED',

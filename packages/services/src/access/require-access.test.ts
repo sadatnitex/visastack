@@ -32,10 +32,12 @@ import { issueStepUpAssurance } from '../step-up';
 import { SUPPORT_ACCESS_PURPOSE, createSupportGrant } from '../support-access';
 import { StaffScope, accountPrincipal, staffPrincipal, systemPrincipal } from './principal';
 import {
+  ACCESS_REFUSAL,
+  type AccessRefusal,
   AuthorizedApplicant,
   EACH_GRANT,
+  requireAccess as gate,
   isRestrictedDocumentType,
-  requireAccess,
 } from './require-access';
 import { StepUpProof, verifyStepUp } from './step-up-proof';
 
@@ -84,6 +86,39 @@ async function activateOrg(db: Db, organizationId: string): Promise<void> {
 
 function errorCode<T>(result: Result<T, ServiceError>): string | undefined {
   return isErr(result) ? result.error.code : undefined;
+}
+
+// Every refusal now returns the one public answer (`not_found`); the precise reason reaches only
+// the gate's `onRefused` hook. Each call here goes through the real gate and remembers what the
+// hook heard for that result, so a refusal is checked for both: the public code and the reason.
+const heardFor = new WeakMap<object, AccessRefusal>();
+const requireAccess: typeof gate = async (tx, principal, action, ref, opts) => {
+  let heard: AccessRefusal | undefined;
+  const result = await gate(tx, principal, action, ref, {
+    ...opts,
+    onRefused: (refusal) => {
+      heard = refusal;
+      opts.onRefused?.(refusal);
+    },
+  });
+  if (heard !== undefined) heardFor.set(result, heard);
+  return result;
+};
+
+/** What a refusal looks like publicly, and the reason only the hook heard. */
+function refusal<T>(result: Result<T, ServiceError>): {
+  readonly code: string | undefined;
+  readonly reason: string | undefined;
+} {
+  return { code: errorCode(result), reason: heardFor.get(result)?.reason };
+}
+
+/** The one public refusal code (`ACCESS_REFUSAL`), with the reason the hook must have heard. */
+function refused(reason: AccessRefusal['reason']): {
+  readonly code: string;
+  readonly reason: string | undefined;
+} {
+  return { code: ACCESS_REFUSAL.code, reason };
 }
 
 describe('requireAccess - central applicant authorization gate', () => {
@@ -271,7 +306,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     const stranger = accountPrincipal(strangerId);
     for (const ref of [{ applicantId }, { missionId }, { documentId }]) {
       const result = await requireAccess(db, stranger, 'VIEW_METADATA', ref, { purpose: 'x' });
-      expect(errorCode(result)).toBe('forbidden');
+      expect(refusal(result)).toEqual(refused('default_deny'));
     }
     const eachGrant = await requireAccess(
       db,
@@ -280,7 +315,7 @@ describe('requireAccess - central applicant authorization gate', () => {
       { applicantId },
       { purpose: EACH_GRANT },
     );
-    expect(errorCode(eachGrant)).toBe('forbidden');
+    expect(refusal(eachGrant)).toEqual(refused('default_deny'));
   });
 
   it('returns not_found for unknown or malformed ids and invalid for an ambiguous reference', async () => {
@@ -327,7 +362,7 @@ describe('requireAccess - central applicant authorization gate', () => {
       { missionId },
       { purpose: 'visa-review' },
     );
-    expect(errorCode(notGranted)).toBe('forbidden');
+    expect(refusal(notGranted)).toEqual(refused('action_not_granted'));
 
     // A second, non-admin member of the same organization is covered by the
     // organization's grant too; once deactivated, they are not.
@@ -362,7 +397,7 @@ describe('requireAccess - central applicant authorization gate', () => {
       { applicantId },
       { purpose: 'visa-review' },
     );
-    expect(errorCode(afterRemoval)).toBe('forbidden');
+    expect(refusal(afterRemoval)).toEqual(refused('grant_revoked'));
   });
 
   it('denies every member once the organization is suspended (SHR-02)', async () => {
@@ -393,14 +428,15 @@ describe('requireAccess - central applicant authorization gate', () => {
       { applicantId },
       { purpose: 'visa-review' },
     );
-    expect(errorCode(after)).toBe('forbidden');
-    if (isErr(after)) expect(after.error.message).toContain('organization_not_active');
+    expect(refusal(after)).toEqual(refused('organization_not_active'));
+    // The reason is heard by the hook (above), never carried in the answer.
+    if (isErr(after)) expect(after.error.message).not.toContain('organization_not_active');
   });
 
   it('denies a grant that is not accepted, paused, or expired', async () => {
     const pending = await orgWithGrant({ actions: ['VIEW_METADATA'], accept: false });
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           accountPrincipal(pending.agentId),
@@ -409,7 +445,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'visa-review' },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('grant_not_accepted'));
 
     const paused = await orgWithGrant({ actions: ['VIEW_METADATA'] });
     const pausedPrincipal = accountPrincipal(paused.agentId);
@@ -427,7 +463,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     const pausedResult = await pauseGrant(db, { actorAccountId: ownerId, grantId: paused.grantId });
     if (!isOk(pausedResult)) throw new Error('pause');
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           pausedPrincipal,
@@ -436,7 +472,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'visa-review' },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('grant_revoked'));
 
     const live = await orgWithGrant({ actions: ['VIEW_METADATA'] });
     const farFuture = new Date(Date.now() + 400 * 24 * 60 * 60 * 1000);
@@ -451,8 +487,9 @@ describe('requireAccess - central applicant authorization gate', () => {
       { purpose: 'visa-review' },
     );
     vi.useRealTimers();
-    expect(errorCode(expired)).toBe('forbidden');
-    if (isErr(expired)) expect(expired.error.message).toContain('grant_expired');
+    expect(refusal(expired)).toEqual(refused('grant_expired'));
+    // The reason is heard by the hook (above), never carried in the answer.
+    if (isErr(expired)) expect(expired.error.message).not.toContain('grant_expired');
   });
 
   it('denies a purpose mismatch unless each grant is judged on its own purpose', async () => {
@@ -465,8 +502,9 @@ describe('requireAccess - central applicant authorization gate', () => {
       { applicantId },
       { purpose: 'marketing' },
     );
-    expect(errorCode(mismatch)).toBe('forbidden');
-    if (isErr(mismatch)) expect(mismatch.error.message).toContain('purpose_mismatch');
+    expect(refusal(mismatch)).toEqual(refused('purpose_mismatch'));
+    // The reason is heard by the hook (above), never carried in the answer.
+    if (isErr(mismatch)) expect(mismatch.error.message).not.toContain('purpose_mismatch');
     const eachGrant = await requireAccess(
       db,
       agent,
@@ -482,7 +520,7 @@ describe('requireAccess - central applicant authorization gate', () => {
       { applicantId },
       { purpose: EACH_GRANT },
     );
-    expect(errorCode(eachGrantWrongAction)).toBe('forbidden');
+    expect(refusal(eachGrantWrongAction)).toEqual(refused('action_not_granted'));
     // The literal text 'each-grant' is just another purpose, never the switch.
     const literal = await requireAccess(
       db,
@@ -491,7 +529,7 @@ describe('requireAccess - central applicant authorization gate', () => {
       { applicantId },
       { purpose: 'each-grant' },
     );
-    expect(errorCode(literal)).toBe('forbidden');
+    expect(refusal(literal)).toEqual(refused('purpose_mismatch'));
   });
 
   it('allows a direct individual recipient with an accepted grant', async () => {
@@ -506,10 +544,10 @@ describe('requireAccess - central applicant authorization gate', () => {
     if (!isOk(grant)) throw new Error(`grant: ${grant.error.message}`);
     const friend = accountPrincipal(friendId);
     expect(
-      errorCode(
+      refusal(
         await requireAccess(db, friend, 'PREVIEW', { documentId }, { purpose: 'family-help' }),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('grant_not_accepted'));
     const accepted = await acceptGrant(db, { actorAccountId: friendId, grantId: grant.value.id });
     if (!isOk(accepted)) throw new Error('accept');
     const allowed = await requireAccess(
@@ -523,7 +561,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     if (isOk(allowed))
       expect(allowed.value.actor).toEqual({ kind: 'individual_recipient', accountId: friendId });
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           friend,
@@ -532,7 +570,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'family-help' },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('action_not_granted'));
   });
 
   it('allows an in-flight contributor only for contributor actions on its own request', async () => {
@@ -550,7 +588,7 @@ describe('requireAccess - central applicant authorization gate', () => {
 
     // Not yet claimed: no access.
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           sponsor,
@@ -559,7 +597,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
 
     const begun = await beginContributorSubmission(db, {
       rawToken: created.value.rawToken,
@@ -593,7 +631,7 @@ describe('requireAccess - central applicant authorization gate', () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(schema.contributorRequests.id, contributorRequestId));
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           sponsor,
@@ -602,14 +640,14 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
     await db
       .update(schema.contributorRequests)
       .set({ expiresAt })
       .where(eq(schema.contributorRequests.id, contributorRequestId));
     // A case-scoped request never reaches the whole profile (policy law 5).
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           sponsor,
@@ -618,11 +656,11 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
 
     // Never a view, never without the request, never another case, never someone else's document.
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           sponsor,
@@ -631,10 +669,10 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
     expect(
-      errorCode(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { missionId }, { purpose: 'x' })),
-    ).toBe('forbidden');
+      refusal(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { missionId }, { purpose: 'x' })),
+    ).toEqual(refused('default_deny'));
     const otherMission = await createMission(db, {
       actorAccountId: ownerId,
       applicantId,
@@ -642,7 +680,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     });
     if (!isOk(otherMission)) throw new Error('mission');
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           sponsor,
@@ -651,9 +689,9 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           sponsor,
@@ -662,10 +700,10 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
     const stranger = accountPrincipal(await account(db, 'not-the-sponsor@example.com'));
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           stranger,
@@ -674,7 +712,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'x', contributorRequestId },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
   });
 
   it('allows support only with asSupport and an approved support grant', async () => {
@@ -685,7 +723,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     const plain = accountPrincipal(operatorId);
 
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           asSupport,
@@ -694,7 +732,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: SUPPORT_ACCESS_PURPOSE },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('support_access_not_role'));
 
     const grant = await createSupportGrant(db, approver, {
       actorAccountId: operatorId,
@@ -706,7 +744,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     if (!isOk(grant)) throw new Error(`support grant: ${grant.error.message}`);
 
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           plain,
@@ -715,7 +753,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: SUPPORT_ACCESS_PURPOSE },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('default_deny'));
     const allowed = await requireAccess(
       db,
       asSupport,
@@ -727,7 +765,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     if (isOk(allowed))
       expect(allowed.value.actor).toEqual({ kind: 'support_admin', accountId: operatorId });
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           asSupport,
@@ -736,10 +774,10 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: SUPPORT_ACCESS_PURPOSE },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('action_not_granted'));
     // asSupport never borrows ownership: the owner acting as support has no support grant.
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           accountPrincipal(ownerId, { asSupport: true }),
@@ -748,15 +786,15 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: SUPPORT_ACCESS_PURPOSE },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('support_access_not_role'));
   });
 
   it('refuses system and staff principals, and builds staff scope only from a live role check', async () => {
     const job = systemPrincipal('process-erasure');
     expect(job.kind).toBe('system');
     expect(
-      errorCode(await requireAccess(db, job, 'VIEW_METADATA', { applicantId }, { purpose: 'job' })),
-    ).toBe('forbidden');
+      refusal(await requireAccess(db, job, 'VIEW_METADATA', { applicantId }, { purpose: 'job' })),
+    ).toEqual(refused('not_an_account'));
     expect(() => systemPrincipal('not-a-job' as never)).toThrow(/unknown system job/);
 
     const staffId = await account(db, 'staff@example.com');
@@ -775,7 +813,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     if (!isOk(bootstrap)) return;
     expect(bootstrap.value.platformAction).toBe('PACK_MANAGE');
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           bootstrap.value,
@@ -784,7 +822,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'staff' },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('not_an_account'));
     expect(StaffScope.isGenuine(bootstrap.value)).toBe(true);
     expect(StaffScope.isGenuine({ ...bootstrap.value })).toBe(false);
   });
@@ -844,11 +882,11 @@ describe('requireAccess - central applicant authorization gate', () => {
 
     // The earlier request's document is out of reach through the new request.
     expect(
-      errorCode(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { documentId: firstDoc }, opts)),
-    ).toBe('forbidden');
+      refusal(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { documentId: firstDoc }, opts)),
+    ).toEqual(refused('default_deny'));
     // So is the first case itself.
-    expect(errorCode(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { missionId }, opts))).toBe(
-      'forbidden',
+    expect(refusal(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { missionId }, opts))).toEqual(
+      refused('default_deny'),
     );
 
     // The document handed over under request 2 is reachable through it.
@@ -859,8 +897,8 @@ describe('requireAccess - central applicant authorization gate', () => {
     // A document of a different type than was asked for is not.
     const wrongType = await submit(second, 'payslip');
     expect(
-      errorCode(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { documentId: wrongType }, opts)),
-    ).toBe('forbidden');
+      refusal(await requireAccess(db, sponsor, 'PROPOSE_EDIT', { documentId: wrongType }, opts)),
+    ).toEqual(refused('default_deny'));
   });
 
   it('judges organization access only on that organization grants, and refuses to guess between relationships', async () => {
@@ -892,7 +930,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     }
     // Acting for the organization, the personal grant does not count.
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           agent,
@@ -901,7 +939,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'visa-review', actingFor: { organizationId } },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('action_not_granted'));
     // MANAGE comes only from the organization grant.
     const manage = await requireAccess(
       db,
@@ -913,7 +951,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     expect(isOk(manage)).toBe(true);
     if (isOk(manage)) expect(manage.value.actor.kind).toBe('organization_member');
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           agent,
@@ -922,7 +960,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'visa-review', actingFor: 'individual' },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('action_not_granted'));
 
     // Both relationships allow MANAGE once a personal grant also has it: ambiguous.
     const both = await createGrant(db, {
@@ -967,7 +1005,7 @@ describe('requireAccess - central applicant authorization gate', () => {
       });
       if (!isOk(accepted)) throw new Error('accept');
       expect(
-        errorCode(
+        refusal(
           await requireAccess(
             db,
             accountPrincipal(operatorId, { asSupport: true }),
@@ -976,7 +1014,7 @@ describe('requireAccess - central applicant authorization gate', () => {
             { purpose },
           ),
         ),
-      ).toBe('forbidden');
+      ).toEqual(refused('support_access_not_role'));
     }
   });
 
@@ -1028,7 +1066,7 @@ describe('requireAccess - central applicant authorization gate', () => {
     vi.useRealTimers();
     expect(errorCode(late)).toBe('step_up_required');
     expect(
-      errorCode(
+      refusal(
         await requireAccess(
           db,
           accountPrincipal(ownerId.toUpperCase()),
@@ -1039,7 +1077,7 @@ describe('requireAccess - central applicant authorization gate', () => {
           { purpose: 'self' },
         ),
       ),
-    ).toBe('forbidden');
+    ).toEqual(refused('not_an_account'));
     expect(
       errorCode(
         await requireAccess(
@@ -1090,7 +1128,7 @@ describe('requireAccess - central applicant authorization gate', () => {
         purpose: 'visa-review',
       },
     );
-    expect(errorCode(after)).toBe('forbidden');
+    expect(refusal(after)).toEqual(refused('default_deny'));
     const named = await requireAccess(
       db,
       accountPrincipal(agentId),

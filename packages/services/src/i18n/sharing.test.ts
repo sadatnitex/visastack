@@ -85,6 +85,11 @@ const OLD_ENGLISH: ReadonlyArray<readonly [keyof typeof sharingEn, string]> = [
     'sharing.recipientAlwaysSees',
     '{label} runs this case for you, so it always sees it. Tick it to continue.',
   ],
+  // New on 13 Nov 2026 (one answer whether or not an email has an account): its first English.
+  [
+    'sharing.sharedIfAccount',
+    'If this email has a VisaStack account, they can accept your share now; if not, ask them to create one, then share again.',
+  ],
 ];
 
 describe('sharing refusals keep their English', () => {
