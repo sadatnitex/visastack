@@ -689,4 +689,32 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'componentsShare.shareWhatsappShare.moreWaysToSend',
     'Left English at review (refill 4): Shares one row with the English Send on WhatsApp link.',
   ],
+  [
+    'components.capturePreview.thisDeviceCannotShowThePhoto',
+    'Left English at review (refill 6): Names the Use This button, which is English.',
+  ],
+  [
+    'components.loadingSlowNote.stillLoadingYouCanKeepThis',
+    "Left English at review (refill 6): Sits in one status line with the page's English loading label.",
+  ],
+  [
+    'componentsMore.safeCopyEditor.continuePreparing',
+    'Left English at review (refill 6): The line that names it (`eachPageIsDrawnOnceWith`) is held English.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.showThePageAgain',
+    'Left English at review (refill 6): The retry for the held English line "This page could not be shown"; the two stay one language.',
+  ],
+  [
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto',
+    'Left English at review (refill 6): The same button reads the held English "Save Photo" before it saves.',
+  ],
+  [
+    'componentsPwa.pwaPwaRuntime.browserTip',
+    'Left English at review (refill 6): Names a tip whose text (`BROWSER_HINT_TEXT`) is English.',
+  ],
+  [
+    'componentsPwa.pwaPwaRuntime.dismiss',
+    'Left English at review (refill 6): Closes the English browser tip.',
+  ],
 ]);

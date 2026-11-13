@@ -342,3 +342,21 @@ Refill 4 filled 64 keys of the shared components (components, components-lifecyc
 These have a passing draft and no content reason to stay English. No test renders their state under Bengali yet (rule 15), so the next refill fills them together with those tests.
 
 `components.activityLog.clearFilters`, `components.activityLog.nothingMatchesTheseFilters`, `components.capturePreview.thisDeviceCannotShowThePhoto`, `components.countryBrowser.clearTheSearchOrChooseAnother`, `components.countryBrowser.noCountriesMatch`, `components.countryBrowser.noCountriesMatche4ae64`, `components.documentReviewPanel.noDocumentsMatchTryAnotherName`, `components.documentReviewPanel.thisDocumentIsNotAvailableTo`, `components.documentReviewPanel.uploadADocumentToReviewIts`, `components.documentWalletBrowser.clearTheSearchOrChooseAnother`, `components.documentWalletBrowser.noDocumentsMatch`, `components.documentWalletBrowser.showAll`, `components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe`, `components.loadingSlowNote.stillLoadingYouCanKeepThis`, `components.purposeChoice.showCommonPurposes`, `components.toast.dismiss`, `components.visaPhotoSizes.makingYourPhoto`, `componentsMore.safeCopyEditor.continuePreparing`, `componentsMore.safeCopyEditor.showThePageAgain`, `componentsMore.safeCopyEditor.youChoseNothingToHideOn`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto`, `componentsPwa.pwaInstallAppCard.installVisastack`, `componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice`, `componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime`, `componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs`, `componentsPwa.pwaPwaRuntime.appUpdate`, `componentsPwa.pwaPwaRuntime.browserTip`, `componentsPwa.pwaPwaRuntime.dismiss`, `componentsPwa.pwaPwaRuntime.later`, `componentsPwa.pwaPwaRuntime.reloadNow`, `componentsPwa.pwaPwaRuntime.reloading`
+
+## Left English at review in refill 6
+
+Refill 6 filled 23 of the 32 keys deferred from refill 4 (shared components), each with a test that draws its state under Bengali. These 7 stay English for the reason given; HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| components | `components.capturePreview.thisDeviceCannotShowThePhoto` | Names the Use This button, which is English. |
+| components | `components.loadingSlowNote.stillLoadingYouCanKeepThis` | Sits in one status line with the page's English loading label. |
+| components-more | `componentsMore.safeCopyEditor.continuePreparing` | The line that names it (`eachPageIsDrawnOnceWith`) is held English. |
+| components-more | `componentsMore.safeCopyEditor.showThePageAgain` | The retry for the held English line "This page could not be shown"; the two stay one language. |
+| components-profile-photo | `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto` | The same button reads the held English "Save Photo" before it saves. |
+| components-pwa | `componentsPwa.pwaPwaRuntime.browserTip` | Names a tip whose text (`BROWSER_HINT_TEXT`) is English. |
+| components-pwa | `componentsPwa.pwaPwaRuntime.dismiss` | Closes the English browser tip. |
+
+## Refill 6: what stays deferred
+
+Still deferred until a test renders their state (passing drafts, no content reason): `components.visaPhotoSizes.makingYourPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, and all 71 keys deferred from refill 2 (applicant screens and one shared page), listed above under "Deferred from refill 2 until a test renders their state". The staged key drafts in `drafts/staged-key-drafts-I.jsonl` wait for the pull request that adds them.

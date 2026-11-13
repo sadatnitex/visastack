@@ -47,8 +47,6 @@ export const componentsPwaCatalog = defineCatalog({
     'componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs':
       'VisaStack-এর একটি নতুন সংস্করণ প্রস্তুত। আপনি যা লিখছেন বা আপলোড করছেন তা শেষ করুন, তারপর পাতাটি রিলোড করুন।',
     'componentsPwa.pwaPwaRuntime.appUpdate': 'অ্যাপ আপডেট',
-    'componentsPwa.pwaPwaRuntime.browserTip': 'ব্রাউজার টিপ',
-    'componentsPwa.pwaPwaRuntime.dismiss': 'বন্ধ করুন',
     'componentsPwa.pwaPwaRuntime.later': 'পরে',
     'componentsPwa.pwaPwaRuntime.reloadNow': 'এখনই আবার লোড করুন',
     'componentsPwa.pwaPwaRuntime.reloading': 'আবার লোড হচ্ছে',

@@ -28,9 +28,7 @@ export const componentsProfilePhotoCatalog = defineCatalog({
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.photoFile': 'ছবির ডকুমেন্ট',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.photoPosition': 'ছবির অবস্থান',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.removePhoto': 'ছবি সরান',
-    'componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto': 'ছবি সরানো হচ্ছে',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.replacePhoto': 'ছবি বদলান',
-    'componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto': 'ছবি সংরক্ষণ করা হচ্ছে',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.zoom': 'জুম',
   },
 });

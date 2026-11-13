@@ -191,8 +191,6 @@ export const componentsCatalog = defineCatalog({
     'components.capturePreview.checkYourPhoto': 'আপনার ছবি দেখে নিন',
     'components.capturePreview.previewOfWhatYouJustCaptured':
       'আপনি এইমাত্র যা তুলেছেন তার প্রিভিউ, পাঠানোর আগে দেখে নেওয়ার জন্য দেখানো হচ্ছে',
-    'components.capturePreview.thisDeviceCannotShowThePhoto':
-      'এই ডিভাইস এখানে ছবিটি দেখাতে পারে না, তাই আগে আপনার ফোনে দেখে নিন। ঠিক মনে হলে "এটি ব্যবহার করুন" চাপুন। না হলে আবার তুলুন।',
     'components.capturePreview.weCheckTheFileAgainAfter':
       'আপনি পাঠানোর পর আমরা ডকুমেন্টটি আবার পরীক্ষা করি, তাই এখানে ঠিক দেখালেও কোনো ছবি পরে ফিরিয়ে দেওয়া হতে পারে।',
     'components.checklistCorrectionForm.checklistItem': 'চেকলিস্টের আইটেম',
@@ -259,8 +257,6 @@ export const componentsCatalog = defineCatalog({
     'components.documentWalletBrowser.why': 'কেন?',
     'components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe':
       'আপনার বেছে নেওয়া ডকুমেন্টটি বর্তমান তালিকার ফিল্টারের বাইরে।',
-    'components.loadingSlowNote.stillLoadingYouCanKeepThis':
-      'এখনো লোড হচ্ছে। আপনি এই পাতাটি খোলা রাখতে পারেন।',
     'components.purposeChoice.morePurposes': 'আরও উদ্দেশ্য',
     'components.purposeChoice.showCommonPurposes': 'সাধারণ উদ্দেশ্যগুলো দেখান',
     'components.receiptCard.reference': 'রেফারেন্স',
@@ -277,7 +273,6 @@ export const componentsCatalog = defineCatalog({
     'components.visaPhotoSizes.chooseTheSizeYourApplicationAsks':
       'আপনার আবেদনে যে মাপ চাওয়া হয়েছে তা বেছে নিন, তারপর মাথা ও কাঁধ মাঝখানে না আসা পর্যন্ত সরান ও জুম করুন। ছবিটি নিজে কখনো এডিট করা হয় না।',
     'components.visaPhotoSizes.downloadThisSize': 'এই সাইজে ডাউনলোড করুন',
-    'components.visaPhotoSizes.makingYourPhoto': 'আপনার ছবি তৈরি হচ্ছে...',
     'components.visaPhotoSizes.moveAndZoom': 'সরান ও জুম করুন',
     'components.visaPhotoSizes.moveDown': 'নিচে সরান',
     'components.visaPhotoSizes.moveLeft': 'বাঁয়ে সরান',
