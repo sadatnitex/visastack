@@ -845,6 +845,52 @@ describe('a chain of replacements cut by a document removed for good', () => {
   );
 
   it(
+    'does not say a by-name share already covers the newer document when the newest is not known',
+    async () => {
+      const w = await buildImpactWorld();
+      const first = await replaceWithNewerPassport(w);
+      const second = await replaceWithNewerPassport(
+        w,
+        first.newer.documentId,
+        'sample-passport-second.pdf',
+      );
+      const third = await replaceWithNewerPassport(
+        w,
+        second.newer.documentId,
+        'sample-passport-newest.pdf',
+      );
+      // Lists the earlier passport and the first replacement, not the newest one.
+      const byName = await shareWith(w.db, w.rahim, w.unrelatedAgency, {
+        actions: ['VIEW_METADATA', 'PREVIEW'],
+        documentIds: [w.p1.documentId, first.newer.documentId],
+      });
+      const before = await readDocumentImpact(w);
+      expect(before.subject).toMatchObject({
+        replacement: { documentId: third.newer.documentId },
+      });
+      expect(itemOf(before, `share:${byName}`)).toMatchObject({
+        outcome: 'REVIEW_RECOMMENDED',
+        reason: 'SHARE_COVERS_EARLIER_ONLY',
+      });
+
+      // The second replacement is removed for good: the walk stops at the first replacement,
+      // which the share lists, but the real newest passport is still not shared.
+      await removeForGood(w, second.newer.documentId);
+      const after = await readDocumentImpact(w);
+      expect(after.phase).toBe('RECORDED');
+      expect(after.subject).toMatchObject({ replacement: { documentId: first.newer.documentId } });
+      expect(itemOf(after, `share:${byName}`)).toMatchObject({
+        outcome: 'UNKNOWN',
+        reason: 'RECORD_INCOMPLETE',
+        nextStep: { kind: 'OPEN_SHARING', grantId: byName },
+      });
+      // A share not tied to named documents reaches whatever is added later: still said.
+      expect(itemOf(after, `share:${w.agencyAShareId}`).reason).toBe('SHARE_ALREADY_COVERS');
+    },
+    HEAVY,
+  );
+
+  it(
     'says what depends on the newer document is not known, and invents no alert',
     async () => {
       const w = await buildImpactWorld();

@@ -64,7 +64,10 @@ const LATER_DOCUMENT_ID = 'ffffffff-ffff-4fff-bfff-ffffffffffff';
  * good, the newest document is not known: a share that lists another document by name may list
  * that one, so "it covers the earlier document only" would be a guess and is said as not known.
  * A share that lists only this document and documents of the chain up to the cut (none of which
- * is the unknown newest) cannot reach it, and is still said.
+ * is the unknown newest) cannot reach it, and is still said. The other way round, a share that
+ * lists documents by name and reaches the newest one still there may not list the unknown newest,
+ * so "it already covers the newer document" would be a guess too and is said as not known. A
+ * share not tied to named documents reaches whatever is added later, and is still said.
  */
 function documentShareReason(
   share: LiveShare,
@@ -72,7 +75,11 @@ function documentShareReason(
   chain: ReplacementChain,
   reason: ImpactReason | null,
 ): ImpactReason | null {
-  if (reason !== 'SHARE_COVERS_EARLIER_ONLY' || !chain.cut) return reason;
+  if (!chain.cut) return reason;
+  if (reason === 'SHARE_ALREADY_COVERS') {
+    return share.namedDocumentIds ? 'RECORD_INCOMPLETE' : reason;
+  }
+  if (reason !== 'SHARE_COVERS_EARLIER_ONLY') return reason;
   const known = new Set([documentId, ...chain.laterIds]);
   const namesAnother = share.namedDocumentIds?.some((id) => !known.has(id)) ?? false;
   return namesAnother ? 'RECORD_INCOMPLETE' : reason;

@@ -275,7 +275,7 @@ export interface DetailSubject {
    * that says exactly what the current one says (saving a detail again without changing it still
    * records a new saved value): the same stored text, the same end date and the same start date
    * as stated so far (`statedStart`: a save that states no start date keeps the one already
-   * stated). Ending an entry or stating or correcting its start date keeps the text and changes
+   * stated for the same text, through an unbroken run of saves with that text). Ending an entry or stating or correcting its start date keeps the text and changes
    * what it means, so it is a different value. The status is not compared: it records where a
    * value came from (typed, approved from a document), not what it says. For a detail stored protected nothing is compared, because this
    * read never opens a protected value: only the current saved value itself is "the same".
@@ -289,18 +289,27 @@ export interface DetailSubject {
 
 /**
  * The start date a saved value stands on: its own, else the latest one stated by an earlier
- * saved value of the same detail. A save that states no date (the profile editor's re-save)
- * keeps the date already stated; a date stated for the first time, or a different one, is a
- * change.
+ * saved value of the same detail with the same text, counting back only through saved values
+ * with that text. A save that states no date (the profile editor's re-save) keeps the date
+ * already stated for that text; a date stated for the first time, or a different one, is a
+ * change. A date stated for a different text, or for the same text before a different one was
+ * saved in between, is not carried over.
  */
 function statedStart(saved: {
   readonly id: AnyPgColumn;
   readonly factId: AnyPgColumn;
+  readonly value: AnyPgColumn;
   readonly createdAt: AnyPgColumn;
 }): SQL<Date | null> {
   return sql<Date | null>`(select stated.effective_from from fact_versions stated
     where stated.fact_id = ${saved.factId} and stated.effective_from is not null
+      and stated.value is not distinct from ${saved.value}
       and (stated.created_at, stated.id) <= (${saved.createdAt}, ${saved.id})
+      and not exists (select 1 from fact_versions other
+        where other.fact_id = ${saved.factId}
+          and (other.created_at, other.id) > (stated.created_at, stated.id)
+          and (other.created_at, other.id) < (${saved.createdAt}, ${saved.id})
+          and other.value is distinct from ${saved.value})
     order by stated.created_at desc, stated.id desc limit 1)`;
 }
 

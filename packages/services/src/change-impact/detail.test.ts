@@ -514,6 +514,69 @@ describe('a saved value with the same text and a different meaning', () => {
   );
 });
 
+describe('a start date stated for a different text', () => {
+  const START = new Date('2025-01-01T00:00:00Z');
+  const save = async (
+    w: Awaited<ReturnType<typeof buildImpactWorld>>,
+    value: string,
+    effectiveFrom?: Date,
+  ) =>
+    must(
+      await editFact(w.db, {
+        actorAccountId: w.rahim.accountId,
+        applicantId: w.rahim.applicantId,
+        fieldKey: EMPLOYMENT_FIELD,
+        value,
+        ...(effectiveFrom ? { effectiveFrom } : {}),
+      }),
+      'save',
+    );
+
+  it(
+    'is not carried over to the text saved back without a date',
+    async () => {
+      const w = await buildImpactWorld();
+      // The agency accepted the first text with no start date. A different text is saved with a
+      // start date, then the first text again with none: the date was stated for the other text.
+      await save(w, E_VALUE_2, START);
+      await save(w, E_VALUE_1);
+      const impact = await readDetailImpact(w);
+      expect(impact.subject).toMatchObject({ savedValues: 3 });
+      expect(itemOf(impact, `request:${w.detailRequestId}`)).toMatchObject({
+        outcome: 'NO_ACTION',
+        reason: 'AGENCY_HOLDS_CURRENT',
+      });
+      expect(impact.items.some((item) => item.id === `case:${w.finishedCaseId}`)).toBe(false);
+    },
+    HEAVY,
+  );
+
+  it(
+    'does not hide a start date stated for the first time for the text the agency holds',
+    async () => {
+      const w = await buildImpactWorld();
+      // A different text is saved with a start date, then the first text again with none, and
+      // that undated value is sent and accepted.
+      await save(w, E_VALUE_2, START);
+      await save(w, E_VALUE_1);
+      const asked = await askForDetail(w.db, w.agencyA, w.rahim);
+      await sendDetail(w.db, w.rahim, asked, w.e.factId);
+      await decide(w.db, w.agencyA, asked, 'ACCEPTED');
+      expect(itemOf(await readDetailImpact(w), `request:${asked}`).reason).toBe(
+        'AGENCY_HOLDS_CURRENT',
+      );
+
+      // The same date, now stated for the first text for the first time: a change.
+      await save(w, E_VALUE_1, START);
+      expect(itemOf(await readDetailImpact(w), `request:${asked}`)).toMatchObject({
+        outcome: 'REVIEW_RECOMMENDED',
+        reason: 'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      });
+    },
+    HEAVY,
+  );
+});
+
 describe('the profile editor saving the same text again', () => {
   /**
    * Saves `E_VALUE_1` with `first` (a way the value can come to be stored), has Agency A ask for
