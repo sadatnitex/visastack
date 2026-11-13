@@ -56,6 +56,7 @@ import {
 } from '../../../../../components/safe-copy-state';
 import { PageHeader } from '../../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
+import { changeImpactCatalog } from '../../../../../i18n/change-impact';
 import {
   isClassificationConfigured,
   isInconsistencyConfigured,
@@ -68,7 +69,7 @@ import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
-import { primeLocale } from '../../../../../lib/i18n-server';
+import { getT, primeLocale } from '../../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
@@ -94,6 +95,7 @@ import {
   RunClassificationButton,
   RunInconsistencyCheckButton,
 } from '../ai-review';
+import { changeImpactHref } from '../change-impact/impact-words';
 import { DocumentExpiryForm } from '../document-expiry-form';
 import { DocumentRenameForm } from '../document-rename-form';
 import { documentSuggestionView } from '../document-suggestion';
@@ -223,6 +225,7 @@ export default async function ApplicantDocumentsPage({
     typeof requestedType === 'string' ? (resolveDocumentType(requestedType)?.key ?? '') : '';
   const locale = await getLocale();
   const t = createTranslator(locale);
+  const impactT = await getT(changeImpactCatalog);
   const documentGroups = evidenceDocumentGroups();
   // The Add Documents page, ready on a kind when the address names one the catalogue knows.
   const addDocumentsBase = `/app/applicant/${id}/documents/add`;
@@ -830,6 +833,7 @@ export default async function ApplicantDocumentsPage({
                       <span
                         className="row-key"
                         data-value="name"
+                        id={`doc-name-${doc.id}`}
                         style={{ wordBreak: 'break-word' }}
                       >
                         {doc.approvedName ?? doc.originalName}
@@ -841,9 +845,21 @@ export default async function ApplicantDocumentsPage({
                           if (!lifecycle) return null;
                           const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
                           return (
-                            <span className={`badge ${lifecycleBadge.tone}`}>
-                              {lifecycleBadge.label}
-                            </span>
+                            <>
+                              <span className={`badge ${lifecycleBadge.tone}`}>
+                                {lifecycleBadge.label}
+                              </span>
+                              {/* Beside "Replaced": the way back to what that replacement means. */}
+                              {lifecycle.status === 'SUPERSEDED' ? (
+                                <Link
+                                  className="ci-step"
+                                  href={changeImpactHref(id, { kind: 'DOCUMENT', id: doc.id })}
+                                  aria-describedby={`doc-name-${doc.id}`}
+                                >
+                                  {impactT.node('changeImpact.review.title')}
+                                </Link>
+                              ) : null}
+                            </>
                           );
                         })()}
                         {processingKey ? (

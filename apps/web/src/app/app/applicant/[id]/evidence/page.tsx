@@ -54,9 +54,51 @@ const ITEM_KEY = 'item';
 /** `done=answered` with `item=<request>` draws the receipt for that request after an answer (F2). */
 const DONE_KEY = 'done';
 
+type Db = Parameters<typeof getApplicant>[0];
+
+/** One page of the traveller's requests: the first `limit` of them, in the order the page shows. */
+const readRequestPage = (db: Db, accountId: string, applicantId: string, limit: number) =>
+  listEvidenceRequestsForApplicant(db, accountId, applicantId, { limit });
+type RequestPage = Awaited<ReturnType<typeof readRequestPage>>;
+
+/**
+ * A request named in the address (a link from a notice, an email or a changed detail) must open,
+ * even when it sits past the rows this visit lists. The same gated read is made once more at the
+ * service's own ceiling, only to find where the request is; the page then shows as many whole
+ * steps as it takes to include it, never more. A request that is not in the traveller's own list
+ * is not found by this read either, so nothing new becomes visible and the page stays as it was.
+ * The widest read stops at the same ceiling as the list (500), so a request beyond that position
+ * still cannot be opened by a link; it is reached only by showing more of the list. The spot
+ * where Show More lands (`landPosition`) is counted from the rows asked for, and widening for a
+ * named request does not move it, so it is left as it is.
+ */
+async function includeNamedRequest(
+  db: Db,
+  accountId: string,
+  applicantId: string,
+  named: string | undefined,
+  page: RequestPage,
+): Promise<RequestPage> {
+  if (!named || !page.ok || !page.value.more) return page;
+  if (page.value.items.some((request) => request.id === named)) return page;
+  const widest = await readRequestPage(db, accountId, applicantId, REQUEST_SHOW_MAX);
+  if (!widest.ok) return page;
+  const at = widest.value.items.findIndex((request) => request.id === named);
+  if (at < 0) return page;
+  const wanted = Math.ceil((at + 1) / TRAVELLER_LIST_STEP) * TRAVELLER_LIST_STEP;
+  return {
+    ok: true,
+    value: {
+      ...page.value,
+      items: widest.value.items.slice(0, wanted),
+      more: widest.value.items.length > wanted || widest.value.more,
+    },
+  };
+}
+
 /** Every agency that has asked this traveller for anything, or none when they cannot be read. */
 async function readAskingAgencies(
-  db: Parameters<typeof getApplicant>[0],
+  db: Db,
   accountId: string,
   applicantId: string,
 ): Promise<readonly AskingAgency[]> {
@@ -96,11 +138,18 @@ export default async function EvidencePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [requests, profile, documents] = await Promise.all([
-      listEvidenceRequestsForApplicant(db, accountId, id, { limit: requestsShown }),
+    const [firstPage, profile, documents] = await Promise.all([
+      readRequestPage(db, accountId, id, requestsShown),
       listApplicantProfile(db, id),
       listDocumentsDetailed(db, accountId, id),
     ]);
+    const requests = await includeNamedRequest(
+      db,
+      accountId,
+      id,
+      firstParam(search[ITEM_KEY]),
+      firstPage,
+    );
     const requestList = requests.ok ? requests.value.items : [];
     // What was said on each request so far: its decisions and, for a document, every send with its
     // time, read as the owner. It runs beside the reads below; a read that fails is shown as such,

@@ -613,6 +613,68 @@ describe('a long list of requests stays short (WP-SB3)', () => {
   });
 });
 
+describe('a named request always opens', () => {
+  const many = () =>
+    Array.from({ length: 30 }, (_, index) => ({
+      ...request,
+      id: `r${index}`,
+      status: 'OPEN',
+    }));
+  const renderAt = (search: Record<string, string>) =>
+    renderServer(
+      EvidencePage({
+        params: Promise.resolve({ id: 'a1' }),
+        searchParams: Promise.resolve(search),
+      }),
+    );
+  const rows = (html: string) => html.match(/data-pattern="list-row"/g)?.length ?? 0;
+
+  it('shows a request past the first ten, in as many whole steps as it takes', async () => {
+    withRequests(...many());
+    // Position 26: ten rows are not enough, and thirty are the next whole step that holds it.
+    const html = await renderAt({ item: 'r25' });
+    expect(rows(html)).toBe(30);
+    expect(html).toContain('id="request-r25"');
+    expect(mocks.listEvidenceRequestsForApplicant.mock.calls.map((call) => call[3])).toEqual([
+      { limit: 10 },
+      { limit: 500 },
+    ]);
+    // Nothing is left to show, so there is no way to ask for more.
+    expect(html).not.toContain('evidence?show=');
+  });
+
+  it('adds only the step that holds it, and keeps Show More for the rest', async () => {
+    withRequests(...many());
+    const html = await renderAt({ item: 'r12' });
+    expect(rows(html)).toBe(20);
+    expect(html).toContain('id="request-r12"');
+    expect(html).toContain('id="evidence-requests-more"');
+  });
+
+  it('reads once when the request is already among the rows shown', async () => {
+    withRequests(...many());
+    const html = await renderAt({ item: 'r3' });
+    expect(rows(html)).toBe(10);
+    expect(mocks.listEvidenceRequestsForApplicant).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the same ten when the name is not one of this traveller's requests", async () => {
+    withRequests(...many());
+    const html = await renderAt({ item: 'someone-elses-request' });
+    expect(rows(html)).toBe(10);
+    expect(html).not.toContain('id="request-someone-elses-request"');
+  });
+
+  it('keeps the ten when the wider read is refused', async () => {
+    withRequests(...many());
+    mocks.listEvidenceRequestsForApplicant.mockImplementation(async (...args: unknown[]) => {
+      const limit = (args[3] as { limit: number }).limit;
+      return limit > 10 ? { ok: false } : { ok: true, value: many() };
+    });
+    expect(rows(await renderAt({ item: 'r25' }))).toBe(10);
+  });
+});
+
 describe('the copies offered for a document request (Lane E)', () => {
   type Choice = {
     documentId: string;

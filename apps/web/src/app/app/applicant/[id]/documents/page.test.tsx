@@ -381,6 +381,59 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
     expect(textOf(html)).toContain('Preview is blocked');
     expect(html).not.toContain('>Preview</button>');
   });
+  it('links a replaced document, beside its Replaced label, to what that change affects', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('old', 'APPROVED'), doc('new', 'APPROVED')],
+    });
+    mocks.getWalletView.mockResolvedValue({
+      ok: true,
+      value: [
+        { document: { id: 'old' }, status: 'SUPERSEDED', usedInMissions: [], accessibleTo: [] },
+        { document: { id: 'new' }, status: 'CURRENT', usedInMissions: [], accessibleTo: [] },
+      ],
+    });
+    const html = await render('old');
+    const links = [
+      ...html.matchAll(/<a[^>]*href="([^"]*change-impact[^"]*)"[^>]*>(?:<[^>]*>)*([^<]*)/g),
+    ].map((match) => [match[1], match[2]]);
+    // Only the replaced document offers it; a current one has no such change to explain.
+    expect(links).toEqual([
+      ['/app/applicant/a1/change-impact?document=old', 'What This Change Affects'],
+    ]);
+    expect(html).toMatch(/Replaced<\/span><a[^>]*class="ci-step"/);
+  });
+  it('tells the What This Change Affects link apart: it names its own document, whichever is open', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('old-1', 'APPROVED'), doc('old-2', 'APPROVED')],
+    });
+    mocks.getWalletView.mockResolvedValue({
+      ok: true,
+      value: [
+        { document: { id: 'old-1' }, status: 'SUPERSEDED', usedInMissions: [], accessibleTo: [] },
+        { document: { id: 'old-2' }, status: 'SUPERSEDED', usedInMissions: [], accessibleTo: [] },
+      ],
+    });
+    const attribute = (tag: string, name: string) =>
+      new RegExp(`${name}="([^"]*)"`).exec(tag)?.[1] ?? '';
+    for (const opened of ['old-1', 'old-2']) {
+      const html = await render(opened);
+      const links = [...html.matchAll(/<a\b[^>]*>/g)]
+        .map((match) => match[0])
+        .filter((tag) => tag.includes('change-impact'));
+      expect(links, opened).toHaveLength(1);
+      const [tag = ''] = links;
+      expect(attribute(tag, 'href')).toBe(`/app/applicant/a1/change-impact?document=${opened}`);
+      // The link points at the document's own name, so a screen reader hears which one it is for.
+      const target = new RegExp(`id="${attribute(tag, 'aria-describedby')}"[^>]*>([^<]*)<`).exec(
+        html,
+      );
+      expect(target?.[1], opened).toBe(`${opened}.pdf`);
+      const ids = [...html.matchAll(/\bid="([^"]*)"/g)].map((match) => match[1]);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
   it('does not substitute an owned file for an unavailable explicit selection', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('owned', 'APPROVED')] });
     const html = await render('foreign-or-removed');

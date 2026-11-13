@@ -1,9 +1,15 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+/** What happened, in order: the save, the session callback returning, the read. Not a mock. */
+const order = vi.hoisted(() => [] as string[]);
 const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listReplacementOptions: vi.fn(),
   replaceDocument: vi.fn(),
+  readImpact: vi.fn(),
+}));
+vi.mock('../../../../../../../lib/change-impact-read', () => ({
+  readDocumentChangeImpact: mocks.readImpact,
 }));
 vi.mock('@visastack/services', () => ({
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
@@ -23,17 +29,92 @@ vi.mock('@visastack/services', () => ({
   },
 }));
 vi.mock('../../../../../../../lib/session', () => ({
-  withSession: (fn: (ctx: { db: object; accountId: string }) => unknown) =>
-    fn({ db: {}, accountId: 'acct-1' }),
+  withSession: async (fn: (ctx: { db: object; accountId: string }) => unknown) => {
+    const out = await fn({ db: {}, accountId: 'acct-1' });
+    order.push('callback returned');
+    return out;
+  },
 }));
 vi.mock('../../../../../../../lib/upload-preflight', () => ({ pdfUploadsAccepted: () => false }));
 
-import { replaceDocumentAction, replaceOptionsAction } from './actions';
+import { previewReplaceImpactAction, replaceDocumentAction, replaceOptionsAction } from './actions';
 
 const proof = (applicantId: string) => ({ ok: true, value: { applicant: { id: applicantId } } });
 
+/** A stand-in for a review: the actions hand it on untouched. */
+const REVIEW = { phase: 'RECORDED', items: [], quiet: true };
+
+beforeEach(() => {
+  order.length = 0;
+  mocks.readImpact.mockResolvedValue('failed');
+});
 afterEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
+});
+
+describe('what the replacement affects', () => {
+  const replaced = { ok: true, value: { flaggedMissionIds: [], cases: [] } };
+
+  it('is read for the old document only after the replacement is saved and its session has returned', async () => {
+    mocks.requireAccess.mockResolvedValue(proof('a1'));
+    mocks.replaceDocument.mockImplementation(async () => {
+      order.push('saved');
+      return replaced;
+    });
+    mocks.readImpact.mockImplementation(async () => {
+      order.push('read');
+      return REVIEW;
+    });
+    expect(await replaceDocumentAction('a1', 'old', 'new')).toEqual({
+      ok: true,
+      message: 'Replaced. The old document stays in your records, marked Replaced.',
+      impact: REVIEW,
+    });
+    // The recorded review names no candidate: the saved replacement is what it reads.
+    expect(mocks.readImpact.mock.calls).toEqual([['a1', 'old']]);
+    // The read is its own step: it never runs inside the session that saved the replacement.
+    expect(order).toEqual(['saved', 'callback returned', 'read']);
+  });
+
+  it('never turns a finished replacement into a failure when the read fails or is refused', async () => {
+    mocks.requireAccess.mockResolvedValue(proof('a1'));
+    mocks.replaceDocument.mockResolvedValue(replaced);
+    for (const read of ['failed', 'refused']) {
+      mocks.readImpact.mockResolvedValue(read);
+      expect(await replaceDocumentAction('a1', 'old', 'new')).toEqual({
+        ok: true,
+        message: 'Replaced. The old document stays in your records, marked Replaced.',
+        impact: null,
+      });
+    }
+  });
+
+  it('is not read at all when the replacement was refused', async () => {
+    mocks.requireAccess.mockResolvedValue(proof('a1'));
+    mocks.replaceDocument.mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid', message: 'the newer document has expired' },
+    });
+    expect(await replaceDocumentAction('a1', 'old', 'new')).toEqual({
+      ok: false,
+      message: 'The newer document has expired. Choose one that is still valid.',
+    });
+    expect(mocks.readImpact).not.toHaveBeenCalled();
+  });
+
+  it('is previewed for the chosen newer document, and changes nothing', async () => {
+    mocks.readImpact.mockResolvedValue({ ...REVIEW, phase: 'PREVIEW' });
+    expect(await previewReplaceImpactAction('a1', 'old', 'new')).toEqual({
+      ...REVIEW,
+      phase: 'PREVIEW',
+    });
+    expect(mocks.readImpact.mock.calls).toEqual([['a1', 'old', 'new']]);
+    expect(mocks.replaceDocument).not.toHaveBeenCalled();
+    for (const read of ['failed', 'refused']) {
+      mocks.readImpact.mockResolvedValue(read);
+      expect(await previewReplaceImpactAction('a1', 'old', 'new')).toBeNull();
+    }
+  });
 });
 
 describe('replace actions', () => {

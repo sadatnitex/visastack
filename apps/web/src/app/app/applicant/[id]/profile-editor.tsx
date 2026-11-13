@@ -20,6 +20,7 @@ import {
 } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
+import { changeImpactCatalog } from '../../../../i18n/change-impact';
 import { fieldStatusWords } from '../../../../lib/field-state-words';
 import { formatDateOnly } from '../../../../lib/format-date';
 import type {
@@ -32,6 +33,7 @@ import type {
 } from '../../../../lib/master-profile-types';
 import { plural } from '../../../../lib/plural';
 import { type ActionState, saveFactAction } from './actions';
+import { ChangeImpactNotice } from './change-impact/change-impact-notice';
 import {
   markEndedAction,
   markNotCurrentAction,
@@ -209,6 +211,7 @@ function FieldRow({
   onChoice,
 }: FieldRowProps) {
   const t = useT(appApplicantCatalog);
+  const impactT = useT(changeImpactCatalog);
   const locale = useLocale();
   const [state, formAction, pending] = useActionState(saveFactAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -319,6 +322,11 @@ function FieldRow({
       ) : null}
       {assurance ? <AssuranceDetail assurance={assurance} /> : null}
       <FormMessage id={messageId} result={state} />
+      <ChangeImpactNotice
+        summary={state.changeImpact}
+        unavailable={state.changeImpactUnavailable}
+        t={impactT}
+      />
     </form>
   );
 }

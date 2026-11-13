@@ -151,3 +151,28 @@ deployed. No migration.
 Trust rules now run as tests (`packages/services/src/trust-rules/`). Four findings in existing
 behaviour wait for the owner's decision: `docs/product/breakthrough/REPORT.md`, section 6. Not
 verified: a signed-in browser run of the new step (staging has no accounts).
+
+## Update, 2026-11-13: What This Change Affects
+
+On branch `claude/candidate-b-impact-experience`; live only after the lead's full check, the
+owner's merge word and a deployment. No migration.
+
+| Area | What a traveller can do now | What stays protected |
+|---|---|---|
+| Replace with a Newer Document | Before replacing, read what the replacement will mean for open cases, for copies already sent to agencies, for sharing and for finished cases; read the same list again once it is recorded | The list only informs. Nothing is sent, shared or changed from it; the old document stays, marked Replaced; a copy an agency holds is never swapped |
+| Saving a detail | Under the saved line, a short notice when the change needs a look, with a link to the full list; nothing at all when it affects nothing | A saved detail is never reported as a problem because the list could not be worked out |
+| Documents, Requests from Agencies | Open the list again beside a replaced document, and beside a sent answer whose detail changed since | Only the record's own traveller can read it; anyone else gets the ordinary not-found |
+
+Not verified: the signed-in journey on production (the owner's click script is
+`docs/operations/acceptance/what-this-change-affects-click-script.md`). The wording is English
+only for now, also for a reader who chose Bangla.
+
+## Update, 2026-11-13 (later): What This Change Affects, reviewed and checked
+
+The service part is live (merged and deployed, no screen calls it). The screens are on branch
+`claude/candidate-b-impact-experience`, checked by the full local run, and become visible after
+their merge. Two changes since the first update: a look at what a change affects now gives up after
+4 seconds (a batch of approvals after 6) and says the check did not happen, so a slow database can
+never hold up a save that already went through; and a replacement chain cut by a document removed
+for good says plainly that a later document was removed and we cannot tell whether a newer one
+exists. The wording is still English only (118 messages); Bangla is not drafted.

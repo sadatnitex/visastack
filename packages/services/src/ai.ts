@@ -3501,6 +3501,11 @@ export interface ApproveClearProposalsResult {
   readonly leftForReview: number;
   /** Readings already decided (another tab, a double press): not counted as waiting. */
   readonly alreadyDecided: number;
+  /**
+   * The detail (fact) each approved reading was saved into, in approval order, without repeats.
+   * Lets a screen look at what the batch changed.
+   */
+  readonly factIds: readonly string[];
 }
 
 /**
@@ -3521,7 +3526,8 @@ export async function approveClearProposals(
     return err(serviceError('forbidden', 'not authorized to decide these proposals'));
   }
   const ids = [...new Set(input.proposalIds)];
-  if (ids.length === 0) return ok({ approved: 0, leftForReview: 0, alreadyDecided: 0 });
+  if (ids.length === 0)
+    return ok({ approved: 0, leftForReview: 0, alreadyDecided: 0, factIds: [] });
   // Loaded together, once, rather than one query per reading.
   const proposals = await db
     .select()
@@ -3582,6 +3588,7 @@ export async function approveClearProposals(
   let approved = 0;
   let leftForReview = ids.length - proposals.length;
   let alreadyDecided = 0;
+  const factIds = new Set<string>();
   let refusal: ServiceError | undefined;
   for (const proposal of proposals) {
     if (proposal.status !== 'PENDING') {
@@ -3613,6 +3620,7 @@ export async function approveClearProposals(
     });
     if (result.ok) {
       approved += 1;
+      factIds.add(result.value.version.factId);
     } else if (result.error.message === 'this proposal has already been decided') {
       alreadyDecided += 1;
     } else {
@@ -3621,7 +3629,7 @@ export async function approveClearProposals(
     }
   }
   if (approved === 0 && refusal) return err(refusal);
-  return ok({ approved, leftForReview, alreadyDecided });
+  return ok({ approved, leftForReview, alreadyDecided, factIds: [...factIds] });
 }
 
 export interface RejectProposalInput {

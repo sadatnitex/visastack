@@ -122,6 +122,7 @@ describe('passport machine-readable lines become suggestions with no AI', () => 
     // two country codes (lower confidence) stay for one-at-a-time review.
     expect(accepted.value.approved).toBe(2);
     expect(accepted.value.leftForReview).toBe(6);
+    expect(accepted.value.factIds).toHaveLength(2);
     const left = await db
       .select()
       .from(schema.fieldProposals)

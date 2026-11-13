@@ -8,14 +8,26 @@ const mocks = vi.hoisted(() => ({
   options: vi.fn(),
   replace: vi.fn(),
   upload: vi.fn(),
+  preview: vi.fn(),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('./actions', () => ({
   replaceOptionsAction: mocks.options,
   replaceDocumentAction: mocks.replace,
+  previewReplaceImpactAction: mocks.preview,
 }));
 vi.mock('../../../actions', () => ({ uploadDocumentAction: mocks.upload }));
 
+import {
+  APPLICANT_ID,
+  DOCUMENT_PREVIEW,
+  DOCUMENT_RECORDED,
+  DOCUMENT_SUBJECT,
+  LIVE_CASE,
+  QUIET_EMPTY,
+  item,
+  review,
+} from '../../../change-impact/fixtures.test-support';
 import { ManageMenu } from '../manage-menu';
 import { MANAGE_ACTIONS } from '../registry';
 import { confirmMessage, replacedMessage } from './messages';
@@ -59,6 +71,8 @@ const onClose = vi.fn();
 beforeEach(() => {
   vi.useRealTimers();
   for (const mock of Object.values(mocks)) mock.mockReset();
+  // Unless a test says otherwise the review cannot be read: the flow then works as it always did.
+  mocks.preview.mockResolvedValue(null);
   onClose.mockReset();
   container = document.createElement('div');
   document.body.append(container);
@@ -90,6 +104,173 @@ async function click(element: Element | null | undefined) {
     (element as HTMLElement).click();
   });
 }
+
+describe('What This Change Affects in the replace flow', () => {
+  async function toConfirm() {
+    mocks.options.mockResolvedValue(loaded());
+    await render();
+    await act(async () => {
+      radio(NEWER)?.click();
+    });
+    await click(button('Continue'));
+  }
+
+  it('shows the preview for the chosen document in place of the list of cases', async () => {
+    mocks.preview.mockResolvedValue(DOCUMENT_PREVIEW);
+    await toConfirm();
+    expect(mocks.preview).toHaveBeenCalledWith('a1', OLD, NEWER);
+    expect(container.querySelector('h3')?.textContent).toBe('Replace Passport, Old?');
+    expect(container.querySelector('h4')?.textContent).toBe('What This Change Affects');
+    expect(container.textContent).toContain(
+      `${LIVE_CASE} uses this document. After you replace it, the case will ask you to choose the document it should use and to confirm it again.`,
+    );
+    // The review takes the place of the plain list and its count sentence: no second copy.
+    expect(container.querySelector('.lc-replace-cases')).toBeNull();
+    expect(container.textContent).not.toContain('will be updated and will need to be confirmed');
+    expect(container.textContent).not.toContain('We could not work out');
+    expect(container.textContent).toContain('The old document stays in your records');
+    expect(button('Replace')?.getAttribute('aria-disabled')).toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('keeps the list of cases and says so when the preview cannot be read; Replace still works', async () => {
+    mocks.preview.mockRejectedValue(new Error('network'));
+    mocks.replace.mockResolvedValue({ ok: true, message: replacedMessage(2), impact: null });
+    await toConfirm();
+    expect(
+      [...container.querySelectorAll('.lc-replace-cases li')].map((li) => li.textContent),
+    ).toEqual(['Japan Visit', 'UK Visit']);
+    expect(container.textContent).toContain(
+      '2 cases will be updated and will need to be confirmed again.',
+    );
+    expect(container.textContent).toContain(
+      'We could not work out what else this change affects this time. You can still replace the document.',
+    );
+    await click(button('Replace'));
+    expect(mocks.replace).toHaveBeenCalledWith('a1', OLD, NEWER);
+    expect(container.querySelector('output')?.textContent).toBe(replacedMessage(2));
+    expect(container.textContent).toContain(
+      'We could not work out what else this change affects this time. The replacement itself is done.',
+    );
+    expect(container.querySelector('a')).toBeNull();
+  });
+
+  const caseNames = () =>
+    [...container.querySelectorAll('.lc-replace-cases li')].map((li) => li.textContent);
+  const COUNT_LINE = '2 cases will be updated and will need to be confirmed again.';
+
+  it('keeps the plain list of cases and their count when the review could not check the cases', async () => {
+    mocks.preview.mockResolvedValue(
+      review(DOCUMENT_SUBJECT, 'PREVIEW', [
+        item('COULD_NOT_CHECK', { kind: 'AREA', area: 'CASES' }),
+      ]),
+    );
+    await toConfirm();
+    expect(caseNames()).toEqual(['Japan Visit', 'UK Visit']);
+    expect(container.textContent).toContain(COUNT_LINE);
+    // The review is drawn as well, with its own note that it may be missing something.
+    expect(container.querySelector('.ci-review')).not.toBeNull();
+    expect(container.querySelector('.ci-incomplete')).not.toBeNull();
+  });
+
+  it('keeps the plain list of cases and their count while the review is still being worked out', async () => {
+    mocks.preview.mockReturnValue(new Promise(() => undefined));
+    await toConfirm();
+    expect(caseNames()).toEqual(['Japan Visit', 'UK Visit']);
+    expect(container.textContent).toContain(COUNT_LINE);
+    expect(container.querySelector('output')?.textContent).toBe(
+      'Working out what this change affects.',
+    );
+    expect(container.querySelector('.ci-review')).toBeNull();
+  });
+
+  it.each([
+    ['returned nothing', () => Promise.resolve(null)],
+    ['threw', () => Promise.reject(new Error('network'))],
+  ])('keeps the plain list of cases and their count when the review %s', async (_name, failed) => {
+    mocks.preview.mockImplementation(failed);
+    await toConfirm();
+    expect(caseNames()).toEqual(['Japan Visit', 'UK Visit']);
+    expect(container.textContent).toContain(COUNT_LINE);
+    expect(container.querySelector('.ci-review')).toBeNull();
+  });
+
+  it('announces that the review is ready in the one polite line that said it was being worked out', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    mocks.preview.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await toConfirm();
+    const line = container.querySelector('output');
+    expect(line?.textContent).toBe('Working out what this change affects.');
+    await act(async () => {
+      finish(DOCUMENT_PREVIEW);
+    });
+    // The same element, so a screen reader hears the change; only one output is in the step.
+    expect(container.querySelectorAll('output')).toHaveLength(1);
+    expect(container.querySelector('output')).toBe(line);
+    expect(line?.textContent).toBe('The list of what this change affects is ready below.');
+    expect(container.querySelector('.ci-review')).not.toBeNull();
+    expect(container.querySelector('.lc-replace-cases')).toBeNull();
+  });
+
+  it('says the list may be missing something when the preview could not check everything', async () => {
+    mocks.preview.mockResolvedValue(
+      review(DOCUMENT_SUBJECT, 'PREVIEW', [
+        item('COULD_NOT_CHECK', { kind: 'AREA', area: 'AGENCY_REQUESTS' }),
+      ]),
+    );
+    await toConfirm();
+    await act(async () => undefined);
+    expect(container.querySelector('output')?.textContent).toBe(
+      'A list of what this change affects is below. It may be missing something.',
+    );
+    expect(container.querySelector('.ci-review')).not.toBeNull();
+  });
+
+  it('never makes the person wait for the preview before replacing', async () => {
+    mocks.preview.mockReturnValue(new Promise(() => undefined));
+    mocks.replace.mockResolvedValue({ ok: true, message: replacedMessage(0), impact: QUIET_EMPTY });
+    await toConfirm();
+    expect(container.querySelector('output')?.textContent).toBe(
+      'Working out what this change affects.',
+    );
+    expect(button('Replace')?.getAttribute('aria-disabled')).toBeNull();
+    await click(button('Replace'));
+    expect(mocks.replace).toHaveBeenCalledOnce();
+    expect(container.querySelector('h3')?.textContent).toBe('Document Replaced');
+  });
+
+  it('shows the recorded review after replacing, with a link to open it again', async () => {
+    mocks.preview.mockResolvedValue(DOCUMENT_PREVIEW);
+    mocks.replace.mockResolvedValue({
+      ok: true,
+      message: replacedMessage(1),
+      impact: DOCUMENT_RECORDED,
+    });
+    await toConfirm();
+    await click(button('Replace'));
+    expect(container.querySelector('output')?.textContent).toBe(replacedMessage(1));
+    expect(container.textContent).toContain(`${LIVE_CASE} still uses the earlier document.`);
+    expect(container.textContent).not.toContain('uses this document. After you replace it');
+    const again = [...container.querySelectorAll('a')].find(
+      (a) => a.textContent === 'Open This as a Page',
+    );
+    expect(again?.getAttribute('href')).toBe(`/app/applicant/a1/change-impact?document=${OLD}`);
+    // Links in the review lead to the screens that own each step; the review has no button.
+    expect(container.querySelectorAll('.ci-review button')).toHaveLength(0);
+    expect(
+      [...container.querySelectorAll('.ci-review a')].some(
+        (a) => a.getAttribute('href') === `/app/applicant/${APPLICANT_ID}/sharing`,
+      ),
+    ).toBe(false);
+    expect(button('Done')).toBeTruthy();
+    const ids = [...container.querySelectorAll('[id]')].map((node) => node.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
 
 describe('Replace with a Newer Document', () => {
   it('is registered under its own words in the Manage menu', () => {

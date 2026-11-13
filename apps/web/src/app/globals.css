@@ -21400,3 +21400,162 @@ body:lang(bn),
   }
 }
 /* end WP-P18 */
+
+/* WP-CI What This Change Affects */
+/* The review a traveller reads when a document is replaced or a confirmed detail changes, its short notice under a saved detail, and the state shown when it did not load. A list to read, with links to the screens that own each step. Flat: 1px edges, no shadow, gradient or translucency; tokens only; every link and the fold are 44 px or taller; nothing can push a phone screen wider. */
+.ci-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ci-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  color: var(--text);
+}
+.ci-intro,
+.ci-quiet,
+.ci-closing,
+.ci-incomplete {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ci-quiet {
+  color: var(--text);
+  font-size: var(--text-body);
+}
+.ci-incomplete {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+.ci-closing {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.ci-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ci-section-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  color: var(--text);
+}
+.ci-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ci-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.ci-item:last-child {
+  border-bottom: 0;
+}
+.ci-about,
+.ci-about-case,
+.ci-why {
+  margin: 0;
+  max-width: 100%;
+}
+.ci-about-kind,
+.ci-about-case {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ci-about-name {
+  color: var(--text);
+  font-weight: 650;
+}
+.ci-why {
+  color: var(--text);
+  font-size: var(--text-body);
+}
+.ci-step {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.ci-fold {
+  min-width: 0;
+  border-top: 1px solid var(--hairline-soft);
+}
+.ci-fold-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.ci-count {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.ci-retry {
+  align-self: flex-start;
+  min-height: 44px;
+}
+.ci-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.ci-notice-title {
+  font-weight: 650;
+}
+.ci-notice-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  color: var(--text-secondary);
+}
+.ci-notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ci-notice-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ci-notice-more {
+  color: var(--text-secondary);
+}
+/* end WP-CI */

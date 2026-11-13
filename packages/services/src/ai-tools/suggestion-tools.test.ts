@@ -530,7 +530,10 @@ describe('suggest_profile_update', () => {
       applicantId,
       proposalIds: [pending?.proposal.id ?? ''],
     });
-    expect(bulk).toEqual({ ok: true, value: { approved: 0, leftForReview: 1, alreadyDecided: 0 } });
+    expect(bulk).toEqual({
+      ok: true,
+      value: { approved: 0, leftForReview: 1, alreadyDecided: 0, factIds: [] },
+    });
     expect(await countAiExtractionAttempts(db, passport.versionId)).toBe(0);
     expect(await totalAiCostUnits(db)).toBe(0);
   });

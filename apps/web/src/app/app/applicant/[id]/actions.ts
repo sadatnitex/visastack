@@ -2,7 +2,13 @@
 
 import { createHash } from 'node:crypto';
 import type { ApplicantId, Result } from '@visastack/core';
-import type { Actor, Db, DocumentKindSuggestion, ServiceError } from '@visastack/services';
+import type {
+  Actor,
+  ChangeImpact,
+  Db,
+  DocumentKindSuggestion,
+  ServiceError,
+} from '@visastack/services';
 import type { RegisteredDocumentWithVersion } from '@visastack/services';
 import {
   CONVERTED_FROM_HEIC_SOURCE,
@@ -53,7 +59,7 @@ import {
   suggestDocumentKind,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import {
@@ -62,6 +68,7 @@ import {
   resolveAiInconsistencyChecker,
   resolveOcrAdapter,
 } from '../../../../lib/ai';
+import { readDetailChangeImpact } from '../../../../lib/change-impact-read';
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import {
   FLAG_HIDDEN_LINE,
@@ -96,6 +103,14 @@ import {
   runAutomaticReading,
   triggerIntakeAndReading,
 } from '../../../api/jobs/process-ai-reading/run';
+import {
+  BATCH_IMPACT_BUDGET_MS,
+  BATCH_IMPACT_READS,
+  type ChangeImpactBatch,
+  type ChangeImpactSummary,
+  changeImpactBatch,
+  changeImpactSummary,
+} from './change-impact/impact-words';
 
 /**
  * UMPE G4: after a kind is decided, the fresh reading queued for the file runs now, in a small pass
@@ -113,6 +128,22 @@ export interface ActionState {
   readonly message: string;
   /** The input a problem is about, when the action knows (the form marks it invalid and moves focus to it). */
   readonly field?: string;
+  /**
+   * After a saved detail: what that change affects, when it affects something the person should
+   * look at. Absent for a quiet change, and when it could not be worked out.
+   */
+  readonly changeImpact?: ChangeImpactSummary;
+  /**
+   * After a saved detail: true when what the change affects could not be worked out this time
+   * (the read failed; a refusal stays silent, so it looks like a missing record). The save itself
+   * is fine: the form shows one polite line saying the check did not happen.
+   */
+  readonly changeImpactUnavailable?: boolean;
+  /**
+   * After a batch of accepted details: the first few that affect something, and how many more
+   * may. Absent when nothing affects anything, and when none could be looked at.
+   */
+  readonly changeImpactBatch?: ChangeImpactBatch;
   /** An added document's title ("Passport, Nazmus"), for an upload list to show. */
   readonly title?: string;
   /** The added document's id, so the page after an upload can follow that file by itself. */
@@ -177,6 +208,74 @@ async function assertOwned(db: Db, accountId: string, applicantId: string): Prom
   return applicant?.ownerAccountId === accountId;
 }
 
+/**
+ * Adds What This Change Affects to the result of a save that has already been committed. It is a
+ * separate read with its own access check, made only after the save's own work has returned, and
+ * it can only add to a success: a quiet change, a refusal or a failed read leaves the result
+ * exactly as it was, so a saved detail is never reported as a problem because of this. The one
+ * exception is a read that failed: the save stays a success, with `changeImpactUnavailable` so
+ * the form can say the check did not happen. A refused read stays silent, so it looks exactly
+ * like a missing record. A sign-in redirect still travels on.
+ */
+async function withChangeImpact(
+  saved: ActionState,
+  applicantId: string,
+  factId: string | undefined,
+): Promise<ActionState> {
+  if (!saved.ok || !factId) return saved;
+  try {
+    const read = await readDetailChangeImpact(applicantId, factId);
+    if (read === 'refused') return saved;
+    if (read === 'failed') return { ...saved, changeImpactUnavailable: true };
+    const summary = changeImpactSummary(read, applicantId);
+    return summary ? { ...saved, changeImpact: summary } : saved;
+  } catch (error) {
+    // A sign-in redirect or a not-found still travels on; anything else is a read that failed.
+    unstable_rethrow(error);
+    return { ...saved, changeImpactUnavailable: true };
+  }
+}
+
+/**
+ * The batch twin of `withChangeImpact`, for details approved together. It looks at the first few
+ * details one after another (never in parallel, so a batch cannot flood the database), only
+ * after the approval has returned. A refused look adds nothing, so it reads like a missing
+ * record. A failed or thrown look is counted with the details beyond the cap: none of them were
+ * looked at, so the line says they may also affect something. Nothing here turns a saved batch
+ * into a problem.
+ */
+async function withChangeImpactBatch(
+  saved: ActionState,
+  applicantId: string,
+  factIds: readonly string[],
+): Promise<ActionState> {
+  if (!saved.ok || factIds.length === 0) return saved;
+  const looked = factIds.slice(0, BATCH_IMPACT_READS);
+  const impacts: ChangeImpact[] = [];
+  // Details not looked at: past the cap, or whose look failed. A refused look is not counted.
+  let unread = factIds.length - looked.length;
+  const started = Date.now();
+  for (const factId of looked) {
+    // Past the whole-batch budget the rest are not looked at, so a slow database cannot hold the
+    // answer to an approval that has already been saved.
+    if (Date.now() - started >= BATCH_IMPACT_BUDGET_MS) {
+      unread += 1;
+      continue;
+    }
+    try {
+      const read = await readDetailChangeImpact(applicantId, factId);
+      if (read === 'failed') unread += 1;
+      else if (read !== 'refused') impacts.push(read);
+    } catch (error) {
+      // A sign-in redirect still travels on; anything else is a look that failed.
+      unstable_rethrow(error);
+      unread += 1;
+    }
+  }
+  const batch = changeImpactBatch(impacts, applicantId, unread);
+  return batch ? { ...saved, changeImpactBatch: batch } : saved;
+}
+
 /** Save a Master Profile fact (append-only immutable version). */
 export async function saveFactAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
@@ -201,6 +300,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
     effectiveFrom = parsed;
   }
 
+  let savedFactId: string | undefined;
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
@@ -219,11 +319,12 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
     if (!edit.ok) {
       return { ok: false, message: await serviceErrorMessage(edit.error) } satisfies ActionState;
     }
+    savedFactId = edit.value.version.factId;
     return { ok: true, message: detailSavedLine(def.label) } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
-  return result;
+  return withChangeImpact(result, applicantId, savedFactId);
 }
 
 /** The answer to a repeat of an upload that already produced its document (UMPE P3). */
@@ -1378,6 +1479,7 @@ export async function decideProposalAction(
     effectiveFrom = parsed;
   }
 
+  let savedFactId: string | undefined;
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
@@ -1420,6 +1522,7 @@ export async function decideProposalAction(
         message: await refusalText(approved.error, SUGGESTION_HIDDEN_LINE),
       } satisfies ActionState;
     }
+    savedFactId = approved.value.version.factId;
     return {
       ok: true,
       message:
@@ -1432,7 +1535,7 @@ export async function decideProposalAction(
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
-  return result;
+  return withChangeImpact(result, applicantId, savedFactId);
 }
 
 /** "Accept all clear details" for one document; the service checks every rule again. */
@@ -1448,6 +1551,7 @@ export async function acceptClearDetailsAction(
     .slice(0, 100);
   if (proposalIds.length === 0) return { ok: false, message: 'Nothing to accept.' };
 
+  let approvedFactIds: readonly string[] = [];
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
@@ -1460,11 +1564,12 @@ export async function acceptClearDetailsAction(
       ...(encryption ? { encryption } : {}),
     });
     if (!accepted.ok) return { ok: false, message: accepted.error.message } satisfies ActionState;
+    approvedFactIds = accepted.value.factIds;
     return { ok: true, message: describeClearAcceptance(accepted.value) } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
-  return result;
+  return withChangeImpactBatch(result, applicantId, approvedFactIds);
 }
 
 /**
