@@ -5,7 +5,7 @@ import {
   authorize,
 } from '@visastack/policy';
 import { type SQL, and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, alias } from 'drizzle-orm/pg-core';
 import {
   COLLECTION_RESPONSE_TABLES,
   liveCollectionResponse,
@@ -273,9 +273,11 @@ export interface DetailSubject {
    * Every saved value, oldest first: ids, times and one yes-or-no, never a value.
    * `sameAsCurrent` is true for the current saved value itself and for any other saved value
    * that says exactly what the current one says (saving a detail again without changing it still
-   * records a new saved value): the same stored text, the same start and end dates and the same
-   * status. Ending an entry or correcting its dates keeps the text and changes what it means, so
-   * it is a different value. For a detail stored protected nothing is compared, because this
+   * records a new saved value): the same stored text, the same end date and the same start date
+   * as stated so far (`statedStart`: a save that states no start date keeps the one already
+   * stated). Ending an entry or stating or correcting its start date keeps the text and changes
+   * what it means, so it is a different value. The status is not compared: it records where a
+   * value came from (typed, approved from a document), not what it says. For a detail stored protected nothing is compared, because this
    * read never opens a protected value: only the current saved value itself is "the same".
    */
   readonly versions: readonly {
@@ -283,6 +285,23 @@ export interface DetailSubject {
     readonly savedAt: Date;
     readonly sameAsCurrent: boolean;
   }[];
+}
+
+/**
+ * The start date a saved value stands on: its own, else the latest one stated by an earlier
+ * saved value of the same detail. A save that states no date (the profile editor's re-save)
+ * keeps the date already stated; a date stated for the first time, or a different one, is a
+ * change.
+ */
+function statedStart(saved: {
+  readonly id: AnyPgColumn;
+  readonly factId: AnyPgColumn;
+  readonly createdAt: AnyPgColumn;
+}): SQL<Date | null> {
+  return sql<Date | null>`(select stated.effective_from from fact_versions stated
+    where stated.fact_id = ${saved.factId} and stated.effective_from is not null
+      and (stated.created_at, stated.id) <= (${saved.createdAt}, ${saved.id})
+    order by stated.created_at desc, stated.id desc limit 1)`;
 }
 
 /**
@@ -320,9 +339,8 @@ export async function lockDetailSubject(
       sameAsCurrent: sql<boolean>`coalesce(${version.id} = ${current.id} or (
         ${version.protectedKeyVersion} is null and ${current.protectedKeyVersion} is null
         and ${version.value} is not distinct from ${current.value}
-        and ${version.effectiveFrom} is not distinct from ${current.effectiveFrom}
         and ${version.validUntil} is not distinct from ${current.validUntil}
-        and ${version.status} = ${current.status}
+        and ${statedStart(version)} is not distinct from ${statedStart(current)}
       ), false)`,
     })
     .from(version)

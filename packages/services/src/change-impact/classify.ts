@@ -64,6 +64,21 @@ export function couldNotCheck(area: ImpactArea): DraftItem {
   return draftItem(`area:${area}`, area, 'COULD_NOT_CHECK', { kind: 'AREA', area }, null);
 }
 
+/**
+ * A chain of replacements cut by a document removed for good: whether a newer document exists,
+ * and so whether copies of it were sent to agencies, cannot be found from the records. Said
+ * once, about the copies sent to agencies; it is not a part that failed to be read.
+ */
+export function chainCutItem(): DraftItem {
+  return draftItem(
+    'chain:cut',
+    'AGENCY_REQUESTS',
+    'RECORD_INCOMPLETE',
+    { kind: 'AREA', area: 'AGENCY_REQUESTS' },
+    null,
+  );
+}
+
 // ---------------------------------------------------------------------------------------------
 // Cases
 

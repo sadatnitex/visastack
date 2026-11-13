@@ -5,6 +5,7 @@ import { accountPrincipal, requireAccess } from '../access';
 import { staffPrincipal } from '../access/principal';
 import { provisionAccount } from '../accounts';
 import { cancelEvidenceRequest } from '../agency';
+import { replaceDocument } from '../lifecycle/replace';
 import { unselectEvidence } from '../missions';
 import { addPackVersion, addRequirement, approvePackVersion, publishPackVersion } from '../packs';
 import { grantPlatformRole } from '../platform-roles';
@@ -15,6 +16,7 @@ import { SAME_DOCUMENT, assessDocumentChangeImpact } from './document';
 import {
   AGENCY_A_NAME,
   AGENCY_B_NAME,
+  CONTROL_TYPE,
   FINISHED_CASE_TITLE,
   HEAVY,
   LIVE_CASE_TITLE,
@@ -769,6 +771,78 @@ describe('a chain of replacements cut by a document removed for good', () => {
   /** By hand: the row is gone for good, as permanent removal leaves it (the link has no key). */
   const removeForGood = (w: Awaited<ReturnType<typeof buildImpactWorld>>, documentId: string) =>
     w.db.execute(sql`delete from documents where id = ${documentId}`);
+
+  /** A chain of two utility bills after the control bill, built through the real replacement. */
+  async function controlChain(w: Awaited<ReturnType<typeof buildImpactWorld>>) {
+    const middle = await makeDocument(w.db, w.rahim, CONTROL_TYPE, 'sample-bill-newer.pdf');
+    const newest = await makeDocument(w.db, w.rahim, CONTROL_TYPE, 'sample-bill-newest.pdf');
+    for (const [oldDocumentId, newDocumentId] of [
+      [w.controlDocument.documentId, middle.documentId],
+      [middle.documentId, newest.documentId],
+    ] as const) {
+      must(
+        await replaceDocument(await ownerManage(w.db, w.rahim), { oldDocumentId, newDocumentId }),
+        'replace',
+      );
+    }
+    return { middle, newest };
+  }
+
+  it(
+    'is said even when nothing else depends on the document: the newer one is not known',
+    async () => {
+      const w = await buildImpactWorld();
+      must(
+        await revokeGrant(w.db, { actorAccountId: w.rahim.accountId, grantId: w.agencyAShareId }),
+        'revoke',
+      );
+      const { middle } = await controlChain(w);
+      const before = await readDocumentImpact(w, w.controlDocument.documentId);
+      expect(before.items).toEqual([]);
+      expect(before.quiet).toBe(true);
+
+      await removeForGood(w, middle.documentId);
+      const after = await readDocumentImpact(w, w.controlDocument.documentId);
+      expect(after.phase).toBe('RECORDED');
+      expect(after.subject).toMatchObject({ replacement: null });
+      // One item, about the copies sent to agencies: those of the newer document can no longer
+      // be found. It is unknown, not a part that could not be read, so the read stays complete.
+      expect(after.items).toEqual([
+        {
+          id: 'chain:cut',
+          outcome: 'UNKNOWN',
+          reason: 'RECORD_INCOMPLETE',
+          area: 'AGENCY_REQUESTS',
+          about: { kind: 'AREA', area: 'AGENCY_REQUESTS' },
+          nextStep: null,
+        },
+      ]);
+      expect(after.quiet).toBe(false);
+      expect(after.complete).toBe(true);
+    },
+    HEAVY,
+  );
+
+  it(
+    'still says a by-name share covers the earlier document only when it names only documents of the chain',
+    async () => {
+      const w = await buildImpactWorld();
+      const { middle } = await controlChain(w);
+      // Lists the bill and the middle one, which is later removed for good: neither is newer
+      // than the chain's end, so the share cannot reach the newest bill.
+      const byName = await shareWith(w.db, w.rahim, w.unrelatedAgency, {
+        actions: ['VIEW_METADATA', 'PREVIEW'],
+        documentIds: [w.controlDocument.documentId, middle.documentId],
+      });
+      await removeForGood(w, middle.documentId);
+      const after = await readDocumentImpact(w, w.controlDocument.documentId);
+      expect(itemOf(after, `share:${byName}`)).toMatchObject({
+        outcome: 'REVIEW_RECOMMENDED',
+        reason: 'SHARE_COVERS_EARLIER_ONLY',
+      });
+    },
+    HEAVY,
+  );
 
   it(
     'says what depends on the newer document is not known, and invents no alert',

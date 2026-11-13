@@ -166,7 +166,13 @@ export type ImpactAbout =
       readonly reach: ImpactShareReach;
     }
   | {
-      /** A part of the record that could not be read; only with reason `COULD_NOT_CHECK`. */
+      /**
+       * A part of the record as a whole, with no single record to open. With reason
+       * `COULD_NOT_CHECK`: that part could not be read. With reason `RECORD_INCOMPLETE` and area
+       * `AGENCY_REQUESTS` (a document's read only): its chain of replacements is cut by a
+       * document removed for good, so whether a newer document exists, and copies of it sent to
+       * agencies, cannot be found.
+       */
       readonly kind: 'AREA';
       readonly area: ImpactArea;
     };
@@ -203,7 +209,8 @@ export type ImpactSubject =
        * document has no replacement and none was named; also null, with phase `RECORDED`, when a
        * replacement was recorded but every later document has since been removed. When the
        * chain is cut by a document removed for good, this is the last later document still there
-       * before the cut (null when there is none), and any newer document is not known.
+       * before the cut (null when there is none), any newer document is not known, and the
+       * result holds one `RECORD_INCOMPLETE` item about it (see the `AREA` item).
        */
       readonly replacement: { readonly documentId: string; readonly title: string } | null;
     }
