@@ -80,7 +80,7 @@ export function AnswersSent({
                   />
                 </span>
               ) : null}
-              <StatusPill tone={state.tone}>{t(state.key)}</StatusPill>
+              <StatusPill tone={state.tone}>{t.node(state.key)}</StatusPill>
             </li>
           );
         })}

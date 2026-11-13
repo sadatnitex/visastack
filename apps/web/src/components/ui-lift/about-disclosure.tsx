@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 export interface AboutDisclosureProps {
   /** The name of the fold, in Title Case ("About This", "Why This Step"). */
-  readonly summary: string;
+  readonly summary: ReactNode;
   /** The explanation: paragraphs. Folded, so it is read only when someone asks. */
   readonly children: ReactNode;
   /** An extra class for the page's own spacing. */

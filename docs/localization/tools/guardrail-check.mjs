@@ -254,8 +254,9 @@ export function check(enIn, bnIn, opts = {}) {
   // 6. forbidden Latin letters (a bn string that is still English)
   // A label quoted exactly as the English writes it ("Settings") is the person's own device label,
   // kept in Latin by the direction of 2026-11-13 (OWNER_DECISIONS.json); anything else in Latin is still a leftover.
-  const quotedLabels = stripMarkers(bn).replace(/"([^"\u0980-\u09FF]+)"/g, (m, label) =>
-    en.includes(label) ? ' ' : m,
+  const quotedLabels = withoutPluralScaffold(en, stripMarkers(bn)).replace(
+    /"([^"\u0980-\u09FF]+)"/g,
+    (m, label) => (en.includes(label) ? ' ' : m),
   );
   if (
     /[A-Za-z]{4,}/.test(
@@ -267,6 +268,59 @@ export function check(enIn, bnIn, opts = {}) {
   )
     f.push({ rule: 'LATIN_LEFTOVER', detail: 'long Latin word left in Bengali text' });
   return f;
+}
+
+/**
+ * The Bengali without the plural scaffolding the English also has: `{count, plural,` and the branch
+ * names (`=1`, `one`, `other`) that open a branch of that plural. Those words are message syntax,
+ * not text a person reads, so they are not Latin leftovers. Only a variable the English pluralizes
+ * is read as a plural, and a branch name is removed only where it opens a branch of that plural:
+ * an English word inside a branch, or in front of a placeholder outside the plural, still fails.
+ * @param {string} en
+ * @param {string} bn
+ */
+function withoutPluralScaffold(en, bn) {
+  const variables = new Set([...en.matchAll(/\{\s*(\w+)\s*,\s*plural\s*,/g)].map((m) => m[1]));
+  if (!variables.size) return bn;
+  const closeOf = (text, from) => {
+    let depth = 0;
+    for (let i = from; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}' && --depth === 0) return i;
+    }
+    return -1;
+  };
+  const strip = (text) => {
+    let out = '';
+    for (let i = 0; i < text.length; i++) {
+      const head = text[i] === '{' ? text.slice(i).match(/^\{\s*(\w+)\s*,\s*plural\s*,/) : null;
+      const end = head && variables.has(head[1]) ? closeOf(text, i) : -1;
+      if (!head || end === -1) {
+        out += text[i];
+        continue;
+      }
+      // Inside this plural: branch name, then its body in braces, until the plural closes.
+      let rest = text.slice(i + head[0].length, end);
+      let inner = '';
+      while (rest.trim()) {
+        const branch = rest.match(/^\s*(=\d+|zero|one|two|few|many|other)\s*\{/);
+        const open = branch ? branch[0].length - 1 : -1;
+        const bodyEnd = branch ? closeOf(rest, open) : -1;
+        if (!branch || bodyEnd === -1) {
+          // Not plural syntax after all: leave the rest as written, so it is checked as text.
+          inner += rest;
+          rest = '';
+          break;
+        }
+        inner += ` {${strip(rest.slice(open + 1, bodyEnd))}}`;
+        rest = rest.slice(bodyEnd + 1);
+      }
+      out += `{${inner}}`;
+      i = end;
+    }
+    return out;
+  };
+  return strip(bn);
 }
 
 // ---- self-test: the existing catalogue must trip the guards
@@ -341,6 +395,45 @@ function selfTest() {
     ['fail', 'iPhone: open Settings.', 'iPhone: "Preferences" খুলুন।'],
     ['pass', 'iPhone: open Settings.', 'iPhone: "Settings" খুলুন।'],
     ['pass', 'Neon Auth handles sign-in.', 'Neon Auth সাইন ইন পরিচালনা করে।'],
+    // Plural messages (2026-11-13): the plural syntax the English also has is not a Latin leftover,
+    // an English word inside a branch still is, and the syntax excuses nothing in a plain sentence.
+    [
+      'pass',
+      '{count, plural, one {# request waiting} other {# requests waiting}}',
+      '{count, plural, one {#টি অনুরোধ অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}',
+    ],
+    [
+      'pass',
+      '{held, plural, =1 {{held} file is waiting.} other {{held} files are waiting.}}',
+      '{held, plural, =1 {{held}টি ডকুমেন্ট অপেক্ষা করছে।} other {{held}টি ডকুমেন্ট অপেক্ষা করছে।}}',
+    ],
+    [
+      'fail',
+      '{count, plural, one {# request waiting} other {# requests waiting}}',
+      '{count, plural, one {# request অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}',
+    ],
+    [
+      'fail',
+      '{count, plural, one {# request waiting} other {# requests waiting}}',
+      '{total, plural, one {#টি অনুরোধ অপেক্ষায়} other {#টি অনুরোধ অপেক্ষায়}}',
+    ],
+    ['fail', 'Requests waiting: {count}', '{count, plural, other {#টি অনুরোধ অপেক্ষায়}}'],
+    ['fail', 'Show the other requests.', 'other অনুরোধগুলো দেখান।'],
+    [
+      'fail',
+      '{count, plural, one {# answer} other {# answers}} for the other {agency}',
+      '{count, plural, one {#টি উত্তর} other {#টি উত্তর}} other {agency}-এর জন্য',
+    ],
+    [
+      'fail',
+      '{count, plural, one {# answer} other {# answers}}',
+      '{count, plural, one {#টি উত্তর} other answers {#টি উত্তর}}',
+    ],
+    [
+      'pass',
+      '{sent, plural, one {# sent to {agency}.} other {# sent to {agency}.}} {changed, plural, one {# was not sent.} other {# were not sent.}} Check the list.',
+      '{sent, plural, one {{agency}-কে #টি পাঠানো হয়েছে।} other {{agency}-কে #টি পাঠানো হয়েছে।}} {changed, plural, one {#টি পাঠানো হয়নি।} other {#টি পাঠানো হয়নি।}} তালিকাটি দেখুন।',
+    ],
   ];
   for (const [want, en, bn] of cases) {
     const r = check(en, bn).filter((x) => !x.rule.startsWith('WARN_'));
