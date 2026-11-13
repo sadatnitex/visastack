@@ -342,3 +342,39 @@ Refill 4 filled 64 keys of the shared components (components, components-lifecyc
 These have a passing draft and no content reason to stay English. No test renders their state under Bengali yet (rule 15), so the next refill fills them together with those tests.
 
 `components.activityLog.clearFilters`, `components.activityLog.nothingMatchesTheseFilters`, `components.capturePreview.thisDeviceCannotShowThePhoto`, `components.countryBrowser.clearTheSearchOrChooseAnother`, `components.countryBrowser.noCountriesMatch`, `components.countryBrowser.noCountriesMatche4ae64`, `components.documentReviewPanel.noDocumentsMatchTryAnotherName`, `components.documentReviewPanel.thisDocumentIsNotAvailableTo`, `components.documentReviewPanel.uploadADocumentToReviewIts`, `components.documentWalletBrowser.clearTheSearchOrChooseAnother`, `components.documentWalletBrowser.noDocumentsMatch`, `components.documentWalletBrowser.showAll`, `components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe`, `components.loadingSlowNote.stillLoadingYouCanKeepThis`, `components.purposeChoice.showCommonPurposes`, `components.toast.dismiss`, `components.visaPhotoSizes.makingYourPhoto`, `componentsMore.safeCopyEditor.continuePreparing`, `componentsMore.safeCopyEditor.showThePageAgain`, `componentsMore.safeCopyEditor.youChoseNothingToHideOn`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto`, `componentsPwa.pwaInstallAppCard.installVisastack`, `componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice`, `componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime`, `componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs`, `componentsPwa.pwaPwaRuntime.appUpdate`, `componentsPwa.pwaPwaRuntime.browserTip`, `componentsPwa.pwaPwaRuntime.dismiss`, `componentsPwa.pwaPwaRuntime.later`, `componentsPwa.pwaPwaRuntime.reloadNow`, `componentsPwa.pwaPwaRuntime.reloading`
+
+## Left English at review in refill 5
+
+Refill 5 filled 91 keys of the case screens (`app-mission`: the case page, its panels and forms, the snapshot pages and Start a Trip). These 25 have a passing draft and stay English for the reason given, and two values that were already live go back to English for the same kind of reason (marked "was live"). HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| app-mission | `appMission.appMissionIdAttemptPanel.decisionOnFormatdateonlyBasislabel` | The date is formatted without the reader language, and `basisLabel` is English ("Document Attached"). |
+| app-mission | `appMission.appMissionIdCaseRail.inEffectSinceFormatdateonly` | The date is formatted without the reader language. Fix: pass the locale. |
+| app-mission | `appMission.appMissionIdContributorRequestsPanel.expiresFormattimestampdate` | Same: the expiry date is English. |
+| app-mission | `appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdate` | Same: the handoff date is English. |
+| app-mission | `appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdateBefore` | Same: the handoff date is English. |
+| app-mission | `appMission.appMissionIdSnapshotsSnapshotidAcknowledgementPanel.historicalTheCaseChangedAfterThis` | Same: the date and time are English. |
+| app-mission | `appMission.appMissionIdComplaintFeedbackPanel.filedTostatus` | `toStatus` is an English status code ("OPEN"). |
+| app-mission | `appMission.appMissionIdSnapshotsSnapshotidPage.capturedWhileStateChecksumChecksum` | `state` is an English stage code ("IN_PROGRESS"). |
+| app-mission | `appMission.appMissionIdAttemptForms.saveForAttemptAttemptno` | Spoken name of a button whose visible text, "Save", is English. |
+| app-mission | `appMission.appMissionIdAttemptForms.trackAsAttemptReportname` | Spoken name of a button whose visible text, "Track as Attempt", is English. |
+| app-mission | `appMission.appMissionIdPackageForms.saveChoiceForItemname` | Spoken name of a button whose visible text, "Save Choice", is English. |
+| app-mission | `appMission.appMissionIdWordingEditor.saveWordingForItemname` | Spoken name of a button whose visible text, "Save Wording", is English. |
+| app-mission | `appMission.appMissionIdPackageForms.whatToUseForItemname` | `itemName` is an English item name ("Passport", "Given Name"). |
+| app-mission | `appMission.appMissionIdPackagePanel.addAndConfirmYourItemnameIn` | `itemName` is an English item name inside the sentence. |
+| app-mission | `appMission.appMissionIdCaseItemPane.forApplieswhen` | `appliesWhen` is the checklist's own English wording of who an item applies to. |
+| app-mission | `appMission.appMissionIdCaseItemPane.howToProvideItJoin` | The joined lines are the checklist's English format rules. |
+| app-mission | `appMission.appMissionIdOutcomePanel.officialOfficialwording` | Introduces the official English wording of a decision. |
+| app-mission | `appMission.appMissionIdChangesSinceConfirmed.compare` | The Compare link's spoken name (next row) names the change in English, so its visible text stays English with it. |
+| app-mission | `appMission.appMissionIdChangesSinceConfirmed.compareNameThenAndNow` | `name` is an English detail name ("Given Name"). |
+| app-mission | `appMission.appMissionIdCollaborationPanels.addedByAddedby` | The app name falls back to the English "an AI App"; the line is also about an AI app. |
+| app-mission | `appMission.appMissionIdChecklistSearch.searchTheChecklist` | The search box's spoken name is the English "Search the Checklist", so its placeholder stays English with it. |
+| app-mission | `appMission.appMissionIdCaseItemPane.chosenDocumentJoin` | The chosen documents are named by English lifecycle lines with English dates ("Removed by the traveller on 12 Oct"). |
+| app-mission | `appMission.appMissionIdCaseMoreMenu.keepTheCase` | The other answer of both questions ("Yes, Cancel This Case", "Yes, Delete This Case") is English. |
+| app-mission | `appMission.appMissionIdCaseMoreMenu.toApplyAgainLaterOpenThe` | It names Start a New Case from This One, which wide screens show only as an English button. |
+| app-mission | `appMission.appMissionIdContributorRequestsPanel.visastackRequest` | Title of the share sent to the contributor with an English message; it follows the message, not the sender's screen. |
+| app-mission | `appMission.appMissionIdAttemptForms.remove` | Was live. Its button's spoken name is the English "Remove {document}", so its visible text goes back to English. |
+| app-mission | `appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname` | Was live. `copyName` is English ("Your Saved Answer", "Document") or a name with an unformatted date ("2026-10-01"). |
+
+Filled after review although the first pass held them: `appMission.appMissionIdSnapshotsSnapshotidPage.showAllLengthLabel` and `...showFewerLabel`, whose `{label}` is itself a Bengali catalogue value (Requirements, Facts, Documents) and whose `{length}` is a number.
