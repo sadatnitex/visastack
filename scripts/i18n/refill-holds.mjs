@@ -561,4 +561,132 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'applicantInsights.appApplicantIdInsightsPage.openDocuments',
     'Left English at review (refill 3): The Details to Check card on the same page writes Open Documents in English.',
   ],
+  [
+    'components.aiAccessChoices.allCurrentCases',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.cases',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.changes',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.documents',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.howLong',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.kindDatesAndStatusOnlyNo',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.noCases',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.onlyTitle',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.sensitiveShowsWholePassportAndId',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.sensitiveTheWordsReadFromDocuments',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.aiAccessChoices.whatAppnameCanRead',
+    'Left English at review (refill 4): AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English.',
+  ],
+  [
+    'components.checklistCorrectionForm.whatLooksWrongForitem',
+    'Left English at review (refill 4): `forItem` is built in English (" for Passport").',
+  ],
+  [
+    'components.visaPhotoSizes.backgroundBackgroundrule',
+    'Left English at review (refill 4): `backgroundRule` is English official photo rule text.',
+  ],
+  [
+    'components.activityLog.moreOfLabel',
+    'Left English at review (refill 4): Some pages pass an English `label` ("Access Log Entries").',
+  ],
+  [
+    'components.timeZoneSelect.common',
+    'Left English at review (refill 4): One Bengali group name among English region group names.',
+  ],
+  [
+    'components.purposeSelect.chooseAPurpose',
+    'Left English at review (refill 4): A Bengali first option in a list of English purposes.',
+  ],
+  [
+    'components.capturePreview.isTheWholeCardOrPage',
+    'Left English at review (refill 4): The draft writes page as পৃষ্ঠা; the owner term is পাতা. Needs a redraft.',
+  ],
+  [
+    'components.safeCopyDownload.confirmItIsYou',
+    'Left English at review (refill 4): A link that ends an English server message in one sentence (visa photo sizes).',
+  ],
+  [
+    'componentsMore.safeCopyDownload.confirmItIsYou',
+    'Left English at review (refill 4): A link that ends an English server message in one sentence (visa photo sizes). ends the English server message on the safe copy download.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.eachPageIsDrawnOnceWith',
+    'Left English at review (refill 4): Names the Continue Preparing button, which is still English.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.tryAgain',
+    'Left English at review (refill 4): Its spoken name "Try again to show page {number}" is English (label in name).',
+  ],
+  [
+    'componentsMore.safeCopyEditor.selectedBox',
+    'Left English at review (refill 4): Names a group of English move and resize buttons.',
+  ],
+  [
+    'componentsMore.safeCopyEditor.thisPageCouldNotBeShown',
+    'Left English at review (refill 4): Its retry button, Show the Page Again, is still English.',
+  ],
+  [
+    'components.capturePreview.useThis',
+    'Left English at review (refill 4): Answers the English question "Is the whole card or page inside the outline?".',
+  ],
+  [
+    'components.capturePreview.retake',
+    'Left English at review (refill 4): Answers the English question "Is the whole card or page inside the outline?". the question it answers is English.',
+  ],
+  [
+    'components.receiptCard.done',
+    'Left English at review (refill 4): Sits beside an English primary action in every receipt.',
+  ],
+  [
+    'components.versionNotice.whatWorksToday',
+    'Left English at review (refill 4): A link inside the English beta banner.',
+  ],
+  [
+    'components.checklistCorrectionForm.somethingMissingFromTheChecklist',
+    'Left English at review (refill 4): A Bengali first option in a list of English checklist items.',
+  ],
+  [
+    'componentsLifecycle.lifecycleUndoStatus.undo',
+    'Left English at review (refill 4): Sits inside one English status line (the message and its result are English).',
+  ],
+  [
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.dragThePhotoUseTheArrow',
+    'Left English at review (refill 4): Refers to the move buttons, which are English.',
+  ],
+  [
+    'componentsProfilePhoto.profilePhotoProfilePhotoControl.savePhoto',
+    'Left English at review (refill 4): Turns into the English "Saving Photo" while saving.',
+  ],
+  [
+    'componentsShare.shareWhatsappShare.moreWaysToSend',
+    'Left English at review (refill 4): Shares one row with the English Send on WhatsApp link.',
+  ],
 ]);
