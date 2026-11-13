@@ -13,9 +13,9 @@ vi.mock('react', async (importOriginal) => ({
 }));
 
 import { appHomeCatalog } from '../../i18n/app-home';
+import { countryStartData } from '../../lib/country-start';
 import { primeLocale } from '../../lib/i18n-server';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
-import { countryStartData } from '../../lib/country-start';
 import { PersonCard, StartCaseTile } from './(home)/home-cards';
 import { RecentActivity } from './(home)/recent-activity';
 import { TidyUpCard } from './(home)/tidy-up';
@@ -77,7 +77,7 @@ describe('the signed-in home under Bengali', () => {
 });
 
 /** A server piece of home or the first run, drawn as one request in the given language. */
-async function draw(locale: 'en' | 'bn', node: () => React.ReactNode): Promise<string> {
+async function draw(locale: 'en' | 'bn', node: () => React.ReactElement): Promise<string> {
   current.holder = null;
   current.locale = locale;
   await primeLocale();
