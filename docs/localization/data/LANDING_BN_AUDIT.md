@@ -145,12 +145,12 @@ The phone mockup's clock ("9:41") and signal marks are drawn decoration, hidden 
 
 Every string in (d) on the page, the header and the footer is now one catalogue message (`homeCatalog`, keys `home.page.*` and `home.layout.*`), with `t.node` and `t.lang` marking the language of each part. Bengali came only from passing register rows through the codemod.
 
-- Now Bengali (13 keys): Ready for what's next; Share the part. Not the whole; Step {value} (Bengali digits); Skip to Content; Product; For Agencies (header and audience label, one key); Get Started; Workspace; the copyright line; Footer; Features; About This Version; Terms. How It Works reuses the page heading's key, which was already Bengali.
-- Still English, needs a draft: Keep the details. Lose the repetition; See exactly what's missing; Yesterday stays yesterday; both "VisaStack is in ..., so some features ..." sentences; Language; Sign In; Status.
+- Now Bengali (13 new keys): Ready for what's next; Share the part. Not the whole; Step {value} (Bengali digits); Skip to Content; Product; For Agencies (header and audience label, one key); Get Started; Workspace; the copyright line; Footer; Features; About This Version; Terms. How It Works reuses the page heading's key, which was already Bengali. Sign In (header and footer) reuses the sign-in screen's released message (`auth.authSignInPage.signIn`, সাইন ইন করুন), so one action has one name.
+- Still English, needs a draft: Keep the details. Lose the repetition; See exactly what's missing; Yesterday stays yesterday; both "VisaStack is in ..., so some features ..." sentences; Language; Status.
 - Still English, held: Privacy and Control, Privacy (PRIVACY_CONSENT_LEGAL queue); Public Trust (new HOLDBACK, see below).
 - Not converted: the version notice (component, wave E) and the page title (layout metadata, no draft).
 - The copyright line ships under the owner's blanket sign-off on legal wording (13 Nov 2026), not as a reviewed translation. Its year is written as a year in the language the line is shown in (`২০২৬`, never the grouped count `২,০২৬`).
-- The codemod now finds a census row for the same file and English when the file's lines have moved (`Register.censusGroupIgnoringLine`), only when every census row for that pair names one register group. That is how the header and footer rows above were matched.
+- The codemod now finds a census row for the same file and English when the file's lines have moved (`Register.censusGroupIgnoringLine`), only from census rows within 25 lines of the text, and only when every such row names one register group. That is how the header and footer rows above were matched.
 
 ## Owner approval queue: term conflict
 
