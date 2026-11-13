@@ -126,6 +126,21 @@ export const evidenceAnswerCatalog = defineCatalog({
     'evidenceAnswer.choices.noCurrent':
       'Every saved copy has expired or needs a date check. Add a current copy, or choose an older one yourself to send it as it is.',
 
+    // What a traveller sent in answer to a detail request, on its own page.
+    'evidenceAnswer.fieldAnswer.title': 'What You Sent',
+    'evidenceAnswer.fieldAnswer.pinned': 'Version {version}, saved {savedAt}: {value}',
+    'evidenceAnswer.fieldAnswer.protected':
+      'Version {version}, saved {savedAt}: a protected detail, not shown here.',
+    'evidenceAnswer.fieldAnswer.changedSince':
+      'This detail has changed since. Its newer value was not sent.',
+    'evidenceAnswer.fieldAnswer.waiting': 'Waiting for the agency',
+    'evidenceAnswer.fieldAnswer.accepted': 'Accepted',
+    'evidenceAnswer.fieldAnswer.sentBack': 'Sent back',
+    'evidenceAnswer.fieldAnswer.withdrawn': 'Withdrawn by the agency',
+    'evidenceAnswer.fieldAnswer.legacy':
+      'Sent before the exact value was kept. This page cannot show which value was sent.',
+    'evidenceAnswer.fieldAnswer.unread': 'The value you sent could not be loaded.',
+
     // The copy an agency sent back, on a request's own page.
     'evidenceAnswer.sentBack.exact':
       'The agency sent back {name}, version {version}, which you sent on {date}.',

@@ -92,6 +92,76 @@ export function answerReceiptFor(
   return { respondedAt: new Date(at).toISOString(), honestLine };
 }
 
+/**
+ * What the traveller sent in answer to a detail request, round by round, newest first: the exact
+ * saved value and version, where it stands, and whether the detail has changed since. An answer
+ * sent before the exact value was kept says so in words; it is never filled in with the detail as
+ * it is now. A protected detail is named by version only.
+ */
+function FieldAnswerSent({
+  read,
+  answerT,
+  timeZone,
+}: {
+  readonly read: RequestHistory['fieldAnswer'];
+  readonly answerT: ReturnType<
+    typeof getServerT<keyof (typeof evidenceAnswerCatalog)['en'] & string>
+  >;
+  readonly timeZone: string;
+}) {
+  if (read.state === 'none') return null;
+  if (read.state === 'unread') {
+    return (
+      <p className="case-row-meta" data-testid="field-answer-sent">
+        {answerT('evidenceAnswer.fieldAnswer.unread')}
+      </p>
+    );
+  }
+  const rounds = [...read.value.rounds].reverse().slice(0, 3);
+  if (rounds.length === 0) return null;
+  const stateWord = (state: (typeof rounds)[number]['state']) =>
+    state === 'ACCEPTED'
+      ? answerT('evidenceAnswer.fieldAnswer.accepted')
+      : state === 'AWAITING_DECISION'
+        ? answerT('evidenceAnswer.fieldAnswer.waiting')
+        : state === 'WITHDRAWN'
+          ? answerT('evidenceAnswer.fieldAnswer.withdrawn')
+          : answerT('evidenceAnswer.fieldAnswer.sentBack');
+  return (
+    <div className="request-questions lc-questions" data-testid="field-answer-sent">
+      <p className="request-questions-title u-m-0">{answerT('evidenceAnswer.fieldAnswer.title')}</p>
+      <ul className="request-questions-list">
+        {rounds.map((round) => (
+          <li
+            key={round.submissionId ?? `legacy-${round.state}-${round.decidedAt?.getTime() ?? 0}`}
+          >
+            <span className="case-row-meta">{stateWord(round.state)}</span>{' '}
+            {round.version ? (
+              <span>
+                {round.version.protected
+                  ? answerT('evidenceAnswer.fieldAnswer.protected', {
+                      version: round.version.number,
+                      savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
+                    })
+                  : answerT('evidenceAnswer.fieldAnswer.pinned', {
+                      version: round.version.number,
+                      savedAt: formatMoment(round.version.savedAt.toISOString(), timeZone),
+                      value: round.version.value ?? '',
+                    })}
+                {round.version.stillCurrent ? null : (
+                  <> {answerT('evidenceAnswer.fieldAnswer.changedSince')}</>
+                )}
+              </span>
+            ) : (
+              <span>{answerT('evidenceAnswer.fieldAnswer.legacy')}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** The one plain line naming the copy sent back and why, or the plain admission that it is not known. */
 function sentBackNoteFor(
   read: SentBackRead,
@@ -233,6 +303,9 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
         </p>
       ) : null}
       <RequestThread thread={thread} viewer="traveller" timeZone={timeZone} />
+      {req.kind === 'FIELD' && history ? (
+        <FieldAnswerSent read={history.fieldAnswer} answerT={answerT} timeZone={timeZone} />
+      ) : null}
       {awaitingReply && req.kind === 'DOCUMENT' && sentBackNote ? (
         <p className="case-row-meta" data-testid="sent-back-note">
           {sentBackNote}
