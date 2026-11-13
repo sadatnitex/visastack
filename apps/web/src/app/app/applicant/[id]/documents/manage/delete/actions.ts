@@ -13,7 +13,8 @@ import {
 } from '@visastack/services';
 import { isRecordId } from '../../../../../../../lib/record-id';
 import { withSession } from '../../../../../../../lib/session';
-import { ARCHIVE_INSTEAD, BLOCK_REASON_WORDS, daysLeft } from './messages';
+import { REMOVAL_WORDS as W, type WordedRefusal, said } from '../removal-words';
+import { daysLeft } from './messages';
 
 export type DeletePreviewResult =
   | {
@@ -25,22 +26,22 @@ export type DeletePreviewResult =
       /** ISO date-time removal starts if it is not restored. */
       readonly purgeAfter: string;
     }
-  | { readonly ok: false; readonly message: string };
+  | ({ readonly ok: false; readonly message: string } & Partial<WordedRefusal>);
 
 export type DeleteResult =
   | { readonly ok: true; readonly days: number }
-  | { readonly ok: false; readonly message: string };
+  | ({ readonly ok: false; readonly message: string } & Partial<WordedRefusal>);
 
 export type RestoreInfoResult =
   | { readonly ok: true; readonly days: number }
-  | { readonly ok: false; readonly message: string };
+  | ({ readonly ok: false; readonly message: string } & Partial<WordedRefusal>);
 
 export type RestoreResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly message: string };
+  | ({ readonly ok: false; readonly message: string } & Partial<WordedRefusal>);
 
-const NOT_ALLOWED = 'Only the owner of this record can do this.';
-const GONE = 'That document is no longer here. Refresh the page and try again.';
+const NOT_ALLOWED = said(W.notOwnerOfRecord);
+const GONE = said(W.documentNoLongerHere);
 
 /** The owner's MANAGE proof for `applicantId`, from the signed-in session; null when refused. */
 async function manageProof(
@@ -64,28 +65,30 @@ const BLOCK_MESSAGES: ReadonlyMap<string, DuplicateBlockReason> = new Map(
   ),
 );
 
+const BLOCK_WORDS: Readonly<Record<DuplicateBlockReason, WordedRefusal>> = {
+  FINISHED_CASE: said(W.copyKeptFinishedCase),
+  AGENCY_REQUEST_ANSWER: said(W.copyKeptAgencyAnswer),
+  CONTRIBUTOR_HANDOVER: said(W.copyKeptHandover),
+  SHARED_BY_NAME: said(W.copyKeptSharedByName),
+  LEGAL_HOLD: said(W.copyKeptLegalHold),
+};
+
 /** The person's words for a refusal from Delete Duplicate. */
-function deleteRefusal(code: string, message: string): string {
+function deleteRefusal(code: string, message: string): WordedRefusal {
   if (code === 'forbidden') return NOT_ALLOWED;
   if (code === 'not_found') return GONE;
-  if (code === 'stale') return 'This copy is already in Recently Deleted. Refresh the page.';
+  if (code === 'stale') return said(W.copyAlreadyRecentlyDeleted);
   const reason = BLOCK_MESSAGES.get(message);
-  if (reason) return `${BLOCK_REASON_WORDS[reason]} ${ARCHIVE_INSTEAD}`;
-  if (message === DELETE_DUPLICATE_REFUSALS.notDuplicate) {
-    return `This is no longer an exact copy of another document you keep, so it cannot be deleted here. ${ARCHIVE_INSTEAD}`;
-  }
-  return 'This copy cannot be deleted right now. Refresh the page and try again.';
+  if (reason) return BLOCK_WORDS[reason];
+  if (message === DELETE_DUPLICATE_REFUSALS.notDuplicate) return said(W.copyNotDuplicate);
+  return said(W.copyCannotBeDeletedNow);
 }
 
 /** The person's words for a refusal from Restore. */
-function restoreRefusal(code: string, message: string): string {
+function restoreRefusal(code: string, message: string): WordedRefusal {
   if (code === 'forbidden') return NOT_ALLOWED;
-  if (message === RESTORE_REFUSALS.tooLate) {
-    return 'Its 30 days are over and it is being removed, so it cannot be restored.';
-  }
-  if (message === RESTORE_REFUSALS.notDeleted) {
-    return 'This document is not in Recently Deleted. Refresh the page.';
-  }
+  if (message === RESTORE_REFUSALS.tooLate) return said(W.restoreTooLate);
+  if (message === RESTORE_REFUSALS.notDeleted) return said(W.restoreNotDeleted);
   return GONE;
 }
 
@@ -96,10 +99,10 @@ export async function deletePreviewAction(
 ): Promise<DeletePreviewResult> {
   return withSession(async ({ db, accountId }): Promise<DeletePreviewResult> => {
     const access = await manageProof(db, accountId, applicantId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...NOT_ALLOWED };
     const preview = await previewDeleteDuplicate(access, { documentId });
     if (!preview.ok) {
-      return { ok: false, message: deleteRefusal(preview.error.code, preview.error.message) };
+      return { ok: false, ...deleteRefusal(preview.error.code, preview.error.message) };
     }
     return {
       ok: true,
@@ -121,13 +124,13 @@ export async function deleteDuplicateAction(
 ): Promise<DeleteResult> {
   // A server action's arguments come from the browser: only exactly `true` marks an upload.
   const fromUpload = atUpload === true;
-  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, message: GONE };
+  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, ...GONE };
   return withSession(async ({ db, accountId }): Promise<DeleteResult> => {
     const access = await manageProof(db, accountId, applicantId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...NOT_ALLOWED };
     const deleted = await deleteDuplicate(access, { documentId, atUpload: fromUpload });
     if (!deleted.ok) {
-      return { ok: false, message: deleteRefusal(deleted.error.code, deleted.error.message) };
+      return { ok: false, ...deleteRefusal(deleted.error.code, deleted.error.message) };
     }
     return { ok: true, days: daysLeft(deleted.value.purgeAfter) };
   });
@@ -140,10 +143,10 @@ export async function restoreInfoAction(
 ): Promise<RestoreInfoResult> {
   return withSession(async ({ db, accountId }): Promise<RestoreInfoResult> => {
     const access = await manageProof(db, accountId, applicantId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...NOT_ALLOWED };
     const lifecycle = await getDocumentLifecycle(db, documentId, access);
     if (lifecycle?.state !== 'RECENTLY_DELETED' || !lifecycle.purgeAfter) {
-      return { ok: false, message: restoreRefusal('invalid', RESTORE_REFUSALS.notDeleted) };
+      return { ok: false, ...restoreRefusal('invalid', RESTORE_REFUSALS.notDeleted) };
     }
     return { ok: true, days: daysLeft(lifecycle.purgeAfter) };
   });
@@ -156,14 +159,14 @@ export async function restoreDeletedAction(
   source: 'UNDO' | 'RECENTLY_DELETED',
 ): Promise<RestoreResult> {
   // Recorded on the audit trail, so only the two known words are accepted from the browser.
-  if (source !== 'UNDO' && source !== 'RECENTLY_DELETED') return { ok: false, message: GONE };
-  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, message: GONE };
+  if (source !== 'UNDO' && source !== 'RECENTLY_DELETED') return { ok: false, ...GONE };
+  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, ...GONE };
   return withSession(async ({ db, accountId }): Promise<RestoreResult> => {
     const access = await manageProof(db, accountId, applicantId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...NOT_ALLOWED };
     const restored = await restoreDeleted(access, { documentId, source });
     if (!restored.ok) {
-      return { ok: false, message: restoreRefusal(restored.error.code, restored.error.message) };
+      return { ok: false, ...restoreRefusal(restored.error.code, restored.error.message) };
     }
     return { ok: true };
   });

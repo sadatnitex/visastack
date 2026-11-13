@@ -81,26 +81,55 @@ export const applicantMemoryCatalog = defineCatalog({
       '১টি তথ্য এখনো এই স্ন্যাপশটে ব্যবহৃত সংস্করণেই আছে।',
     'applicantMemory.appApplicantIdMemoryComparePage.aNoteWasSavedHiddenHere':
       'একটি নোট সংরক্ষণ করা হয়েছে (গোপনীয়তার জন্য এখানে লুকানো আছে)',
+    'applicantMemory.appApplicantIdMemoryComparePage.asOf': 'তারিখ অনুযায়ী',
+    'applicantMemory.appApplicantIdMemoryComparePage.beforeOrAfterTax': 'করের আগে না পরে',
+    'applicantMemory.appApplicantIdMemoryComparePage.currency': 'মুদ্রা',
+    'applicantMemory.appApplicantIdMemoryComparePage.hiddenHereToKeepItPrivate':
+      'গোপন রাখতে এখানে লুকানো',
     'applicantMemory.appApplicantIdMemoryComparePage.howItWasSaved': 'যেভাবে সংরক্ষণ করা হয়েছে',
     'applicantMemory.appApplicantIdMemoryComparePage.inSnapshotVersion': 'স্ন্যাপশট {version}-এ',
     'applicantMemory.appApplicantIdMemoryComparePage.missiontitleThisDetailAsSnapshotVersion':
       '{missionTitle}: স্ন্যাপশট {version}-এ এই তথ্য যেভাবে রেকর্ড করা ছিল, আজ ব্যবহৃত সংস্করণের পাশে।',
     'applicantMemory.appApplicantIdMemoryComparePage.none': 'নেই',
+    'applicantMemory.appApplicantIdMemoryComparePage.notRecorded': 'রেকর্ড করা হয়নি',
     'applicantMemory.appApplicantIdMemoryComparePage.noteSavedWithIt': 'এর সঙ্গে সংরক্ষিত নোট',
     'applicantMemory.appApplicantIdMemoryComparePage.nothingDiffersByVersionEveryDetail':
       'সংস্করণের দিক থেকে কোনো পার্থক্য নেই: এই স্ন্যাপশটের প্রতিটি তথ্য ও ডকুমেন্ট এখনো ব্যবহারে থাকা সংস্করণই।',
+    'applicantMemory.appApplicantIdMemoryComparePage.openTheCase': 'ভিসা ফাইলটি খুলুন',
     'applicantMemory.appApplicantIdMemoryComparePage.result': 'ফলাফল',
     'applicantMemory.appApplicantIdMemoryComparePage.savedOn': 'সংরক্ষণের তারিখ',
     'applicantMemory.appApplicantIdMemoryComparePage.sinceSnapshotVersion':
       'স্ন্যাপশট {version}-এর পর থেকে',
     'applicantMemory.appApplicantIdMemoryComparePage.snapshotVersionKeepsExactlyWhatIt':
       'স্ন্যাপশট {version}-এ যা ছিল ঠিক তা-ই থাকে। কোনো তথ্য হালনাগাদ করলে একটি নতুন সংস্করণ যোগ হয়, কিন্তু কোনো স্ন্যাপশট কখনো বদলায় না।',
+    'applicantMemory.appApplicantIdMemoryComparePage.thenAndNow': 'তখন ও এখন',
+    'applicantMemory.appApplicantIdMemoryComparePage.thisComparesWhatWasRecordedIt':
+      'এটি শুধু যা রেকর্ড করা হয়েছিল তার তুলনা করে। কোন মানটি সঠিক, তা বলে না।',
+    'applicantMemory.appApplicantIdMemoryComparePage.thisComparisonCannotBeShownRight':
+      'এই তুলনাটি এখন দেখানো যাচ্ছে না। পরে আবার চেষ্টা করুন।',
     'applicantMemory.appApplicantIdMemoryComparePage.thisOlderSnapshotDidNotRecord':
       'এই পুরোনো স্ন্যাপশটে হুবহু সংস্করণের তথ্য রাখা হয়নি, তাই পরিবর্তনগুলোর তালিকা দেওয়া যাচ্ছে না।',
+    'applicantMemory.appApplicantIdMemoryComparePage.today': 'আজ',
+    'applicantMemory.appApplicantIdMemoryComparePage.trueFrom': 'যেদিন থেকে সত্য',
+    'applicantMemory.appApplicantIdMemoryComparePage.unchangeddetailcountDetailsAreStillTheVersions':
+      '{unchangedDetailCount}টি তথ্য এখনো এই স্ন্যাপশটে ব্যবহৃত সংস্করণেই আছে।',
+    'applicantMemory.appApplicantIdMemoryComparePage.updateThisDetail': 'এই তথ্যটি আপডেট করুন',
+    'applicantMemory.appApplicantIdMemoryComparePage.value': 'মান',
     'applicantMemory.appApplicantIdMemoryComparePage.viewSnapshotVersion': 'স্ন্যাপশট {version} দেখুন',
+    'applicantMemory.appApplicantIdMemoryComparePage.whatToDoNext': 'পরবর্তী করণীয়',
+    'applicantMemory.appApplicantIdMemoryComparePage.whatWasWrittenAtTheTime':
+      'সেই সময়ে যা লেখা হয়েছিল। এটি একটি বক্তব্য, প্রমাণ নয়।',
+    'applicantMemory.appApplicantIdMemoryMemoryCaseList.case': 'ভিসা ফাইল',
+    'applicantMemory.appApplicantIdMemoryMemoryCaseList.compareWithToday': 'আজকের সঙ্গে তুলনা করুন',
     'applicantMemory.appApplicantIdMemoryMemoryCaseList.nothingHasBeenPreparedForThis':
       'এই ভিসা ফাইলের জন্য এখনো কিছু তৈরি করা হয়নি।',
+    'applicantMemory.appApplicantIdMemoryMemoryCaseList.recordsOfTitle': '{title}-এর রেকর্ড',
+    'applicantMemory.appApplicantIdMemoryMemoryCaseList.thisCaseSFilesWereRemoved':
+      'রাখার মেয়াদ শেষে এই ভিসা ফাইলের ডকুমেন্টগুলো সরিয়ে ফেলা হয়েছে। কী ঘটেছিল তার রেকর্ড থেকে যায়।',
+    'applicantMemory.appApplicantIdMemoryMemoryCaseList.viewSnapshotSnapshotversion':
+      'স্ন্যাপশট {snapshotVersion} দেখুন',
     'applicantMemory.appApplicantIdMemoryPage.caseHistory': 'ভিসা ফাইলের ইতিহাস',
+    'applicantMemory.appApplicantIdMemoryPage.cases': 'ভিসা ফাইল',
     'applicantMemory.appApplicantIdMemoryPage.everyCaseForThisPersonWhat':
       'এই ব্যক্তির প্রতিটি ভিসা ফাইল: কী প্রস্তুত করা হয়েছে, আপনি কী নিশ্চিত করেছেন, কার সঙ্গে শেয়ার করা হয়েছে, এবং আপনি কী জমা দিয়েছেন বলে জানিয়েছেন। একটি কপি একবার নেওয়ার পর আর কখনো বদলায় না।',
     'applicantMemory.appApplicantIdMemoryPage.noCasesYet': 'এখনো কোনো ভিসা ফাইল নেই',
@@ -108,5 +137,7 @@ export const applicantMemoryCatalog = defineCatalog({
     'applicantMemory.appApplicantIdMemoryPage.sharedOutsideACase': 'ভিসা ফাইলের বাইরে শেয়ার করা',
     'applicantMemory.appApplicantIdMemoryPage.theseSharesAreOfThisPerson':
       'এই শেয়ারগুলো এই ব্যক্তির রেকর্ডের, কোনো একটি ভিসা ফাইলের নয়।',
+    'applicantMemory.appApplicantIdMemoryPage.whenYouPrepareACaseEach':
+      'আপনি যখন ভিসা ফাইল প্রস্তুত করেন, আপনার নেওয়া ও নিশ্চিত করা প্রতিটি স্ন্যাপশট এখানে হুবহু আগের মতোই রাখা হয়।',
   },
 });

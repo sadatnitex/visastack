@@ -165,6 +165,88 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdDocumentsManageManageMenu.manage': 'Manage',
     'appApplicant.appApplicantIdDocumentsManageManageMenu.manageDocumentname':
       'Manage {documentName}',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.changedSinceOpened':
+      'Something changed since you opened this. Read it again before you delete the file.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.chooseReasonFromList':
+      'Choose a reason from the list.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyAlreadyRecentlyDeleted':
+      'This copy is already in Recently Deleted. Refresh the page.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyCannotBeDeletedNow':
+      'This copy cannot be deleted right now. Refresh the page and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptAgencyAnswer':
+      'This copy answered a request from an agency, so it is kept. You can archive it instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptFinishedCase':
+      'A finished case used this copy, so it is kept with that case. You can archive it instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptHandover':
+      'Someone you invited sent this copy, so it is kept. You can archive it instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptLegalHold':
+      'This copy must be kept for a legal requirement. You can archive it instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptSharedByName':
+      'You shared this copy by name, so it is kept while that share is open. You can archive it instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyNotDuplicate':
+      'This is no longer an exact copy of another document you keep, so it cannot be deleted here. You can archive it instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotCheckCopy':
+      'We could not check this copy. Close this and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotCheckDocument':
+      'We could not check this document. Close this and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotCheckFile':
+      'We could not check this file. Close this and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotDeleteIt':
+      'We could not delete it. Check your connection and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotRemoveIt':
+      'We could not remove it. Check your connection and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotRestoreIt':
+      'We could not restore it. Check your connection and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.deletedManyFilesLastHour':
+      'You have deleted several files in the last hour. Try again later.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.deletingNotAvailable':
+      'Deleting files is not available yet.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.documentNoLongerHere':
+      'That document is no longer here. Refresh the page and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileAlreadyDeletedOrRemoving':
+      'This file is already in Recently Deleted or being removed. Refresh the page.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileCannotBeDeletedNow':
+      'This file cannot be deleted right now. Refresh the page and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswer':
+      'This file answered a request from an agency, so it is kept.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs':
+      'This file answered a request from an agency, so it is kept. You can use Ask Us to Remove This File instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptFinishedCase':
+      'A finished case used this file, so it is kept with that case.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptFinishedCaseAskUs':
+      'A finished case used this file, so it is kept with that case. You can use Ask Us to Remove This File instead.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptLegal':
+      'We have to keep this file for now because of a legal requirement, so it cannot be deleted.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileNoLongerHere':
+      'That file is no longer here. Refresh the page and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.noWaitingRequest':
+      'There is no waiting request for this document. Refresh the page to see the latest.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.notOwnerOfRecord':
+      'Only the owner of this record can do this.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestAlreadyAsked':
+      'You already asked us to remove this document. Refresh the page to see the request.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestAlreadyDecided':
+      'Support has already decided this request. Refresh the page to see the latest.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestAlreadyRemoving':
+      'This document is already being removed or is in Recently Deleted.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestCancelFailed':
+      'The request could not be cancelled. Check your connection and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestCouldNotBeSent':
+      'This request could not be sent. Refresh the page and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestLegalHold':
+      'We have to keep this document for now because of a legal requirement, so it cannot be removed.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestNotOwner':
+      'Only the owner of these records can ask for a document to be removed.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestSendFailed':
+      'The request could not be sent. Check your connection and try again.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestsNotAvailable':
+      'Removal requests are not available yet.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.restoreNotDeleted':
+      'This document is not in Recently Deleted. Refresh the page.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.restoreTooLate':
+      'Its 30 days are over and it is being removed, so it cannot be restored.',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.typeTheWordToConfirm':
+      'Type DELETE to confirm.',
     'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.aCheckCanTakeAFew':
       'A check can take a few minutes. You can close this and come back.',
     'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.addTheDocument':
@@ -712,6 +794,74 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdDocumentsManageManageMenu.manage': 'ম্যানেজ করুন',
     'appApplicant.appApplicantIdDocumentsManageManageMenu.manageDocumentname':
       '{documentName} ম্যানেজ করুন',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.changedSinceOpened':
+      'আপনি এটি খোলার পর কিছু বদলেছে। ডকুমেন্টটি মুছে ফেলার আগে আবার পড়ে নিন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.chooseReasonFromList':
+      'তালিকা থেকে একটি কারণ বেছে নিন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyCannotBeDeletedNow':
+      'এই কপিটি এখন মুছে ফেলা যাচ্ছে না। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptAgencyAnswer':
+      'এই কপিটি একটি এজেন্সির অনুরোধের উত্তরে দেওয়া হয়েছিল, তাই এটি রাখা আছে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptFinishedCase':
+      'একটি শেষ হওয়া ভিসা ফাইলে এই কপিটি ব্যবহার করা হয়েছিল, তাই এটি সেই ভিসা ফাইলের সঙ্গে রাখা আছে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptHandover':
+      'আপনার আমন্ত্রিত একজন এই কপিটি পাঠিয়েছেন, তাই এটি রাখা আছে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptSharedByName':
+      'আপনি এই কপিটি নাম ধরে শেয়ার করেছেন, তাই সেই শেয়ার চালু থাকা পর্যন্ত এটি রাখা থাকবে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyNotDuplicate':
+      'এটি এখন আর আপনার রাখা অন্য কোনো ডকুমেন্টের হুবহু কপি নয়, তাই এখানে এটি মুছে ফেলা যাবে না। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotCheckCopy':
+      'আমরা এই কপিটি দেখে নিতে পারিনি। এটি বন্ধ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotCheckDocument':
+      'আমরা এই ডকুমেন্টটি দেখে নিতে পারিনি। এটি বন্ধ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotCheckFile':
+      'আমরা এই ডকুমেন্টটি দেখে নিতে পারিনি। এটি বন্ধ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotDeleteIt':
+      'আমরা এটি মুছে ফেলতে পারিনি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotRemoveIt':
+      'আমরা এটি সরাতে পারিনি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.couldNotRestoreIt':
+      'আমরা এটি পুনরুদ্ধার করতে পারিনি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.deletedManyFilesLastHour':
+      'গত এক ঘণ্টায় আপনি কয়েকটি ডকুমেন্ট মুছে ফেলেছেন। পরে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.deletingNotAvailable':
+      'ডকুমেন্ট মুছে ফেলার সুবিধা এখনো চালু হয়নি।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.documentNoLongerHere':
+      'ডকুমেন্টটি আর এখানে নেই। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileCannotBeDeletedNow':
+      'এই ডকুমেন্টটি এখন মুছে ফেলা যাচ্ছে না। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswer':
+      'এই ডকুমেন্টটি একটি এজেন্সির অনুরোধের উত্তরে দেওয়া হয়েছিল, তাই এটি রাখা আছে।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptFinishedCase':
+      'একটি শেষ হওয়া ভিসা ফাইলে এই ডকুমেন্টটি ব্যবহার করা হয়েছিল, তাই এটি সেই ভিসা ফাইলের সঙ্গে রাখা আছে।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptLegal':
+      'একটি আইনি বাধ্যবাধকতার কারণে এই ডকুমেন্টটি আপাতত আমাদের রাখতেই হবে, তাই এটি মুছে ফেলা যাবে না।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.fileNoLongerHere':
+      'ডকুমেন্টটি আর এখানে নেই। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.noWaitingRequest':
+      'এই ডকুমেন্টের জন্য অপেক্ষমাণ কোনো অনুরোধ নেই। সর্বশেষ অবস্থা দেখতে পাতাটি রিফ্রেশ করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.notOwnerOfRecord':
+      'শুধু এই রেকর্ডের মালিকই এটি করতে পারেন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestAlreadyAsked':
+      'এই ডকুমেন্টটি সরাতে আপনি আগেই আমাদের অনুরোধ করেছেন। অনুরোধটি দেখতে পাতাটি রিফ্রেশ করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestAlreadyDecided':
+      'সহায়তা দল এই অনুরোধে আগেই সিদ্ধান্ত নিয়েছে। সর্বশেষ অবস্থা দেখতে পাতাটি রিফ্রেশ করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestCancelFailed':
+      'অনুরোধটি বাতিল করা যায়নি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestCouldNotBeSent':
+      'এই অনুরোধটি পাঠানো যায়নি। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestLegalHold':
+      'একটি আইনি বাধ্যবাধকতার কারণে এই ডকুমেন্টটি আপাতত আমাদের রাখতেই হবে, তাই এটি সরানো যাবে না।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestNotOwner':
+      'শুধু এই রেকর্ডগুলোর মালিকই কোনো ডকুমেন্ট সরানোর অনুরোধ করতে পারেন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestSendFailed':
+      'অনুরোধটি পাঠানো যায়নি। আপনার সংযোগ দেখে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.requestsNotAvailable':
+      'সরানোর অনুরোধ এখনো চালু হয়নি।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.restoreTooLate':
+      'এর ৩০ দিন শেষ হয়ে গেছে এবং এটি সরানো হচ্ছে, তাই আর পুনরুদ্ধার করা যাবে না।',
+    'appApplicant.appApplicantIdDocumentsManageRemoval.typeTheWordToConfirm':
+      'নিশ্চিত করতে DELETE লিখুন।',
     'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.addTheNewerDocument':
       'নতুন ডকুমেন্টটি যোগ করুন',
     'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.chooseTheNewerDocument':

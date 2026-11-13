@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
-import { useT } from '../../../../../components/i18n-provider';
+import { usePageLanguage, useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
@@ -39,6 +39,12 @@ import { uploadLimitsText } from '../../../../../lib/upload-rules';
 import { UPLOAD_UNKNOWN_OUTCOME } from '../document-uploader';
 import { deleteDuplicateAction, restoreDeletedAction } from '../documents/manage/delete/actions';
 import { deletedLine } from '../documents/manage/delete/messages';
+import {
+  type RefusalLine,
+  REMOVAL_WORDS as W,
+  refusalNode,
+  said,
+} from '../documents/manage/removal-words';
 
 /** Lines drawn before Show All, so a long import stays quick to read and to scroll past. */
 export const LINES_SHOWN_FIRST = 50;
@@ -199,7 +205,7 @@ function lineStatus(item: ImportItem): string {
   return 'waiting';
 }
 
-type Removal = 'busy' | { readonly days: number } | { readonly problem: string };
+type Removal = 'busy' | { readonly days: number } | { readonly problem: RefusalLine };
 
 interface RowActions {
   readonly onRetry: (id: number) => void;
@@ -219,6 +225,7 @@ const ImportRow = memo(function ImportRow({
   readonly actions: RowActions;
 }) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   const status = useRef<HTMLParagraphElement>(null);
   // An action's button goes away once used; the line's own status takes the focus first, so a
   // keyboard user stays on this line instead of being sent back to the top of the page.
@@ -299,7 +306,7 @@ const ImportRow = memo(function ImportRow({
             </button>
             {removal && typeof removal === 'object' && 'problem' in removal ? (
               <p className="field-msg-err" role="alert">
-                {removal.problem}
+                {refusalNode(t, removal.problem, pageLang)}
               </p>
             ) : null}
           </div>
@@ -618,7 +625,7 @@ export function ImportPanel({
       deleteDuplicateAction(applicantId, id, true)
         .then((removed) => {
           if (!removed.ok) {
-            setRemoval(item.id, { problem: removed.message });
+            setRemoval(item.id, { problem: removed });
             return;
           }
           setRemoval(item.id, { days: removed.days });
@@ -626,7 +633,7 @@ export function ImportPanel({
         })
         .catch(() =>
           setRemoval(item.id, {
-            problem: 'We could not remove it. Check your connection and try again.',
+            problem: said(W.couldNotRemoveIt),
           }),
         );
     },

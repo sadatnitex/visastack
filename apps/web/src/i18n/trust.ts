@@ -103,10 +103,16 @@ export const trustCatalog = defineCatalog({
     'trust.publicTrustStory.yourRecords': 'আপনার রেকর্ড',
     'trust.publicTrustStory.yourRecordsBelongToYouChoose':
       'আপনার রেকর্ড আপনারই। প্রতিটি শেয়ারিংয়ের অনুরোধের জন্য প্রাপক, উদ্দেশ্য, আইটেম এবং সময়সীমা বেছে নিন।',
+    'trust.trustPackkeyPage.inEffectSinceFormatdateonly': '{formatDateOnly} থেকে কার্যকর',
     'trust.trustPackkeyPage.nextReviewedFormatdateonly': 'পরবর্তী পর্যালোচনা {formatDateOnly}',
     'trust.trustPackkeyPage.notCurrentlyVerified': 'বর্তমানে যাচাই করা হয়নি',
+    'trust.trustPackkeyPage.officialApplicationChannel': 'অফিসিয়াল আবেদনের মাধ্যম',
     'trust.trustPackkeyPage.officialChannel': 'অফিসিয়াল মাধ্যম',
     'trust.trustPackkeyPage.route': 'রুট',
     'trust.trustPackkeyPage.scamAwareness': 'প্রতারণা সম্পর্কে সচেতনতা',
+    'trust.trustUnavailable.backToHome': 'হোমে ফিরে যান',
+    'trust.trustUnavailable.routeInformation': 'রুটের তথ্য',
+    'trust.trustUnavailable.routeInformationIsNotAvailableRight': 'রুটের তথ্য এই মুহূর্তে পাওয়া যাচ্ছে না',
+    'trust.trustUnavailable.tryAgain': 'আবার চেষ্টা করুন',
   },
 });
