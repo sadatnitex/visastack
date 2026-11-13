@@ -298,6 +298,51 @@ Refill 3 filled 215 keys of the applicant record screens (calendar, requests, in
 | applicant-missions | `applicantMissions.appApplicantIdMissionsCreateMissionForm.notSureYet` | Also an option of the English purpose list, under an English question. |
 | applicant-insights | `applicantInsights.appApplicantIdInsightsPage.openDocuments` | The Details to Check card on the same page writes Open Documents in English. |
 
+## Left English at review in refill 4
+
+Refill 4 filled 64 keys of the shared components (components, components-lifecycle, components-more, components-profile-photo, components-pwa, components-share). These 32 have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| components | `components.aiAccessChoices.allCurrentCases` | AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English. |
+| components | `components.aiAccessChoices.cases` | Same. |
+| components | `components.aiAccessChoices.changes` | Same. |
+| components | `components.aiAccessChoices.documents` | Same. |
+| components | `components.aiAccessChoices.howLong` | Same. |
+| components | `components.aiAccessChoices.kindDatesAndStatusOnlyNo` | Same. |
+| components | `components.aiAccessChoices.noCases` | Same. |
+| components | `components.aiAccessChoices.onlyTitle` | Same. |
+| components | `components.aiAccessChoices.sensitiveShowsWholePassportAndId` | Same. |
+| components | `components.aiAccessChoices.sensitiveTheWordsReadFromDocuments` | Same. |
+| components | `components.aiAccessChoices.whatAppnameCanRead` | Same. |
+| components | `components.checklistCorrectionForm.whatLooksWrongForitem` | `forItem` is built in English (" for Passport"). |
+| components | `components.visaPhotoSizes.backgroundBackgroundrule` | `backgroundRule` is English official photo rule text. |
+| components | `components.activityLog.moreOfLabel` | Some pages pass an English `label` ("Access Log Entries"). |
+| components | `components.timeZoneSelect.common` | One Bengali group name among English region group names. |
+| components | `components.purposeSelect.chooseAPurpose` | A Bengali first option in a list of English purposes. |
+| components | `components.capturePreview.isTheWholeCardOrPage` | The draft writes page as পৃষ্ঠা; the owner term is পাতা. Needs a redraft. |
+| components | `components.safeCopyDownload.confirmItIsYou` | A link that ends an English server message in one sentence (visa photo sizes). |
+| components-more | `componentsMore.safeCopyDownload.confirmItIsYou` | Same: ends the English server message on the safe copy download. |
+| components-more | `componentsMore.safeCopyEditor.eachPageIsDrawnOnceWith` | Names the Continue Preparing button, which is still English. |
+| components-more | `componentsMore.safeCopyEditor.tryAgain` | Its spoken name "Try again to show page {number}" is English (label in name). |
+| components-more | `componentsMore.safeCopyEditor.selectedBox` | Names a group of English move and resize buttons. |
+| components-more | `componentsMore.safeCopyEditor.thisPageCouldNotBeShown` | Its retry button, Show the Page Again, is still English. |
+| components | `components.capturePreview.useThis` | Answers the English question "Is the whole card or page inside the outline?". |
+| components | `components.capturePreview.retake` | Same: the question it answers is English. |
+| components | `components.receiptCard.done` | Sits beside an English primary action in every receipt. |
+| components | `components.versionNotice.whatWorksToday` | A link inside the English beta banner. |
+| components | `components.checklistCorrectionForm.somethingMissingFromTheChecklist` | A Bengali first option in a list of English checklist items. |
+| components-lifecycle | `componentsLifecycle.lifecycleUndoStatus.undo` | Sits inside one English status line (the message and its result are English). |
+| components-profile-photo | `componentsProfilePhoto.profilePhotoProfilePhotoControl.dragThePhotoUseTheArrow` | Refers to the move buttons, which are English. |
+| components-profile-photo | `componentsProfilePhoto.profilePhotoProfilePhotoControl.savePhoto` | Turns into the English "Saving Photo" while saving. |
+| components-share | `componentsShare.shareWhatsappShare.moreWaysToSend` | Shares one row with the English Send on WhatsApp link. |
+
+## Deferred from refill 4 until a test renders their state
+
+These have a passing draft and no content reason to stay English. No test renders their state under Bengali yet (rule 15), so the next refill fills them together with those tests.
+
+`components.activityLog.clearFilters`, `components.activityLog.nothingMatchesTheseFilters`, `components.capturePreview.thisDeviceCannotShowThePhoto`, `components.countryBrowser.clearTheSearchOrChooseAnother`, `components.countryBrowser.noCountriesMatch`, `components.countryBrowser.noCountriesMatche4ae64`, `components.documentReviewPanel.noDocumentsMatchTryAnotherName`, `components.documentReviewPanel.thisDocumentIsNotAvailableTo`, `components.documentReviewPanel.uploadADocumentToReviewIts`, `components.documentWalletBrowser.clearTheSearchOrChooseAnother`, `components.documentWalletBrowser.noDocumentsMatch`, `components.documentWalletBrowser.showAll`, `components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe`, `components.loadingSlowNote.stillLoadingYouCanKeepThis`, `components.purposeChoice.showCommonPurposes`, `components.toast.dismiss`, `components.visaPhotoSizes.makingYourPhoto`, `componentsMore.safeCopyEditor.continuePreparing`, `componentsMore.safeCopyEditor.showThePageAgain`, `componentsMore.safeCopyEditor.youChoseNothingToHideOn`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto`, `componentsPwa.pwaInstallAppCard.installVisastack`, `componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice`, `componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime`, `componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs`, `componentsPwa.pwaPwaRuntime.appUpdate`, `componentsPwa.pwaPwaRuntime.browserTip`, `componentsPwa.pwaPwaRuntime.dismiss`, `componentsPwa.pwaPwaRuntime.later`, `componentsPwa.pwaPwaRuntime.reloadNow`, `componentsPwa.pwaPwaRuntime.reloading`
+
 ## Left English at review in refill 5
 
 Refill 5 filled 91 keys of the case screens (`app-mission`: the case page, its panels and forms, the snapshot pages and Start a Trip). These 25 have a passing draft and stay English for the reason given, and two values that were already live go back to English for the same kind of reason (marked "was live"). HOLDBACK is unchanged.

@@ -179,13 +179,19 @@ export const componentsCatalog = defineCatalog({
     'components.activityLog.everything': 'সবকিছু',
     'components.activityLog.findAnActivity': 'কার্যকলাপ খুঁজুন',
     'components.activityLog.result': 'ফলাফল',
+    'components.activityLog.search': 'খুঁজুন',
     'components.activityLog.searchThisLog': 'এই লগে খুঁজুন',
+    'components.activityLog.showNewestEntries': 'সবচেয়ে নতুন এন্ট্রি দেখান',
     'components.activityLog.showOlderEntries': 'পুরোনো এন্ট্রি দেখান',
     'components.activityLog.whatHappened': 'কী ঘটেছে',
     'components.activityLog.when': 'কখন',
     'components.activityLog.who': 'কে',
+    'components.capturePreview.checkYourPhoto': 'আপনার ছবি দেখে নিন',
     'components.capturePreview.previewOfWhatYouJustCaptured':
       'আপনি এইমাত্র যা তুলেছেন তার প্রিভিউ, পাঠানোর আগে দেখে নেওয়ার জন্য দেখানো হচ্ছে',
+    'components.capturePreview.weCheckTheFileAgainAfter':
+      'আপনি পাঠানোর পর আমরা ডকুমেন্টটি আবার পরীক্ষা করি, তাই এখানে ঠিক দেখালেও কোনো ছবি পরে ফিরিয়ে দেওয়া হতে পারে।',
+    'components.checklistCorrectionForm.checklistItem': 'চেকলিস্টের আইটেম',
     'components.checklistCorrectionForm.chooseOne': 'একটি বেছে নিন',
     'components.checklistCorrectionForm.doNotIncludeNamesPassportNumbers':
       'নাম, পাসপোর্ট নম্বর বা অন্য কোনো ব্যক্তিগত তথ্য লিখবেন না।',
@@ -195,12 +201,21 @@ export const componentsCatalog = defineCatalog({
     'components.countryBrowser.forExampleJapan': 'যেমন: জাপান',
     'components.countryBrowser.needsChecking': 'দেখে নেওয়া দরকার',
     'components.documentReviewPanel.chooseADocument': 'একটি ডকুমেন্ট বেছে নিন',
+    'components.documentReviewPanel.contentsAppearOnlyAfterPermissionAnd':
+      'অনুমতি ও নিরাপত্তা পরীক্ষার পরেই কেবল বিষয়বস্তু দেখা যায়।',
+    'components.documentReviewPanel.documentDetails': 'ডকুমেন্টের বিবরণ',
+    'components.documentReviewPanel.findADocument': 'একটি ডকুমেন্ট খুঁজুন',
+    'components.documentReviewPanel.openSecurePreview': 'সুরক্ষিত প্রিভিউ খুলুন',
+    'components.documentReviewPanel.privateDocument': 'ব্যক্তিগত ডকুমেন্ট',
+    'components.documentReviewPanel.reviewAndPreview': 'পর্যালোচনা ও প্রিভিউ',
+    'components.documentReviewPanel.yourDocument': 'আপনার ডকুমেন্ট',
     'components.documentWalletBrowser.aboutThisFile': 'এই ডকুমেন্ট সম্পর্কে',
     'components.documentWalletBrowser.addEachPaperOnce': 'প্রতিটি কাগজ একবারই যোগ করুন।',
     'components.documentWalletBrowser.allCategories': 'সব ক্যাটাগরি',
     'components.documentWalletBrowser.backToDocuments': 'ডকুমেন্টে ফিরে যান',
     'components.documentWalletBrowser.category': 'ক্যাটাগরি',
     'components.documentWalletBrowser.documentMetadataList': 'ডকুমেন্টের মেটাডেটা তালিকা',
+    'components.documentWalletBrowser.documentPages': 'ডকুমেন্টের পাতা',
     'components.documentWalletBrowser.documentStateFilters': 'ডকুমেন্টের অবস্থা অনুযায়ী ফিল্টার',
     'components.documentWalletBrowser.fileFormatIsCheckedWhenThe':
       'ডকুমেন্ট খোলার সময় এর ফরম্যাট পরীক্ষা করা হয়। যাচাই করা ফরম্যাটের তথ্য এই মেটাডেটা অংশে রেকর্ড করা হয় না।',
@@ -209,12 +224,18 @@ export const componentsCatalog = defineCatalog({
     'components.documentWalletBrowser.notSetYet': 'এখনও ঠিক করা হয়নি',
     'components.documentWalletBrowser.openTheSecurePreviewBelowPermission':
       'নিচের নিরাপদ প্রিভিউ খুলুন। ডকুমেন্টের বিষয়বস্তু দেখানোর আগে অনুমতি এবং বর্তমান নিরাপত্তা আবার পরীক্ষা করা হয়।',
+    'components.documentWalletBrowser.previewIsBlockedForThisFile':
+      'এই ডকুমেন্টের প্রিভিউ ব্লক করা আছে।',
+    'components.documentWalletBrowser.previewIsBlockedWhileThisFile':
+      'এই ডকুমেন্টটি ঝুঁকিপূর্ণ হলে, এখনো প্রক্রিয়াধীন থাকলে বা অন্য কোনো কারণে পাওয়া না গেলে প্রিভিউ বন্ধ থাকে।',
     'components.documentWalletBrowser.previous': 'আগের',
     'components.documentWalletBrowser.reviewSharingPermissions': 'শেয়ারিংয়ের অনুমতি পর্যালোচনা করুন',
     'components.documentWalletBrowser.selectAnAvailableRowToReview':
       'এর মেটাডেটা ও অনুমতিপ্রাপ্ত কাজ দেখতে একটি উপলব্ধ সারি নির্বাচন করুন।',
     'components.documentWalletBrowser.selectedDocument': 'নির্বাচিত ডকুমেন্ট',
     'components.documentWalletBrowser.selectedDocumentDetails': 'নির্বাচিত ডকুমেন্টের বিস্তারিত',
+    'components.documentWalletBrowser.selectedDocumentIsUnavailable':
+      'বেছে নেওয়া ডকুমেন্টটি পাওয়া যাচ্ছে না',
     'components.documentWalletBrowser.sharingRequiresConsentAnExactReviewed':
       'শেয়ার করতে সম্মতি, পর্যালোচনা করা সুনির্দিষ্ট পরিসর এবং প্রাপকের গ্রহণ দরকার। আপনি অনুমোদন না করা পর্যন্ত এআই-এর পরামর্শ কখনো আপনার প্রোফাইল হালনাগাদ করে না।',
     'components.documentWalletBrowser.viewSelectedDetails': 'নির্বাচিত বিবরণ দেখুন →',
@@ -229,7 +250,25 @@ export const componentsCatalog = defineCatalog({
     'components.timeZoneSelect.chooseATimeZone': 'টাইম জোন বেছে নিন',
     'components.versionNotice.aboutThisVersion': 'এই সংস্করণ সম্পর্কে',
     'components.versionNotice.hideThisNotice': 'এই নোটিশ লুকান',
+    'components.visaPhotoSizes.checkingYourPhoto': 'আপনার ছবি পরীক্ষা করা হচ্ছে...',
+    'components.visaPhotoSizes.chooseTheSizeYourApplicationAsks':
+      'আপনার আবেদনে যে মাপ চাওয়া হয়েছে তা বেছে নিন, তারপর মাথা ও কাঁধ মাঝখানে না আসা পর্যন্ত সরান ও জুম করুন। ছবিটি নিজে কখনো এডিট করা হয় না।',
+    'components.visaPhotoSizes.downloadThisSize': 'এই সাইজে ডাউনলোড করুন',
+    'components.visaPhotoSizes.moveAndZoom': 'সরান ও জুম করুন',
+    'components.visaPhotoSizes.moveDown': 'নিচে সরান',
+    'components.visaPhotoSizes.moveLeft': 'বাঁয়ে সরান',
+    'components.visaPhotoSizes.moveRight': 'ডানে সরান',
+    'components.visaPhotoSizes.moveUp': 'উপরে সরান',
+    'components.visaPhotoSizes.noProblemsFoundByTheseBasic':
+      'এই সাধারণ পরীক্ষাগুলোতে কোনো সমস্যা পাওয়া যায়নি।',
+    'components.visaPhotoSizes.photoChecks': 'ছবির পরীক্ষা',
+    'components.visaPhotoSizes.photoSize': 'ছবির মাপ',
+    'components.visaPhotoSizes.previewOfThePhotoCroppedTo': '{sizeLabel} মাপে ক্রপ করা ছবির প্রিভিউ',
+    'components.visaPhotoSizes.resetCrop': 'ক্রপ রিসেট করুন',
     'components.visaPhotoSizes.theseChecksAreAGuideOnly':
       'এই পরীক্ষাগুলো শুধু একটি দিকনির্দেশনা। ছবিটি গ্রহণ করা হবে কি না, তা এগুলো বলতে পারে না।',
+    'components.visaPhotoSizes.visaPhotoSizes': 'ভিসা ছবির মাপ',
+    'components.visaPhotoSizes.zoomIn': 'জুম ইন করুন',
+    'components.visaPhotoSizes.zoomOut': 'ছোট করে দেখুন',
   },
 });

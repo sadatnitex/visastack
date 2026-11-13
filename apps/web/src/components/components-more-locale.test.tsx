@@ -194,12 +194,13 @@ describe('server components under Bengali', () => {
     const many = await text(
       <RemovalRecordList records={rows} now={new Date('2026-11-01T09:00:00Z')} />,
     );
-    expect(many).toContain('Show More (2)');
+    expect(many).toContain('আরও দেখান (২)');
+    expect(many).not.toContain('Show More (2)');
     expect(many).not.toContain(bn('lifecycleRemovalRecordList.nothingHasBeenRemovedFromThis'));
     expect(many).not.toMatch(RAW_KEY);
   });
 
-  it('photo card: Bengali heading, kicker and privacy sentence; the add link stays English until drafted', async () => {
+  it('photo card: Bengali heading, kicker, privacy sentence and add link', async () => {
     const self = await text(
       <AccountPhotoCard photo={{ self: { id: 'p1', name: 'Rahima Akter', photoUrl: null } }} />,
     );
@@ -209,8 +210,9 @@ describe('server components under Bengali', () => {
     expect(self).not.toContain('Only you can see it');
     const none = await text(<AccountPhotoCard photo={{ self: null }} />);
     expect(none).toContain(bn('profilePhotoAccountPhotoCard.profilePhoto'));
-    expect(none).toContain('Add yourself as a traveller first to add your photo.');
-    expect(none).toContain('Add Yourself');
+    expect(none).toContain(bn('profilePhotoAccountPhotoCard.addYourselfAsATravellerFirst'));
+    expect(none).toContain(bn('profilePhotoAccountPhotoCard.addYourself'));
+    expect(none).not.toContain('Add Yourself');
     expect(none).not.toMatch(RAW_KEY);
   });
 });
@@ -475,27 +477,25 @@ describe('safe copy editor under Bengali', () => {
     expect(has(bn('safeCopyEditor.prepareSafeCopy'))).toBe(false);
   });
 
-  it('too large: the limit sentence is Bengali; unsupported and unavailable stay English', async () => {
+  it('too large, unsupported and unavailable are Bengali', async () => {
     await mount('TOO_LARGE');
     expect(container.textContent).toContain(bn('safeCopyEditor.thisDocumentIsTooLargeFor'));
     await act(async () => root.unmount());
     root = createRoot(container);
     await mount('UNSUPPORTED');
-    expect(container.textContent).toContain(
-      'Safe copies can be made from PDF files and photos only.',
-    );
+    expect(container.textContent).toContain(bn('safeCopyEditor.safeCopiesCanBeMadeFrom'));
     expect(container.textContent).not.toContain(bn('safeCopyEditor.thisDocumentIsTooLargeFor'));
     await act(async () => root.unmount());
     root = createRoot(container);
     await mount('NOT_PREPARED', false);
-    expect(container.textContent).toContain('Safe copies are not available here yet.');
+    expect(container.textContent).toContain(bn('safeCopyEditor.safeCopiesAreNotAvailableHere'));
   });
 
   it('editing: pager and box controls; box words use বক্স; row buttons and their aria names stay English together', async () => {
     await mount();
     await click(bn('safeCopyEditor.prepareSafeCopy'));
     expect(has(bn('safeCopyEditor.previousPage'))).toBe(true);
-    await click('Add Box');
+    await click(bn('safeCopyEditor.addBox'));
     // The selected box's controls: the box words use the one agreed term.
     expect(has(bn('safeCopyEditor.removeBox'))).toBe(true);
     expect(bn('safeCopyEditor.removeBox')).toContain('বক্স');
@@ -521,7 +521,7 @@ describe('safe copy editor under Bengali', () => {
   it('a suggested box offers Accept Box in Bengali', async () => {
     await mount();
     await click(bn('safeCopyEditor.prepareSafeCopy'));
-    await click('Suggest Boxes');
+    await click(bn('safeCopyEditor.suggestBoxes'));
     await click('Select');
     expect(has(bn('safeCopyEditor.acceptBox'))).toBe(true);
     const row = container.querySelector('.safe-copy-list li');
@@ -532,13 +532,13 @@ describe('safe copy editor under Bengali', () => {
     expect(has(bn('safeCopyEditor.acceptBox'))).toBe(false);
   });
 
-  it('review: Save is Bengali and the English review line and notices stay', async () => {
+  it('review: Save and the review line are Bengali; the drawing notice stays English', async () => {
     await mount();
     await click(bn('safeCopyEditor.prepareSafeCopy'));
-    await click('Add Box');
-    await click('Review Pages');
+    await click(bn('safeCopyEditor.addBox'));
+    await click(bn('safeCopyEditor.reviewPages'));
     expect(has(bn('safeCopyEditor.saveSafeCopy'))).toBe(true);
-    expect(container.textContent).toContain('Check Every Page');
+    expect(container.textContent).toContain(bn('safeCopyEditor.checkEveryPage'));
     let release: () => void = () => undefined;
     hold = new Promise<void>((resolve) => {
       release = resolve;
@@ -547,6 +547,7 @@ describe('safe copy editor under Bengali', () => {
     expect(container.querySelector('h3')?.textContent).toBe(
       bn('safeCopyEditor.preparingTheSafeCopy'),
     );
+    // It names Continue Preparing, which is still English, so this line stays English too.
     expect(container.textContent).toContain('Each page is drawn once with its black boxes.');
     release();
     await settle();
@@ -556,8 +557,8 @@ describe('safe copy editor under Bengali', () => {
     failingPages = new Set([2]);
     await mount();
     await click(bn('safeCopyEditor.prepareSafeCopy'));
-    await click('Add Box');
-    await click('Review Pages');
+    await click(bn('safeCopyEditor.addBox'));
+    await click(bn('safeCopyEditor.reviewPages'));
     const line = [...container.querySelectorAll('p.safe-copy-note')].find((p) =>
       p.textContent?.includes('টির মধ্যে'),
     );
@@ -569,8 +570,8 @@ describe('safe copy editor under Bengali', () => {
     canSave = false;
     await mount();
     await click(bn('safeCopyEditor.prepareSafeCopy'));
-    await click('Add Box');
-    await click('Review Pages');
+    await click(bn('safeCopyEditor.addBox'));
+    await click(bn('safeCopyEditor.reviewPages'));
     expect(container.textContent).toContain(bn('safeCopyEditor.safeCopiesAreNotReadyYet'));
   });
 

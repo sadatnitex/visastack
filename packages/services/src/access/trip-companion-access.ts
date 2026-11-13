@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
 import { type Db, first, schema } from '../db';
-import { type ServiceError, serviceError } from '../errors';
+import { type ServiceError, keyedError } from '../errors';
+import { caseFlowAEn } from '../i18n/case-flow-a';
 import { hashInvitationToken } from '../invitation-tokens';
 import { tripCompanionsTablePresent } from '../umpe-trip-companion-tables';
 import { tripCompanionsEnabled } from '../umpe-trip-companions-switch';
@@ -36,11 +37,15 @@ interface AccessFields {
   readonly standing: CompanionStanding;
 }
 
-/** The one wording of every refusal, so a refused lookup looks exactly like a missing one. */
-export const COMPANION_UNAVAILABLE = 'This invitation is not available.';
+/**
+ * The one wording of every refusal, so a refused lookup looks exactly like a missing one, in
+ * every language: every refusal carries this one key, and the English is read from the list.
+ */
+const UNAVAILABLE_KEY = 'umpe_trip_companion_case.this_invitation_is_not_available';
+export const COMPANION_UNAVAILABLE = caseFlowAEn[UNAVAILABLE_KEY];
 
 function unavailable(): ServiceError {
-  return serviceError('not_found', COMPANION_UNAVAILABLE);
+  return keyedError('not_found', UNAVAILABLE_KEY);
 }
 
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
