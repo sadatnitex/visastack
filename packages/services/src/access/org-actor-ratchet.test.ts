@@ -126,8 +126,27 @@ function functionsOf(decl: ts.Declaration): FunctionLike[] {
   if (ts.isVariableDeclaration(decl) && decl.initializer) {
     const init = unwrap(decl.initializer);
     if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) return [init];
+    // `export const f = wrap(async (...) => ...)`: judged by the functions it wraps.
+    if (ts.isCallExpression(init)) return wrappedFunctions(init);
   }
   return [];
+}
+
+/** The functions passed, at any depth, into a wrapping call such as `wrap(async () => ...)`. */
+function wrappedFunctions(call: ts.CallExpression): FunctionLike[] {
+  const found: FunctionLike[] = [];
+  for (const arg of call.arguments) {
+    const unwrapped = unwrap(arg);
+    if (ts.isArrowFunction(unwrapped) || ts.isFunctionExpression(unwrapped)) found.push(unwrapped);
+    else if (ts.isCallExpression(unwrapped)) found.push(...wrappedFunctions(unwrapped));
+  }
+  return found;
+}
+
+/** True if an argument names the acting person (`actorAccountId`, `input.actor`, `accountId`, ...). */
+function mentionsActor(node: ts.Node): boolean {
+  if (ts.isIdentifier(node) && ACTOR_PARAM_NAMES.has(node.text)) return true;
+  return ts.forEachChild(node, (child) => (mentionsActor(child) ? true : undefined)) === true;
 }
 
 function declarationName(decl: ts.Node): string | undefined {
@@ -199,7 +218,11 @@ function reachesCheck(
   const visit = (node: ts.Node): void => {
     if (found) return;
     // A membership read written in place (`schema.memberships`) is the same check, inlined.
-    if (ts.isPropertyAccessExpression(node) && node.name.text === 'memberships') {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === 'memberships' &&
+      isReadSource(node)
+    ) {
       const symbol = resolve(checker, checker.getSymbolAtLocation(node.name));
       if (
         (symbol?.declarations ?? []).some((d) => real(d.getSourceFile().fileName) === schemaFile)
@@ -216,8 +239,13 @@ function reachesCheck(
         if (!inServices(decl)) continue;
         const name = declarationName(decl);
         if (name && CHECKS.has(`${moduleId(decl.getSourceFile().fileName)}#${name}`)) {
-          found = true;
-          return;
+          // A check counts only when it is asked about the acting person, not about someone else
+          // (an assignee, a recipient).
+          if (ts.isCallExpression(node) && node.arguments.some(mentionsActor)) {
+            found = true;
+            return;
+          }
+          continue;
         }
         for (const inner of functionsOf(decl)) {
           if (inner !== root && reachesCheck(checker, inner, memo)) {
@@ -291,13 +319,25 @@ function judgeAll(program: ts.Program): {
   return { judged, entryExports };
 }
 
-function entryExportsId(program: ts.Program, entryExports: Set<ts.Node>, id: string): boolean {
+function entryExportsId(entryExports: Set<ts.Node>, id: string): boolean {
   for (const decl of entryExports) {
     const name = declarationName(decl);
     if (name && `${moduleId(decl.getSourceFile().fileName)}#${name}` === id) return true;
   }
-  void program;
   return false;
+}
+
+/** `schema.memberships` used as what a query reads from (`.from(...)` or a join), not written. */
+function isReadSource(node: ts.Node): boolean {
+  const call = node.parent;
+  if (!call || !ts.isCallExpression(call) || !call.arguments.includes(node as ts.Expression)) {
+    return false;
+  }
+  const callee = call.expression;
+  return (
+    ts.isPropertyAccessExpression(callee) &&
+    ['from', 'innerJoin', 'leftJoin'].includes(callee.name.text)
+  );
 }
 
 describe('organization actor ratchet', () => {
@@ -336,7 +376,7 @@ describe('organization actor ratchet', () => {
       }
       if (found.every((j) => j.ok)) problems.push(`${id}: now checks the actor; remove it`);
       if (exception.reason.trim().length < 20) problems.push(`${id}: give a real reason`);
-      if (exception.kind === 'internal' && entryExportsId(program, entryExports, id)) {
+      if (exception.kind === 'internal' && entryExportsId(entryExports, id)) {
         problems.push(`${id}: internal, but exported from src/index.ts`);
       }
     }

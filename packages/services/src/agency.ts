@@ -265,14 +265,16 @@ export async function isActiveMember(
 }
 
 /**
- * The agency read rule, in one place: may this account read what this organization sees of this
- * case? Only an active member of the organization who is its OWNER or ADMIN, or who is assigned
- * to the case in this organization: exactly the cases `listVisibleMissionsForMember` shows that
- * person. Built only from the existing membership checks (`isActiveMember`, `isOrgAdmin` and the
- * assignment row); whether the organization's grant still reaches the case stays each read's own
- * check. Anyone else (a stranger, a removed member, another agency's admin, the traveller) and an
- * organization or case that does not exist get the same `false`, so a refusal says nothing about
- * what exists.
+ * The agency read rule for the person, in one place: may this account read what this organization
+ * sees of this case? Only an active member of the organization who is its OWNER or ADMIN, or who
+ * is assigned to the case in this organization: exactly the cases `listVisibleMissionsForMember`
+ * shows that person. Anyone else (a stranger, a removed member, another agency's admin, the
+ * traveller) and a made-up organization get `false`.
+ *
+ * This checks the PERSON only. Whether the organization's grant still reaches the case (and so
+ * whether the case exists for it at all) stays each read's own check, run right after this one
+ * (`canReadMissionCollaboration` or `orgGrantPermits`): an owner or admin passes here for any case
+ * id, real or not. It reads the one membership row `isActiveMember` and `isOrgAdmin` read, once.
  */
 export async function mayReadOrgCase(
   db: Db,
@@ -281,8 +283,21 @@ export async function mayReadOrgCase(
   missionId: string,
 ): Promise<boolean> {
   if (!isUuid(actorAccountId) || !isUuid(organizationId) || !isUuid(missionId)) return false;
-  if (!(await isActiveMember(db, actorAccountId, organizationId))) return false;
-  if (await isOrgAdmin(db, actorAccountId, organizationId)) return true;
+  const membership = first(
+    await db
+      .select({ active: schema.memberships.active, role: schema.memberships.role })
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, actorAccountId),
+          eq(schema.memberships.organizationId, organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  if (membership?.active !== true) return false;
+  // The same roles `isOrgAdmin` treats as administrators.
+  if (membership.role === 'OWNER' || membership.role === 'ADMIN') return true;
   return assignedToMission(db, organizationId, actorAccountId, missionId);
 }
 
@@ -1296,9 +1311,9 @@ export async function listVisibleMissionsForMember(
  * queried, potentially wider one (PRD CAS-02: "list queries and counts obey
  * the same object rules as detail pages").
  *
- * Callers must already know the actor is at least an active member (this
- * function, like `listMissionsForOrganization`, does not itself re-check
- * membership).
+ * Anyone who is not an active member of the organization (never one, removed,
+ * or the organization does not exist) gets no case, the answer an organization
+ * with nothing shared gets.
  */
 export async function listVisibleMissionsForMember(
   db: Db,
@@ -2970,7 +2985,7 @@ export async function applicantsSharedWithOrganization(
 
 /**
  * Organizations with a CURRENT grant on this applicant -- the exact reverse
- * of `listApplicantsForOrganization` above, sharing its identical
+ * of `applicantsSharedWithOrganization` above, sharing its identical
  * ACTIVE/accepted/started/unexpired predicate so both directions of "which
  * org sees which applicant" can never disagree. COM-02 (quota enforcement)
  * uses this to find every organization whose storage entitlement an upload

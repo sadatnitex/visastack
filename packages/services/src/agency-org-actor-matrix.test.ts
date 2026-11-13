@@ -25,6 +25,7 @@ import {
   updateAppointmentForOrg,
   updateTaskForOrg,
 } from './agency';
+import { recordIssuerVerification } from './assurance';
 import type { Db } from './db';
 import { openRequest } from './evidence-submissions.test-support';
 import {
@@ -400,6 +401,31 @@ describe('agency functions told an organization check the person acting', () => 
     expect(own.map((r) => isOk(r))).toEqual([false, false, true, true]);
     expect(own[2] && isOk(own[2]) ? own[2].value : null).toEqual([]);
     expect(own[3] && isOk(own[3]) ? own[3].value.length : 0).toBe(1);
+  });
+
+  it('recording an issuer confirmation refuses a person without a grant on that traveller before it looks the traveller up', async () => {
+    const record = (actor: string, applicantId: string) =>
+      recordIssuerVerification(w.db, {
+        actorAccountId: actor,
+        applicantId,
+        missionId: w.caseA,
+        factId: randomUUID(),
+        issuerIdentity: 'Issuer',
+        contactMethod: 'email',
+        exactClaim: 'Claim',
+        response: 'Confirmed',
+        validUntil: new Date(Date.now() + 86_400_000),
+      });
+    // North's caseworker naming a traveller north has no grant on (Karim), and someone with no
+    // standing at all naming Rahim: the same answer as a made-up traveller, whatever is true about
+    // the real one (whether they exist, whether they allowed issuer contact).
+    const madeUp = shape(await record(w.caseworker, randomUUID()));
+    expect(shape(await record(w.caseworker, w.karim.applicantId)), 'other traveller').toBe(madeUp);
+    for (const [who, accountId] of Object.entries(w.strangers)) {
+      if (accountId === w.rahim.accountId) continue;
+      expect(shape(await record(accountId, w.rahim.applicantId)), who).toBe(madeUp);
+    }
+    expect(shape(await record(w.caseworker, 'not-a-uuid')), 'malformed id').toBe(madeUp);
   });
 
   it('the genuine caseworker still reads everything with the real ids', async () => {

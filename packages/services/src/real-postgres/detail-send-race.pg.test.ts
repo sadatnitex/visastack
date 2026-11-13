@@ -189,18 +189,23 @@ async function race() {
   };
 }
 
-/** True once a promise has settled, without waiting for it. */
+/**
+ * True once a promise has settled, without waiting for it: the flag is set by the promise's own
+ * callbacks, and read after a full turn of the event loop so an already settled promise has run
+ * them.
+ */
 async function settled(p: Promise<unknown>): Promise<boolean> {
-  const marker = Symbol('pending');
-  return (
-    (await Promise.race([
-      p.then(
-        () => true,
-        () => true,
-      ),
-      Promise.resolve(marker),
-    ])) !== marker
+  let done = false;
+  p.then(
+    () => {
+      done = true;
+    },
+    () => {
+      done = true;
+    },
   );
+  await new Promise((resolve) => setImmediate(resolve));
+  return done;
 }
 
 describe('a detail edit racing a send, on two real connections', () => {

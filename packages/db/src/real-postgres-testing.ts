@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { type AddressInfo, connect } from 'node:net';
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import ws, { WebSocketServer } from 'ws';
+import ws from 'ws';
 import { migrationsFolder } from './paths';
+import { startBridge, useLocalBridge } from './pg-bridge';
 import * as schema from './schema';
 
 /**
@@ -14,13 +14,13 @@ import * as schema from './schema';
  * moment. These helpers open real, separate connections to a real Postgres server (a CI service
  * container, or a local server) through `@neondatabase/serverless`'s `Pool`, the driver behind
  * every signed-in request (`createPooledDb`). That driver speaks Postgres over a WebSocket, which
- * Neon's own proxy turns into a socket; here a small in-process bridge does the same, and it only
- * ever connects to the one server named by `TEST_POSTGRES_URL`. No Neon branch and no
+ * Neon's own proxy turns into a socket; here the loopback bridge in pg-bridge.ts does the same, and
+ * it only ever connects to the one server named by `TEST_POSTGRES_URL`. No Neon branch and no
  * production database is involved.
  *
  * `TEST_POSTGRES_URL` must name a throwaway server whose role may create databases, for example
  * `postgres://postgres@127.0.0.1:5432/postgres`. Every database these helpers create is dropped by
- * `close()`.
+ * `close()`, and by `startRealPostgres` itself when it fails part way.
  */
 
 /** The server the bridge and the admin connection talk to. Throws when it is not configured. */
@@ -46,44 +46,13 @@ export interface RealPostgres {
 /** Start the bridge and migrate one template database. */
 export async function startRealPostgres(): Promise<RealPostgres> {
   const target = testPostgresUrl();
-  const host = target.hostname;
-  const port = Number(target.port || '5432');
-
-  const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
-  await new Promise<void>((resolve, reject) => {
-    server.once('listening', resolve);
-    server.once('error', reject);
+  const bridge = await startBridge({
+    listenPort: 0,
+    pgHost: target.hostname,
+    pgPort: Number(target.port || '5432'),
   });
-  server.on('connection', (socket) => {
-    // Bytes in both directions, unchanged. The destination is fixed: whatever the client asks for,
-    // only the configured test server is ever reached.
-    const tcp = connect({ host, port });
-    const pending: Buffer[] = [];
-    let open = false;
-    tcp.on('connect', () => {
-      open = true;
-      for (const chunk of pending.splice(0)) tcp.write(chunk);
-    });
-    tcp.on('data', (chunk) => {
-      if (socket.readyState === ws.OPEN) socket.send(chunk);
-    });
-    tcp.on('close', () => socket.close());
-    tcp.on('error', () => socket.terminate());
-    socket.on('message', (data: Buffer) => {
-      if (open) tcp.write(data);
-      else pending.push(data);
-    });
-    socket.on('close', () => tcp.end());
-    socket.on('error', () => tcp.destroy());
-  });
-  const bridgePort = (server.address() as AddressInfo).port;
-
   neonConfig.webSocketConstructor = ws;
-  neonConfig.wsProxy = () => `127.0.0.1:${bridgePort}/`;
-  neonConfig.useSecureWebSocket = false;
-  neonConfig.forceDisablePgSSL = true;
-  neonConfig.pipelineConnect = false;
-  neonConfig.pipelineTLS = false;
+  useLocalBridge(bridge.port);
 
   const urlFor = (database: string) => {
     const url = new URL(target.toString());
@@ -104,13 +73,27 @@ export async function startRealPostgres(): Promise<RealPostgres> {
   const admin = pool(target.pathname.replace(/^\//, '') || 'postgres', 1);
   const suffix = randomBytes(4).toString('hex');
   const template = `vs_race_template_${suffix}`;
-  const made: string[] = [template];
-  await admin.query(`create database ${template}`);
-  const templatePool = new Pool({ connectionString: urlFor(template), max: 1 });
+  const made: string[] = [];
+  const close = async () => {
+    const others = pools.filter((p) => p !== admin);
+    await Promise.all(others.map((p) => p.end().catch(() => undefined)));
+    for (const name of [...made].reverse()) {
+      await admin.query(`drop database if exists ${name} with (force)`).catch(() => undefined);
+    }
+    await admin.end().catch(() => undefined);
+    await bridge.close();
+  };
+
   try {
+    await admin.query(`create database ${template}`);
+    made.push(template);
+    const templatePool = pool(template, 1);
     await migrate(drizzle(templatePool, { schema }), { migrationsFolder });
-  } finally {
+    // The template must have no open connection when databases are copied from it.
     await templatePool.end();
+  } catch (error) {
+    await close();
+    throw error;
   }
 
   let count = 0;
@@ -123,15 +106,7 @@ export async function startRealPostgres(): Promise<RealPostgres> {
       made.push(name);
       return name;
     },
-    async close() {
-      const others = pools.filter((p) => p !== admin);
-      await Promise.all(others.map((p) => p.end().catch(() => undefined)));
-      for (const name of made.reverse()) {
-        await admin.query(`drop database if exists ${name} with (force)`);
-      }
-      await admin.end();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    },
+    close,
   };
 }
 

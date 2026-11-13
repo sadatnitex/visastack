@@ -11,9 +11,10 @@ import { isOrgAdmin } from './organizations';
  * When an agency's access to each case it can see ends: the latest end date among the live grants
  * that reach the case, or `null` when one of them has no end date. Read-only, for the line
  * "Access ends on {date}" on the agency's Cases page. The same live-grant test and case-scope rule
- * as `listMissionsForOrganization` (agency.ts), so a case appears here exactly when it appears
- * there, and a per-case sharing exception removes it from both. The caller shows an entry only
- * for cases the signed-in member can already see; this adds no case and no detail to what they see.
+ * as the organization's reachable cases (agency.ts), so a per-case sharing exception removes a case
+ * here too. Only the cases this person may read are answered: an owner or admin's, or a member's
+ * own assigned ones (the cases `listVisibleMissionsForMember` shows them); this adds no case and
+ * no detail to what they see.
  */
 export async function listAccessEndsForOrg(
   db: Db,
