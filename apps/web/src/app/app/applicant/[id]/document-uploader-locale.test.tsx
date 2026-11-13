@@ -161,11 +161,10 @@ describe('the uploader under Bengali', () => {
       message: 'This copy must be kept for a legal requirement. You can archive it instead.',
       messageKey: `${R}copyKeptLegalHold`,
     };
-    // Legal wording, Bengali on the owner's blanket sign-off of 2026-11-12 (not a line-by-line review).
-    expect(await removeAndRead('bn', kept)).toBe(bn[`${R}copyKeptLegalHold`]);
-    expect(await removeAndRead('bn', kept)).toBe(
-      'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
-    );
+    // Held: new legal wording the owner has not confirmed. The exact English shows, and no Bengali
+    // value exists that could ship by mistake.
+    expect(bn[`${R}copyKeptLegalHold`]).toBeUndefined();
+    expect(await removeAndRead('bn', kept)).toBe(kept.message);
     expect(await removeAndRead('en', kept)).toBe(kept.message);
     // Every refusal Remove This New Copy can get: Bengali where a checked draft exists, the exact
     // English where it is held (it names Recently Deleted, whose own label is still English).

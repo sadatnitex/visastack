@@ -13,9 +13,11 @@
  * (docs/localization/data/drafts/no-census-*.jsonl, already in final form: owner term decisions
  * and Bengali digits applied). Such a draft goes through the same gates as a register row: the
  * English it was written for must be the catalogue English exactly, the automated checks
- * (guardrail-check) must PASS, official visa rule wording stays English, legal and payment wording
- * ships only with the owner's blanket sign-off recorded on the draft, a hold on the key
- * (KEY_HOLDBACK) keeps it English, and placeholders, edge spaces and markers must match.
+ * (guardrail-check) must PASS, a hold on the key (KEY_HOLDBACK) keeps it English, and
+ * placeholders, edge spaces and markers must match. Words that put a text in a specialist queue
+ * (legal, consent, privacy, payment, official visa rule) are refused outright: a key draft has no
+ * register row and no release classification, and a note it carries is written by its drafter, so
+ * it can never certify its own release. Such a sentence needs a register row and its own read.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,13 +32,6 @@ export const KEY_DRAFTS_DIR = 'docs/localization/data/drafts';
 const KEY_DRAFT_FILE = /^no-census-.*\.jsonl$/;
 
 /**
- * The owner's blanket sign-off of legal, consent, privacy and payment wording (2026-11-12), as a
- * key draft records it in its note. Legal or payment wording in a key draft ships only with it:
- * a register row in those queues needs the same release (RELEASE_CLASSIFICATION_2026-11-12.json).
- */
-export const OWNER_BLANKET_SIGNOFF = 'OWNER_BLANKET_SIGNOFF_2026-11-12';
-
-/**
  * Catalogue keys whose key draft stays English, each with the reason (the key-draft twin of
  * HOLDBACK in register.mjs, which names register groups). Remove one only on that sign-off.
  */
@@ -44,6 +39,10 @@ export const KEY_HOLDBACK = new Map([
   [
     'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs',
     'Applicant removal screens: the sentence names the Ask Us to Remove This File action in quotes, but the Manage menu still shows it in English, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptLegalHold',
+    'New legal wording from a machine draft, owner has not confirmed; differs from released clause SG-3b2f1526 (in the owner approval queue, RELEASE_CLASSIFICATION_2026-11-12.md).',
   ],
   [
     'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptFinishedCaseAskUs',
@@ -97,12 +96,12 @@ export function resolveKeyDraft(reg, key, english, draft) {
   if (KEY_HOLDBACK.has(key)) return { bn: null, reason: `held_back:${KEY_HOLDBACK.get(key)}` };
   // A draft written for other words (the English changed since) never fills the key.
   if (draft.en !== english) return { bn: null, reason: 'key_draft_english_differs' };
-  // The same queues build-register.mjs gives a register row with these words.
+  // The same queues build-register.mjs gives a register row with these words. Any specialist
+  // queue is refused: nothing about a key draft can release legal, consent or payment wording.
   const queues = queuesByWords(english);
-  if (queues.includes('OFFICIAL_VISA_REQUIREMENT') || /OFFICIAL_RULE/.test(draft.note))
+  if (queues.length) return { bn: null, reason: `key_draft_specialist_queue:${queues[0]}` };
+  if (/OFFICIAL_RULE/.test(draft.note))
     return { bn: null, reason: 'review_queue_not_signed_off:OFFICIAL_VISA_REQUIREMENT' };
-  if (queues.length && !draft.note.includes(OWNER_BLANKET_SIGNOFF))
-    return { bn: null, reason: `key_draft_not_released:${queues[0]}` };
   const all = draft.bn ? check(english, draft.bn.normalize('NFC')) : [];
   // A register draft has the owner's Bengali digits applied before its checks; a key draft is
   // final as written, so Latin digits in its prose fail here instead of shipping.
@@ -113,7 +112,7 @@ export function resolveKeyDraft(reg, key, english, draft) {
   const r = reg.resolveRow(
     {
       semantic_group: key,
-      review_queue: queues[0] ?? 'ORDINARY_UI',
+      review_queue: 'ORDINARY_UI',
       automated_checks: checks,
       bn_BD_draft: draft.bn,
     },
@@ -152,6 +151,8 @@ export function refillBengali({
   dryRun = false,
   format,
 }) {
+  if (keyPrefix !== undefined && !keyPrefix.trim())
+    throw new Error('refillBengali: keyPrefix must be a non-empty catalogue key prefix');
   const reg = register ?? Register.load(root);
   // A release of named groups never fills from key drafts, so they are not even read then.
   const drafts = groups ? new Map() : (keyDrafts ?? loadKeyDrafts(root));

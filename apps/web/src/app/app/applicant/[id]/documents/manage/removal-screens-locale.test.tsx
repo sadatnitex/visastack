@@ -67,12 +67,14 @@ const NONE = {
 };
 
 /**
- * The six sentences held in English for label in name (HOLDBACK in scripts/i18n/register.mjs,
+ * The seven sentences held in English. Six for label in name (HOLDBACK in scripts/i18n/register.mjs,
  * KEY_HOLDBACK in scripts/i18n/refill.mjs): each names a list or an action in quotes whose own
- * label is still English on screen.
+ * label is still English on screen. One, copyKeptLegalHold, is new legal wording the owner has not
+ * confirmed (KEY_HOLDBACK).
  */
 const HELD: readonly WordKey[] = [
   'copyAlreadyRecentlyDeleted',
+  'copyKeptLegalHold',
   'fileAlreadyDeletedOrRemoving',
   'fileKeptAgencyAnswerAskUs',
   'fileKeptFinishedCaseAskUs',
@@ -272,7 +274,7 @@ describe('every removal sentence on the dialog that shows it', () => {
     expect(alert()).toBe(bn[W[key]] ?? english);
   });
 
-  it('covers every removal sentence on at least one dialog, and holds exactly the six', () => {
+  it('covers every removal sentence on at least one dialog, and holds exactly the seven', () => {
     const covered = new Set(CASES.map(([key]) => key));
     // couldNotRemoveIt shows only in the upload and import lists (their own tests).
     const all = (Object.keys(W) as WordKey[]).filter((k) => k !== 'couldNotRemoveIt');

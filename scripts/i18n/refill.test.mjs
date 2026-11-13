@@ -4,7 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { readCatalog, renderCatalog, renderSources } from './catalog.mjs';
-import { KEY_HOLDBACK, OWNER_BLANKET_SIGNOFF, loadKeyDrafts, refillBengali } from './refill.mjs';
+import { KEY_HOLDBACK, loadKeyDrafts, refillBengali } from './refill.mjs';
+
+const SIGNOFF_NOTE =
+  'Legal wording: OWNER_BLANKET_SIGNOFF_2026-11-12 (legal wording, not reviewed)';
 import { Register } from './register.mjs';
 
 const BN = 'শর্ত';
@@ -149,29 +152,33 @@ describe('refillBengali: drafts written for a catalogue key (no census row, no r
         ['x.official', 'Check the embassy website before you go.', 'যাওয়ার আগে দূতাবাসের ওয়েবসাইট দেখুন।'],
         ['x.legal', legal, 'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে।'],
         ['x.paid', paid, 'একটি পেমেন্ট চালু থাকা পর্যন্ত এই কপিটি রাখা থাকবে।'],
-        [held, KEPT, KEPT_BN, OWNER_BLANKET_SIGNOFF],
+        [held, KEPT, KEPT_BN, SIGNOFF_NOTE],
       ]),
     );
     assert.deepEqual(filled, []);
     assert.deepEqual(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn, {});
   });
 
-  test('legal and payment wording ships with the owner blanket sign-off recorded on the draft, Bengali digits pass', () => {
+  test('legal, consent and payment wording is refused even when the draft note declares a sign-off; Bengali digits pass', () => {
     const legal = 'This copy must be kept for a legal requirement.';
-    const dir = keyRoot({ 'x.legal': legal, 'x.digits': 'It stays for 30 days.' });
+    const consent = 'Withdraw consent for this copy.';
+    const paid = 'This copy is kept while a payment is open.';
+    const dir = keyRoot({
+      'x.legal': legal,
+      'x.consent': consent,
+      'x.paid': paid,
+      'x.digits': 'It stays for 30 days.',
+    });
     const filled = run(
       dir,
       drafts([
-        [
-          'x.legal',
-          legal,
-          'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে।',
-          `Legal wording: ${OWNER_BLANKET_SIGNOFF} (not reviewed)`,
-        ],
+        ['x.legal', legal, 'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে।', SIGNOFF_NOTE],
+        ['x.consent', consent, 'এই কপির জন্য সম্মতি প্রত্যাহার করুন।', SIGNOFF_NOTE],
+        ['x.paid', paid, 'একটি পেমেন্ট চালু থাকা পর্যন্ত এই কপিটি রাখা থাকবে।', SIGNOFF_NOTE],
         ['x.digits', 'It stays for 30 days.', 'এটি ৩০ দিন থাকে।'],
       ]),
     );
-    assert.deepEqual(filled, ['x.digits', 'x.legal']);
+    assert.deepEqual(filled, ['x.digits']);
   });
 
   test('placeholder or edge-space mismatch stays English', () => {
@@ -208,5 +215,13 @@ describe('refillBengali: drafts written for a catalogue key (no census row, no r
       /import \{ COMMERCIAL_RE, LEGAL_RE, OFFICIAL_RE \} from '\.\/review-queue\.mjs';/,
     );
     assert.doesNotMatch(src, /const (LEGAL|COMMERCIAL|OFFICIAL)_RE\s*=/);
+  });
+});
+
+describe('refillBengali keyPrefix', () => {
+  test('an empty prefix is refused, never read as every key', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'refill-prefix-'));
+    assert.throws(() => refillBengali({ root: dir, register: reg, keyPrefix: '' }), /non-empty/);
+    assert.throws(() => refillBengali({ root: dir, register: reg, keyPrefix: ' ' }), /non-empty/);
   });
 });

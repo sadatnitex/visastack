@@ -372,7 +372,7 @@ function releasedGroupsOf(file) {
   return new Set(parsed.groups.filter((g) => g.state === 'RELEASED').map((g) => g.group));
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const a = { files: [], dryRun: false, format: true, all: false };
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i];
@@ -382,8 +382,13 @@ function parseArgs(argv) {
     else if (x === '--all') a.all = true;
     else if (x === '--refill-bn') a.refill = true;
     else if (x === '--groups-from') a.groupsFrom = path.resolve(argv[++i]);
-    else if (x === '--key-prefix') a.keyPrefix = argv[++i];
-    else if (x === '--report-dir') a.reportDir = path.resolve(argv[++i]);
+    else if (x === '--key-prefix') {
+      // A missing or empty prefix would mean every key of every catalogue: refuse it.
+      const value = argv[++i];
+      if (!value?.trim() || value.startsWith('--'))
+        throw new Error('--key-prefix needs a non-empty catalogue key prefix');
+      a.keyPrefix = value;
+    } else if (x === '--report-dir') a.reportDir = path.resolve(argv[++i]);
     else if (x === '--files') {
       while (argv[i + 1] && !argv[i + 1].startsWith('--')) a.files.push(argv[++i]);
     } else if (!x.startsWith('--')) a.files.push(x);

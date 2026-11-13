@@ -773,8 +773,6 @@ export const appApplicantCatalog = defineCatalog({
       'একটি শেষ হওয়া ভিসা ফাইলে এই কপিটি ব্যবহার করা হয়েছিল, তাই এটি সেই ভিসা ফাইলের সঙ্গে রাখা আছে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
     'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptHandover':
       'আপনার আমন্ত্রিত একজন এই কপিটি পাঠিয়েছেন, তাই এটি রাখা আছে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
-    'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptLegalHold':
-      'একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
     'appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptSharedByName':
       'আপনি এই কপিটি নাম ধরে শেয়ার করেছেন, তাই সেই শেয়ার চালু থাকা পর্যন্ত এটি রাখা থাকবে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
     'appApplicant.appApplicantIdDocumentsManageRemoval.copyNotDuplicate':
