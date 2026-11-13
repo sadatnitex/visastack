@@ -126,6 +126,8 @@ export const applicantOutputsCatalog = defineCatalog({
     'applicantOutputs.appApplicantIdOutputsPage.partsOfYourRecord': 'আপনার রেকর্ডের অংশ',
     'applicantOutputs.appApplicantIdOutputsPage.passportAndIdNumbersShowOnly':
       'টিক না দিলে পাসপোর্ট ও আইডি নম্বরের শুধু শেষ তিনটি অক্ষর দেখানো হয়। এটি যে আপনিই, তা নিশ্চিত করতে বলা হবে।',
+    'applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly':
+      '{longDay} তারিখে প্রস্তুত করা হয়েছে। কপি বা ডাউনলোডে ঠিক এটুকুই থাকবে।',
     'applicantOutputs.appApplicantIdOutputsPage.preview': 'প্রিভিউ',
     'applicantOutputs.appApplicantIdOutputsPage.previewYourSummary': 'আপনার সারসংক্ষেপের প্রিভিউ দেখুন',
     'applicantOutputs.appApplicantIdOutputsPage.selected': 'নির্বাচিত',

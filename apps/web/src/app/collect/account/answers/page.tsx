@@ -52,7 +52,7 @@ export default async function YourAnswersPage({
     readonly withdrawn?: string | string[];
   }>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(collectCatalog);
   // Always open, whatever the switch says: what was shared can always be seen and withdrawn.
   const query = await searchParams;
@@ -131,7 +131,7 @@ export default async function YourAnswersPage({
                           {t.node(
                             'collect.collectAccountAnswersPage.withdrawnFormattimestampdate',
                             {
-                              formatTimestampDate: formatTimestampDate(answer.withdrawnAt),
+                              formatTimestampDate: formatTimestampDate(answer.withdrawnAt, locale),
                             },
                           )}
                         </StatusBadge>

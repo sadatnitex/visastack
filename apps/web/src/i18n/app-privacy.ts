@@ -59,6 +59,7 @@ export const appPrivacyCatalog = defineCatalog({
     'appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount':
       'আপনার অ্যাকাউন্ট ও মালিকানাধীন সব তথ্য স্থায়ীভাবে মুছে ফেলার সময় নির্ধারণ করবেন? বাতিল করার জন্য আপনি ৭ দিনের অপেক্ষার সময় পাবেন।',
     'appPrivacy.appPrivacyLargeExportPanel.downloadZip': 'ZIP ডাউনলোড করুন',
+    'appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime': 'মেয়াদ শেষ {formatDateTime}',
     'appPrivacy.appPrivacyLargeExportPanel.needTheActualDocumentFilesToo':
       'শুধু মেটাডেটা নয়, আসল ডকুমেন্টও দরকার? একটি বড় এক্সপোর্টের অনুরোধ করুন - এটি একটি ZIP, যাতে আগের কপিসহ ব্যবহারযোগ্য প্রতিটি আপলোড করা ডকুমেন্ট থাকে, যা ফরম্যাট পরীক্ষা পাস করেছে (ডকুমেন্টে এখনো ভাইরাস স্ক্যান করা হয় না), সঙ্গে উপরের একই ম্যানিফেস্ট ও CSV টেবিল। প্রস্তুত হতে কয়েক মিনিট লাগে এবং ২৪ ঘণ্টা ডাউনলোডের জন্য থাকে।',
     'appPrivacy.appPrivacyLargeExportPanel.preparing': 'প্রস্তুত করা হচ্ছে…',

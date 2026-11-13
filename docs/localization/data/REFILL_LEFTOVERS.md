@@ -141,9 +141,6 @@ Values the refill would place (34 in the first refill pull request), left in Eng
 | --- | --- | --- | --- |
 | app-account | `appAccount.appAccountPlanBillingPage.youCanAskForAFull` | You can ask for a full refund until {formatBillingDateTime} (Bangladesh time), ... | `formatBillingDateTime` writes English month names inside the sentence. Fix: a Bengali billing date format. |
 | app-account | `appAccount.appAccountPlanPage.everySavedVersionOfEveryDocument` | Every saved version of every document counts. Each file can be up to {uploadLimitLabel}. | `uploadLimitLabel` is an English size label with Latin digits. |
-| app-agency | `appAgency.appAgencyOrgidClientsPage.dueFormatdateonly` |  · due {formatDateOnly} | The call site formats the date without the reader language, so it is English. Fix: pass the locale. |
-| app-agency | `appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate` | Invited · expires {formatTimestampDate} | Same: the date is formatted in English at both call sites (clients and team pages). |
-| app-agency | `appAgency.appAgencyOrgidPage.acknowledgedFormattimestampdate` | Acknowledged {formatTimestampDate} | Same: the date is formatted in English. |
 | app-agency | `appAgency.appAgencyOrgidEvidenceCopies.decidedFormatmoment` |  · Decided {formatMoment} | `formatMoment` writes an English date and time. |
 | app-agency | `appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.aPaymentForThisInvoiceWas` | A payment for this invoice was started at {startedAt}. ... | `startedAt` is an English billing date and time. |
 | app-agency | `appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.plainamountStartedFormatbillingdatetime` | {plainAmount}, started {formatBillingDateTime} | `formatBillingDateTime` writes English month names. |
@@ -205,8 +202,6 @@ Values the refill would place (34 in the first refill pull request), left in Eng
 | app-applicant | `appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe` | Explains the "Current Version" badge, which is English. |
 | app-privacy | `appPrivacy.appPrivacyDeletionPanel.keepMyAccount` | The other answer of the deletion confirmation is English. |
 | app-privacy | `appPrivacy.appPrivacyLargeExportPanel.expired` | Unreachable: the panel shows only an active export. |
-| app-privacy | `appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime` | `formatDateTime` writes an English date. |
-| app-shared | `appShared.appSharedGrantidPage.expiresFormattimestampdate` | The date is formatted in English. |
 | app-sharing-invitations | `appSharingInvitations.appSharingInvitationsAcceptPage.pluralCapturedWhenInvited` | `plural()` writes an English noun. |
 | app-sharing-invitations | `appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting` | The other answer, Accept Shared Access, is English. |
 | app-trips | `appTrips.appTripsTripForms.sendAgainName` | Spoken name of a button whose visible text "Send Again" is English. |
@@ -233,7 +228,7 @@ Refill 3 filled 215 keys of the applicant record screens (calendar, requests, in
 | applicant-calendar | `applicantCalendar.appApplicantIdCalendarCalendarFeedPanel.anyoneWhoHasThisLinkCan` | The calendar test pins this privacy line out of the Bengali catalogue; releasing it is a separate decision, not a refill. |
 | applicant-calendar | `applicantCalendar.appApplicantIdCalendarPage.theFileWillHoldPluralAs` | `plural()` writes an English noun ("1 event"). |
 | applicant-evidence | `applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.everyoneWhoCanReadTheShared` | The evidence test pins this who-can-read warning out of the Bengali catalogue (its Send Question button is English). |
-| applicant-evidence | `applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment` | `formatMoment` writes an English date. |
+| applicant-evidence | `applicantEvidence.appApplicantIdEvidenceRequestPanes.askedFormatmoment` | The draft says the item was requested, not that a question was asked, and `formatMoment` is called without the reader language here. Fix: a draft written for this key, then pass the reader language. |
 | applicant-insights | `applicantInsights.appApplicantIdInsightsPage.backsPluralJoin` | `plural()` writes an English noun, and the joined detail names are English. |
 | applicant-insights | `applicantInsights.appApplicantIdInsightsPage.backsPluralInJoin` | Same: English noun and English section labels. |
 | applicant-insights | `applicantInsights.appApplicantIdInsightsPage.canBackJoin` | The joined section labels are English. |
@@ -244,7 +239,6 @@ Refill 3 filled 215 keys of the applicant record screens (calendar, requests, in
 | applicant-missions | `applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.createTheNewCase` | Same: the bar's button "Create Case" is English. |
 | applicant-missions | `applicantMissions.appApplicantIdMissionsPrepareAgainPrepareAgainForm.optional` | Appended to an English checklist item label. |
 | applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.nothingToShow` | Waits for a test: every section a summary builds today has rows or its own note, so no test can show this line yet. |
-| applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly` | `longDay` writes an English date. |
 | applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.stepNumberOf3` | Spoken before an English step name ("Choose a Summary"). |
 | applicant-outputs | `applicantOutputs.appApplicantIdOutputsPage.summaryLabel` | The summary name is English. |
 | applicant-sharing | `applicantSharing.appApplicantIdSharingAiConnectionTurnOff.keepItOn` | The other answer, "Yes, Turn Off", is English. |
@@ -258,7 +252,6 @@ Refill 3 filled 215 keys of the applicant record screens (calendar, requests, in
 | applicant-sharing | `applicantSharing.appApplicantIdSharingGrantPane.organization` | Suffix of a pane title whose status and actions are English. |
 | applicant-traveller-manage | `applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.cancel` | The confirmation heading, text and confirm button are English. |
 | applicant-traveller-manage | `applicantTravellerManage.appApplicantIdTravellerManageTravellerManageMenu.manageName` | Spoken name of a button whose visible text "Manage" is English. |
-| collect | `collect.collectAccountAnswersPage.withdrawnFormattimestampdate` | `formatTimestampDate` is called without the locale: English date. |
 | collect | `collect.collectGuestProgress.chooseHowLongWhoMayKeep` | `who` falls back to the English "the agency". |
 | collect | `collect.collectRetentionChoice.chooseHowManyDaysAfterThis` | Same: "The agency" fallback is English. |
 | collect | `collect.collectGuestFiles.saveTheItemForFilename` | Spoken name of a button whose visible text "Save" is English. |

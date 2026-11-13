@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bengaliMarking } from '../../../../lib/bengali-marked.test-support';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { renderServer, stub, textOf } from '../../../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
@@ -56,7 +57,12 @@ const BENGALI = /[ঀ-৿]/;
 const bn = appSharedCatalog.bn as Record<string, string>;
 const key = (name: string) => `appShared.appSharedGrantidPage.${name}`;
 
-function workspace(over: { documents?: unknown[]; fields?: unknown[]; scope?: boolean }) {
+function workspace(over: {
+  documents?: unknown[];
+  fields?: unknown[];
+  scope?: boolean;
+  expiryAt?: Date;
+}) {
   return {
     ok: true,
     value: {
@@ -65,7 +71,7 @@ function workspace(over: { documents?: unknown[]; fields?: unknown[]; scope?: bo
       grant: {
         id: 'grant-1',
         purpose: 'visa-application',
-        expiryAt: null,
+        expiryAt: over.expiryAt ?? null,
         actions: ['VIEW_METADATA', 'PREVIEW'],
         recipientOrganizationId: null,
       },
@@ -161,6 +167,39 @@ describe('shared workspace under Bengali', () => {
     expect(shown).toContain('Shared Workspace');
     expect(shown).toContain('Shared Documents');
     expect(shown).toContain('Safe Copy: Not Prepared Yet');
+  });
+});
+
+describe('the day shared access ends', () => {
+  // A far, fixed moment at midday, so a viewer within about twelve hours of UTC keeps the day (the checks run on UTC machines).
+  const EXPIRY_AT = new Date('2099-11-01T12:00:00Z');
+  // The purpose and the expiry share one line: take the line from the purpose to the year.
+  const expiryLine = (shown: string) =>
+    shown.match(/visa-application( · [^·]*?(?:2099|২০৯৯))/)?.[1];
+
+  it('is written in Bengali with a Bengali date', async () => {
+    const shown = await render('bn', workspace({ expiryAt: EXPIRY_AT }));
+    const line = expiryLine(shown);
+    expect(line).toBe(
+      (bn[key('expiresFormattimestampdate')] ?? '').replace(
+        '{formatTimestampDate}',
+        formatTimestampDate(EXPIRY_AT, 'bn'),
+      ),
+    );
+    expect(line).toBe(' · মেয়াদ শেষ ১ নভে, ২০৯৯');
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(/[0-9]/);
+    expect(line).not.toMatch(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
+    expect(shown).not.toContain('expires');
+    expect(shown).not.toMatch(/appShared\./);
+  });
+
+  it('reads exactly as it did in English', async () => {
+    const shown = await render('en', workspace({ expiryAt: EXPIRY_AT }));
+    expect(shown).toContain('visa-application · expires 1 Nov 2099');
+    expect(expiryLine(shown)).toBe(' · expires 1 Nov 2099');
+    expect(shown).not.toMatch(BENGALI);
+    expect(shown).not.toMatch(/appShared\./);
   });
 });
 

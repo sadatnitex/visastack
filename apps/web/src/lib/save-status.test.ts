@@ -68,3 +68,39 @@ describe('what a form shows for its latest result', () => {
     expect(SAVING_TEXT).toBe('Saving…');
   });
 });
+
+describe('a moment for a Bengali reader', () => {
+  // A far, fixed moment at midday UTC: 18:00 the same day in Dhaka.
+  const FAR = '2099-11-01T12:00:00.000Z';
+
+  it('uses Bengali digits and month names, in the zone of the person', () => {
+    const dhaka = formatMoment(FAR, 'Asia/Dhaka', 'bn');
+    expect(dhaka).toBe(
+      new Intl.DateTimeFormat('bn-BD', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short',
+        timeZone: 'Asia/Dhaka',
+      }).format(new Date(FAR)),
+    );
+    expect(dhaka).toMatch(/^১ নভে, ২০৯৯, ০৬:০০ /);
+    expect(dhaka).not.toMatch(/[0-9]/);
+    expect(dhaka).not.toMatch(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
+    expect(formatMoment(new Date(FAR), 'UTC', 'bn')).toMatch(/^১ নভে, ২০৯৯, ১২:০০ /);
+  });
+
+  it('falls back to the reader zone for a name it does not know, and never throws', () => {
+    expect(formatMoment(FAR, 'Not/AZone', 'bn')).toMatch(/^১ নভে, ২০৯৯, [০-৯]{2}:[০-৯]{2} /);
+    expect(formatMoment(FAR, null, 'bn')).toMatch(/^১ নভে, ২০৯৯, [০-৯]{2}:[০-৯]{2} /);
+  });
+
+  it('leaves the English output exactly as it was', () => {
+    expect(formatMoment(FAR, 'Asia/Dhaka', 'en')).toBe('1 Nov 2099, 18:00 GMT+6');
+    expect(formatMoment(FAR, 'Asia/Dhaka')).toBe('1 Nov 2099, 18:00 GMT+6');
+    expect(formatMoment(FAR, 'UTC')).toBe('1 Nov 2099, 12:00 UTC');
+    expect(savedAtText(FAR, 'Asia/Dhaka')).toBe('Saved at 18:00 GMT+6');
+  });
+});

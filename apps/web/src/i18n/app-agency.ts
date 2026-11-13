@@ -903,6 +903,7 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidClientsPage.clients': 'ক্লায়েন্ট',
     'appAgency.appAgencyOrgidClientsPage.collect': 'সংগ্রহ',
     'appAgency.appAgencyOrgidClientsPage.document': 'ডকুমেন্ট',
+    'appAgency.appAgencyOrgidClientsPage.dueFormatdateonly': ' · শেষ তারিখ {formatDateOnly}',
     'appAgency.appAgencyOrgidClientsPage.evidenceRequests': 'প্রমাণের অনুরোধ',
     'appAgency.appAgencyOrgidClientsPage.evidenceRequestsByStatus': 'অবস্থা অনুযায়ী প্রমাণের অনুরোধ',
     'appAgency.appAgencyOrgidClientsPage.field': 'ঘর',
@@ -912,6 +913,8 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidClientsPage.inviteAClient': 'ক্লায়েন্টকে আমন্ত্রণ জানান',
     'appAgency.appAgencyOrgidClientsPage.inviteATravellerAsANew':
       'একজন ভ্রমণকারীকে নতুন ক্লায়েন্ট হিসেবে আমন্ত্রণ জানান। ফলে যে ভিসা ফাইলটি তৈরি হবে, সেটি তাঁর নিজের কোন ভ্রমণকারী প্রোফাইলের সঙ্গে যুক্ত হবে, তা শুধু তিনিই বেছে নেন। এই প্রতিষ্ঠান অ্যাক্সেস পায় তাঁর গ্রহণের মাধ্যমে, আমন্ত্রণের মাধ্যমে কখনোই নয়।',
+    'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate':
+      'আমন্ত্রিত · মেয়াদ শেষ {formatTimestampDate}',
     'appAgency.appAgencyOrgidClientsPage.invitingClientsAndRequestingEvidenceAre':
       'ক্লায়েন্টকে আমন্ত্রণ জানানো এবং প্রমাণ চাওয়া শুধু এই প্রতিষ্ঠানের মালিক ও অ্যাডমিনদের জন্য।',
     'appAgency.appAgencyOrgidClientsPage.noClientsInvitedYet':
@@ -1215,6 +1218,8 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidMissionCollaboration.visibilityb5de1d': 'কে দেখতে পারবেন…',
     'appAgency.appAgencyOrgidOrgBrandingHeader.nameLogo': '{name} লোগো',
     'appAgency.appAgencyOrgidPage.aboutThisList': 'এই তালিকা সম্পর্কে',
+    'appAgency.appAgencyOrgidPage.acknowledgedFormattimestampdate':
+      'স্বীকার করা হয়েছে {formatTimestampDate}',
     'appAgency.appAgencyOrgidPage.activeCasesThisOrganizationCanStill':
       'যেসব সক্রিয় ভিসা ফাইলে এই প্রতিষ্ঠান এখনো কাজ করতে পারে কিন্তু বর্তমানে কেউ দায়িত্বে নেই - সাধারণত একমাত্র দায়িত্বপ্রাপ্ত সদস্যকে সরিয়ে দেওয়ায় এমন হয়। ভিসা ফাইল অংশে গিয়ে একটি খুলে কাউকে দায়িত্ব দিন।',
     'appAgency.appAgencyOrgidPage.activeClients': 'সক্রিয় ক্লায়েন্ট',

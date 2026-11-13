@@ -11,6 +11,7 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { evidenceAnswerCatalog } from '../../../../../i18n/evidence-answer';
+import { formatMoment } from '../../../../../lib/save-status';
 import {
   bengaliWithoutLanguageMark,
   expectEveryLiveMessageRendered,
@@ -425,6 +426,89 @@ describe('the same panels for an English reader are unchanged', () => {
     );
     expect(part('sent-back-note')).toContain(
       'The agency sent back old-statement.pdf, version 1, which you sent on',
+    );
+    expect(BENGALI.test(text())).toBe(false);
+  });
+});
+
+describe('the moment inside a saved-answer or sent-back sentence follows the reader', () => {
+  // A far, fixed moment at midday UTC: 18:00 the same day in Dhaka, the zone these panels are given.
+  const FAR = new Date('2099-11-01T12:00:00Z');
+  const bnMoment = formatMoment(FAR.toISOString(), 'Asia/Dhaka', 'bn');
+  const ENGLISH_MONTH = /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/;
+  const farVersion = { ...version, savedAt: FAR };
+  const detail = (locale: 'en' | 'bn', over: Partial<typeof version> = {}) =>
+    pane(locale, {
+      req: detailRequest(),
+      history: detailHistory(rounds([round({ version: { ...farVersion, ...over } })])),
+    });
+  const sentBack = (locale: 'en' | 'bn') =>
+    pane(locale, {
+      req: request({ status: 'NEEDS_REPLACEMENT' } as Partial<EvidenceRequest>),
+      documents: [doc('new')],
+      history: sentBackHistory(sentBackCopy({ sentAt: FAR })),
+    });
+  /** The sentence from its first fixed word to its last, cut out of a panel. */
+  const cut = (whole: string, pattern: RegExp) => whole.match(pattern)?.[0] ?? '';
+
+  it('gives the Bengali formatter Bengali digits and a Bengali month for this moment', () => {
+    expect(bnMoment).toMatch(/^১ নভে, ২০৯৯, ০৬:০০ /);
+    expect(bnMoment).not.toMatch(/[0-9]/);
+    expect(bnMoment).not.toMatch(ENGLISH_MONTH);
+  });
+
+  it('a saved value: Bengali sentence, Bengali moment', async () => {
+    await show(await detail('bn'));
+    const sent = part('field-answer-sent');
+    expect(sent).toContain(`সংস্করণ ১, ${bnMoment} সংরক্ষিত: +8801700000111`);
+    // The words before the value itself (a phone number, kept as typed) hold no Latin digit.
+    const line = cut(sent, /সংস্করণ ১,.*? সংরক্ষিত:/);
+    expect(line).toMatch(/^সংস্করণ ১, ১ নভে, ২০৯৯, ০৬:০০ \S.* সংরক্ষিত:$/);
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(/[0-9]/);
+    expect(line).not.toMatch(ENGLISH_MONTH);
+  });
+
+  it('a protected value: Bengali sentence, Bengali moment', async () => {
+    await show(await detail('bn', { protected: true, value: null }));
+    const sent = part('field-answer-sent');
+    expect(sent).toContain(`সংস্করণ ১, ${bnMoment} সংরক্ষিত: একটি সুরক্ষিত তথ্য, এখানে দেখানো হয় না।`);
+    const line = cut(sent, /সংস্করণ ১,.*? দেখানো হয় না।/);
+    expect(line).toMatch(
+      /^সংস্করণ ১, ১ নভে, ২০৯৯, ০৬:০০ \S.* সংরক্ষিত: একটি সুরক্ষিত তথ্য, এখানে দেখানো হয় না।$/,
+    );
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(/[0-9]/);
+    expect(line).not.toMatch(ENGLISH_MONTH);
+  });
+
+  it('a copy sent back: Bengali sentence, Bengali moment', async () => {
+    await show(await sentBack('bn'));
+    const note = part('sent-back-note');
+    expect(note).toContain(
+      `এজেন্সি old-statement.pdf-এর কপি ১ ফেরত পাঠিয়েছে, যেটি আপনি ${bnMoment} তারিখে পাঠিয়েছিলেন।`,
+    );
+    const line = cut(note, /যেটি আপনি .*? তারিখে পাঠিয়েছিলেন।/);
+    expect(line).toMatch(/^যেটি আপনি ১ নভে, ২০৯৯, ০৬:০০ \S.* তারিখে পাঠিয়েছিলেন।$/);
+    expect(line).toContain('২০৯৯');
+    expect(line).not.toMatch(/[0-9]/);
+    expect(line).not.toMatch(ENGLISH_MONTH);
+  });
+
+  it('the same three sentences are exactly the English they were', async () => {
+    await show(await detail('en'));
+    expect(part('field-answer-sent')).toContain(
+      'Version 1, saved 1 Nov 2099, 18:00 GMT+6: +8801700000111',
+    );
+    expect(BENGALI.test(text())).toBe(false);
+    await show(await detail('en', { protected: true, value: null }));
+    expect(part('field-answer-sent')).toContain(
+      'Version 1, saved 1 Nov 2099, 18:00 GMT+6: a protected detail, not shown here.',
+    );
+    expect(BENGALI.test(text())).toBe(false);
+    await show(await sentBack('en'));
+    expect(part('sent-back-note')).toContain(
+      'The agency sent back old-statement.pdf, version 1, which you sent on 1 Nov 2099, 18:00 GMT+6.',
     );
     expect(BENGALI.test(text())).toBe(false);
   });

@@ -40,6 +40,8 @@ export const appSharedCatalog = defineCatalog({
     'appShared.appSharedGrantidPage.documentVault': 'ডকুমেন্ট ভল্ট',
     'appShared.appSharedGrantidPage.everyItemBelowIsReChecked':
       'নিচের প্রতিটি আইটেম প্রতিবার দেখার সময় আপনার অ্যাক্সেসের অনুমতির সঙ্গে আবার মিলিয়ে দেখা হয়। আপনার সঙ্গে যা শেয়ার করা হয়েছে এখানে তার বেশি কখনো দেখানো হয় না, আর আপনি যতটুকু পাওয়ার অধিকারী তার কমও নয়।',
+    'appShared.appSharedGrantidPage.expiresFormattimestampdate':
+      ' · মেয়াদ শেষ {formatTimestampDate}',
     'appShared.appSharedGrantidPage.noDocumentsShared': 'কোনো ডকুমেন্ট শেয়ার করা হয়নি',
     'appShared.appSharedGrantidPage.noProfileDetailsShared': 'প্রোফাইলের কোনো তথ্য শেয়ার করা হয়নি',
     'appShared.appSharedGrantidPage.otherDocumentsCannotBePreviewedHere':

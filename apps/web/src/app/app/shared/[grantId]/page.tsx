@@ -36,7 +36,7 @@ export default async function SharedWorkspacePage({
   /** `fields` and `docs`: how many shared details and documents to list (WP-SB3: 10, then more). */
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(appSharedCatalog);
   const { grantId } = await params;
   const search = (await searchParams) ?? {};
@@ -109,7 +109,7 @@ export default async function SharedWorkspacePage({
             {workspace.grant.purpose}
             {workspace.grant.expiryAt
               ? t.node('appShared.appSharedGrantidPage.expiresFormattimestampdate', {
-                  formatTimestampDate: formatTimestampDate(workspace.grant.expiryAt),
+                  formatTimestampDate: formatTimestampDate(workspace.grant.expiryAt, locale),
                 })
               : ''}
           </>
