@@ -9,6 +9,11 @@ vi.mock('./[id]/actions', () => ({
   snapshotMissionAction: vi.fn(),
   deleteCancelledCaseAction: vi.fn(),
 }));
+vi.mock('./[id]/attempt-actions', () => ({
+  trackReportAsAttemptAction: vi.fn(),
+  recordAttemptAction: vi.fn(),
+  recordAttemptEventAction: vi.fn(),
+}));
 // The language switch is off in the product, so the locale is set here directly.
 const current = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
 vi.mock('../../../lib/locale', () => ({ getLocale: async () => current.locale }));
@@ -24,6 +29,7 @@ vi.mock('react', async (importOriginal) => ({
 import { I18nProvider } from '../../../components/i18n-provider';
 import { appMissionCatalog } from '../../../i18n/app-mission';
 import { primeLocale } from '../../../lib/i18n-server';
+import { AttemptEventForm } from './[id]/attempt-forms';
 import { CaseMobileBar } from './[id]/case-mobile-bar';
 import type { CaseAttentionItem } from './[id]/case-model';
 import { CaseMoreMenu } from './[id]/case-more-menu';
@@ -75,12 +81,31 @@ afterEach(() => {
 });
 
 describe('the case screens under Bengali', () => {
-  it('shows the Bengali label and keeps Latin digits in a message that has no Bengali yet', async () => {
+  it('shows the Bengali label and the count in Bengali digits', async () => {
     const html = await bar('bn', { done: 6, total: 12 });
-    // "{done} of {total}" has no Bengali value, so it stays English and its digits stay Latin.
-    expect(html).toContain('>6 of 12<');
+    expect(html).toContain('>১২টির মধ্যে ৬টি<');
     expect(html).toContain(bn['appMission.appMissionIdCaseMobileBar.nextStep']);
     expect(html).not.toMatch(/appMission\./);
+  });
+
+  it('keeps Latin digits in a message that has no Bengali yet', () => {
+    // "Save for Attempt {attemptNo}" has no Bengali value (its visible Save is English), so it stays
+    // English and its digits stay Latin.
+    expect(bn['appMission.appMissionIdAttemptForms.saveForAttemptAttemptno']).toBeUndefined();
+    const html = renderToStaticMarkup(
+      <I18nProvider locale="bn" pageLang="en">
+        <AttemptEventForm
+          missionId="case-1"
+          attemptId="attempt-1"
+          attemptNo={12}
+          today="2026-11-13"
+          evidenceChoices={[]}
+          documentKinds={[]}
+        />
+      </I18nProvider>,
+    );
+    expect(html).toContain('aria-label="Save for Attempt 12"');
+    expect(html).toContain('প্রচেষ্টা ১২-এর পর কী হয়েছে');
   });
 
   it('still renders the bar when there is no checklist progress yet', async () => {

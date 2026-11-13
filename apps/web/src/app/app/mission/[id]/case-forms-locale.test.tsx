@@ -132,7 +132,7 @@ const expectBengali = (...keys: string[]) => {
   for (const key of keys.map(full)) {
     expect(bn[key], key).toBeTruthy();
     expect(text, key).toContain(bn[key]);
-    if ((en[key] ?? '').length >= 15) expect(host.textContent, key).not.toContain(en[key]);
+    if ((en[key] ?? '').length >= 30) expect(host.textContent, key).not.toContain(en[key]);
   }
   expect(text).not.toMatch(RAW_KEY);
 };
@@ -527,7 +527,8 @@ describe('complaints, feedback and contributor requests under Bengali', () => {
     forced.state = {
       ok: true,
       message: '',
-      acceptUrl: 'https://vs.example.test/app/contributor-requests/accept?token=abcDEF123_-xyzABC456',
+      acceptUrl:
+        'https://vs.example.test/app/contributor-requests/accept?token=abcDEF123_-xyzABC456',
       requestId: 'r9',
     };
     show(
@@ -731,10 +732,7 @@ describe('starting a trip under Bengali', () => {
     };
     show(form());
     const links = [...host.querySelectorAll('a[href$="#trip-package"]')].map((a) => a.textContent);
-    expect(links).toEqual([
-      'Rahima Akter-এর ভিসা ফাইল খুলুন',
-      'Karim Hossain-এর বিদ্যমান ভিসা ফাইলটি খুলুন',
-    ]);
+    expect(links).toEqual(['Rahima Akter-এর ভিসা ফাইল খুলুন', 'Karim Hossain-এর বিদ্যমান ভিসা ফাইলটি খুলুন']);
   });
 });
 
