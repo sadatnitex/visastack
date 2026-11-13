@@ -121,6 +121,20 @@ export const evidenceAnswerCatalog = defineCatalog({
     // The copy choices on a request's own page.
     'evidenceAnswer.choices.expires': 'Expires {date}',
     'evidenceAnswer.choices.expired': 'Expired on {date}',
+    'evidenceAnswer.choices.uncertain':
+      'The saved expiry dates do not agree. Check them before you send this copy.',
+    'evidenceAnswer.choices.noCurrent':
+      'Every saved copy has expired or needs a date check. Add a current copy, or choose an older one yourself to send it as it is.',
+
+    // The copy an agency sent back, on a request's own page.
+    'evidenceAnswer.sentBack.exact':
+      'The agency sent back {name}, version {version}, which you sent on {date}.',
+    'evidenceAnswer.sentBack.document':
+      'The agency sent back {name}. This page cannot say which version of it.',
+    'evidenceAnswer.sentBack.thisDocument': 'this document',
+    'evidenceAnswer.sentBack.reason': 'Reason: {reason}',
+    'evidenceAnswer.sentBack.unknown':
+      'The agency sent an answer back, but this page cannot tell which copy it was. Nothing is chosen for you. Choose the copy to send yourself.',
   },
   bn: {},
 });

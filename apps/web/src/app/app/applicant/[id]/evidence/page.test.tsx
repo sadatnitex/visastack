@@ -122,7 +122,47 @@ const SENT_BACK = {
   createdAt: new Date('2026-10-21T09:00:00Z'),
 };
 /** The history the batched read returns, by request id; anything not named has none. */
-function setHistories(byId: Record<string, { decisions?: Decision[]; olderSends?: number }>) {
+type SendList = {
+  available: boolean;
+  submissions: Record<string, unknown>[];
+  legacy: Record<string, unknown>[];
+};
+/** A send-back recorded before exact copies were kept: the decision names the document only. */
+const sentBackLegacy = (documentId: string): SendList => ({
+  available: false,
+  submissions: [],
+  legacy: [
+    {
+      label: 'Sent before exact copies were kept',
+      documentId,
+      sentAt: null,
+      state: 'NEEDS_REPLACEMENT',
+      decidedAt: new Date('2026-10-21T09:00:00Z'),
+    },
+  ],
+});
+/** A send-back with an exact copy: the decision pins document, version, name and reason. */
+const sentBackExact = (documentId: string, documentVersionId: string): SendList => ({
+  available: true,
+  legacy: [],
+  submissions: [
+    {
+      id: 's1',
+      roundNo: 1,
+      documentId,
+      documentVersionId,
+      versionNumber: 1,
+      title: 'statement.pdf',
+      sentAt: new Date('2026-10-20T09:00:00Z'),
+      state: 'NEEDS_REPLACEMENT',
+      decidedAt: new Date('2026-10-21T09:00:00Z'),
+      reason: 'The last page is cut off.',
+    },
+  ],
+});
+function setHistories(
+  byId: Record<string, { decisions?: Decision[]; olderSends?: number; sends?: SendList }>,
+) {
   mocks.listRequestHistoriesForOwner.mockImplementation(
     async (_proof: unknown, input: { requestIds: string[] }) => ({
       ok: true,
@@ -131,7 +171,7 @@ function setHistories(byId: Record<string, { decisions?: Decision[]; olderSends?
           id,
           {
             decisions: byId[id]?.decisions ?? [],
-            sends: { available: false, submissions: [], legacy: [] },
+            sends: byId[id]?.sends ?? { available: false, submissions: [], legacy: [] },
             olderSends: byId[id]?.olderSends ?? 0,
           },
         ]),
@@ -667,11 +707,9 @@ describe('the copies offered for a document request (Lane E)', () => {
   });
 
   it('marks the copy the agency sent back, and offers a clearer copy started from it', async () => {
-    withRequests({
-      ...request,
-      status: 'NEEDS_REPLACEMENT',
-      respondingDocumentId: 'd1',
-    });
+    // A send-back clears the request's own answer pointer: the copy comes from the history.
+    withRequests({ ...request, status: 'NEEDS_REPLACEMENT', respondingDocumentId: null });
+    setHistories({ r1: { sends: sentBackExact('d1', 'v1') } });
     mocks.listDocumentsDetailed.mockResolvedValue({
       ok: true,
       value: [doc({ id: 'd1', latestVersionId: 'v1' })],
@@ -698,7 +736,8 @@ describe('the copies offered for a document request (Lane E)', () => {
   });
 
   it('does not make the clearer copy the main action while another copy can be sent', async () => {
-    withRequests({ ...request, status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd1' });
+    withRequests({ ...request, status: 'NEEDS_REPLACEMENT', respondingDocumentId: null });
+    setHistories({ r1: { sends: sentBackLegacy('d1') } });
     mocks.listDocumentsDetailed.mockResolvedValue({
       ok: true,
       value: [
@@ -711,7 +750,8 @@ describe('the copies offered for a document request (Lane E)', () => {
   });
 
   it('offers Add Documents instead when the sent back copy is no longer an everyday copy', async () => {
-    withRequests({ ...request, status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd1' });
+    withRequests({ ...request, status: 'NEEDS_REPLACEMENT', respondingDocumentId: null });
+    setHistories({ r1: { sends: sentBackLegacy('d1') } });
     mocks.listDocumentsDetailed.mockResolvedValue({
       ok: true,
       value: [doc({ id: 'd1', latestVersionId: 'v1' })],
