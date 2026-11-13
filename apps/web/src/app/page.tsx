@@ -206,7 +206,7 @@ const HORIZONS: readonly {
 function Lines({ text }: { readonly text: string }) {
   return text
     .split('\n')
-    .flatMap((line, index) => (index === 0 ? [line] : [<br key={line} />, line]));
+    .flatMap((line, index) => (index === 0 ? [line] : [<br key={index} />, line]));
 }
 
 /**

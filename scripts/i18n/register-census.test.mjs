@@ -36,7 +36,7 @@ describe('census row for a file whose lines moved', () => {
     const r = lookup(
       census([
         ['a.tsx', '11', 'Terms', 'SG-A'],
-        ['a.tsx', '40', 'Terms', 'SG-B'],
+        ['a.tsx', '30', 'Terms', 'SG-B'],
       ]),
     );
     assert.equal(r.reason, 'register_ambiguous');
@@ -48,6 +48,22 @@ describe('census row for a file whose lines moved', () => {
       census([
         ['a.tsx', '11', 'Terms', 'SG-A'],
         ['a.tsx', '40', 'Terms', 'SG-A'],
+      ]),
+    );
+    assert.equal(r.group, 'SG-A');
+  });
+
+  test('a census row far from where the text is now is never borrowed', () => {
+    const r = lookup(census([['a.tsx', '200', 'Terms', 'SG-A']]));
+    assert.equal(r.reason, 'register_ambiguous');
+    assert.equal(r.bn, null);
+  });
+
+  test('only the nearby rows count when the file has the English twice', () => {
+    const r = lookup(
+      census([
+        ['a.tsx', '11', 'Terms', 'SG-A'],
+        ['a.tsx', '300', 'Terms', 'SG-B'],
       ]),
     );
     assert.equal(r.group, 'SG-A');

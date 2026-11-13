@@ -17,6 +17,7 @@ import { isSignedIn } from '../lib/signed-in';
 import { hasSeenVersionNotice } from '../lib/version-notice-state';
 import { setLocaleAction } from './actions';
 import './globals.css';
+import { authCatalog } from '../i18n/auth';
 import { homeCatalog } from '../i18n/home';
 
 /**
@@ -71,6 +72,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const { locale, pageLang: htmlLang } = await primePage();
   // The root layout frames every route, so it reads its words with getT after primePage.
   const t = await getT(homeCatalog);
+  // "Sign In" is the same action the sign-in screen names, so it shares that screen's message.
+  const tAuth = await getT(authCatalog);
   // A year is a date, never a grouped count ("২,০২৬"): written as a year, in the language the
   // copyright line itself is shown in, so an English fallback never carries Bengali digits.
   const copyrightYear = formatDate(
@@ -129,7 +132,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
                   </form>
                 ) : null}
                 <a className="btn btn-secondary nav-cta" href="/app">
-                  {signedIn ? t.node('home.layout.workspace') : t.node('home.layout.signIn')}
+                  {signedIn
+                    ? t.node('home.layout.workspace')
+                    : tAuth.node('auth.authSignInPage.signIn')}
                 </a>
                 {!signedIn && isPublicBetaOpen() ? (
                   <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
@@ -157,7 +162,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
                 {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a
                   prefetch of it would be a blocked cross-origin request. */}
                 <a href="/app">
-                  {signedIn ? t.node('home.layout.workspace') : t.node('home.layout.signIn')}
+                  {signedIn
+                    ? t.node('home.layout.workspace')
+                    : tAuth.node('auth.authSignInPage.signIn')}
                 </a>
               </nav>
             </div>

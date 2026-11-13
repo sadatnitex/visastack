@@ -1301,6 +1301,9 @@ export const placeholdersOf = (msg) => {
   return [...names].sort();
 };
 
+/** How far a text may have moved in its file and still take its census row (see lookup). */
+export const CENSUS_LINE_DRIFT = 25;
+
 export class Register {
   constructor({ registerCsv = '', censusCsv = '' } = {}) {
     this.byGroup = new Map();
@@ -1317,21 +1320,25 @@ export class Register {
       if (!c.semantic_group) continue;
       this.census.set(`${c.file}|${c.line_start}|${c.english}`, c.semantic_group);
       const both = `${c.file}|${c.english}`;
-      this.censusByFile.set(
-        both,
-        new Set([...(this.censusByFile.get(both) ?? []), c.semantic_group]),
-      );
+      let rows = this.censusByFile.get(both);
+      if (!rows) this.censusByFile.set(both, (rows = []));
+      rows.push({ line: Number(c.line_start), group: c.semantic_group });
     }
   }
 
   /**
    * The census group for a text in a file whose lines have moved since the census was taken:
-   * found by file and English alone, and only when every census row for that pair names the same
-   * register group (so two meanings of one word in one file are never merged).
+   * found by file and English within CENSUS_LINE_DRIFT lines of where the text is now, and only
+   * when every such census row names the same register group. Two meanings of one word in one
+   * file are never merged, and a far-away row (perhaps a different text that has since gone)
+   * is never borrowed.
    */
-  censusGroupIgnoringLine(file, form) {
-    const groups = this.censusByFile.get(`${file}|${form}`);
-    if (!groups || groups.size !== 1) return null;
+  censusGroupIgnoringLine(file, form, line) {
+    const near = (this.censusByFile.get(`${file}|${form}`) ?? []).filter(
+      (r) => Math.abs(r.line - line) <= CENSUS_LINE_DRIFT,
+    );
+    const groups = new Set(near.map((r) => r.group));
+    if (groups.size !== 1) return null;
     const [group] = groups;
     return this.byGroup.has(group) ? group : null;
   }
@@ -1360,7 +1367,7 @@ export class Register {
     }
     for (const f of forms) {
       if (row) break;
-      const g = this.censusGroupIgnoringLine(unit.file, f);
+      const g = this.censusGroupIgnoringLine(unit.file, f, unit.line);
       if (g) row = this.byGroup.get(g);
     }
     if (!row) {

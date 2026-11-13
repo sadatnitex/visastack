@@ -44,7 +44,6 @@ export const homeCatalog = defineCatalog({
     'home.layout.privacyAndControl': 'Privacy and Control',
     'home.layout.product': 'Product',
     'home.layout.publicTrust': 'Public Trust',
-    'home.layout.signIn': 'Sign In',
     'home.layout.skipToContent': 'Skip to Content',
     'home.layout.status': 'Status',
     'home.layout.terms': 'Terms',

@@ -43,12 +43,14 @@ vi.mock('../lib/deployment-mode', () => ({ getDeploymentMode: () => 'controlled_
 vi.mock('../lib/language-choice', () => ({ LANGUAGE_CHOICE_ENABLED: true }));
 vi.mock('./actions', () => ({ setLocaleAction: async () => undefined }));
 
+import { authCatalog } from '../i18n/auth';
 import { homeCatalog } from '../i18n/home';
 
 const { default: HomePage } = await import('./page');
 const { default: RootLayout } = await import('./layout');
 
 const bn = homeCatalog.bn;
+const SIGN_IN_BN = authCatalog.bn['auth.authSignInPage.signIn'];
 const YEAR = new Date().getFullYear();
 const BENGALI_DIGITS = '০১২৩৪৫৬৭৮৯';
 const bengaliNumber = (n: number) =>
@@ -199,16 +201,19 @@ describe('the site header', () => {
 
   it('keeps held and undrafted header words in English under bn', async () => {
     const nav = header(await shell('bn'));
-    // Privacy wording waits for its queue sign-off; Language and Sign In have no draft.
-    for (const key of [
-      'home.layout.privacyAndControl',
-      'home.layout.language',
-      'home.layout.signIn',
-    ] as const)
+    // Privacy wording waits for its queue sign-off; the form name Language has no draft.
+    for (const key of ['home.layout.privacyAndControl', 'home.layout.language'] as const)
       expect(key in bn, key).toBe(false);
     expect(nav).toContain('href="/trust">Privacy and Control</a>');
     expect(nav).toContain('aria-label="Language"');
-    expect(nav).toContain('href="/app">Sign In</a>');
+  });
+
+  it('names Sign In exactly as the sign-in screen does under bn', async () => {
+    expect(SIGN_IN_BN).toBe('সাইন ইন করুন');
+    const html = await shell('bn');
+    expect(header(html)).toContain(`href="/app"><span lang="bn">${SIGN_IN_BN}</span></a>`);
+    expect(footer(html)).toContain(`href="/app"><span lang="bn">${SIGN_IN_BN}</span></a>`);
+    expect(textOf(html)).not.toContain('Sign In');
   });
 
   it('keeps the product name and the English switch label as they are under bn', async () => {
@@ -221,8 +226,9 @@ describe('the site header', () => {
 
   it('marks the English that stays as English on a page marked Bengali', async () => {
     const nav = header(await shell('bn', { pathname: '/auth/sign-in' }));
-    expect(nav).toContain('href="/app"><span lang="en">Sign In</span></a>');
+    expect(nav).toContain('href="/trust"><span lang="en">Privacy and Control</span></a>');
     expect(nav).toContain(`href="/#product">${bn['home.layout.product']}</a>`);
+    expect(nav).toContain(`href="/app">${SIGN_IN_BN}</a>`);
   });
 });
 
@@ -265,19 +271,17 @@ describe('the site footer', () => {
   it('keeps held and undrafted footer words in English under bn', async () => {
     const foot = footer(await shell('bn'));
     // Public Trust is held (its draft names the page differently from the page's own link);
-    // Privacy waits for its queue sign-off; Status and Sign In have no draft.
+    // Privacy waits for its queue sign-off; Status has no draft.
     for (const key of [
       'home.layout.publicTrust',
       'home.layout.privacy',
       'home.layout.status',
-      'home.layout.signIn',
     ] as const)
       expect(key in bn, key).toBe(false);
     for (const fragment of [
       'href="/trust">Public Trust</a>',
       'href="/privacy">Privacy</a>',
       'href="/status">Status</a>',
-      'href="/app">Sign In</a>',
     ])
       expect(foot, fragment).toContain(fragment);
   });
