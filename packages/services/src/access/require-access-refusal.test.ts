@@ -752,6 +752,19 @@ describe("allowed paths are unchanged, and other people's grants change nothing"
           message: 'this account does not hold the platform role required',
         }),
       ],
+    ];
+  }
+
+  /** Every refusal of the first block, as rows, so other people's grants are checked on them too. */
+  function refusalRows(): readonly Row[] {
+    const refusedAnswer = { ok: false, code: 'not_found', message: 'record not found' };
+    const gate = (
+      accountId: string,
+      action: PermissionAction,
+      ref: ApplicantResourceRef,
+      options: RequireAccessOptions,
+    ) => requireAccess(world.db, accountPrincipal(accountId), action, ref, options).then(outcome);
+    return [
       ...REFUSALS.flatMap((refusal) =>
         KINDS.map(
           (kind): Row => [
@@ -772,10 +785,11 @@ describe("allowed paths are unchanged, and other people's grants change nothing"
 
   async function results(): Promise<unknown[]> {
     const out: unknown[] = [];
-    for (const [, run] of rows()) out.push(await run());
+    for (const [, run] of [...rows(), ...refusalRows()]) out.push(await run());
     return out;
   }
 
+  // Passes on the gate before this change too (the red proof runs it there): nothing allowed moved.
   it('gives every allowed path exactly its earlier result', async () => {
     for (const [name, run, expected] of rows()) {
       expect(await run(), name).toEqual(expected());
