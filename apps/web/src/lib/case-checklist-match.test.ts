@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@visastack/services', () => ({
   ...mocks,
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
+  serviceError: (code: string, message: string) => ({ code, message }),
 }));
 
 const { attachChecklistFor, checklistToLink } = await import('./case-checklist-match');
@@ -101,6 +102,23 @@ describe('attachChecklistFor: the one way the web app attaches a checklist (VS-0
       error: { code: 'not_found', message: 'no' },
     });
     expect((await attachChecklistFor(db, 'owner', 'case-1', 'pv-1')).ok).toBe(false);
+    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
+  });
+
+  it('gives a stranger one identical answer for a real case that is not theirs and a made-up one', async () => {
+    mocks.getMissionForOwner.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'forbidden', message: 'not authorized for this case' },
+    });
+    const real = await attachChecklistFor(db, 'stranger', 'real-case', 'pv-1');
+    mocks.getMissionForOwner.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'not_found', message: 'case not found' },
+    });
+    const madeUp = await attachChecklistFor(db, 'stranger', 'made-up', 'pv-1');
+    expect(real).toEqual(madeUp);
+    expect(real).toEqual({ ok: false, error: { code: 'not_found', message: 'case not found' } });
+    expect(mocks.requireAccess).not.toHaveBeenCalled();
     expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
   });
 });

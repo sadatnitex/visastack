@@ -15,15 +15,33 @@ import {
   toThreadSendList,
 } from '../../../../../components/request-thread/thread-model';
 import { reportServerError } from '../../../../../lib/server-error';
+import { type SentBackRead, sentBackCopyOf } from './sent-back-copy';
 
 /** What the thread of one request is built from, beyond the request row itself. */
 export interface RequestHistory {
   readonly decisions: ThreadRead<readonly ThreadDecision[]>;
   readonly sends: ThreadRead<ThreadSendList>;
+  /**
+   * Which copy the agency sent back, read from the decision history (the request's own answer
+   * pointer is cleared by a send-back). `none` unless the request waits on a corrected answer.
+   */
+  readonly sentBack: SentBackRead;
 }
 
-const nothing: RequestHistory = { decisions: { state: 'none' }, sends: { state: 'none' } };
-const unread: RequestHistory = { decisions: { state: 'unread' }, sends: { state: 'unread' } };
+const nothing: RequestHistory = {
+  decisions: { state: 'none' },
+  sends: { state: 'none' },
+  sentBack: { state: 'none' },
+};
+
+/** A history that could not be read: a request sent back is then `unknown`, never "nothing sent back". */
+function unreadFor(request: EvidenceRequest): RequestHistory {
+  return {
+    decisions: { state: 'unread' },
+    sends: { state: 'unread' },
+    sentBack: request.status === 'NEEDS_REPLACEMENT' ? { state: 'unknown' } : { state: 'none' },
+  };
+}
 
 /**
  * The history behind each request's thread, read as the traveller who owns the requests: the
@@ -95,8 +113,12 @@ export async function loadRequestHistories(input: {
               request.kind === 'DOCUMENT'
                 ? { state: 'read', value: toThreadSendList(history.sends, history.olderSends) }
                 : { state: 'none' },
+            sentBack:
+              request.kind === 'DOCUMENT'
+                ? sentBackCopyOf(request.status, history.sends)
+                : { state: 'none' },
           }
-        : unread,
+        : unreadFor(request),
     );
   }
   return out;

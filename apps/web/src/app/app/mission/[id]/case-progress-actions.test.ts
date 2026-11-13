@@ -12,9 +12,12 @@ const mocks = vi.hoisted(() => ({
   selectEvidence: vi.fn(),
   unselectEvidence: vi.fn(),
   computeReadiness: vi.fn(),
+  requireAccess: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
+  accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
+  requireAccess: mocks.requireAccess,
   getMissionForOwner: mocks.getMissionForOwner,
   selectEvidence: mocks.selectEvidence,
   unselectEvidence: mocks.unselectEvidence,
@@ -51,6 +54,10 @@ const PREV = { ok: true, message: '' };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.requireAccess.mockResolvedValue({
+    ok: true,
+    value: { actor: { kind: 'applicant_owner' } },
+  });
   mocks.attachChecklistFor.mockResolvedValue({ ok: true, value: {} });
   mocks.getMissionForOwner.mockResolvedValue({
     ok: true,

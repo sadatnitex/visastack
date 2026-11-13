@@ -14,7 +14,9 @@
  * Run with: node --test scripts/staging-journeys.test.mjs (part of `pnpm run test:node`).
  */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -234,6 +236,34 @@ test('the setup report names settings and never prints a value', () => {
   for (const value of Object.values(env)) assert.ok(!text.includes(value), 'a value was printed');
 });
 
+test('the setup command itself runs, lists every suite, writes the run summary and prints no value', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'journey-setup-'));
+  const summary = join(dir, 'summary.md');
+  try {
+    const secret = 'password-value-that-must-not-print';
+    const run = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/check-staging-journey-setup.mjs')],
+      {
+        env: {
+          PATH: process.env.PATH ?? '',
+          GITHUB_STEP_SUMMARY: summary,
+          NEON_STAGING_TRAVELLER_PASSWORD: secret,
+        },
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(run.status, 0, run.stderr);
+    for (const suite of Object.keys(SUITES)) assert.match(run.stdout, new RegExp(`${suite} \\(`));
+    assert.match(run.stdout, /BLOCKED\s+traveller/);
+    const written = readFileSync(summary, 'utf8');
+    assert.match(written, /### Signed-in journey setup/);
+    assert.ok(!run.stdout.includes(secret) && !written.includes(secret), 'a value was printed');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a confirmation must be exactly "true" and an empty setting is missing', () => {
   assert.deepEqual(missingIn('exactCopy', {}), [
     'E2E_EXACT_COPY_SERVICE_VERIFIED',
@@ -313,11 +343,22 @@ test('a spec that ends or changes a grant runs last, in an order the config stat
     [...listed.matchAll(/'([^']+)'/g)].map((m) => m[1]),
     LAST_STAGE_SPECS,
   );
-  // First stage skips them; the last stage matches only them and waits for the first.
+  // First stage skips them; each later stage matches exactly one of them, in the order of the list,
+  // and waits for the stage before (a project runs its files in file-name order, not list order,
+  // and a project gets a fresh worker, so one project for each is the only way to fix the order).
   assert.match(config, /name: 'journeys',\s*testIgnore: LAST_STAGE_SPECS/);
-  assert.match(
-    config,
-    /name: 'revocation',\s*testMatch: LAST_STAGE_SPECS,\s*dependencies: \['journeys'\]/,
+  const stages = [
+    ...config.matchAll(/name: '([a-z]+)',\s*testMatch: '([^']+)',\s*dependencies: \['([a-z]+)'\]/g),
+  ].map((m) => ({ name: m[1], spec: m[2], after: m[3] }));
+  assert.deepEqual(
+    stages.map((stage) => stage.spec),
+    LAST_STAGE_SPECS,
+    'one project for each last-stage spec, in run order',
+  );
+  assert.deepEqual(
+    stages.map((stage) => stage.after),
+    ['journeys', ...stages.slice(0, -1).map((stage) => stage.name)],
+    'each last stage waits for the one before it',
   );
   assert.match(config, /workers: 1/);
   // Only those specs may touch a grant: no other spec revokes, pauses, ends or re-grants access.
@@ -345,6 +386,11 @@ test('a spec that ends or changes a grant runs last, in an order the config stat
         files.slice(firstLast).every((file) => LAST_STAGE_SPECS.includes(file)),
         `${suite} lists a spec after the grant is gone`,
       );
+      assert.deepEqual(
+        files.slice(firstLast),
+        LAST_STAGE_SPECS.filter((file) => files.includes(file)),
+        `${suite} lists the last-stage specs out of run order`,
+      );
     }
   }
   const workflow = read(JOURNEYS_WORKFLOW);
@@ -353,4 +399,94 @@ test('a spec that ends or changes a grant runs last, in an order the config stat
     workflow,
     /playwright test --config=playwright\.signed-in\.config\.ts \$flags \$files/,
   );
+});
+
+test('the flagship journey is registered everywhere, fails closed, and ends access only in its last test', () => {
+  const file = 'answer-from-records.spec.ts';
+  // Registered: in a suite of its own with the three accounts and the exact-copy confirmations,
+  // on disk, and in the last-stage list that the config and the document keep.
+  assert.deepEqual(SUITES.records.files, [file]);
+  for (const group of ['core', 'traveller', 'agency', 'unrelated', 'exactCopy']) {
+    assert.ok(SUITES.records.groups.includes(group), `the flagship suite needs ${group}`);
+  }
+  assert.ok(existsSync(join(root, SIGNED_IN, file)));
+  assert.equal(LAST_STAGE_SPECS[0], file, 'it runs first among the last stages');
+  const doc = read('docs/operations/staging-journeys.md');
+  const row = doc.split('\n').find((line) => line.startsWith('|') && line.includes(file)) ?? '';
+  assert.ok(row, 'the document lists the flagship spec in its table');
+  assert.match(row, /BLOCKED/, 'the document says BLOCKED for a journey that has not run');
+  assert.doesNotMatch(row, /\bPASS\b/);
+
+  const spec = read(`${SIGNED_IN}/${file}`);
+  // Fail closed, like the loop: both confirmations, and a BLOCKED when a control is not shown.
+  assert.match(spec, /confirmed\(\s*'E2E_EXACT_COPY_SERVICE_VERIFIED'/);
+  assert.match(spec, /confirmed\(\s*'E2E_ACCESS_SEEDED'/);
+  assert.match(spec, /requireExactCopyUi\(/);
+  // Three distinct accounts, signed in through the real form.
+  for (const role of ['TRAVELLER', 'AGENCY_ADMIN', 'UNRELATED_AGENCY_ADMIN']) {
+    assert.match(spec, new RegExp(`signedInContext\\(browser, '${role}'`));
+  }
+  assert.match(spec, /new Set\(emails\)\.size[^)]*\)\.toBe\(3\)/);
+  // Phone and desktop widths, with the serious-finding check and the sideways-scroll check.
+  assert.match(spec, /entry\.width === 390 \|\| entry\.width === 1280/);
+  assert.match(spec, /checkAccessibility\(/);
+  assert.match(spec, /expectNoSidewaysScroll\(/);
+  // The agency's access is ended only in the very last test, never before another step needs it.
+  const starts = [...spec.matchAll(/^\s*test\(\s*[`'"]/gm)].map((m) => m.index);
+  const last = starts.at(-1);
+  assert.ok(last !== undefined && starts.length > 5, 'the journey has its steps');
+  const before = spec.slice(0, last);
+  const lastTest = spec.slice(last);
+  assert.match(lastTest, /ends the agency access/);
+  assert.match(lastTest, /Yes, Revoke Access/);
+  assert.match(lastTest, /UI\.revokeButton/);
+  assert.doesNotMatch(before, /Yes, Revoke Access|UI\.revokeButton/);
+});
+
+test('every control name in selectors.ts that the exact-copy journeys use cites its product source line', () => {
+  const text = read(`${SIGNED_IN}/support/selectors.ts`);
+  const block = text.slice(
+    text.indexOf('export const EXACT_COPY_UI'),
+    text.indexOf('/** Whether the page shows'),
+  );
+  const src = 'apps/web/src';
+  const allSource = filesUnder(src);
+  const cite = /([A-Za-z0-9_./[\]-]+\.tsx?):(\d+(?:-\d+)?(?:,\s*\d+(?:-\d+)?)*)/g;
+  // Each cited file exists under the product source and is at least as long as the cited line.
+  const lineCounts = new Map();
+  for (const m of block.matchAll(cite)) {
+    const wanted = m[1];
+    const numbers = [...m[2].matchAll(/\d+/g)].map((n) => Number(n[0]));
+    const matches = allSource.filter(
+      (path) => path === `${src}/${wanted}` || path.endsWith(`/${wanted}`),
+    );
+    assert.ok(matches.length > 0, `${wanted} (cited in selectors.ts) is not in ${src}`);
+    const counts = matches.map((path) => {
+      if (!lineCounts.has(path)) lineCounts.set(path, read(path).split('\n').length);
+      return lineCounts.get(path);
+    });
+    assert.ok(
+      counts.some((count) => count >= Math.max(...numbers)),
+      `${m[0]} is past the end of ${wanted}`,
+    );
+  }
+  // Each property sits under a comment that names a source line (one comment may cover a pair).
+  let comment = '';
+  let inComment = false;
+  let seen = 0;
+  for (const line of block.split('\n')) {
+    if (/^\s*\/\*\*/.test(line)) {
+      comment = line;
+      inComment = !line.includes('*/');
+    } else if (inComment) {
+      comment += line;
+      inComment = !line.includes('*/');
+    } else if (/^\s*\/\/ ----/.test(line)) {
+      comment = line;
+    } else if (/^ {2}[a-zA-Z]+:/.test(line)) {
+      seen += 1;
+      assert.match(comment, /\.tsx?:\d+/, `no source line cited for: ${line.trim()}`);
+    }
+  }
+  assert.ok(seen > 40, 'the exact-copy names were found');
 });

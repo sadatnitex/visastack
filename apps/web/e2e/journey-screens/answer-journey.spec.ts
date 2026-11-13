@@ -51,7 +51,9 @@ const EXPECTED = {
 
 /** What each view shows without a single click. */
 const SEEN = {
-  before: { agencyNamed: false, expiredChosenInAdvance: true, missingLetterVisible: false },
+  // The old reply form used to tick an expired only-copy in advance (true until 13 Nov 2026); it no
+  // longer does, on this screen or in the review.
+  before: { agencyNamed: false, expiredChosenInAdvance: false, missingLetterVisible: false },
   after: { agencyNamed: true, expiredChosenInAdvance: false, missingLetterVisible: true },
 } as const;
 
