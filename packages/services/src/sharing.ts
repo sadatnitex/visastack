@@ -10,6 +10,7 @@ import {
 import { type Result, err, ok } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { isSharingCategory } from '@visastack/core/catalogue/packs';
+import { catalogResolve } from '@visastack/i18n';
 import {
   type Actor as PolicyActor,
   type Grant as PolicyGrant,
@@ -31,11 +32,14 @@ import {
 } from './access/grant-scope';
 import { AuthorizedApplicant } from './access/require-access';
 import { StepUpProof } from './access/step-up-proof';
+import { getAccountByEmail } from './accounts';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError, serviceError } from './errors';
+import { serviceMessages } from './i18n';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -385,6 +389,81 @@ export async function createGrant(
     });
     return ok(grant);
   });
+}
+
+/** What `shareWithEmail` says: the same words whether or not the email has an account. */
+export interface SharedWithEmail {
+  readonly message: string;
+  readonly messageKey: 'sharing.sharedIfAccount';
+}
+
+/**
+ * Share with a person named only by their email, when sharing invitations are switched off.
+ *
+ * The answer never says whether the email has a VisaStack account. An existing account gets a
+ * pending grant exactly as `createGrant` makes it. An email with no account gets nothing (there is
+ * no invitation without the switch): the same checks still run, in the same order (owner, consent,
+ * permissions, purpose, expiry, chosen case and documents, the rate limit), so a refusal is the
+ * same either way, and on success both get the one `sharing.sharedIfAccount` line. The audit trail
+ * tells the two apart: `GRANT_CREATED` for a grant, `GRANT_RECIPIENT_NOT_REGISTERED` for no account
+ * (no email and no email hash: only the sharer and how many permissions). That row names no
+ * traveller and records no allow or deny, so it stays out of the traveller's Access Log, Recent
+ * Activity and the denied-access signal.
+ *
+ * Limit: without invitations an existing account still gets a real pending grant, which the
+ * sharer's own grant list shows and an email with no account does not; the sharer's own data
+ * export carries the same difference (their audit rows: `GRANT_CREATED` or
+ * `GRANT_RECIPIENT_NOT_REGISTERED`). Neither tells them more than the grant list already does. Only
+ * the invitation path (invitations switched on, as in production) makes the two look the same
+ * afterwards too.
+ */
+export async function shareWithEmail(
+  access: AuthorizedApplicant<'MANAGE'>,
+  input: Omit<
+    CreateGrantInput,
+    'actorAccountId' | 'applicantId' | 'recipientAccountId' | 'recipientOrganizationId'
+  > & {
+    readonly email: string;
+  },
+): Promise<Result<SharedWithEmail, ServiceError>> {
+  // Only the owner shares, proved by the central gate: anyone else was already given its one
+  // refusal before reaching here, whatever the email.
+  if (!AuthorizedApplicant.isGenuine(access, 'MANAGE') || access.actor.kind !== 'applicant_owner') {
+    return err(keyedError('forbidden', 'sharing.ownerOnlyGrant'));
+  }
+  const db = access.tx;
+  const actorAccountId = access.applicant.ownerAccountId;
+  const { email, ...rest } = input;
+  const grant: CreateGrantInput = { ...rest, actorAccountId, applicantId: access.applicant.id };
+  // A format check says nothing about accounts.
+  if (!isEmailAddress(email.trim())) {
+    return err(keyedError('invalid', 'sharing.inviteEmailInvalid'));
+  }
+  const recipient = await getAccountByEmail(db, email);
+  if (recipient?.id === actorAccountId) {
+    // Only the person's own address, which they already know.
+    return err(keyedError('invalid', 'sharing.cannotShareSelf'));
+  }
+  if (recipient) {
+    const created = await createGrant(db, { ...grant, recipientAccountId: recipient.id });
+    if (!created.ok) return created;
+  } else {
+    const prepared = await prepareGrantScope(db, grant);
+    if (!prepared.ok) return prepared;
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'GRANT_RECIPIENT_NOT_REGISTERED',
+        actorAccountId,
+        action: 'SHARE',
+        method: 'MANUAL',
+        resourceType: 'grant',
+        reason: 'recipient_has_no_account',
+        metadata: { actions: input.actions.length },
+      });
+    });
+  }
+  const key = 'sharing.sharedIfAccount';
+  return ok({ message: catalogResolve(serviceMessages, 'en', key).text, messageKey: key });
 }
 
 async function loadGrant(db: Db, grantId: string): Promise<Grant | undefined> {

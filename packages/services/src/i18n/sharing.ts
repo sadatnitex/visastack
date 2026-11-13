@@ -67,6 +67,10 @@ export const sharingEn = {
   'sharing.expiryTooFar': 'expiry may be at most {days} days out',
   'sharing.recipientAlwaysSees':
     '{label} runs this case for you, so it always sees it. Tick it to continue.',
+  // Said whether or not the email has an account, so the answer never tells which (English only
+  // until a checked Bangla draft exists).
+  'sharing.sharedIfAccount':
+    'If this email has a VisaStack account, they can accept your share now; if not, ask them to create one, then share again.',
 } as const;
 
 export const sharingBn = {
