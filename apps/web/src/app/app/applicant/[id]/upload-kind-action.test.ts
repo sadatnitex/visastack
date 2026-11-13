@@ -29,7 +29,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   findDuplicateVersions: mocks.findDuplicateVersions,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
+vi.mock('next/navigation', () => ({ redirect: vi.fn(), unstable_rethrow: vi.fn() }));
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => void fn }));
 vi.mock('../../../../lib/jobs', () => ({ triggerIntakeWorker: vi.fn() }));
 vi.mock('../../../../lib/providers', () => ({
