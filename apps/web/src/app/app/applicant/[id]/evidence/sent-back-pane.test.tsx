@@ -75,6 +75,7 @@ const history = (sentBack: SentBackRead): RequestHistory => ({
   decisions: { state: 'none' },
   sends: { state: 'none' },
   sentBack,
+  fieldAnswer: { state: 'none' },
 });
 
 const exact = (over: Record<string, unknown> = {}): SentBackRead => ({

@@ -2,9 +2,12 @@ import 'server-only';
 import {
   type Db,
   type EvidenceRequest,
+  FIELD_ANSWER_MAX_REQUESTS,
+  type FieldAnswerHistory,
   REQUEST_HISTORY_MAX_REQUESTS,
   type RequestHistory as ServiceRequestHistory,
   accountPrincipal,
+  listFieldAnswersForOwner,
   listRequestHistoriesForOwner,
   requireAccess,
 } from '@visastack/services';
@@ -26,12 +29,18 @@ export interface RequestHistory {
    * pointer is cleared by a send-back). `none` unless the request waits on a corrected answer.
    */
   readonly sentBack: SentBackRead;
+  /**
+   * For a detail request: the exact saved value sent in each round (or the plain admission that an
+   * older answer did not record it). `none` for a document request or one nobody answered.
+   */
+  readonly fieldAnswer: ThreadRead<FieldAnswerHistory>;
 }
 
 const nothing: RequestHistory = {
   decisions: { state: 'none' },
   sends: { state: 'none' },
   sentBack: { state: 'none' },
+  fieldAnswer: { state: 'none' },
 };
 
 /** A history that could not be read: a request sent back is then `unknown`, never "nothing sent back". */
@@ -40,6 +49,7 @@ function unreadFor(request: EvidenceRequest): RequestHistory {
     decisions: { state: 'unread' },
     sends: { state: 'unread' },
     sentBack: request.status === 'NEEDS_REPLACEMENT' ? { state: 'unknown' } : { state: 'none' },
+    fieldAnswer: request.kind === 'FIELD' ? { state: 'unread' } : { state: 'none' },
   };
 }
 
@@ -64,6 +74,8 @@ export async function loadRequestHistories(input: {
 
   // One batched read per chunk of ids. A chunk that fails leaves only its own requests unread.
   const found = new Map<string, ServiceRequestHistory>();
+  const foundFields = new Map<string, FieldAnswerHistory>();
+  let fieldsRead = false;
   try {
     const proof = await requireAccess(
       input.db,
@@ -89,6 +101,24 @@ export async function loadRequestHistories(input: {
       );
       for (const result of results) {
         if (result?.ok) for (const [id, history] of result.value) found.set(id, history);
+      }
+      // The exact value each detail answer carried, in the same proof's own batched reads.
+      const fieldIds = withHistory.filter((r) => r.kind === 'FIELD').map((r) => r.id);
+      const fieldChunks: string[][] = [];
+      for (let at = 0; at < fieldIds.length; at += FIELD_ANSWER_MAX_REQUESTS) {
+        fieldChunks.push(fieldIds.slice(at, at + FIELD_ANSWER_MAX_REQUESTS));
+      }
+      const fieldResults = await Promise.all(
+        fieldChunks.map((requestIds) =>
+          listFieldAnswersForOwner(proof.value, { requestIds }).catch((error: unknown) => {
+            reportServerError('requestThreadRead', error, { step: 'field answer read' });
+            return null;
+          }),
+        ),
+      );
+      fieldsRead = fieldResults.every((result) => result?.ok === true);
+      for (const result of fieldResults) {
+        if (result?.ok) for (const [id, history] of result.value) foundFields.set(id, history);
       }
     }
   } catch (error) {
@@ -117,9 +147,24 @@ export async function loadRequestHistories(input: {
               request.kind === 'DOCUMENT'
                 ? sentBackCopyOf(request.status, history.sends)
                 : { state: 'none' },
+            fieldAnswer: fieldAnswerRead(request, foundFields.get(request.id), fieldsRead),
           }
         : unreadFor(request),
     );
   }
   return out;
+}
+
+/**
+ * The detail answer's history for one request: read, or `unread` (never turned into "nothing was
+ * sent") when the batched read failed or left the request out.
+ */
+function fieldAnswerRead(
+  request: EvidenceRequest,
+  found: FieldAnswerHistory | undefined,
+  allRead: boolean,
+): ThreadRead<FieldAnswerHistory> {
+  if (request.kind !== 'FIELD') return { state: 'none' };
+  if (found) return { state: 'read', value: found };
+  return allRead ? { state: 'none' } : { state: 'unread' };
 }
