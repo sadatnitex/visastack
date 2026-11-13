@@ -76,8 +76,9 @@ export function aboutWords(about: ImpactAbout): ImpactAboutWords {
     case 'AGENCY_REQUEST':
       return {
         kind: 'changeImpact.about.request',
-        name: about.organizationName,
-        nameKey: null,
+        // An agency that is no longer active has no name here; the row says so instead.
+        name: about.organizationName || null,
+        nameKey: about.organizationName ? null : 'changeImpact.about.agencyNotActive',
         forCase: about.caseTitle,
       };
     case 'SHARE':
@@ -134,6 +135,16 @@ export function impactSentence(
   ): ImpactMessage =>
     date ? { key: withDate, names, date } : { key: withoutDate, names, date: null };
   const sentAt = request?.sentAt;
+  // An agency that is no longer active arrives without a name. The two reasons an answered
+  // checklist can carry have their own sentences that name no agency; any other reason gets one
+  // plain sentence rather than a sentence with a gap where the name belongs.
+  const unnamed = request !== null && request.organizationName === '';
+  if (
+    unnamed &&
+    item.reason !== 'AGENCY_HOLDS_CURRENT' &&
+    item.reason !== 'CHECKLIST_ANSWER_HOLDS_EARLIER'
+  )
+    return plain('changeImpact.reason.agencyNotNamed');
 
   switch (item.reason) {
     case 'LIVE_CASE_USES_REPLACED_DOCUMENT':
@@ -268,12 +279,59 @@ export function impactSentence(
     case 'SHARE_ALREADY_COVERS':
       return plain('changeImpact.reason.shareAlreadyCovers');
     case 'AGENCY_HOLDS_CURRENT':
-      if (preview) return plain('changeImpact.reason.agencyHoldsCurrent.documentPreview');
+      if (preview)
+        return plain(
+          unnamed
+            ? 'changeImpact.reason.agencyHoldsCurrent.documentPreviewNoAgency'
+            : 'changeImpact.reason.agencyHoldsCurrent.documentPreview',
+        );
+      if (document)
+        return plain(
+          unnamed
+            ? 'changeImpact.reason.agencyHoldsCurrent.documentNoAgency'
+            : 'changeImpact.reason.agencyHoldsCurrent.document',
+        );
       return plain(
-        document
-          ? 'changeImpact.reason.agencyHoldsCurrent.document'
+        unnamed
+          ? 'changeImpact.reason.agencyHoldsCurrent.detailNoAgency'
           : 'changeImpact.reason.agencyHoldsCurrent.detail',
       );
+    case 'CHECKLIST_ANSWER_HOLDS_EARLIER':
+      if (preview)
+        return unnamed
+          ? dated(
+              sentAt,
+              'changeImpact.reason.checklistAnswer.documentPreviewNoAgency',
+              'changeImpact.reason.checklistAnswer.documentPreviewNoAgencyNoDate',
+            )
+          : dated(
+              sentAt,
+              'changeImpact.reason.checklistAnswer.documentPreview',
+              'changeImpact.reason.checklistAnswer.documentPreviewNoDate',
+            );
+      if (document)
+        return unnamed
+          ? dated(
+              sentAt,
+              'changeImpact.reason.checklistAnswer.documentNoAgency',
+              'changeImpact.reason.checklistAnswer.documentNoAgencyNoDate',
+            )
+          : dated(
+              sentAt,
+              'changeImpact.reason.checklistAnswer.document',
+              'changeImpact.reason.checklistAnswer.documentNoDate',
+            );
+      return unnamed
+        ? dated(
+            sentAt,
+            'changeImpact.reason.checklistAnswer.detailNoAgency',
+            'changeImpact.reason.checklistAnswer.detailNoAgencyNoDate',
+          )
+        : dated(
+            sentAt,
+            'changeImpact.reason.checklistAnswer.detail',
+            'changeImpact.reason.checklistAnswer.detailNoDate',
+          );
   }
 }
 
@@ -347,13 +405,20 @@ export function stepLink(item: ImpactItem, applicantId: string): ImpactStepLink 
   }
 }
 
-/** The address of the full review for one change. */
+/**
+ * The address of the full review for one change. Every link to the page is built here (the
+ * documents list, the replace flow, the saved-detail notice, a sent answer whose detail changed),
+ * so the address is written once, as a destination the route check can read.
+ */
 export function changeImpactHref(
   applicantId: string,
   subject: Pick<ImpactSubject, 'kind'> & { readonly id: string },
 ): string {
   const name = subject.kind === 'DOCUMENT' ? 'document' : 'detail';
-  return `/app/applicant/${encodeURIComponent(applicantId)}/change-impact?${name}=${encodeURIComponent(subject.id)}`;
+  const page = {
+    href: `/app/applicant/${encodeURIComponent(applicantId)}/change-impact?${name}=${encodeURIComponent(subject.id)}`,
+  };
+  return page.href;
 }
 
 /** The id the review of a change is addressed by: the document's or the detail's. */

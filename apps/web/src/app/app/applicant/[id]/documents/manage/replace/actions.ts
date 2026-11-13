@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  type ChangeImpact,
   REPLACE_REFUSALS,
   type ReplacementStatus,
   accountPrincipal,
@@ -8,6 +9,7 @@ import {
   replaceDocument,
   requireAccess,
 } from '@visastack/services';
+import { readDocumentChangeImpact } from '../../../../../../../lib/change-impact-read';
 import { documentTypeLabel } from '../../../../../../../lib/labels';
 import { withSession } from '../../../../../../../lib/session';
 import { pdfUploadsAccepted } from '../../../../../../../lib/upload-preflight';
@@ -38,7 +40,15 @@ export type ReplaceOptionsResult =
   | { readonly ok: false; readonly message: string };
 
 export type ReplaceResult =
-  | { readonly ok: true; readonly message: string }
+  | {
+      readonly ok: true;
+      readonly message: string;
+      /**
+       * What the recorded replacement affects, read after it was saved. Null when that could not
+       * be read: the replacement itself is done either way.
+       */
+      readonly impact: ChangeImpact | null;
+    }
   | { readonly ok: false; readonly message: string };
 
 const NOT_ALLOWED = 'You can replace only your own documents.';
@@ -131,13 +141,34 @@ export async function replaceDocumentAction(
   oldDocumentId: string,
   newDocumentId: string,
 ): Promise<ReplaceResult> {
-  return withSession(async ({ db, accountId }): Promise<ReplaceResult> => {
-    const access = await manageProof(db, accountId, applicantId, oldDocumentId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
-    const replaced = await replaceDocument(access, { oldDocumentId, newDocumentId });
-    if (!replaced.ok) {
-      return { ok: false, message: refusalMessage(replaced.error.code, replaced.error.message) };
-    }
-    return { ok: true, message: replacedMessage(replaced.value.cases.length) };
-  });
+  const result = await withSession(
+    async ({ db, accountId }): Promise<{ readonly ok: boolean; readonly message: string }> => {
+      const access = await manageProof(db, accountId, applicantId, oldDocumentId);
+      if (!access) return { ok: false, message: NOT_ALLOWED };
+      const replaced = await replaceDocument(access, { oldDocumentId, newDocumentId });
+      if (!replaced.ok) {
+        return { ok: false, message: refusalMessage(replaced.error.code, replaced.error.message) };
+      }
+      return { ok: true, message: replacedMessage(replaced.value.cases.length) };
+    },
+  );
+  if (!result.ok) return { ok: false, message: result.message };
+  // Read only now, after the replacement is saved, and through its own access check. A read that
+  // fails or is refused changes nothing about the replacement: the review is simply not shown.
+  const read = await readDocumentChangeImpact(applicantId, oldDocumentId);
+  return { ok: true, message: result.message, impact: typeof read === 'string' ? null : read };
+}
+
+/**
+ * What replacing `documentId` with `newDocumentId` would affect, before anything is recorded.
+ * Null when it could not be read or was refused: the flow then shows its plain list of cases, and
+ * the replacement stays possible.
+ */
+export async function previewReplaceImpactAction(
+  applicantId: string,
+  documentId: string,
+  newDocumentId: string,
+): Promise<ChangeImpact | null> {
+  const read = await readDocumentChangeImpact(applicantId, documentId, newDocumentId);
+  return typeof read === 'string' ? null : read;
 }

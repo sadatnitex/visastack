@@ -1,15 +1,21 @@
 'use client';
+import type { ChangeImpact } from '@visastack/services';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useLocale, useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
+import { changeImpactCatalog } from '../../../../../../../i18n/change-impact';
 import { formatTimestampDate } from '../../../../../../../lib/format-date';
 import { acceptAttribute } from '../../../../../../../lib/upload-rules';
 import { uploadDocumentAction } from '../../../actions';
+import { ChangeImpactReview } from '../../../change-impact/change-impact-review';
+import { changeImpactHref } from '../../../change-impact/impact-words';
 import type { ManageActionProps } from '../registry';
 import {
   type ReplaceCandidateView,
   type ReplaceOptionsResult,
+  previewReplaceImpactAction,
   replaceDocumentAction,
   replaceOptionsAction,
 } from './actions';
@@ -29,9 +35,17 @@ const STATUS_WORDS: Record<ReplaceCandidateView['status'], string> = {
 };
 
 /**
+ * What the confirm step knows about what the replacement would affect: still being worked out,
+ * the review itself, or not available this time (the plain list of cases is shown instead).
+ */
+type Preview = 'loading' | 'unavailable' | ChangeImpact;
+
+/**
  * Replace with a Newer Document (lane LC-B), opened from the Manage menu or a reminder's
  * "Replace It" link. Three steps: choose the newer document (one already kept, or add it now),
- * confirm with the cases that will be updated named, then the result line. Focus moves to each
+ * confirm with What This Change Affects shown for that choice, then the result line with the
+ * same review as recorded. The review only informs: if it cannot be read, the cases that will be
+ * updated are named as before and the replacement stays possible. Focus moves to each
  * step's heading so a keyboard or screen reader user always knows where they are. Buttons stay
  * focusable while work runs (aria-disabled), so focus is never lost.
  */
@@ -42,6 +56,7 @@ export function ReplaceAction({
   onClose,
 }: ManageActionProps) {
   const t = useT(appApplicantCatalog);
+  const impactT = useT(changeImpactCatalog);
   const locale = useLocale();
   const router = useRouter();
   const [options, setOptions] = useState<Options | null>(null);
@@ -51,6 +66,10 @@ export function ReplaceAction({
   const [busy, setBusy] = useState(false);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Preview>('loading');
+  const [recorded, setRecorded] = useState<ChangeImpact | null>(null);
+  /** The newer document the latest preview was asked for, so a slow answer for another is dropped. */
+  const previewFor = useRef<string | null>(null);
   const [rechecks, setRechecks] = useState(0);
   const [stillChecking, setStillChecking] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -61,6 +80,7 @@ export function ReplaceAction({
   const choiceHintId = useId();
   const fileId = useId();
   const fileHintId = useId();
+  const impactId = useId();
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +146,25 @@ export function ReplaceAction({
   );
   const checking = options?.candidates.some((c) => c.status === 'CHECKING') ?? false;
 
+  /** Asks what replacing with `newDocumentId` would affect. Never blocks the Replace button. */
+  function loadPreview(newDocumentId: string) {
+    previewFor.current = newDocumentId;
+    setPreview('loading');
+    const settle = (next: Preview) => {
+      if (previewFor.current === newDocumentId) setPreview(next);
+    };
+    void (async () => {
+      try {
+        settle(
+          (await previewReplaceImpactAction(applicantId, documentId, newDocumentId)) ??
+            'unavailable',
+        );
+      } catch {
+        settle('unavailable');
+      }
+    })();
+  }
+
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -172,6 +211,7 @@ export function ReplaceAction({
         return;
       }
       setResult(replaced.message);
+      setRecorded(replaced.impact ?? null);
       goTo('done');
     } catch {
       setProblem('We could not replace it. Check your connection and try again.');
@@ -195,6 +235,26 @@ export function ReplaceAction({
           )}
         </h3>
         <output className="lc-replace-result">{result}</output>
+        {recorded ? (
+          <>
+            <ChangeImpactReview
+              impact={recorded}
+              applicantId={applicantId}
+              t={impactT}
+              locale={locale}
+              titleLevel={4}
+              idPrefix={`${impactId}recorded`}
+            />
+            <Link
+              className="ci-step"
+              href={changeImpactHref(applicantId, { kind: 'DOCUMENT', id: documentId })}
+            >
+              {impactT.node('changeImpact.review.openPage')}
+            </Link>
+          </>
+        ) : (
+          <p className="lc-replace-note">{impactT.node('changeImpact.review.recordedFailed')}</p>
+        )}
         <div className="lc-replace-actions">
           <button
             type="button"
@@ -224,16 +284,32 @@ export function ReplaceAction({
           )}
         </h3>
         <p>
-          The newer document is <strong>{chosenCandidate.name}</strong>.{' '}
-          {confirmMessage(options.cases.length)}
+          The newer document is <strong>{chosenCandidate.name}</strong>.
+          {preview === 'unavailable' ? <> {confirmMessage(options.cases.length)}</> : null}
         </p>
-        {options.cases.length > 0 ? (
-          <ul className="lc-replace-cases">
-            {options.cases.map((c) => (
-              <li key={c.missionId}>{c.title}</li>
-            ))}
-          </ul>
-        ) : null}
+        {preview === 'loading' ? (
+          <output className="lc-replace-note">{impactT.node('changeImpact.review.loading')}</output>
+        ) : preview === 'unavailable' ? (
+          <>
+            {options.cases.length > 0 ? (
+              <ul className="lc-replace-cases">
+                {options.cases.map((c) => (
+                  <li key={c.missionId}>{c.title}</li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="lc-replace-note">{impactT.node('changeImpact.review.previewFailed')}</p>
+          </>
+        ) : (
+          <ChangeImpactReview
+            impact={preview}
+            applicantId={applicantId}
+            t={impactT}
+            locale={locale}
+            titleLevel={4}
+            idPrefix={`${impactId}preview`}
+          />
+        )}
         <p className="lc-replace-note">
           {t.node(
             'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.theOldDocumentStaysInYour',
@@ -381,7 +457,9 @@ export function ReplaceAction({
               className="btn btn-primary"
               aria-disabled={!chosenCandidate || busy || undefined}
               onClick={() => {
-                if (chosenCandidate && !busy) goTo('confirm');
+                if (!chosenCandidate || busy) return;
+                loadPreview(chosenCandidate.documentId);
+                goTo('confirm');
               }}
             >
               {t.node('appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.continue')}

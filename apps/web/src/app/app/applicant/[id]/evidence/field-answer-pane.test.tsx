@@ -128,6 +128,27 @@ describe('what you sent, on a detail request', () => {
     expect(sent()).not.toContain('+8801700000999');
   });
 
+  it('links to what that change affects, once, and only when the detail has changed', async () => {
+    const link = () =>
+      [...host.querySelectorAll('[data-testid=field-answer-sent] a')].map((a) => [
+        a.textContent,
+        a.getAttribute('href'),
+      ]);
+    const older = round({ submissionId: 's0', roundNo: 0, version: { ...baseVersion, id: 'v0' } });
+    await act(async () => root.render(pane(history(read([older, round()])))));
+    expect(link()).toEqual([
+      ['What This Change Affects', '/app/applicant/a1/change-impact?detail=f1'],
+    ]);
+    const current = round({ version: { ...baseVersion, stillCurrent: true } });
+    await act(async () => root.render(pane(history(read([current])))));
+    expect(link()).toEqual([]);
+    // No detail named on the request: no address to offer, so no link.
+    await act(async () =>
+      root.render(pane(history(read([round()])), request({ respondingFactId: null }))),
+    );
+    expect(link()).toEqual([]);
+  });
+
   it('does not say it changed when the version sent is still the current one', async () => {
     const current = round({
       version: { ...baseVersion, stillCurrent: true },

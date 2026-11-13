@@ -151,3 +151,18 @@ deployed. No migration.
 Trust rules now run as tests (`packages/services/src/trust-rules/`). Four findings in existing
 behaviour wait for the owner's decision: `docs/product/breakthrough/REPORT.md`, section 6. Not
 verified: a signed-in browser run of the new step (staging has no accounts).
+
+## Update, 2026-11-13: What This Change Affects
+
+On branch `claude/candidate-b-impact-experience`; live only after the lead's full check, the
+owner's merge word and a deployment. No migration.
+
+| Area | What a traveller can do now | What stays protected |
+|---|---|---|
+| Replace with a Newer Document | Before replacing, read what the replacement will mean for open cases, for copies already sent to agencies, for sharing and for finished cases; read the same list again once it is recorded | The list only informs. Nothing is sent, shared or changed from it; the old document stays, marked Replaced; a copy an agency holds is never swapped |
+| Saving a detail | Under the saved line, a short notice when the change needs a look, with a link to the full list; nothing at all when it affects nothing | A saved detail is never reported as a problem because the list could not be worked out |
+| Documents, Requests from Agencies | Open the list again beside a replaced document, and beside a sent answer whose detail changed since | Only the record's own traveller can read it; anyone else gets the ordinary not-found |
+
+Not verified: the signed-in journey on production (the owner's click script is
+`docs/operations/acceptance/what-this-change-affects-click-script.md`). The wording is English
+only for now, also for a reader who chose Bangla.

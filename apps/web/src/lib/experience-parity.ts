@@ -84,6 +84,12 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
     '/evidence/answer',
   ),
   '/app/applicant/[id]/calendar': link('app/app/(home)/page.tsx', '/calendar`'),
+  // Reached from the change itself: beside a replaced document's Replaced label (and from the
+  // replace flow, the saved-detail notice and a sent answer whose detail changed since).
+  '/app/applicant/[id]/change-impact': link(
+    'app/app/applicant/[id]/documents/page.tsx',
+    "changeImpactHref(id, { kind: 'DOCUMENT', id: doc.id })",
+  ),
   '/app/applicant/[id]/insights': link(
     'app/app/applicant/[id]/documents/page.tsx',
     '/app/applicant/${id}/insights',

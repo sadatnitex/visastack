@@ -16,10 +16,12 @@ import { RequestThread } from '../../../../../components/request-thread/request-
 import { buildThread } from '../../../../../components/request-thread/thread-model';
 import { StatusPill } from '../../../../../components/ui-lift';
 import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
+import { type ChangeImpactKey, changeImpactCatalog } from '../../../../../i18n/change-impact';
 import { evidenceAnswerCatalog } from '../../../../../i18n/evidence-answer';
 import { formatDateOnly } from '../../../../../lib/format-date';
 import { getServerT } from '../../../../../lib/i18n-server';
 import { formatMoment } from '../../../../../lib/save-status';
+import { changeImpactHref } from '../change-impact/impact-words';
 import { AnswerReceipt } from './answer-receipt';
 import { AskAboutItemForm } from './ask-about-item-form';
 import type { ChoiceBasis } from './choice-basis';
@@ -103,7 +105,12 @@ function FieldAnswerSent({
   read,
   answerT,
   timeZone,
+  impactHref,
+  impactT,
 }: {
+  /** The review of this detail's latest change, when the request names the detail it answers with. */
+  readonly impactHref: string | null;
+  readonly impactT: ReturnType<typeof getServerT<ChangeImpactKey>>;
   readonly read: RequestHistory['fieldAnswer'];
   readonly answerT: ReturnType<
     typeof getServerT<keyof (typeof evidenceAnswerCatalog)['en'] & string>
@@ -120,6 +127,8 @@ function FieldAnswerSent({
   }
   const rounds = [...read.value.rounds].reverse().slice(0, 3);
   if (rounds.length === 0) return null;
+  // One link is enough: it goes on the newest answer whose detail has changed since.
+  const changedRound = rounds.find((round) => round.version && !round.version.stillCurrent);
   const stateWord = (state: (typeof rounds)[number]['state']) =>
     state === 'ACCEPTED'
       ? answerT.node('evidenceAnswer.fieldAnswer.accepted')
@@ -154,6 +163,14 @@ function FieldAnswerSent({
                 {round.version.stillCurrent ? null : (
                   <> {answerT.node('evidenceAnswer.fieldAnswer.changedSince')}</>
                 )}
+                {impactHref && round === changedRound ? (
+                  <>
+                    {' '}
+                    <Link className="ci-step" href={impactHref}>
+                      {impactT.node('changeImpact.review.title')}
+                    </Link>
+                  </>
+                ) : null}
               </span>
             ) : (
               <span>{answerT.node('evidenceAnswer.fieldAnswer.legacy')}</span>
@@ -307,7 +324,17 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
       ) : null}
       <RequestThread thread={thread} viewer="traveller" timeZone={timeZone} />
       {req.kind === 'FIELD' && history ? (
-        <FieldAnswerSent read={history.fieldAnswer} answerT={answerT} timeZone={timeZone} />
+        <FieldAnswerSent
+          read={history.fieldAnswer}
+          answerT={answerT}
+          timeZone={timeZone}
+          impactT={getServerT(changeImpactCatalog)}
+          impactHref={
+            req.respondingFactId
+              ? changeImpactHref(id, { kind: 'DETAIL', id: req.respondingFactId })
+              : null
+          }
+        />
       ) : null}
       {awaitingReply && req.kind === 'DOCUMENT' && sentBackNote ? (
         <p className="case-row-meta" data-testid="sent-back-note">

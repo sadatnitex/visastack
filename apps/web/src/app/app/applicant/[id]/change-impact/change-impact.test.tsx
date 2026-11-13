@@ -21,6 +21,9 @@ import {
   AGENCY_B,
   ALL_REVIEWS,
   APPLICANT_ID,
+  CHECKLIST_DETAIL,
+  CHECKLIST_DOCUMENT_PREVIEW,
+  CHECKLIST_DOCUMENT_RECORDED,
   DECIDED,
   DETAIL_INCOMPLETE,
   DETAIL_RECORDED,
@@ -269,10 +272,60 @@ describe('each reason has its own sentence and the right link', () => {
     );
   });
 
+  it('words an answered checklist, with and without the name of its agency', () => {
+    const lines = (impact: ChangeImpact) =>
+      [...dom(html(impact)).querySelectorAll('.ci-why')].map(words);
+    const stands = 'Your Answers shows where that answer stands.';
+    expect(lines(CHECKLIST_DOCUMENT_RECORDED)).toEqual([
+      `Your answer to ${AGENCY_A}'s checklist on ${SENT_DAY} holds the earlier copy. The newer one was not sent. ${stands}`,
+      `Your answer to an agency's checklist holds the earlier copy. The newer one was not sent. ${stands}`,
+      'You already sent an agency the current copy.',
+    ]);
+    expect(lines(CHECKLIST_DOCUMENT_PREVIEW)).toEqual([
+      `Your answer to ${AGENCY_A}'s checklist on ${SENT_DAY} holds this copy. A newer document would not be sent to them. ${stands}`,
+      `Your answer to an agency's checklist holds this copy. A newer document would not be sent to them. ${stands}`,
+      'You already sent an agency the newer copy.',
+    ]);
+    expect(lines(CHECKLIST_DETAIL)).toEqual([
+      `Your answer to ${AGENCY_A}'s checklist on ${SENT_DAY} holds the earlier value. The new value was not sent. ${stands}`,
+      `Your answer to an agency's checklist holds the earlier value. The new value was not sent. ${stands}`,
+      'You already sent an agency the current value.',
+    ]);
+    const host = dom(html(CHECKLIST_DOCUMENT_RECORDED));
+    // It sits under We Cannot Tell and opens Your Answers; the settled one offers nothing.
+    const unknown = host.querySelector('[data-outcome="UNKNOWN"]');
+    expect(
+      [...(unknown?.querySelectorAll('a') ?? [])].map((a) => [words(a), a.getAttribute('href')]),
+    ).toEqual([
+      ['Open Your Answers', '/collect/account/answers'],
+      ['Open Your Answers', '/collect/account/answers'],
+    ]);
+    expect([...host.querySelectorAll('.ci-about')].map(words)).toEqual([
+      `Agency ${AGENCY_A}`,
+      'Agency No Longer Active',
+      'Agency No Longer Active',
+    ]);
+    expect(host.querySelectorAll('a')).toHaveLength(2);
+  });
+
+  it('never leaves a gap where an agency has no name, whatever the reason', () => {
+    const unnamed = review(DETAIL_SUBJECT, 'RECORDED', [
+      item('AGENCY_CHECKING_EARLIER', request({ organizationName: '' })),
+      item('SENT_BEFORE_EXACT_VERSIONS', request({ requestId: 'r-2', organizationName: '' })),
+    ]);
+    const lines = [...dom(html(unnamed)).querySelectorAll('.ci-why')].map(words);
+    expect(new Set(lines)).toEqual(
+      new Set([
+        'This change relates to something you sent to an agency that is no longer active here. This change sends them nothing.',
+      ]),
+    );
+    expect(lines).toHaveLength(2);
+  });
+
   it('leaves no unfilled slot, in any review', () => {
     for (const [name, impact] of Object.entries(ALL_REVIEWS)) {
       const text = words(dom(html(impact)));
-      expect(text, name).not.toMatch(/[{}]|undefined|null|Invalid Date| on \.| on ,/);
+      expect(text, name).not.toMatch(/[{}]|undefined|null|Invalid Date| on \.| on ,| {2}| 's /);
     }
   });
 
@@ -460,11 +513,11 @@ describe('honest wording', () => {
 
   it('writes every name in Title Case and keeps sentences as sentences', () => {
     const names = Object.entries(changeImpactCatalog.en).filter(([key]) =>
-      /^changeImpact\.(about\.(?!forCase)|section\.|step\.|notice\.(title|link)|review\.title|view\.(failedTitle|tryAgain))/.test(
+      /^changeImpact\.(about\.(?!forCase)|section\.|step\.|page\.|notice\.(title|link)|review\.(title|openPage)|view\.(failedTitle|tryAgain))/.test(
         key,
       ),
     );
-    expect(names.length).toBe(22);
+    expect(names.length).toBe(26);
     for (const [key, text] of names) expect(isTitleCase(text), `${key}: ${text}`).toBe(true);
   });
 });

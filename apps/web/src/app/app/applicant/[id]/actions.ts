@@ -62,6 +62,7 @@ import {
   resolveAiInconsistencyChecker,
   resolveOcrAdapter,
 } from '../../../../lib/ai';
+import { readDetailChangeImpact } from '../../../../lib/change-impact-read';
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import {
   FLAG_HIDDEN_LINE,
@@ -96,6 +97,7 @@ import {
   runAutomaticReading,
   triggerIntakeAndReading,
 } from '../../../api/jobs/process-ai-reading/run';
+import { type ChangeImpactSummary, changeImpactSummary } from './change-impact/impact-words';
 
 /**
  * UMPE G4: after a kind is decided, the fresh reading queued for the file runs now, in a small pass
@@ -113,6 +115,11 @@ export interface ActionState {
   readonly message: string;
   /** The input a problem is about, when the action knows (the form marks it invalid and moves focus to it). */
   readonly field?: string;
+  /**
+   * After a saved detail: what that change affects, when it affects something the person should
+   * look at. Absent for a quiet change, and when it could not be worked out.
+   */
+  readonly changeImpact?: ChangeImpactSummary;
   /** An added document's title ("Passport, Nazmus"), for an upload list to show. */
   readonly title?: string;
   /** The added document's id, so the page after an upload can follow that file by itself. */
@@ -177,6 +184,23 @@ async function assertOwned(db: Db, accountId: string, applicantId: string): Prom
   return applicant?.ownerAccountId === accountId;
 }
 
+/**
+ * Adds What This Change Affects to the result of a save that has already been committed. It is a
+ * separate read with its own access check, made only after the save's own work has returned, and
+ * it can only add to a success: a quiet change, a refusal or a failed read leaves the result
+ * exactly as it was, so a saved detail is never reported as a problem because of this.
+ */
+async function withChangeImpact(
+  saved: ActionState,
+  applicantId: string,
+  factId: string | undefined,
+): Promise<ActionState> {
+  if (!saved.ok || !factId) return saved;
+  const read = await readDetailChangeImpact(applicantId, factId);
+  const summary = typeof read === 'string' ? null : changeImpactSummary(read, applicantId);
+  return summary ? { ...saved, changeImpact: summary } : saved;
+}
+
 /** Save a Master Profile fact (append-only immutable version). */
 export async function saveFactAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
@@ -201,6 +225,7 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
     effectiveFrom = parsed;
   }
 
+  let savedFactId: string | undefined;
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
@@ -219,11 +244,12 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
     if (!edit.ok) {
       return { ok: false, message: await serviceErrorMessage(edit.error) } satisfies ActionState;
     }
+    savedFactId = edit.value.version.factId;
     return { ok: true, message: detailSavedLine(def.label) } satisfies ActionState;
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
-  return result;
+  return withChangeImpact(result, applicantId, savedFactId);
 }
 
 /** The answer to a repeat of an upload that already produced its document (UMPE P3). */
@@ -1378,6 +1404,7 @@ export async function decideProposalAction(
     effectiveFrom = parsed;
   }
 
+  let savedFactId: string | undefined;
   const result = await withSession(async ({ db, accountId }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
@@ -1420,6 +1447,7 @@ export async function decideProposalAction(
         message: await refusalText(approved.error, SUGGESTION_HIDDEN_LINE),
       } satisfies ActionState;
     }
+    savedFactId = approved.value.version.factId;
     return {
       ok: true,
       message:
@@ -1432,7 +1460,7 @@ export async function decideProposalAction(
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
-  return result;
+  return withChangeImpact(result, applicantId, savedFactId);
 }
 
 /** "Accept all clear details" for one document; the service checks every rule again. */

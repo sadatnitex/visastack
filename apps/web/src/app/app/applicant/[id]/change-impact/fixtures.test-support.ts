@@ -230,7 +230,45 @@ export const DOCUMENT_UNDATED = review({ ...DOCUMENT_SUBJECT, replacement: null 
   item('SENT_BEFORE_EXACT_VERSIONS', request({ requestId: 'r-7', sentAt: null })),
 ]);
 
+/** An answered checklist: listed with the person's answers, and its agency may no longer be named. */
+const checklist = (over: Parameters<typeof request>[0] = {}) =>
+  request({
+    source: 'COLLECTION_RESPONSE',
+    requestId: 'a-1',
+    missionId: null,
+    caseTitle: null,
+    ...over,
+  });
+
+const CHECKLIST_ITEMS: readonly ImpactItem[] = [
+  item(
+    'CHECKLIST_ANSWER_HOLDS_EARLIER',
+    checklist(),
+    { kind: 'OPEN_REQUEST', requestId: 'a-1' },
+    'response:a-1',
+  ),
+  item(
+    'CHECKLIST_ANSWER_HOLDS_EARLIER',
+    checklist({ requestId: 'a-2', organizationName: '', sentAt: null }),
+    { kind: 'OPEN_REQUEST', requestId: 'a-2' },
+    'response:a-2',
+  ),
+  item(
+    'AGENCY_HOLDS_CURRENT',
+    checklist({ requestId: 'a-3', organizationName: '' }),
+    null,
+    'response:a-3',
+  ),
+];
+
+export const CHECKLIST_DOCUMENT_RECORDED = review(DOCUMENT_SUBJECT, 'RECORDED', CHECKLIST_ITEMS);
+export const CHECKLIST_DOCUMENT_PREVIEW = review(DOCUMENT_SUBJECT, 'PREVIEW', CHECKLIST_ITEMS);
+export const CHECKLIST_DETAIL = review(DETAIL_SUBJECT, 'RECORDED', CHECKLIST_ITEMS);
+
 export const ALL_REVIEWS = {
+  CHECKLIST_DOCUMENT_RECORDED,
+  CHECKLIST_DOCUMENT_PREVIEW,
+  CHECKLIST_DETAIL,
   DOCUMENT_RECORDED,
   DOCUMENT_PREVIEW,
   DETAIL_RECORDED,

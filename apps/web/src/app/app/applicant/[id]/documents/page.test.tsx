@@ -381,6 +381,28 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
     expect(textOf(html)).toContain('Preview is blocked');
     expect(html).not.toContain('>Preview</button>');
   });
+  it('links a replaced document, beside its Replaced label, to what that change affects', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('old', 'APPROVED'), doc('new', 'APPROVED')],
+    });
+    mocks.getWalletView.mockResolvedValue({
+      ok: true,
+      value: [
+        { document: { id: 'old' }, status: 'SUPERSEDED', usedInMissions: [], accessibleTo: [] },
+        { document: { id: 'new' }, status: 'CURRENT', usedInMissions: [], accessibleTo: [] },
+      ],
+    });
+    const html = await render('old');
+    const links = [
+      ...html.matchAll(/<a[^>]*href="([^"]*change-impact[^"]*)"[^>]*>(?:<[^>]*>)*([^<]*)/g),
+    ].map((match) => [match[1], match[2]]);
+    // Only the replaced document offers it; a current one has no such change to explain.
+    expect(links).toEqual([
+      ['/app/applicant/a1/change-impact?document=old', 'What This Change Affects'],
+    ]);
+    expect(html).toMatch(/Replaced<\/span><a[^>]*class="ci-step"/);
+  });
   it('does not substitute an owned file for an unavailable explicit selection', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('owned', 'APPROVED')] });
     const html = await render('foreign-or-removed');

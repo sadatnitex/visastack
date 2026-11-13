@@ -7,6 +7,7 @@ import { FormMessage, SubmitButton } from '../../../../components/form-feedback'
 import { useT } from '../../../../components/i18n-provider';
 import { StatusBadge } from '../../../../components/ui';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
+import { changeImpactCatalog } from '../../../../i18n/change-impact';
 import { humanizeFieldKey } from '../../../../lib/field-key-label';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
@@ -20,6 +21,7 @@ import {
   runClassificationAction,
   runInconsistencyCheckAction,
 } from './actions';
+import { ChangeImpactNotice } from './change-impact/change-impact-notice';
 import { ReadingSourceNote } from './reading-status';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -457,6 +459,7 @@ export function DocumentFindings({
   readonly canApprove: boolean;
 }) {
   const t = useT(appApplicantCatalog);
+  const impactT = useT(changeImpactCatalog);
   // The latest outcome, kept here: a card disappears once decided, and its message with it.
   const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
   const [edited, setEdited] = useState<ReadonlySet<string>>(new Set());
@@ -481,6 +484,7 @@ export function DocumentFindings({
     return lastResult === INITIAL ? null : (
       <div className="document-findings">
         <FormMessage result={lastResult} />
+        <ChangeImpactNotice summary={lastResult.changeImpact} t={impactT} />
       </div>
     );
   }
@@ -524,6 +528,7 @@ export function DocumentFindings({
         </form>
       ) : null}
       <FormMessage result={lastResult} />
+      <ChangeImpactNotice summary={lastResult.changeImpact} t={impactT} />
       {ordered.map((proposal) => (
         <AiProposalReview
           key={proposal.id}
