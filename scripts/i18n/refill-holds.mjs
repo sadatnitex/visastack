@@ -689,4 +689,44 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'componentsShare.shareWhatsappShare.moreWaysToSend',
     'Left English at review (refill 4): Shares one row with the English Send on WhatsApp link.',
   ],
+  [
+    'appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind',
+    'Left English at review (refill 7): A Bengali first option in a list of English document kinds.',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentUploader.notAdded',
+    'Left English at review (refill 7): Joined in one line to the reason the upload gives, which is English, and its pair Not Confirmed has no Bengali.',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf',
+    'Left English at review (refill 7): Names the Change button in quotes, but that button still shows the English Change (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable',
+    'Left English at review (refill 7): The document title is filled in as English, as in the expired-on-arrival line beside it.',
+  ],
+  [
+    'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections8284e6',
+    'Left English at review (refill 7): Filled into the English progress meter name "{value} of {max} {label}", which would mix languages.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.whereThisCameFrom',
+    'Left English at review (refill 7): Its spoken name "Where this came from: the document for {label}" is held English, so the visible text and the name would differ.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent',
+    'Left English at review (refill 7): Names the No Longer Current button, which is still English.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.chooseWhetherToSaveYourProfile',
+    'Left English at review (refill 7): Title of the consent empty state, whose Review Permissions action is English.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.reviewPermissions',
+    'Left English at review (refill 7): Shown in the same consent state as the English Review Permissions action, so one action would show in two languages.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy',
+    'Left English at review (refill 7): Quotes the consent setting Let VisaStack Process My Details, which stays English on Home.',
+  ],
 ]);

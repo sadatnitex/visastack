@@ -45,6 +45,7 @@ export const appSharedCatalog = defineCatalog({
     'appShared.appSharedGrantidPage.otherDocumentsCannotBePreviewedHere':
       'অন্যান্য ডকুমেন্টের প্রিভিউ এখানে এখনো দেখা যায় না। এই তালিকায় দেখা যায় আপনার অ্যাক্সেস কোন কোন ডকুমেন্ট কভার করে। নিরাপদ কপিসহ শেয়ার করা পাসপোর্ট ছবি উপরে ভিসা আবেদনের মাপে ঠিক করা যায়।',
     'appShared.appSharedGrantidPage.profile': 'প্রোফাইল',
+    'appShared.appSharedGrantidPage.safeCopiesAreNotAvailableHere': 'নিরাপদ কপি এখানে এখনো পাওয়া যায় না।',
     'appShared.appSharedGrantidPage.safeCopyNotAvailableForThis':
       'এই ডকুমেন্টের জন্য নিরাপদ কপি পাওয়া যাচ্ছে না',
     'appShared.appSharedGrantidPage.safeCopyNotPreparedYet': 'নিরাপদ কপি: এখনো তৈরি হয়নি',

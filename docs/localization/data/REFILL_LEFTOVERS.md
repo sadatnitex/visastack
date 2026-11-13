@@ -342,3 +342,20 @@ Refill 4 filled 64 keys of the shared components (components, components-lifecyc
 These have a passing draft and no content reason to stay English. No test renders their state under Bengali yet (rule 15), so the next refill fills them together with those tests.
 
 `components.activityLog.clearFilters`, `components.activityLog.nothingMatchesTheseFilters`, `components.capturePreview.thisDeviceCannotShowThePhoto`, `components.countryBrowser.clearTheSearchOrChooseAnother`, `components.countryBrowser.noCountriesMatch`, `components.countryBrowser.noCountriesMatche4ae64`, `components.documentReviewPanel.noDocumentsMatchTryAnotherName`, `components.documentReviewPanel.thisDocumentIsNotAvailableTo`, `components.documentReviewPanel.uploadADocumentToReviewIts`, `components.documentWalletBrowser.clearTheSearchOrChooseAnother`, `components.documentWalletBrowser.noDocumentsMatch`, `components.documentWalletBrowser.showAll`, `components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe`, `components.loadingSlowNote.stillLoadingYouCanKeepThis`, `components.purposeChoice.showCommonPurposes`, `components.toast.dismiss`, `components.visaPhotoSizes.makingYourPhoto`, `componentsMore.safeCopyEditor.continuePreparing`, `componentsMore.safeCopyEditor.showThePageAgain`, `componentsMore.safeCopyEditor.youChoseNothingToHideOn`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto`, `componentsPwa.pwaInstallAppCard.installVisastack`, `componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice`, `componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime`, `componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs`, `componentsPwa.pwaPwaRuntime.appUpdate`, `componentsPwa.pwaPwaRuntime.browserTip`, `componentsPwa.pwaPwaRuntime.dismiss`, `componentsPwa.pwaPwaRuntime.later`, `componentsPwa.pwaPwaRuntime.reloadNow`, `componentsPwa.pwaPwaRuntime.reloading`
+
+## Left English at review in refill 7
+
+Refill 7 fills keys of the applicant record screens, each with a test that renders it under Bengali. These have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| app-applicant | `appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind` | A Bengali first option in a list of English document kinds. |
+| app-applicant | `appApplicant.appApplicantIdDocumentUploader.notAdded` | Joined in one line to the reason the upload gives, which is English, and its pair Not Confirmed has no Bengali. |
+| app-applicant | `appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf` | Names the Change button in quotes, but that button still shows the English Change (label in name). |
+| app-applicant | `appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable` | The document title is filled in as English, as in the expired-on-arrival line beside it. |
+| app-applicant | `appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections8284e6` | Filled into the English progress meter name "{value} of {max} {label}", which would mix languages. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.whereThisCameFrom` | Its spoken name "Where this came from: the document for {label}" is held English, so the visible text and the name would differ. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent` | Names the No Longer Current button, which is still English. |
+| app-applicant | `appApplicant.appApplicantIdProfilePage.chooseWhetherToSaveYourProfile` | Title of the consent empty state, whose Review Permissions action is English. |
+| app-applicant | `appApplicant.appApplicantIdProfilePage.reviewPermissions` | Shown in the same consent state as the English Review Permissions action, so one action would show in two languages. |
+| app-applicant | `appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy` | Quotes the consent setting Let VisaStack Process My Details, which stays English on Home. |
