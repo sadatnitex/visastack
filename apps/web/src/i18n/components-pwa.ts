@@ -34,11 +34,22 @@ export const componentsPwaCatalog = defineCatalog({
   bn: {
     'componentsPwa.pwaInstallAppCard.addVisastackToYourHomeScreen':
       'VisaStack আপনার হোম স্ক্রিনে যোগ করুন, অ্যাপের মতো খুলতে পারবেন - এই ওয়েবসাইটের মতোই একই সাইন ইন ও একই রেকর্ড থাকবে।',
+    'componentsPwa.pwaInstallAppCard.installVisastack': 'VisaStack ইনস্টল করুন',
     'componentsPwa.pwaInstallAppCard.installingDoesNotDownloadYourRecords':
       'ইনস্টল করলে আপনার রেকর্ড ডাউনলোড হয় না। আপনার তথ্য ও ডকুমেন্ট VisaStack-এ সুরক্ষিত থাকে এবং শুধু সাইন ইন করার পরই খোলে।',
     'componentsPwa.pwaInstallAppCard.onIphoneOrIpadOpenVisastack':
       'iPhone বা iPad-এ Safari-তে VisaStack খুলুন, "Share" (শেয়ার) চাপুন, তারপর "Add to Home Screen" বেছে নিন। Android-এ ব্রাউজারের মেনু খুলে "Install App" বা "Add to Home Screen" বেছে নিন।',
     'componentsPwa.pwaInstallAppCard.useVisastackOnYourPhone': 'আপনার ফোনে VisaStack ব্যবহার করুন',
+    'componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice':
+      'এই ডিভাইসে VisaStack ইনস্টল করা আছে। হোম স্ক্রিন বা অ্যাপের তালিকা থেকে এটি খুলুন।',
+    'componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime':
+      'এই পাতা থেকে যেকোনো সময় এটি ইনস্টল করতে পারেন।',
+    'componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs':
+      'VisaStack-এর একটি নতুন সংস্করণ প্রস্তুত। আপনি যা লিখছেন বা আপলোড করছেন তা শেষ করুন, তারপর পাতাটি রিলোড করুন।',
+    'componentsPwa.pwaPwaRuntime.appUpdate': 'অ্যাপ আপডেট',
+    'componentsPwa.pwaPwaRuntime.later': 'পরে',
+    'componentsPwa.pwaPwaRuntime.reloadNow': 'এখনই আবার লোড করুন',
+    'componentsPwa.pwaPwaRuntime.reloading': 'আবার লোড হচ্ছে',
     'componentsPwa.pwaPwaRuntime.youAreBackOnline': 'আপনি আবার অনলাইনে ফিরেছেন।',
     'componentsPwa.pwaPwaRuntime.youAreOfflineReconnectToContinue':
       'আপনি অফলাইনে আছেন। নিরাপদে চালিয়ে যেতে আবার সংযুক্ত হন। এখনও পাঠানো হয়নি এমন কিছু সংরক্ষণ করা হয়নি।',
