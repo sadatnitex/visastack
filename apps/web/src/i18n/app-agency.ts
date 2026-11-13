@@ -838,7 +838,7 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidClientsPage.askATravellerForASpecific':
       'কোনো ভ্রমণকারীর কাছে নির্দিষ্ট তথ্য বা ডকুমেন্ট চান। সেটি দেবেন কি না, তা তিনি নিজে ঠিক করেন।',
     'appAgency.appAgencyOrgidClientsPage.cannotBeAcceptedRevokeAndInvite':
-      'গ্রহণ করা যাবে না &middot; প্রত্যাহার করে ইমেইলে আবার আমন্ত্রণ জানান',
+      'গ্রহণ করা যাবে না · প্রত্যাহার করে ইমেইলে আবার আমন্ত্রণ জানান',
     'appAgency.appAgencyOrgidClientsPage.clients': 'ক্লায়েন্ট',
     'appAgency.appAgencyOrgidClientsPage.collect': 'সংগ্রহ',
     'appAgency.appAgencyOrgidClientsPage.evidenceRequests': 'প্রমাণের অনুরোধ',

@@ -163,6 +163,8 @@ describe('the agency Clients page under Bengali', () => {
     );
     const text = await show('bn');
     expect(text).toContain(bn[k('cannotBeAcceptedRevokeAndInvite')]);
+    expect(bn[k('cannotBeAcceptedRevokeAndInvite')]).toContain('\u00b7');
+    expect(text).not.toContain('&middot;');
     expect(text).not.toContain('Cannot be accepted');
   });
 

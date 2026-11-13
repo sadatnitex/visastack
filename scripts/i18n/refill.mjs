@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { catalogRel, readCatalog, readSources, renderCatalog, sourcesRel } from './catalog.mjs';
+import { decodeEntities } from './jsx-text.mjs';
 import { Register } from './register.mjs';
 
 /** Surfaces that have a catalogue and a sources map. */
@@ -47,7 +48,10 @@ export function refillBengali({ root, register, surfaces, groups, dryRun = false
       if (bn[key] !== undefined) continue;
       const r = reg.resolveGroup(group, catalog.en[key]);
       if (!r.bn) continue;
-      bn[key] = r.bn;
+      // The register keeps the Bengali as written in the source (HTML entities included); the
+      // catalogue holds the text people read, the same decoding the codemod applies to the English.
+      const decoded = decodeEntities(r.bn);
+      bn[key] = decoded.text ?? r.bn;
       filled.push(key);
     }
     out.push({ surface, filled });

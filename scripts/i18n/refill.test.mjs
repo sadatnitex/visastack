@@ -64,4 +64,15 @@ describe('refillBengali', () => {
     refillBengali({ root: dir, register: reg, dryRun: true });
     assert.deepEqual(readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn, {});
   });
+
+  test('decodes HTML entities in the register Bengali, so a catalogue never holds "&middot;"', () => {
+    const entityReg = new Register({
+      registerCsv: `${header}SG-A,PRIVACY_CONSENT_LEGAL,Terms of use,ক &middot; খ &amp; গ,PASS\n`,
+    });
+    const dir = root({});
+    refillBengali({ root: dir, register: entityReg });
+    const value = readCatalog(path.join(dir, 'apps/web/src/i18n/x.ts')).bn['x.terms'];
+    assert.equal(value, 'ক \u00b7 খ & গ');
+    assert.ok(!/&[a-z#0-9]+;/i.test(value));
+  });
 });
