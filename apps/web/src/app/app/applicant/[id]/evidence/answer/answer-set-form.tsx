@@ -252,7 +252,7 @@ export function AnswerSetForm({
       <p className="muted u-fs-085 u-m-0">
         {t.node('evidenceAnswer.form.consentShort', { agency: agencyName })}
       </p>
-      <AboutDisclosure summary={t('evidenceAnswer.form.aboutSending')}>
+      <AboutDisclosure summary={t.node('evidenceAnswer.form.aboutSending')}>
         <p className="muted u-fs-085 u-m-0">{t.node('evidenceAnswer.form.aboutSendingBody')}</p>
       </AboutDisclosure>
     </form>
@@ -306,8 +306,8 @@ function AnswerChoices({
   const overLimit = count > ANSWER_LIMIT;
   const sendLabel =
     count === 0
-      ? t('evidenceAnswer.form.sendNone', { agency: agencyName })
-      : t('evidenceAnswer.form.send', { count, agency: agencyName });
+      ? t.node('evidenceAnswer.form.sendNone', { agency: agencyName })
+      : t.node('evidenceAnswer.form.send', { count, agency: agencyName });
   const toggle = (requestId: string, on: boolean) =>
     setTicked((current) => {
       const next = new Set(current);
@@ -461,7 +461,7 @@ function AnswerChoices({
               );
             })}
           </div>
-          <AboutDisclosure summary={t('evidenceAnswer.form.aboutOther')}>
+          <AboutDisclosure summary={t.node('evidenceAnswer.form.aboutOther')}>
             {otherKinds.map((kind) => {
               const [, long] = OTHER_WORDS[kindOf(kind)];
               return (
@@ -479,7 +479,7 @@ function AnswerChoices({
           pending={pending}
           unavailable={count === 0 || overLimit}
           idle={sendLabel}
-          busy={t('evidenceAnswer.form.sending')}
+          busy={t.node('evidenceAnswer.form.sending')}
           className="btn btn-primary"
         />
       </div>
