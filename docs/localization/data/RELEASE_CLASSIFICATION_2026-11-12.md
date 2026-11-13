@@ -193,3 +193,11 @@ Groups: SG-00c793d5, SG-06f8fd1e, SG-08f0ee22, SG-0926bf14, SG-0a178114, SG-0a1e
 - Released groups that are in no catalogue yet were not read; whoever converts them reads them first.
 - A released row with no PASS draft stays English until one exists.
 - A message whose English starts or ends with a space and whose Bengali does not is never filled (the space joins it to the text beside it).
+
+## Added in batch G (2026-11-13): queue released (COMMERCIAL) (49)
+
+Payment and plan screen wording drafted in `drafts/bn-BD.part-G.jsonl`, classified RELEASED on the instruction that payment wording falls under the owner's blanket sign-off of 2026-11-12. Recorded as blanket approval, not as a review: nothing was read line by line by a human. Invoice and receipt record fields (billing history record fields, the invoice card amounts and due lines, the receipt page) were not drafted and stay English. Four groups sit in queue 02 only for the word receipt or currency (an application receipt, a profile field): SG-62b01c28, SG-37bc808a, SG-8d16f1ce, SG-e495beb6.
+
+Counts after batch G: released with a PASS draft 588, released with no PASS draft yet 22, kept in English 112.
+
+Groups: SG-93a158cb, SG-bc96e950, SG-67b08c36, SG-ba15de58, SG-2f6a8d87, SG-a898f718, SG-65bcbe56, SG-ce4f525c, SG-7f126fc0, SG-8bd41bdb, SG-a5ee814c, SG-351d9a16, SG-ba779778, SG-e00914ae, SG-2a67db33, SG-90075396, SG-f7fc29fa, SG-533915db, SG-fc9db6e9, SG-688eac8d, SG-d66c8428, SG-54ac96cb, SG-1c6fc4aa, SG-f91c5c9d, SG-65670957, SG-73bad505, SG-d9899339, SG-840af75a, SG-7c8a23c7, SG-6a6bb0ce, SG-245e79b8, SG-b2ea9a57, SG-4c7a74f9, SG-f4537149, SG-7c2edbb3, SG-6ab89400, SG-f514f7f1, SG-8d8d7094, SG-ad08fe8e, SG-7b35a454, SG-71a195dd, SG-75c7bb49, SG-7b77880f, SG-62b01c28, SG-37bc808a, SG-8d16f1ce, SG-e495beb6, SG-c42deec3, SG-49f4a72c

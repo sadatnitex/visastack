@@ -363,7 +363,6 @@
 {"sg": "SG-bd374099", "bn": "কারণটি সর্বোচ্চ {REASON_MAX} অক্ষরের মধ্যে রাখুন।", "conf": "HIGH", "note": "The service catalogue writes this placeholder as {max}; the wiring step maps the name", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
 {"sg": "SG-2315bb40", "bn": "আপনি সর্বোচ্চ {COMPANION_PAPERS_MAX}টি কাগজ দেখাতে পারেন।", "conf": "HIGH", "note": "The service catalogue writes this placeholder as {max}; the wiring step maps the name", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
 {"sg": "SG-a947cd1a", "bn": "একটি ভ্রমণে সর্বোচ্চ {TRIP_MAX_TRAVELLERS} জন ভ্রমণকারী থাকতে পারেন।", "conf": "HIGH", "note": "The service catalogue writes this placeholder as {max}; the wiring step maps the name", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
-{"sg": "SG-30f26d42", "bn": "পরবর্তী পাতা", "conf": "HIGH", "note": "Pairs with Previous Page = আগের পাতা", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
 {"sg": "SG-9f17e462", "bn": "{pageCount}টির মধ্যে {value} নম্বর পাতা", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
 {"sg": "SG-042f9414", "bn": "{pageCount}টির মধ্যে {value} নম্বর পাতা।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
 {"sg": "SG-2e52b35c", "bn": "{pageCount}টির মধ্যে {value} নম্বর পাতা দেখানো হচ্ছে।", "conf": "HIGH", "note": "", "provenance": "machine_draft (claude-opus-5-5, 2026-11-13), not reviewed"}
