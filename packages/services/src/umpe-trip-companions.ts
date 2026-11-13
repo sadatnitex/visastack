@@ -247,8 +247,7 @@ export async function addCompanion(
   const consent = await consentProblem(db, owner.value);
   if (consent) return err(consent);
   const name = cleanName(input.name);
-  if (name === null)
-    return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
+  if (name === null) return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
   const given = input.email?.trim() ?? '';
   const email = given === '' ? null : cleanEmail(given);
   if (given !== '' && email === null) {
@@ -786,8 +785,7 @@ export async function acceptCompanionInvitation(
     return err(keyedError('invalid', 'umpe_trip_companions.choose_how_much_you_want_to'));
   }
   const name = input.displayName === undefined ? undefined : cleanName(input.displayName);
-  if (name === null)
-    return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
+  if (name === null) return err(keyedError('invalid', COMPANION_NAME_PROBLEM_KEY));
   try {
     return await db.transaction(async (tx) => {
       // The proof is made again inside the transaction: the link must still be this account's.
