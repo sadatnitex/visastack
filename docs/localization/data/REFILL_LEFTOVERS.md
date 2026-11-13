@@ -173,3 +173,35 @@ Values the refill would place (34 in the first refill pull request), left in Eng
 | app-agency | `appAgency.appAgencyOrgidAgencyAiSettingForm.iConfirmThisStatementForOrganizationname` | I Confirm This Statement for {organizationName} | It confirms the English AI statement (`agencyAiStatement` in lib/agency-ai.ts) beside the English Turn On button; the confirmation and what it confirms stay in one language. |
 | app-agency | `appAgency.appAgencyOrgidEvidenceCopies.sendRoundnoTitle` | Send {roundNo}: {title} | The rest of the earlier-send card (status pill, "Sent ... Decided ..." line) is English. |
 | app-countries | `appCountries.appCountriesCountryView.onlyWhenOnlywhen` | Only when: {onlyWhen} | `onlyWhen` is English official visa rule text. |
+
+## Left English at review in refill 4
+
+Refill 4 filled 77 keys of the shared components (components, components-lifecycle, components-more, components-profile-photo, components-pwa, components-share). These 19 have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| components | `components.aiAccessChoices.allCurrentCases` | AI access consent choices: the option and layer labels beside them are English, and the oauth consent page that shows them is held English. |
+| components | `components.aiAccessChoices.cases` | Same. |
+| components | `components.aiAccessChoices.changes` | Same. |
+| components | `components.aiAccessChoices.documents` | Same. |
+| components | `components.aiAccessChoices.howLong` | Same. |
+| components | `components.aiAccessChoices.kindDatesAndStatusOnlyNo` | Same. |
+| components | `components.aiAccessChoices.noCases` | Same. |
+| components | `components.aiAccessChoices.onlyTitle` | Same. |
+| components | `components.aiAccessChoices.sensitiveShowsWholePassportAndId` | Same. |
+| components | `components.aiAccessChoices.sensitiveTheWordsReadFromDocuments` | Same. |
+| components | `components.aiAccessChoices.whatAppnameCanRead` | Same. |
+| components | `components.checklistCorrectionForm.whatLooksWrongForitem` | `forItem` is built in English (" for Passport"). |
+| components | `components.visaPhotoSizes.backgroundBackgroundrule` | `backgroundRule` is English official photo rule text. |
+| components | `components.activityLog.moreOfLabel` | Some pages pass an English `label` ("Access Log Entries"). |
+| components | `components.timeZoneSelect.common` | One Bengali group name among English region group names. |
+| components | `components.purposeSelect.chooseAPurpose` | A Bengali first option in a list of English purposes. |
+| components | `components.capturePreview.isTheWholeCardOrPage` | The draft writes page as পৃষ্ঠা; the owner term is পাতা. Needs a redraft. |
+| components | `components.safeCopyDownload.confirmItIsYou` | A link that ends an English server message in one sentence (visa photo sizes). |
+| components-more | `componentsMore.safeCopyDownload.confirmItIsYou` | Same: ends the English server message on the safe copy download. |
+
+## Deferred from refill 4 until a test renders their state
+
+These have a passing draft and no content reason to stay English. No test renders their state under Bengali yet (rule 15), so the next refill fills them together with those tests.
+
+`components.activityLog.clearFilters`, `components.activityLog.nothingMatchesTheseFilters`, `components.capturePreview.thisDeviceCannotShowThePhoto`, `components.countryBrowser.clearTheSearchOrChooseAnother`, `components.countryBrowser.noCountriesMatch`, `components.countryBrowser.noCountriesMatche4ae64`, `components.documentReviewPanel.noDocumentsMatchTryAnotherName`, `components.documentReviewPanel.thisDocumentIsNotAvailableTo`, `components.documentReviewPanel.uploadADocumentToReviewIts`, `components.documentWalletBrowser.clearTheSearchOrChooseAnother`, `components.documentWalletBrowser.noDocumentsMatch`, `components.documentWalletBrowser.showAll`, `components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe`, `components.loadingSlowNote.stillLoadingYouCanKeepThis`, `components.purposeChoice.showCommonPurposes`, `components.toast.dismiss`, `components.visaPhotoSizes.makingYourPhoto`, `componentsMore.safeCopyEditor.continuePreparing`, `componentsMore.safeCopyEditor.showThePageAgain`, `componentsMore.safeCopyEditor.youChoseNothingToHideOn`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.savingPhoto`, `componentsPwa.pwaInstallAppCard.installVisastack`, `componentsPwa.pwaInstallAppCard.visastackIsInstalledOnThisDevice`, `componentsPwa.pwaInstallAppCard.youCanInstallItAnyTime`, `componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs`, `componentsPwa.pwaPwaRuntime.appUpdate`, `componentsPwa.pwaPwaRuntime.browserTip`, `componentsPwa.pwaPwaRuntime.dismiss`, `componentsPwa.pwaPwaRuntime.later`, `componentsPwa.pwaPwaRuntime.reloadNow`, `componentsPwa.pwaPwaRuntime.reloading`

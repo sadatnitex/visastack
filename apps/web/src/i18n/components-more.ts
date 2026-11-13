@@ -120,6 +120,10 @@ export const componentsMoreCatalog = defineCatalog({
       'এই বারে রাখা থাকা আবশ্যক আইটেম গোনা হয়। ঐচ্ছিক ও প্রযোজ্য নয় এমন আইটেম আলাদাভাবে গোনা হয়।',
     'componentsMore.lifecycleRemovalRecordList.nothingHasBeenRemovedFromThis':
       'এই রেকর্ড থেকে কিছু সরানো হয়নি।',
+    'componentsMore.lifecycleRemovalRecordList.showMoreLength': 'আরও দেখান ({length})',
+    'componentsMore.profilePhotoAccountPhotoCard.addYourself': 'নিজেকে যোগ করুন',
+    'componentsMore.profilePhotoAccountPhotoCard.addYourselfAsATravellerFirst':
+      'ছবি যোগ করতে আগে নিজেকে ভ্রমণকারী হিসেবে যোগ করুন।',
     'componentsMore.profilePhotoAccountPhotoCard.profilePhoto': 'প্রোফাইল ছবি',
     'componentsMore.profilePhotoAccountPhotoCard.shownBesideYourNameInYour':
       'আপনার ওয়ার্কস্পেসে আপনার নামের পাশে দেখানো হয়। শুধু আপনি এটি দেখতে পান, আর এটি কখনো ভিসার ছবি হিসেবে ব্যবহার বা শেয়ার করা হয় না।',
@@ -134,20 +138,50 @@ export const componentsMoreCatalog = defineCatalog({
     'componentsMore.safeCopyEditor.aSafeCopyIsANew':
       'নিরাপদ কপি হলো প্রতিটি পাতার একটি নতুন ছবি, যাতে আপনার বেছে নেওয়া অংশগুলো কালো রঙে ঢাকা থাকে। আপনি যাঁদের সঙ্গে নিরাপদ কপি শেয়ার করেন, তাঁরা এটিই ডাউনলোড করতে পারেন, মূল ডকুমেন্ট কখনো নয়।',
     'componentsMore.safeCopyEditor.acceptBox': 'বক্স গ্রহণ করুন',
+    'componentsMore.safeCopyEditor.addBox': 'বক্স যোগ করুন',
+    'componentsMore.safeCopyEditor.backToEditing': 'সম্পাদনায় ফিরে যান',
+    'componentsMore.safeCopyEditor.boxesOnThisPage': 'এই পাতার বক্স',
+    'componentsMore.safeCopyEditor.cancelEditing': 'সম্পাদনা বাতিল করুন',
     'componentsMore.safeCopyEditor.changeSafeCopy': 'নিরাপদ কপি বদলান',
+    'componentsMore.safeCopyEditor.checkEveryPage': 'প্রতিটি পাতা দেখে নিন',
+    'componentsMore.safeCopyEditor.checkEveryPageOnlyTheBlack':
+      'প্রতিটি পাতা দেখে নিন। শুধু কালো বক্সের অংশই লুকানো হয়। পরামর্শে কিছু বাদ পড়তে পারে।',
+    'componentsMore.safeCopyEditor.checkEveryPageOnlyTheBlacka8af5a':
+      'প্রতিটি পাতা দেখে নিন। শুধু কালো বক্সের অংশই লুকানো হয়।',
+    'componentsMore.safeCopyEditor.drawBoxes': 'বক্স আঁকুন',
+    'componentsMore.safeCopyEditor.eachPageIsDrawnOnceWith':
+      'প্রতিটি পাতা তার কালো বক্সসহ একবার আঁকা হয়। এই পাতাটি খোলা রাখুন; বন্ধ হয়ে গেলে যেখানে থেমেছিল সেখান থেকে চালিয়ে যেতে "প্রস্তুত করা চালিয়ে যান" বেছে নিন।',
     'componentsMore.safeCopyEditor.everyPageMustShowBeforeThe':
       'নিরাপদ কপি সংরক্ষণ করার আগে প্রতিটি পাতা দেখাতে হবে: এ পর্যন্ত {pageCount}টির মধ্যে {size}টি দেখানো হয়েছে। প্রতিটি পাতা স্ক্রল করে দেখুন।',
+    'componentsMore.safeCopyEditor.loadingThePage': 'পাতা লোড হচ্ছে...',
+    'componentsMore.safeCopyEditor.markWhatToHide': 'কী লুকাবেন চিহ্নিত করুন',
+    'componentsMore.safeCopyEditor.nextPage': 'পরবর্তী পাতা',
+    'componentsMore.safeCopyEditor.noBoxesOnThisPageYet': 'এই পাতায় এখনো কোনো বক্স নেই।',
+    'componentsMore.safeCopyEditor.nothingToHideOnThisDocument': 'এই ডকুমেন্টে লুকানোর কিছু নেই',
+    'componentsMore.safeCopyEditor.onASelectedBoxArrowKeys':
+      'নির্বাচিত বক্সে অ্যারো কী চাপলে সেটি সরে যায়, অ্যারো কী-র সঙ্গে শিফট চাপলে এর আকার বদলায়, আর ডিলিট চাপলে সেটি মুছে যায়। এসকেপ চাপলে বক্স আঁকা থেমে যায় এবং নির্বাচিত বক্সটি ছেড়ে দেওয়া হয়।',
+    'componentsMore.safeCopyEditor.openingTheDocument': 'ডকুমেন্ট খোলা হচ্ছে...',
+    'componentsMore.safeCopyEditor.pages': 'পাতা',
     'componentsMore.safeCopyEditor.prepareSafeCopy': 'নিরাপদ কপি তৈরি করুন',
     'componentsMore.safeCopyEditor.preparingTheSafeCopy': 'নিরাপদ কপি তৈরি করা হচ্ছে',
     'componentsMore.safeCopyEditor.previousPage': 'আগের পাতা',
     'componentsMore.safeCopyEditor.removeBox': 'বক্স সরান',
     'componentsMore.safeCopyEditor.removeSafeCopy': 'নিরাপদ কপি সরান',
+    'componentsMore.safeCopyEditor.reviewPages': 'পাতাগুলো পর্যালোচনা করুন',
+    'componentsMore.safeCopyEditor.safeCopiesAreNotAvailableHere': 'নিরাপদ কপি এখানে এখনো পাওয়া যায় না।',
     'componentsMore.safeCopyEditor.safeCopiesAreNotReadyYet':
       'নিরাপদ কপি এখনও প্রস্তুত নয়, তাই কিছু সংরক্ষণ করা যাচ্ছে না।',
+    'componentsMore.safeCopyEditor.safeCopiesCanBeMadeFrom':
+      'শুধু PDF ডকুমেন্ট ও ছবি থেকেই নিরাপদ কপি তৈরি করা যায়।',
     'componentsMore.safeCopyEditor.safeCopy': 'নিরাপদ কপি',
     'componentsMore.safeCopyEditor.saveSafeCopy': 'নিরাপদ কপি সংরক্ষণ করুন',
+    'componentsMore.safeCopyEditor.selectedBox': 'বেছে নেওয়া বক্স',
+    'componentsMore.safeCopyEditor.suggestBoxes': 'বক্সের পরামর্শ দিন',
     'componentsMore.safeCopyEditor.thisDocumentIsTooLargeFor':
       'এই ডকুমেন্ট নিরাপদ কপির জন্য খুব বড়। নিরাপদ কপিতে সর্বোচ্চ ২০ পাতা ও ২৫ MB থাকতে পারে।',
+    'componentsMore.safeCopyEditor.thisPageCouldNotBeShown': 'এই পাতাটি দেখানো যায়নি।',
+    'componentsMore.safeCopyEditor.thisPageShowsWhenYouScroll': 'স্ক্রল করে এই পাতায় এলে এটি দেখা যাবে।',
+    'componentsMore.safeCopyEditor.tryAgain': 'আবার চেষ্টা করুন',
     'componentsMore.sourceNote.wordsCopiedFromTheSource': 'উৎস থেকে কপি করা শব্দ',
   },
 });
