@@ -18,15 +18,17 @@ import type { AssessChangeOptions, AssessDocumentChangeInput, ChangeImpact } fro
 import {
   type CaseRow,
   type DocumentSubject,
+  type RequestHistory,
   casesKeepingCopy,
   casesSelecting,
   collectionAnswersCarrying,
+  confirmationsOf,
   documentRequestHistories,
   finishedCasesWithCopyOf,
   liveShares,
   lockDocumentSubject,
   ownDocument,
-  recordedReplacementId,
+  replacementChain,
   savedCopiesOf,
   shareReachOf,
 } from './load';
@@ -34,7 +36,7 @@ import {
   type SendRules,
   agenciesAmong,
   collectionAnswerDrafts,
-  evidenceRequestItem,
+  evidenceRequestItems,
   isOwnersProof,
   refused,
   runRead,
@@ -81,18 +83,23 @@ export async function assessDocumentChangeImpact(
     const subject = await lockDocumentSubject(access, tx, documentId, present.lifecycle);
     if (!subject) return refused();
 
-    const recordedId = await recordedReplacementId(access, tx, subject, present.lifecycle);
-    let replacement: DocumentSubject | null = null;
-    if (recordedId !== null) {
-      replacement = (await ownDocument(access, tx, recordedId, present.lifecycle)) ?? null;
-    } else if (candidate !== undefined) {
+    // The recorded chain, walked through every link (a removed document in the middle does not
+    // cut it); the replacement is the newest document in it that is still there.
+    const chain = await replacementChain(access, tx, subject, present.lifecycle);
+    let replacement: DocumentSubject | null = chain.replacement;
+    if (subject.supersededBy === null && candidate !== undefined) {
       const named = await ownDocument(access, tx, candidate.toLowerCase(), present.lifecycle);
       if (!named) return refused();
       if (named.id === subject.id) return err(serviceError('invalid', SAME_DOCUMENT));
       replacement = named;
     }
-    const phase = subject.supersededBy !== null ? 'RECORDED' : 'PREVIEW';
+    // Recorded only while there is a replacement to point at: when every later document has
+    // been removed, the document stands alone again and this is a preview.
+    const phase = subject.supersededBy !== null && replacement !== null ? 'RECORDED' : 'PREVIEW';
     const replacementId = replacement?.id ?? null;
+    /** Every document that stands in for this one: the later ones in the chain, or the candidate. */
+    const newerIds = new Set(chain.laterIds);
+    if (replacementId !== null) newerIds.add(replacementId);
     const drafts: DraftItem[] = [];
 
     // Cases.
@@ -106,6 +113,13 @@ export async function assessDocumentChangeImpact(
     const copies = await savedCopiesOf(access, tx, copied);
     const cases = new Map<string, CaseRow>();
     for (const row of [...selecting, ...keeping, ...copied]) cases.set(row.id, row);
+    // Once the replacement is recorded, a live case that still selects the earlier document
+    // and has since been confirmed again is no longer waiting on the traveller.
+    const stillSelecting = selecting.filter((row) => !isInactiveCaseState(row.state));
+    const confirmations =
+      phase === 'RECORDED'
+        ? await confirmationsOf(access, tx, stillSelecting, { withRecordedValues: false })
+        : new Map<string, never>();
     for (const row of cases.values()) {
       const copy = copies.get(row.id);
       const facts: DocumentCaseFacts = {
@@ -115,6 +129,7 @@ export async function assessDocumentChangeImpact(
         createdAt: row.createdAt,
         selects: selectingIds.has(row.id),
         keepsCopy: keeping.some((kept) => kept.id === row.id),
+        confirmedSinceReplaced: confirmations.get(row.id)?.live === true,
         savedCopyLists: [...(copy?.byRequirement.values() ?? [])].some((used) =>
           used.documents.some((doc) => doc.documentId === documentId),
         ),
@@ -137,9 +152,10 @@ export async function assessDocumentChangeImpact(
                   category: documentCategory(replacement.docType) ?? null,
                 },
               }
-            : phase === 'PREVIEW'
-              ? { laterDocument: { documentId: LATER_DOCUMENT_ID, category } }
-              : {}),
+            : // No replacement to ask about (none recorded, or every later document removed):
+              // ask about a document of the same kind added later, so a share that is not tied
+              // to named documents is never said to cover the earlier one only.
+              { laterDocument: { documentId: LATER_DOCUMENT_ID, category } }),
         }),
       );
       if (reason) drafts.push(shareItem(share, reason));
@@ -147,7 +163,8 @@ export async function assessDocumentChangeImpact(
 
     // Sends to agencies, each judged on its latest round.
     const carriesDocument = (id: string | null, exact: boolean, intact: boolean): SendCarries => {
-      if (id !== null && id === replacementId) return exact && !intact ? 'BROKEN' : 'CURRENT';
+      // A copy of any later document in the chain is a copy of a newer document than this one.
+      if (id !== null && newerIds.has(id)) return exact && !intact ? 'BROKEN' : 'CURRENT';
       if (id !== documentId) return 'OTHER';
       // A send recorded before exact copies were kept: it was this document, which copy is unknown.
       if (!exact) return 'UNPINNED';
@@ -163,22 +180,26 @@ export async function assessDocumentChangeImpact(
       waitsEvenOnCurrent: false,
       agenciesWithLiveShare: agenciesAmong(shares),
     };
-    const carriedIds = replacementId ? [documentId, replacementId] : [documentId];
-    const histories = await documentRequestHistories(access, tx, carriedIds, present.documentPins);
-    for (const history of histories) {
-      const item = evidenceRequestItem(history, {
-        ...rules,
-        // A document send that still waits is the request's answer only while the request
-        // points at the same document.
-        waitingSendMatches: (send) => send.subjectId === history.request.respondingId,
-      });
-      if (item) drafts.push(item);
-    }
+    const carriedIds = [documentId, ...newerIds];
+    const rulesFor = (history: RequestHistory): SendRules => ({
+      ...rules,
+      // A document send that still waits is the request's answer only while the request
+      // points at the same document.
+      waitingSendMatches: (send) => send.subjectId === history.request.respondingId,
+    });
+    drafts.push(
+      ...(await evidenceRequestItems(
+        await documentRequestHistories(access, tx, carriedIds, present.documentPins),
+        rulesFor,
+        (requestIds) =>
+          documentRequestHistories(access, tx, carriedIds, present.documentPins, requestIds),
+      )),
+    );
     if (present.collectionResponses) {
       const answers = await collectionAnswersCarrying(access, tx, { documentIds: carriedIds });
       drafts.push(
         ...collectionAnswerDrafts(answers, (answer) =>
-          replacementId !== null && answer.carriedIds.includes(replacementId)
+          answer.carriedIds.some((id) => newerIds.has(id))
             ? 'CURRENT'
             : answer.carriedIds.includes(documentId)
               ? 'EARLIER'

@@ -1,5 +1,5 @@
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from '../access';
 import { staffPrincipal } from '../access/principal';
@@ -22,6 +22,7 @@ import {
   askForDocument,
   buildImpactWorld,
   cancelCase,
+  confirmCase,
   decide,
   historyFingerprint,
   itemOf,
@@ -176,6 +177,7 @@ describe('replacing a document: the shared scenario', () => {
       // item can rest on what a recipient opened.
       expect(tablesRead(statements)).toEqual([
         'accounts',
+        'acknowledgements',
         'agency_collection_response_items',
         'agency_collection_responses',
         'document_lifecycle',
@@ -618,6 +620,115 @@ describe('replacing a document that nothing uses', () => {
       expect(alone.items).toEqual([]);
       expect(alone.quiet).toBe(true);
       expect(alone.phase).toBe('PREVIEW');
+    },
+    HEAVY,
+  );
+});
+
+describe('a live case confirmed again while it still uses the earlier document', () => {
+  it(
+    'is offered for review, not asked for a step; an unconfirmed case still is',
+    async () => {
+      const w = await buildImpactWorld();
+      const neverConfirmed = await makeCase(w.db, w.rahim, w.checklist, {
+        title: 'Sample Case Never Confirmed',
+        documentId: w.p1.documentId,
+        confirm: false,
+      });
+      await replaceWithNewerPassport(w);
+      // The replacement voided the confirmation: a step is needed.
+      expect(itemOf(await readDocumentImpact(w), `case:${w.liveCaseId}`).reason).toBe(
+        'LIVE_CASE_USES_REPLACED_DOCUMENT',
+      );
+
+      // The traveller looks at the case and confirms it again with the earlier passport.
+      await confirmCase(w.db, w.rahim, w.liveCaseId);
+      const impact = await readDocumentImpact(w);
+      expect(itemOf(impact, `case:${w.liveCaseId}`)).toMatchObject({
+        outcome: 'REVIEW_RECOMMENDED',
+        reason: 'LIVE_CASE_KEEPS_EARLIER_COPY',
+        nextStep: { kind: 'OPEN_CASE', missionId: w.liveCaseId },
+      });
+      expect(itemOf(impact, `case:${neverConfirmed}`).reason).toBe(
+        'LIVE_CASE_USES_REPLACED_DOCUMENT',
+      );
+      expect(impact.counts.ACTION_REQUIRED).toBe(1);
+    },
+    HEAVY,
+  );
+});
+
+describe('a chain of replacements with a document in Recently Deleted', () => {
+  /** By hand: the document goes to Recently Deleted, as a removal records it. */
+  const remove = (w: Awaited<ReturnType<typeof buildImpactWorld>>, documentId: string) =>
+    w.db.execute(
+      sql`insert into document_lifecycle (document_id, applicant_id, deleted_at, delete_path, purge_after) values (${documentId}, ${w.rahim.applicantId}, now(), 'REQUEST', now() + interval '30 days')`,
+    );
+
+  it(
+    'is followed through the removed document to the newest one that is still there',
+    async () => {
+      const w = await buildImpactWorld();
+      const first = await replaceWithNewerPassport(w);
+      const second = await replaceWithNewerPassport(
+        w,
+        first.newer.documentId,
+        'sample-passport-newest.pdf',
+      );
+      // An agency was sent the newest passport, and another the middle one.
+      const holdsNewest = await askForDocument(w.db, w.agencyA, w.rahim);
+      await sendDocument(w.db, w.rahim, holdsNewest, second.newer.documentId);
+      const before = await readDocumentImpact(w);
+
+      await remove(w, first.newer.documentId);
+      const after = await readDocumentImpact(w);
+      expect(after.phase).toBe('RECORDED');
+      expect(after.subject).toMatchObject({
+        replacement: { documentId: second.newer.documentId, title: 'sample-passport-newest.pdf' },
+      });
+      // Nothing about the consequences moved because a middle document was removed.
+      expect(reasons(after)).toEqual(reasons(before));
+      expect(itemOf(after, `share:${w.agencyAShareId}`).reason).toBe('SHARE_ALREADY_COVERS');
+      expect(itemOf(after, `request:${holdsNewest}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+    },
+    HEAVY,
+  );
+
+  it(
+    'falls back to the newest document still there, and to a preview when none is',
+    async () => {
+      const w = await buildImpactWorld();
+      const first = await replaceWithNewerPassport(w);
+      const second = await replaceWithNewerPassport(
+        w,
+        first.newer.documentId,
+        'sample-passport-newest.pdf',
+      );
+      const holdsMiddle = await askForDocument(w.db, w.agencyA, w.rahim);
+      await sendDocument(w.db, w.rahim, holdsMiddle, first.newer.documentId);
+
+      // The newest is removed: the middle passport is the replacement that is still there.
+      await remove(w, second.newer.documentId);
+      const middle = await readDocumentImpact(w);
+      expect(middle.phase).toBe('RECORDED');
+      expect(middle.subject).toMatchObject({ replacement: { documentId: first.newer.documentId } });
+      // A copy of a later document in the chain is a copy of a newer document than this one.
+      expect(itemOf(middle, `request:${holdsMiddle}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+
+      // Both later passports removed: no replacement is left to point at.
+      await remove(w, first.newer.documentId);
+      const alone = await readDocumentImpact(w);
+      expect(alone.phase).toBe('PREVIEW');
+      expect(alone.subject).toMatchObject({ replacement: null });
+      // The whole-record share still covers whatever is added later; only the by-name share
+      // covers the earlier passport alone.
+      expect(itemOf(alone, `share:${w.agencyAShareId}`).reason).toBe('SHARE_ALREADY_COVERS');
+      expect(itemOf(alone, `share:${w.agencyBShareId}`).reason).toBe('SHARE_COVERS_EARLIER_ONLY');
+      // The send of the removed middle passport is still a newer copy, not a lost one.
+      expect(itemOf(alone, `request:${holdsMiddle}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+      expect(itemOf(alone, `request:${w.documentRequestId}`).reason).toBe(
+        'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+      );
     },
     HEAVY,
   );

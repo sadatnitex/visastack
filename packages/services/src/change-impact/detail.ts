@@ -17,6 +17,7 @@ import {
 import type { AssessChangeOptions, AssessDetailChangeInput, ChangeImpact } from './contract';
 import {
   type CaseRow,
+  casesKeepingValue,
   casesSelecting,
   collectionAnswersCarrying,
   confirmationsOf,
@@ -31,11 +32,20 @@ import {
   type SendRules,
   agenciesAmong,
   collectionAnswerDrafts,
-  evidenceRequestItem,
+  evidenceRequestItems,
   isOwnersProof,
   refused,
   runRead,
 } from './shared';
+
+/**
+ * How much later than the current value a send with no exact value on record must be before it
+ * is taken to have carried the current value. The two times come from different clocks (the
+ * application stamps the send, the database stamps the saved value), which can disagree by
+ * seconds; five minutes is far more than they ever should. Inside the margin nothing is proved
+ * and the send is reported as sent before exact versions were kept.
+ */
+export const UNPINNED_SEND_CLOCK_MARGIN_MS = 5 * 60 * 1000;
 
 const FIELD_LABELS: ReadonlyMap<string, string> = new Map(
   knownFieldOptions().map((field) => [field.key, field.label] as const),
@@ -107,9 +117,21 @@ export async function assessDetailChangeImpact(
     // Cases.
     const selecting = await casesSelecting(access, tx, { factId });
     const selectingIds = new Set(selecting.map((row) => row.id));
+    // A deliberate choice of one saved value counts only when that value is not the current one.
+    const keeping = (
+      present.packageChoices ? await casesKeepingValue(access, tx, factId) : []
+    ).filter((row) => row.chosenVersionId !== null && !sameValueIds.has(row.chosenVersionId));
+    if (!present.packageChoices) drafts.push(couldNotCheck('CASES'));
+    const keepingIds = new Set(keeping.map((row) => row.id));
     const copied = await finishedCasesWithCopyOf(access, tx, { factId });
     const cases = new Map<string, CaseRow>();
-    for (const row of [...selecting, ...copied]) cases.set(row.id, row);
+    for (const row of [...selecting, ...keeping, ...copied]) cases.set(row.id, row);
+    /**
+     * Whether a case made at `createdAt` existed while the detail held another value than the
+     * current one. Both moments are stamped by the database.
+     */
+    const couldHoldEarlier = (createdAt: Date): boolean =>
+      detail.valueChanged && (heldSince === null || createdAt.getTime() < heldSince.getTime());
     const live = [...cases.values()].filter((row) => !isInactiveCaseState(row.state));
     const finished = [...cases.values()].filter((row) => isInactiveCaseState(row.state));
     const confirmations = await confirmationsOf(access, tx, live);
@@ -134,6 +156,8 @@ export async function assessDetailChangeImpact(
           everConfirmed: confirmation !== undefined,
           confirmationLive: confirmation?.live ?? false,
           recorded,
+          keepsEarlierValue: keepingIds.has(row.id),
+          couldHoldEarlier: false,
         },
         detail,
       );
@@ -163,6 +187,8 @@ export async function assessDetailChangeImpact(
           everConfirmed: false,
           confirmationLive: false,
           recorded,
+          keepsEarlierValue: false,
+          couldHoldEarlier: couldHoldEarlier(row.createdAt),
         },
         detail,
       );
@@ -182,11 +208,16 @@ export async function assessDetailChangeImpact(
     /**
      * A send recorded before exact values were kept could have carried another value unless no
      * saved value differs from the current one, or the send is provably later than the moment
-     * the detail came to hold its current value.
+     * the detail came to hold its current value. The send's time comes from the application's
+     * clock and that moment from the database's, so "later" needs a clear margin.
      */
     const couldDiffer = (sentAt: Date | null): boolean => {
       if (!detail.valueChanged) return false;
-      return !(sentAt !== null && heldSince !== null && sentAt.getTime() >= heldSince.getTime());
+      return !(
+        sentAt !== null &&
+        heldSince !== null &&
+        sentAt.getTime() >= heldSince.getTime() + UNPINNED_SEND_CLOCK_MARGIN_MS
+      );
     };
     const rules: SendRules = {
       carriesOf: (round) => {
@@ -204,17 +235,9 @@ export async function assessDetailChangeImpact(
       waitsEvenOnCurrent: true,
       agenciesWithLiveShare: agenciesAmong(shares),
     };
-    const histories = await detailRequestHistories(
-      access,
-      tx,
-      factId,
-      versionIds,
-      present.detailPins,
-    );
-    for (const history of histories) {
-      const item = evidenceRequestItem(history, rules);
-      if (item) drafts.push(item);
-    }
+    const readRequests = (requestIds?: readonly string[]) =>
+      detailRequestHistories(access, tx, factId, versionIds, present.detailPins, requestIds);
+    drafts.push(...(await evidenceRequestItems(await readRequests(), () => rules, readRequests)));
     if (present.collectionResponses) {
       const answers = await collectionAnswersCarrying(access, tx, { factId });
       drafts.push(

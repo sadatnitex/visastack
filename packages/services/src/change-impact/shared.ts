@@ -11,6 +11,7 @@ import {
   classifySend,
   requestStanding,
 } from './classify';
+import type { ImpactReason } from './contract';
 import {
   type CollectionAnswer,
   type LiveShare,
@@ -116,6 +117,44 @@ export function evidenceRequestItem(history: RequestHistory, rules: SendRules): 
     },
     reason,
   );
+}
+
+/** The reasons that say "the stored records do not settle this request". */
+const UNSETTLED: ReadonlySet<ImpactReason> = new Set([
+  'RECORD_INCOMPLETE',
+  'SENT_BEFORE_EXACT_VERSIONS',
+]);
+
+/**
+ * Every evidence request as an item. A request's row, its sends and its decisions are read in
+ * separate statements, so a send or a decision that lands between them can make one read see a
+ * status that is older than the sends and decisions beside it. Such a torn look reads either as
+ * a status and a decision that disagree, or as an answer waiting with no exact send behind it.
+ * Before saying either, the requests that look unsettled are read once more, all together
+ * (`readAgain`), and judged again: only what is still unsettled on the second look is reported.
+ */
+export async function evidenceRequestItems(
+  histories: readonly RequestHistory[],
+  rulesFor: (history: RequestHistory) => SendRules,
+  readAgain: (requestIds: readonly string[]) => Promise<readonly RequestHistory[]>,
+): Promise<DraftItem[]> {
+  const judge = (history: RequestHistory) => evidenceRequestItem(history, rulesFor(history));
+  const unsettled = (item: DraftItem | null) => item !== null && UNSETTLED.has(item.item.reason);
+  const first = histories.map((history) => ({ history, item: judge(history) }));
+  const doubtful = first
+    .filter(({ item }) => unsettled(item))
+    .map(({ history }) => history.request.id);
+  if (doubtful.length === 0) return first.flatMap(({ item }) => (item ? [item] : []));
+  const fresh = new Map(
+    (await readAgain(doubtful)).map((history) => [history.request.id, history]),
+  );
+  return first.flatMap(({ history, item }) => {
+    if (!unsettled(item)) return item ? [item] : [];
+    const again = fresh.get(history.request.id);
+    // A request that is gone on the second look has nothing left to report.
+    const settled = again ? judge(again) : null;
+    return settled ? [settled] : [];
+  });
 }
 
 /**
