@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { act } from 'react';
-import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
+import { renderServer } from '../../lib/next-mocks.test-support';
+
+vi.mock('server-only', () => ({}));
+vi.mock('../../lib/locale', () => ({ getLocale: async () => 'en' }));
 
 vi.mock('../../app/app/profile-photo-actions', () => ({
   saveProfilePhotoAction: vi.fn(),
@@ -13,11 +15,8 @@ const { AccountPhotoCard } = await import('./account-photo-card');
 const SELF = '10000000-0000-4000-8000-000000000001';
 
 async function mount(photo: Parameters<typeof AccountPhotoCard>[0]['photo']) {
-  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const host = document.createElement('div');
-  document.body.append(host);
-  const root = createRoot(host);
-  await act(async () => root.render(<AccountPhotoCard photo={photo} />));
+  host.innerHTML = await renderServer(<AccountPhotoCard photo={photo} />);
   return host;
 }
 
