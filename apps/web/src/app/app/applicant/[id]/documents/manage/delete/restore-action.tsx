@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { useT } from '../../../../../../../components/i18n-provider';
+import { usePageLanguage, useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
+import { type RefusalLine, REMOVAL_WORDS as W, refusalNode, said } from '../removal-words';
 import { restoreDeletedAction, restoreInfoAction } from './actions';
 import { removedInLine } from './messages';
 
@@ -18,9 +19,10 @@ export function RestoreDeletedAction({
   onClose,
 }: ManageActionProps) {
   const t = useT(appApplicantCatalog);
+  const pageLang = usePageLanguage();
   const router = useRouter();
   const [days, setDays] = useState<number | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<RefusalLine | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -30,10 +32,10 @@ export function RestoreDeletedAction({
   const load = useCallback(async () => {
     try {
       const info = await restoreInfoAction(applicantId, documentId);
-      if (!info.ok) setProblem(info.message);
+      if (!info.ok) setProblem(info);
       else setDays(info.days);
     } catch {
-      setProblem('We could not check this document. Close this and try again.');
+      setProblem(said(W.couldNotCheckDocument));
     }
   }, [applicantId, documentId]);
 
@@ -58,12 +60,12 @@ export function RestoreDeletedAction({
     try {
       const restored = await restoreDeletedAction(applicantId, documentId, 'RECENTLY_DELETED');
       if (!restored.ok) {
-        setProblem(restored.message);
+        setProblem(restored);
         return;
       }
       setDone(true);
     } catch {
-      setProblem('We could not restore it. Check your connection and try again.');
+      setProblem(said(W.couldNotRestoreIt));
     } finally {
       setBusy(false);
     }
@@ -109,7 +111,7 @@ export function RestoreDeletedAction({
       </h3>
       {problem ? (
         <p className="lc-delete-problem" role="alert">
-          {problem}
+          {refusalNode(t, problem, pageLang)}
         </p>
       ) : null}
       {days === null && !problem ? (

@@ -121,17 +121,23 @@ describe('document insights under Bengali', () => {
     expect(text).toContain(bn[`${K}comingUp`]);
     expect(text).toContain(bn[`${K}openCases`]);
     expect(text).toContain(bn[`${K}openProfile`]);
-    expect(text).not.toContain(bn[`${K}noDocumentsYet`]);
+    // "No Documents Yet" and the section group "No Document Yet" share one Bengali wording, so the
+    // empty state is checked by its own sentence instead.
+    expect(text).toContain(bn[`${K}noDocumentYet`]);
+    expect(text).not.toContain(bn[`${K}addADocumentAndAcceptWhat`]);
+    // Open Documents stays English: the Details to Check card writes it in English too.
+    expect(`${K}openDocuments` in bn).toBe(false);
     expect(text).not.toContain(bn[`${K}eachVisaApplicationIsACase`]);
     expect(text).toContain('Study Visa');
     expect(text).toContain(bn[`${K}aSummaryOfYourSavedDocuments`]);
     expect(text).not.toMatch(/applicantInsights\.|\{[A-Za-z]+\}/);
   });
 
-  it('keeps the unavailable state in English, with no raw key', async () => {
+  it('says in Bengali when the summary cannot load, with no raw key', async () => {
     mocks.getTravellerInsights.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     const text = await render('bn');
-    expect(text).toContain('We could not put this summary together just now.');
+    expect(text).toContain(bn[`${K}weCouldNotPutThisSummary`]);
+    expect(text).not.toContain('We could not put this summary together just now.');
     expect(text).not.toMatch(/applicantInsights\./);
   });
 
@@ -213,6 +219,65 @@ describe('document insights under Bengali', () => {
     const text = await render('bn');
     expect(text).toContain(bn[`${K}optionalForThisCase`]);
     expect(text).not.toContain(en[`${K}optionalForThisCase`]);
+    expect(text).not.toMatch(/applicantInsights\./);
+  });
+
+  it('a detail that differs shows the Bengali note on what is compared (refill 3)', async () => {
+    const base = populated();
+    mocks.getTravellerInsights.mockResolvedValue({
+      ok: true,
+      value: {
+        ...base,
+        mismatches: [
+          { key: 'm1', document: null, fieldKey: null, section: null, source: 'pending_reading' },
+        ],
+      },
+    });
+    const text = await render('bn');
+    expect(text).toContain(bn[`${K}weOnlySayThatTwoDetails`]);
+    expect(text).not.toContain(en[`${K}weOnlySayThatTwoDetails`]);
+    expect(text).not.toContain(bn[`${K}nothingToCheck`]);
+    expect(text).not.toMatch(/applicantInsights\./);
+  });
+
+  it('more dates than a card lists are counted in Bengali digits (refill 3)', async () => {
+    const passport = (n: number) => ({
+      id: `doc-${n}`,
+      docType: 'PASSPORT',
+      expiresAt: `2027-0${n}-23T12:00:00.000Z`,
+      lifecycle: 'CURRENT' as const,
+      safetyStatus: 'CLEAN' as const,
+      createdAt: '2026-01-01T00:00:00Z',
+      reminderThresholds: [90, 60, 30, 7, 0],
+    });
+    mocks.getTravellerInsights.mockResolvedValue({
+      ok: true,
+      value: buildTravellerInsights({
+        documents: [1, 2, 3, 4, 5, 6].map(passport),
+        facts: [],
+        pendingReadings: [],
+        pendingCheckDocumentIds: [],
+        sections: { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
+        cases: [],
+        now: new Date('2026-10-25T12:00:00Z'),
+      }),
+    });
+    const text = await render('bn');
+    expect(text).toContain('৬টি তারিখের মধ্যে ৫টি দেখানো হচ্ছে।');
+    expect(text).not.toContain('Showing 5 of 6 dates.');
+    expect(text).not.toMatch(/applicantInsights\./);
+  });
+
+  it('with no open section the coverage card says so in Bengali (refill 3)', async () => {
+    const base = empty();
+    mocks.getTravellerInsights.mockResolvedValue({
+      ok: true,
+      value: { ...base, coverage: { ...base.coverage, sections: [], covered: 0 } },
+    });
+    const text = await render('bn');
+    expect(text).toContain(bn[`${K}noSectionsToBackYet`]);
+    expect(text).toContain(bn[`${K}openAProfileSectionThatA`]);
+    expect(text).not.toContain(en[`${K}openAProfileSectionThatA`]);
     expect(text).not.toMatch(/applicantInsights\./);
   });
 

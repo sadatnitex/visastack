@@ -58,32 +58,49 @@ export const appTripsCatalog = defineCatalog({
     'appTrips.appTripsTripForms.yesRemoveName': 'Yes, Remove: {name}',
   },
   bn: {
-    'appTrips.appTripsIdPage.destinationForPurpose': '{purpose}-এর জন্য {destination}।',
+    'appTrips.appTripsIdPage.thisTripIsNotAvailable': 'এই ট্রিপটি পাওয়া যাচ্ছে না।',
+    'appTrips.appTripsNewPage.tellUsWhereYouAreGoing':
+      'আপনি কোথায় যাচ্ছেন, কেন যাচ্ছেন এবং কে কে ভ্রমণ করছেন, তা আমাদের জানান। প্রত্যেক ভ্রমণকারী নিজের ভিসা ফাইল পান, আর ভ্রমণটি সবাইকে একসঙ্গে রাখে।',
+    'appTrips.appTripsPage.1Traveller': '১ জন ভ্রমণকারী',
+    'appTrips.appTripsPage.aboutGroupTrips': 'দলগত ট্রিপ সম্পর্কে',
     'appTrips.appTripsPage.groupTrips': 'দলগত ভ্রমণ',
     'appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink':
       '। আমন্ত্রণ শেষ হবে {formatTimestampDate}। উত্তর দিতে আপনার ইমেইলের লিংকটি খুলুন।',
+    'appTrips.appTripsPage.noGroupTripsYet': 'এখনো কোনো গ্রুপ ভ্রমণ নেই।',
     'appTrips.appTripsPage.planOneTripForSeveralTravellers':
       'কয়েকজন ভ্রমণকারীর জন্য একটি ভ্রমণ পরিকল্পনা করুন। প্রত্যেক ভ্রমণকারীর নিজস্ব ভিসা ফাইল, ডকুমেন্ট ও গোপনীয়তা থাকে।',
     'appTrips.appTripsPage.startAGroupTrip': 'দলগত ভ্রমণ শুরু করুন',
+    'appTrips.appTripsPage.travellercountTravellers': '{travellerCount} জন ভ্রমণকারী',
+    'appTrips.appTripsPage.tripsYouJoined': 'আপনি যে ভ্রমণে যোগ দিয়েছেন',
+    'appTrips.appTripsTripForms.aboutThis': 'এ সম্পর্কে',
+    'appTrips.appTripsTripForms.addAFamilyMember': 'পরিবারের একজন সদস্য যোগ করুন',
+    'appTrips.appTripsTripForms.addSomeoneElse': 'আরেকজনকে যোগ করুন',
+    'appTrips.appTripsTripForms.cancel': 'বাতিল করুন',
     'appTrips.appTripsTripForms.chooseADocument': 'একটি ডকুমেন্ট বেছে নিন',
     'appTrips.appTripsTripForms.eachTravellerKeepsTheirOwnCase':
       'প্রত্যেক ভ্রমণকারীর নিজস্ব ভিসা ফাইল, ডকুমেন্ট ও গোপনীয়তা থাকে। আপনি না চাইলে ভ্রমণকারীদের মধ্যে কিছুই শেয়ার হয় না।',
+    'appTrips.appTripsTripForms.email': 'ইমেইল',
+    'appTrips.appTripsTripForms.everyoneYouManageIsAlreadyOn':
+      'আপনি যাঁদের দেখাশোনা করেন, তাঁরা সবাই ইতিমধ্যে এই ট্রিপে আছেন।',
     'appTrips.appTripsTripForms.familyMember': 'পরিবারের সদস্য',
     'appTrips.appTripsTripForms.forExampleJapan': 'যেমন: জাপান',
     'appTrips.appTripsTripForms.minorGuardian': 'অপ্রাপ্তবয়স্ক (অভিভাবক)',
+    'appTrips.appTripsTripForms.name': 'নাম',
+    'appTrips.appTripsTripForms.nameAsOnThePassport': 'পাসপোর্টে যেমন আছে তেমন নাম',
+    'appTrips.appTripsTripForms.onlyBookingsItinerariesInvitationsAndAccommodati':
+      'পুরো ভ্রমণে শুধু বুকিং, ভ্রমণসূচি, আমন্ত্রণপত্র ও থাকার ব্যবস্থার কাগজ শেয়ার করা যায়। পাসপোর্ট, ব্যাংকের কাগজ ও চিকিৎসার কাগজ কখনো শেয়ার করা হয় না।',
     'appTrips.appTripsTripForms.relationship': 'সম্পর্ক',
     'appTrips.appTripsTripForms.remove': 'সরান',
     'appTrips.appTripsTripForms.removeFromTripName': 'ভ্রমণ থেকে সরান: {name}',
     'appTrips.appTripsTripForms.removeName': 'সরান: {name}',
     'appTrips.appTripsTripForms.removeNameTheyLoseAccessAt':
       '{name}-কে সরাবেন? তিনি সঙ্গে সঙ্গে অ্যাক্সেস হারাবেন।',
-    'appTrips.appTripsTripForms.stopSharingDocumentname': 'শেয়ার বন্ধ করুন: {documentName}',
     'appTrips.appTripsTripForms.travelDocument': 'ভ্রমণ ডকুমেন্ট',
     'appTrips.appTripsTripForms.typeANameOrOpenThe': 'একটি নাম লিখুন অথবা তালিকা খুলুন।',
     'appTrips.appTripsTripForms.whereAreYouGoing': 'আপনি কোথায় যাচ্ছেন?',
+    'appTrips.appTripsTripForms.whoElseIsTravelling': 'আর কে কে ভ্রমণ করছেন?',
     'appTrips.appTripsTripForms.whoSTravelling': 'কে কে ভ্রমণ করছেন?',
     'appTrips.appTripsTripForms.withAnEmailTheyAreInvited':
       'ইমেইল দিলে তাঁকে যোগ দিতে আমন্ত্রণ জানানো হয় এবং তিনি আপনার সঙ্গে কী শেয়ার করবেন তা বেছে নিতে পারেন।',
-    'appTrips.appTripsTripForms.yesRemoveName': 'হ্যাঁ, সরান: {name}',
   },
 });

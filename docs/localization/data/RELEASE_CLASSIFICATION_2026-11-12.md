@@ -207,3 +207,18 @@ Groups: SG-93a158cb, SG-bc96e950, SG-67b08c36, SG-ba15de58, SG-2f6a8d87, SG-a898
 Added on 13 Nov 2026 by the landing conversion (see `LANDING_BN_AUDIT.md`, owner approval queue). Kept count is now 113.
 
 - SG-c1f08b9e: the footer draft (জনগণের আস্থা) names the Public Trust page differently from the home page's own link to it (পাবলিক ট্রাস্ট); one page keeps one name, so it waits for the owner term decision.  English: Public Trust
+
+## KEPT after the release: label in name on the removal screens (7)
+
+Added on 13 Nov 2026 by the removal-screens conversion (svc-s1c, PR #567). Each sentence names the Recently Deleted list or the Ask Us to Remove This File action, while that tab and that Manage menu item are still English on screen, so a Bengali name would not match what the person sees. Their drafts pass the automated checks; English stays until those labels are in Bengali. Kept count is now 120.
+
+- SG-1ce16669, SG-5cbaeb71, SG-95ad8477, SG-a467fb90, SG-a516cfad, SG-da772478: name Recently Deleted.
+- SG-32ebd49c: names Ask Us to Remove This File.
+
+Two more removal sentences with the same reason have no register group (drafts written for the catalogue key, `drafts/no-census-G.jsonl`); they are held by key in `KEY_HOLDBACK` in `scripts/i18n/refill.mjs`: `appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs` and `...fileKeptFinishedCaseAskUs`.
+
+## Owner approval queue: new legal wording held in English (1)
+
+Added on 13 Nov 2026 by svc-s1c (PR #567). Held in English until the owner confirms it; the blanket sign-off of 2026-11-12 is not applied to it, because it is a new machine draft with no register row, and a key draft cannot carry its own release.
+
+- `appApplicant.appApplicantIdDocumentsManageRemoval.copyKeptLegalHold` (Delete Duplicate, and Remove This New Copy in the upload and import lists). English: "This copy must be kept for a legal requirement. You can archive it instead." Machine draft (MEDIUM): একটি আইনি প্রয়োজনে এই কপিটি রেখে দিতে হবে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন। It differs from the released clause SG-3b2f1526 ("This copy must be kept for a legal requirement.", একটি আইনি বাধ্যবাধকতার কারণে এই কপিটি রাখতে হবে।), and the sibling removal sentences say আইনি বাধ্যবাধকতার কারণে. Held by key in `KEY_HOLDBACK` (`scripts/i18n/refill.mjs`). To release it: the owner confirms a wording (ideally one built on SG-3b2f1526), it gets a register row, and the hold is removed.

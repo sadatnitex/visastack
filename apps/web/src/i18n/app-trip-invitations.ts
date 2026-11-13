@@ -50,13 +50,42 @@ export const appTripInvitationsCatalog = defineCatalog({
   },
   bn: {
     'appTripInvitations.appTripInvitationsAcceptAcceptForm.shareMore': 'আরও শেয়ার করুন',
+    'appTripInvitations.appTripInvitationsAcceptAcceptForm.thisIsTheNameOthersOn':
+      'ভ্রমণের অন্যরা এই নামটিই দেখবেন।',
+    'appTripInvitations.appTripInvitationsAcceptAcceptForm.youCanChangeThisOrLeave':
+      'আপনি যেকোনো সময় এটি বদলাতে পারেন, বা ভ্রমণটি ছেড়ে দিতে পারেন।',
+    'appTripInvitations.appTripInvitationsAcceptAcceptForm.yourName': 'আপনার নাম',
     'appTripInvitations.appTripInvitationsAcceptPage.askThePersonWhoInvitedYou':
       'যিনি আপনাকে আমন্ত্রণ জানিয়েছেন তাঁর কাছে নতুন একটি লিংক চান, অথবা তিনি যে ইমেইল ঠিকানা ব্যবহার করেছেন সেটি দিয়ে সাইন ইন করুন।',
     'appTripInvitations.appTripInvitationsAcceptPage.goToHome': 'হোমে যান',
     'appTripInvitations.appTripInvitationsAcceptPage.invitationEnds': 'আমন্ত্রণ শেষ হবে',
     'appTripInvitations.appTripInvitationsAcceptPage.invitationUnavailable': 'আমন্ত্রণ পাওয়া যাচ্ছে না',
+    'appTripInvitations.appTripInvitationsAcceptPage.joinATrip': 'একটি ভ্রমণে যোগ দিন',
+    'appTripInvitations.appTripInvitationsAcceptPage.joiningShowsYourNameToOthers':
+      'যোগ দিলে এই ভ্রমণের অন্যরা আপনার নাম দেখতে পাবেন। কেউ কারও ডকুমেন্টে অ্যাক্সেস পান না।',
+    'appTripInvitations.appTripInvitationsAcceptPage.signInWithTheInvitedEmail':
+      'আমন্ত্রিত ইমেইল দিয়ে সাইন ইন করুন',
+    'appTripInvitations.appTripInvitationsAcceptPage.someoneAddedYouToATrip':
+      'কেউ আপনাকে VisaStack-এ একটি ভ্রমণে যুক্ত করেছেন। এই পাতা খুললে কিছুতেই যোগ দেওয়া হয় না।',
+    'appTripInvitations.appTripInvitationsAcceptPage.trip': 'ভ্রমণ',
+    'appTripInvitations.appTripInvitationsIdJoinedTripForms.chooseAPaper': 'একটি কাগজ বেছে নিন',
+    'appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTrip': 'এই ট্রিপ ছেড়ে দিন',
+    'appTripInvitations.appTripInvitationsIdJoinedTripForms.leaveThisTripTheOrganiserWill':
+      'এই ভ্রমণ ছেড়ে দেবেন? আয়োজক আর আপনাকে দেখতে পাবেন না।',
+    'appTripInvitations.appTripInvitationsIdJoinedTripForms.paperToShow': 'দেখানোর কাগজ',
     'appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser':
       'আয়োজকের সঙ্গে আপনি যা শেয়ার করেন',
+    'appTripInvitations.appTripInvitationsIdPage.backToMyTrips': 'আমার ভ্রমণে ফিরে যান',
+    'appTripInvitations.appTripInvitationsIdPage.noBookingsOrItinerariesInYour':
+      'এখন যোগ করার মতো কোনো বুকিং বা ভ্রমণসূচি আপনার ডকুমেন্টে নেই।',
+    'appTripInvitations.appTripInvitationsIdPage.openMyCase': 'আমার ভিসা ফাইল খুলুন',
+    'appTripInvitations.appTripInvitationsIdPage.papersYouShowLength':
+      'আপনি যে কাগজ দেখান ({length})',
+    'appTripInvitations.appTripInvitationsIdPage.theOrganiserSeesOnlyTheName':
+      'আয়োজক প্রতিটি কাগজের শুধু নাম ও ধরন দেখেন, ডকুমেন্টটি কখনো দেখেন না।',
+    'appTripInvitations.appTripInvitationsIdPage.travelling': 'ভ্রমণ করছেন',
+    'appTripInvitations.appTripInvitationsIdPage.where': 'কোথায়',
     'appTripInvitations.appTripInvitationsIdPage.why': 'কেন',
+    'appTripInvitations.appTripInvitationsIdPage.youJoinedThisTrip': 'আপনি এই ভ্রমণে যোগ দিয়েছেন।',
   },
 });
