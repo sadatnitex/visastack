@@ -223,6 +223,14 @@ describe('privacy screens under Bengali (owner-approved legal wording, signed of
     expect(drawPanels('en', [job('READY')])).toContain('Request Account Deletion');
   });
 
+  it('an export being prepared says so in Bengali', () => {
+    const preparing = drawPanels('bn', [job('PENDING')]);
+    seen.push(preparing);
+    expect(preparing).toContain(bn['appPrivacy.appPrivacyLargeExportPanel.preparing']);
+    expect(preparing).not.toContain('Preparing…');
+    expect(preparing).not.toMatch(/appPrivacy\./);
+  });
+
   it('live N, rendered N: every live Bengali message was shown by a state above', () => {
     const text = [...seen, ...markups].join('\n');
     const shownValue = (value: string) =>
@@ -231,6 +239,8 @@ describe('privacy screens under Bengali (owner-approved legal wording, signed of
     // asserted, in deletion-panel-locale.test.tsx.
     const elsewhere = new Set([
       bn['appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount'],
+      bn['appPrivacy.appPrivacyDeletionPanel.keepMyAccount'],
+      bn['appPrivacy.appPrivacyDeletionPanel.reasonOptional'],
     ]);
     expect(
       Object.values(bn).filter((value) => !elsewhere.has(value) && !shownValue(value)),
@@ -253,7 +263,10 @@ describe('privacy screens, language of parts', () => {
     // Known marking gaps (skipped items component_prop and attribute_lang_mixed): a title handed to a
     // component prop, an aria-label and a placeholder stay unmarked until the marking pass reaches them.
     expect(r.unmarked).toEqual([
+      bn['appPrivacy.appPrivacyPage.account'],
       bn['appPrivacy.appPrivacyPage.privacyConsent'],
+      bn['appPrivacy.appPrivacyPage.aboutThis'],
+      bn['appPrivacy.appPrivacyPage.noChangesYet'],
       `aria-label: ${bn['appPrivacy.appPrivacyPage.yourRights']}`,
       `placeholder: ${bn['appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired']}`,
     ]);

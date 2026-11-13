@@ -19,7 +19,9 @@ vi.mock('./actions', () => ({
   runInconsistencyCheckAction: vi.fn(),
 }));
 
-const { DocumentFindings, ReadAgainButton } = await import('./ai-review');
+const { DocumentFindings, ReadAgainButton, OcrResultView, InconsistencyFlagReview } = await import(
+  './ai-review'
+);
 type Finding = Parameters<typeof DocumentFindings>[0]['proposals'][number];
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -82,8 +84,10 @@ describe('AI review under Bengali', () => {
       finding({ id: 'b', fieldLabel: 'Occupation', clear: false }),
     ]);
     expect(text).not.toContain(bn[`${K}sensitive`]);
+    // Left English at review: the draft for "Clear" is the verb (empty it), not "readable".
     expect(text).toContain('Clear');
-    expect(text).toContain('Please Check');
+    expect(text).toContain(bn[`${K}pleaseCheck`]);
+    expect(text).not.toContain('Please Check');
   });
 
   it('shows the AI promises and the approval wording in Bengali, with no raw key', () => {
@@ -115,5 +119,88 @@ describe('AI review under Bengali', () => {
     ]);
     expect(text).not.toMatch(BENGALI);
     expect(text).toContain('Sensitive');
+  });
+});
+
+describe('AI review states under Bengali', () => {
+  const draw = (node: React.ReactNode) =>
+    act(() =>
+      root.render(
+        <I18nProvider locale="bn" pageLang="en">
+          {node}
+        </I18nProvider>,
+      ),
+    );
+  const text = () => (host.textContent ?? '').replace(/\s+/g, ' ');
+  const expectBengali = (keys: readonly string[]) => {
+    for (const key of keys) {
+      const value = (bn[`${K}${key}`] ?? `missing ${key}`).split('{')[0]?.trim() ?? '';
+      expect(text(), key).toContain(value);
+      expect(text(), key).not.toContain(en[`${K}${key}`]);
+    }
+    expect(host.innerHTML).not.toMatch(/appApplicant\./);
+  };
+
+  it('a reading by the backup reader that found no text', () => {
+    draw(<OcrResultView text="" reviewIssues={[]} usedFallback />);
+    expectBengali(['fallbackProviderUsed', 'noLegibleTextWasFound']);
+    expect(host.querySelector('.badge[title]')?.getAttribute('title')).toBe(
+      bn[`${K}theFirstReaderTimedOutOr`],
+    );
+  });
+
+  it('a date suggested by an AI app that differs from a hidden profile value, then marked as changed', () => {
+    draw(
+      <DocumentFindings
+        applicantId="a1"
+        canApprove
+        proposals={[
+          finding({
+            id: 'd',
+            fieldLabel: 'Passport Expiry Date',
+            fieldKey: 'passport_expiry_date',
+            value: '14 MAR 2030',
+            editor: { kind: 'date' },
+            difference: { current: null },
+            app: 'Claude',
+          }),
+        ]}
+      />,
+    );
+    expectBengali(['suggestedByApp', 'useTheSuggestedValue', 'yourProfileAlreadyHasADifferent']);
+    expect(text()).toContain('14 MAR 2030');
+    expect(text()).toContain(bn[`${K}weReadReadaswrittenPickTheDate`]?.split('"')[0]?.trim());
+    const changed = host.querySelector<HTMLInputElement>('input[type="radio"][value="changed"]');
+    if (!changed) throw new Error('changed choice');
+    act(() => changed.click());
+    expectBengali(['dateItChanged']);
+  });
+
+  it('two clear details offer accepting them together, with what is left out', () => {
+    draw(
+      <DocumentFindings
+        applicantId="a1"
+        canApprove
+        proposals={[
+          finding({ id: 'a', fieldLabel: 'Given Name' }),
+          finding({ id: 'b', fieldLabel: 'Surname' }),
+        ]}
+      />,
+    );
+    expectBengali(['sensitiveDetailsAnythingYouChangedAnd']);
+  });
+
+  it('a possible inconsistency names its confidence in Bengali digits', () => {
+    draw(
+      <InconsistencyFlagReview
+        applicantId="a1"
+        flag={
+          { id: 'f1', description: 'Two dates differ.', confidence: 80, rationale: null } as never
+        }
+      />,
+    );
+    expect(text()).toContain(
+      bn[`${K}possibleInconsistencyConfidenceConfidence`]?.replace('{confidence}', '৮০'),
+    );
   });
 });

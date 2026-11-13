@@ -267,7 +267,10 @@ describe('open invitation states under Bengali', () => {
       }),
     );
     const open = await draw(() => SharingInvitationPage(withToken), 'bn');
-    expect(open.body.textContent).toContain('Review Shared Access');
+    expect(open.body.textContent).toContain(
+      bnByEn(appSharingInvitationsCatalog, 'Review Shared Access'),
+    );
+    expect(open.body.textContent).not.toContain('Review Shared Access');
     expect(open.body.textContent).toContain(
       bnByEn(
         appSharingInvitationsCatalog,

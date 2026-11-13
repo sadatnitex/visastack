@@ -39,14 +39,30 @@ export const appSharingInvitationsCatalog = defineCatalog({
   },
   bn: {
     'appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds': 'অ্যাক্সেস শেষ হবে',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.allDocumentsInThisProfile':
+      'এই প্রোফাইলের সব ডকুমেন্ট',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.allProfileCategories':
+      'প্রোফাইলের সব বিভাগ',
     'appSharingInvitations.appSharingInvitationsAcceptPage.askTheSenderForANew':
       'প্রেরকের কাছে নতুন একটি লিংক চান, অথবা আমন্ত্রণ পাওয়া ইমেইল ঠিকানা দিয়ে সাইন ইন করুন।',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.documents': 'ডকুমেন্টস',
     'appSharingInvitations.appSharingInvitationsAcceptPage.invitationExpires':
       'আমন্ত্রণের মেয়াদ শেষ হবে',
     'appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable':
       'আমন্ত্রণ পাওয়া যাচ্ছে না',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting':
+      'গ্রহণ না করে চলে যান',
     'appSharingInvitations.appSharingInvitationsAcceptPage.openingThisInvitationGrantsNoAccess':
       'এই আমন্ত্রণ খুললে কোনো অ্যাক্সেস দেওয়া হয় না। গ্রহণ করার আগে সবকিছু পর্যালোচনা করুন।',
     'appSharingInvitations.appSharingInvitationsAcceptPage.permissions': 'অনুমতি',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.profileCategories': 'প্রোফাইলের বিভাগ',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.purpose': 'উদ্দেশ্য',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.returnToYourWorkspace':
+      'আপনার ওয়ার্কস্পেসে ফিরে যান',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.reviewSharedAccess':
+      'শেয়ার করা অ্যাক্সেস পর্যালোচনা করুন',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.sharedBy': 'যিনি শেয়ার করেছেন',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.signInWithTheInvitedEmail':
+      'আমন্ত্রিত ইমেইল দিয়ে সাইন ইন করুন',
   },
 });

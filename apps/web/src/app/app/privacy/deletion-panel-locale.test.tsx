@@ -51,6 +51,9 @@ describe('the deletion panel under Bengali (signed off 2026-11-12)', () => {
     expect(host.querySelector('input[name="reason"]')?.getAttribute('placeholder')).toBe(
       bn['appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired'],
     );
+    expect(host.querySelector('label[for="del-reason"]')?.textContent).toBe(
+      bn['appPrivacy.appPrivacyDeletionPanel.reasonOptional'],
+    );
     const request = [...host.querySelectorAll('button')].find(
       (b) => b.textContent === bn['appPrivacy.appPrivacyDeletionPanel.requestAccountDeletion'],
     );
@@ -59,6 +62,8 @@ describe('the deletion panel under Bengali (signed off 2026-11-12)', () => {
     expect(host.textContent).toContain(
       bn['appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount'],
     );
+    expect(host.textContent).toContain(bn['appPrivacy.appPrivacyDeletionPanel.keepMyAccount']);
+    expect(host.textContent).not.toContain('Keep My Account');
     expect(host.textContent).not.toMatch(/appPrivacy\./);
   });
 

@@ -150,8 +150,8 @@ describe('the record tabs and list under Bengali', () => {
     const none = client('bn', <RecordBrowser items={[]} />);
     expect(none).toContain('০টি আইটেম মিলেছে।');
     const one = client('bn', <RecordBrowser items={[item('a')]} />);
-    expect(one).not.toContain('১টি আইটেম মিলেছে।');
-    expect(one).toContain(en[`${K}RecordBrowser.1ItemMatches`] ?? 'MISSING');
+    expect(one).toContain(bn[`${K}RecordBrowser.1ItemMatches`] ?? 'MISSING');
+    expect(one).not.toContain('1 item matches.');
     expect(many).toContain(bn[`${K}RecordBrowser.recordFilters`]);
   });
 });
@@ -267,6 +267,7 @@ describe('the review steps under Bengali', () => {
       const text = await server('bn', () => <FlowSteps current={state as never} />);
       expect(text).toContain(en[`${K}ReviewFlowSteps.${state === 'done' ? 'done' : 'now'}`]);
       expect(text).not.toMatch(/appApplicant\./);
+      // Left English at review: each is joined to an English step name.
       for (const word of ['done', 'next', 'now'])
         expect(`${K}ReviewFlowSteps.${word}` in bn, word).toBe(false);
     }
