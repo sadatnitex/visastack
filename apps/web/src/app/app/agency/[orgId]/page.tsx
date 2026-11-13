@@ -127,8 +127,8 @@ export default async function AgencyDashboardPage({
       await Promise.all([
         loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
         loadCases(db, accountId, orgId),
-        loadUnassignedQueue(db, orgId, access),
-        loadApplicants(db, orgId, access),
+        loadUnassignedQueue(db, accountId, orgId, access),
+        loadApplicants(db, accountId, orgId, access),
         loadClientsJoined(db, accountId, orgId),
         loadBillingNotice(db, accountId, orgId),
       ]);

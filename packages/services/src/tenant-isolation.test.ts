@@ -148,12 +148,20 @@ describe('cross-tenant isolation — two organizations, one applicant', () => {
     await acceptGrant(db, { actorAccountId: orgA.account.id, grantId: grant.value.id });
 
     // Org A: full standing.
-    expect(await listMissionsForOrganization(db, orgA.organizationId)).toHaveLength(1);
-    expect(await listApplicantsForOrganization(db, orgA.organizationId)).toHaveLength(1);
+    expect(
+      await listMissionsForOrganization(db, orgA.account.id, orgA.organizationId),
+    ).toHaveLength(1);
+    expect(
+      await listApplicantsForOrganization(db, orgA.account.id, orgA.organizationId),
+    ).toHaveLength(1);
 
     // Org B: nothing, on every surface — even though it's the SAME applicant/mission.
-    expect(await listMissionsForOrganization(db, orgB.organizationId)).toHaveLength(0);
-    expect(await listApplicantsForOrganization(db, orgB.organizationId)).toHaveLength(0);
+    expect(
+      await listMissionsForOrganization(db, orgB.account.id, orgB.organizationId),
+    ).toHaveLength(0);
+    expect(
+      await listApplicantsForOrganization(db, orgB.account.id, orgB.organizationId),
+    ).toHaveLength(0);
 
     const assignDenied = await assignMember(db, {
       actorAccountId: orgB.account.id,
@@ -687,8 +695,20 @@ describe('mission note visibility: AGENCY_INTERNAL vs TRAVELLER_SHARED (Commerci
     });
     expect(isOk(internalB)).toBe(true);
 
-    const seenByA = await listNotes(db, orgA.organizationId, applicantId, mission.value.id);
-    const seenByB = await listNotes(db, orgB.organizationId, applicantId, mission.value.id);
+    const seenByA = await listNotes(
+      db,
+      orgA.account.id,
+      orgA.organizationId,
+      applicantId,
+      mission.value.id,
+    );
+    const seenByB = await listNotes(
+      db,
+      orgB.account.id,
+      orgB.organizationId,
+      applicantId,
+      mission.value.id,
+    );
 
     // Org A: its own internal note + the shared note. Never Org B's internal note.
     expect(seenByA.map((n) => n.body).sort()).toEqual(

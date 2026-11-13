@@ -151,3 +151,49 @@ describe('papers', () => {
     expect(container.querySelector<HTMLInputElement>('[name="documentId"]')?.value).toBe('d1');
   });
 });
+
+describe('joined trip forms under Bengali', () => {
+  const draw = async (node: React.ReactNode) => {
+    const { I18nProvider } = await import('../../../../components/i18n-provider');
+    act(() =>
+      root.render(
+        <I18nProvider locale="bn" pageLang="en">
+          {node}
+        </I18nProvider>,
+      ),
+    );
+  };
+  const words = async (name: string) => {
+    const { appTripInvitationsCatalog } = await import('../../../../i18n/app-trip-invitations');
+    return (
+      (appTripInvitationsCatalog.bn as Record<string, string>)[
+        `appTripInvitations.appTripInvitationsIdJoinedTripForms.${name}`
+      ] ?? `missing ${name}`
+    );
+  };
+
+  it('leaving asks first in Bengali; the two answers stay English together', async () => {
+    await draw(<LeaveTripForm tripId="t1" />);
+    const leaveWords = await words('leaveThisTrip');
+    const leave = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === leaveWords,
+    );
+    if (!leave) throw new Error('Leave This Trip button');
+    act(() => leave.click());
+    expect(container.textContent).toContain(await words('leaveThisTripTheOrganiserWill'));
+    expect(container.textContent).toContain('Stay');
+    expect(container.textContent).not.toContain('Leave this trip? The organiser');
+  });
+
+  it('choosing a paper: the label and the first choice are Bengali', async () => {
+    await draw(
+      <ChoosePaperForm
+        tripId="t1"
+        options={[{ documentId: 'd1', name: 'Tokyo hotel.pdf', kind: 'Hotel Booking' }]}
+      />,
+    );
+    expect(container.textContent).toContain(await words('paperToShow'));
+    expect(container.textContent).toContain(await words('chooseAPaper'));
+    expect(container.textContent).not.toContain('Paper to Show');
+  });
+});

@@ -265,6 +265,67 @@ export async function isActiveMember(
 }
 
 /**
+ * The agency read rule for the person, in one place: may this account read what this organization
+ * sees of this case? Only an active member of the organization who is its OWNER or ADMIN, or who
+ * is assigned to the case in this organization: exactly the cases `listVisibleMissionsForMember`
+ * shows that person. Anyone else (a stranger, a removed member, another agency's admin, the
+ * traveller) and a made-up organization get `false`.
+ *
+ * This checks the PERSON only. Whether the organization's grant still reaches the case (and so
+ * whether the case exists for it at all) stays each read's own check, run right after this one
+ * (`canReadMissionCollaboration` or `orgGrantPermits`): an owner or admin passes here for any case
+ * id, real or not. It reads the one membership row `isActiveMember` and `isOrgAdmin` read, once.
+ */
+export async function mayReadOrgCase(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+  missionId: string,
+): Promise<boolean> {
+  if (!isUuid(actorAccountId) || !isUuid(organizationId) || !isUuid(missionId)) return false;
+  const membership = await readActiveMembership(db, actorAccountId, organizationId);
+  if (!membership) return false;
+  if (membership.admin) return true;
+  return assignedToMission(db, organizationId, actorAccountId, missionId);
+}
+
+/**
+ * The person's membership of the organization, read once: `null` unless they are an active member,
+ * and whether they are an administrator (the roles `isOrgAdmin` treats as such). One read for what
+ * `isActiveMember` and `isOrgAdmin` would read twice.
+ */
+async function readActiveMembership(
+  db: Db,
+  accountId: string,
+  organizationId: string,
+): Promise<{ readonly admin: boolean } | null> {
+  const row = first(
+    await db
+      .select({ active: schema.memberships.active, role: schema.memberships.role })
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, accountId),
+          eq(schema.memberships.organizationId, organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  if (row?.active !== true) return null;
+  return { admin: row.role === 'OWNER' || row.role === 'ADMIN' };
+}
+
+/** The organization-wide reads (every case, every client): an active OWNER or ADMIN only. */
+async function mayReadOrgWide(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<boolean> {
+  if (!isUuid(actorAccountId) || !isUuid(organizationId)) return false;
+  return isOrgAdmin(db, actorAccountId, organizationId);
+}
+
+/**
  * Assign an org member to a mission (org OWNER/ADMIN only).
  *
  * Proves, in order: the actor is an active org OWNER/ADMIN; the assignee is
@@ -411,9 +472,12 @@ export async function unassignMember(
  */
 export async function listUnassignedActiveMissions(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
 ): Promise<OrgMission[]> {
-  const missions = await listMissionsForOrganization(db, organizationId);
+  // Administrator data: anyone else gets the empty queue a made-up organization gets.
+  if (!(await mayReadOrgWide(db, actorAccountId, organizationId))) return [];
+  const missions = await missionsReachableByOrganization(db, organizationId);
   const assigned = new Set(
     (
       await db
@@ -515,10 +579,12 @@ async function canReadMissionCollaboration(
  */
 export async function listAssignmentsDetailed(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   applicantId: string,
   missionId: string,
 ): Promise<AssignmentView[]> {
+  if (!(await mayReadOrgCase(db, actorAccountId, organizationId, missionId))) return [];
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
   const rows = await db
     .select({
@@ -562,10 +628,12 @@ export type OrgVisibleTask = typeof schema.missionTasks.$inferSelect;
  */
 export async function listTasksForOrg(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   applicantId: string,
   missionId: string,
 ): Promise<OrgVisibleTask[]> {
+  if (!(await mayReadOrgCase(db, actorAccountId, organizationId, missionId))) return [];
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
   // A reminder the traveller's own AI app added is private to them, even on a shared case (S21).
   return db
@@ -1118,10 +1186,12 @@ export async function decideAppointmentForOrg(
 /** Appointments on a mission, org-read-scoped exactly like `listTasksForOrg` (COMMENT or MANAGE), soonest first. */
 export async function listAppointmentsForOrg(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   applicantId: string,
   missionId: string,
 ): Promise<OrgVisibleAppointment[]> {
+  if (!(await mayReadOrgCase(db, actorAccountId, organizationId, missionId))) return [];
   if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
   const rows = await db
     .select()
@@ -1155,6 +1225,22 @@ export interface OrgMission {
  * docs/audits/commercial-readiness-recovery-baseline.md §7.
  */
 export async function listMissionsForOrganization(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<OrgMission[]> {
+  // Every case of the organization is administrator data; a member sees their own through
+  // `listVisibleMissionsForMember`. Anyone else gets what a made-up organization gets.
+  if (!(await mayReadOrgWide(db, actorAccountId, organizationId))) return [];
+  return missionsReachableByOrganization(db, organizationId);
+}
+
+/**
+ * The reachable set itself, with no actor: private to this module, for its own reads that have
+ * already checked the person (`listMissionsForOrganization`, `listVisibleMissionsForMember`,
+ * `listUnassignedActiveMissions`).
+ */
+async function missionsReachableByOrganization(
   db: Db,
   organizationId: string,
 ): Promise<OrgMission[]> {
@@ -1239,9 +1325,9 @@ export async function listVisibleMissionsForMember(
  * queried, potentially wider one (PRD CAS-02: "list queries and counts obey
  * the same object rules as detail pages").
  *
- * Callers must already know the actor is at least an active member (this
- * function, like `listMissionsForOrganization`, does not itself re-check
- * membership).
+ * Anyone who is not an active member of the organization (never one, removed,
+ * or the organization does not exist) gets no case, the answer an organization
+ * with nothing shared gets.
  */
 export async function listVisibleMissionsForMember(
   db: Db,
@@ -1254,8 +1340,19 @@ export async function listVisibleMissionsForMember(
   actorAccountId: string,
   options?: VisibleCasesPageRequest,
 ): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] } | VisibleCasesPage> {
-  const admin = await isOrgAdmin(db, actorAccountId, organizationId);
-  const base = await listMissionsForOrganization(db, organizationId);
+  // Not a member (never one, removed, or the organization does not exist): no case, the same
+  // answer as an organization with nothing shared.
+  const membership =
+    isUuid(actorAccountId) && isUuid(organizationId)
+      ? await readActiveMembership(db, actorAccountId, organizationId)
+      : null;
+  if (!membership) {
+    return options
+      ? { admin: false, missions: [], nextCursor: null, total: 0 }
+      : { admin: false, missions: [] };
+  }
+  const { admin } = membership;
+  const base = await missionsReachableByOrganization(db, organizationId);
   let scoped = base;
   if (!admin) {
     const assignedIds = await listAssignedMissionIds(db, organizationId, actorAccountId);
@@ -1547,6 +1644,7 @@ export async function addNote(
  */
 export async function listNotes(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   applicantId: string,
   missionId: string,
@@ -1566,18 +1664,23 @@ export async function listNotes(
  */
 export async function listNotes(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   applicantId: string,
   missionId: string,
 ): Promise<MissionNote[]>;
 export async function listNotes(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   applicantId: string,
   missionId: string,
   options?: NotesPageRequest,
 ): Promise<MissionNote[] | NotesPage> {
-  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) {
+  if (
+    !(await mayReadOrgCase(db, actorAccountId, organizationId, missionId)) ||
+    !(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))
+  ) {
     return options ? { items: [], nextCursor: null, total: 0 } : [];
   }
   const readable = and(
@@ -2854,6 +2957,21 @@ export interface OrgApplicant {
  */
 export async function listApplicantsForOrganization(
   db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<OrgApplicant[]> {
+  // Administrator data (the evidence-request picker); anyone else gets an empty list.
+  if (!(await mayReadOrgWide(db, actorAccountId, organizationId))) return [];
+  return applicantsSharedWithOrganization(db, organizationId);
+}
+
+/**
+ * The same set with no actor, for this package's own counting (storage and plan limits), which
+ * returns numbers, never a name. Not exported from the package entry (the organization actor
+ * ratchet holds it there).
+ */
+export async function applicantsSharedWithOrganization(
+  db: Db,
   organizationId: string,
 ): Promise<OrgApplicant[]> {
   const now = new Date();
@@ -2881,7 +2999,7 @@ export async function listApplicantsForOrganization(
 
 /**
  * Organizations with a CURRENT grant on this applicant -- the exact reverse
- * of `listApplicantsForOrganization` above, sharing its identical
+ * of `applicantsSharedWithOrganization` above, sharing its identical
  * ACTIVE/accepted/started/unexpired predicate so both directions of "which
  * org sees which applicant" can never disagree. COM-02 (quota enforcement)
  * uses this to find every organization whose storage entitlement an upload
@@ -4385,9 +4503,14 @@ export async function listMissionDecisions(
  */
 export async function listMissionRequirementsForOrg(
   db: Db,
+  actorAccountId: string,
   organizationId: string,
   missionId: string,
 ): Promise<Result<PackRequirement[], ServiceError>> {
+  // Someone who may not read this organization's view of the case gets what an unknown id gets.
+  if (!(await mayReadOrgCase(db, actorAccountId, organizationId, missionId))) {
+    return err(keyedError('not_found', 'agency.case_not_found'));
+  }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );

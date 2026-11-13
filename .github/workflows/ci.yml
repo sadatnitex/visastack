@@ -188,6 +188,22 @@ jobs:
     name: Test other packages
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # A throwaway Postgres for the few tests that need two real database connections at once
+    # (PGlite has one): `test:pg` in packages/services. It lives only inside this job and is
+    # removed with it; no Neon branch and no production database is involved. Same pinned image
+    # as the restore drill.
+    services:
+      postgres:
+        image: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -258,6 +274,11 @@ jobs:
         # database-heavy packages and use two Vitest workers rather than the runner's one-worker
         # default.
         run: pnpm exec turbo run test --filter=!@visastack/services --filter=!@visastack/web --concurrency=2 -- --maxWorkers=2
+
+      - name: Test against a real Postgres (two connections at once)
+        env:
+          TEST_POSTGRES_URL: postgres://postgres@127.0.0.1:5432/postgres
+        run: pnpm --filter @visastack/services run test:pg
 
   verify:
     # The required status check. Keep this name: branch protection matches on it.

@@ -273,13 +273,14 @@ describe('the profile editor under Bengali', () => {
       'ended',
     ])
       expect(conflicted, key).toContain(bn[`${E}${key}`]);
-    // The other branch of each assurance line is held back, so it stays English.
+    // The other branch of each assurance line is Bengali too.
     const other = editor('bn', true, {
       assurance: assurance(false, true),
       values: { given_name: value('DECLARED') } as never,
     });
-    expect(other).toContain('Not yet entered');
-    expect(other).toContain('Backed by a supplied document');
+    expect(other).toContain(bn[`${E}notYetEntered`]);
+    expect(other).toContain(bn[`${E}backedByASuppliedDocument`]);
+    expect(other).not.toContain('Not yet entered');
     expect(conflicted).not.toMatch(/appApplicant\./);
   });
 

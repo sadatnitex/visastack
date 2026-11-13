@@ -347,10 +347,11 @@ const probes: readonly Probe[] = [
     run: (w, who, ids) => listMissionDecisions(w.db, who.accountId, ids.missionId),
   },
   {
-    // `listNotes` takes an organization, not a person: the caller (the console) proves the
-    // person belongs to it. What can be tested here is the organization that has no standing.
+    // `listNotes` checks the person against the organization itself (`mayReadOrgCase`), and the
+    // organization's standing on the case after that.
     name: 'listNotes',
-    run: (w, who, ids) => listNotes(w.db, who.organizationId, ids.applicantId, ids.missionId),
+    run: (w, who, ids) =>
+      listNotes(w.db, who.accountId, who.organizationId, ids.applicantId, ids.missionId),
   },
 ];
 
@@ -430,7 +431,13 @@ describe('a stranger gets the same answer for a real record and a made-up id', (
       visibility: 'TRAVELLER_SHARED',
     });
     expect(isOk(notes)).toBe(true);
-    const seen = await listNotes(w.db, w.north.organizationId, w.rahim.applicantId, w.missionId);
+    const seen = await listNotes(
+      w.db,
+      w.north.accountId,
+      w.north.organizationId,
+      w.rahim.applicantId,
+      w.missionId,
+    );
     expect(seen.length).toBeGreaterThan(0);
     // The genuine caseworker can still do case work.
     const done = await decideTaskForOrg(w.db, {

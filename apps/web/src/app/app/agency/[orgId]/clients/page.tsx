@@ -123,7 +123,7 @@ export default async function AgencyClientsPage({
         linkedId
           ? loadEvidenceRequestPage(db, accountId, orgId, access, { limit: 1, only: linkedId })
           : Promise.resolve(null),
-        loadApplicants(db, orgId, access),
+        loadApplicants(db, accountId, orgId, access),
         loadVisibleCaseList(db, accountId, orgId),
       ]);
     // The exact copies sent for every document request shown, so a reviewer decides on a copy

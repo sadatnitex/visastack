@@ -5,7 +5,7 @@ import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import ts from 'typescript';
 import { parseCatalog } from './catalog.mjs';
-import { runCodemod } from './codemod.mjs';
+import { parseArgs, runCodemod } from './codemod.mjs';
 import { FILES, loadFormatter, loadModule, makeRoot, readTree, render } from './fixtures.mjs';
 import { renderedJsxText } from './jsx-text.mjs';
 import { KeyAllocator, fileSlug, textSlug } from './keys.mjs';
@@ -374,12 +374,14 @@ describe('holdback list', () => {
     'SG-1549c176',
     'SG-16600835',
     'SG-19b168cd',
+    'SG-1ce16669',
     'SG-1d11e900',
     'SG-1f2c844a',
     'SG-21e2947f',
     'SG-260ff35f',
     'SG-2625eb6a',
     'SG-2e2357fd',
+    'SG-32ebd49c',
     'SG-32f5aefc',
     'SG-338d92d1',
     'SG-37c14fc0',
@@ -392,6 +394,7 @@ describe('holdback list', () => {
     'SG-58cc6dc1',
     'SG-59d94eb1',
     'SG-5a6c4e41',
+    'SG-5cbaeb71',
     'SG-5d43545f',
     'SG-5e7adbab',
     'SG-61e87632',
@@ -411,9 +414,12 @@ describe('holdback list', () => {
     'SG-8881fc69',
     'SG-8d14d065',
     'SG-8fd6641e',
+    'SG-95ad8477',
     'SG-95b07104',
     'SG-9d878677',
     'SG-9e771a8e',
+    'SG-a467fb90',
+    'SG-a516cfad',
     'SG-a5fa0621',
     'SG-a7694752',
     'SG-a818802f',
@@ -452,6 +458,7 @@ describe('holdback list', () => {
     'SG-d6e09908',
     'SG-d9561170',
     'SG-d9696fe7',
+    'SG-da772478',
     'SG-db11732d',
     'SG-dc1af39a',
     'SG-de969496',
@@ -710,6 +717,22 @@ describe('the default export of a page with overloads', () => {
     assert.equal(
       defaultExportFn(parse('export default function Page(a: string): string;\n')),
       null,
+    );
+  });
+});
+
+describe('--refill-bn --key-prefix', () => {
+  test('a missing or empty prefix is refused, never read as every key', () => {
+    for (const argv of [
+      ['--refill-bn', '--key-prefix'],
+      ['--refill-bn', '--key-prefix', ''],
+      ['--refill-bn', '--key-prefix', '   '],
+      ['--refill-bn', '--key-prefix', '--dry-run'],
+    ])
+      assert.throws(() => parseArgs(argv), /--key-prefix needs a non-empty/, argv.join(' '));
+    assert.equal(
+      parseArgs(['--refill-bn', '--key-prefix', 'appApplicant.x.']).keyPrefix,
+      'appApplicant.x.',
     );
   });
 });

@@ -1032,7 +1032,9 @@ describe('what an agency sees (owner decision 30 Oct 2026: AI reminders are priv
     if (!isOk(own)) throw new Error('own tasks');
     expect(own.value).toHaveLength(1);
     const taskId = own.value[0]?.id ?? '';
-    expect(await listTasksForOrg(db, org.value.id, applicantId, trip.missionId)).toEqual([]);
+    expect(
+      await listTasksForOrg(db, admin.value.id, org.value.id, applicantId, trip.missionId),
+    ).toEqual([]);
     // Nor can the agency change it by its id.
     const update = await updateTaskForOrg(db, {
       actorAccountId: member.value.id,
@@ -1058,7 +1060,7 @@ describe('what an agency sees (owner decision 30 Oct 2026: AI reminders are priv
       .insert(schema.missionTasks)
       .values({ missionId: trip.missionId, description: 'By hand' });
     expect(
-      (await listTasksForOrg(db, org.value.id, applicantId, trip.missionId)).map(
+      (await listTasksForOrg(db, admin.value.id, org.value.id, applicantId, trip.missionId)).map(
         (t) => t.description,
       ),
     ).toEqual(['By hand']);

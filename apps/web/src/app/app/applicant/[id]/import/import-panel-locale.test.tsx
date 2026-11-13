@@ -8,9 +8,10 @@ import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 /** The import panel under Bengali: every state it draws, with a made-up request stand-in. */
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+const removal = vi.hoisted(() => ({ remove: vi.fn(), restore: vi.fn() }));
 vi.mock('../documents/manage/delete/actions', () => ({
-  deleteDuplicateAction: vi.fn(),
-  restoreDeletedAction: vi.fn(),
+  deleteDuplicateAction: removal.remove,
+  restoreDeletedAction: removal.restore,
 }));
 
 const { ImportPanel } = await import('./import-panel');
@@ -132,13 +133,13 @@ describe('the import panel under Bengali', () => {
     expect(text()).not.toMatch(/appApplicant\./);
   });
 
-  it('shows the running import: pause, a file line and the English progress words', async () => {
+  it('shows the running import: pause, a file line and Stop in Bengali', async () => {
     await mount('bn', people);
     await choose(['a.jpg']);
     expect(text()).toContain(bn[`${K}pause`]);
     expect(text()).toContain('a.jpg');
-    // Not yet drafted: English, never a raw key.
-    expect(text()).toContain('Stop');
+    expect(text()).toContain(bn[`${K}stop`]);
+    expect(text()).not.toContain('Stop');
     expect(text()).not.toMatch(/appApplicant\./);
   });
 
@@ -185,6 +186,61 @@ describe('the import panel under Bengali', () => {
     });
     await flush();
     expect(text()).toContain('Passports-এ');
+  });
+
+  it('words a failed Remove This New Copy from the catalogue, and rewords it when the language is switched', async () => {
+    const R = 'appApplicant.appApplicantIdDocumentsManageRemoval.';
+    const removeAndRead = async (answer: 'down' | Record<string, unknown>) => {
+      if (answer === 'down') removal.remove.mockReset().mockRejectedValue(new Error('offline'));
+      else removal.remove.mockReset().mockResolvedValue(answer);
+      act(() => root.unmount());
+      root = createRoot(host);
+      FakeRequest.sent = [];
+      window.localStorage.clear();
+      await mount('bn', people);
+      await choose(['copy.jpg']);
+      await act(async () =>
+        FakeRequest.sent[0]?.answer(201, {
+          message: 'Added. This is an exact copy of a document you already keep.',
+          title: 'Scan',
+          removableCopyId: '11111111-1111-4111-8111-111111111111',
+        }),
+      );
+      await flush();
+      const button = [...host.querySelectorAll('button')].find((b) =>
+        b.getAttribute('aria-label')?.includes('copy.jpg'),
+      );
+      expect(button, 'Remove This New Copy').toBeTruthy();
+      await act(async () => {
+        button?.click();
+      });
+      await flush();
+      return host.querySelector('.upload-item [role="alert"], [role="alert"].field-msg-err')
+        ?.textContent;
+    };
+    const handover = `${R}copyKeptHandover`;
+    expect(await removeAndRead({ ok: false, message: en[handover], messageKey: handover })).toBe(
+      'আপনার আমন্ত্রিত একজন এই কপিটি পাঠিয়েছেন, তাই এটি রাখা আছে। এর বদলে আপনি এটি আর্কাইভ করতে পারেন।',
+    );
+    // Held: it names Recently Deleted, whose own label is still English on screen.
+    const stale = `${R}copyAlreadyRecentlyDeleted`;
+    expect(bn[stale]).toBeUndefined();
+    expect(await removeAndRead({ ok: false, message: en[stale], messageKey: stale })).toBe(
+      'This copy is already in Recently Deleted. Refresh the page.',
+    );
+    expect(await removeAndRead('down')).toBe(bn[`${R}couldNotRemoveIt`]);
+    expect(bn[`${R}couldNotRemoveIt`]).toMatch(BENGALI);
+    // The language is switched with the failure still on screen: it is reworded, not frozen.
+    await act(async () => {
+      root.render(
+        <I18nProvider locale="en" pageLang="en">
+          <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" people={people} />
+        </I18nProvider>,
+      );
+    });
+    expect(host.querySelector('[role="alert"].field-msg-err')?.textContent).toBe(
+      'We could not remove it. Check your connection and try again.',
+    );
   });
 
   it('is the same English as before under English', async () => {
