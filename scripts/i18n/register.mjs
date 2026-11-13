@@ -736,8 +736,10 @@ export class Register {
   /**
    * With `plural`, an ICU plural message may be filled: its variables, plural variables and
    * nesting must match the English exactly and every Bengali plural must have an `other` branch.
-   * Only callers whose translator formats plurals (the services catalogue) pass it; web
-   * catalogues still refuse plural messages.
+   * Only callers whose text is written in the catalogue's own plural shape pass it: the services
+   * catalogue, and a draft written for one web catalogue key (refill.mjs). A register row read
+   * for a web key still refuses a plural message, because its Bengali was drafted from the
+   * flattened census sentence.
    * @param {{ plural?: boolean }} [options]
    */
   resolveRow(row, english, { plural = false } = {}) {
