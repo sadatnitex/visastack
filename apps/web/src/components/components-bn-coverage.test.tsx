@@ -551,7 +551,10 @@ describe('every live Bengali message of the shared components is shown under bn'
       'componentsPwa.pwaPwaRuntime.reloadNow',
       'componentsPwa.pwaPwaRuntime.later',
     );
-    await act(async () => byText('button', bnOf('componentsPwa.pwaPwaRuntime.reloadNow'))?.click());
+    const reload = byText('button', bnOf('componentsPwa.pwaPwaRuntime.reloadNow')) as
+      | HTMLButtonElement
+      | undefined;
+    await act(async () => reload?.click());
     expectShown('componentsPwa.pwaPwaRuntime.reloading');
   }
 
