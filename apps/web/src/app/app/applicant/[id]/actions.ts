@@ -71,9 +71,11 @@ import {
 } from '../../../../lib/hidden-record';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
+import { plainSentence } from '../../../../lib/plain-sentence';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { createPreviewRenderer } from '../../../../lib/providers-media';
 import { reportServerError } from '../../../../lib/server-error';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import {
@@ -270,7 +272,8 @@ export async function uploadDocumentAction(
     String(formData.get('docType') ?? ''),
     String(formData.get('subject') ?? ''),
   );
-  if (!kind.ok) return { ok: false, message: kind.error.message, field: 'docType' };
+  if (!kind.ok)
+    return { ok: false, message: await serviceErrorMessage(kind.error), field: 'docType' };
 
   const declaredType = file.type || 'application/octet-stream';
   // UMPE P3: the browser's id for this one file (the same on every attempt) and the file's own
@@ -352,7 +355,7 @@ export async function uploadDocumentAction(
       // The record's owner, for themselves (checked above): the line when a paid plan would help.
       return {
         ok: false,
-        message: reservation.error.message,
+        message: await serviceErrorMessage(reservation.error),
         ...(await upgradeLineForRefusal(db, self, reservation.error)),
         ...(reservation.error.code === 'rate_limited' ? { refusal: 'rate_limited' as const } : {}),
       } satisfies ActionState;
@@ -508,7 +511,7 @@ export async function uploadDocumentAction(
         if (!created.ok) {
           await storage.deleteObject('QUARANTINE', intent.objectKey).catch(() => undefined);
           await failUpload(db, intent.id, created.error.message);
-          return { ok: false, message: created.error.message };
+          return { ok: false, message: await serviceErrorMessage(created.error) };
         }
         return { ok: true, version: created.value, convertedFrom };
       } catch (error) {
@@ -627,7 +630,7 @@ export async function decideDocumentNameAction(
     if (!decided.ok) {
       return {
         ok: false,
-        message: refusalLine(decided.error, NAME_HIDDEN_LINE),
+        message: await refusalText(decided.error, NAME_HIDDEN_LINE),
       } satisfies ActionState;
     }
     return {
@@ -954,7 +957,7 @@ export async function runClassificationAction(
         message:
           kind.error.code === 'forbidden' || kind.error.code === 'not_found'
             ? 'Not authorized.'
-            : plainError(kind.error),
+            : await plainErrorText(kind.error),
         ...(await upgradeLineForRefusal(db, self, kind.error, 'ai_document_kind', {
           isOwner: () => assertOwned(db, accountId, applicantId),
         })),
@@ -1074,9 +1077,17 @@ function convertedCopyRefusal(
 
 /** A service refusal as a sentence a person can read. */
 function plainError(error: ServiceError): string {
-  const text = error.message.trim();
-  if (text.length === 0) return 'Something went wrong. Try again.';
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
+  return plainSentence(error.message);
+}
+
+/** `refusalLine` with the other refusals worded in the visitor's language. */
+async function refusalText(error: ServiceError, hiddenLine: string): Promise<string> {
+  return refusalLine(error, hiddenLine, await serviceErrorMessage(error));
+}
+
+/** The same, worded in the visitor's language when the refusal has a key. */
+async function plainErrorText(error: ServiceError): Promise<string> {
+  return plainSentence(await serviceErrorMessage(error));
 }
 
 /**
@@ -1109,7 +1120,7 @@ export async function renameDocumentAction(
     if (!renamed.ok) {
       return {
         ok: false,
-        message: plainError(renamed.error),
+        message: await plainErrorText(renamed.error),
         ...(renamed.error.code === 'invalid' ? { field: 'name' } : {}),
       } satisfies ActionState;
     }
@@ -1163,7 +1174,7 @@ export async function setDocumentExpiryAction(
     if (!saved.ok) {
       return {
         ok: false,
-        message: plainError(saved.error),
+        message: await plainErrorText(saved.error),
         ...(saved.error.code === 'invalid' ? { field: 'expiresOn' } : {}),
       } satisfies ActionState;
     }
@@ -1238,7 +1249,8 @@ export async function decideDocumentSuggestionAction(
         ? { decision, nameVersionId, typeProposalId, docType, subject, name }
         : { decision, nameVersionId, typeProposalId },
     );
-    if (!decided.ok) return { ok: false, message: plainError(decided.error) } satisfies ActionState;
+    if (!decided.ok)
+      return { ok: false, message: await plainErrorText(decided.error) } satisfies ActionState;
     // UMPE G4: the service queued a fresh reading for an accepted kind; run it now.
     if (decided.value.decision === 'accept') readSoon();
     return {
@@ -1285,7 +1297,7 @@ export async function decideClassificationProposalAction(
       if (!rejected.ok) {
         return {
           ok: false,
-          message: refusalLine(rejected.error, SUGGESTION_HIDDEN_LINE),
+          message: await refusalText(rejected.error, SUGGESTION_HIDDEN_LINE),
         } satisfies ActionState;
       }
       return { ok: true, message: 'Suggestion rejected.' } satisfies ActionState;
@@ -1297,7 +1309,7 @@ export async function decideClassificationProposalAction(
     if (!approved.ok) {
       return {
         ok: false,
-        message: refusalLine(approved.error, SUGGESTION_HIDDEN_LINE),
+        message: await refusalText(approved.error, SUGGESTION_HIDDEN_LINE),
       } satisfies ActionState;
     }
     // UMPE G4: the kind is decided; a fresh reading checks protection against it.
@@ -1378,7 +1390,7 @@ export async function decideProposalAction(
       if (!rejected.ok) {
         return {
           ok: false,
-          message: refusalLine(rejected.error, SUGGESTION_HIDDEN_LINE),
+          message: await refusalText(rejected.error, SUGGESTION_HIDDEN_LINE),
         } satisfies ActionState;
       }
       return {
@@ -1403,7 +1415,7 @@ export async function decideProposalAction(
     if (!approved.ok) {
       return {
         ok: false,
-        message: refusalLine(approved.error, SUGGESTION_HIDDEN_LINE),
+        message: await refusalText(approved.error, SUGGESTION_HIDDEN_LINE),
       } satisfies ActionState;
     }
     return {
@@ -1545,7 +1557,7 @@ export async function decideInconsistencyFlagAction(
     if (!decided.ok) {
       return {
         ok: false,
-        message: refusalLine(decided.error, FLAG_HIDDEN_LINE),
+        message: await refusalText(decided.error, FLAG_HIDDEN_LINE),
       } satisfies ActionState;
     }
     return {
@@ -1570,7 +1582,10 @@ export async function requestDocumentReadingAction(formData: FormData): Promise<
     }),
   );
   const base = `/app/applicant/${encodeURIComponent(applicantId)}/documents?document=${encodeURIComponent(documentId)}`;
-  if (!result.ok) redirect(`${base}&reading_error=${encodeURIComponent(result.error.message)}`);
+  if (!result.ok)
+    redirect(
+      `${base}&reading_error=${encodeURIComponent(await serviceErrorMessage(result.error))}`,
+    );
   revalidatePath(`/app/applicant/${applicantId}/documents`);
   after(() => triggerIntakeAndReading());
   redirect(`${base}&reading_queued=true`);

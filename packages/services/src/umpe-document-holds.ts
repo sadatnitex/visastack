@@ -30,7 +30,7 @@ import { appendAuditEvent } from './audit';
 import { findTd3Block } from './classification';
 import { type Db, first, schema } from './db';
 import { CONVERTED_FROM_HEIC_SOURCE, registerDocumentWithVersion } from './documents';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { enqueueIntakeJob } from './jobs';
@@ -759,8 +759,8 @@ export async function fileHeldFile(
   options: { readonly quotaConfig?: UploadQuotaConfig; readonly now?: Date } = {},
 ): Promise<Result<FiledHold, ServiceError>> {
   const owner = ownerOf(proof, 'MANAGE');
-  if (!owner) return err(serviceError('forbidden', 'not authorized'));
-  const notFound = err(serviceError('not_found', 'file not found'));
+  if (!owner) return err(keyedError('forbidden', 'umpe_document_exceptions.not_authorized'));
+  const notFound = err(keyedError('not_found', 'umpe_document_holds.file_not_found'));
   const db = proof.tx;
   if (!(await personHoldsTablePresent(db))) return notFound;
   const applicantId = proof.applicant.id;
@@ -835,7 +835,8 @@ export async function fileHeldFile(
         })
         .where(and(eq(holds.id, claimed.id), eq(holds.status, 'FILING')))
         .returning({ id: holds.id });
-      if (marked.length === 0) throw new FilingRefused(serviceError('not_found', 'file not found'));
+      if (marked.length === 0)
+        throw new FilingRefused(keyedError('not_found', 'umpe_document_holds.file_not_found'));
       // The file's own name moves to the person's upload receipt, where the reading finds it for
       // a suggested title; it stays private to this account and goes with the document.
       if (await uploadReceiptsTablePresent(tx)) {
@@ -913,8 +914,8 @@ export async function discardHeldFile(
   input: { readonly holdId: string },
 ): Promise<Result<{ readonly discarded: true; readonly bytesRemoved: boolean }, ServiceError>> {
   const owner = ownerOf(proof, 'MANAGE');
-  if (!owner) return err(serviceError('forbidden', 'not authorized'));
-  const notFound = err(serviceError('not_found', 'file not found'));
+  if (!owner) return err(keyedError('forbidden', 'umpe_document_exceptions.not_authorized'));
+  const notFound = err(keyedError('not_found', 'umpe_document_holds.file_not_found'));
   const db = proof.tx;
   if (!(await personHoldsTablePresent(db))) return notFound;
   const holds = schema.documentPersonHolds;
@@ -1214,8 +1215,8 @@ export async function returnAutoFiledHold(
   input: { readonly placementId: string },
 ): Promise<Result<{ readonly holdId: string }, ServiceError>> {
   const owner = ownerOf(proof, 'MANAGE');
-  if (!owner) return err(serviceError('forbidden', 'not authorized'));
-  const notFound = err(serviceError('not_found', 'file not found'));
+  if (!owner) return err(keyedError('forbidden', 'umpe_document_exceptions.not_authorized'));
+  const notFound = err(keyedError('not_found', 'umpe_document_holds.file_not_found'));
   const db = proof.tx;
   if (!(await personHoldsTablePresent(db)) || !(await autoPlacementsTablePresent(db))) {
     return notFound;
@@ -1305,12 +1306,7 @@ export async function returnAutoFiledHold(
       only.bucket !== 'QUARANTINE' ||
       (await documentInUse(tx, document.id, only.id))
     ) {
-      return err(
-        serviceError(
-          'stale',
-          'this file is already in use, so it stays where it is; move it from its own page',
-        ),
-      );
+      return err(keyedError('stale', 'umpe_document_holds.this_file_is_already_in_use'));
     }
     // The file's own name came to the person's upload receipt when it was filed: it goes back.
     const receipt = (await uploadReceiptsTablePresent(tx))

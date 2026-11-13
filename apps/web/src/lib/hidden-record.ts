@@ -40,8 +40,10 @@ export const NAME_HIDDEN_LINE = 'This naming proposal is not available to you.';
 export function refusalLine(
   error: { readonly code: string; readonly message: string },
   hiddenLine: string,
+  /** The words for any other refusal; the service's English unless the caller has them translated. */
+  otherwise: string = error.message,
 ): string {
-  return error.code === 'forbidden' || error.code === 'not_found' ? hiddenLine : error.message;
+  return error.code === 'forbidden' || error.code === 'not_found' ? hiddenLine : otherwise;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

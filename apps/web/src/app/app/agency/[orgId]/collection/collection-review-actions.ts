@@ -1,5 +1,7 @@
 'use server';
 
+import { serviceErrorMessage } from '../../../../../lib/service-error-message';
+
 import {
   agencyCollectionPrincipal,
   placeGuestHold,
@@ -60,7 +62,7 @@ export async function reviewAnswerAction(
     if (!result) return UNAVAILABLE;
     if (!result.ok) {
       return result.error.code === 'invalid'
-        ? { ok: false, message: result.error.message, field: 'decision' }
+        ? { ok: false, message: await serviceErrorMessage(result.error), field: 'decision' }
         : UNAVAILABLE;
     }
     revalidatePath(`/app/agency/${organizationId}/collection/request`);
@@ -98,7 +100,7 @@ export async function guestHoldAction(
     if (!result) return UNAVAILABLE;
     if (!result.ok) {
       return result.error.code === 'invalid'
-        ? { ok: false, message: result.error.message, field: 'reason' }
+        ? { ok: false, message: await serviceErrorMessage(result.error), field: 'reason' }
         : UNAVAILABLE;
     }
     revalidatePath(`/app/agency/${organizationId}/collection/request`);

@@ -4,7 +4,7 @@ import type { AuthorizedApplicant } from './access';
 import { type ReadingStopReason, isAiReadingKey, isReadingStopReason } from './ai-reading-job';
 import { isConnectorModelVersion, isDeterministicModelVersion } from './ai-run-kinds';
 import { schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 
 /**
@@ -107,7 +107,7 @@ export async function listDocumentReadingStates(
   documentVersionIds: readonly string[],
 ): Promise<Result<DocumentReadingStates, ServiceError>> {
   if (access.actor.kind !== 'applicant_owner') {
-    return err(serviceError('forbidden', 'only the owner can see how a file was read'));
+    return err(keyedError('forbidden', 'readingState.onlyTheOwnerCanSeeHow'));
   }
   // Anything that is not an id is dropped before it reaches the database.
   const ids = [...new Set(documentVersionIds)].filter((id) => UUID.test(id));

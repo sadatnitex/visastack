@@ -36,7 +36,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import {
   type FieldPin,
   evidenceFieldPinsPresent,
@@ -50,6 +50,7 @@ import {
   newerUnlinkedDecision,
   pinnedVersionIntact,
 } from './evidence-submission-tables';
+import type { ServiceMessageKey } from './i18n';
 import {
   lifecycleTablesPresent,
   presentApplicantCondition,
@@ -287,24 +288,22 @@ export async function assignMember(
   },
 ): Promise<Result<Assignment, ServiceError>> {
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can assign members'));
+    return err(keyedError('forbidden', 'agency.only_an_org_owner_admin_can'));
   }
   if (!(await isActiveMember(db, input.memberAccountId, input.organizationId))) {
-    return err(
-      serviceError('invalid', 'the assignee must be an active member of this organization'),
-    );
+    return err(keyedError('invalid', 'agency.the_assignee_must_be_an_active'));
   }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'agency.case_not_found'));
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
     // Answered exactly like an unknown id, so a case hidden from this
     // organization (a per-case sharing exception, ADR 0017) cannot be told
     // apart from one that does not exist.
-    return err(serviceError('not_found', 'case not found'));
+    return err(keyedError('not_found', 'agency.case_not_found'));
   }
 
   const existing = first(
@@ -370,7 +369,7 @@ export async function unassignMember(
   },
 ): Promise<Result<{ readonly removed: boolean }, ServiceError>> {
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can unassign members'));
+    return err(keyedError('forbidden', 'agency.only_an_org_owner_admin_can2'));
   }
   return db.transaction(async (tx) => {
     const existing = first(
@@ -591,20 +590,20 @@ async function loadMissionForOrgWrite(
   missionId: string,
 ) {
   if (!(await isActiveMember(db, actorAccountId, organizationId))) {
-    return err(serviceError('forbidden', 'not an active member of this organization'));
+    return err(keyedError('forbidden', 'agency.not_an_active_member_of_this'));
   }
   if (!(await assignedToMission(db, organizationId, actorAccountId, missionId))) {
-    return err(serviceError('forbidden', 'not assigned to this case'));
+    return err(keyedError('forbidden', 'agency.not_assigned_to_this_case'));
   }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'agency.case_not_found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
     // Answered exactly like an unknown id, so a case hidden from this
     // organization (a per-case sharing exception, ADR 0017) cannot be told
     // apart from one that does not exist.
-    return err(serviceError('not_found', 'case not found'));
+    return err(keyedError('not_found', 'agency.case_not_found'));
   }
   return ok(mission);
 }
@@ -626,7 +625,8 @@ export async function createTaskForOrg(
   input: CreateTaskForOrgInput,
 ): Promise<Result<OrgVisibleTask, ServiceError>> {
   const description = input.description.trim();
-  if (description.length === 0) return err(serviceError('invalid', 'a description is required'));
+  if (description.length === 0)
+    return err(keyedError('invalid', 'agency.a_description_is_required'));
   const mission = await loadMissionForOrgWrite(
     db,
     input.organizationId,
@@ -704,7 +704,7 @@ export async function updateTaskForOrg(
         )
         .limit(1),
     );
-    if (!task) return err(serviceError('not_found', 'task not found'));
+    if (!task) return err(keyedError('not_found', 'agency.task_not_found'));
 
     let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
     if (input.assigneeAccountId !== undefined) {
@@ -801,7 +801,7 @@ export async function decideTaskForOrg(
         )
         .limit(1),
     );
-    if (!task) return err(serviceError('not_found', 'task not found'));
+    if (!task) return err(keyedError('not_found', 'agency.task_not_found'));
     if (!TASK_TRANSITIONS_FOR_ORG[task.status]?.includes(input.status)) {
       return err(
         serviceError('invalid', `cannot move a task from ${task.status} to ${input.status}`),
@@ -872,14 +872,14 @@ export async function createAppointmentForOrg(
   input: CreateAppointmentForOrgInput,
 ): Promise<Result<OrgVisibleAppointment, ServiceError>> {
   const title = input.title.trim();
-  if (title.length === 0) return err(serviceError('invalid', 'a title is required'));
+  if (title.length === 0) return err(keyedError('invalid', 'agency.a_title_is_required'));
   if (input.timezone.trim().length === 0) {
-    return err(serviceError('invalid', 'a timezone is required'));
+    return err(keyedError('invalid', 'agency.a_timezone_is_required'));
   }
   // A known IANA name only, saved as typed (letter case corrected, never renamed): calendar files place the time in
   // UTC from it, so a name the runtime cannot read would leave the time unplaceable.
   const timezone = recognisedTimeZone(input.timezone);
-  if (!timezone) return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
+  if (!timezone) return err(keyedError('invalid', 'agency.enter_a_time_zone_name_such'));
   const mission = await loadMissionForOrgWrite(
     db,
     input.organizationId,
@@ -970,8 +970,7 @@ export async function updateAppointmentForOrg(
 
   // A known IANA name only, saved as typed (letter case corrected), as when the appointment was made.
   const timezone = input.timezone === undefined ? undefined : recognisedTimeZone(input.timezone);
-  if (timezone === null)
-    return err(serviceError('invalid', 'enter a time zone name, such as Asia/Dhaka'));
+  if (timezone === null) return err(keyedError('invalid', 'agency.enter_a_time_zone_name_such'));
 
   return db.transaction(async (tx) => {
     const appointment = first(
@@ -986,7 +985,7 @@ export async function updateAppointmentForOrg(
         )
         .limit(1),
     );
-    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (!appointment) return err(keyedError('not_found', 'agency.appointment_not_found'));
 
     let changes: Record<string, { readonly before: unknown; readonly after: unknown }> = {};
     if (input.assigneeAccountId !== undefined) {
@@ -1083,9 +1082,9 @@ export async function decideAppointmentForOrg(
         )
         .limit(1),
     );
-    if (!appointment) return err(serviceError('not_found', 'appointment not found'));
+    if (!appointment) return err(keyedError('not_found', 'agency.appointment_not_found'));
     if (appointment.status !== 'OPEN') {
-      return err(serviceError('invalid', 'only an OPEN appointment can be decided'));
+      return err(keyedError('invalid', 'agency.only_an_open_appointment_can_be'));
     }
     const updated = required(
       first(
@@ -1405,7 +1404,7 @@ export async function addNote(
   input: AddNoteInput,
 ): Promise<Result<MissionNote, ServiceError>> {
   const body = input.body.trim();
-  if (body.length === 0) return err(serviceError('invalid', 'a note body is required'));
+  if (body.length === 0) return err(keyedError('invalid', 'agency.a_note_body_is_required'));
   if (body.length > NOTE_MAX_LENGTH) {
     return err(serviceError('invalid', `a note may be at most ${NOTE_MAX_LENGTH} characters`));
   }
@@ -1413,7 +1412,7 @@ export async function addNote(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'agency.case_not_found'));
 
   const applicant = first(
     await db
@@ -1496,16 +1495,13 @@ export async function addNote(
     // Someone with no relationship to this traveller at all is answered exactly like an unknown
     // case id, so a real case cannot be told apart from a made-up one. The denied attempt is
     // still recorded above.
-    if (stranger) return err(serviceError('not_found', 'case not found'));
-    return err(serviceError('forbidden', 'not authorized to comment on this case'));
+    if (stranger) return err(keyedError('not_found', 'agency.case_not_found'));
+    return err(keyedError('forbidden', 'agency.not_authorized_to_comment_on_this'));
   }
 
   if (input.visibility === 'AGENCY_INTERNAL' && !authorizingOrganizationId) {
     return err(
-      serviceError(
-        'invalid',
-        'AGENCY_INTERNAL notes require organization authorship: the applicant owner and a direct individual recipient are never "an agency"',
-      ),
+      keyedError('invalid', 'agency.agency_internal_notes_require_organization_authorship'),
     );
   }
 
@@ -1774,16 +1770,16 @@ export async function requestEvidence(
   const notAdmin = await evidenceAdminProblem(db, input);
   if (notAdmin) return err(notAdmin);
   if (input.kind === 'FIELD' && !input.fieldKey) {
-    return err(serviceError('invalid', 'a FIELD request needs a fieldKey'));
+    return err(keyedError('invalid', 'agency.a_field_request_needs_a_fieldkey'));
   }
   if (input.kind === 'DOCUMENT' && !input.docType) {
-    return err(serviceError('invalid', 'a DOCUMENT request needs a docType'));
+    return err(keyedError('invalid', 'agency.a_document_request_needs_a_doctype'));
   }
   const refused = await evidenceAccessProblem(db, input);
   if (refused) return err(refused);
   if (input.packRequirementId) {
     if (!input.missionId) {
-      return err(serviceError('invalid', 'a requirement-linked request must name its case'));
+      return err(keyedError('invalid', 'agency.a_requirement_linked_request_must_name'));
     }
     const mission = first(
       await db
@@ -1793,7 +1789,7 @@ export async function requestEvidence(
         .limit(1),
     );
     if (!mission || mission.applicantId !== input.applicantId) {
-      return err(serviceError('not_found', 'case not found for this applicant'));
+      return err(keyedError('not_found', 'agency.case_not_found_for_this_applicant'));
     }
     const requirement = first(
       await db
@@ -1810,7 +1806,7 @@ export async function requestEvidence(
         .limit(1),
     );
     if (!requirement) {
-      return err(serviceError('not_found', "requirement not found on this case's attached pack"));
+      return err(keyedError('not_found', 'agency.requirement_not_found_on_this_case'));
     }
   }
 
@@ -1864,7 +1860,7 @@ async function evidenceAdminProblem(
 ): Promise<ServiceError | null> {
   return (await isOrgAdmin(db, input.actorAccountId, input.organizationId))
     ? null
-    : serviceError('forbidden', 'only an org OWNER/ADMIN can request evidence');
+    : keyedError('forbidden', 'agency.only_an_org_owner_admin_can3');
 }
 
 async function evidenceAccessProblem(
@@ -1877,7 +1873,7 @@ async function evidenceAccessProblem(
   },
 ): Promise<ServiceError | null> {
   if (input.message !== undefined && input.message.length > 1000) {
-    return serviceError('invalid', 'message may be at most 1000 characters');
+    return keyedError('invalid', 'agency.message_may_be_at_most_1000');
   }
   return (await orgGrantPermits(
     db,
@@ -1887,7 +1883,7 @@ async function evidenceAccessProblem(
     input.missionId,
   ))
     ? null
-    : serviceError('forbidden', 'this organization has no current grant for that applicant');
+    : keyedError('forbidden', 'agency.this_organization_has_no_current_grant');
 }
 
 /** What one evidence request row is made of (the parts that differ between rows of one send). */
@@ -2063,8 +2059,7 @@ export async function requestEvidenceBatch(
 ): Promise<Result<EvidenceRequest[], ServiceError>> {
   // The traveller (and the case, when the proof names one) come from the proof itself, issued by
   // `requireAccess` for this organization's grant: they are never taken from the caller's input.
-  const noGrant = () =>
-    serviceError('forbidden', 'this organization has no current grant for that applicant');
+  const noGrant = () => keyedError('forbidden', 'agency.this_organization_has_no_current_grant');
   if (!AuthorizedApplicant.isGenuine(access, 'MANAGE')) return err(noGrant());
   if (access.resource.kind === 'document') return err(noGrant());
   // Only an organization member acting for their organization asks (a traveller never does).
@@ -2089,7 +2084,7 @@ export async function requestEvidenceBatch(
     seen.add(id);
     items.push(item);
   }
-  if (items.length === 0) return err(serviceError('invalid', 'Choose at least one item.'));
+  if (items.length === 0) return err(keyedError('invalid', 'agency.choose_at_least_one_item'));
   if (items.length > MAX_EVIDENCE_REQUESTS_PER_SEND) {
     return err(
       serviceError(
@@ -2106,9 +2101,7 @@ export async function requestEvidenceBatch(
         ? isAskableFieldKey(item.key)
         : resolveDocumentType(item.key)?.key === item.key;
     if (!known) {
-      return err(
-        serviceError('invalid', 'One of the items is not one we know. Choose from the list.'),
-      );
+      return err(keyedError('invalid', 'agency.one_of_the_items_is_not'));
     }
   }
 
@@ -2202,9 +2195,9 @@ export async function listEvidenceRequestsForApplicant(
   const applicant = first(
     await db.select().from(schema.applicants).where(eq(schema.applicants.id, applicantId)).limit(1),
   );
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'agency.applicant_not_found'));
   if (applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('forbidden', 'not authorized to view these requests'));
+    return err(keyedError('forbidden', 'agency.not_authorized_to_view_these_requests'));
   }
   const requests = schema.evidenceRequests;
   if (options === undefined) {
@@ -2265,7 +2258,7 @@ export async function listEvidenceRequestsForOrg(
   organizationId: string,
 ): Promise<Result<EvidenceRequest[], ServiceError>> {
   if (!(await isOrgAdmin(db, actorAccountId, organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can view these requests'));
+    return err(keyedError('forbidden', 'agency.only_an_org_owner_admin_can4'));
   }
   const requests = schema.evidenceRequests;
   const now = new Date();
@@ -2943,7 +2936,7 @@ async function loadEvidenceRequestForOwner(
   lock = false,
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   const request = await readEvidenceRequest(db, requestId, lock);
-  if (!request) return err(serviceError('not_found', 'evidence request not found'));
+  if (!request) return err(keyedError('not_found', 'agency.evidence_request_not_found'));
   const applicant = first(
     await db
       .select()
@@ -2952,7 +2945,7 @@ async function loadEvidenceRequestForOwner(
       .limit(1),
   );
   if (!applicant || applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('not_found', 'evidence request not found'));
+    return err(keyedError('not_found', 'agency.evidence_request_not_found'));
   }
   return ok(request);
 }
@@ -2965,10 +2958,10 @@ async function loadEvidenceRequestForOrg(
   lock = false,
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   const request = await readEvidenceRequest(db, requestId, lock);
-  if (!request) return err(serviceError('not_found', 'evidence request not found'));
+  if (!request) return err(keyedError('not_found', 'agency.evidence_request_not_found'));
   // Someone who is not an admin of the asking organisation is told the request does not exist.
   if (!(await isOrgAdmin(db, actorAccountId, request.organizationId))) {
-    return err(serviceError('not_found', 'evidence request not found'));
+    return err(keyedError('not_found', 'agency.evidence_request_not_found'));
   }
   if (
     !(await orgGrantPermits(
@@ -2979,9 +2972,7 @@ async function loadEvidenceRequestForOrg(
       request.missionId ?? undefined,
     ))
   ) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant for that applicant'),
-    );
+    return err(keyedError('forbidden', 'agency.this_organization_has_no_current_grant'));
   }
   return ok(request);
 }
@@ -3067,32 +3058,27 @@ export async function submitEvidenceResponse(
   },
 ): Promise<Result<EvidenceSubmitResult, ServiceError>> {
   if (input.idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
-    return err(serviceError('invalid', 'the retry key is not valid'));
+    return err(keyedError('invalid', 'agency.the_retry_key_is_not_valid'));
   }
   // Malformed ids are answered like missing ones, never as a server error.
   if (
     (input.documentId !== undefined && !isUuid(input.documentId)) ||
     (input.documentVersionId !== undefined && !isUuid(input.documentVersionId))
   ) {
-    return err(serviceError('not_found', 'document not found for this applicant'));
+    return err(keyedError('not_found', 'agency.document_not_found_for_this_applicant'));
   }
   if (
     (input.factId !== undefined && !isUuid(input.factId)) ||
     (input.factVersionId !== undefined && !isUuid(input.factVersionId))
   ) {
-    return err(serviceError('not_found', 'fact not found for this applicant'));
+    return err(keyedError('not_found', 'agency.fact_not_found_for_this_applicant'));
   }
   const exact = await evidenceSubmissionsPresent(db);
   const fieldPins = await evidenceFieldPinsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
   // Until the exact-copy tables exist a chosen version could not be kept, so it is not accepted.
   if (!exact && input.documentVersionId !== undefined) {
-    return err(
-      serviceError(
-        'invalid',
-        'Choosing an exact version is not available yet. Send the document and its newest version is used.',
-      ),
-    );
+    return err(keyedError('invalid', 'agency.choosing_an_exact_version_is_not'));
   }
   if (!fieldPins && input.factVersionId !== undefined) {
     return err(
@@ -3135,18 +3121,11 @@ export async function submitEvidenceResponse(
           (input.documentVersionId !== undefined &&
             input.documentVersionId !== earlier.documentVersionId)
         ) {
-          return err(
-            serviceError('invalid', 'this retry key was already used for a different file'),
-          );
+          return err(keyedError('invalid', 'agency.this_retry_key_was_already_used'));
         }
         const waiting = await waitingSubmission(tx, request);
         if (waiting?.id !== earlier.id) {
-          return err(
-            serviceError(
-              'stale',
-              'This was already sent and has moved on. Refresh to see where it stands.',
-            ),
-          );
+          return err(keyedError('stale', 'agency.this_was_already_sent_and_has'));
         }
         return ok({ ...request, submissionId: earlier.id, replayed: true });
       }
@@ -3179,7 +3158,7 @@ export async function submitEvidenceResponse(
     }
 
     if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
-      return err(serviceError('invalid', 'this request is not awaiting a submission'));
+      return err(keyedError('invalid', 'agency.this_request_is_not_awaiting_a'));
     }
     // The organization must still hold its standing now: a send is consent for this organization
     // only while its MANAGE grant lives.
@@ -3191,19 +3170,14 @@ export async function submitEvidenceResponse(
       request.missionId ?? undefined,
     );
     if (grantId === null) {
-      return err(
-        serviceError(
-          'forbidden',
-          'this organization no longer has access to your records, so nothing was sent',
-        ),
-      );
+      return err(keyedError('forbidden', 'agency.this_organization_no_longer_has_access'));
     }
 
     let pin: SendPin | undefined;
     let fieldPin: FieldPin | undefined;
     if (request.kind === 'FIELD') {
       if (!input.factId || input.documentId || input.documentVersionId) {
-        return err(serviceError('invalid', 'a FIELD request is satisfied by exactly one factId'));
+        return err(keyedError('invalid', 'agency.a_field_request_is_satisfied_by'));
       }
       const fact = first(
         await tx
@@ -3220,10 +3194,10 @@ export async function submitEvidenceResponse(
           .limit(1),
       );
       if (!fact || fact.applicantId !== request.applicantId) {
-        return err(serviceError('not_found', 'fact not found for this applicant'));
+        return err(keyedError('not_found', 'agency.fact_not_found_for_this_applicant'));
       }
       if (fact.fieldKey !== request.fieldKey) {
-        return err(serviceError('invalid', "this fact does not match the request's field"));
+        return err(keyedError('invalid', 'agency.this_fact_does_not_match_the'));
       }
       if (fieldPins) {
         const pinned = await pinFieldVersion(tx, {
@@ -3236,9 +3210,7 @@ export async function submitEvidenceResponse(
       }
     } else {
       if (!input.documentId || input.factId || input.factVersionId) {
-        return err(
-          serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
-        );
+        return err(keyedError('invalid', 'agency.a_document_request_is_satisfied_by'));
       }
       const document = first(
         await tx
@@ -3259,24 +3231,17 @@ export async function submitEvidenceResponse(
           .limit(1),
       );
       if (!document || document.applicantId !== request.applicantId) {
-        return err(serviceError('not_found', 'document not found for this applicant'));
+        return err(keyedError('not_found', 'agency.document_not_found_for_this_applicant'));
       }
       if (document.docType !== request.docType) {
-        return err(
-          serviceError('invalid', "this document does not match the request's document type"),
-        );
+        return err(keyedError('invalid', 'agency.this_document_does_not_match_the'));
       }
       const version = await chooseSendVersion(tx, input.documentId, input.documentVersionId);
       if (input.documentVersionId !== undefined && !version) {
-        return err(serviceError('not_found', 'document not found for this applicant'));
+        return err(keyedError('not_found', 'agency.document_not_found_for_this_applicant'));
       }
       if (!version || !(await versionIsUsable(tx, version))) {
-        return err(
-          serviceError(
-            'invalid',
-            'this document has not finished safety processing, or failed it, and cannot be submitted yet',
-          ),
-        );
+        return err(keyedError('invalid', 'agency.this_document_has_not_finished_safety'));
       }
       pin = {
         documentId: input.documentId,
@@ -3308,7 +3273,7 @@ export async function submitEvidenceResponse(
         )
         .returning(),
     );
-    if (!updated) return err(serviceError('invalid', 'this request is not awaiting a submission'));
+    if (!updated) return err(keyedError('invalid', 'agency.this_request_is_not_awaiting_a'));
 
     let submissionId: string | null = null;
     let roundNo: number | null = null;
@@ -3543,7 +3508,7 @@ export async function startEvidenceReview(
     const loaded = await loadEvidenceRequestForOrg(tx, input.actorAccountId, input.requestId, true);
     if (!loaded.ok) return loaded;
     if (loaded.value.status !== 'RECEIVED') {
-      return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+      return err(keyedError('invalid', 'agency.only_a_received_request_can_start'));
     }
     // Only a request still RECEIVED moves: a decision made in the meantime is never undone by this.
     const updated = first(
@@ -3558,7 +3523,7 @@ export async function startEvidenceReview(
         )
         .returning(),
     );
-    if (!updated) return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+    if (!updated) return err(keyedError('invalid', 'agency.only_a_received_request_can_start'));
     return ok(updated);
   });
 }
@@ -3625,7 +3590,7 @@ export async function decideEvidenceResponse(
   },
 ): Promise<Result<EvidenceDecisionResult, ServiceError>> {
   if (input.submissionId !== undefined && !isUuid(input.submissionId)) {
-    return err(serviceError('not_found', 'evidence request not found'));
+    return err(keyedError('not_found', 'agency.evidence_request_not_found'));
   }
   const exact = await evidenceSubmissionsPresent(db);
   const fieldPins = await evidenceFieldPinsPresent(db);
@@ -3646,7 +3611,7 @@ export async function decideEvidenceResponse(
     if (!loaded.ok) return loaded;
     const request = loaded.value;
     if (!DECIDABLE_STATUSES.has(request.status)) {
-      return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+      return err(keyedError('invalid', 'agency.this_request_has_nothing_submitted_to'));
     }
     const org = first(
       await tx
@@ -3660,12 +3625,7 @@ export async function decideEvidenceResponse(
       request.requestedByAccountId &&
       request.requestedByAccountId === input.actorAccountId
     ) {
-      return err(
-        serviceError(
-          'forbidden',
-          'this organization requires a reviewer different from whoever raised this request',
-        ),
-      );
+      return err(keyedError('forbidden', 'agency.this_organization_requires_a_reviewer_different'));
     }
 
     // The exact send being decided: the newest one, only while nobody has decided it yet and the
@@ -3676,21 +3636,16 @@ export async function decideEvidenceResponse(
     const pinnedField =
       fieldPins && request.kind === 'FIELD' ? await waitingFieldSubmission(tx, request) : undefined;
     if (input.submissionId !== undefined && input.submissionId !== (pinned ?? pinnedField)?.id) {
-      return err(
-        serviceError(
-          'stale',
-          'A newer copy was sent, or this one was already decided. Refresh to see the copy now waiting.',
-        ),
-      );
+      return err(keyedError('stale', 'agency.a_newer_copy_was_sent_or'));
     }
     if (input.outcome === 'ACCEPTED' && request.kind === 'DOCUMENT') {
       // Nothing was ever pointed at, so there is nothing to accept.
       if (request.respondingDocumentId === null) {
-        return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+        return err(keyedError('invalid', 'agency.this_request_has_nothing_submitted_to'));
       }
       if (pinned) {
         const problem = await pinnedCopyProblem(tx, pinned, lifecycle);
-        if (problem) return err(serviceError('invalid', problem));
+        if (problem) return err(keyedError('invalid', problem));
       } else {
         // A send recorded before exact copies were kept: the newest version of the document it
         // points at must still be usable evidence (the check the older flow made at send time).
@@ -3710,7 +3665,7 @@ export async function decideEvidenceResponse(
           ? await chooseSendVersion(tx, request.respondingDocumentId, undefined)
           : undefined;
         if (!newest || !(await versionIsUsable(tx, newest))) {
-          return err(serviceError('invalid', UNAVAILABLE_COPY));
+          return err(keyedError('invalid', 'agency.the_copy_that_was_sent_is'));
         }
       }
     }
@@ -3742,7 +3697,7 @@ export async function decideEvidenceResponse(
         .returning(),
     );
     if (!updated) {
-      return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+      return err(keyedError('invalid', 'agency.this_request_has_nothing_submitted_to'));
     }
     const decision = required(
       first(
@@ -3847,8 +3802,8 @@ export async function decideEvidenceResponse(
 
 type SubmissionRecord = typeof schema.evidenceRequestSubmissions.$inferSelect;
 
-const UNAVAILABLE_COPY =
-  'The copy that was sent is no longer available as it was sent, so it cannot be accepted. Ask for a replacement.';
+const UNAVAILABLE_COPY: ServiceMessageKey = 'agency.the_copy_that_was_sent_is';
+const FILED_AS_OTHER_KIND: ServiceMessageKey = 'agency.the_file_was_filed_as_a';
 
 /**
  * The newest send of a request, if it is still waiting for a decision: not yet decided, and the
@@ -3892,7 +3847,7 @@ async function pinnedCopyProblem(
   db: Db,
   submission: SubmissionRecord,
   lifecycle: boolean,
-): Promise<string | undefined> {
+): Promise<ServiceMessageKey | undefined> {
   const unavailable = UNAVAILABLE_COPY;
   const version = first(
     await db
@@ -3917,7 +3872,7 @@ async function pinnedCopyProblem(
   );
   if (!document) return unavailable;
   if ((document.docType ?? null) !== (submission.docTypeAtSend ?? null)) {
-    return 'The file was filed as a different kind after it was sent, so it cannot be accepted as sent. Ask for a replacement.';
+    return FILED_AS_OTHER_KIND;
   }
   return undefined;
 }
@@ -3932,7 +3887,7 @@ export async function cancelEvidenceRequest(
     if (!loaded.ok) return loaded;
     const request = loaded.value;
     if (request.status === 'CANCELLED' || request.status === 'ACCEPTED') {
-      return err(serviceError('invalid', 'this request is already closed'));
+      return err(keyedError('invalid', 'agency.this_request_is_already_closed'));
     }
     // Only a request that is not yet closed moves: an acceptance made in the meantime stays.
     const updated = first(
@@ -3947,7 +3902,7 @@ export async function cancelEvidenceRequest(
         )
         .returning(),
     );
-    if (!updated) return err(serviceError('invalid', 'this request is already closed'));
+    if (!updated) return err(keyedError('invalid', 'agency.this_request_is_already_closed'));
     await tx.insert(schema.evidenceRequestDecisions).values({
       evidenceRequestId: request.id,
       outcome: 'CANCELLED',
@@ -3986,7 +3941,7 @@ export async function listEvidenceRequestDecisions(
       .where(eq(schema.evidenceRequests.id, requestId))
       .limit(1),
   );
-  if (!request) return err(serviceError('not_found', 'evidence request not found'));
+  if (!request) return err(keyedError('not_found', 'agency.evidence_request_not_found'));
 
   const applicant = first(
     await db
@@ -4009,9 +3964,9 @@ export async function listEvidenceRequestDecisions(
   if (!isOwner && !isAuthorizedOrgMember) {
     // A stranger gets exactly what an unknown request id gets.
     if (!(await hasAnyStandingOnApplicant(db, actorAccountId, request.applicantId))) {
-      return err(serviceError('not_found', 'evidence request not found'));
+      return err(keyedError('not_found', 'agency.evidence_request_not_found'));
     }
-    return err(serviceError('forbidden', 'not authorized to view this request'));
+    return err(keyedError('forbidden', 'agency.not_authorized_to_view_this_request'));
   }
 
   const rows = await db
@@ -4072,13 +4027,13 @@ export async function bulkExport(
     !actorMembership?.active ||
     (actorMembership.role !== 'OWNER' && actorMembership.role !== 'ADMIN')
   ) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can bulk export'));
+    return err(keyedError('forbidden', 'agency.only_an_org_owner_admin_can5'));
   }
   // SHR-02: a suspended/closed organization has no standing, regardless of
   // the caller's own still-active membership row.
   const org = await getOrganization(db, input.organizationId);
   if (!org || org.status !== 'ACTIVE') {
-    return err(serviceError('forbidden', 'this organization is not active'));
+    return err(keyedError('forbidden', 'agency.this_organization_is_not_active'));
   }
 
   // Actor first, then the organization's shared bucket: several admins of one
@@ -4258,22 +4213,22 @@ export async function recordMissionDecision(
   },
 ): Promise<Result<MissionDecision, ServiceError>> {
   if (!(await isActiveMember(db, input.actorAccountId, input.organizationId))) {
-    return err(serviceError('forbidden', 'not an active member of this organization'));
+    return err(keyedError('forbidden', 'agency.not_an_active_member_of_this'));
   }
   if (!(await assignedToMission(db, input.organizationId, input.actorAccountId, input.missionId))) {
-    return err(serviceError('forbidden', 'not assigned to this case'));
+    return err(keyedError('forbidden', 'agency.not_assigned_to_this_case'));
   }
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, input.missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'agency.case_not_found'));
   if (
     !(await orgGrantPermits(db, input.organizationId, mission.applicantId, 'MANAGE', mission.id))
   ) {
     // Answered exactly like an unknown id, so a case hidden from this
     // organization (a per-case sharing exception, ADR 0017) cannot be told
     // apart from one that does not exist.
-    return err(serviceError('not_found', 'case not found'));
+    return err(keyedError('not_found', 'agency.case_not_found'));
   }
   const requirement = first(
     await db
@@ -4290,7 +4245,7 @@ export async function recordMissionDecision(
       .limit(1),
   );
   if (!requirement) {
-    return err(serviceError('not_found', "requirement not found on this case's attached pack"));
+    return err(keyedError('not_found', 'agency.requirement_not_found_on_this_case'));
   }
 
   return db.transaction(async (tx) => {
@@ -4369,7 +4324,7 @@ export async function listMissionDecisions(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'agency.case_not_found'));
   const applicant = first(
     await db
       .select({ ownerAccountId: schema.applicants.ownerAccountId })
@@ -4420,9 +4375,9 @@ export async function listMissionDecisions(
         assignments.length === 0 &&
         !(await hasAnyStandingOnApplicant(db, actorAccountId, mission.applicantId))
       ) {
-        return err(serviceError('not_found', 'case not found'));
+        return err(keyedError('not_found', 'agency.case_not_found'));
       }
-      return err(serviceError('forbidden', 'not authorized to view decisions on this case'));
+      return err(keyedError('forbidden', 'agency.not_authorized_to_view_decisions_on'));
     }
   }
   const rows = await db
@@ -4446,12 +4401,12 @@ export async function listMissionRequirementsForOrg(
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!mission) return err(keyedError('not_found', 'agency.case_not_found'));
   if (!(await orgGrantPermits(db, organizationId, mission.applicantId, 'MANAGE', mission.id))) {
     // Answered exactly like an unknown id, so a case hidden from this
     // organization (a per-case sharing exception, ADR 0017) cannot be told
     // apart from one that does not exist.
-    return err(serviceError('not_found', 'case not found'));
+    return err(keyedError('not_found', 'agency.case_not_found'));
   }
   if (!mission.packVersionId) return ok([]);
   return ok(await listRequirements(db, mission.packVersionId));
