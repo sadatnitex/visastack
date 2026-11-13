@@ -16,14 +16,15 @@ import {
   type Resource as PolicyResource,
   authorize,
 } from '@visastack/policy';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne, or } from 'drizzle-orm';
 import { type Applicant, getApplicant } from '../applicants';
 import { type ContributorRequest, isInFlightContributorRow } from '../contributor-requests';
 import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
 import { listMembershipsForAccount } from '../organizations';
-import { documentCategory, loadRecipientGrantsForPolicy } from '../sharing';
+import { documentCategory, toPolicyGrant } from '../sharing';
 import { loadSupportGrantsForPolicy } from '../support-access';
+import { loadCaseExclusions } from './grant-scope';
 import type { AccountPrincipal, Principal } from './principal';
 import {
   type DocumentProtectionSettings,
@@ -364,6 +365,39 @@ async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedReso
       };
     }
   }
+}
+
+/**
+ * The grants on this applicant that could ever reach this caller: made to the account itself, or
+ * to an organization the account belongs to (read in the same statement). The access gate judges a
+ * caller only against these, exactly as it did against the full list, so its answer is the same.
+ * Reading only these, and always reading the case exceptions, means the statements sent never
+ * depend on anyone's grants: a record that does not exist, a real record of someone else and a
+ * case hidden from this caller by an exception all take the same database work.
+ */
+async function loadRecipientGrantsForPolicy(
+  db: Db,
+  applicantId: string,
+  accountId: string,
+): Promise<PolicyGrant[]> {
+  const ownOrganizations = db
+    .select({ id: schema.memberships.organizationId })
+    .from(schema.memberships)
+    .where(eq(schema.memberships.accountId, accountId));
+  const rows = await db
+    .select()
+    .from(schema.grants)
+    .where(
+      and(
+        eq(schema.grants.applicantId, applicantId),
+        or(
+          eq(schema.grants.recipientAccountId, accountId),
+          inArray(schema.grants.recipientOrganizationId, ownOrganizations),
+        ),
+      ),
+    );
+  const exclusions = await loadCaseExclusions(db, { applicantId });
+  return rows.map((row) => toPolicyGrant(row, exclusions.get(row.id)));
 }
 
 function decide(

@@ -112,39 +112,6 @@ export async function loadGrantsForPolicy(db: Db, applicantId: string): Promise<
   return rows.map((row) => toPolicyGrant(row, exclusions?.get(row.id)));
 }
 
-/**
- * The grants on this applicant that could ever reach this caller: made to the account itself, or
- * to an organization the account belongs to (read in the same statement). The access gate judges a
- * caller only against these, exactly as it did against the full list, so its answer is the same.
- * Reading only these, and always reading the case exceptions, means the statements sent never
- * depend on anyone's grants: a record that does not exist, a real record of someone else and a
- * case hidden from this caller by an exception all take the same database work.
- */
-export async function loadRecipientGrantsForPolicy(
-  db: Db,
-  applicantId: string,
-  accountId: string,
-): Promise<PolicyGrant[]> {
-  const ownOrganizations = db
-    .select({ id: schema.memberships.organizationId })
-    .from(schema.memberships)
-    .where(eq(schema.memberships.accountId, accountId));
-  const rows = await db
-    .select()
-    .from(schema.grants)
-    .where(
-      and(
-        eq(schema.grants.applicantId, applicantId),
-        or(
-          eq(schema.grants.recipientAccountId, accountId),
-          inArray(schema.grants.recipientOrganizationId, ownOrganizations),
-        ),
-      ),
-    );
-  const exclusions = await loadCaseExclusions(db, { applicantId });
-  return rows.map((row) => toPolicyGrant(row, exclusions.get(row.id)));
-}
-
 async function ownsApplicant(
   db: Db,
   actorAccountId: string,
@@ -448,16 +415,29 @@ export interface SharedWithEmail {
  * (invitations switched on, as in production) makes the two look the same afterwards too.
  */
 export async function shareWithEmail(
-  db: Db,
-  input: Omit<CreateGrantInput, 'recipientAccountId' | 'recipientOrganizationId'> & {
+  access: AuthorizedApplicant<'MANAGE'>,
+  input: Omit<
+    CreateGrantInput,
+    'actorAccountId' | 'applicantId' | 'recipientAccountId' | 'recipientOrganizationId'
+  > & {
     readonly email: string;
   },
 ): Promise<Result<SharedWithEmail, ServiceError>> {
-  const { email, ...grant } = input;
+  // Only the owner shares, proved by the central gate: anyone else was already given its one
+  // refusal before reaching here, whatever the email.
+  if (!AuthorizedApplicant.isGenuine(access, 'MANAGE') || access.actor.kind !== 'applicant_owner') {
+    return err(keyedError('forbidden', 'sharing.ownerOnlyGrant'));
+  }
+  const db = access.tx;
+  const actorAccountId = access.applicant.ownerAccountId;
+  const { email, ...rest } = input;
+  const grant: CreateGrantInput = { ...rest, actorAccountId, applicantId: access.applicant.id };
   // A format check says nothing about accounts.
-  if (!isEmailAddress(email.trim())) return err(keyedError('invalid', 'sharing.inviteEmailInvalid'));
+  if (!isEmailAddress(email.trim())) {
+    return err(keyedError('invalid', 'sharing.inviteEmailInvalid'));
+  }
   const recipient = await getAccountByEmail(db, email);
-  if (recipient?.id === input.actorAccountId) {
+  if (recipient?.id === actorAccountId) {
     // Only the person's own address, which they already know.
     return err(keyedError('invalid', 'sharing.cannotShareSelf'));
   }
@@ -470,7 +450,7 @@ export async function shareWithEmail(
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'GRANT_RECIPIENT_NOT_REGISTERED',
-        actorAccountId: input.actorAccountId,
+        actorAccountId,
         action: 'SHARE',
         method: 'MANUAL',
         resourceType: 'grant',

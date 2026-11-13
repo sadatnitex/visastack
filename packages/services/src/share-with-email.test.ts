@@ -4,11 +4,12 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { shareWithEmail } from './sharing';
+import { acceptGrant, createGrant, shareWithEmail } from './sharing';
 
 /**
  * Sharing by email with invitations switched off (owner decision, 13 Nov 2026): the answer is the
@@ -47,10 +48,25 @@ beforeEach(async () => {
   registeredId = await account(HAS_ACCOUNT);
 });
 
-const share = (email: string, extra: Partial<Parameters<typeof shareWithEmail>[1]> = {}) =>
-  shareWithEmail(db, {
-    actorAccountId: ownerId,
-    applicantId,
+/** The owner's proof from the central gate, as the sharing action takes it. */
+async function proofFor(accountId: string) {
+  const proof = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    'MANAGE',
+    { applicantId },
+    { purpose: EACH_GRANT },
+  );
+  if (!proof.ok) throw new Error('no proof');
+  return proof.value;
+}
+
+const share = async (
+  email: string,
+  extra: Partial<Parameters<typeof shareWithEmail>[1]> = {},
+  as: string = ownerId,
+) =>
+  shareWithEmail(await proofFor(as), {
     email,
     actions: ['VIEW_METADATA'],
     purpose: 'Visa review',
@@ -109,11 +125,30 @@ describe('sharing by email answers the same whether or not the email has an acco
     expect(Object.keys((missing[0]?.metadata ?? {}) as object)).toEqual(['actions']);
   });
 
+  it('refuses someone who may manage but does not own the traveller, the same for both', async () => {
+    // A person with a MANAGE grant gets a gate proof, but only the owner shares.
+    const managerId = await account('manager@example.com');
+    const grant = await createGrant(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      recipientAccountId: managerId,
+      actions: ['VIEW_METADATA', 'MANAGE'],
+      purpose: 'help',
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    if (!isOk(await acceptGrant(db, { actorAccountId: managerId, grantId: grant.value.id }))) {
+      throw new Error('accept');
+    }
+    const withAccount = await share(HAS_ACCOUNT, { purpose: 'help' }, managerId);
+    const withoutAccount = await share(NO_ACCOUNT, { purpose: 'help' }, managerId);
+    expect(withAccount).toStrictEqual(withoutAccount);
+    expect(withAccount.ok ? null : withAccount.error.message).toBe(
+      'only the applicant owner can grant access',
+    );
+  });
+
   it('refuses identically for both when a check fails', async () => {
-    const strangerId = await account('stranger@example.com');
     const cases: ReadonlyArray<Partial<Parameters<typeof shareWithEmail>[1]>> = [
-      // Someone who does not own the traveller.
-      { actorAccountId: strangerId },
       // No purpose, no permission, a past end date, a permission that needs a fresh sign-in.
       { purpose: '   ' },
       { actions: [] },

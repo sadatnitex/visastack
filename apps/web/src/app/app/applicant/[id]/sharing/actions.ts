@@ -18,7 +18,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
-import { GRANT_HIDDEN_LINE, ownsGrant } from '../../../../../lib/hidden-record';
+import {
+  GRANT_HIDDEN_LINE,
+  PROFILE_HIDDEN_LINE,
+  ownsGrant,
+} from '../../../../../lib/hidden-record';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { sendEmailNow } from '../../../../../lib/send-now';
@@ -131,10 +135,19 @@ export async function createGrantAction(
         sendFor: invitation.value.invitation.id,
       };
     }
+    // Only the owner shares: the central gate proves it first, with its one refusal for anyone else.
+    const owner = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { applicantId },
+      { purpose: 'owner_share' },
+    );
+    if (!owner.ok || owner.value.actor.kind !== 'applicant_owner') {
+      return { ok: false, message: PROFILE_HIDDEN_LINE } satisfies ActionState;
+    }
     // One answer whether or not the email has an account (the service decides, and says neither).
-    const shared = await shareWithEmail(db, {
-      actorAccountId: accountId,
-      applicantId,
+    const shared = await shareWithEmail(owner.value, {
       email: recipientEmail,
       actions,
       purpose,

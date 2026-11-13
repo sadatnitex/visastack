@@ -49,6 +49,7 @@ const {
 } = await import('./actions');
 const { GRANT_HIDDEN_LINE } = await import('../../../../../lib/hidden-record');
 const OWNED_PERSON = '11111111-1111-4111-8111-111111111111';
+const OWNER_PROOF = { actor: { kind: 'applicant_owner' } };
 const SHARED = {
   message:
     'If this email has a VisaStack account, they can accept your share now; if not, ask them to create one, then share again.',
@@ -111,6 +112,7 @@ describe('safe copies stay grantable (stored as DOWNLOAD_REDACTED)', () => {
     return data;
   }
   beforeEach(() => {
+    mocks.requireAccess.mockResolvedValue({ ok: true, value: OWNER_PROOF });
     mocks.shareWithEmail.mockResolvedValue({ ok: true, value: SHARED });
   });
 
@@ -121,7 +123,7 @@ describe('safe copies stay grantable (stored as DOWNLOAD_REDACTED)', () => {
     );
     expect(result).toEqual({ ok: true, message: SHARED.message });
     expect(mocks.shareWithEmail).toHaveBeenCalledWith(
-      {},
+      OWNER_PROOF,
       expect.objectContaining({
         email: 'synthetic@example.com',
         actions: ['VIEW_METADATA', 'PREVIEW', 'DOWNLOAD_REDACTED'],
@@ -143,6 +145,7 @@ describe('sharing by email never says whether the email has an account (invitati
   it('prints only what the service answers, which is the same for both, and refreshes either way', async () => {
     // The service gives one answer for both (proved against a real database in
     // packages/services/src/share-with-email.test.ts); the action must add nothing of its own.
+    mocks.requireAccess.mockResolvedValue({ ok: true, value: OWNER_PROOF });
     mocks.shareWithEmail.mockResolvedValue({ ok: true, value: SHARED });
     const withAccount = await createGrantAction(
       { ok: true, message: '' },
@@ -157,9 +160,33 @@ describe('sharing by email never says whether the email has an account (invitati
     expect(mocks.revalidatePath).toHaveBeenCalledTimes(2);
     // The address is handed to the service as typed (trimmed, lower case), never looked up here.
     expect(mocks.shareWithEmail).toHaveBeenLastCalledWith(
-      {},
-      expect.objectContaining({ actorAccountId: 'owner', email: 'nobody@example.com' }),
+      OWNER_PROOF,
+      expect.objectContaining({ email: 'nobody@example.com' }),
     );
+    // The owner is proved by the central gate, never taken from the form.
+    expect(mocks.requireAccess).toHaveBeenLastCalledWith(
+      {},
+      expect.objectContaining({ kind: 'account', accountId: 'owner' }),
+      'MANAGE',
+      { applicantId: OWNED_PERSON },
+      { purpose: 'owner_share' },
+    );
+  });
+
+  it('gives anyone but the owner the one profile line, whatever the email, and shares nothing', async () => {
+    mocks.requireAccess.mockResolvedValue({
+      ok: false,
+      error: { code: 'not_found', message: 'record not found' },
+    });
+    const a = await createGrantAction({ ok: true, message: '' }, grantForm('a@example.com'));
+    mocks.requireAccess.mockResolvedValue({
+      ok: true,
+      value: { actor: { kind: 'individual_recipient' } },
+    });
+    const b = await createGrantAction({ ok: true, message: '' }, grantForm('nobody@example.com'));
+    expect(a).toStrictEqual({ ok: false, message: 'This profile is not available to you.' });
+    expect(b).toStrictEqual(a);
+    expect(mocks.shareWithEmail).not.toHaveBeenCalled();
   });
 
   it('says only that a person cannot share with themselves, before any identity re-check', async () => {
