@@ -148,6 +148,7 @@ export const componentsMoreCatalog = defineCatalog({
       'প্রতিটি পাতা দেখে নিন। শুধু কালো বক্সের অংশই লুকানো হয়। পরামর্শে কিছু বাদ পড়তে পারে।',
     'componentsMore.safeCopyEditor.checkEveryPageOnlyTheBlacka8af5a':
       'প্রতিটি পাতা দেখে নিন। শুধু কালো বক্সের অংশই লুকানো হয়।',
+    'componentsMore.safeCopyEditor.continuePreparing': 'প্রস্তুত করা চালিয়ে যান',
     'componentsMore.safeCopyEditor.drawBoxes': 'বক্স আঁকুন',
     'componentsMore.safeCopyEditor.everyPageMustShowBeforeThe':
       'নিরাপদ কপি সংরক্ষণ করার আগে প্রতিটি পাতা দেখাতে হবে: এ পর্যন্ত {pageCount}টির মধ্যে {size}টি দেখানো হয়েছে। প্রতিটি পাতা স্ক্রল করে দেখুন।',
@@ -173,10 +174,13 @@ export const componentsMoreCatalog = defineCatalog({
       'শুধু PDF ডকুমেন্ট ও ছবি থেকেই নিরাপদ কপি তৈরি করা যায়।',
     'componentsMore.safeCopyEditor.safeCopy': 'নিরাপদ কপি',
     'componentsMore.safeCopyEditor.saveSafeCopy': 'নিরাপদ কপি সংরক্ষণ করুন',
+    'componentsMore.safeCopyEditor.showThePageAgain': 'পাতাটি আবার দেখান',
     'componentsMore.safeCopyEditor.suggestBoxes': 'বক্সের পরামর্শ দিন',
     'componentsMore.safeCopyEditor.thisDocumentIsTooLargeFor':
       'এই ডকুমেন্ট নিরাপদ কপির জন্য খুব বড়। নিরাপদ কপিতে সর্বোচ্চ ২০ পাতা ও ২৫ MB থাকতে পারে।',
     'componentsMore.safeCopyEditor.thisPageShowsWhenYouScroll': 'স্ক্রল করে এই পাতায় এলে এটি দেখা যাবে।',
+    'componentsMore.safeCopyEditor.youChoseNothingToHideOn':
+      'আপনি "এই ডকুমেন্টে লুকানোর কিছু নেই" বেছে নিয়েছেন। প্রতিটি পাতা ছবি হিসেবে শেয়ার করা হয়, কোনো লুকানো লেখা বা ডকুমেন্টের ভেতরের তথ্য ছাড়াই।',
     'componentsMore.sourceNote.wordsCopiedFromTheSource': 'উৎস থেকে কপি করা শব্দ',
   },
 });

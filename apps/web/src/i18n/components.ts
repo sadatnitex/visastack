@@ -176,8 +176,10 @@ export const componentsCatalog = defineCatalog({
   bn: {
     'components.activityLog.anyResult': 'যেকোনো ফলাফল',
     'components.activityLog.anyone': 'যে কেউ',
+    'components.activityLog.clearFilters': 'ফিল্টার মুছে দিন',
     'components.activityLog.everything': 'সবকিছু',
     'components.activityLog.findAnActivity': 'কার্যকলাপ খুঁজুন',
+    'components.activityLog.nothingMatchesTheseFilters': 'এই ফিল্টারগুলোর সঙ্গে কিছুই মেলেনি।',
     'components.activityLog.result': 'ফলাফল',
     'components.activityLog.search': 'খুঁজুন',
     'components.activityLog.searchThisLog': 'এই লগে খুঁজুন',
@@ -189,6 +191,8 @@ export const componentsCatalog = defineCatalog({
     'components.capturePreview.checkYourPhoto': 'আপনার ছবি দেখে নিন',
     'components.capturePreview.previewOfWhatYouJustCaptured':
       'আপনি এইমাত্র যা তুলেছেন তার প্রিভিউ, পাঠানোর আগে দেখে নেওয়ার জন্য দেখানো হচ্ছে',
+    'components.capturePreview.thisDeviceCannotShowThePhoto':
+      'এই ডিভাইস এখানে ছবিটি দেখাতে পারে না, তাই আগে আপনার ফোনে দেখে নিন। ঠিক মনে হলে "এটি ব্যবহার করুন" চাপুন। না হলে আবার তুলুন।',
     'components.capturePreview.weCheckTheFileAgainAfter':
       'আপনি পাঠানোর পর আমরা ডকুমেন্টটি আবার পরীক্ষা করি, তাই এখানে ঠিক দেখালেও কোনো ছবি পরে ফিরিয়ে দেওয়া হতে পারে।',
     'components.checklistCorrectionForm.checklistItem': 'চেকলিস্টের আইটেম',
@@ -197,29 +201,41 @@ export const componentsCatalog = defineCatalog({
       'নাম, পাসপোর্ট নম্বর বা অন্য কোনো ব্যক্তিগত তথ্য লিখবেন না।',
     'components.checklistCorrectionForm.whatShouldItSayOptional': 'এতে কী লেখা থাকবে (ঐচ্ছিক)',
     'components.countryBrowser.allCountries': 'সব দেশ',
+    'components.countryBrowser.clearTheSearchOrChooseAnother': 'খোঁজা মুছে দিন বা অন্য ফিল্টার বেছে নিন।',
     'components.countryBrowser.filterByEntryRule': 'প্রবেশের নিয়ম অনুযায়ী ফিল্টার করুন',
     'components.countryBrowser.forExampleJapan': 'যেমন: জাপান',
     'components.countryBrowser.needsChecking': 'দেখে নেওয়া দরকার',
+    'components.countryBrowser.noCountriesMatch': 'কোনো দেশ মেলেনি।',
+    'components.countryBrowser.noCountriesMatche4ae64': 'কোনো দেশ মেলেনি',
     'components.documentReviewPanel.chooseADocument': 'একটি ডকুমেন্ট বেছে নিন',
     'components.documentReviewPanel.contentsAppearOnlyAfterPermissionAnd':
       'অনুমতি ও নিরাপত্তা পরীক্ষার পরেই কেবল বিষয়বস্তু দেখা যায়।',
     'components.documentReviewPanel.documentDetails': 'ডকুমেন্টের বিবরণ',
     'components.documentReviewPanel.findADocument': 'একটি ডকুমেন্ট খুঁজুন',
+    'components.documentReviewPanel.noDocumentsMatchTryAnotherName':
+      'কোনো ডকুমেন্ট মেলেনি। অন্য নাম দিয়ে চেষ্টা করুন বা খোঁজ মুছে দিন।',
     'components.documentReviewPanel.openSecurePreview': 'সুরক্ষিত প্রিভিউ খুলুন',
     'components.documentReviewPanel.privateDocument': 'ব্যক্তিগত ডকুমেন্ট',
     'components.documentReviewPanel.reviewAndPreview': 'পর্যালোচনা ও প্রিভিউ',
+    'components.documentReviewPanel.thisDocumentIsNotAvailableTo':
+      'এই ডকুমেন্টের প্রিভিউ দেখা যাচ্ছে না। ডকুমেন্টের তালিকায় এর অবস্থা দেখে নিন।',
+    'components.documentReviewPanel.uploadADocumentToReviewIts':
+      'এখানে বিবরণ পর্যালোচনা করতে একটি ডকুমেন্ট আপলোড করুন।',
     'components.documentReviewPanel.yourDocument': 'আপনার ডকুমেন্ট',
     'components.documentWalletBrowser.aboutThisFile': 'এই ডকুমেন্ট সম্পর্কে',
     'components.documentWalletBrowser.addEachPaperOnce': 'প্রতিটি কাগজ একবারই যোগ করুন।',
     'components.documentWalletBrowser.allCategories': 'সব ক্যাটাগরি',
     'components.documentWalletBrowser.backToDocuments': 'ডকুমেন্টে ফিরে যান',
     'components.documentWalletBrowser.category': 'ক্যাটাগরি',
+    'components.documentWalletBrowser.clearTheSearchOrChooseAnother':
+      'খোঁজা মুছে দিন বা অন্য কোনো বিভাগ বা অবস্থা বেছে নিন।',
     'components.documentWalletBrowser.documentMetadataList': 'ডকুমেন্টের মেটাডেটা তালিকা',
     'components.documentWalletBrowser.documentPages': 'ডকুমেন্টের পাতা',
     'components.documentWalletBrowser.documentStateFilters': 'ডকুমেন্টের অবস্থা অনুযায়ী ফিল্টার',
     'components.documentWalletBrowser.fileFormatIsCheckedWhenThe':
       'ডকুমেন্ট খোলার সময় এর ফরম্যাট পরীক্ষা করা হয়। যাচাই করা ফরম্যাটের তথ্য এই মেটাডেটা অংশে রেকর্ড করা হয় না।',
     'components.documentWalletBrowser.next': 'পরবর্তী',
+    'components.documentWalletBrowser.noDocumentsMatch': 'কোনো ডকুমেন্ট মেলেনি',
     'components.documentWalletBrowser.noDocumentsYet': 'এখনও কোনো ডকুমেন্ট নেই',
     'components.documentWalletBrowser.notSetYet': 'এখনও ঠিক করা হয়নি',
     'components.documentWalletBrowser.openTheSecurePreviewBelowPermission':
@@ -238,9 +254,15 @@ export const componentsCatalog = defineCatalog({
       'বেছে নেওয়া ডকুমেন্টটি পাওয়া যাচ্ছে না',
     'components.documentWalletBrowser.sharingRequiresConsentAnExactReviewed':
       'শেয়ার করতে সম্মতি, পর্যালোচনা করা সুনির্দিষ্ট পরিসর এবং প্রাপকের গ্রহণ দরকার। আপনি অনুমোদন না করা পর্যন্ত এআই-এর পরামর্শ কখনো আপনার প্রোফাইল হালনাগাদ করে না।',
+    'components.documentWalletBrowser.showAll': 'সব দেখান',
     'components.documentWalletBrowser.viewSelectedDetails': 'নির্বাচিত বিবরণ দেখুন →',
     'components.documentWalletBrowser.why': 'কেন?',
+    'components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe':
+      'আপনার বেছে নেওয়া ডকুমেন্টটি বর্তমান তালিকার ফিল্টারের বাইরে।',
+    'components.loadingSlowNote.stillLoadingYouCanKeepThis':
+      'এখনো লোড হচ্ছে। আপনি এই পাতাটি খোলা রাখতে পারেন।',
     'components.purposeChoice.morePurposes': 'আরও উদ্দেশ্য',
+    'components.purposeChoice.showCommonPurposes': 'সাধারণ উদ্দেশ্যগুলো দেখান',
     'components.receiptCard.reference': 'রেফারেন্স',
     'components.receiptCard.when': 'কখন',
     'components.referenceCode.copy': 'কপি করুন',
@@ -248,12 +270,14 @@ export const componentsCatalog = defineCatalog({
     'components.siteNavigation.menu': 'মেনু',
     'components.siteNavigation.site': 'সাইট',
     'components.timeZoneSelect.chooseATimeZone': 'টাইম জোন বেছে নিন',
+    'components.toast.dismiss': 'বন্ধ করুন',
     'components.versionNotice.aboutThisVersion': 'এই সংস্করণ সম্পর্কে',
     'components.versionNotice.hideThisNotice': 'এই নোটিশ লুকান',
     'components.visaPhotoSizes.checkingYourPhoto': 'আপনার ছবি পরীক্ষা করা হচ্ছে...',
     'components.visaPhotoSizes.chooseTheSizeYourApplicationAsks':
       'আপনার আবেদনে যে মাপ চাওয়া হয়েছে তা বেছে নিন, তারপর মাথা ও কাঁধ মাঝখানে না আসা পর্যন্ত সরান ও জুম করুন। ছবিটি নিজে কখনো এডিট করা হয় না।',
     'components.visaPhotoSizes.downloadThisSize': 'এই সাইজে ডাউনলোড করুন',
+    'components.visaPhotoSizes.makingYourPhoto': 'আপনার ছবি তৈরি হচ্ছে...',
     'components.visaPhotoSizes.moveAndZoom': 'সরান ও জুম করুন',
     'components.visaPhotoSizes.moveDown': 'নিচে সরান',
     'components.visaPhotoSizes.moveLeft': 'বাঁয়ে সরান',
