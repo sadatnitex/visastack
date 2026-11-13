@@ -597,7 +597,6 @@ describe("allowed paths are unchanged, and other people's grants change nothing"
       resource,
       applicant: 'the traveller',
     });
-    const refusedAnswer = { ok: false, code: 'not_found', message: 'record not found' };
     return [
       [
         'owner, traveller',
@@ -640,17 +639,6 @@ describe("allowed paths are unchanged, and other people's grants change nothing"
             { purpose: EACH_GRANT, actingFor: { organizationId: f.assignedOrgId } },
           ),
         () => allowed(member(f.assignedAgentId, f.assignedOrgId), 'VIEW_METADATA', 'applicant'),
-      ],
-      [
-        'a colleague of the assigned member',
-        () =>
-          gate(
-            f.assignedColleagueId,
-            'VIEW_METADATA',
-            { applicantId },
-            { purpose: EACH_GRANT, actingFor: { organizationId: f.assignedOrgId } },
-          ),
-        () => refusedAnswer,
       ],
       [
         'contributor claim',
@@ -764,7 +752,19 @@ describe("allowed paths are unchanged, and other people's grants change nothing"
       ref: ApplicantResourceRef,
       options: RequireAccessOptions,
     ) => requireAccess(world.db, accountPrincipal(accountId), action, ref, options).then(outcome);
+    const f = fixtures;
     return [
+      [
+        'a colleague of the assigned member',
+        () =>
+          gate(
+            f.assignedColleagueId,
+            'VIEW_METADATA',
+            { applicantId: world.applicantId },
+            { purpose: EACH_GRANT, actingFor: { organizationId: f.assignedOrgId } },
+          ),
+        () => refusedAnswer,
+      ],
       ...REFUSALS.flatMap((refusal) =>
         KINDS.map(
           (kind): Row => [
