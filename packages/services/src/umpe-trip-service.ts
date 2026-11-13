@@ -29,7 +29,8 @@ import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError } from './errors';
+import type { ServiceMessageKey } from './i18n';
 import {
   lifecycleTablesPresent,
   presentApplicantCondition,
@@ -50,16 +51,10 @@ const NAME_MAX = 120;
 const TITLE_MAX = 200;
 const LIST_LIMIT = 50;
 
-const TRIP_NOT_AVAILABLE = 'That trip is not available.';
-const NOT_SWITCHED_ON = 'Group trips are not switched on yet. Start each case on its own for now.';
-const OWNER_ONLY = 'Only the account holder who manages this traveller can do this.';
-
-const AUTHORITY_WORDS: Readonly<Record<TravellerAuthorityProblem, string>> = {
-  AUTHORITY_NOT_CONFIRMED:
-    'Confirm on their profile that you may act for this traveller before adding them to a trip.',
-  GUARDIAN_NOT_CONFIRMED:
-    'Confirm on their profile that you are the parent or guardian of this child before adding them to a trip.',
-};
+const AUTHORITY_KEYS = {
+  AUTHORITY_NOT_CONFIRMED: 'umpe_trip_service.authority_not_confirmed',
+  GUARDIAN_NOT_CONFIRMED: 'umpe_trip_service.guardian_not_confirmed',
+} as const satisfies Readonly<Record<TravellerAuthorityProblem, ServiceMessageKey>>;
 
 export interface TripIntentionInput {
   readonly destination: string;
@@ -139,7 +134,7 @@ export function ownerAccountOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
   action: A,
 ): Result<string, ServiceError> {
   if (!AuthorizedApplicant.isGenuine(proof, action) || proof.actor.kind !== 'applicant_owner') {
-    return err(serviceError('forbidden', OWNER_ONLY));
+    return err(keyedError('forbidden', 'umpe_trip_service.only_the_account_holder_who_manages'));
   }
   return ok(proof.applicant.ownerAccountId);
 }
@@ -152,7 +147,7 @@ function travellerProof<A extends 'VIEW_METADATA' | 'MANAGE'>(
   const owner = ownerAccountOf(proof, action);
   if (!owner.ok) return owner;
   if (proof.resource.kind !== 'applicant' || proof.resource.applicantId !== proof.applicant.id) {
-    return err(serviceError('invalid', 'Choose the traveller, not one of their cases.'));
+    return err(keyedError('invalid', 'umpe_trip_service.choose_the_traveller_not_one_of'));
   }
   return owner;
 }
@@ -163,7 +158,8 @@ async function ownedTrip(
   ownerAccountId: string,
   tripId: string,
 ): Promise<Result<Trip, ServiceError>> {
-  if (!UUID.test(tripId)) return err(serviceError('not_found', TRIP_NOT_AVAILABLE));
+  if (!UUID.test(tripId))
+    return err(keyedError('not_found', 'umpe_trip_companions.that_trip_is_not_available'));
   const trip = first(
     await db
       .select()
@@ -173,7 +169,9 @@ async function ownedTrip(
       )
       .limit(1),
   );
-  return trip ? ok(trip) : err(serviceError('not_found', TRIP_NOT_AVAILABLE));
+  return trip
+    ? ok(trip)
+    : err(keyedError('not_found', 'umpe_trip_companions.that_trip_is_not_available'));
 }
 
 /**
@@ -231,7 +229,7 @@ async function liveTravellerCount(db: Db, tripId: string): Promise<number> {
 async function consentProblem(db: Db, ownerAccountId: string): Promise<ServiceError | null> {
   return (await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))
     ? null
-    : serviceError('consent_required', 'Core processing consent is required');
+    : keyedError('consent_required', 'missions.core_processing_consent_is_required');
 }
 
 function cleanIntention(
@@ -240,10 +238,10 @@ function cleanIntention(
   const destination = input.destination.trim();
   const purpose = input.purpose.trim();
   if (destination.length === 0 || destination.length > NAME_MAX) {
-    return err(serviceError('invalid', 'Choose where you are going.'));
+    return err(keyedError('invalid', 'umpe_package_start.choose_where_you_are_going'));
   }
   if (purpose.length === 0 || purpose.length > NAME_MAX) {
-    return err(serviceError('invalid', 'Choose why you are travelling.'));
+    return err(keyedError('invalid', 'umpe_package_start.choose_why_you_are_travelling'));
   }
   const title = (input.title?.trim() || `${destination} - ${purpose}`).slice(0, TITLE_MAX);
   return ok({ destination, purpose, title });
@@ -261,7 +259,7 @@ async function joinProblem(
   ownerAccountId: string,
 ): Promise<ServiceError | null> {
   const problem = travellerAuthorityProblem(proof.applicant);
-  if (problem) return serviceError('forbidden', AUTHORITY_WORDS[problem]);
+  if (problem) return keyedError('forbidden', AUTHORITY_KEYS[problem]);
   return consentProblem(proof.tx, ownerAccountId);
 }
 
@@ -312,8 +310,6 @@ async function insertLink(
   return { kind: 'linked', labelled: labelled.length };
 }
 
-const FULL = `A trip holds up to ${TRIP_MAX_TRAVELLERS} travellers.`;
-
 /**
  * Open or start the traveller's own case for this trip (P4's start, which checks ownership,
  * consent and the case name), then link it in one audited transaction.
@@ -336,7 +332,7 @@ async function linkTraveller(
   const already = await liveTraveller(proof.tx, trip.id, proof.applicant.id);
   if (already) return outcome(already.missionId, true, true);
   if ((await liveTravellerCount(proof.tx, trip.id)) >= TRIP_MAX_TRAVELLERS) {
-    return err(serviceError('invalid', FULL));
+    return err(keyedError('invalid', 'umpe_trip_service.trip_full', { max: TRIP_MAX_TRAVELLERS }));
   }
   const opened = await openOrStartTripCase(proof, {
     destination: trip.destination,
@@ -353,7 +349,10 @@ async function linkTraveller(
     );
     // Another request linked this traveller first: report its case, never ours.
     if (linked.kind === 'already') return outcome(linked.missionId, true, true);
-    if (linked.kind === 'full') return err(serviceError('invalid', FULL));
+    if (linked.kind === 'full')
+      return err(
+        keyedError('invalid', 'umpe_trip_service.trip_full', { max: TRIP_MAX_TRAVELLERS }),
+      );
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_TRAVELLER_ADDED',
       actorAccountId: ownerAccountId,
@@ -387,7 +386,8 @@ export async function startGroupTrip(
 ): Promise<Result<{ readonly tripId: string } & AddTravellerOutcome, ServiceError>> {
   const owner = travellerProof(proof, 'MANAGE');
   if (!owner.ok) return owner;
-  if (!(await tripTablesPresent(proof.tx))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await tripTablesPresent(proof.tx)))
+    return err(keyedError('invalid', 'umpe_trip_service.group_trips_are_not_switched_on'));
   const intention = cleanIntention(input);
   if (!intention.ok) return intention;
   const problem = await joinProblem(proof, owner.value);
@@ -412,7 +412,7 @@ export async function startGroupTrip(
         })
         .returning(),
     );
-    if (!trip) return err(serviceError('invalid', 'The trip could not be started. Try again.'));
+    if (!trip) return err(keyedError('invalid', 'umpe_trip_service.the_trip_could_not_be_started'));
     const linked = await insertLink(
       tx,
       trip,
@@ -459,7 +459,8 @@ export async function addTravellerToTrip(
 ): Promise<Result<AddTravellerOutcome, ServiceError>> {
   const owner = travellerProof(proof, 'MANAGE');
   if (!owner.ok) return owner;
-  if (!(await tripTablesPresent(proof.tx))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await tripTablesPresent(proof.tx)))
+    return err(keyedError('invalid', 'umpe_trip_service.group_trips_are_not_switched_on'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   return linkTraveller(proof, trip.value);
@@ -476,7 +477,8 @@ export async function removeTravellerFromTrip(
 ): Promise<Result<{ readonly removed: boolean }, ServiceError>> {
   const owner = travellerProof(proof, 'MANAGE');
   if (!owner.ok) return owner;
-  if (!(await tripTablesPresent(proof.tx))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await tripTablesPresent(proof.tx)))
+    return err(keyedError('invalid', 'umpe_trip_service.group_trips_are_not_switched_on'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   const applicantId = proof.applicant.id;
@@ -629,7 +631,7 @@ export async function getTrip(
   const owner = ownerAccountOf(proof, 'VIEW_METADATA');
   if (!owner.ok) return owner;
   if (!(await tripTablesPresent(proof.tx)))
-    return err(serviceError('not_found', TRIP_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companions.that_trip_is_not_available'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   const lifecycle = await lifecycleTablesPresent(proof.tx);
@@ -689,13 +691,14 @@ export async function addTripEvidence(
   if (!owner.ok) return owner;
   const resource = proof.resource;
   if (resource.kind !== 'document' || resource.document.applicantId !== proof.applicant.id) {
-    return err(serviceError('invalid', 'Choose a document that belongs to this traveller.'));
+    return err(keyedError('invalid', 'umpe_trip_service.choose_a_document_that_belongs_to'));
   }
-  if (!(await tripTablesPresent(proof.tx))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await tripTablesPresent(proof.tx)))
+    return err(keyedError('invalid', 'umpe_trip_service.group_trips_are_not_switched_on'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   if (!(await liveTraveller(proof.tx, trip.value.id, proof.applicant.id))) {
-    return err(serviceError('invalid', 'Add this traveller to the trip first.'));
+    return err(keyedError('invalid', 'umpe_trip_service.add_this_traveller_to_the_trip'));
   }
   const shareable = await shareableDocument(proof.tx, resource.document.id, proof.applicant.id);
   if (shareable) return err(shareable);
@@ -727,7 +730,7 @@ export async function addTripEvidence(
           )
           .limit(1),
       );
-      if (!existing) return err(serviceError('stale', 'Try again.'));
+      if (!existing) return err(keyedError('stale', 'umpe_trip_service.try_again'));
       return ok({ evidenceId: existing.id, added: false });
     }
     await appendAuditEvent(tx, {
@@ -743,9 +746,6 @@ export async function addTripEvidence(
     return ok({ evidenceId: row.id, added: true });
   });
 }
-
-const NOT_SHAREABLE =
-  'Only travel documents such as bookings, itineraries and invitations can be shared across a trip.';
 
 /**
  * Why this document cannot be common trip evidence right now, or null when it can: it must still
@@ -771,8 +771,10 @@ async function shareableDocument(
       )
       .limit(1),
   );
-  if (!doc) return serviceError('not_found', 'That document is not available.');
-  return isCommonTripEvidenceType(doc.docType) ? null : serviceError('invalid', NOT_SHAREABLE);
+  if (!doc) return keyedError('not_found', 'umpe_trip_service.that_document_is_not_available');
+  return isCommonTripEvidenceType(doc.docType)
+    ? null
+    : keyedError('invalid', 'umpe_trip_service.only_travel_documents_such_as_bookings');
 }
 
 /** The live common document `evidenceId` of this trip, or a refusal that looks missing. */
@@ -804,12 +806,13 @@ export async function removeTripEvidence(
 ): Promise<Result<{ readonly removed: boolean }, ServiceError>> {
   const owner = travellerProof(proof, 'MANAGE');
   if (!owner.ok) return owner;
-  if (!(await tripTablesPresent(proof.tx))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await tripTablesPresent(proof.tx)))
+    return err(keyedError('invalid', 'umpe_trip_service.group_trips_are_not_switched_on'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   const evidence = await liveEvidence(proof.tx, trip.value.id, evidenceId);
   if (!evidence || evidence.sourceApplicantId !== proof.applicant.id) {
-    return err(serviceError('not_found', 'That shared document is not available.'));
+    return err(keyedError('not_found', 'umpe_trip_service.that_shared_document_is_not_available'));
   }
   return proof.tx.transaction(async (tx) => {
     const now = new Date();
@@ -858,17 +861,19 @@ export async function setTripEvidenceAllowance(
 ): Promise<Result<{ readonly changed: boolean }, ServiceError>> {
   const owner = travellerProof(proof, 'MANAGE');
   if (!owner.ok) return owner;
-  if (!(await tripTablesPresent(proof.tx))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  if (!(await tripTablesPresent(proof.tx)))
+    return err(keyedError('invalid', 'umpe_trip_service.group_trips_are_not_switched_on'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   const evidence = await liveEvidence(proof.tx, trip.value.id, evidenceId);
-  if (!evidence) return err(serviceError('not_found', 'That shared document is not available.'));
+  if (!evidence)
+    return err(keyedError('not_found', 'umpe_trip_service.that_shared_document_is_not_available'));
   if (evidence.sourceApplicantId === proof.applicant.id) {
-    return err(serviceError('invalid', 'This document already belongs to this traveller.'));
+    return err(keyedError('invalid', 'umpe_trip_service.this_document_already_belongs_to_this'));
   }
   if (allowed) {
     if (!(await liveTraveller(proof.tx, trip.value.id, proof.applicant.id))) {
-      return err(serviceError('invalid', 'Add this traveller to the trip first.'));
+      return err(keyedError('invalid', 'umpe_trip_service.add_this_traveller_to_the_trip'));
     }
     // The document may have been retyped or deleted since it was shared: check it again.
     const shareable = await shareableDocument(
@@ -968,7 +973,7 @@ export async function listTripEvidence(
   const owner = ownerAccountOf(proof, 'VIEW_METADATA');
   if (!owner.ok) return owner;
   if (!(await tripTablesPresent(proof.tx)))
-    return err(serviceError('not_found', TRIP_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companions.that_trip_is_not_available'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   const rows = await evidenceRows(proof.tx, trip.value.id, owner.value);
@@ -1022,7 +1027,7 @@ export async function listTripEvidenceForTraveller(
   const owner = travellerProof(proof, 'VIEW_METADATA');
   if (!owner.ok) return owner;
   if (!(await tripTablesPresent(proof.tx)))
-    return err(serviceError('not_found', TRIP_NOT_AVAILABLE));
+    return err(keyedError('not_found', 'umpe_trip_companions.that_trip_is_not_available'));
   const trip = await ownedTrip(proof.tx, owner.value, tripId);
   if (!trip.ok) return trip;
   const applicantId = proof.applicant.id;
