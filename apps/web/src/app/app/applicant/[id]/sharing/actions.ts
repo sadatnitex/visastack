@@ -4,22 +4,25 @@ import { PERMISSION_ACTIONS, type PermissionAction } from '@visastack/core';
 import {
   STEP_UP_ACTIONS,
   accountPrincipal,
-  createGrant,
   createSharingInvitation,
   expandGrantScope,
-  getAccountByEmail,
   pauseGrant,
   removeCaseException,
   requireAccess,
   resumeGrant,
   revokeGrant,
   revokeSharingInvitation,
+  shareWithEmail,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
-import { GRANT_HIDDEN_LINE, ownsGrant } from '../../../../../lib/hidden-record';
+import {
+  GRANT_HIDDEN_LINE,
+  PROFILE_HIDDEN_LINE,
+  ownsGrant,
+} from '../../../../../lib/hidden-record';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { sendEmailNow } from '../../../../../lib/send-now';
@@ -34,7 +37,6 @@ import {
   ACCESS_PAUSED_LINE,
   ACCESS_RESUMED_LINE,
   ACCESS_REVOKED_LINE,
-  SHARE_CREATED_LINE,
   shareInvitedLine,
 } from '../../../../../lib/success-lines';
 
@@ -53,7 +55,11 @@ function isPermissionAction(value: string): value is PermissionAction {
   return value !== 'AI_ASSIST' && (PERMISSION_ACTIONS as readonly string[]).includes(value);
 }
 
-/** Create a pending, purpose-bound grant to an existing VisaStack user by email. */
+/**
+ * Share with someone by email. With invitations on, everyone named gets an invitation. With them
+ * off, an existing account gets a pending grant and an email with no account gets nothing; either
+ * way the answer is the same, so it never tells the sharer whether the email has an account.
+ */
 export async function createGrantAction(
   _prev: ActionState,
   formData: FormData,
@@ -86,16 +92,10 @@ export async function createGrantAction(
   // ordinary view/preview/comment-only grant never prompts for reauth.
   const isSensitive = actions.some((action) => STEP_UP_ACTIONS.includes(action));
 
-  const result = await withSession(async ({ db, accountId }) => {
-    const recipient = await getAccountByEmail(db, recipientEmail);
+  const result = await withSession(async ({ db, accountId, email }) => {
     const invitationsEnabled = process.env[sharingInvitationFlag] === 'true';
-    if (!recipient && !invitationsEnabled) {
-      return {
-        ok: false,
-        message: 'No VisaStack account found for that email. They must sign in once first.',
-      } satisfies ActionState;
-    }
-    if (recipient?.id === accountId) {
+    // Their own address, before any identity re-check: it says nothing about anyone else.
+    if (email.trim().toLowerCase() === recipientEmail) {
       return { ok: false, message: 'You cannot share with yourself.' } satisfies ActionState;
     }
     let stepUpSatisfied = false;
@@ -135,11 +135,20 @@ export async function createGrantAction(
         sendFor: invitation.value.invitation.id,
       };
     }
-    if (!recipient) return { ok: false, message: 'Recipient account unavailable.' };
-    const created = await createGrant(db, {
-      actorAccountId: accountId,
-      applicantId,
-      recipientAccountId: recipient.id,
+    // Only the owner shares: the central gate proves it first, with its one refusal for anyone else.
+    const owner = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { applicantId },
+      { purpose: 'owner_share' },
+    );
+    if (!owner.ok || owner.value.actor.kind !== 'applicant_owner') {
+      return { ok: false, message: PROFILE_HIDDEN_LINE } satisfies ActionState;
+    }
+    // One answer whether or not the email has an account (the service decides, and says neither).
+    const shared = await shareWithEmail(owner.value, {
+      email: recipientEmail,
       actions,
       purpose,
       stepUpSatisfied,
@@ -147,12 +156,9 @@ export async function createGrantAction(
       ...(documentIds.length > 0 ? { documentIds } : {}),
       ...(expiryAt ? { expiryAt } : {}),
     });
-    if (!created.ok)
-      return { ok: false, message: await serviceErrorMessage(created.error) } satisfies ActionState;
-    return {
-      ok: true,
-      message: SHARE_CREATED_LINE,
-    } satisfies ActionState;
+    if (!shared.ok)
+      return { ok: false, message: await serviceErrorMessage(shared.error) } satisfies ActionState;
+    return { ok: true, message: await serviceErrorMessage(shared.value) } satisfies ActionState;
   });
 
   if (result.ok && 'sendFor' in result && result.sendFor) {

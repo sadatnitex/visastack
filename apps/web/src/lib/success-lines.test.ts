@@ -128,7 +128,6 @@ describe('the main flows use them', () => {
     ['applicant/[id]/actions.ts', 'SUGGESTION_SAVED_LINE'],
     ['applicant/[id]/actions.ts', 'documentTypeSavedLine('],
     ['applicant/[id]/evidence/actions.ts', 'EVIDENCE_SENT_LINE'],
-    ['applicant/[id]/sharing/actions.ts', 'SHARE_CREATED_LINE'],
     ['applicant/[id]/sharing/actions.ts', 'shareInvitedLine('],
     ['agency/[orgId]/actions.ts', 'invitationReadyLine('],
     ['agency/[orgId]/actions.ts', 'REQUEST_SENT_LINE'],

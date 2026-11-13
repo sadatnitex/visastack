@@ -106,6 +106,10 @@ export const caseFlowBEn = {
     'This request has already ended.',
   'umpe_collection_response_review.no_such_answer': 'no such answer',
   'umpe_collection_response_review.choose_a_decision': 'Choose a decision.',
+  'umpe_collection_response_review.keep_the_note_to': 'Keep the note to {max} characters.',
+  'umpe_collection_response_review.keep_each_note_to': 'Keep each note to {max} characters.',
+  'umpe_collection_response_review.choose_an_item_from_the_list': 'Choose an item from the list.',
+  'umpe_collection_response_review.too_many_notes_at_once': 'Too many notes at once.',
   'umpe_collection_response_review.say_what_needs_correcting_add_a':
     'Say what needs correcting: add a note to at least one item.',
   'umpe_collection_response_service.this_request_link_is_not_open': 'this request link is not open',
@@ -300,6 +304,7 @@ export const caseFlowBBn = {
   'umpe_collection_request_service.this_request_has_already_ended': 'এই অনুরোধটি আগেই শেষ হয়ে গেছে।',
   'umpe_collection_response_review.no_such_answer': 'এমন কোনো উত্তর নেই',
   'umpe_collection_response_review.choose_a_decision': 'একটি সিদ্ধান্ত বেছে নিন।',
+  'umpe_collection_response_review.choose_an_item_from_the_list': 'তালিকা থেকে একটি আইটেম বেছে নিন।',
   'umpe_collection_response_review.say_what_needs_correcting_add_a':
     'কী সংশোধন করতে হবে তা বলুন: অন্তত একটি আইটেমে একটি নোট যোগ করুন।',
   'umpe_collection_response_service.this_request_link_is_not_open': 'এই অনুরোধের লিংক খোলা নেই',

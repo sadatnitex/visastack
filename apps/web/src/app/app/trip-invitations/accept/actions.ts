@@ -1,7 +1,7 @@
 'use server';
 
 import {
-  COMPANION_NAME_PROBLEM,
+  COMPANION_NAME_PROBLEM_KEY,
   COMPANION_SHARE_LEVELS,
   acceptCompanionInvitation,
   cleanCompanionName,
@@ -13,14 +13,14 @@ import {
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { reportServerError } from '../../../../lib/server-error';
-import { serviceErrorMessage } from '../../../../lib/service-error-message';
+import { serviceErrorMessage, serviceKeyMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { networkLimited } from './network-limit';
 import {
   CONSENT_FIRST,
-  INVITATION_BUSY,
-  INVITATION_UNAVAILABLE,
-  SHARE_LEVEL_PROBLEM,
+  INVITATION_BUSY_KEY,
+  INVITATION_UNAVAILABLE_KEY,
+  SHARE_LEVEL_PROBLEM_KEY,
 } from './words';
 
 /**
@@ -34,8 +34,15 @@ import {
 
 const FAILED = 'Something went wrong. Try again.';
 
-const unavailable = (): FormResult => ({ ok: false, message: INVITATION_UNAVAILABLE });
-const busy = (): FormResult => ({ ok: false, message: INVITATION_BUSY });
+/** One answer for every bad invitation, in the visitor's language: the service's own words. */
+const unavailable = async (): Promise<FormResult> => ({
+  ok: false,
+  message: await serviceKeyMessage(INVITATION_UNAVAILABLE_KEY),
+});
+const busy = async (): Promise<FormResult> => ({
+  ok: false,
+  message: await serviceKeyMessage(INVITATION_BUSY_KEY),
+});
 
 function tokenOf(form: FormData): string {
   return String(form.get('token') ?? '');
@@ -58,9 +65,21 @@ export async function acceptTripInvitationAction(
   // The button that was pressed says it is a join (a forged post without it is not one).
   if (form.get('intent') !== 'join') return unavailable();
   const name = cleanCompanionName(String(form.get('displayName') ?? ''));
-  if (name === null) return { ok: false, message: COMPANION_NAME_PROBLEM, field: 'displayName' };
+  if (name === null) {
+    return {
+      ok: false,
+      message: await serviceKeyMessage(COMPANION_NAME_PROBLEM_KEY),
+      field: 'displayName',
+    };
+  }
   const level = shareLevelOf(form);
-  if (level === null) return { ok: false, message: SHARE_LEVEL_PROBLEM, field: 'shareLevel' };
+  if (level === null) {
+    return {
+      ok: false,
+      message: await serviceKeyMessage(SHARE_LEVEL_PROBLEM_KEY),
+      field: 'shareLevel',
+    };
+  }
   const rawToken = tokenOf(form);
   let outcome: FormResult;
   try {

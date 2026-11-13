@@ -627,6 +627,31 @@ describe('UMPE G3: agency request permission, email truth and brand', () => {
       expect(sent).toEqual([]);
     });
 
+    it('refuses a note that is too long or on no listed item, keyed with the English unchanged', async () => {
+      const { requestId, issued } = await issuedRequest(adminId);
+      const answerId = await guestAnswer(requestId, issued.revisionId, issued.link.id);
+      const base = { source: 'guest', answerId, decision: 'NEEDS_CORRECTION' } as const;
+      const long = await recordCollectionReview(db, await scope(), {
+        ...base,
+        note: 'n'.repeat(1001),
+      });
+      expect(!long.ok && long.error).toEqual({
+        code: 'invalid',
+        message: 'Keep the note to 1000 characters.',
+        messageKey: 'umpe_collection_response_review.keep_the_note_to',
+        params: { max: 1000 },
+      });
+      const stray = await recordCollectionReview(db, await scope(), {
+        ...base,
+        itemNotes: { 'no-such-item': 'Synthetic note' },
+      });
+      expect(!stray.ok && stray.error).toEqual({
+        code: 'invalid',
+        message: 'Choose an item from the list.',
+        messageKey: 'umpe_collection_response_review.choose_an_item_from_the_list',
+      });
+    });
+
     it('queues nothing for Received or Accepted, and at most five an hour per guest', async () => {
       const { answerId } = await corrected();
       for (const decision of ['RECEIVED', 'ACCEPTED'] as const) {
