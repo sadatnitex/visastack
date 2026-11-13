@@ -26,7 +26,10 @@ vi.mock('react', async (importOriginal) => ({
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listPublicTrustPublished: async () => [route()],
-  getPublicTrustRoute: async () => route(),
+  getPublicTrustRoute: async () => {
+    if (dates.fail) throw new Error('synthetic outage');
+    return route();
+  },
 }));
 vi.mock('../../lib/public-db', () => ({
   withPublicDb: async (fn: (db: unknown) => Promise<unknown>) => fn({}),
@@ -39,7 +42,11 @@ const { default: PackPage } = await import('./[packKey]/page');
 
 const BENGALI = /[ঀ-৿]/;
 
-const dates = { effectiveDate: null as string | null };
+const dates = {
+  effectiveDate: null as string | null,
+  channelName: 'UK Visas and Immigration' as string | null,
+  fail: false,
+};
 
 function route(): PublicTrustRoute {
   return {
@@ -53,7 +60,7 @@ function route(): PublicTrustRoute {
     effectiveDate: dates.effectiveDate,
     nextReviewDate: '2027-01-15',
     officialFee: null,
-    officialChannelName: 'UK Visas and Immigration',
+    officialChannelName: dates.channelName,
     officialChannelUrl: 'https://www.gov.uk/apply-uk-visa',
     officialReportingUrl: null,
     officialSources: [],
@@ -119,6 +126,33 @@ describe('the public trust pages under Bengali', () => {
       expect(en).toContain('In effect since Nov 12, 2026');
     } finally {
       dates.effectiveDate = null;
+    }
+  });
+
+  it('a route with no channel name and a route that cannot load are Bengali around the held lines (refill 3)', async () => {
+    const bn = trustCatalog.bn as Record<string, string>;
+    dates.channelName = null;
+    try {
+      const pack = await render('bn', 'pack');
+      expect(pack).toContain(bn['trust.trustPackkeyPage.officialApplicationChannel']);
+      expect(pack).not.toContain('Official application channel');
+    } finally {
+      dates.channelName = 'UK Visas and Immigration';
+    }
+    dates.fail = true;
+    try {
+      const down = await render('bn', 'pack');
+      for (const key of [
+        'trust.trustUnavailable.routeInformation',
+        'trust.trustUnavailable.routeInformationIsNotAvailableRight',
+        'trust.trustUnavailable.tryAgain',
+        'trust.trustUnavailable.backToHome',
+      ]) {
+        expect(down, key).toContain(bn[key]);
+      }
+      expect(down).not.toMatch(/trust\.trust[A-Z]/);
+    } finally {
+      dates.fail = false;
     }
   });
 
