@@ -5,7 +5,7 @@ import { getConsents } from './consent';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
 import type { StorageObject } from './documents';
 import { enqueueErasureJob, safeCopyDrawingIds } from './erasure';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { listActiveLegalHoldsForAccount } from './legal-hold';
 import { readUnlessPhotoTableMissing } from './profile-photos';
 import { redactionMasksTablePresent } from './redaction-table';
@@ -157,10 +157,10 @@ export async function requestAccountDeletion(
   },
 ): Promise<Result<DeletionRequest, ServiceError>> {
   if (input.actorAccountId !== input.accountId) {
-    return err(serviceError('forbidden', 'an account may only request its own deletion'));
+    return err(keyedError('forbidden', 'deletion.only_request_its_own_deletion'));
   }
   if (await pendingRequest(db, input.accountId)) {
-    return err(serviceError('invalid', 'a deletion request is already pending'));
+    return err(keyedError('invalid', 'deletion.a_deletion_request_is_already_pending'));
   }
   // PRV-03 (Part 7 §12 step 4): fail fast and honestly, rather than letting
   // the requester wait out the full grace window only for
@@ -170,7 +170,7 @@ export async function requestAccountDeletion(
   // remains the actual point of enforcement against a hold placed after
   // this request is already pending.
   if ((await listActiveLegalHoldsForAccount(db, input.accountId)).length > 0) {
-    return err(serviceError('invalid', 'an active legal hold blocks deletion'));
+    return err(keyedError('invalid', 'deletion.an_active_legal_hold_blocks_deletion'));
   }
   const now = input.now ?? new Date();
   const scheduledFor = new Date(now.getTime() + (input.gracePeriodMs ?? DEFAULT_GRACE_PERIOD_MS));
@@ -237,7 +237,7 @@ export async function requestAccountDeletion(
     // accounts.ts's established isUniqueViolation pattern, rather than an
     // unhandled 500.
     if (isUniqueViolation(error)) {
-      return err(serviceError('invalid', 'a deletion request is already pending'));
+      return err(keyedError('invalid', 'deletion.a_deletion_request_is_already_pending'));
     }
     throw error;
   }
@@ -249,10 +249,10 @@ export async function cancelAccountDeletion(
   input: { readonly actorAccountId: string; readonly accountId: string },
 ): Promise<Result<DeletionRequest, ServiceError>> {
   if (input.actorAccountId !== input.accountId) {
-    return err(serviceError('forbidden', 'an account may only cancel its own deletion'));
+    return err(keyedError('forbidden', 'deletion.only_cancel_its_own_deletion'));
   }
   const pending = await pendingRequest(db, input.accountId);
-  if (!pending) return err(serviceError('not_found', 'no pending deletion request'));
+  if (!pending) return err(keyedError('not_found', 'deletion.no_pending_deletion_request'));
 
   return db.transaction(async (tx) => {
     const updated = required(
@@ -290,7 +290,7 @@ export async function executeAccountDeletion(
   input: { readonly accountId: string; readonly now?: Date },
 ): Promise<Result<DeletionRequest, ServiceError>> {
   const pending = await pendingRequest(db, input.accountId);
-  if (!pending) return err(serviceError('not_found', 'no pending deletion request'));
+  if (!pending) return err(keyedError('not_found', 'deletion.no_pending_deletion_request'));
   const now = input.now ?? new Date();
   if (now.getTime() < pending.scheduledFor.getTime()) {
     return err(serviceError('invalid', 'grace window has not elapsed'));
@@ -361,7 +361,7 @@ export async function executeAccountDeletion(
           )
           .limit(1),
       );
-      if (held) return err(serviceError('invalid', 'an active legal hold blocks deletion'));
+      if (held) return err(keyedError('invalid', 'deletion.an_active_legal_hold_blocks_deletion'));
     }
 
     // Deleting the sole active PLATFORM_OWNER would strand the platform

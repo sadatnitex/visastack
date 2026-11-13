@@ -5,6 +5,7 @@ import {
   checkRateLimit,
   searchWorkspaceRecords,
 } from '@visastack/services';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -102,7 +103,7 @@ export async function POST(request: Request): Promise<Response> {
     const result = await searchWorkspaceRecords(db, accountId, selected, query);
     if (!result.ok)
       return response(
-        { error: result.error.message },
+        { error: await serviceErrorMessage(result.error) },
         result.error.code === 'forbidden' ? 403 : 400,
       );
     return response({ results: result.value });

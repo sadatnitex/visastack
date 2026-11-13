@@ -2,6 +2,7 @@
 
 import { acceptOrganizationInvitation } from '@visastack/services';
 import { redirect } from 'next/navigation';
+import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 
 export interface ActionState {
@@ -23,7 +24,9 @@ export async function acceptInvitationAction(
       actorEmail: email,
       rawToken,
     });
-    if (!accepted.ok) return { organizationId: null, message: accepted.error.message };
+    if (!accepted.ok) {
+      return { organizationId: null, message: await serviceErrorMessage(accepted.error) };
+    }
     return { organizationId: accepted.value.organizationId, message: '' };
   });
 

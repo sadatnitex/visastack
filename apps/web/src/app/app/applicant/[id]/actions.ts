@@ -216,7 +216,9 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
       ...(effectiveFrom ? { effectiveFrom } : {}),
       ...(encryption ? { encryption } : {}),
     });
-    if (!edit.ok) return { ok: false, message: edit.error.message } satisfies ActionState;
+    if (!edit.ok) {
+      return { ok: false, message: await serviceErrorMessage(edit.error) } satisfies ActionState;
+    }
     return { ok: true, message: detailSavedLine(def.label) } satisfies ActionState;
   });
 

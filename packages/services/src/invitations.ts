@@ -11,7 +11,7 @@ import {
   checkInvitationEntitlement,
   checkSeatEntitlement,
 } from './entitlement-enforcement';
-import { type ServiceError, refusal, serviceError } from './errors';
+import { type ServiceError, keyedError, refusal, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { enqueueNotificationBothChannels } from './notifications';
@@ -337,16 +337,16 @@ export async function previewOrganizationInvitation(
       .where(eq(schema.organizationInvitations.tokenHash, tokenHash))
       .limit(1),
   );
-  if (!row) return err(serviceError('not_found', 'invitation not found'));
+  if (!row) return err(keyedError('not_found', 'invitations.invitation_not_found'));
   if (row.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this invitation has already been used or revoked'));
+    return err(keyedError('invalid', 'invitations.already_used_or_revoked'));
   }
   if (row.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this invitation has expired'));
+    return err(keyedError('invalid', 'invitations.this_invitation_has_expired'));
   }
   // The same rule acceptance applies, so the page never offers an Accept that can only fail.
   if (!OPEN_ORGANIZATION_STATUSES.includes(row.organizationStatus)) {
-    return err(serviceError('invalid', 'this agency is no longer taking new members'));
+    return err(keyedError('invalid', 'invitations.no_longer_taking_new_members'));
   }
   return ok({
     organizationName: row.organizationName,
@@ -387,22 +387,22 @@ export async function acceptOrganizationInvitation(
       .where(eq(schema.organizationInvitations.tokenHash, tokenHash))
       .limit(1),
   );
-  if (!invitation) return err(serviceError('not_found', 'invitation not found'));
+  if (!invitation) return err(keyedError('not_found', 'invitations.invitation_not_found'));
   if (invitation.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this invitation has already been used or revoked'));
+    return err(keyedError('invalid', 'invitations.already_used_or_revoked'));
   }
   if (invitation.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this invitation has expired'));
+    return err(keyedError('invalid', 'invitations.this_invitation_has_expired'));
   }
   if (invitation.email !== input.actorEmail.trim().toLowerCase()) {
-    return err(serviceError('forbidden', 'this invitation was sent to a different email address'));
+    return err(keyedError('forbidden', 'invitations.sent_to_a_different_email'));
   }
 
   return db.transaction(async (tx) => {
     // Checked first, so the organization row is locked before the invitation row, the order a
     // withdrawal takes (it closes the organization, then revokes its pending invitations).
     if (!(await organizationTakesMembers(tx, invitation.organizationId))) {
-      return err(serviceError('invalid', 'this agency is no longer taking new members'));
+      return err(keyedError('invalid', 'invitations.no_longer_taking_new_members'));
     }
     // A genuine re-confirmation (this account is already an active member of
     // this org) consumes no new seat and must never be blocked by a full
@@ -451,7 +451,7 @@ export async function acceptOrganizationInvitation(
         .returning(),
     );
     if (!updated) {
-      return err(serviceError('invalid', 'this invitation has already been used or revoked'));
+      return err(keyedError('invalid', 'invitations.already_used_or_revoked'));
     }
     const membership = required(
       first(

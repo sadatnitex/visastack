@@ -7,7 +7,7 @@ import { appendAuditEvent } from './audit';
 import { logoVersion, readOrganizationLogo } from './branding';
 import { type Db, first, required, schema } from './db';
 import { isEmailAddress } from './email-address';
-import { type ServiceError, serviceError } from './errors';
+import { type ServiceError, keyedError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { createMission } from './missions';
@@ -353,7 +353,7 @@ export async function previewClientInvitation(
       .where(eq(schema.clientInvitations.tokenHash, tokenHash))
       .limit(1),
   );
-  if (!row) return err(serviceError('not_found', 'invitation not found'));
+  if (!row) return err(keyedError('not_found', 'client_invitations.invitation_not_found'));
   // First, so someone else's link says nothing about whether it was used, revoked or expired.
   if (!(await isIntendedRecipient(db, row.contactDestination, viewerAccountId))) {
     const refusal = refusalOf(row);
@@ -368,10 +368,10 @@ export async function previewClientInvitation(
     return err(serviceError('forbidden', refusal.message));
   }
   if (row.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this invitation has already been used or revoked'));
+    return err(keyedError('invalid', 'client_invitations.already_used_or_revoked'));
   }
   if (row.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this invitation has expired'));
+    return err(keyedError('invalid', 'client_invitations.this_invitation_has_expired'));
   }
   return ok({
     organizationId: row.organizationId,
@@ -591,7 +591,7 @@ export async function acceptClientInvitation(
       .where(eq(schema.clientInvitations.tokenHash, tokenHash))
       .limit(1),
   );
-  if (!invitation) return err(serviceError('not_found', 'invitation not found'));
+  if (!invitation) return err(keyedError('not_found', 'client_invitations.invitation_not_found'));
   // Checked first, before anything is claimed or created: a forwarded link
   // cannot spend the invitation or learn whether it was used, revoked or expired.
   if (!(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))) {
@@ -607,10 +607,10 @@ export async function acceptClientInvitation(
     return err(serviceError('forbidden', refusal.message));
   }
   if (invitation.status !== 'PENDING') {
-    return err(serviceError('invalid', 'this invitation has already been used or revoked'));
+    return err(keyedError('invalid', 'client_invitations.already_used_or_revoked'));
   }
   if (invitation.expiresAt.getTime() < Date.now()) {
-    return err(serviceError('invalid', 'this invitation has expired'));
+    return err(keyedError('invalid', 'client_invitations.this_invitation_has_expired'));
   }
   if (input.applicantChoice.kind === 'existing') {
     const applicant = await getApplicant(db, input.applicantChoice.applicantId);
@@ -640,7 +640,7 @@ export async function acceptClientInvitation(
       );
       if (!claimed) {
         throw new ClientInvitationAcceptAborted(
-          serviceError('invalid', 'this invitation has already been used or revoked'),
+          keyedError('invalid', 'client_invitations.already_used_or_revoked'),
         );
       }
 
