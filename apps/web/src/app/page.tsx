@@ -199,6 +199,17 @@ const HORIZONS: readonly {
 ];
 
 /**
+ * A short heading written as one message whose English breaks onto set lines ("\n" in the
+ * catalogue). Each line break becomes a `<br />`; a translation without one wraps on its own.
+ * The element around it carries the message's language (`t.lang`).
+ */
+function Lines({ text }: { readonly text: string }) {
+  return text
+    .split('\n')
+    .flatMap((line, index) => (index === 0 ? [line] : [<br key={line} />, line]));
+}
+
+/**
  * One story group (WP-SB8): a named region holding a details group whose summary row shows the
  * kicker and the section's own second-level heading. Closed, it is one short row; it opens in
  * place with a tap or the keyboard, and its words stay in the page for search.
@@ -310,10 +321,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </div>
             <div className="c1-phonebody">
               <p className="c1-tinycap">{t.node('home.page.visastackPersonalRecord')}</p>
-              <p className="c1-phonename">
-                Ready for
-                <br />
-                what’s next.
+              <p className="c1-phonename" {...t.lang('home.page.readyForWhatSNext')}>
+                <Lines text={t('home.page.readyForWhatSNext')} />
               </p>
               <p className="c1-sample">{t.node('home.page.ayeshaSRecordExample')}</p>
               <div className="c1-segment" aria-hidden="true">
@@ -419,10 +428,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           >
             <article className="c1-feature c1-feature-glow c1-feature-big">
               <span className="c1-small-label">{t.node('home.page.01AReusableRecord')}</span>
-              <h3>
-                Keep the details.
-                <br />
-                Lose the repetition.
+              <h3 {...t.lang('home.page.keepTheDetailsLoseTheRepetition')}>
+                <Lines text={t('home.page.keepTheDetailsLoseTheRepetition')} />
               </h3>
               <p>{t.node('home.page.findYourCurrentDocumentsAndSee')}</p>
               <div className="c1-miniui" aria-hidden="true">
@@ -439,10 +446,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </article>
             <article className="c1-feature c1-feature-mid">
               <span className="c1-small-label">{t.node('home.page.02SpecificRequests')}</span>
-              <h3>
-                See exactly
-                <br />
-                what’s missing.
+              <h3 {...t.lang('home.page.seeExactlyWhatSMissing')}>
+                <Lines text={t('home.page.seeExactlyWhatSMissing')} />
               </h3>
               <p>{t.node('home.page.oneClearRequestWithTheDocument')}</p>
               <p className="c1-request" aria-hidden="true">
@@ -452,19 +457,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             </article>
             <article className="c1-feature c1-feature-light">
               <span className="c1-small-label">{t.node('home.page.03YourChoice')}</span>
-              <h3>
-                Share the part.
-                <br />
-                Not the whole.
+              <h3 {...t.lang('home.page.shareThePartNotTheWhole')}>
+                <Lines text={t('home.page.shareThePartNotTheWhole')} />
               </h3>
               <p>{t.node('home.page.selectRecordsReviewTheScopeAnd')}</p>
             </article>
             <article className="c1-feature c1-feature-deep">
               <span className="c1-small-label">{t.node('home.page.04HistoricalAccuracy')}</span>
-              <h3>
-                Yesterday stays
-                <br />
-                yesterday.
+              <h3 {...t.lang('home.page.yesterdayStaysYesterday')}>
+                <Lines text={t('home.page.yesterdayStaysYesterday')} />
               </h3>
               <p>{t.node('home.page.keepAnAccurateHistoryOfPrevious')}</p>
             </article>
@@ -522,16 +523,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           >
             <p className="land-sub">{t.node('home.page.threeStepsAndTheFirstOne')}</p>
             <ol className="land-steps">
-              {STEPS.map((step, index) => (
-                <li className="land-step" key={step.title}>
-                  <span className="land-step-icon">
-                    <Icon name={step.icon} size={22} />
-                  </span>
-                  <p className="land-step-kicker">Step {index + 1}</p>
-                  <h3 className="land-h3">{t.node(step.title)}</h3>
-                  <p className="land-body">{t.node(step.body)}</p>
-                </li>
-              ))}
+              {STEPS.map((step, index) => {
+                const value = index + 1;
+                return (
+                  <li className="land-step" key={step.title}>
+                    <span className="land-step-icon">
+                      <Icon name={step.icon} size={22} />
+                    </span>
+                    <p className="land-step-kicker">{t.node('home.page.stepValue', { value })}</p>
+                    <h3 className="land-h3">{t.node(step.title)}</h3>
+                    <p className="land-body">{t.node(step.body)}</p>
+                  </li>
+                );
+              })}
             </ol>
           </StoryGroup>
 
@@ -542,9 +546,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             title={t.node('home.page.switchedOnStepByStep')}
           >
             <p className="land-sub">
-              {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
-              some features are still being switched on. The status page shows what works today.
-              Checking a file shows how complete it is, never a guess at your chances of approval.
+              {betaOpen
+                ? t.node('home.page.visastackIsInPublicBetaSo')
+                : t.node('home.page.visastackIsInAPrivatePilot')}
             </p>
             <p className="land-trust-link">
               <Link href="/status">{t.node('home.page.seeWhatWorksToday')}</Link>

@@ -1242,6 +1242,10 @@ export const HOLDBACK = new Map([
     'SG-dcadd581',
     'Issuer confirmation and the traveller sign-off state what is confirmed or agreed: waits for the owner sign-off.',
   ],
+  [
+    'SG-c1f08b9e',
+    'Term conflict: this footer draft names the Public Trust page differently from the page link on the home page; one page keeps one name, so it waits for the owner term decision.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';
@@ -1308,10 +1312,28 @@ export class Register {
       this.byEnglish.set(r.english, list);
     }
     this.census = new Map();
+    this.censusByFile = new Map();
     for (const c of censusCsv ? parseCsv(censusCsv) : []) {
       if (!c.semantic_group) continue;
       this.census.set(`${c.file}|${c.line_start}|${c.english}`, c.semantic_group);
+      const both = `${c.file}|${c.english}`;
+      this.censusByFile.set(
+        both,
+        new Set([...(this.censusByFile.get(both) ?? []), c.semantic_group]),
+      );
     }
+  }
+
+  /**
+   * The census group for a text in a file whose lines have moved since the census was taken:
+   * found by file and English alone, and only when every census row for that pair names the same
+   * register group (so two meanings of one word in one file are never merged).
+   */
+  censusGroupIgnoringLine(file, form) {
+    const groups = this.censusByFile.get(`${file}|${form}`);
+    if (!groups || groups.size !== 1) return null;
+    const [group] = groups;
+    return this.byGroup.has(group) ? group : null;
   }
 
   static load(root) {
@@ -1335,6 +1357,11 @@ export class Register {
         row = this.byGroup.get(g);
         break;
       }
+    }
+    for (const f of forms) {
+      if (row) break;
+      const g = this.censusGroupIgnoringLine(unit.file, f);
+      if (g) row = this.byGroup.get(g);
     }
     if (!row) {
       const groups = new Map();

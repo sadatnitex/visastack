@@ -33,6 +33,22 @@ export const homeCatalog = defineCatalog({
       'This is on our side, not yours. Everything you already saved is safe. If you were typing something, you may need to enter it again. Try again in a moment; if it keeps happening, sign out and back in.',
     'home.error.tryAgain': 'Try Again',
     'home.error.weHitASnagLoadingThis': 'We hit a snag loading this page',
+    'home.layout.aboutThisVersion': 'About This Version',
+    'home.layout.features': 'Features',
+    'home.layout.footer': 'Footer',
+    'home.layout.getStarted': 'Get Started',
+    'home.layout.getfullyearVisastackProprietaryAndConfidential':
+      '© {getFullYear} VisaStack. Proprietary and confidential.',
+    'home.layout.language': 'Language',
+    'home.layout.privacy': 'Privacy',
+    'home.layout.privacyAndControl': 'Privacy and Control',
+    'home.layout.product': 'Product',
+    'home.layout.publicTrust': 'Public Trust',
+    'home.layout.signIn': 'Sign In',
+    'home.layout.skipToContent': 'Skip to Content',
+    'home.layout.status': 'Status',
+    'home.layout.terms': 'Terms',
+    'home.layout.workspace': 'Workspace',
     'home.page.01AReusableRecord': '01 / A reusable record',
     'home.page.02SpecificRequests': '02 / Specific requests',
     'home.page.03YourChoice': '03 / Your choice',
@@ -102,6 +118,7 @@ export const homeCatalog = defineCatalog({
     'home.page.keepAClearRecordOfWho': 'Keep a clear record of who did what, and when',
     'home.page.keepAnAccurateHistoryOfPrevious':
       'Keep an accurate history of previous declarations, even when your circumstances change.',
+    'home.page.keepTheDetailsLoseTheRepetition': 'Keep the details.\nLose the repetition.',
     'home.page.knowWhereYourPapersAreAnd': 'Know where your papers are and what to do next',
     'home.page.lessPaperworkMoreControl': 'Less paperwork. More control.',
     'home.page.newerCopyRequested': 'Newer copy requested',
@@ -134,6 +151,7 @@ export const homeCatalog = defineCatalog({
     'home.page.privacyAndSharingAreGovernedBy':
       'Privacy and sharing are governed by actual product permissions.',
     'home.page.readOurPublicTrustPage': 'Read Our Public Trust Page',
+    'home.page.readyForWhatSNext': 'Ready for\nwhat’s next.',
     'home.page.record': '▤ Record',
     'home.page.recordSharingStartsWithYourPermission': 'Record sharing starts with your permission',
     'home.page.registrationIsOpenForPublicBeta':
@@ -143,6 +161,7 @@ export const homeCatalog = defineCatalog({
     'home.page.requested': 'Requested',
     'home.page.requestedForYourJapanVisitorVisa': 'Requested for your Japan visitor visa case.',
     'home.page.reviewRequest': 'Review request →',
+    'home.page.seeExactlyWhatSMissing': 'See exactly\nwhat’s missing.',
     'home.page.seeWhatIsMissing': 'See what is missing',
     'home.page.seeWhatWorksToday': 'See What Works Today',
     'home.page.seeWhichDocumentsAreMissingFor':
@@ -151,12 +170,14 @@ export const homeCatalog = defineCatalog({
     'home.page.selectRecordsReviewTheScopeAnd':
       'Select records, review the scope and, if you want, set an access end date before agreeing to share.',
     'home.page.shareOnlyWhatIsNeeded': 'Share only what is needed',
+    'home.page.shareThePartNotTheWhole': 'Share the part.\nNot the whole.',
     'home.page.sharing': 'Sharing',
     'home.page.sharingDecisionsAreRecorded': 'Sharing decisions are recorded',
     'home.page.sharingc17536': '◯ Sharing',
     'home.page.signInDidnTCompletePlease':
       'Sign-in didn’t complete. Please try again. If it keeps happening, contact support and quote reference',
     'home.page.signInToGetStarted': 'Sign in to get started',
+    'home.page.stepValue': 'Step {value}',
     'home.page.stopChasingDocumentsByMessage': 'Stop Chasing Documents by Message',
     'home.page.stopStartingFromZero': 'Stop starting from zero.',
     'home.page.storePassportAndSupportingDocumentsOnce':
@@ -179,6 +200,10 @@ export const homeCatalog = defineCatalog({
     'home.page.threeStepsAndTheFirstOne': 'Three steps, and the first one only happens once.',
     'home.page.trustBuiltIn': 'Trust, Built In',
     'home.page.update': 'Update',
+    'home.page.visastackIsInAPrivatePilot':
+      'VisaStack is in a private pilot, so some features are still being switched on. The status page shows what works today. Checking a file shows how complete it is, never a guess at your chances of approval.',
+    'home.page.visastackIsInPublicBetaSo':
+      'VisaStack is in public beta, so some features are still being switched on. The status page shows what works today. Checking a file shows how complete it is, never a guess at your chances of approval.',
     'home.page.visastackPersonalRecord': 'VisaStack / Personal record',
     'home.page.weAreWorkingTowardASingle':
       'We are working toward a single, verified file that follows a person across visa routes and countries, and gives agencies a calm, clear way to work with it.',
@@ -187,6 +212,7 @@ export const homeCatalog = defineCatalog({
     'home.page.whoItIsFor': 'Who It Is For',
     'home.page.withVisastack': 'With VisaStack',
     'home.page.withoutOneProfile': 'Without One Profile',
+    'home.page.yesterdayStaysYesterday': 'Yesterday stays\nyesterday.',
     'home.page.youCanStandBehind': 'you can stand behind.',
     'home.page.yourDocuments': 'Your documents',
     'home.page.yourDocumentsLiveInYourPersonal':
@@ -204,6 +230,16 @@ export const homeCatalog = defineCatalog({
     'home.countryChecklistPicker.yourChecklistAppearsHereAsSoon':
       'দেশ বেছে নিলেই আপনার চেকলিস্ট এখানে দেখা যাবে।',
     'home.error.backToHome': 'হোমে ফিরে যান',
+    'home.layout.aboutThisVersion': 'এই সংস্করণ সম্পর্কে',
+    'home.layout.features': 'বৈশিষ্ট্য',
+    'home.layout.footer': 'ফুটার',
+    'home.layout.getStarted': 'শুরু করুন',
+    'home.layout.getfullyearVisastackProprietaryAndConfidential':
+      '© {getFullYear} VisaStack। মালিকানাধীন ও গোপনীয়।',
+    'home.layout.product': 'প্রোডাক্ট',
+    'home.layout.skipToContent': 'মূল বিষয়বস্তুতে যান',
+    'home.layout.terms': 'শর্তাবলি',
+    'home.layout.workspace': 'ওয়ার্কস্পেস',
     'home.page.01AReusableRecord': '০১ / বারবার ব্যবহারযোগ্য রেকর্ড',
     'home.page.02SpecificRequests': '০২ / নির্দিষ্ট অনুরোধ',
     'home.page.03YourChoice': '০৩ / আপনার পছন্দ',
@@ -239,6 +275,7 @@ export const homeCatalog = defineCatalog({
     'home.page.everyVisaStartsWithTheSame': 'প্রতিটি ভিসা একই হুড়োহুড়ি দিয়ে শুরু হয়',
     'home.page.fillInYourProfileAndUpload':
       'আপনার প্রোফাইল পূরণ করুন এবং ডকুমেন্ট আপলোড করুন। প্রতিটি পরিবর্তন তার তারিখসহ সংরক্ষণ করা হয়, তাই কী কখন যোগ হয়েছে তা আপনি সবসময় দেখতে পারেন।',
+    'home.page.forAgencies': 'এজেন্সির জন্য',
     'home.page.forTravellers': 'ভ্রমণকারীদের জন্য',
     'home.page.helpThatStaysInYourHands': 'যে সহায়তার নিয়ন্ত্রণ থাকে আপনার হাতে',
     'home.page.historyStaysAvailableToYou': 'ইতিহাস আপনি সবসময় দেখতে পারবেন',
@@ -273,6 +310,7 @@ export const homeCatalog = defineCatalog({
     'home.page.personalRecord': 'ব্যক্তিগত রেকর্ড',
     'home.page.pickACountrySeeWhatIs': 'একটি দেশ বেছে নিন। দেখুন সাধারণত কী চাওয়া হয়।',
     'home.page.readOurPublicTrustPage': 'আমাদের পাবলিক ট্রাস্ট পাতা পড়ুন',
+    'home.page.readyForWhatSNext': 'পরের ধাপের জন্য প্রস্তুত।',
     'home.page.record': '▤ রেকর্ড',
     'home.page.reminderBeforeItExpires': 'মেয়াদ শেষ হওয়ার আগে রিমাইন্ডার',
     'home.page.replaceBankStatement': 'ব্যাংক স্টেটমেন্ট প্রতিস্থাপন করুন',
@@ -283,10 +321,12 @@ export const homeCatalog = defineCatalog({
     'home.page.seeWhatWorksToday': 'আজ কী কাজ করছে তা দেখুন',
     'home.page.seeYourChecklist': 'আপনার চেকলিস্ট দেখুন',
     'home.page.shareOnlyWhatIsNeeded': 'শুধু যা দরকার তা-ই শেয়ার করুন',
+    'home.page.shareThePartNotTheWhole': 'অংশ শেয়ার করুন। পুরোটা নয়।',
     'home.page.sharing': 'শেয়ারিং',
     'home.page.sharingDecisionsAreRecorded': 'শেয়ারিংয়ের সিদ্ধান্ত রেকর্ড করা হয়',
     'home.page.sharingc17536': '◯ শেয়ারিং',
     'home.page.signInToGetStarted': 'শুরু করতে সাইন ইন করুন',
+    'home.page.stepValue': 'ধাপ {value}',
     'home.page.stopChasingDocumentsByMessage': 'মেসেজে ডকুমেন্টের পেছনে ছোটা বন্ধ করুন',
     'home.page.stopStartingFromZero': 'প্রতিবার শূন্য থেকে শুরু করা বন্ধ করুন।',
     'home.page.storePassportAndSupportingDocumentsOnce':

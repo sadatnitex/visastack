@@ -140,3 +140,20 @@ Page title "VisaStack - one profile, every visa" (layout `metadata`, a module-le
 | the failed sign-in reference (for example ref123) | a code to quote to support |
 
 The phone mockup's clock ("9:41") and signal marks are drawn decoration, hidden from screen readers, with no words.
+
+## What the conversion PR changed (claude/magical-curie-3p4qcx-landing)
+
+Every string in (d) on the page, the header and the footer is now one catalogue message (`homeCatalog`, keys `home.page.*` and `home.layout.*`), with `t.node` and `t.lang` marking the language of each part. Bengali came only from passing register rows through the codemod.
+
+- Now Bengali (13 keys): Ready for what's next; Share the part. Not the whole; Step {value} (Bengali digits); Skip to Content; Product; For Agencies (header and audience label, one key); Get Started; Workspace; the copyright line; Footer; Features; About This Version; Terms. How It Works reuses the page heading's key, which was already Bengali.
+- Still English, needs a draft: Keep the details. Lose the repetition; See exactly what's missing; Yesterday stays yesterday; both "VisaStack is in ..., so some features ..." sentences; Language; Sign In; Status.
+- Still English, held: Privacy and Control, Privacy (PRIVACY_CONSENT_LEGAL queue); Public Trust (new HOLDBACK, see below).
+- Not converted: the version notice (component, wave E) and the page title (layout metadata, no draft).
+- The copyright line ships under the owner's blanket sign-off on legal wording (13 Nov 2026), not as a reviewed translation. Its year is written as a year in the language the line is shown in (`২০২৬`, never the grouped count `২,০২৬`).
+- The codemod now finds a census row for the same file and English when the file's lines have moved (`Register.censusGroupIgnoringLine`), only when every census row for that pair names one register group. That is how the header and footer rows above were matched.
+
+## Owner approval queue: term conflict
+
+| English | Register row | Draft | Conflict | Held until |
+| --- | --- | --- | --- | --- |
+| Public Trust (footer link to /trust) | SG-c1f08b9e | জনগণের আস্থা | The home page's own link names the same page "পাবলিক ট্রাস্ট" (আমাদের পাবলিক ট্রাস্ট পাতা পড়ুন), and no catalogue has a passing Bengali value for the identical English "Public Trust" to reuse. One page keeps one name. | The owner picks one name for the page; the register row is corrected and the HOLDBACK entry removed in the same change. |
