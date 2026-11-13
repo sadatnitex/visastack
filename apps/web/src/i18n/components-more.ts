@@ -149,8 +149,6 @@ export const componentsMoreCatalog = defineCatalog({
     'componentsMore.safeCopyEditor.checkEveryPageOnlyTheBlacka8af5a':
       'প্রতিটি পাতা দেখে নিন। শুধু কালো বক্সের অংশই লুকানো হয়।',
     'componentsMore.safeCopyEditor.drawBoxes': 'বক্স আঁকুন',
-    'componentsMore.safeCopyEditor.eachPageIsDrawnOnceWith':
-      'প্রতিটি পাতা তার কালো বক্সসহ একবার আঁকা হয়। এই পাতাটি খোলা রাখুন; বন্ধ হয়ে গেলে যেখানে থেমেছিল সেখান থেকে চালিয়ে যেতে "প্রস্তুত করা চালিয়ে যান" বেছে নিন।',
     'componentsMore.safeCopyEditor.everyPageMustShowBeforeThe':
       'নিরাপদ কপি সংরক্ষণ করার আগে প্রতিটি পাতা দেখাতে হবে: এ পর্যন্ত {pageCount}টির মধ্যে {size}টি দেখানো হয়েছে। প্রতিটি পাতা স্ক্রল করে দেখুন।',
     'componentsMore.safeCopyEditor.loadingThePage': 'পাতা লোড হচ্ছে...',
@@ -175,13 +173,10 @@ export const componentsMoreCatalog = defineCatalog({
       'শুধু PDF ডকুমেন্ট ও ছবি থেকেই নিরাপদ কপি তৈরি করা যায়।',
     'componentsMore.safeCopyEditor.safeCopy': 'নিরাপদ কপি',
     'componentsMore.safeCopyEditor.saveSafeCopy': 'নিরাপদ কপি সংরক্ষণ করুন',
-    'componentsMore.safeCopyEditor.selectedBox': 'বেছে নেওয়া বক্স',
     'componentsMore.safeCopyEditor.suggestBoxes': 'বক্সের পরামর্শ দিন',
     'componentsMore.safeCopyEditor.thisDocumentIsTooLargeFor':
       'এই ডকুমেন্ট নিরাপদ কপির জন্য খুব বড়। নিরাপদ কপিতে সর্বোচ্চ ২০ পাতা ও ২৫ MB থাকতে পারে।',
-    'componentsMore.safeCopyEditor.thisPageCouldNotBeShown': 'এই পাতাটি দেখানো যায়নি।',
     'componentsMore.safeCopyEditor.thisPageShowsWhenYouScroll': 'স্ক্রল করে এই পাতায় এলে এটি দেখা যাবে।',
-    'componentsMore.safeCopyEditor.tryAgain': 'আবার চেষ্টা করুন',
     'componentsMore.sourceNote.wordsCopiedFromTheSource': 'উৎস থেকে কপি করা শব্দ',
   },
 });

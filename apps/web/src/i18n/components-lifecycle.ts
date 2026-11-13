@@ -9,7 +9,5 @@ export const componentsLifecycleCatalog = defineCatalog({
   en: {
     'componentsLifecycle.lifecycleUndoStatus.undo': 'Undo',
   },
-  bn: {
-    'componentsLifecycle.lifecycleUndoStatus.undo': 'ফিরিয়ে নিন',
-  },
+  bn: {},
 });

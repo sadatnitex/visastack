@@ -9,7 +9,5 @@ export const componentsShareCatalog = defineCatalog({
   en: {
     'componentsShare.shareWhatsappShare.moreWaysToSend': 'More Ways to Send',
   },
-  bn: {
-    'componentsShare.shareWhatsappShare.moreWaysToSend': 'পাঠানোর আরও উপায়',
-  },
+  bn: {},
 });

@@ -176,7 +176,7 @@ Values the refill would place (34 in the first refill pull request), left in Eng
 
 ## Left English at review in refill 4
 
-Refill 4 filled 77 keys of the shared components (components, components-lifecycle, components-more, components-profile-photo, components-pwa, components-share). These 19 have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
+Refill 4 filled 64 keys of the shared components (components, components-lifecycle, components-more, components-profile-photo, components-pwa, components-share). These 32 have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
 
 | Surface | Key | Why it stays English |
 | --- | --- | --- |
@@ -199,6 +199,19 @@ Refill 4 filled 77 keys of the shared components (components, components-lifecyc
 | components | `components.capturePreview.isTheWholeCardOrPage` | The draft writes page as পৃষ্ঠা; the owner term is পাতা. Needs a redraft. |
 | components | `components.safeCopyDownload.confirmItIsYou` | A link that ends an English server message in one sentence (visa photo sizes). |
 | components-more | `componentsMore.safeCopyDownload.confirmItIsYou` | Same: ends the English server message on the safe copy download. |
+| components-more | `componentsMore.safeCopyEditor.eachPageIsDrawnOnceWith` | Names the Continue Preparing button, which is still English. |
+| components-more | `componentsMore.safeCopyEditor.tryAgain` | Its spoken name "Try again to show page {number}" is English (label in name). |
+| components-more | `componentsMore.safeCopyEditor.selectedBox` | Names a group of English move and resize buttons. |
+| components-more | `componentsMore.safeCopyEditor.thisPageCouldNotBeShown` | Its retry button, Show the Page Again, is still English. |
+| components | `components.capturePreview.useThis` | Answers the English question "Is the whole card or page inside the outline?". |
+| components | `components.capturePreview.retake` | Same: the question it answers is English. |
+| components | `components.receiptCard.done` | Sits beside an English primary action in every receipt. |
+| components | `components.versionNotice.whatWorksToday` | A link inside the English beta banner. |
+| components | `components.checklistCorrectionForm.somethingMissingFromTheChecklist` | A Bengali first option in a list of English checklist items. |
+| components-lifecycle | `componentsLifecycle.lifecycleUndoStatus.undo` | Sits inside one English status line (the message and its result are English). |
+| components-profile-photo | `componentsProfilePhoto.profilePhotoProfilePhotoControl.dragThePhotoUseTheArrow` | Refers to the move buttons, which are English. |
+| components-profile-photo | `componentsProfilePhoto.profilePhotoProfilePhotoControl.savePhoto` | Turns into the English "Saving Photo" while saving. |
+| components-share | `componentsShare.shareWhatsappShare.moreWaysToSend` | Shares one row with the English Send on WhatsApp link. |
 
 ## Deferred from refill 4 until a test renders their state
 

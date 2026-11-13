@@ -532,7 +532,7 @@ describe('safe copy editor under Bengali', () => {
     expect(has(bn('safeCopyEditor.acceptBox'))).toBe(false);
   });
 
-  it('review: Save, the review line and the drawing notice are Bengali', async () => {
+  it('review: Save and the review line are Bengali; the drawing notice stays English', async () => {
     await mount();
     await click(bn('safeCopyEditor.prepareSafeCopy'));
     await click(bn('safeCopyEditor.addBox'));
@@ -547,7 +547,8 @@ describe('safe copy editor under Bengali', () => {
     expect(container.querySelector('h3')?.textContent).toBe(
       bn('safeCopyEditor.preparingTheSafeCopy'),
     );
-    expect(container.textContent).toContain(bn('safeCopyEditor.eachPageIsDrawnOnceWith'));
+    // It names Continue Preparing, which is still English, so this line stays English too.
+    expect(container.textContent).toContain('Each page is drawn once with its black boxes.');
     release();
     await settle();
   });

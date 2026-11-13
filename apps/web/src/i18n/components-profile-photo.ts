@@ -25,13 +25,10 @@ export const componentsProfilePhotoCatalog = defineCatalog({
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.addPhoto': 'ছবি যোগ করুন',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.cancel': 'বাতিল করুন',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.cropYourPhoto': 'আপনার ছবি ক্রপ করুন',
-    'componentsProfilePhoto.profilePhotoProfilePhotoControl.dragThePhotoUseTheArrow':
-      'ছবিটি সরাতে টেনে আনুন, অ্যারো কী বা সরানোর বোতাম ব্যবহার করুন। জুম করতে স্লাইডার বা প্লাস ও মাইনাস কী ব্যবহার করুন।',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.photoFile': 'ছবির ডকুমেন্ট',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.photoPosition': 'ছবির অবস্থান',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.removePhoto': 'ছবি সরান',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.replacePhoto': 'ছবি বদলান',
-    'componentsProfilePhoto.profilePhotoProfilePhotoControl.savePhoto': 'ছবি সংরক্ষণ করুন',
     'componentsProfilePhoto.profilePhotoProfilePhotoControl.zoom': 'জুম',
   },
 });
