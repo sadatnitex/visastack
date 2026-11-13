@@ -399,3 +399,28 @@ Refill 6 filled 20 of the 32 keys deferred from refill 4 (shared components), ea
 ## Refill 6: what stays deferred
 
 Still deferred until a test renders their state (passing drafts, no content reason): `components.visaPhotoSizes.makingYourPhoto`, `componentsProfilePhoto.profilePhotoProfilePhotoControl.removingPhoto`, and all 71 keys deferred from refill 2 (applicant screens and one shared page), listed above under "Deferred from refill 2 until a test renders their state". The staged key drafts in `drafts/staged-key-drafts-I.jsonl` wait for the pull request that adds them.
+
+## Left English at review in refill 7
+
+Refill 7 takes the 71 keys deferred from refill 2 until a test renders their state (the list above): 53 are filled, each rendered under Bengali by a test of its real screen, and these 18 stay English for the reason given. They have a passing draft; HOLDBACK is unchanged.
+
+| Surface | Key | Why it stays English |
+| --- | --- | --- |
+| app-applicant | `appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind` | A Bengali first option in a list of English document kinds. |
+| app-applicant | `appApplicant.appApplicantIdDocumentUploader.notAdded` | Joined in one line to the reason the upload gives, which is English, and its pair Not Confirmed has no Bengali. |
+| app-applicant | `appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf` | Names the Change button in quotes, but that button still shows the English Change (label in name). |
+| app-applicant | `appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable` | The document title is filled in as English, as in the expired-on-arrival line beside it. |
+| app-applicant | `appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections8284e6` | Filled into the English progress meter name "{value} of {max} {label}", which would mix languages. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.whereThisCameFrom` | Its spoken name "Where this came from: the document for {label}" is held English, so the visible text and the name would differ. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent` | Names the No Longer Current button, which is still English. |
+| app-applicant | `appApplicant.appApplicantIdProfilePage.chooseWhetherToSaveYourProfile` | Title of the consent empty state, whose Review Permissions action is English. |
+| app-applicant | `appApplicant.appApplicantIdProfilePage.reviewPermissions` | Shown in the same consent state as the English Review Permissions action, so one action would show in two languages. |
+| app-applicant | `appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy` | Quotes the consent setting Let VisaStack Process My Details, which stays English on Home. |
+| app-applicant | `appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles` | The English line on each paused file tells the person to use Try Again for All Paused Files by that name (label in name). |
+| app-applicant | `appApplicant.appApplicantIdReviewPage.readAgain` | The English reading status above the button tells the person to try Read Again by that name (label in name). |
+| app-applicant | `appApplicant.appApplicantIdNameReview.proposedFilename` | Unreachable: no screen renders the name review form any more (only an accessibility test imports it). |
+| app-applicant | `appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck` | Sends the person to Documents by name, but the menu item and the link on the same page are still English (label in name). |
+| app-applicant | `appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections` | The count beside it is written in Latin digits and the meter's spoken name is English, so the label would be the only Bengali in that line. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.addAnother` | The English document kind is joined after it in the link name, so the Bengali verb would come before its object. Needs one message with the kind inside it. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.suggested` | The draft reads as advice given; this catalogue words suggested as প্রস্তাবিত everywhere else. Needs a redraft. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.upload` | Same as Add Another: the English document kind is joined after the Bengali verb in the link name. |

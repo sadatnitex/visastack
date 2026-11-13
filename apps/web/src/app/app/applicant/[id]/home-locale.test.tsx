@@ -232,3 +232,79 @@ describe('the traveller home under Bengali', () => {
     expect(text).toContain('Updated 11 Oct 2026');
   });
 });
+
+/** Refill 7: the home in the states the tests above did not reach, each under Bengali. */
+describe('the traveller home under Bengali, in its unavailable and fuller states', () => {
+  it('says cases, dates and totals are unavailable in Bengali when cases cannot be read', async () => {
+    service.listMissions.mockResolvedValue({ ok: false, error: { code: 'unavailable' } });
+    const text = await home('bn');
+    // The case tile says Unavailable in place of its count.
+    expect(text).toContain(`${bn[`${K}activeCases`]} ${bn[`${K}unavailable`]}`);
+    for (const key of [
+      'casesAreUnavailable',
+      'refreshToTryAgain',
+      'datesAreUnavailable',
+      'someRecordsCouldNotBeLoaded',
+      'someSectionsAreUnavailableUnavailableTotals',
+    ]) {
+      expect(text, key).toContain(bn[`${K}${key}`]);
+      expect(text, key).not.toContain(en[`${K}${key}`]);
+    }
+    expect(text).not.toMatch(/appApplicant\./);
+  });
+
+  it('calls a case with no service category a personal application in Bengali', async () => {
+    service.listMissions.mockResolvedValue({
+      ok: true,
+      value: [{ ...openCase, serviceCategory: null }],
+    });
+    const text = await home('bn');
+    expect(text).toContain(bn[`${K}personalApplication`]);
+    expect(text).not.toContain('Personal application');
+    expect(text).toContain('Japan Tourist Visa');
+  });
+
+  it('lists details waiting for approval and suggestions from AI apps in Bengali, with Bengali counts', async () => {
+    service.listPendingProposals.mockResolvedValue([
+      { id: 'p1', proposal: { documentVersionId: 'v1' } },
+      { id: 'p2', fromApp: { name: 'Helper App' }, proposal: { documentVersionId: null } },
+    ]);
+    const text = await home('bn');
+    expect(text).toContain(`${bn[`${K}suggestedDetailsAwaitingApproval`]} ১`);
+    expect(text).toContain(`${bn[`${K}suggestionsFromAiAppsWaitingFor`]} ১`);
+    expect(text).not.toContain(en[`${K}suggestedDetailsAwaitingApproval`]);
+    expect(text).not.toContain(en[`${K}suggestionsFromAiAppsWaitingFor`]);
+  });
+
+  it('keeps the whole-profile meter label English once the essentials are added (held)', async () => {
+    const { PROFILE_ESSENTIALS } = await import('../../../../lib/profile-essentials');
+    service.listApplicantProfile.mockResolvedValue(
+      PROFILE_ESSENTIALS.filter((e) => e.kind === 'field').map((e) => ({
+        fieldKey: e.key,
+        value: e.key === 'date_of_birth' ? '1990-01-01' : 'Made-up value',
+        status: 'CONFIRMED',
+      })),
+    );
+    service.getProfileSectionState.mockResolvedValue({
+      activated: new Set(),
+      notApplicable: new Set(),
+      noneDeclared: new Set(PROFILE_ESSENTIALS.filter((e) => e.kind !== 'field').map((e) => e.key)),
+    });
+    const text = await home('bn');
+    // Held (refill 7): the count beside the label is in Latin digits and the meter's own name is
+    // the English "{value} of {max} {label}".
+    expect(bn[`${K}detailsWithValuesInOpenSections`]).toBeUndefined();
+    expect(text).toContain(en[`${K}detailsWithValuesInOpenSections`]);
+    expect(bn[`${K}detailsWithValuesInOpenSections8284e6`]).toBeUndefined();
+  });
+
+  it('keeps the same English in those states under English', async () => {
+    service.listMissions.mockResolvedValue({ ok: false, error: { code: 'unavailable' } });
+    const text = await home('en');
+    expect(text).not.toMatch(BENGALI);
+    expect(text).toContain('Cases Are Unavailable');
+    expect(text).toContain(
+      'Some sections are unavailable. Unavailable totals are not reported as zero.',
+    );
+  });
+});

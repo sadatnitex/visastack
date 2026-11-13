@@ -837,4 +837,76 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'componentsMore.safeCopyEditor.youChoseNothingToHideOn',
     'Left English at review (refill 6): Sits above the English page captions ("Page 1 of 2: nothing hidden.") that say the same thing.',
   ],
+  [
+    'appApplicant.appApplicantIdDocumentSuggestionCard.chooseAKind',
+    'Left English at review (refill 7): A Bengali first option in a list of English document kinds.',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentUploader.notAdded',
+    'Left English at review (refill 7): Joined in one line to the reason the upload gives, which is English, and its pair Not Confirmed has no Bengali.',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf',
+    'Left English at review (refill 7): Names the Change button in quotes, but that button still shows the English Change (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable',
+    'Left English at review (refill 7): The document title is filled in as English, as in the expired-on-arrival line beside it.',
+  ],
+  [
+    'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections8284e6',
+    'Left English at review (refill 7): Filled into the English progress meter name "{value} of {max} {label}", which would mix languages.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.whereThisCameFrom',
+    'Left English at review (refill 7): Its spoken name "Where this came from: the document for {label}" is held English, so the visible text and the name would differ.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.youMarkedThisNoLongerCurrent',
+    'Left English at review (refill 7): Names the No Longer Current button, which is still English.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.chooseWhetherToSaveYourProfile',
+    'Left English at review (refill 7): Title of the consent empty state, whose Review Permissions action is English.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.reviewPermissions',
+    'Left English at review (refill 7): Shown in the same consent state as the English Review Permissions action, so one action would show in two languages.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfilePage.turnOnLetVisastackProcessMy',
+    'Left English at review (refill 7): Quotes the consent setting Let VisaStack Process My Details, which stays English on Home.',
+  ],
+  [
+    'appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles',
+    'Left English at review (refill 7): The English line on each paused file tells the person to use Try Again for All Paused Files by that name (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdReviewPage.readAgain',
+    'Left English at review (refill 7): The English reading status above the button tells the person to try Read Again by that name (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdNameReview.proposedFilename',
+    'Left English at review (refill 7): Unreachable: no screen renders the name review form any more (only an accessibility test imports it).',
+  ],
+  [
+    'appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck',
+    'Left English at review (refill 7): Sends the person to Documents by name, but the menu item and the link on the same page are still English (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections',
+    "Left English at review (refill 7): The count beside it is written in Latin digits and the meter's spoken name is English, so the label would be the only Bengali in that line.",
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.addAnother',
+    'Left English at review (refill 7): The English document kind is joined after it in the link name, so the Bengali verb would come before its object. Needs one message with the kind inside it.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.suggested',
+    'Left English at review (refill 7): The draft reads as advice given; this catalogue words suggested as প্রস্তাবিত everywhere else. Needs a redraft.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.upload',
+    'Left English at review (refill 7): Same as Add Another: the English document kind is joined after the Bengali verb in the link name.',
+  ],
 ]);
