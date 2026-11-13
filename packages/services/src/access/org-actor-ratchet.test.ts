@@ -1,9 +1,8 @@
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { ORG_ACTOR_EXCEPTIONS } from './org-actor-exceptions';
 
 /**
  * Ratchet: every exported service function that is told which organization to act for must also
@@ -25,17 +24,31 @@ import { ORG_ACTOR_EXCEPTIONS } from './org-actor-exceptions';
  *   platform staff action, the platform role checks (`isPlatformOwner`, `hasAnyPlatformRole`,
  *   `canPerformPlatformAction`). There is no second permission model.
  *
- * Anything else must be listed in org-actor-exceptions.ts with its kind and a reason a reviewer
- * reads. An `internal` exception must not be exported from the package entry (src/index.ts), so
+ * Anything else must be listed in org-actor-exceptions.json with its kind and a reason a reviewer
+ * reads (a data file, so the list is not source that other source guards scan).
+ *
+ * Kinds: `internal` (never exported from the package entry, held below, so only this package can
+ * call it, after its own check of the person), `pure` (reads nothing), `staff` (a platform staff
+ * action whose web route checks the staff permission first), `display` (the agency's public name
+ * and logo), `caller-checked` (called only after the caller's own membership or staff check; named
+ * so the next change to it moves the check into the service). The list is fixed, not a baseline. An `internal` exception must not be exported from the package entry (src/index.ts), so
  * the web app and the other packages cannot call it. An exception that is no longer needed, or
  * names a function that no longer exists, fails.
  */
+
+interface OrgActorException {
+  readonly kind: 'internal' | 'pure' | 'staff' | 'display' | 'caller-checked';
+  readonly reason: string;
+}
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const servicesDir = realpathSync(path.resolve(here, '../..'));
 const srcDir = path.join(servicesDir, 'src');
 const accessDir = path.join(srcDir, 'access');
 const indexFile = path.join(srcDir, 'index.ts');
+const ORG_ACTOR_EXCEPTIONS = JSON.parse(
+  readFileSync(path.join(accessDir, 'org-actor-exceptions.json'), 'utf8'),
+) as Readonly<Record<string, OrgActorException>>;
 const schemaFile = realpathSync(path.resolve(servicesDir, '../db/src/schema.ts'));
 
 const ORG_PARAM_NAMES = new Set(['organizationId', 'orgId', 'organizationIds']);
