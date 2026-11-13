@@ -1,4 +1,5 @@
 import { keyedError } from '@visastack/services';
+import { serviceMessages } from '@visastack/services/i18n';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn' }));
@@ -85,10 +86,15 @@ describe('contributor upload refusals show in the visitor language', () => {
       ok: false,
       error: keyedError('not_found', 'documents.applicantNotFound'),
     });
-    state.locale = 'bn';
     expect(await submitContributorEvidenceAction(initial, form())).toEqual({
       ok: false,
       message: 'applicant not found',
     });
+    state.locale = 'bn';
+    expect(await submitContributorEvidenceAction(initial, form())).toEqual({
+      ok: false,
+      message: serviceMessages.bn['documents.applicantNotFound'],
+    });
+    expect(serviceMessages.bn['documents.applicantNotFound']).toMatch(BENGALI);
   });
 });

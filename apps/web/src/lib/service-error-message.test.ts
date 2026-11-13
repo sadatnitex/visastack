@@ -41,8 +41,9 @@ describe('serviceErrorMessage for sharing refusals', () => {
 
   it('under bn keeps English where no checked Bangla exists, and for an unkeyed refusal', async () => {
     state.locale = 'bn';
-    expect(await serviceErrorMessage(keyedError('not_found', 'sharing.grantMissing'))).toBe(
-      'grant not found',
+    // The hidden-record answer is English-only by decision, so it stays English under bn.
+    expect(await serviceErrorMessage(keyedError('not_found', 'sharing.inviteUnavailable'))).toBe(
+      'Invitation unavailable.',
     );
     expect(await serviceErrorMessage(serviceError('not_found', 'case not found'))).toBe(
       'case not found',

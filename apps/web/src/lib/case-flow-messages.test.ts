@@ -37,8 +37,9 @@ describe('case flow refusals on the screens', () => {
 
   it('shows English under bn when the key has no Bengali yet', async () => {
     locale.value = 'bn';
-    expect(await serviceErrorMessage(keyedError('not_found', 'missions.case_not_found'))).toBe(
-      'case not found',
+    // The hidden-record answer is English-only by decision, so it stays English under bn.
+    expect(await serviceErrorMessage(keyedError('not_found', 'sharing.inviteUnavailable'))).toBe(
+      'Invitation unavailable.',
     );
   });
 
