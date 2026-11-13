@@ -49,8 +49,9 @@ describe('serviceErrorMessage for document refusals', () => {
 
   it('under bn keeps English where no checked Bangla exists', async () => {
     state.locale = 'bn';
-    expect(await serviceErrorMessage(keyedError('not_found', 'documents.documentNotFound'))).toBe(
-      'document not found',
+    // The hidden-record answer is English-only by decision, so it stays English under bn.
+    expect(await serviceErrorMessage(keyedError('not_found', 'sharing.inviteUnavailable'))).toBe(
+      'Invitation unavailable.',
     );
     expect(await serviceErrorMessage(serviceError('not_found', 'x not found'))).toBe('x not found');
   });
