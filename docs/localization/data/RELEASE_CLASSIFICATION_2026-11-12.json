@@ -13,7 +13,7 @@
   "counts": {
     "released": 588,
     "released_no_draft_or_pass": 22,
-    "kept": 112
+    "kept": 113
   },
   "groups": [
     {
@@ -4303,6 +4303,14 @@
       "reason": "Done or cancelled task count: the number word comes from an English helper, so the sentence would mix scripts; waits for a proper plural message.",
       "queue": "ORDINARY_UI",
       "english": "{plural} Done or Cancelled"
+    },
+    {
+      "group": "SG-c1f08b9e",
+      "state": "KEPT",
+      "category": "term conflict",
+      "reason": "Term conflict (added 13 Nov 2026, landing PR): the footer draft names the Public Trust page differently from the home page's own link to it; one page keeps one name, so it waits for the owner term decision.",
+      "queue": "ORDINARY_UI",
+      "english": "Public Trust"
     },
     {
       "group": "SG-c1fb8969",
