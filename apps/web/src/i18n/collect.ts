@@ -124,16 +124,54 @@ export const collectCatalog = defineCatalog({
     'collect.collectRetentionChoice.howLongWhoMayKeepYour': 'How Long {who} May Keep Your Files',
   },
   bn: {
+    'collect.collectAccountAnswersPage.continueAnOpenRequest': 'একটি খোলা অনুরোধ চালিয়ে যান',
+    'collect.collectAccountAnswersPage.goToYourRecord': 'আপনার রেকর্ডে যান',
     'collect.collectAccountAnswersPage.submittedToAgency': 'এজেন্সির কাছে জমা দেওয়া হয়েছে',
     'collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen':
       'এজেন্সির কাছে জমা দেওয়া হয়েছে। আপনি পাঠানোর সময় যা বেছে নিয়েছিলেন, ঠিক সেটুকুই তারা খুলতে পারবে।',
+    'collect.collectAccountAnswersPage.withdrawnTheAgencyCanNoLonger':
+      'তুলে নেওয়া হয়েছে। এজেন্সি ওই উত্তরের কিছুই আর খুলতে পারবে না।',
+    'collect.collectAccountAnswersPage.youHaveNotAnsweredAnyAgency':
+      'আপনি এখনো এজেন্সির কোনো অনুরোধের উত্তর দেননি।',
+    'collect.collectAccountAnswersPage.yourAnswersToAgencies': 'এজেন্সিকে দেওয়া আপনার উত্তর',
     'collect.collectAccountPage.answerAnAgencyRequest': 'এজেন্সির অনুরোধের উত্তর দিন',
+    'collect.collectAccountPage.answerForSomeoneElse': 'অন্য কারও হয়ে উত্তর দিন',
+    'collect.collectAccountPage.answerName': '{name}-এর উত্তর দিন',
+    'collect.collectAccountPage.chooseWhoseRecordToAnswerFrom':
+      'কার রেকর্ড থেকে উত্তর দেবেন তা বেছে নিন। এই তালিকা শুধু আপনি দেখতে পান।',
+    'collect.collectAccountPage.poweredByVisastack': 'VisaStack দ্বারা চালিত।',
+    'collect.collectAccountPage.seeYourAnswers': 'আপনার উত্তরগুলো দেখুন',
+    'collect.collectAccountPage.setUpYourRecord': 'আপনার রেকর্ড তৈরি করুন',
+    'collect.collectAccountPage.setUpYourRecordFirst': 'আগে আপনার রেকর্ড তৈরি করুন',
+    'collect.collectAccountPage.theLinkMayHaveExpiredOr':
+      'লিংকটির মেয়াদ শেষ হয়ে থাকতে পারে বা এটি বদলানো হয়ে থাকতে পারে, অনুরোধটি শেষ হয়ে থাকতে পারে, অথবা এটি অন্য কোনো ইমেইল ঠিকানায় পাঠানো হয়েছিল। যে ঠিকানায় পাঠানো হয়েছিল সেটি দিয়ে সাইন ইন করে আপনার পাওয়া মেসেজ থেকে আবার খুলুন, অথবা এজেন্সির কাছে নতুন লিংক চান।',
     'collect.collectAccountPage.thisAgencyIsNotReviewedYet': 'এই এজেন্সি এখনো পর্যালোচিত হয়নি',
     'collect.collectAccountPage.thisLinkIsNotOpen': 'এই লিংকটি খোলা নেই',
     'collect.collectAccountPage.visastackHasNotFinishedReviewingThe':
       'VisaStack এই অনুরোধ পাঠানো এজেন্সির পর্যালোচনা এখনো শেষ করেনি, তাই এখনই তাদের সঙ্গে কিছু শেয়ার করা যাবে না। কিছুই শেয়ার করা হয়নি। পরে আবার চেষ্টা করুন, অথবা এজেন্সিকে জিজ্ঞাসা করুন।',
+    'collect.collectAccountPage.whoIsThisFor': 'এটি কার জন্য?',
+    'collect.collectAccountPage.yourAnswerComesFromYourOwn':
+      'আপনার উত্তর আপনার নিজের VisaStack রেকর্ড থেকে আসে, আর সেখানে এখনো কেউ নেই। নিজেকে ও আপনার ডকুমেন্ট যোগ করুন, তারপর এই পাতাটি আবার খুলুন।',
+    'collect.collectAccountResponseForm.chooseADifferentDocument': 'অন্য একটি ডকুমেন্ট বেছে নিন',
+    'collect.collectAccountResponseForm.chooseFromYourDocuments': 'আপনার ডকুমেন্ট থেকে বেছে নিন',
+    'collect.collectAccountResponseForm.everyItemHasSomethingChosen':
+      'প্রতিটি আইটেমের জন্য কিছু না কিছু বেছে নেওয়া হয়েছে।',
+    'collect.collectAccountResponseForm.missingItemsAreStillMissingYou':
+      '{missing}টি আইটেম এখনো বাকি। আপনি এখনই জমা দিতে পারেন, আর এজেন্সি সেগুলো বাকি হিসেবে দেখবে।',
+    'collect.collectAccountResponseForm.noteFromTheAgencyNote': 'এজেন্সির নোট: {note}',
+    'collect.collectAccountResponseForm.nothingInThisRecordMatchesYet':
+      'এই রেকর্ডে এখনো কিছু মেলেনি।',
+    'collect.collectAccountResponseForm.oneCopyChosen': 'একটি কপি বেছে নেওয়া হয়েছে',
+    'collect.collectAccountResponseForm.oneItemIsStillMissingYou':
+      'একটি আইটেম এখনো বাকি। আপনি এখনই জমা দিতে পারেন, তখন এজেন্সি সেটিকে বাকি হিসেবে দেখবে।',
+    'collect.collectAccountResponseForm.reviewAndSubmit': 'পর্যালোচনা করে জমা দিন',
+    'collect.collectAccountResponseForm.sizeCopiesChosen': '{size}টি কপি বেছে নেওয়া হয়েছে',
+    'collect.collectAccountResponseForm.stillMissing': 'এখনো বাকি',
     'collect.collectGuestDeskFiles.whatYouSent': 'আপনি যা পাঠিয়েছেন',
     'collect.collectGuestDeskFiles.yourFiles': 'আপনার ডকুমেন্ট',
+    'collect.collectGuestForms.itWorksFor10MinutesOnly':
+      'এটি ১০ মিনিট কাজ করে। শুধু সবচেয়ে নতুন কোডটি কাজ করে।',
+    'collect.collectGuestForms.sixDigitCode': 'ছয় অঙ্কের কোড',
     'collect.collectGuestProgress.allMandatoryPlaced': 'সব বাধ্যতামূলক বসানো হয়েছে',
     'collect.collectGuestProgress.doneOfTotalMandatoryItemsPlaced':
       '{total}টি বাধ্যতামূলক আইটেমের মধ্যে {done}টি বসানো হয়েছে',
@@ -146,12 +184,29 @@ export const collectCatalog = defineCatalog({
     'collect.collectGuestUploader.chooseFiles': 'ডকুমেন্ট বেছে নিন',
     'collect.collectPage.aCodeWasSentToThe':
       'এই অনুরোধ যে ইমেইল ঠিকানায় পাঠানো হয়েছিল, সেখানে একটি কোড পাঠানো হয়েছে।',
+    'collect.collectPage.back': 'ফিরে যান',
+    'collect.collectPage.continueWithoutAnAccount': 'অ্যাকাউন্ট ছাড়াই চালিয়ে যান',
+    'collect.collectPage.ifYouWereNotExpectingThis':
+      'আপনি এটি আশা না করে থাকলে উপেক্ষা করতে পারেন। VisaStack দ্বারা চালিত।',
+    'collect.collectPage.noEmailCheckYourSpamFolder':
+      'ইমেইল আসেনি? আপনার স্প্যাম ফোল্ডার দেখুন, বা নতুন কোড চান।',
+    'collect.collectPage.pleaseTryAgainLater': 'দয়া করে পরে আবার চেষ্টা করুন',
+    'collect.collectPage.signInToRespond': 'উত্তর দিতে সাইন ইন করুন',
+    'collect.collectPage.theLinkMayHaveExpiredOr':
+      'লিংকটির মেয়াদ শেষ হয়ে থাকতে পারে বা এটি বদলানো হয়ে থাকতে পারে, অথবা অনুরোধটি শেষ হয়ে থাকতে পারে। সম্প্রতি পেয়ে থাকলে আপনার পাওয়া মেসেজ থেকে আবার খুলুন। না হলে যে এজেন্সি পাঠিয়েছে তাদের কাছে নতুন লিংক চান।',
+    'collect.collectPage.thisChecklistCannotBeShownRight':
+      'এই চেকলিস্টটি এখন দেখানো যাচ্ছে না। এজেন্সিকে অনুরোধটি আবার পাঠাতে বলুন।',
     'collect.collectPage.thisPrivateLinkComesFromAn':
       'এই ব্যক্তিগত লিংকটি এমন একটি এজেন্সির কাছ থেকে এসেছে, যারা VisaStack-এর মাধ্যমে আপনার কাছে ডকুমেন্ট চেয়েছে। এটি খোলায় কিছুই শেয়ার হয়নি।',
     'collect.collectPage.toComeBackOpenTheLink': 'ফিরে আসতে আপনার বার্তা থেকে লিংকটি আবার খুলুন।',
     'collect.collectPage.toSeeTheChecklistConfirmIt':
       'চেকলিস্ট দেখতে নিশ্চিত করুন যে এটি আপনিই: এই অনুরোধ যে ঠিকানায় পাঠানো হয়েছিল, সেখানে আমরা ছয় অঙ্কের একটি কোড ইমেইল করব। কোনো অ্যাকাউন্ট তৈরি হয় না।',
+    'collect.collectPage.tooManyLinksWereOpenedFrom':
+      'এইমাত্র এই নেটওয়ার্ক থেকে অনেক বেশি লিংক খোলা হয়েছে। এক ঘণ্টা পরে আবার চেষ্টা করুন।',
     'collect.collectPage.weSentASixDigitCode':
       'এই অনুরোধ যে ইমেইল ঠিকানায় পাঠানো হয়েছিল, সেখানে আমরা ছয় অঙ্কের একটি কোড পাঠিয়েছি।',
+    'collect.collectPage.withoutAnAccountNoVisastackProfile':
+      'অ্যাকাউন্ট ছাড়া আপনার জন্য কোনো VisaStack প্রোফাইল তৈরি হয় না: আপনার ডকুমেন্ট শুধু এই অনুরোধেই যায়।',
+    'collect.collectPage.youHaveLeftThisRequest': 'আপনি এই অনুরোধ থেকে বেরিয়ে এসেছেন',
   },
 });

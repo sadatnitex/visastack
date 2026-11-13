@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../../components/i18n-provider';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
 
 /**
@@ -427,5 +428,53 @@ describe('/collect under Bengali (wording signed off 2026-11-12)', () => {
     expect(await page({ step: 'guest' })).toContain(
       bn()['collect.collectPage.toSeeTheChecklistConfirmIt'],
     );
+  });
+});
+
+describe('/collect under Bengali (refill 3)', () => {
+  const bn = () => collectCatalog.bn as Record<string, string>;
+  const en = () => collectCatalog.en as Record<string, string>;
+  const RAW = /collect\.collect[A-Z]/;
+  /** The page with its client forms inside the language provider the root layout gives them. */
+  const bnPage = async (searchParams: Record<string, string> = {}) => {
+    loc.locale = 'bn';
+    const html = await renderServer(
+      CollectPage({ searchParams: Promise.resolve(searchParams) }).then((node) => (
+        <I18nProvider locale="bn" pageLang="bn">
+          {node}
+        </I18nProvider>
+      )),
+    );
+    expect(html).not.toMatch(RAW);
+    return textOf(html);
+  };
+
+  it('a busy network, a closed link and a left request say so in Bengali', async () => {
+    const busy = await bnPage({ busy: '1' });
+    expect(busy).toContain(bn()['collect.collectPage.pleaseTryAgainLater']);
+    expect(busy).toContain(bn()['collect.collectPage.tooManyLinksWereOpenedFrom']);
+    const closed = await bnPage();
+    expect(closed).toContain(bn()['collect.collectPage.theLinkMayHaveExpiredOr']);
+    expect(closed).not.toContain(en()['collect.collectPage.theLinkMayHaveExpiredOr']);
+    const left = await bnPage({ left: '1' });
+    expect(left).toContain(bn()['collect.collectPage.youHaveLeftThisRequest']);
+  });
+
+  it('the code step names the code field, its hint and the spam-folder line in Bengali', async () => {
+    mocks.cookie = SESSION;
+    mocks.desk.mockResolvedValue({ ...LANDING, codePending: true });
+    const text = await bnPage({ step: 'guest', sent: '1' });
+    expect(text).toContain(bn()['collect.collectGuestForms.sixDigitCode']);
+    expect(text).toContain('এটি ১০ মিনিট কাজ করে।');
+    expect(text).toContain(bn()['collect.collectPage.noEmailCheckYourSpamFolder']);
+    expect(text).not.toContain('Six-Digit Code');
+  });
+
+  it('a checklist that cannot be shown says so in Bengali', async () => {
+    mocks.cookie = SESSION;
+    mocks.desk.mockResolvedValue({ ...VERIFIED, intact: false });
+    const text = await bnPage();
+    expect(text).toContain(bn()['collect.collectPage.thisChecklistCannotBeShownRight']);
+    expect(text).not.toContain(en()['collect.collectPage.thisChecklistCannotBeShownRight']);
   });
 });

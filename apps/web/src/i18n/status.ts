@@ -28,11 +28,18 @@ export const statusCatalog = defineCatalog({
   bn: {
     'status.statusStatusView.aboutThisVersion': 'এই সংস্করণ সম্পর্কে',
     'status.statusStatusView.checkNow': 'এখনই দেখুন',
+    'status.statusStatusView.checking': 'পরীক্ষা করা হচ্ছে…',
     'status.statusStatusView.checkingWhichFeaturesAreWorking': 'কোন ফিচারগুলো কাজ করছে তা দেখা হচ্ছে…',
     'status.statusStatusView.features': 'ফিচার',
     'status.statusStatusView.featuresThatAreNotSwitchedOn':
       'যেসব ফিচার এখনো চালু হয়নি সেগুলোও তালিকায় আছে, যাতে আপনি সবসময় জানেন কী আশা করতে পারেন।',
+    'status.statusStatusView.live': 'লাইভ',
     'status.statusStatusView.loading': 'লোড হচ্ছে…',
+    'status.statusStatusView.notSwitchedOnYet': 'এখনো চালু হয়নি',
+    'status.statusStatusView.theListOfFeaturesIsNot': 'ফিচারের তালিকা এখন পাওয়া যাচ্ছে না।',
+    'status.statusStatusView.updatedUpdatedatThisPageChecksAgain':
+      'আপডেট করা হয়েছে {updatedAt}। এই পাতাটি নিজে থেকেই আবার দেখে নেয়।',
     'status.statusStatusView.whatWorksToday': 'আজ যা কাজ করছে',
+    'status.statusStatusView.youCanUseNow': 'এখন যা ব্যবহার করতে পারেন',
   },
 });

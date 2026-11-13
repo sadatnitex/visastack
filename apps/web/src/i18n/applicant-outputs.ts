@@ -94,14 +94,23 @@ export const applicantOutputsCatalog = defineCatalog({
       'নিজেকে পাঠানোর মতো একটি ছোট বার্তা। এতে কোনো ডকুমেন্ট, নম্বর বা নাম থাকে না, শুধু VisaStack-এ সাইন ইন করার একটি লিংক থাকে। VisaStack এটি আপনার হয়ে কখনো পাঠায় না।',
     'applicantOutputs.appApplicantIdOutputsPage.aSummaryIsAOneTime':
       'সারসংক্ষেপ হলো একবারের কপি। আপনার রেকর্ড বদলালে এটি আপডেট হয় না, আর একবার শেয়ার করার পর VisaStack এটি ফিরিয়ে নিতে পারে না। কোনো এজেন্সি বা এআই অ্যাপের সঙ্গে এটি শেয়ার করা প্রতিবারই আপনার সিদ্ধান্ত।',
+    'applicantOutputs.appApplicantIdOutputsPage.addsTheWordsReadFromYour':
+      'আপনি যেসব গ্রুপে টিক দেন, সেগুলোর ডকুমেন্ট থেকে পড়া লেখা যোগ করে। পাসপোর্ট, পরিচয়পত্র, টাকাপয়সা ও স্বাস্থ্যের ডকুমেন্ট কখনো যুক্ত করা হয় না। এআই অ্যাপের যদি লেখাগুলোই দরকার হয়, শুধু তখনই এটি বেছে নিন।',
+    'applicantOutputs.appApplicantIdOutputsPage.case': 'ভিসা ফাইল',
+    'applicantOutputs.appApplicantIdOutputsPage.chooseACaseAboveThenPress':
+      'উপরে একটি ভিসা ফাইল বেছে নিন, তারপর প্রিভিউ চাপুন।',
     'applicantOutputs.appApplicantIdOutputsPage.chooseASummary': 'একটি সারসংক্ষেপ বেছে নিন',
+    'applicantOutputs.appApplicantIdOutputsPage.chooseDetails': 'তথ্য বেছে নিন',
     'applicantOutputs.appApplicantIdOutputsPage.chooseWhatGoesInCheckThe':
       'কী কী থাকবে তা বেছে নিন, প্রিভিউ দেখে নিন, তারপর একটি সারসংক্ষেপ কপি, প্রিন্ট বা ডাউনলোড করুন। যা বেছে নেবেন না তা বাদ থাকবে।',
     'applicantOutputs.appApplicantIdOutputsPage.chooseWhatToInclude': 'কী কী যোগ করবেন তা বেছে নিন',
     'applicantOutputs.appApplicantIdOutputsPage.copyAll': 'সব কপি করুন',
+    'applicantOutputs.appApplicantIdOutputsPage.copyText': 'লেখা কপি করুন',
+    'applicantOutputs.appApplicantIdOutputsPage.detailsToInclude': 'যে তথ্য রাখবেন',
     'applicantOutputs.appApplicantIdOutputsPage.documents': 'ডকুমেন্টস',
     'applicantOutputs.appApplicantIdOutputsPage.documentsTheListOnlyNoDocument':
       'ডকুমেন্ট: শুধু তালিকা। কোনো আপলোড করা ডকুমেন্ট যুক্ত নেই।',
+    'applicantOutputs.appApplicantIdOutputsPage.downloadSpreadsheetFile': 'স্প্রেডশিট ডাউনলোড করুন',
     'applicantOutputs.appApplicantIdOutputsPage.downloadTextFile': 'টেক্সট ডকুমেন্ট ডাউনলোড করুন',
     'applicantOutputs.appApplicantIdOutputsPage.fullDocumentNumbersAreIncludedShare':
       'পূর্ণ ডকুমেন্ট নম্বর এতে আছে। যার এগুলো দরকার শুধু তার সঙ্গেই এই কপি শেয়ার করুন।',
@@ -111,6 +120,8 @@ export const applicantOutputsCatalog = defineCatalog({
     'applicantOutputs.appApplicantIdOutputsPage.kindDatesAndStatusOnlyNo':
       'শুধু ধরন, তারিখ ও অবস্থা। কোনো ডকুমেন্ট কখনোই যুক্ত করা হয় না।',
     'applicantOutputs.appApplicantIdOutputsPage.kindsOfSummary': 'সারসংক্ষেপের ধরন',
+    'applicantOutputs.appApplicantIdOutputsPage.noCase': 'ভিসা ফাইল নেই',
+    'applicantOutputs.appApplicantIdOutputsPage.noCaseYet': 'এখনো কোনো ভিসা ফাইল নেই',
     'applicantOutputs.appApplicantIdOutputsPage.numbers': 'নম্বর',
     'applicantOutputs.appApplicantIdOutputsPage.partsOfYourRecord': 'আপনার রেকর্ডের অংশ',
     'applicantOutputs.appApplicantIdOutputsPage.passportAndIdNumbersShowOnly':
@@ -119,18 +130,33 @@ export const applicantOutputsCatalog = defineCatalog({
     'applicantOutputs.appApplicantIdOutputsPage.previewYourSummary': 'আপনার সারসংক্ষেপের প্রিভিউ দেখুন',
     'applicantOutputs.appApplicantIdOutputsPage.selected': 'নির্বাচিত',
     'applicantOutputs.appApplicantIdOutputsPage.showFullDocumentNumbers': 'পূর্ণ ডকুমেন্ট নম্বর দেখান',
+    'applicantOutputs.appApplicantIdOutputsPage.showingFullNumbersNeedsAnExtra':
+      'পুরো নম্বর দেখাতে সাইন ইনের একটি বাড়তি পরীক্ষা লাগে, যা এখানে এখন পাওয়া যাচ্ছে না। চালিয়ে যেতে ওই বিকল্পটি বন্ধ করুন।',
+    'applicantOutputs.appApplicantIdOutputsPage.startAgain': 'আবার শুরু করুন',
     'applicantOutputs.appApplicantIdOutputsPage.steps': 'ধাপ',
     'applicantOutputs.appApplicantIdOutputsPage.stillUnknownOrNeedsALook': 'এখনও জানা নেই বা দেখা দরকার',
     'applicantOutputs.appApplicantIdOutputsPage.summaries': 'সারসংক্ষেপ',
     'applicantOutputs.appApplicantIdOutputsPage.tellThemOnWhatsapp': 'WhatsApp-এ তাদের জানান',
+    'applicantOutputs.appApplicantIdOutputsPage.textReadFromMyDocuments': 'আমার ডকুমেন্ট থেকে পড়া লেখা',
+    'applicantOutputs.appApplicantIdOutputsPage.theExactTextAnAiApp': 'একটি এআই অ্যাপ হুবহু যে লেখা পাবে',
     'applicantOutputs.appApplicantIdOutputsPage.theFileIsMadeAgainWhen':
       'ডাউনলোডের সময় ডকুমেন্টটি আবার তৈরি করা হয়। এই প্রিভিউয়ের পর আপনার রেকর্ড বদলে গেলে কিছুই ডাউনলোড হবে না, এবং আপনাকে আবার প্রিভিউ দেখতে বলা হবে।',
     'applicantOutputs.appApplicantIdOutputsPage.theWhatsappMessage': 'WhatsApp বার্তা',
+    'applicantOutputs.appApplicantIdOutputsPage.thereIsNothingToDownloadFor':
+      'এই বিকল্পগুলোর জন্য ডাউনলোড করার মতো কিছু নেই। আগে অন্তর্ভুক্ত করার মতো কিছু বেছে নিন।',
     'applicantOutputs.appApplicantIdOutputsPage.theseAreTheConfirmedDetailsIn':
       'বেছে নেওয়া অংশগুলোর নিশ্চিত করা তথ্য এখানে আছে। শিটে যেগুলো চান না, সেগুলোর টিক তুলে দিন।',
+    'applicantOutputs.appApplicantIdOutputsPage.thisIsTheExactTextAn':
+      'এটি হুবহু সেই লেখা, যা একটি এআই অ্যাপ পাবে। এতে কোনো ডকুমেন্ট বা লিংক নেই, আর অ্যাপকে জানানো হয় যে এটি একটি স্ন্যাপশট।',
     'applicantOutputs.appApplicantIdOutputsPage.visastack': 'VisaStack',
+    'applicantOutputs.appApplicantIdOutputsPage.weCouldNotMakeTheFile':
+      'এই মুহূর্তে আমরা ডাউনলোডটি তৈরি করতে পারিনি। আবার চেষ্টা করুন।',
+    'applicantOutputs.appApplicantIdOutputsPage.weCouldNotPrepareThisSummary':
+      'এইমাত্র এই সারাংশ প্রস্তুত করা যায়নি। আবার চেষ্টা করতে রিফ্রেশ করুন।',
     'applicantOutputs.appApplicantIdOutputsPage.whatYouWantHelpWithOptional':
       'যে বিষয়ে সাহায্য চান (ঐচ্ছিক)',
     'applicantOutputs.appApplicantIdOutputsPage.yourChoices': 'আপনার পছন্দ',
+    'applicantOutputs.appApplicantIdOutputsPage.yourRecordOrYourChoicesChanged':
+      'আপনি প্রিভিউ দেখার পরে আপনার রেকর্ড বা বাছাই বদলে গেছে, তাই কিছুই ডাউনলোড হয়নি। নিচের নতুন প্রিভিউ দেখে নিন, তারপর আবার ডাউনলোড করুন।',
   },
 });

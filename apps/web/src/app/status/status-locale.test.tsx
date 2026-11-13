@@ -17,13 +17,13 @@ const ready: ProbeResult = {
   },
 };
 
-function render(locale: 'en' | 'bn', updatedAt = '14:05:09'): string {
+function render(locale: 'en' | 'bn', updatedAt = '14:05:09', probe = ready): string {
   return textOf(
     renderToStaticMarkup(
       <I18nProvider locale={locale} pageLang="en">
         <StatusView
           live={live}
-          ready={ready}
+          ready={probe}
           updatedAt={updatedAt}
           loading={false}
           onRefresh={() => undefined}
@@ -47,6 +47,14 @@ describe('the status page under Bengali', () => {
 
   it('shows the Bengali loading line before the first check finishes', () => {
     expect(render('bn', '')).toContain(statusCatalog.bn['status.statusStatusView.loading']);
+  });
+
+  it('when the feature list cannot be read it says so in Bengali (refill 3)', () => {
+    const bare = { ...ready, data: { status: 'ready', deploymentMode: 'controlled_pilot' } };
+    const text = render('bn', '14:05:09', bare as ProbeResult);
+    expect(text).toContain(statusCatalog.bn['status.statusStatusView.theListOfFeaturesIsNot']);
+    expect(text).not.toContain(statusCatalog.en['status.statusStatusView.theListOfFeaturesIsNot']);
+    expect(text).not.toMatch(/status\.statusStatusView\./);
   });
 
   it('has no raw placeholder in any Bengali string', () => {

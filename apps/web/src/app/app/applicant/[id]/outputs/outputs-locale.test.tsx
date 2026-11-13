@@ -66,6 +66,18 @@ vi.mock('../../../../../lib/step-up', () => ({
   },
 }));
 
+// Two states the real database cannot reach in a test (the identity check is not set up; the case
+// list cannot be read) are given here; every other render runs the real preparation.
+const loadOverride = vi.hoisted(() => ({ value: null as unknown }));
+vi.mock('./load', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./load')>();
+  return {
+    ...real,
+    prepareOutput: async (...args: Parameters<typeof real.prepareOutput>) =>
+      loadOverride.value ?? real.prepareOutput(...args),
+  };
+});
+
 const { default: OutputsPage } = await import('./page');
 const { applicantOutputsCatalog } = await import('../../../../../i18n/applicant-outputs');
 
@@ -80,12 +92,12 @@ let applicantId: string;
 let missionId: string;
 
 type Query = Record<string, string | string[]>;
-async function render(locale: 'en' | 'bn', query: Query = {}) {
+async function render(locale: 'en' | 'bn', query: Query = {}, id = applicantId) {
   current.holder = null;
   current.locale = locale;
   const marked = await renderServer(
     OutputsPage({
-      params: Promise.resolve({ id: applicantId }),
+      params: Promise.resolve({ id }),
       searchParams: Promise.resolve(query),
     }),
   );
@@ -151,6 +163,7 @@ beforeAll(async () => {
 }, 60_000);
 afterEach(() => {
   current.locale = 'en';
+  loadOverride.value = null;
 });
 
 describe('the summaries page under Bengali', () => {
@@ -247,20 +260,23 @@ describe('the summaries page under Bengali', () => {
       q: 'Which visa should I choose?',
     });
     expect(html).toContain(`>${bn[`${P}whatYouWantHelpWithOptional`]}</label>`);
-    expect(html).toContain('aria-label="The exact text an AI app would receive"');
-    expect(text).toContain('Copy Text');
+    expect(html).toContain(`aria-label="${bn[`${P}theExactTextAnAiApp`]}"`);
+    expect(text).toContain(bn[`${P}copyText`]);
+    expect(text).not.toContain('Copy Text');
     expect(text).not.toContain(bn[`${P}tellThemOnWhatsapp`]);
     expect(html).not.toMatch(RAW_KEY);
   });
 
-  it('the sheet keeps the spreadsheet button in English next to the Bengali text button', async () => {
+  it('the sheet shows the spreadsheet and text buttons in Bengali', async () => {
     const { html } = await render('bn', {
       output: 'confirmed_sheet',
       preview: '1',
       layer: ['travel_documents'],
     });
     expect(html).toMatch(new RegExp(`value="txt"[^>]*>${bn[`${P}downloadTextFile`]}</button>`));
-    expect(html).toMatch(/value="csv"[^>]*>Download Spreadsheet File<\/button>/);
+    expect(html).toMatch(
+      new RegExp(`value="csv"[^>]*>${bn[`${P}downloadSpreadsheetFile`]}</button>`),
+    );
     expect(html).not.toMatch(RAW_KEY);
   });
 
@@ -271,6 +287,44 @@ describe('the summaries page under Bengali', () => {
     expect(html).toContain('<select id="output-case"');
     expect(text).toContain('Summary: Case Handover');
     expect(html).not.toMatch(RAW_KEY);
+  });
+
+  it('a download that failed, found nothing or went stale says so in Bengali (refill 3)', async () => {
+    const base = { output: 'confirmed_sheet', preview: '1', layer: ['travel_documents'] };
+    for (const [error, key] of [
+      ['failed', 'weCouldNotMakeTheFile'],
+      ['nothing', 'thereIsNothingToDownloadFor'],
+      ['changed', 'yourRecordOrYourChoicesChanged'],
+    ] as const) {
+      const { html, text } = await render('bn', { ...base, error });
+      expect(text, error).toContain(bn[`${P}${key}`]);
+      expect(html, error).not.toMatch(RAW_KEY);
+    }
+  });
+
+  it('a preview with no case chosen asks for one in Bengali; a person with no case is told so (refill 3)', async () => {
+    const choose = await render('bn', { output: 'case_handover', preview: '1' });
+    expect(choose.text).toContain(bn[`${P}chooseACaseAboveThenPress`]);
+    const other = await createApplicant(db, {
+      actorAccountId: state.accountId,
+      ownerAccountId: state.accountId,
+      displayName: 'Rafiq Ahmed',
+    });
+    if (!other.ok) throw new Error('applicant');
+    const none = await render('bn', { output: 'case_handover' }, other.value.id);
+    expect(none.text).toContain(bn[`${P}noCaseYet`]);
+    expect(none.text).not.toContain('No Case Yet');
+    expect(choose.html + none.html).not.toMatch(RAW_KEY);
+  });
+
+  it('when the identity check is not set up or the summary cannot be made it says so in Bengali (refill 3)', async () => {
+    loadOverride.value = { state: 'not_configured' };
+    const off = await render('bn', { output: 'confirmed_sheet' });
+    expect(off.text).toContain(bn[`${P}showingFullNumbersNeedsAnExtra`]);
+    loadOverride.value = { state: 'failed' };
+    const failed = await render('bn', { output: 'confirmed_sheet' });
+    expect(failed.text).toContain(bn[`${P}weCouldNotPrepareThisSummary`]);
+    expect(off.html + failed.html).not.toMatch(RAW_KEY);
   });
 
   it('is the same English as before under English, with no Bengali', async () => {
