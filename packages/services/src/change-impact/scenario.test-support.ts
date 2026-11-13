@@ -32,6 +32,9 @@ import {
 import { editFact, registerFieldDefinition } from '../profile';
 import { acceptGrant, createGrant } from '../sharing';
 import { recordSubmission } from '../submissions';
+import type { ChangeImpact, ImpactItem } from './contract';
+import { assessDetailChangeImpact } from './detail';
+import { assessDocumentChangeImpact } from './document';
 
 /**
  * The shared scenario for "What This Change Affects": one made-up traveller whose older passport
@@ -231,6 +234,7 @@ export async function shareWith(
 }
 
 export interface Checklist {
+  readonly packId: string;
   readonly packVersionId: string;
   readonly documentRequirementId: string;
   readonly detailRequirementId: string;
@@ -276,6 +280,7 @@ export async function makeChecklist(db: Db, owner: Person): Promise<Checklist> {
     'publish',
   );
   return {
+    packId: pack.id,
     packVersionId: version.id,
     documentRequirementId: documentRequirement.id,
     detailRequirementId: detailRequirement.id,
@@ -493,7 +498,7 @@ export async function ownerView(
   );
 }
 
-export interface ImpactWorld extends LoggedDb {
+export interface ImpactWorldRecords {
   readonly rahim: Person;
   /** A second traveller with their own document and detail: the "real foreign id". */
   readonly stranger: Person;
@@ -518,6 +523,11 @@ export interface ImpactWorld extends LoggedDb {
   readonly detailRequestId: string;
 }
 
+export interface ImpactWorld extends LoggedDb, ImpactWorldRecords {}
+
+/** The records with any database handle: what the change and read helpers need. */
+export type WorldOn = ImpactWorldRecords & { readonly db: Db };
+
 /**
  * The world before either change:
  * - Rahim has an older passport P1 and a confirmed employment detail E (first value);
@@ -530,7 +540,13 @@ export interface ImpactWorld extends LoggedDb {
  */
 export async function buildImpactWorld(): Promise<ImpactWorld> {
   const logged = await loggedDb();
-  const { db } = logged;
+  const records = await buildImpactRecords(logged.db);
+  logged.log.length = 0;
+  return { ...logged, ...records };
+}
+
+/** The same world on a database the caller brings (a real Postgres database in the race tests). */
+export async function buildImpactRecords(db: Db): Promise<ImpactWorldRecords> {
   const rahim = await makeTraveller(db, 'test-rahim-impact@example.test', TRAVELLER_NAME);
   const stranger = await makeTraveller(db, 'test-stranger-impact@example.test', 'Test Stranger');
   const agencyA = await makeAgency(db, 'owner@sample-agency-a.example.test', AGENCY_A_NAME);
@@ -582,9 +598,7 @@ export async function buildImpactWorld(): Promise<ImpactWorld> {
   // Confirmed last, so nothing in the set-up can have voided the confirmation.
   const liveCaseSnapshotId = await confirmCase(db, rahim, liveCaseId);
 
-  logged.log.length = 0;
   return {
-    ...logged,
     rahim,
     stranger,
     strangerDocumentId: strangerDocument.documentId,
@@ -609,7 +623,7 @@ export async function buildImpactWorld(): Promise<ImpactWorld> {
 
 /** Change 1: a newer passport is added and recorded as replacing `oldDocumentId` (default P1). */
 export async function replaceWithNewerPassport(
-  world: ImpactWorld,
+  world: WorldOn,
   oldDocumentId: string = world.p1.documentId,
   originalName = 'sample-passport-newer.pdf',
 ) {
@@ -625,7 +639,7 @@ export async function replaceWithNewerPassport(
 }
 
 /** Change 2: the employment detail gets a new saved value. Returns what `editFact` returned. */
-export async function changeEmploymentDetail(world: ImpactWorld, value: string = E_VALUE_2) {
+export async function changeEmploymentDetail(world: WorldOn, value: string = E_VALUE_2) {
   return must(
     await editFact(world.db, {
       actorAccountId: world.rahim.accountId,
@@ -698,4 +712,60 @@ export async function requestStatus(db: Db, requestId: string): Promise<string> 
     .where(eq(schema.evidenceRequests.id, requestId));
   if (!row) throw new Error('request missing');
   return row.status;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reading the world through the two new reads
+
+/** The owner's read of a document's impact (default: the older passport). */
+export async function readDocumentImpact(
+  world: WorldOn,
+  documentId: string = world.p1.documentId,
+  replacementDocumentId?: string,
+): Promise<ChangeImpact> {
+  return must(
+    await assessDocumentChangeImpact(await ownerManage(world.db, world.rahim), {
+      documentId,
+      ...(replacementDocumentId ? { replacementDocumentId } : {}),
+    }),
+    'document impact',
+  );
+}
+
+/** The owner's read of a detail's impact (default: the employment detail). */
+export async function readDetailImpact(
+  world: WorldOn,
+  factId: string = world.e.factId,
+): Promise<ChangeImpact> {
+  return must(
+    await assessDetailChangeImpact(await ownerManage(world.db, world.rahim), { factId }),
+    'detail impact',
+  );
+}
+
+/** `[id, reason]` for every item, in the order the read returned them. */
+export function reasons(impact: ChangeImpact): [string, string][] {
+  return impact.items.map((item) => [item.id, item.reason]);
+}
+
+export function itemOf(impact: ChangeImpact, id: string): ImpactItem {
+  const item = impact.items.find((candidate) => candidate.id === id);
+  if (!item) throw new Error(`no item ${id} among ${JSON.stringify(reasons(impact))}`);
+  return item;
+}
+
+/** The tables a list of logged statements read from or joined, sorted. */
+export function tablesRead(statements: readonly string[]): string[] {
+  const names = new Set<string>();
+  for (const statement of statements) {
+    for (const match of statement.matchAll(/(?:from|join)\s+"([a-z_]+)"/g)) {
+      if (match[1]) names.add(match[1]);
+    }
+  }
+  return [...names].sort();
+}
+
+/** Statements with every literal position kept as a placeholder: their shape, for comparison. */
+export function shapes(statements: readonly string[]): string[] {
+  return statements.map((statement) => statement.replace(/\s+/g, ' ').trim());
 }
