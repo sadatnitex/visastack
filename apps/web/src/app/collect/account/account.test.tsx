@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../components/i18n-provider';
 import { flagEmoji } from '../../../components/country-flag';
+import { I18nProvider } from '../../../components/i18n-provider';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 /**
@@ -451,7 +451,10 @@ describe('/collect/account under Bengali (refill 3)', () => {
     expect(none).toContain(bn[`${F}stillMissing`]);
     expect(none).toContain(bn[`${F}nothingInThisRecordMatchesYet`]);
     expect(none).toContain(bn[`${F}reviewAndSubmit`]);
-    const one = form([item('i1', { initialKeys: ['a'], choices: [choice('a', true)] }), item('i2', {})]);
+    const one = form([
+      item('i1', { initialKeys: ['a'], choices: [choice('a', true)] }),
+      item('i2', {}),
+    ]);
     expect(one).toContain(bn[`${F}oneCopyChosen`]);
     expect(one).toContain(bn[`${F}oneItemIsStillMissingYou`]);
     expect(one).not.toContain('One Copy Chosen');

@@ -101,7 +101,7 @@ describe('the public invitation page under Bengali', () => {
       );
       expect(offer).toContain(bn['invitation.invitingAgency.poweredByVisastack']);
       expect(offer).toContain(
-        bn['invitation.invitationClientInvitationOffer.agencynameInvitedYou'].replace(
+        (bn['invitation.invitationClientInvitationOffer.agencynameInvitedYou'] ?? '').replace(
           '{agencyName}',
           'Acme Visas',
         ),
@@ -149,7 +149,9 @@ describe('the public invitation page under Bengali', () => {
     try {
       const offer = await render('bn', { kind: 'client', token: TOKEN });
       expect(offer).toContain(
-        invitationCatalog.bn['invitation.invitationClientInvitationOffer.useTheEmailAddressThatReceived'],
+        invitationCatalog.bn[
+          'invitation.invitationClientInvitationOffer.useTheEmailAddressThatReceived'
+        ],
       );
       expect(offer).not.toMatch(/invitation\.invitationClientInvitationOffer\./);
     } finally {
