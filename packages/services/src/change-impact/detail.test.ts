@@ -477,10 +477,10 @@ describe('a saved value with the same text and a different meaning', () => {
   );
 
   it(
-    'is a change when the effective date or the status was corrected; an identical save is not',
+    'is a change when a start date is stated for the first time or corrected',
     async () => {
       const w = await buildImpactWorld();
-      const save = async (effectiveFrom: Date, status?: 'DECLARED') =>
+      const save = async (effectiveFrom: Date) =>
         must(
           await editFact(w.db, {
             actorAccountId: w.rahim.accountId,
@@ -488,14 +488,12 @@ describe('a saved value with the same text and a different meaning', () => {
             fieldKey: EMPLOYMENT_FIELD,
             value: E_VALUE_1,
             effectiveFrom,
-            ...(status ? { status } : {}),
           }),
           'save',
         );
-      const startDate = new Date('2025-01-01T00:00:00Z');
 
-      // The same text with a corrected start date: the first answer holds the earlier value.
-      await save(startDate);
+      // The same text, now with a start date: the first answer, sent with none, is earlier.
+      await save(new Date('2025-01-01T00:00:00Z'));
       expect(itemOf(await readDetailImpact(w), `request:${w.detailRequestId}`).reason).toBe(
         'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
       );
@@ -506,25 +504,73 @@ describe('a saved value with the same text and a different meaning', () => {
         'AGENCY_HOLDS_CURRENT',
       );
 
-      // The same text and date with another status: the dated answer holds the earlier value.
-      await save(startDate, 'DECLARED');
+      // The same text with a corrected start date: the dated answer is earlier.
+      await save(new Date('2025-02-01T00:00:00Z'));
       expect(itemOf(await readDetailImpact(w), `request:${dated}`).reason).toBe(
         'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
       );
-      const declared = await askForDetail(w.db, w.agencyA, w.rahim);
-      await sendDetail(w.db, w.rahim, declared, w.e.factId);
-      await decide(w.db, w.agencyA, declared, 'ACCEPTED');
-      await confirmCase(w.db, w.rahim, w.liveCaseId);
+    },
+    HEAVY,
+  );
+});
 
-      // Saved again exactly as it is: not a change for the answer, but the case's confirmation
-      // is still voided by the save and must be given again.
-      await save(startDate, 'DECLARED');
-      const identical = await readDetailImpact(w);
-      expect(itemOf(identical, `request:${declared}`).reason).toBe('AGENCY_HOLDS_CURRENT');
-      expect(itemOf(identical, `request:${dated}`).reason).toBe(
-        'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+describe('the profile editor saving the same text again', () => {
+  /**
+   * Saves `E_VALUE_1` with `first` (a way the value can come to be stored), has Agency A ask for
+   * it, receive it and accept it, confirms the live case, then saves the same text again the way
+   * the profile editor does: no status and no date. Returns the reads before and after.
+   */
+  async function resaveInEditor(first: { status?: 'DOCUMENT_SUPPORTED'; effectiveFrom?: Date }) {
+    const w = await buildImpactWorld();
+    const edit = async (options: typeof first) =>
+      must(
+        await editFact(w.db, {
+          actorAccountId: w.rahim.accountId,
+          applicantId: w.rahim.applicantId,
+          fieldKey: EMPLOYMENT_FIELD,
+          value: E_VALUE_1,
+          ...options,
+        }),
+        'save',
       );
-      expect(itemOf(identical, `case:${w.liveCaseId}`).reason).toBe('LIVE_CASE_CONFIRMATION_VOID');
+    await edit(first);
+    const asked = await askForDetail(w.db, w.agencyA, w.rahim);
+    await sendDetail(w.db, w.rahim, asked, w.e.factId);
+    await decide(w.db, w.agencyA, asked, 'ACCEPTED');
+    await confirmCase(w.db, w.rahim, w.liveCaseId);
+    const before = await readDetailImpact(w);
+    expect(itemOf(before, `request:${asked}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+
+    await edit({});
+    const after = await readDetailImpact(w);
+    return { w, asked, before, after };
+  }
+
+  /** The re-save changes nothing for the agency; only the case's confirmation is void. */
+  function expectOnlyConfirmationVoid(run: Awaited<ReturnType<typeof resaveInEditor>>) {
+    const { w, asked, before, after } = run;
+    expect(itemOf(after, `request:${asked}`).reason).toBe('AGENCY_HOLDS_CURRENT');
+    expect(itemOf(after, `case:${w.liveCaseId}`).reason).toBe('LIVE_CASE_CONFIRMATION_VOID');
+    const others = (impact: typeof after) =>
+      reasons(impact).filter(([id]) => id !== `case:${w.liveCaseId}`);
+    expect(others(after)).toEqual(others(before));
+    expect(after.counts.REVIEW_RECOMMENDED).toBe(before.counts.REVIEW_RECOMMENDED);
+  }
+
+  it(
+    'over a value approved from a document is not a change for the agency',
+    async () => {
+      expectOnlyConfirmationVoid(await resaveInEditor({ status: 'DOCUMENT_SUPPORTED' }));
+    },
+    HEAVY,
+  );
+
+  it(
+    'over a value with a start date is not a change for the agency',
+    async () => {
+      expectOnlyConfirmationVoid(
+        await resaveInEditor({ effectiveFrom: new Date('2025-01-01T00:00:00Z') }),
+      );
     },
     HEAVY,
   );

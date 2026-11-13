@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifySend, requestStanding } from './classify';
-import { type RoundRequest, type StoredDecision, latestRoundOf } from './rounds';
+import { type RoundRequest, type StoredDecision, type StoredSend, latestRoundOf } from './rounds';
 
 /*
  * The latest round of a request, from its stored sends and decisions. Pure: no table is read.
@@ -42,26 +42,43 @@ describe('the latest round of a request', () => {
     expect(reason).toBe('AGENCY_CHECKING_EARLIER');
   });
 
-  it('reads the same answer the same way when its send time is recorded after the decision', () => {
-    const { latest, reason } = judged({
-      id: 'request-1',
-      status: 'RECEIVED',
-      respondingId: 'document-a',
-      respondedAt: new Date(DECIDED_AT.getTime() + 60 * 60 * 1000),
-    });
-    expect(latest?.state).toBe('AWAITING_DECISION');
-    expect(reason).toBe('AGENCY_CHECKING_EARLIER');
-  });
+  // A waiting answer whose send time is recorded sorts by that time: that is how round-3 code
+  // read it too, so a test of it guards nothing new and is not kept here.
 
-  it('keeps a decision with no send time in its place by its decision time', () => {
-    // Nothing waits: the sent-back decision is the latest round.
-    const { latest, reason } = judged({
+  it('places a decision with no send time by its decision time, before a later send', () => {
+    // An older decision with no exact send behind it, then an exact send decided later.
+    const send: StoredSend = {
+      id: 'send-1',
+      requestId: 'request-1',
+      roundNo: 1,
+      sentAt: new Date(DECIDED_AT.getTime() + 60 * 60 * 1000),
+      subjectId: 'document-a',
+      versionId: 'version-a',
+      intact: true,
+    };
+    const accepted: StoredDecision = {
+      id: 'decision-2',
+      requestId: 'request-1',
+      outcome: 'ACCEPTED',
+      decidedAt: new Date(DECIDED_AT.getTime() + 2 * 60 * 60 * 1000),
+      subjectId: 'document-a',
+      sendId: send.id,
+    };
+    const request: RoundRequest = {
       id: 'request-1',
-      status: 'NEEDS_REPLACEMENT',
+      status: 'ACCEPTED',
       respondingId: 'document-a',
       respondedAt: null,
-    });
-    expect(latest).toMatchObject({ precision: 'legacy', state: 'SENT_BACK', sentAt: null });
-    expect(reason).toBe('AGENCY_WAITING_FOR_REPLACEMENT');
+    };
+    const latest = latestRoundOf(request, [send], [sentBackEarlier, accepted], () => true);
+    expect(latest).toMatchObject({ precision: 'pinned', state: 'ACCEPTED' });
+    expect(
+      classifySend({
+        standing: requestStanding(request.status),
+        latest: latest ? { state: latest.state, carries: 'EARLIER' } : null,
+        liveWork: true,
+        waitsEvenOnCurrent: false,
+      }),
+    ).toBe('AGENCY_ACCEPTED_EARLIER_LIVE_WORK');
   });
 });

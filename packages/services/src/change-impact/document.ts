@@ -9,6 +9,7 @@ import {
   type DraftItem,
   type SendCarries,
   assembleImpact,
+  chainCutItem,
   classifyDocumentCase,
   classifyDocumentShare,
   couldNotCheck,
@@ -24,6 +25,7 @@ import {
   type CaseRow,
   type DocumentSubject,
   type LiveShare,
+  type ReplacementChain,
   type RequestHistory,
   casesKeepingCopy,
   casesSelecting,
@@ -59,18 +61,20 @@ const LATER_DOCUMENT_ID = 'ffffffff-ffff-4fff-bfff-ffffffffffff';
 
 /**
  * The reason for one live share. When the chain of replacements is cut by a document removed for
- * good, the newest document is not known: a share that lists other documents by name may list
+ * good, the newest document is not known: a share that lists another document by name may list
  * that one, so "it covers the earlier document only" would be a guess and is said as not known.
- * A share that lists no other document cannot reach any newer one, and is still said.
+ * A share that lists only this document and documents of the chain up to the cut (none of which
+ * is the unknown newest) cannot reach it, and is still said.
  */
 function documentShareReason(
   share: LiveShare,
   documentId: string,
-  chainCut: boolean,
+  chain: ReplacementChain,
   reason: ImpactReason | null,
 ): ImpactReason | null {
-  if (reason !== 'SHARE_COVERS_EARLIER_ONLY' || !chainCut) return reason;
-  const namesAnother = share.namedDocumentIds?.some((id) => id !== documentId) ?? false;
+  if (reason !== 'SHARE_COVERS_EARLIER_ONLY' || !chain.cut) return reason;
+  const known = new Set([documentId, ...chain.laterIds]);
+  const namesAnother = share.namedDocumentIds?.some((id) => !known.has(id)) ?? false;
   return namesAnother ? 'RECORD_INCOMPLETE' : reason;
 }
 
@@ -129,6 +133,9 @@ export async function assessDocumentChangeImpact(
     const newerIds = new Set(chain.laterIds);
     if (replacementId !== null) newerIds.add(replacementId);
     const drafts: DraftItem[] = [];
+    // A cut chain is said even when nothing else depends on the document, so the screen never
+    // reads "no newer document" while one may exist.
+    if (chain.cut) drafts.push(chainCutItem());
 
     // Cases.
     const selecting = await casesSelecting(access, tx, { documentId });
@@ -173,7 +180,7 @@ export async function assessDocumentChangeImpact(
       const reason = documentShareReason(
         share,
         documentId,
-        chain.cut,
+        chain,
         classifyDocumentShare(
           shareReachOf(share, {
             subject: { documentId, category },
