@@ -8163,6 +8163,11 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Language marks: the Bengali inside these screens says it is Bengali, except the strings passed as plain props (page title, way back, empty-state title and action, reference label), which the tests list so the gap can only shrink.
 - Not verified: a signed-in browser run of these screens under Bengali.
 
+## 2026-11-13 - Owner's country research: starter lists and country intake (branch claude/magical-curie-3p4qcx-countries)
+- Starter lists: 10 countries added (150 lines), the Tourist and Business lines of 7 countries replaced (186 for 119); 702 lines, 43 countries. Starter lists only, not official, not loaded anywhere until an admin loads them. Record: docs/product/master-profile-enrichment/HANDOFF.md (13 Nov entry), docs/operations/starter-country-lists.md.
+- Country intake: 12 of 13 corrections applied (US bond USD 20,000 among them); C13 (Australia) left for the owner because the task said no change to Australia's lines. New validator errors: 2 NO_QUOTE (US bond row, Netherlands), because the corrections carry no word-for-word text; both rows are flagged for a check.
+- Not verified: the new lines' document types by a person; the cited pages (no internet in the sandbox; run the "Country intake pages" workflow); whether starter.th.business and starter.gb.business were ever loaded in production (they are no longer built).
+
 ## 2026-11-13 (bn-final-dates) - Dates inside Bengali sentences follow the reader's language
 
 - Seven sentences that were held in English only because the date inside them was worded in English are now Bengali, with the date in Bengali digits and month names: the due date and the invitation expiry on the agency Clients page, the invitation expiry on the Team page, the traveller's acknowledgement on the agency overview, the expiry of shared access, the withdrawn mark on a guest's sent answers, the expiry of a prepared full export, and the "prepared on" line of a summary preview. Each call site now passes the reader's language to the date formatter; the English reader's wording and dates are unchanged and pinned by tests.

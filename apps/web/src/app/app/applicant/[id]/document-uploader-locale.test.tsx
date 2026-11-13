@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 
@@ -30,6 +30,19 @@ const en = appApplicantCatalog.en as Record<string, string>;
 const K = 'appApplicant.appApplicantIdDocumentUploader.';
 const BENGALI = /[ঀ-৿]/;
 
+/** Every uploader a test put on the page, taken off again when that test ends. */
+const mounted: { readonly root: ReturnType<typeof createRoot>; readonly host: HTMLElement }[] = [];
+afterEach(async () => {
+  for (const { root, host } of mounted.splice(0)) {
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
+  }
+  copy.send.mockReset();
+  copy.remove.mockReset();
+});
+
 async function upload(
   locale: 'en' | 'bn',
   outcome?: Record<string, unknown>,
@@ -40,6 +53,7 @@ async function upload(
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
+  mounted.push({ root, host });
   await act(async () => {
     root.render(
       <I18nProvider locale={locale} pageLang={locale}>
@@ -220,6 +234,91 @@ describe('the uploader under Bengali', () => {
     expect(host.querySelector('[role="alert"]')?.textContent).toBe(
       'We could not remove it. Check your connection and try again.',
     );
+  });
+
+  /** The Try Again button of the one file in the list, found by its place, not by its wording. */
+  const retryButton = (host: HTMLElement) =>
+    host.querySelector('.upload-item > button.btn') as HTMLButtonElement | null;
+  const REFUSED = { kind: 'refused', message: 'This file is too large.' };
+  const COPY = {
+    kind: 'added',
+    message: 'Passport added.',
+    title: null,
+    removableCopyId: '11111111-1111-4111-8111-111111111111',
+  };
+  /** Press Remove This New Copy while the server has not answered yet: the button stays busy. */
+  const startRemoval = async (locale: 'en' | 'bn') => {
+    copy.remove.mockReturnValue(new Promise(() => undefined));
+    const { host } = await upload(locale, COPY);
+    const remove = host.querySelector('.lc-new-copy button') as HTMLButtonElement;
+    await act(async () => {
+      remove.click();
+    });
+    return remove;
+  };
+
+  it('offers Try Again in Bengali, seen and spoken, for a file that was refused', async () => {
+    const { host, text } = await upload('bn', REFUSED);
+    expect(host.querySelector('.upload-item')?.getAttribute('data-status')).toBe('refused');
+    const retry = retryButton(host);
+    expect(bn[`${K}tryAgain`]).toMatch(BENGALI);
+    expect(retry?.textContent).toBe(bn[`${K}tryAgain`]);
+    expect(bn[`${K}tryAgainName`]).toMatch(BENGALI);
+    expect(retry?.getAttribute('aria-label')).toBe(
+      bn[`${K}tryAgainName`]?.replace('{name}', 'passport.jpg'),
+    );
+    expect(retry?.getAttribute('aria-label')).toContain('passport.jpg');
+    // Still English: the flag and the server's own reason.
+    expect(host.querySelector('.upload-item-flag')?.textContent).toBe(en[`${K}notAdded`]);
+    expect(text).toContain('Not added. This file is too large.');
+    expect(text).not.toContain('Try Again');
+    expect(text).not.toMatch(/appApplicant\./);
+    expect(host.innerHTML).not.toMatch(/appApplicant\./);
+  });
+
+  it('offers Try Again in Bengali, seen and spoken, for a file whose upload was not confirmed', async () => {
+    const { host, text } = await upload('bn', { kind: 'unknown' });
+    expect(host.querySelector('.upload-item')?.getAttribute('data-status')).toBe('unknown');
+    const retry = retryButton(host);
+    expect(retry?.textContent).toBe(bn[`${K}tryAgain`]);
+    expect(retry?.getAttribute('aria-label')).toBe(
+      bn[`${K}tryAgainName`]?.replace('{name}', 'passport.jpg'),
+    );
+    // Still English: the flag.
+    expect(host.querySelector('.upload-item-flag')?.textContent).toBe(en[`${K}notConfirmed`]);
+    expect(text).toContain('Not confirmed.');
+    expect(text).not.toContain('Try Again');
+    expect(text).not.toMatch(/appApplicant\./);
+    expect(host.innerHTML).not.toMatch(/appApplicant\./);
+  });
+
+  it('says Removing in Bengali while the new copy is being removed', async () => {
+    const remove = await startRemoval('bn');
+    expect(copy.remove).toHaveBeenCalledTimes(1);
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(bn[`${K}removing`]).toMatch(BENGALI);
+    expect(remove.textContent).toBe(bn[`${K}removing`]);
+    expect(remove.textContent).not.toMatch(/appApplicant\./);
+  });
+
+  it('keeps Try Again and Removing as the exact English under English', async () => {
+    for (const [outcome, status, flag] of [
+      [REFUSED, 'refused', 'Not added. '],
+      [{ kind: 'unknown' }, 'unknown', 'Not confirmed. '],
+    ] as const) {
+      const { host, text } = await upload('en', outcome);
+      expect(host.querySelector('.upload-item')?.getAttribute('data-status')).toBe(status);
+      const retry = retryButton(host);
+      expect(retry?.textContent, status).toBe('Try Again');
+      expect(retry?.getAttribute('aria-label'), status).toBe('Try Again: passport.jpg');
+      expect(host.querySelector('.upload-item-flag')?.textContent, status).toBe(flag);
+      expect(text, status).not.toMatch(BENGALI);
+      expect(host.innerHTML, status).not.toMatch(BENGALI);
+    }
+    const remove = await startRemoval('en');
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(remove.textContent).toBe('Removing');
+    expect(remove.closest('.upload-item')?.innerHTML).not.toMatch(BENGALI);
   });
 
   it('is the same English as before under English', async () => {
