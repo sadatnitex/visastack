@@ -161,6 +161,27 @@ describe('accepting clear details together', () => {
     expect(batch).toEqual({ items: [], more: 2 });
   });
 
+  it('stops looking once the whole batch has taken too long and counts the rest as not looked at', async () => {
+    const { BATCH_IMPACT_BUDGET_MS } = await import('./change-impact/impact-words');
+    let clock = 1_000_000;
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      approvedWith(ids(6), affecting);
+      mocks.readDetail.mockImplementation(async (_applicantId: string, factId: string) => {
+        mocks.order.push(`read ${factId}`);
+        clock += BATCH_IMPACT_BUDGET_MS;
+        return affecting(factId);
+      });
+      const batch = (await accept()).changeImpactBatch;
+      expect(mocks.readDetail).toHaveBeenCalledTimes(1);
+      // One named, five never looked at: the saved batch is still a success.
+      expect(batch?.items).toHaveLength(1);
+      expect(batch?.more).toBe(5);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('reads one after another, never two at once', async () => {
     approvedWith(ids(6), affecting);
     let running = 0;

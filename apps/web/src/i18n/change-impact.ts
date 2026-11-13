@@ -19,7 +19,7 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.about.areaCases': 'Your Cases',
     'changeImpact.about.areaMissing': 'Could Not Find',
     'changeImpact.about.areaRequests': 'Requests from Agencies',
-    'changeImpact.about.areaSentCopies': 'Copies Sent to Agencies',
+    'changeImpact.about.areaLater': 'Later Replacements',
     'changeImpact.about.areaSharing': 'Your Sharing',
     'changeImpact.about.case': 'Case',
     'changeImpact.about.finishedCase': 'Finished Case',
@@ -32,12 +32,12 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.notice.more':
       '{count, plural, one {and # more detail may also affect something.} other {and # more details may also affect something.}}',
     'changeImpact.notice.moreAlone':
-      '{count, plural, one {# detail was not checked here. Open it to see what it affects.} other {# details were not checked here. Open each one to see what they affect.}}',
+      '{count, plural, one {# detail was not checked here.} other {# details were not checked here.}}',
     'changeImpact.notice.review':
       '{count, plural, one {# item is worth a look.} other {# items are worth a look.}}',
     'changeImpact.notice.title': 'What This Change Affects',
     'changeImpact.notice.unavailable':
-      'We could not work out what this change affects. Open Documents or your cases to check.',
+      'We could not work out what this change affects this time. Your change is saved.',
     'changeImpact.notice.unknown':
       '{count, plural, one {We cannot tell about # item.} other {We cannot tell about # items.}}',
     'changeImpact.page.backToDocuments': 'Documents',
@@ -152,7 +152,7 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.reason.finishedCaseNoCopy.document':
       '{case} is finished but has no saved copy, so we cannot show which document it used.',
     'changeImpact.reason.recordIncomplete.area':
-      'We could not find every copy of the newer document that went to agencies, so we cannot tell whether one of them needs to be replaced.',
+      'A later document in this chain of replacements was removed for good, so we cannot tell whether a newer document exists or whether copies of it went to agencies.',
     'changeImpact.reason.recordIncomplete.case':
       'The record for {case} does not add up, so we cannot tell what this change means for it.',
     'changeImpact.reason.recordIncomplete.request':
@@ -199,6 +199,8 @@ export const changeImpactCatalog = defineCatalog({
     'changeImpact.review.quietWithItems':
       'No action is needed. What relates to this change is listed below.',
     'changeImpact.review.ready': 'The list of what this change affects is ready below.',
+    'changeImpact.review.readyPartly':
+      'A list of what this change affects is below. It may be missing something.',
     'changeImpact.review.recordedFailed':
       'We could not work out what else this change affects this time. The replacement itself is done.',
     'changeImpact.review.title': 'What This Change Affects',

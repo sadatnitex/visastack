@@ -104,6 +104,7 @@ import {
   triggerIntakeAndReading,
 } from '../../../api/jobs/process-ai-reading/run';
 import {
+  BATCH_IMPACT_BUDGET_MS,
   BATCH_IMPACT_READS,
   type ChangeImpactBatch,
   type ChangeImpactSummary,
@@ -253,7 +254,14 @@ async function withChangeImpactBatch(
   const impacts: ChangeImpact[] = [];
   // Details not looked at: past the cap, or whose look failed. A refused look is not counted.
   let unread = factIds.length - looked.length;
+  const started = Date.now();
   for (const factId of looked) {
+    // Past the whole-batch budget the rest are not looked at, so a slow database cannot hold the
+    // answer to an approval that has already been saved.
+    if (Date.now() - started >= BATCH_IMPACT_BUDGET_MS) {
+      unread += 1;
+      continue;
+    }
     try {
       const read = await readDetailChangeImpact(applicantId, factId);
       if (read === 'failed') unread += 1;

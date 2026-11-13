@@ -26,7 +26,11 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-import { readDetailChangeImpact, readDocumentChangeImpact } from './change-impact-read';
+import {
+  CHANGE_IMPACT_READ_BUDGET_MS,
+  readDetailChangeImpact,
+  readDocumentChangeImpact,
+} from './change-impact-read';
 
 const PROOF = { applicant: { id: 'a1' }, proof: true };
 const REVIEW = { phase: 'RECORDED', items: [] };
@@ -98,5 +102,34 @@ describe('reading what a change affects', () => {
   it('lets a sign-in redirect travel on', async () => {
     mocks.withSession.mockRejectedValue(new Error('NEXT_REDIRECT:/auth/sign-in'));
     await expect(readDetailChangeImpact('a1', 'f1')).rejects.toThrow('NEXT_REDIRECT');
+  });
+
+  it('says "failed" when a look is slower than its budget, so a committed save is never held up', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.assessDetail.mockReturnValue(new Promise(() => undefined));
+      const pending = readDetailChangeImpact('a1', 'f1');
+      await vi.advanceTimersByTimeAsync(CHANGE_IMPACT_READ_BUDGET_MS - 1);
+      let settled = false;
+      pending.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(await pending).toBe('failed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not leave a timer behind when the look finishes in time', async () => {
+    vi.useFakeTimers();
+    try {
+      expect(await readDetailChangeImpact('a1', 'f1')).toBe(REVIEW);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

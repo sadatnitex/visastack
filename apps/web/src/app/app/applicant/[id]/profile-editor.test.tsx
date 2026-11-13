@@ -801,7 +801,7 @@ describe('what a saved detail affects', () => {
     const notices = container.querySelectorAll('output.ci-notice');
     expect(notices).toHaveLength(1);
     expect(notices[0]?.textContent).toBe(
-      'We could not work out what this change affects. Open Documents or your cases to check.',
+      'We could not work out what this change affects this time. Your change is saved.',
     );
   });
 

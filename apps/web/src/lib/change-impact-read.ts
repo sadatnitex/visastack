@@ -40,6 +40,9 @@ export type ReadDetailChangeImpact = (
   factId: string,
 ) => Promise<ChangeImpactRead>;
 
+/** How long one look may take before the screen is told it failed. */
+export const CHANGE_IMPACT_READ_BUDGET_MS = 4000;
+
 /** Refusals that mean "not yours, not there, or not a thing that can be asked". */
 const REFUSED_CODES: ReadonlySet<ServiceError['code']> = new Set([
   'not_found',
@@ -54,6 +57,26 @@ const REFUSED_CODES: ReadonlySet<ServiceError['code']> = new Set([
  * this. Sign-in redirects still travel on.
  */
 async function read(
+  applicantId: string,
+  assess: (access: AuthorizedApplicant<'MANAGE'>) => ReturnType<typeof assessDetailChangeImpact>,
+): Promise<ChangeImpactRead> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // A slow look must never make a save that has already committed look as if it failed: past the
+  // budget the screen gets `failed` and the look finishes (or not) on its own, read only.
+  const late = new Promise<'failed'>((resolve) => {
+    timer = setTimeout(() => resolve('failed'), CHANGE_IMPACT_READ_BUDGET_MS);
+  });
+  try {
+    return await Promise.race([late, work(applicantId, assess)]);
+  } catch (error) {
+    unstable_rethrow(error);
+    return 'failed';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function work(
   applicantId: string,
   assess: (access: AuthorizedApplicant<'MANAGE'>) => ReturnType<typeof assessDetailChangeImpact>,
 ): Promise<ChangeImpactRead> {

@@ -306,7 +306,9 @@ export function ReplaceAction({
               ? 'changeImpact.review.loading'
               : preview === 'unavailable'
                 ? 'changeImpact.review.previewFailed'
-                : 'changeImpact.review.ready',
+                : typeof preview !== 'string' && !preview.complete
+                  ? 'changeImpact.review.readyPartly'
+                  : 'changeImpact.review.ready',
           )}
         </output>
         {typeof preview === 'string' ? null : (

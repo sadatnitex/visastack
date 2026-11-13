@@ -216,6 +216,20 @@ describe('What This Change Affects in the replace flow', () => {
     expect(container.querySelector('.lc-replace-cases')).toBeNull();
   });
 
+  it('says the list may be missing something when the preview could not check everything', async () => {
+    mocks.preview.mockResolvedValue(
+      review(DOCUMENT_SUBJECT, 'PREVIEW', [
+        item('COULD_NOT_CHECK', { kind: 'AREA', area: 'AGENCY_REQUESTS' }),
+      ]),
+    );
+    await toConfirm();
+    await act(async () => undefined);
+    expect(container.querySelector('output')?.textContent).toBe(
+      'A list of what this change affects is below. It may be missing something.',
+    );
+    expect(container.querySelector('.ci-review')).not.toBeNull();
+  });
+
   it('never makes the person wait for the preview before replacing', async () => {
     mocks.preview.mockReturnValue(new Promise(() => undefined));
     mocks.replace.mockResolvedValue({ ok: true, message: replacedMessage(0), impact: QUIET_EMPTY });

@@ -65,10 +65,7 @@ export interface ImpactAboutWords {
   readonly forCase: string | null;
 }
 
-export function aboutWords(
-  about: ImpactAbout,
-  reason: ImpactReason | null = null,
-): ImpactAboutWords {
+export function aboutWords(about: ImpactAbout, reason: ImpactReason): ImpactAboutWords {
   switch (about.kind) {
     case 'CASE':
       return {
@@ -100,7 +97,7 @@ export function aboutWords(
           name: null,
           nameKey:
             about.area === 'AGENCY_REQUESTS'
-              ? 'changeImpact.about.areaSentCopies'
+              ? 'changeImpact.about.areaLater'
               : AREA_NAMES[about.area],
           forCase: null,
         };
@@ -487,6 +484,9 @@ export function hasImpactCounts(summary: ChangeImpactSummary): boolean {
  * touches (about 15 statements), and a batch can hold 100 details, so the rest are not read.
  */
 export const BATCH_IMPACT_READS = 6;
+
+/** The longest a batch may keep looking after an approval that is already saved. */
+export const BATCH_IMPACT_BUDGET_MS = 6000;
 
 /** How many details the batch notice names. Any others are counted, never listed. */
 export const BATCH_IMPACT_SHOWN = 3;

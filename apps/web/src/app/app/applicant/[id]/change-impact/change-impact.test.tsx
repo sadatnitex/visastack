@@ -248,10 +248,10 @@ describe('each reason has its own sentence and the right link', () => {
     const host = dom(html(DOCUMENT_CHAIN_CUT));
     const rows = [...host.querySelectorAll('li[data-reason="RECORD_INCOMPLETE"]')];
     expect(rows.map((li) => words(li.querySelector('.ci-why')))).toEqual([
-      'We could not find every copy of the newer document that went to agencies, so we cannot tell whether one of them needs to be replaced.',
+      'A later document in this chain of replacements was removed for good, so we cannot tell whether a newer document exists or whether copies of it went to agencies.',
     ]);
     expect(rows.map((li) => words(li.querySelector('.ci-about')))).toEqual([
-      'Could Not Find Copies Sent to Agencies',
+      'Could Not Find Later Replacements',
     ]);
     expect(rows.flatMap((li) => [...li.querySelectorAll('a, button')])).toHaveLength(0);
     // Not a read that failed: the review stays complete and never says "try again".
@@ -700,11 +700,9 @@ describe('the short notice under a batch of accepted details', () => {
     const host = dom(notice({ items: [], more: 4 }));
     expect(host.querySelectorAll('li')).toHaveLength(1);
     expect(host.querySelector('a')).toBeNull();
-    expect(words(host.querySelector('li'))).toBe(
-      '4 details were not checked here. Open each one to see what they affect.',
-    );
+    expect(words(host.querySelector('li'))).toBe('4 details were not checked here.');
     expect(words(dom(notice({ items: [], more: 1 })).querySelector('li'))).toBe(
-      '1 detail was not checked here. Open it to see what it affects.',
+      '1 detail was not checked here.',
     );
   });
 
@@ -749,7 +747,7 @@ describe('the short notice when the check did not happen', () => {
     const host = dom(markup);
     expect(host.querySelectorAll('output.ci-notice')).toHaveLength(1);
     expect(words(host)).toBe(
-      'We could not work out what this change affects. Open Documents or your cases to check.',
+      'We could not work out what this change affects this time. Your change is saved.',
     );
     expect(host.querySelectorAll('a')).toHaveLength(0);
     expect(markup).not.toMatch(/role="alert"|aria-live="assertive"/);
