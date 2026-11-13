@@ -65,7 +65,11 @@ describe('dataset generator (tiny shape, in-memory database)', () => {
       stress?.staff[1]?.accountId as string,
     );
     expect(everything.missions.length).toBe(TINY_SHAPE.cases);
-    const people = await listApplicantsForOrganization(db, stress?.organizationId as string);
+    const people = await listApplicantsForOrganization(
+      db,
+      stress?.staff[1]?.accountId as string,
+      stress?.organizationId as string,
+    );
     expect(people.length).toBe(TINY_SHAPE.cases);
   });
 

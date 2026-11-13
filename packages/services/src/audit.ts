@@ -22,8 +22,11 @@ import {
  * database-level append-only rules make historical rows immutable.
  */
 
-/** Namespaced lock key for the audit chain (arbitrary, stable constant). */
-const AUDIT_CHAIN_LOCK_KEY = 4_242_042;
+/**
+ * Namespaced lock key for the audit chain (arbitrary, stable constant). Exported only so the
+ * real-Postgres race tests can hold it to pause a transaction at a known point.
+ */
+export const AUDIT_CHAIN_LOCK_KEY = 4_242_042;
 
 /**
  * Hold the audit chain's lock for the rest of this transaction, so no event can be appended until

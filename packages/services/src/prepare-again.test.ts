@@ -580,11 +580,13 @@ describe('Prepare Again: plan and create (X09, T08, T09)', () => {
       }
 
       // T08: A was not ticked, so it cannot see the new case; B can. A keeps the old one.
-      const seenBy = async (organizationId: string) =>
-        (await listMissionsForOrganization(s.db, organizationId)).map((m) => m.missionId);
-      expect(await seenBy(s.a.organizationId)).toContain(s.previousId);
-      expect(await seenBy(s.a.organizationId)).not.toContain(fresh.id);
-      expect(await seenBy(s.b.organizationId)).toContain(fresh.id);
+      const seenBy = async (o: { readonly adminId: string; readonly organizationId: string }) =>
+        (await listMissionsForOrganization(s.db, o.adminId, o.organizationId)).map(
+          (m) => m.missionId,
+        );
+      expect(await seenBy(s.a)).toContain(s.previousId);
+      expect(await seenBy(s.a)).not.toContain(fresh.id);
+      expect(await seenBy(s.b)).toContain(fresh.id);
       const deniedA = await requireAccess(
         s.db,
         accountPrincipal(s.a.adminId),
@@ -638,7 +640,7 @@ describe('Prepare Again: plan and create (X09, T08, T09)', () => {
         sharing: { allowedGrantIds: [s.grantA, s.grantB], allowedInvitationIds: [] },
       });
       if (!isOk(created)) throw new Error('create');
-      const seen = (await listMissionsForOrganization(s.db, c.organizationId)).map(
+      const seen = (await listMissionsForOrganization(s.db, c.adminId, c.organizationId)).map(
         (m) => m.missionId,
       );
       expect(seen).toEqual([s.previousId]);
@@ -894,9 +896,9 @@ describe('Prepare Again: plan and create (X09, T08, T09)', () => {
       });
       if (!isOk(created)) throw new Error(`create: ${created.error.message}`);
       expect(created.value).toMatchObject({ manualMode: true, packVersionId: null });
-      const seenByB = (await listMissionsForOrganization(s.db, s.b.organizationId)).map(
-        (m) => m.missionId,
-      );
+      const seenByB = (
+        await listMissionsForOrganization(s.db, s.b.adminId, s.b.organizationId)
+      ).map((m) => m.missionId);
       expect(seenByB).not.toContain(created.value.id);
     },
     HEAVY_TIMEOUT_MS,

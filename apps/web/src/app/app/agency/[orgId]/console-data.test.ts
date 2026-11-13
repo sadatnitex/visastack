@@ -113,8 +113,8 @@ describe('administrator-only reads', () => {
     expect(
       (await loadPendingClientInvitationPage(db, 'acct', 'o1', notAdmin, { limit: 15 })).items,
     ).toEqual([]);
-    expect(await loadApplicants(db, 'o1', notAdmin)).toEqual([]);
-    expect(await loadUnassignedQueue(db, 'o1', notAdmin)).toEqual([]);
+    expect(await loadApplicants(db, 'acct', 'o1', notAdmin)).toEqual([]);
+    expect(await loadUnassignedQueue(db, 'acct', 'o1', notAdmin)).toEqual([]);
     for (const read of [
       svc.listOrgMemberships,
       svc.listEvidenceRequestsForOrgDetailed,
@@ -134,12 +134,12 @@ describe('administrator-only reads', () => {
     svc.listUnassignedActiveMissions.mockResolvedValue([{ missionId: 'm1' }]);
     expect(await loadMembers(db, 'acct', 'o1', admin)).toEqual([{ accountId: 'a1' }]);
     expect(await loadEvidenceRequests(db, 'acct', 'o1', admin)).toEqual([{ id: 'r1' }]);
-    expect(await loadApplicants(db, 'o1', admin)).toEqual([{ id: 'ap1' }]);
-    expect(await loadUnassignedQueue(db, 'o1', admin)).toEqual([{ missionId: 'm1' }]);
+    expect(await loadApplicants(db, 'acct', 'o1', admin)).toEqual([{ id: 'ap1' }]);
+    expect(await loadUnassignedQueue(db, 'acct', 'o1', admin)).toEqual([{ missionId: 'm1' }]);
     expect(svc.listOrgMemberships).toHaveBeenCalledWith(db, 'acct', 'o1');
     expect(svc.listEvidenceRequestsForOrgDetailed).toHaveBeenCalledWith(db, 'acct', 'o1');
-    expect(svc.listApplicantsForOrganization).toHaveBeenCalledWith(db, 'o1');
-    expect(svc.listUnassignedActiveMissions).toHaveBeenCalledWith(db, 'o1');
+    expect(svc.listApplicantsForOrganization).toHaveBeenCalledWith(db, 'acct', 'o1');
+    expect(svc.listUnassignedActiveMissions).toHaveBeenCalledWith(db, 'acct', 'o1');
   });
 
   it('turn a refused read into an empty list, never an error', async () => {
@@ -223,7 +223,7 @@ describe('loadCases', () => {
       admin: true,
       missions: [manual, withPack],
     });
-    svc.listAssignmentsDetailed.mockImplementation(async (_db, _org, _ap, missionId) =>
+    svc.listAssignmentsDetailed.mockImplementation(async (_db, _actor, _org, _ap, missionId) =>
       missionId === 'm-pack' ? [{ memberAccountId: 'acct', memberEmail: 'me@example.com' }] : [],
     );
     svc.listMissionRequirementsForOrg.mockResolvedValue(
@@ -311,14 +311,14 @@ describe('loadCases', () => {
 
   it('calls every per-case service with the arguments it takes', async () => {
     await loadCases(db, 'acct', 'o1');
-    expect(svc.listAssignmentsDetailed).toHaveBeenCalledWith(db, 'o1', 'ap2', 'm-pack');
+    expect(svc.listAssignmentsDetailed).toHaveBeenCalledWith(db, 'acct', 'o1', 'ap2', 'm-pack');
     // WP-SB5: the Dashboard shows no notes, so it reads none; the open case reads them a page at a time.
     expect(svc.listNotes).not.toHaveBeenCalled();
-    expect(svc.listMissionRequirementsForOrg).toHaveBeenCalledWith(db, 'o1', 'm-pack');
+    expect(svc.listMissionRequirementsForOrg).toHaveBeenCalledWith(db, 'acct', 'o1', 'm-pack');
     expect(svc.listMissionDecisions).toHaveBeenCalledWith(db, 'acct', 'm-pack');
-    expect(svc.listSelectedEvidenceForOrg).toHaveBeenCalledWith(db, 'o1', 'm-pack');
-    expect(svc.listTasksForOrg).toHaveBeenCalledWith(db, 'o1', 'ap2', 'm-pack');
-    expect(svc.listAppointmentsForOrg).toHaveBeenCalledWith(db, 'o1', 'ap2', 'm-pack');
+    expect(svc.listSelectedEvidenceForOrg).toHaveBeenCalledWith(db, 'acct', 'o1', 'm-pack');
+    expect(svc.listTasksForOrg).toHaveBeenCalledWith(db, 'acct', 'o1', 'ap2', 'm-pack');
+    expect(svc.listAppointmentsForOrg).toHaveBeenCalledWith(db, 'acct', 'o1', 'ap2', 'm-pack');
     expect(svc.getLiveAcknowledgement).toHaveBeenCalledWith(db, 'm-pack');
   });
 
@@ -508,7 +508,7 @@ describe('loadOpenCase (WP-SB5): one case, only when visible', () => {
     });
     expect(open?.missionId).toBe('m1');
     expect(open?.referenceCode).toBe('C-7K2Q9M');
-    expect(svc.listNotes).toHaveBeenCalledWith(db, 'o1', 'ap1', 'm1', {
+    expect(svc.listNotes).toHaveBeenCalledWith(db, 'acct', 'o1', 'ap1', 'm1', {
       limit: 20,
       withTotal: true,
       before: 'cursor-1',
@@ -566,7 +566,7 @@ describe('loadCaseActivity (WP-SB5)', () => {
       kase(`m${i}`, `2026-10-${String(10 + i).padStart(2, '0')}T00:00:00.000Z`),
     );
     svc.listVisibleMissionsForMember.mockResolvedValue({ admin: true, missions: cases });
-    svc.listNotes.mockImplementation(async (_db, _org, _ap, missionId) => ({
+    svc.listNotes.mockImplementation(async (_db, _actor, _org, _ap, missionId) => ({
       items:
         missionId === 'm11'
           ? [note('a', '2026-10-20T10:00:00.000Z', 'author-1')]
@@ -578,11 +578,18 @@ describe('loadCaseActivity (WP-SB5)', () => {
     const members = [{ accountId: 'author-1', email: 'author@example.com' }] as never;
     const activity = await loadCaseActivity(db, 'acct', 'o1', members, { before: 'c0' });
     expect(svc.listNotes).toHaveBeenCalledTimes(10);
-    expect(svc.listNotes).toHaveBeenCalledWith(db, 'o1', 'ap-m11', 'm11', {
+    expect(svc.listNotes).toHaveBeenCalledWith(db, 'acct', 'o1', 'ap-m11', 'm11', {
       limit: 50,
       before: 'c0',
     });
-    expect(svc.listNotes).not.toHaveBeenCalledWith(db, 'o1', 'ap-m0', 'm0', expect.anything());
+    expect(svc.listNotes).not.toHaveBeenCalledWith(
+      db,
+      'acct',
+      'o1',
+      'ap-m0',
+      'm0',
+      expect.anything(),
+    );
     expect(activity.caseLimitReached).toBe(true);
     expect(activity.notes.map((n) => [n.id, n.authorEmail])).toEqual([
       ['b', null],
@@ -603,7 +610,7 @@ describe('loadCaseActivity (WP-SB5)', () => {
           new Date(Date.UTC(2026, 9, 1, 0, 100 - i * 2 - minuteOffset)).toISOString(),
         ),
       );
-    svc.listNotes.mockImplementation(async (_db, _org, _ap, missionId) => ({
+    svc.listNotes.mockImplementation(async (_db, _actor, _org, _ap, missionId) => ({
       items: missionId === 'm1' ? many('x', 0) : many('y', 1),
       nextCursor: null,
     }));

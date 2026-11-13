@@ -12,7 +12,7 @@ import {
   entitlementDefinitionText,
 } from '@visastack/core/entitlements';
 import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
-import { isActiveMember, listApplicantsForOrganization } from './agency';
+import { applicantsSharedWithOrganization, isActiveMember } from './agency';
 import { excludingDeterministicRuns } from './ai-run-kinds';
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
@@ -86,7 +86,7 @@ import { getOrganizationEvidenceBytes } from './quotas';
  * by `missions.ownerOrganizationId` (the case's own "whose case is this"
  * attribution label, explicitly documented as never itself a source of
  * access) -- a workload/ownership definition. "Total retained storage" and
- * the AI-allowance meter instead use `listApplicantsForOrganization`'s
+ * the AI-allowance meter instead use `applicantsSharedWithOrganization`'s
  * grant-based "which applicants does this org currently have real access
  * to" definition (`quotas.ts`'s `getOrganizationEvidenceBytes`) -- a
  * genuine infrastructure-footprint definition, deliberately different
@@ -1305,7 +1305,7 @@ export async function countConcurrentOpenCases(db: Db, organizationId: string): 
 }
 
 async function sumAiAllowanceUsed(db: Db, organizationId: string, since: Date): Promise<number> {
-  const applicants = await listApplicantsForOrganization(db, organizationId);
+  const applicants = await applicantsSharedWithOrganization(db, organizationId);
   if (applicants.length === 0) return 0;
   const row = first(
     await db
