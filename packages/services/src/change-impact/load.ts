@@ -113,13 +113,16 @@ export interface DocumentSubject {
   readonly supersededBy: string | null;
 }
 
-const documentColumns = {
+// Column lists are built when a read runs, never when the module loads: a test that replaces the
+// database package with a smaller one (the intake runner's, the health check's) must still be able
+// to import the service index without reading a table that its replacement does not have.
+const documentColumns = () => ({
   id: schema.documents.id,
   originalName: schema.documents.originalName,
   approvedName: schema.documents.approvedName,
   docType: schema.documents.docType,
   supersededBy: schema.documents.supersededByDocumentId,
-};
+});
 
 function toDocumentSubject(row: {
   id: string;
@@ -149,7 +152,7 @@ export async function lockDocumentSubject(
   lifecycle: boolean,
 ): Promise<DocumentSubject | undefined> {
   const [row] = await tx
-    .select(documentColumns)
+    .select(documentColumns())
     .from(schema.documents)
     .where(
       and(
@@ -219,7 +222,7 @@ export async function replacementChain(
   }
   const rows = await tx
     .select({
-      ...documentColumns,
+      ...documentColumns(),
       present: lifecycle ? sql<boolean>`${presentDocumentCondition()}` : sql<boolean>`true`,
     })
     .from(schema.documents)
@@ -251,7 +254,7 @@ export async function ownDocument(
   lifecycle: boolean,
 ): Promise<DocumentSubject | undefined> {
   const [row] = await tx
-    .select(documentColumns)
+    .select(documentColumns())
     .from(schema.documents)
     .where(
       and(
@@ -373,7 +376,7 @@ export interface CaseRow {
   readonly closedAt: Date | null;
 }
 
-const caseColumns = {
+const caseColumns = () => ({
   id: schema.missions.id,
   title: schema.missions.title,
   state: schema.missions.state,
@@ -381,7 +384,7 @@ const caseColumns = {
   packVersionId: schema.missions.packVersionId,
   materialRevision: schema.missions.materialRevision,
   closedAt: schema.missions.closedAt,
-};
+});
 
 /** This traveller's cases that select the document or the detail. */
 export async function casesSelecting(
@@ -390,7 +393,7 @@ export async function casesSelecting(
   subject: { readonly documentId: string } | { readonly factId: string },
 ): Promise<CaseRow[]> {
   return tx
-    .selectDistinct(caseColumns)
+    .selectDistinct(caseColumns())
     .from(schema.selectedEvidence)
     .innerJoin(schema.missions, eq(schema.missions.id, schema.selectedEvidence.missionId))
     .where(
@@ -411,7 +414,7 @@ export async function casesKeepingCopy(
 ): Promise<CaseRow[]> {
   const choices = schema.umpePackageChoices;
   return tx
-    .selectDistinct(caseColumns)
+    .selectDistinct(caseColumns())
     .from(choices)
     .innerJoin(schema.missions, eq(schema.missions.id, choices.missionId))
     .where(
@@ -436,7 +439,7 @@ export async function casesKeepingValue(
 ): Promise<(CaseRow & { readonly chosenVersionId: string | null })[]> {
   const choices = schema.umpePackageChoices;
   return tx
-    .selectDistinct({ ...caseColumns, chosenVersionId: choices.factVersionId })
+    .selectDistinct({ ...caseColumns(), chosenVersionId: choices.factVersionId })
     .from(choices)
     .innerJoin(schema.missions, eq(schema.missions.id, choices.missionId))
     .where(
@@ -461,7 +464,7 @@ export async function finishedCasesWithCopyOf(
       ? { documents: [{ documentId: subject.documentId }] }
       : { facts: [{ factId: subject.factId }] };
   return tx
-    .selectDistinct(caseColumns)
+    .selectDistinct(caseColumns())
     .from(schema.missionSnapshots)
     .innerJoin(schema.missions, eq(schema.missions.id, schema.missionSnapshots.missionId))
     .where(
@@ -652,7 +655,7 @@ export interface RequestHistory {
   readonly decisions: readonly StoredDecision[];
 }
 
-const requestColumns = {
+const requestColumns = () => ({
   id: schema.evidenceRequests.id,
   status: schema.evidenceRequests.status,
   agencyId: schema.evidenceRequests.organizationId,
@@ -664,11 +667,11 @@ const requestColumns = {
   createdAt: schema.evidenceRequests.createdAt,
   respondingDocumentId: schema.evidenceRequests.respondingDocumentId,
   respondingFactId: schema.evidenceRequests.respondingFactId,
-};
+});
 
 function requestsQuery(access: Proof, tx: Db) {
   return tx
-    .select(requestColumns)
+    .select(requestColumns())
     .from(schema.evidenceRequests)
     .innerJoin(
       schema.organizations,
