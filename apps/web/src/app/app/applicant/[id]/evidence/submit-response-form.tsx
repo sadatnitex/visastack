@@ -62,6 +62,7 @@ export function SubmitResponseForm({
   awaiting = true,
   timeZone = null,
   itemLabel,
+  preselect = true,
 }: {
   readonly applicantId: string;
   readonly requestId: string;
@@ -80,6 +81,11 @@ export function SubmitResponseForm({
   readonly timeZone?: string | null;
   /** What the request is for, so several Send buttons on one page each say which item they send. */
   readonly itemLabel?: string;
+  /**
+   * False when the page cannot tell which copy was sent back: nothing is then chosen for the
+   * person, even if only one copy is left.
+   */
+  readonly preselect?: boolean;
 }) {
   const t = useT(applicantEvidenceCatalog);
   const router = useRouter();
@@ -108,7 +114,9 @@ export function SubmitResponseForm({
   );
   const onlyFact = candidateFacts.length === 1 ? (candidateFacts[0]?.factId ?? '') : '';
   // What is chosen before the person does anything: one fitting item that was not just sent back.
-  const [initial] = useState(kind === 'FIELD' ? onlyFact : initialChoice(documentChoices));
+  const [initial] = useState(
+    kind === 'FIELD' ? onlyFact : preselect ? initialChoice(documentChoices) : '',
+  );
   const [selection, setSelection] = useState(initial);
   const hintId = useId();
   const result = saveResult(state, timeZone);
@@ -232,6 +240,22 @@ export function SubmitResponseForm({
                       },
                     )}
                   </span>
+                  {choice.uncertainNote ? (
+                    <span className="evidence-pick-meta evidence-pick-tag evidence-pick-tag-warn">
+                      {choice.uncertainNote}
+                    </span>
+                  ) : null}
+                  {choice.dateNote ? (
+                    <span
+                      className={
+                        choice.expired
+                          ? 'evidence-pick-meta evidence-pick-tag evidence-pick-tag-warn'
+                          : 'evidence-pick-meta'
+                      }
+                    >
+                      {choice.dateNote}
+                    </span>
+                  ) : null}
                   {choice.sentBack ? (
                     <span className="evidence-pick-tag evidence-pick-tag-warn">
                       {t.node(

@@ -2850,6 +2850,63 @@ export const evidenceRequestDecisionSubmissions = pgTable('evidence_request_deci
     .references(() => evidenceRequestSubmissions.id, { onDelete: 'cascade' }),
 });
 
+// Migration 0135: the exact saved value a traveller sent in answer to a detail (FIELD) request.
+// Documents have had this since 0132 (`evidence_request_submissions`); a detail kept only the id
+// of the detail, so a later edit changed what an accepted answer appeared to say. One row per send
+// ("round"), never changed once written (a database trigger refuses any UPDATE). The pin is the
+// canonical immutable `fact_versions` row, not a copy of its value: there is no second fact model.
+// `sent_by_account_id` and `grant_id_at_send` are plain ids on purpose, as in 0132.
+export const evidenceRequestFactSubmissions = pgTable(
+  'evidence_request_fact_submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    evidenceRequestId: uuid('evidence_request_id')
+      .notNull()
+      .references(() => evidenceRequests.id, { onDelete: 'cascade' }),
+    // 1 for the first send on the request, then 2, 3 ... Unique per request.
+    roundNo: integer('round_no').notNull(),
+    factId: uuid('fact_id')
+      .notNull()
+      .references(() => facts.id, { onDelete: 'cascade' }),
+    factVersionId: uuid('fact_version_id')
+      .notNull()
+      .references(() => factVersions.id, { onDelete: 'cascade' }),
+    // The field the request asked for, as it was when sent (a plain label for history).
+    fieldKeyAtSend: text('field_key_at_send').notNull(),
+    sentByAccountId: uuid('sent_by_account_id').notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+    grantIdAtSend: uuid('grant_id_at_send'),
+    // A retry of the same send carries the same key and is answered with the first result.
+    idempotencyKey: text('idempotency_key').notNull(),
+  },
+  (table) => [
+    unique('evidence_request_fact_submissions_round_unique').on(
+      table.evidenceRequestId,
+      table.roundNo,
+    ),
+    unique('evidence_request_fact_submissions_key_unique').on(
+      table.evidenceRequestId,
+      table.idempotencyKey,
+    ),
+    index('evidence_request_fact_submissions_version_idx').on(table.factVersionId),
+  ],
+);
+
+// Migration 0135: which detail send a reviewer's decision was about. Exactly one decision per send
+// (the unique `submission_id` is the double-decision guard). Never changed once written.
+export const evidenceRequestDecisionFactSubmissions = pgTable(
+  'evidence_request_decision_fact_submissions',
+  {
+    decisionId: uuid('decision_id')
+      .primaryKey()
+      .references(() => evidenceRequestDecisions.id, { onDelete: 'cascade' }),
+    submissionId: uuid('submission_id')
+      .notNull()
+      .unique()
+      .references(() => evidenceRequestFactSubmissions.id, { onDelete: 'cascade' }),
+  },
+);
+
 // CAS-08 ("Contributor request"): a narrow, single-use, seven-day invitation
 // letting a named third party (a sponsor, a family member) who is NOT the
 // applicant submit exactly one named piece of evidence for one case,

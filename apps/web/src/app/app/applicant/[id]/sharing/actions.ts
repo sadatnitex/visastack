@@ -19,6 +19,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
+import { GRANT_HIDDEN_LINE, ownsGrant } from '../../../../../lib/hidden-record';
 import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { sendEmailNow } from '../../../../../lib/send-now';
@@ -173,11 +174,16 @@ export async function updateGrantAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
   const grantId = String(formData.get('grantId') ?? '');
   const op = String(formData.get('op') ?? '');
   if (grantId.length === 0) return { ok: false, message: 'Missing grant id.' };
 
   const result = await withSession(async ({ db, accountId }) => {
+    // The page's person is checked with the grant: a grant id alone says nothing about whose it is.
+    if (!(await ownsGrant(db, accountId, applicantId, grantId))) {
+      return { ok: false, error: { message: GRANT_HIDDEN_LINE } } as const;
+    }
     const input = { actorAccountId: accountId, grantId };
     if (op === 'revoke') return revokeGrant(db, input);
     if (op === 'pause') return pauseGrant(db, input);
@@ -220,6 +226,9 @@ export async function expandGrantScopeAction(
   }
 
   const result = await withSession(async ({ db, accountId }) => {
+    if (!(await ownsGrant(db, accountId, applicantId, grantId))) {
+      return { ok: false, message: GRANT_HIDDEN_LINE } satisfies ActionState;
+    }
     const expanded = await expandGrantScope(db, {
       actorAccountId: accountId,
       grantId,
