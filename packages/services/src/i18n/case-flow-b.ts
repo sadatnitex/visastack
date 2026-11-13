@@ -104,6 +104,10 @@ export const caseFlowBEn = {
     'This request has already ended.',
   'umpe_collection_response_review.no_such_answer': 'no such answer',
   'umpe_collection_response_review.choose_a_decision': 'Choose a decision.',
+  'umpe_collection_response_review.keep_the_note_to': 'Keep the note to {max} characters.',
+  'umpe_collection_response_review.keep_each_note_to': 'Keep each note to {max} characters.',
+  'umpe_collection_response_review.choose_an_item_from_the_list': 'Choose an item from the list.',
+  'umpe_collection_response_review.too_many_notes_at_once': 'Too many notes at once.',
   'umpe_collection_response_review.say_what_needs_correcting_add_a':
     'Say what needs correcting: add a note to at least one item.',
   'umpe_collection_response_service.this_request_link_is_not_open': 'this request link is not open',

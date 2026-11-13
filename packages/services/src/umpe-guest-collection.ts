@@ -13,6 +13,7 @@ import { readOrganizationLogo } from './branding';
 import { type Db, first, schema } from './db';
 import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError, serviceError } from './errors';
+import type { ServiceMessageKey } from './i18n';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { isMissingRelationError } from './missing-relation';
@@ -319,8 +320,8 @@ async function linkGuestPathSpent(db: Db, linkId: string): Promise<boolean> {
   );
 }
 
-const SPENT_MESSAGE =
-  'This link can no longer be opened without an account. Ask the agency for a new link.';
+/** A spent guest link: the same words wherever it is refused. */
+const SPENT_KEY = 'umpe_guest_collection.this_link_can_no_longer_be' satisfies ServiceMessageKey;
 
 /** Lock this session's row for the rest of the transaction, or undefined when it is gone. */
 async function lockSession(tx: Db, session: LiveSession, sessionHash: string) {
@@ -647,7 +648,7 @@ export async function sendGuestCode(
   );
   if (!decision.allowed) return err(serviceError('rate_limited', decision.reason));
   if (await linkGuestPathSpent(db, session.linkId))
-    return err(keyedError('invalid', 'umpe_guest_collection.this_link_can_no_longer_be'));
+    return err(keyedError('invalid', SPENT_KEY));
   const code = (input.generateCode ?? sixDigits)();
   if (normalizeGuestCode(code) !== code) throw new Error('a guest code must be six digits');
   const codeId = randomUUID();
@@ -693,6 +694,22 @@ export async function sendGuestCode(
 
 export type GuestCodeRefusal = 'wrong' | 'expired';
 
+/** A code refusal: its own code, worded from the services message list like every other refusal. */
+export type GuestCodeRefusalError = Omit<ServiceError, 'code' | 'reason'> & {
+  readonly code: GuestCodeRefusal;
+};
+
+function codeRefusal(
+  code: GuestCodeRefusal,
+  key: ServiceMessageKey,
+  params?: { readonly left: number },
+): GuestCodeRefusalError {
+  const { message } = keyedError('invalid', key, params);
+  return params === undefined
+    ? { code, message, messageKey: key }
+    : { code, message, messageKey: key, params };
+}
+
 /**
  * Check a code. Right: the code is used up, the session becomes verified and gets a new id (the
  * caller replaces the cookie), and the guest's pending submission for this link exists. Wrong: one
@@ -707,7 +724,7 @@ export async function verifyGuestCode(
 ): Promise<
   Result<
     { readonly rawSessionId: string },
-    ServiceError | { readonly code: GuestCodeRefusal; readonly message: string }
+    ServiceError | GuestCodeRefusalError
   >
 > {
   if (!GuestCollectionSessionProof.isGenuine(proof)) return err(missing());
@@ -731,10 +748,10 @@ export async function verifyGuestCode(
   const code = normalizeGuestCode(input.code);
   // A typo of the wrong shape is not a guess: it costs no try.
   if (code === null) {
-    return err({ code: 'wrong' as const, message: 'Enter the six digits from the email.' });
+    return err(codeRefusal('wrong', 'umpe_guest_collection.enter_the_six_digits_from_the'));
   }
   if (await linkGuestPathSpent(db, session.linkId)) {
-    return err({ code: 'expired' as const, message: SPENT_MESSAGE });
+    return err(codeRefusal('expired', SPENT_KEY));
   }
   return db.transaction(async (tx) => {
     if (!(await lockSession(tx, session, proof.sessionHash))) return err(missing());
@@ -759,10 +776,7 @@ export async function verifyGuestCode(
       await audit(tx, session, 'AGENCY_COLLECTION_GUEST_CODE_REFUSED', 'DENIED', {
         reason: 'no_open_code',
       });
-      return err({
-        code: 'expired' as const,
-        message: 'This code has expired or was replaced. Ask for a new code.',
-      });
+      return err(codeRefusal('expired', 'umpe_guest_collection.this_code_has_expired_or_was'));
     }
     const expected = Buffer.from(current.codeHash, 'hex');
     const given = Buffer.from(guestCodeHash(current.id, code), 'hex');
@@ -785,14 +799,8 @@ export async function verifyGuestCode(
       const left = GUEST_CODE_MAX_ATTEMPTS - attempts;
       return err(
         left > 0
-          ? {
-              code: 'wrong' as const,
-              message: `That code is not right. Check the newest email and try again (${left} ${left === 1 ? 'try' : 'tries'} left).`,
-            }
-          : {
-              code: 'expired' as const,
-              message: 'That code has had too many tries. Ask for a new code.',
-            },
+          ? codeRefusal('wrong', 'umpe_guest_collection.that_code_is_not_right', { left })
+          : codeRefusal('expired', 'umpe_guest_collection.that_code_has_had_too_many'),
       );
     }
     await tx

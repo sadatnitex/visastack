@@ -23,6 +23,7 @@ import { isDocumentVersionUsable } from './documents';
 import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, keyedError, serviceError } from './errors';
+import { caseFlowAEn } from './i18n/case-flow-a';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
 import { type StoredCaseEvidence, readStoredCaseEvidence } from './finished-case-evidence';
 import { type SavedReadiness, readStoredReadiness } from './finished-case-readiness';
@@ -117,7 +118,7 @@ const TRANSITIONS: Readonly<Record<MissionState, readonly MissionState[]>> = {
 };
 
 /** The plain line shown when someone tries to change a finished case (submitted, closed, cancelled). */
-export const CASE_FINISHED_NO_CHANGE = 'This case is finished, so it can no longer change.';
+export const CASE_FINISHED_NO_CHANGE = caseFlowAEn['missions.this_case_is_finished_so_it'];
 
 function finishedCaseRefusal(): ServiceError {
   return keyedError('invalid', 'missions.this_case_is_finished_so_it');
@@ -2275,8 +2276,7 @@ export async function snapshotMission(
 export type SelectedEvidence = typeof schema.selectedEvidence.$inferSelect;
 
 /** The plain line a traveller reads when a finished case's evidence is touched. */
-const CASE_FINISHED_SELECTION =
-  'This case is finished, so the files and answers it uses can no longer change.';
+const CASE_FINISHED_SELECTION = caseFlowAEn['missions.this_case_is_finished_so_the'];
 
 /**
  * A submitted, closed or cancelled case keeps the choice of which file or answer counts for each

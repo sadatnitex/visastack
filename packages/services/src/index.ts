@@ -2734,6 +2734,7 @@ export {
   GUEST_SESSION_MAX_MS,
   type GuestChecklistItem,
   type GuestCodeRefusal,
+  type GuestCodeRefusalError,
   type GuestCodeSent,
   type GuestDesk,
   type GuestDeskAgency,
@@ -2848,7 +2849,9 @@ export { isEmailAddress } from './email-address';
 export {
   COMPANION_INVITATION_DAYS,
   COMPANION_NAME_PROBLEM,
+  COMPANION_NAME_PROBLEM_KEY,
   COMPANION_NOT_SWITCHED_ON,
+  COMPANION_NOT_SWITCHED_ON_KEY,
   COMPANION_SHARE_LEVELS,
   COMPANION_SHARE_LEVEL_LABELS,
   TRIP_MAX_COMPANIONS,

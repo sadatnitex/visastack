@@ -33,6 +33,7 @@ import {
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, keyedError } from './errors';
+import { caseFlowAEn } from './i18n/case-flow-a';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -53,7 +54,8 @@ const OPTIONS_LIMIT = 100;
 const OPTIONS_PAGE = 200;
 const OPTIONS_SCAN_LIMIT = 5000;
 
-export const COMPANION_PAPERS_NOT_AVAILABLE = 'Choosing papers is not switched on yet.';
+export const COMPANION_PAPERS_NOT_AVAILABLE =
+  caseFlowAEn['umpe_trip_companion_papers.choosing_papers_is_not_switched_on'];
 
 /** One of the companion's own papers, as the companion sees it. */
 export interface CompanionPaperView {

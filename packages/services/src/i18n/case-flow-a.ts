@@ -104,6 +104,13 @@ export const caseFlowAEn = {
     'This link can no longer be opened without an account. Ask the agency for a new link.',
   'umpe_guest_collection.choose_how_long_the_agency_may':
     'Choose how long the agency may keep your files.',
+  'umpe_guest_collection.enter_the_six_digits_from_the': 'Enter the six digits from the email.',
+  'umpe_guest_collection.this_code_has_expired_or_was':
+    'This code has expired or was replaced. Ask for a new code.',
+  'umpe_guest_collection.that_code_is_not_right':
+    'That code is not right. Check the newest email and try again ({left, plural, one {# try} other {# tries}} left).',
+  'umpe_guest_collection.that_code_has_had_too_many':
+    'That code has had too many tries. Ask for a new code.',
   'umpe_guest_uploads.choose_the_file_again': 'Choose the file again.',
   'umpe_guest_uploads.this_file_is_empty': 'This file is empty.',
   'umpe_guest_uploads.choose_an_item_from_the_list': 'Choose an item from the list.',
@@ -199,6 +206,8 @@ export const caseFlowABn = {
   'missions.pack_version_not_found': 'প্যাকের সংস্করণ পাওয়া যায়নি',
   'umpe_guest_collection.this_link_can_no_longer_be':
     'এই লিংকটি আর অ্যাকাউন্ট ছাড়া খোলা যায় না। এজেন্সির কাছে নতুন লিংক চান।',
+  'umpe_guest_collection.this_code_has_expired_or_was':
+    'এই কোডের মেয়াদ শেষ হয়ে গেছে অথবা এটি বদলে গেছে। নতুন কোড চান।',
   'umpe_trip_companion_case.this_invitation_is_not_available': 'এই আমন্ত্রণ পাওয়া যাচ্ছে না।',
   'umpe_trip_companions.choose_how_much_you_want_to': 'কতটা শেয়ার করতে চান তা বেছে নিন।',
   'umpe_trip_companions.confirm_account_consent_before_joining_a':
