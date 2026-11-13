@@ -1,0 +1,35 @@
+{
+  "subject": {
+    "kind": "DOCUMENT",
+    "documentId": "<document:control>",
+    "title": "sample-utility-bill.pdf",
+    "replacement": null
+  },
+  "phase": "PREVIEW",
+  "items": [
+    {
+      "id": "share:<share:agency-a>",
+      "outcome": "NO_ACTION",
+      "reason": "SHARE_ALREADY_COVERS",
+      "area": "SHARING",
+      "about": {
+        "kind": "SHARE",
+        "grantId": "<share:agency-a>",
+        "recipientKind": "ORGANIZATION",
+        "recipientName": "Sample Agency A",
+        "reach": "WHOLE_RECORD"
+      },
+      "nextStep": null
+    }
+  ],
+  "counts": {
+    "ACTION_REQUIRED": 0,
+    "REVIEW_RECOMMENDED": 0,
+    "UNKNOWN": 0,
+    "HISTORY_PRESERVED": 0,
+    "NO_ACTION": 1
+  },
+  "quiet": true,
+  "complete": true,
+  "assessedAt": "2026-11-13T12:00:00.000Z"
+}

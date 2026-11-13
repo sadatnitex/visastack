@@ -16,7 +16,12 @@ export function isInactiveCaseState(state: string): boolean {
   return (INACTIVE_CASE_STATES as readonly string[]).includes(state);
 }
 
-const PACKAGE_TABLES = ['umpe_package_choices', 'umpe_package_handoffs', 'umpe_package_changes'];
+/** The three P4 tables, for a caller that asks about several groups of tables in one statement. */
+export const PACKAGE_TABLES: readonly string[] = [
+  'umpe_package_choices',
+  'umpe_package_handoffs',
+  'umpe_package_changes',
+];
 const SOURCE_TABLES = ['official_sources', 'source_change_candidates'];
 
 const packagePresent = new WeakSet<object>();
