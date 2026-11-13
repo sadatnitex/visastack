@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   removeCaseException: vi.fn(),
   establishStepUpProof: vi.fn(),
   revokeSharingInvitation: vi.fn(),
+  listAccessForApplicant: vi.fn(),
+  expandGrantScope: vi.fn(),
 }));
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
@@ -23,6 +25,8 @@ vi.mock('@visastack/services', async (original) => ({
   requireAccess: mocks.requireAccess,
   removeCaseException: mocks.removeCaseException,
   revokeSharingInvitation: mocks.revokeSharingInvitation,
+  listAccessForApplicant: mocks.listAccessForApplicant,
+  expandGrantScope: mocks.expandGrantScope,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -36,18 +40,27 @@ vi.mock('../../../../../lib/step-up', () => ({
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
 }));
-const { allowCaseAction, createGrantAction, revokeSharingInvitationAction, updateGrantAction } =
-  await import('./actions');
+const {
+  allowCaseAction,
+  createGrantAction,
+  expandGrantScopeAction,
+  revokeSharingInvitationAction,
+  updateGrantAction,
+} = await import('./actions');
+const { GRANT_HIDDEN_LINE } = await import('../../../../../lib/hidden-record');
+const OWNED_PERSON = '11111111-1111-4111-8111-111111111111';
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.redirect.mockImplementation(() => {
     throw new Error('redirected');
   });
+  // The signed-in account owns this person, who holds the grant used below.
+  mocks.listAccessForApplicant.mockResolvedValue({ ok: true, value: [{ id: 'owned-grant' }] });
 });
 function form(op: string) {
   const data = new FormData();
   data.set('grantId', 'owned-grant');
-  data.set('applicantId', 'untrusted-route');
+  data.set('applicantId', OWNED_PERSON);
   data.set('op', op);
   return data;
 }
@@ -227,5 +240,125 @@ describe('withdrawing an invitation', () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe('a stranger cannot tell a real grant from a made-up one', () => {
+  const OWN_WORDS = 'The service says this in its own words.';
+  const hiddenGrantForms = {
+    'a real grant of someone else': {
+      // The person is not theirs, so the list of that person's access is refused.
+      listed: { ok: false, error: { code: 'forbidden', message: 'not authorized' } },
+      applicantId: OWNED_PERSON,
+      service: { code: 'forbidden', message: 'only the applicant owner can change this grant' },
+    },
+    'a real grant tried with their own person': {
+      listed: { ok: true, value: [{ id: 'their-own-grant' }] },
+      applicantId: OWNED_PERSON,
+      service: { code: 'forbidden', message: 'only the applicant owner can change this grant' },
+    },
+    'a made-up grant': {
+      listed: { ok: true, value: [{ id: 'their-own-grant' }] },
+      applicantId: OWNED_PERSON,
+      service: { code: 'not_found', message: 'grant not found' },
+    },
+    'a made-up person': {
+      listed: { ok: false, error: { code: 'forbidden', message: 'not authorized' } },
+      applicantId: '22222222-2222-4222-8222-222222222222',
+      service: { code: 'not_found', message: 'grant not found' },
+    },
+    'a person that is not an id at all': {
+      listed: { ok: false, error: { code: 'forbidden', message: 'not authorized' } },
+      applicantId: 'untrusted-route',
+      service: { code: 'not_found', message: 'grant not found' },
+    },
+  } as const;
+  const strangerForm = (applicantId: string, op?: string) => {
+    const data = new FormData();
+    data.set('grantId', 'victim-grant');
+    data.set('applicantId', applicantId);
+    if (op) data.set('op', op);
+    data.append('documentId', 'doc-1');
+    return data;
+  };
+
+  describe.each(['revoke', 'pause', 'resume'] as const)('updateGrantAction (%s)', (op) => {
+    it('gives one identical, fixed answer in every stranger case, and changes nothing', async () => {
+      const answers: unknown[] = [];
+      for (const scenario of Object.values(hiddenGrantForms)) {
+        vi.clearAllMocks();
+        mocks.listAccessForApplicant.mockResolvedValue(scenario.listed);
+        for (const service of [mocks.revokeGrant, mocks.pauseGrant, mocks.resumeGrant]) {
+          service.mockResolvedValue({ ok: false, error: scenario.service });
+        }
+        answers.push(
+          await updateGrantAction(
+            { ok: true, message: '' },
+            strangerForm(scenario.applicantId, op),
+          ),
+        );
+        expect(mocks.revokeGrant).not.toHaveBeenCalled();
+        expect(mocks.pauseGrant).not.toHaveBeenCalled();
+        expect(mocks.resumeGrant).not.toHaveBeenCalled();
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      }
+      for (const answer of answers)
+        expect(answer).toEqual({ ok: false, message: GRANT_HIDDEN_LINE });
+    });
+
+    it('serves the real owner as before: the service runs and speaks in its own words', async () => {
+      mocks[`${op}Grant`].mockResolvedValue({ ok: false, error: { message: OWN_WORDS } });
+      expect(await updateGrantAction({ ok: true, message: '' }, form(op))).toEqual({
+        ok: false,
+        message: OWN_WORDS,
+      });
+      expect(mocks[`${op}Grant`]).toHaveBeenCalledWith(
+        {},
+        { actorAccountId: 'owner', grantId: 'owned-grant' },
+      );
+    });
+  });
+
+  describe('expandGrantScopeAction', () => {
+    it('gives one identical, fixed answer in every stranger case, and changes nothing', async () => {
+      const answers: unknown[] = [];
+      for (const scenario of Object.values(hiddenGrantForms)) {
+        vi.clearAllMocks();
+        mocks.listAccessForApplicant.mockResolvedValue(scenario.listed);
+        mocks.expandGrantScope.mockResolvedValue({ ok: false, error: scenario.service });
+        answers.push(
+          await expandGrantScopeAction(
+            { ok: true, message: '' },
+            strangerForm(scenario.applicantId),
+          ),
+        );
+        expect(mocks.expandGrantScope).not.toHaveBeenCalled();
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      }
+      for (const answer of answers)
+        expect(answer).toEqual({ ok: false, message: GRANT_HIDDEN_LINE });
+    });
+
+    it('serves the real owner as before: adds the documents, or shows the service\u2019s own words', async () => {
+      const data = new FormData();
+      data.set('grantId', 'owned-grant');
+      data.set('applicantId', OWNED_PERSON);
+      data.append('documentId', 'doc-1');
+      mocks.expandGrantScope.mockResolvedValue({ ok: true, value: {} });
+      expect(await expandGrantScopeAction({ ok: true, message: '' }, data)).toEqual({
+        ok: true,
+        message: '1 document added to this grant.',
+      });
+      expect(mocks.expandGrantScope).toHaveBeenCalledWith(
+        {},
+        { actorAccountId: 'owner', grantId: 'owned-grant', documentIds: ['doc-1'] },
+      );
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(`/app/applicant/${OWNED_PERSON}/sharing`);
+      mocks.expandGrantScope.mockResolvedValue({ ok: false, error: { message: OWN_WORDS } });
+      expect(await expandGrantScopeAction({ ok: true, message: '' }, data)).toEqual({
+        ok: false,
+        message: OWN_WORDS,
+      });
+    });
   });
 });

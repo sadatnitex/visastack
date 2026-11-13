@@ -434,20 +434,25 @@ describe('Rule 3: an unrelated party cannot tell whether a record exists', () =>
 });
 
 // ---------------------------------------------------------------------------------------------
-describe('KNOWN GAP: the access gate tells a stranger whether a traveller record exists', () => {
+describe('Access gate contract: it answers differently, so every caller must give one answer', () => {
   /**
-   * Rule 3 asks for one identical answer, for a record that exists and one that does not. For the
-   * gate itself (requireAccess, used for every agency and traveller proof) the answers differ, by
-   * its own documented contract: a real applicant the caller has no access to gets `forbidden`
-   * "access denied (default_deny)", a made-up applicant id gets `not_found` "record not found".
-   * Callers are meant to collapse the two before anything reaches a screen; an audit on 12 Nov
-   * 2026 found three server actions that do not (docs/product/breakthrough/TRUST-RULES.md).
+   * Rule 3 asks for one identical answer, for a record that exists and one that does not. The gate
+   * itself (requireAccess, used for every agency and traveller proof) answers differently, by its
+   * documented contract: a real applicant the caller has no access to gets `forbidden` "access
+   * denied (default_deny)", a made-up applicant id gets `not_found` "record not found". The
+   * contract is deliberate and unchanged; the duty to give one answer sits with the caller, before
+   * anything reaches a screen. The callers an audit on 12 Nov 2026 found passing the difference
+   * on, and the wider set a second audit found (case, profile and sharing actions), were
+   * corrected on 13 Nov 2026: each action now checks ownership first and gives one fixed answer.
+   * The web package's tests (apps/web/src/lib/hidden-record.test.ts and the per-action tests) fail
+   * if one of those actions shows a person a different line for the two. Actions in files held by
+   * open localization pull requests (the document-kind suggestion and the AI proposal actions in
+   * the traveller's actions file, and the agency note action) are listed in known-issues and
+   * follow when those pull requests merge.
    *
-   * These tests pin today's exact behaviour, so the gap is on record in every run and nothing
-   * else can hide behind it: both answers must be refusals, with exactly these codes. The day the
-   * gate gives one answer, they fail on purpose; replace them then with one assertion that the two
-   * results are equal. Changing the gate is a change to existing access behaviour and is left for
-   * the owner to decide.
+   * These tests pin the contract's exact answers, so nobody is surprised if it ever changes: both
+   * answers must be refusals, with exactly these codes. If the gate is ever changed to give one
+   * answer, replace them with one assertion that the two results are equal and retire the guard.
    */
   const pinGap = (
     real: Awaited<ReturnType<typeof requireAccess>>,
