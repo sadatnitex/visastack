@@ -2,7 +2,7 @@ import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { EACH_GRANT, accountPrincipal, requireAccess } from '../access';
+import { type AccessRefusal, EACH_GRANT, accountPrincipal, requireAccess } from '../access';
 import { evidenceSubmissionStillCovers } from '../access/evidence-submission-access';
 import { provisionAccount } from '../accounts';
 import {
@@ -435,73 +435,78 @@ describe('Rule 3: an unrelated party cannot tell whether a record exists', () =>
 });
 
 // ---------------------------------------------------------------------------------------------
-describe('Access gate contract: it answers differently, so every caller must give one answer', () => {
+describe('Access gate contract: one answer for a real record and a made-up one', () => {
   /**
-   * Rule 3 asks for one identical answer, for a record that exists and one that does not. The gate
-   * itself (requireAccess, used for every agency and traveller proof) answers differently, by its
-   * documented contract: a real applicant the caller has no access to gets `forbidden` "access
-   * denied (default_deny)", a made-up applicant id gets `not_found` "record not found". The
-   * contract is deliberate and unchanged; the duty to give one answer sits with the caller, before
-   * anything reaches a screen. The callers an audit on 12 Nov 2026 found passing the difference
-   * on, and the wider set a second audit found (case, profile and sharing actions), were
-   * corrected on 13 Nov 2026: each action now checks ownership first and gives one fixed answer.
-   * The web package's tests (apps/web/src/lib/hidden-record.test.ts and the per-action tests) fail
-   * if one of those actions shows a person a different line for the two. Actions in files held by
-   * open localization pull requests (the document-kind suggestion and the AI proposal actions in
-   * the traveller's actions file, and the agency note action) are listed in known-issues and
-   * follow when those pull requests merge.
-   *
-   * These tests pin the contract's exact answers, so nobody is surprised if it ever changes: both
-   * answers must be refusals, with exactly these codes. If the gate is ever changed to give one
-   * answer, replace them with one assertion that the two results are equal and retire the guard.
+   * Rule 3 asks for one identical answer, for a record that exists and one that does not. Until 13
+   * Nov 2026 the gate itself (requireAccess, used for every agency and traveller proof) answered a
+   * real applicant the caller has no access to with `forbidden` "access denied (default_deny)" and a
+   * made-up id with `not_found` "record not found", and each caller had to hide the difference. The
+   * owner then had the gate give one answer, so these tests now assert that the two results are
+   * equal (as this note always said they would), and that the precise reason still reaches the
+   * gate's `onRefused` hook, for audit and logs only.
    */
-  const pinGap = (
-    real: Awaited<ReturnType<typeof requireAccess>>,
-    madeUp: Awaited<ReturnType<typeof requireAccess>>,
+  const sameAnswer = async (
+    gate: (
+      applicantId: string,
+      onRefused: (refusal: AccessRefusal) => void,
+    ) => ReturnType<typeof requireAccess>,
+    realId: string,
   ) => {
-    // Never let in, whichever id was named.
+    const heard: AccessRefusal[] = [];
+    const real = await gate(realId, (refusal) => heard.push(refusal));
+    const madeUp = await gate(randomId(), (refusal) => heard.push(refusal));
+    // Never let in, whichever id was named, and the same answer either way.
     expect(isErr(real)).toBe(true);
-    expect(isErr(madeUp)).toBe(true);
-    expect(real.ok ? null : real.error).toMatchObject({
-      code: 'forbidden',
-      message: 'access denied (default_deny)',
-    });
-    expect(madeUp.ok ? null : madeUp.error).toMatchObject({
+    expect(real).toStrictEqual(madeUp);
+    expect(real.ok ? null : real.error).toStrictEqual({
       code: 'not_found',
       message: 'record not found',
     });
+    // The reason the old answer carried is still known, to the hook alone.
+    expect(heard).toEqual([
+      { reason: 'default_deny', recordExists: true },
+      { reason: 'not_found', recordExists: false },
+    ]);
   };
 
   it(
-    'TEST Agency Unrelated is refused for a real and for a made-up applicant id, with different words',
+    'TEST Agency Unrelated gets the same answer for a real and for a made-up applicant id',
     async () => {
       const w = await trustWorld();
-      const gate = (applicantId: string) =>
-        requireAccess(
-          w.db,
-          accountPrincipal(w.unrelated.accountId),
-          'MANAGE',
-          { applicantId },
-          { purpose: EACH_GRANT, actingFor: { organizationId: w.unrelated.organizationId } },
-        );
-      pinGap(await gate(w.rahim.applicantId), await gate(randomId()));
+      await sameAnswer(
+        (applicantId, onRefused) =>
+          requireAccess(
+            w.db,
+            accountPrincipal(w.unrelated.accountId),
+            'MANAGE',
+            { applicantId },
+            {
+              purpose: EACH_GRANT,
+              actingFor: { organizationId: w.unrelated.organizationId },
+              onRefused,
+            },
+          ),
+        w.rahim.applicantId,
+      );
     },
     TIMEOUT,
   );
 
   it(
-    'a second traveller is refused for another traveller and for a made-up applicant id, with different words',
+    'a second traveller gets the same answer for another traveller and for a made-up applicant id',
     async () => {
       const w = await trustWorld();
-      const gate = (applicantId: string) =>
-        requireAccess(
-          w.db,
-          accountPrincipal(w.karim.accountId),
-          'MANAGE',
-          { applicantId },
-          { purpose: 'owner_view_sends' },
-        );
-      pinGap(await gate(w.rahim.applicantId), await gate(randomId()));
+      await sameAnswer(
+        (applicantId, onRefused) =>
+          requireAccess(
+            w.db,
+            accountPrincipal(w.karim.accountId),
+            'MANAGE',
+            { applicantId },
+            { purpose: 'owner_view_sends', onRefused },
+          ),
+        w.rahim.applicantId,
+      );
     },
     TIMEOUT,
   );
