@@ -25,6 +25,7 @@ import { check } from '../../docs/localization/tools/guardrail-check.mjs';
 import { queuesByWords } from '../../docs/localization/tools/review-queue.mjs';
 import { catalogRel, readCatalog, readSources, renderCatalog, sourcesRel } from './catalog.mjs';
 import { decodeEntities } from './jsx-text.mjs';
+import { REFILL_REVIEW_HOLDS } from './refill-holds.mjs';
 import { Register } from './register.mjs';
 
 /** Where drafts written for a catalogue key (no census row, no register group) are kept. */
@@ -32,10 +33,14 @@ export const KEY_DRAFTS_DIR = 'docs/localization/data/drafts';
 const KEY_DRAFT_FILE = /^no-census-.*\.jsonl$/;
 
 /**
- * Catalogue keys whose key draft stays English, each with the reason (the key-draft twin of
- * HOLDBACK in register.mjs, which names register groups). Remove one only on that sign-off.
+ * Catalogue keys that stay English, each with the reason. HOLDBACK in register.mjs holds register
+ * groups for a content reason; this map holds single keys, whether their Bengali would come from a
+ * register group or from a key draft: the removal-screen sentences below, and every key a refill
+ * pull request left English at review (REFILL_REVIEW_HOLDS, kept equal to the tables in
+ * REFILL_LEFTOVERS.md by refill-holds.test.mjs). Remove one only on its sign-off or fix.
  */
 export const KEY_HOLDBACK = new Map([
+  ...REFILL_REVIEW_HOLDS,
   [
     'appApplicant.appApplicantIdDocumentsManageRemoval.fileKeptAgencyAnswerAskUs',
     'Applicant removal screens: the sentence names the Ask Us to Remove This File action in quotes, but the Manage menu still shows it in English, so a Bengali name would not match what the person sees (label in name).',
@@ -168,6 +173,8 @@ export function refillBengali({
       if (keyPrefix !== undefined && !key.startsWith(keyPrefix)) continue;
       const group = sources[key];
       if (bn[key] !== undefined) continue;
+      // A held key stays English whichever way its Bengali would come.
+      if (KEY_HOLDBACK.has(key)) continue;
       let r;
       if (typeof group === 'string') {
         if (group.includes('|')) continue;
