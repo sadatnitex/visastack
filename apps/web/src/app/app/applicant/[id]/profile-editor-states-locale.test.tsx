@@ -149,23 +149,25 @@ describe('the profile editor under Bengali, in its fuller states', () => {
     expect(text()).toContain('Visit');
   });
 
-  it('marks a section opened for its details and suggested, and lists its documents, in Bengali', async () => {
+  it('marks a section opened for its details, and lists its documents, in Bengali', async () => {
     await mount('bn');
     for (const key of [
       'openBecauseItHoldsYourDetails',
-      'suggested',
       'documentsForThisSection',
       'notUploadedYet',
       'uploaded',
-      'upload',
-      'addAnother',
     ])
       expect(text(), key).toContain(bn[`${E}${key}`]);
-    // The document kinds stay as they are, also inside the link names.
-    expect(text()).toContain(`${bn[`${E}upload`]} Passport`);
-    expect(text()).toContain(`${bn[`${E}addAnother`]} National ID Card`);
+    expect(text()).not.toContain('Open because it holds your details');
     expect(text()).not.toContain('Documents for This Section');
-    expect(text()).not.toContain('Not Uploaded Yet');
+    expect(text()).not.toMatch(/Uploaded/);
+    // Held (refill 7): the badge needs a redraft, and the two links join the English kind after
+    // the verb, so they stay English as a whole.
+    for (const key of ['suggested', 'upload', 'addAnother'])
+      expect(bn[`${E}${key}`], key).toBeUndefined();
+    const links = [...host.querySelectorAll('.section-documents a')].map((a) => a.textContent);
+    expect(links).toEqual(['Upload Passport', 'Add Another National ID Card']);
+    expect(host.querySelector('.badge-warning')?.textContent).toBe('Suggested');
   });
 
   it('shows a detail that does not apply, an Other answer and the date a value took effect in Bengali', async () => {

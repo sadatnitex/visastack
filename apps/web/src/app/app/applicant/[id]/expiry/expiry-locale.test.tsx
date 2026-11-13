@@ -3,8 +3,8 @@ import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { renderServer, textOf } from '../../../../../lib/next-mocks.test-support';
 
 /**
- * The Expiry page under Bengali (refill 7): the two notes under a document's date, one for a date
- * the person typed and one for a typed date that differs from the one read. The page is the real
+ * The Expiry page under Bengali (refill 7): the note under a date the person typed, and the held
+ * English note for a typed date that differs from the one read. The page is the real
  * server page; the services stand in with made-up data.
  */
 
@@ -93,12 +93,13 @@ beforeEach(() => {
 });
 
 describe('the Expiry page under Bengali', () => {
-  it('says a date was entered by the person, and that a typed date differs, in Bengali', async () => {
+  it('says a date was entered by the person in Bengali, and keeps the different-date note English', async () => {
     const text = await page('bn');
     expect(text.split(bn[`${K}enteredByYou`] ?? '\u0000')).toHaveLength(2);
-    expect(text.split(bn[`${K}youEnteredADifferentDateCheck`] ?? '\u0000')).toHaveLength(2);
     expect(text).not.toContain(en[`${K}enteredByYou`]);
-    expect(text).not.toContain(en[`${K}youEnteredADifferentDateCheck`]);
+    // Held (refill 7): it names Documents, whose menu item and link are still English.
+    expect(bn[`${K}youEnteredADifferentDateCheck`]).toBeUndefined();
+    expect(text.split(en[`${K}youEnteredADifferentDateCheck`] ?? '\u0000')).toHaveLength(2);
     // The file names stay as they are.
     expect(text).toContain('typed-visa.pdf');
     expect(text).toContain('read-passport.pdf');

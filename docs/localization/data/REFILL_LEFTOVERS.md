@@ -345,7 +345,7 @@ These have a passing draft and no content reason to stay English. No test render
 
 ## Left English at review in refill 7
 
-Refill 7 fills keys of the applicant record screens, each with a test that renders it under Bengali. These have a passing draft and stay English for the reason given; HOLDBACK is unchanged.
+Refill 7 takes the 71 keys deferred from refill 2 until a test renders their state (the list above): 53 are filled, each rendered under Bengali by a test of its real screen, and these 18 stay English for the reason given. They have a passing draft; HOLDBACK is unchanged.
 
 | Surface | Key | Why it stays English |
 | --- | --- | --- |
@@ -362,3 +362,8 @@ Refill 7 fills keys of the applicant record screens, each with a test that rende
 | app-applicant | `appApplicant.appApplicantIdImportImportPanel.tryAgainForAllPausedFiles` | The English line on each paused file tells the person to use Try Again for All Paused Files by that name (label in name). |
 | app-applicant | `appApplicant.appApplicantIdReviewPage.readAgain` | The English reading status above the button tells the person to try Read Again by that name (label in name). |
 | app-applicant | `appApplicant.appApplicantIdNameReview.proposedFilename` | Unreachable: no screen renders the name review form any more (only an accessibility test imports it). |
+| app-applicant | `appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck` | Sends the person to Documents by name, but the menu item and the link on the same page are still English (label in name). |
+| app-applicant | `appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections` | The count beside it is written in Latin digits and the meter's spoken name is English, so the label would be the only Bengali in that line. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.addAnother` | The English document kind is joined after it in the link name, so the Bengali verb would come before its object. Needs one message with the kind inside it. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.suggested` | The draft reads as advice given; this catalogue words suggested as প্রস্তাবিত everywhere else. Needs a redraft. |
+| app-applicant | `appApplicant.appApplicantIdProfileEditor.upload` | Same as Add Another: the English document kind is joined after the Bengali verb in the link name. |

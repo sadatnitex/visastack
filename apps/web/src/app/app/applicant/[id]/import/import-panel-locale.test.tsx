@@ -1,5 +1,5 @@
-import { formatNumber } from '@visastack/i18n';
 // @vitest-environment jsdom
+import { formatNumber } from '@visastack/i18n';
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

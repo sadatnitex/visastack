@@ -741,4 +741,24 @@ export const REFILL_REVIEW_HOLDS = /** @type {const} */ ([
     'appApplicant.appApplicantIdNameReview.proposedFilename',
     'Left English at review (refill 7): Unreachable: no screen renders the name review form any more (only an accessibility test imports it).',
   ],
+  [
+    'appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck',
+    'Left English at review (refill 7): Sends the person to Documents by name, but the menu item and the link on the same page are still English (label in name).',
+  ],
+  [
+    'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections',
+    "Left English at review (refill 7): The count beside it is written in Latin digits and the meter's spoken name is English, so the label would be the only Bengali in that line.",
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.addAnother',
+    'Left English at review (refill 7): The English document kind is joined after it in the link name, so the Bengali verb would come before its object. Needs one message with the kind inside it.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.suggested',
+    'Left English at review (refill 7): The draft reads as advice given; this catalogue words suggested as প্রস্তাবিত everywhere else. Needs a redraft.',
+  ],
+  [
+    'appApplicant.appApplicantIdProfileEditor.upload',
+    'Left English at review (refill 7): Same as Add Another: the English document kind is joined after the Bengali verb in the link name.',
+  ],
 ]);

@@ -238,11 +238,12 @@ describe('the traveller home under Bengali, in its unavailable and fuller states
   it('says cases, dates and totals are unavailable in Bengali when cases cannot be read', async () => {
     service.listMissions.mockResolvedValue({ ok: false, error: { code: 'unavailable' } });
     const text = await home('bn');
+    // The case tile says Unavailable in place of its count.
+    expect(text).toContain(`${bn[`${K}activeCases`]} ${bn[`${K}unavailable`]}`);
     for (const key of [
       'casesAreUnavailable',
       'refreshToTryAgain',
       'datesAreUnavailable',
-      'unavailable',
       'someRecordsCouldNotBeLoaded',
       'someSectionsAreUnavailableUnavailableTotals',
     ]) {
@@ -275,7 +276,7 @@ describe('the traveller home under Bengali, in its unavailable and fuller states
     expect(text).not.toContain(en[`${K}suggestionsFromAiAppsWaitingFor`]);
   });
 
-  it('labels the whole-profile meter in Bengali once the essentials are added', async () => {
+  it('keeps the whole-profile meter label English once the essentials are added (held)', async () => {
     const { PROFILE_ESSENTIALS } = await import('../../../../lib/profile-essentials');
     service.listApplicantProfile.mockResolvedValue(
       PROFILE_ESSENTIALS.filter((e) => e.kind === 'field').map((e) => ({
@@ -290,9 +291,10 @@ describe('the traveller home under Bengali, in its unavailable and fuller states
       noneDeclared: new Set(PROFILE_ESSENTIALS.filter((e) => e.kind !== 'field').map((e) => e.key)),
     });
     const text = await home('bn');
-    expect(text).toContain(bn[`${K}detailsWithValuesInOpenSections`]);
-    expect(text).not.toContain(en[`${K}detailsWithValuesInOpenSections`]);
-    // Held (refill 7): the meter's own name is the English "{value} of {max} {label}".
+    // Held (refill 7): the count beside the label is in Latin digits and the meter's own name is
+    // the English "{value} of {max} {label}".
+    expect(bn[`${K}detailsWithValuesInOpenSections`]).toBeUndefined();
+    expect(text).toContain(en[`${K}detailsWithValuesInOpenSections`]);
     expect(bn[`${K}detailsWithValuesInOpenSections8284e6`]).toBeUndefined();
   });
 

@@ -933,8 +933,6 @@ export const appApplicantCatalog = defineCatalog({
       'তিনটি আলাদা তারিখ: ডকুমেন্টের মেয়াদ কখন শেষ হয়, কোনো রুট আরও নতুন ডকুমেন্ট চায় কি না, এবং ইস্যুকারীর নিশ্চিতকরণ কত দিন বৈধ থাকে। আমরা এগুলোকে কখনো একটি অবস্থায় মিলিয়ে ফেলি না।',
     'appApplicant.appApplicantIdExpiryPage.whenAnIssuerSuchAsA':
       'ব্যাংক বা নিয়োগকর্তার মতো কোনো ইস্যুকারী যখন কোনো ডকুমেন্ট নিশ্চিত করেন, তখন সেই নিশ্চিতকরণ এবং তা কত দিন বৈধ থাকে তা এখানে দেখা যায়।',
-    'appApplicant.appApplicantIdExpiryPage.youEnteredADifferentDateCheck':
-      'আপনি অন্য একটি তারিখ দিয়েছেন। কোনটি ঠিক, তা ডকুমেন্টস-এ দেখে নিন।',
     'appApplicant.appApplicantIdHistoryHistoryLog.everyPart': 'প্রতিটি অংশ',
     'appApplicant.appApplicantIdHistoryHistoryLog.partOfTheProfile': 'প্রোফাইলের অংশ',
     'appApplicant.appApplicantIdHistoryHistoryLog.profileHistoryEntries': 'প্রোফাইল ইতিহাসের এন্ট্রি',
@@ -1008,7 +1006,6 @@ export const appApplicantCatalog = defineCatalog({
       'যেখানে থামিয়েছিলেন সেখান থেকে চালিয়ে যান',
     'appApplicant.appApplicantIdPage.datesAreUnavailable': 'তারিখ দেখানো যাচ্ছে না',
     'appApplicant.appApplicantIdPage.datesExpiry': 'তারিখ ও মেয়াদ →',
-    'appApplicant.appApplicantIdPage.detailsWithValuesInOpenSections': 'খোলা অংশগুলোতে মানসহ তথ্য',
     'appApplicant.appApplicantIdPage.documentsInYourWallet': 'আপনার ওয়ালেটের ডকুমেন্ট',
     'appApplicant.appApplicantIdPage.documentsNeedingReview': 'পর্যালোচনা দরকার এমন ডকুমেন্ট',
     'appApplicant.appApplicantIdPage.done': 'সম্পন্ন',
@@ -1064,7 +1061,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdPage.updatedFormattimestampdate':
       'আপডেট করা হয়েছে {formatTimestampDate}',
     'appApplicant.appApplicantIdPage.visaCase': 'ভিসা ফাইল',
-    'appApplicant.appApplicantIdProfileEditor.addAnother': 'আরেকটি যোগ করুন',
     'appApplicant.appApplicantIdProfileEditor.addLabel': '{label} যোগ করুন',
     'appApplicant.appApplicantIdProfileEditor.addSomethingElse': 'অন্য কিছু যোগ করুন',
     'appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue':
@@ -1119,9 +1115,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.showAllSections': 'সব অংশ দেখান',
     'appApplicant.appApplicantIdProfileEditor.showEssentialsOnly': 'শুধু জরুরি বিষয় দেখান',
     'appApplicant.appApplicantIdProfileEditor.showSuggestions': 'পরামর্শ দেখান',
-    'appApplicant.appApplicantIdProfileEditor.suggested': 'পরামর্শ দেওয়া',
     'appApplicant.appApplicantIdProfileEditor.thisDoesNotApplyToMe': 'এটি আমার ক্ষেত্রে প্রযোজ্য নয়',
-    'appApplicant.appApplicantIdProfileEditor.upload': 'আপলোড করুন',
     'appApplicant.appApplicantIdProfileEditor.uploaded': 'আপলোড করা হয়েছে',
     'appApplicant.appApplicantIdProfileEditor.whatIsThisProfileFor': 'এই প্রোফাইল কিসের জন্য?',
     'appApplicant.appApplicantIdProfileEditor.youSaidYouHaveNone': 'আপনি বলেছেন আপনার কোনোটি নেই।',

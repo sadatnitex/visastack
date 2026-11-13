@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
+import { textOf } from '../../../../../lib/next-mocks.test-support';
 
 /**
  * Needs One Decision under Bengali (refill 7): the Which Person? list with a suggested person and
@@ -29,11 +30,7 @@ function render(locale: 'en' | 'bn', props: Partial<Props>) {
       <NeedsDecision applicantId="a1" items={[]} linked={[]} {...props} />
     </I18nProvider>,
   );
-  const text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#x27;', "'")
-    .replace(/\s+/g, ' ');
+  const text = textOf(html);
   return { html, text };
 }
 
