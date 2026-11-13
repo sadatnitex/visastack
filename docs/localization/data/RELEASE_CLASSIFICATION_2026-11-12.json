@@ -7,10 +7,11 @@
     "RELEASED: a PASS draft exists; Bengali ships. RELEASED_NO_DRAFT and RELEASED_NO_PASS: released, but there is no PASS draft, so English stays until one exists.",
     "KEPT: stays English. Official visa rules and fees and invoice or receipt records stay English with a Bengali note (owner decisions); technical holds wait for the code fix named in the reason.",
     "Groups in review queue 04 (official visa requirements) are not listed: that queue stays refused.",
-    "Only the groups that were held back, or sit in queue 02 or 03 with a draft, are classified. A new row that enters those queues later needs its own read."
+    "Only the groups that were held back, or sit in queue 02 or 03 with a draft, are classified. A new row that enters those queues later needs its own read.",
+    "Batch G (2026-11-13) added 49 groups from queue 02 (COMMERCIAL) as RELEASED: payment and plan screen wording drafted in data/drafts/bn-BD.part-G.jsonl, classified on the instruction that payment wording falls under the owner blanket sign-off. Invoice and receipt record fields were not drafted and stay English. Nothing was reviewed line by line."
   ],
   "counts": {
-    "released": 539,
+    "released": 588,
     "released_no_draft_or_pass": 22,
     "kept": 112
   },
@@ -688,6 +689,14 @@
       "english": "No applicants match. Try another part of the name."
     },
     {
+      "group": "SG-1c6fc4aa",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Payment reports for {invoiceRef}"
+    },
+    {
       "group": "SG-1d11e900",
       "state": "KEPT",
       "category": "technical",
@@ -848,6 +857,14 @@
       "english": "Each traveller below has their own case, checklist, documents and privacy. Their readiness is not a submission, and nothing is sent until you share it yourself."
     },
     {
+      "group": "SG-245e79b8",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Payment Reference"
+    },
+    {
       "group": "SG-24776023",
       "state": "RELEASED",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
@@ -960,6 +977,14 @@
       "english": "I am worried about my privacy"
     },
     {
+      "group": "SG-2a67db33",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Storage for the Whole Account"
+    },
+    {
       "group": "SG-2b1514c9",
       "state": "RELEASED",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
@@ -1054,6 +1079,14 @@
       "reason": "Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "A summary is a one-time copy. It does not update when your record changes, and VisaStack cannot take it back once you have shared it. Sharing it with an agency or an AI app is your choice each time."
+    },
+    {
+      "group": "SG-2f6a8d87",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "What you bought, with an invoice and receipts you can download."
     },
     {
       "group": "SG-2fc3e71c",
@@ -1176,6 +1209,14 @@
       "english": "Confirm: {title}"
     },
     {
+      "group": "SG-351d9a16",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Not in Your Plan"
+    },
+    {
       "group": "SG-35833103",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -1222,6 +1263,14 @@
       "reason": "Client consent and sharing terms: what the traveller agrees to share or decides; waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "Each answer holds only what the person chose, exactly as it was when they sent it. Files download as the originals, after you confirm it is you."
+    },
+    {
+      "group": "SG-37bc808a",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): in queue 02 only for the word receipt (an application receipt, not a payment); released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "A receipt or confirmation from your own documents. Without one, this stays your own report."
     },
     {
       "group": "SG-37c14fc0",
@@ -1560,6 +1609,14 @@
       "english": "{TEST_PAYMENT_LABEL}, not money received"
     },
     {
+      "group": "SG-49f4a72c",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Purchase"
+    },
+    {
       "group": "SG-4ac01dc9",
       "state": "RELEASED",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
@@ -1622,6 +1679,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "Release this legal hold? Deletion/purge become possible again."
+    },
+    {
+      "group": "SG-4c7a74f9",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "No invoices yet. When VisaStack issues an invoice for your plan it appears here."
     },
     {
       "group": "SG-4d46294d",
@@ -1760,6 +1825,14 @@
       "english": "Export Your Data"
     },
     {
+      "group": "SG-533915db",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Your Plan"
+    },
+    {
       "group": "SG-5431e93a",
       "state": "RELEASED",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
@@ -1782,6 +1855,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "Documents Eligible for Purge"
+    },
+    {
+      "group": "SG-54ac96cb",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Payment Reports"
     },
     {
       "group": "SG-54c50e63",
@@ -2112,6 +2193,14 @@
       "english": "Sensitive: health details. Allow only if the app needs them."
     },
     {
+      "group": "SG-62b01c28",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): in queue 02 only for the word receipt (an application receipt, not a payment); released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "A letter or receipt from your own documents. Without one, this stays your own report."
+    },
+    {
       "group": "SG-630b77f1",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -2176,6 +2265,14 @@
       "english": "Plan Information"
     },
     {
+      "group": "SG-65670957",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "A photo or screenshot (JPEG or PNG) or a PDF, under 4 MB. Only your owners and admins and VisaStack staff can open it. If you report again after an error, choose the file again."
+    },
+    {
       "group": "SG-658e1cac",
       "state": "KEPT",
       "category": "technical",
@@ -2190,6 +2287,14 @@
       "reason": "Virus scanning notices: a risk statement, waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "checked for viruses"
+    },
+    {
+      "group": "SG-65bcbe56",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "You can ask for a full refund until {formatBillingDateTime} (Bangladesh time), and you do not need to give a reason. The period it paid for ends once the refund is made."
     },
     {
       "group": "SG-66303617",
@@ -2240,6 +2345,14 @@
       "english": "Confirmed"
     },
     {
+      "group": "SG-67b08c36",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Download Receipt (PDF)"
+    },
+    {
       "group": "SG-68370f7c",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -2262,6 +2375,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "Consent for Child"
+    },
+    {
+      "group": "SG-688eac8d",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Payment Reported: we are checking it. Once it is decided you can pay online or report another payment."
     },
     {
       "group": "SG-68e8afb4",
@@ -2310,6 +2431,22 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "<strong>This deletes your entire account.</strong> There is no partial deletion - every traveller on your account goes with it. <ul/>"
+    },
+    {
+      "group": "SG-6a6bb0ce",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "I Paid Another Way"
+    },
+    {
+      "group": "SG-6ab89400",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Usage & Billing"
     },
     {
       "group": "SG-6ae28fe2",
@@ -2416,6 +2553,14 @@
       "english": "Shown beside your name in your workspace. Only you can see it, and it is never used as a visa photo or shared."
     },
     {
+      "group": "SG-71a195dd",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Shown for your information; it does not stop any work."
+    },
+    {
       "group": "SG-71ea5c4c",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -2446,6 +2591,14 @@
       "reason": "Applicant calendar link: private link sharing, revoking and what it reveals; access-control wording waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "Making a new link stops the old one at once: add the new link to your calendar app again. Stop Sharing turns the link off; your calendar app then gets no new dates."
+    },
+    {
+      "group": "SG-73bad505",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "A transfer id, bKash transaction id or cheque number."
     },
     {
       "group": "SG-73f7ada8",
@@ -2494,6 +2647,14 @@
       "reason": "Opening words of the show-all toggle must match its English closing words; stays English until the toggle is converted.",
       "queue": "ORDINARY_UI",
       "english": "Show Fewer Cases"
+    },
+    {
+      "group": "SG-75c7bb49",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "You don't have access to this organization's plan."
     },
     {
       "group": "SG-75f71b03",
@@ -2592,12 +2753,28 @@
       "english": "a legal hold covers this document"
     },
     {
+      "group": "SG-7b35a454",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "From {formatBillingDate}, your next billing period, the price is {formatMoney}. Invoices already made keep their amounts."
+    },
+    {
       "group": "SG-7b432da4",
       "state": "RELEASED",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
       "reason": "Applicant screens: Promise about what happens to a file (stored, checked, kept, removed, replaced): waits for the owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "What was deleted from this record, and where each removal stands. Each one shows its reference code, its kind, and when and from which account it was asked, never a name or a title."
+    },
+    {
+      "group": "SG-7b77880f",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Your agency's plan and how much of it is in use. Each limit comes from your plan."
     },
     {
       "group": "SG-7ba0413d",
@@ -2608,12 +2785,28 @@
       "english": "Parental consent letter for applicants under 18."
     },
     {
+      "group": "SG-7c2edbb3",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Pay an invoice online or tell us about a payment you made another way. Your receipts are kept here."
+    },
+    {
       "group": "SG-7c49c467",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "Privacy Sections"
+    },
+    {
+      "group": "SG-7c8a23c7",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "How You Paid"
     },
     {
       "group": "SG-7cdea515",
@@ -2670,6 +2863,14 @@
       "reason": "automated checks PASS",
       "queue": "COMMERCIAL",
       "english": "Your payment was received. Thank you."
+    },
+    {
+      "group": "SG-7f126fc0",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Confirm Your Purchase"
     },
     {
       "group": "SG-7f2b9962",
@@ -2814,6 +3015,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "this document has a retention purge in progress and cannot be modified until it completes"
+    },
+    {
+      "group": "SG-840af75a",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Date Paid"
     },
     {
       "group": "SG-842d0db1",
@@ -3024,6 +3233,14 @@
       "english": "Account settings, consent, shared access and privacy requests are available from your account menu. Signing out ends this session."
     },
     {
+      "group": "SG-8bd41bdb",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Everything in VisaStack stays free during the beta. A paid plan gives you more room: more storage and higher daily limits, for you and everyone you keep a record for. It is paid in advance and never charges you again by itself."
+    },
+    {
       "group": "SG-8be28114",
       "state": "RELEASED",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
@@ -3056,6 +3273,14 @@
       "english": "See the {plural} inside"
     },
     {
+      "group": "SG-8d16f1ce",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): in queue 02 only for the word receipt (an application receipt, not a payment); released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "e.g. tracking or receipt number"
+    },
+    {
       "group": "SG-8d5be455",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -3070,6 +3295,14 @@
       "reason": "Privacy page and account deletion or export wording (PR #518): owner-approved legal text, stays English.",
       "queue": "ORDINARY_UI",
       "english": "Download Export (JSON)"
+    },
+    {
+      "group": "SG-8d8d7094",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "An access offer has not been recorded for this organization. Your measured usage is shown below. Record permissions and safety checks still apply."
     },
     {
       "group": "SG-8dca9740",
@@ -3128,6 +3361,14 @@
       "english": "Drafts your AI apps saved for you, such as letters and notes. They are kept here for you only: nothing is sent anywhere, and agencies never see them. Drafts stay until you delete them."
     },
     {
+      "group": "SG-90075396",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Traveller Free and the Paid Plans Side by Side"
+    },
+    {
       "group": "SG-921890d8",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -3158,6 +3399,14 @@
       "reason": "Statement that nothing was shared with you: sharing permission wording, owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "This person has not shared any documents with you for this purpose."
+    },
+    {
+      "group": "SG-93a158cb",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Open Plan &amp; Usage"
     },
     {
       "group": "SG-94155715",
@@ -3464,6 +3713,14 @@
       "english": "A suggestion stays separate from a confirmed fact until you approve it. You can also enter details by hand."
     },
     {
+      "group": "SG-a5ee814c",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "No automatic charge. We remind you before it ends, and you decide then whether to pay again."
+    },
+    {
       "group": "SG-a5fa0621",
       "state": "KEPT",
       "category": "meaning change found on reading",
@@ -3510,6 +3767,14 @@
       "reason": "Applicant screens: The visible button text beside it is still English, so a Bengali accessible name would not match what is on the button (label in name).",
       "queue": "ORDINARY_UI",
       "english": "No Longer Current: {label}"
+    },
+    {
+      "group": "SG-a898f718",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "When you buy a plan, its invoice and receipt appear here. Nothing is charged without you paying for it."
     },
     {
       "group": "SG-a9386af5",
@@ -3590,6 +3855,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "Deletion scheduled for {when}. You can cancel any time before then."
+    },
+    {
+      "group": "SG-ad08fe8e",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Everything in VisaStack works without AI features, and each person’s own AI use follows VisaStack’s settings."
     },
     {
       "group": "SG-ad36e94f",
@@ -3752,6 +4025,14 @@
       "english": "Invite a traveller as a new client. They alone choose which of their own traveller profiles the resulting case attaches to, and their acceptance is what actually grants this organization access, never the invitation itself."
     },
     {
+      "group": "SG-b2ea9a57",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Tell us about a payment you already made by bank transfer, bKash or cheque. Nothing is counted until VisaStack confirms it."
+    },
+    {
       "group": "SG-b3edb4f6",
       "state": "KEPT",
       "category": "invoice or receipt record content",
@@ -3888,6 +4169,22 @@
       "english": "{recordGroup} on your Record"
     },
     {
+      "group": "SG-ba15de58",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Refund"
+    },
+    {
+      "group": "SG-ba779778",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Price"
+    },
+    {
       "group": "SG-ba9fc0d8",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -3910,6 +4207,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "changing a retention policy requires reauthentication"
+    },
+    {
+      "group": "SG-bc96e950",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Billing History"
     },
     {
       "group": "SG-bd2f6493",
@@ -4038,6 +4343,14 @@
       "reason": "automated checks PASS",
       "queue": "COMMERCIAL",
       "english": "SEVIS I-901 Fee Receipt"
+    },
+    {
+      "group": "SG-c42deec3",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Go to Plan &amp; Usage"
     },
     {
       "group": "SG-c4883177",
@@ -4248,6 +4561,14 @@
       "english": "Turn these on before accepting (both are required):"
     },
     {
+      "group": "SG-ce4f525c",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Compare Plans"
+    },
+    {
       "group": "SG-ce511844",
       "state": "RELEASED_NO_DRAFT",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
@@ -4408,6 +4729,14 @@
       "english": "Requires evidence already selected for that requirement; a staff checkbox alone is never accepted as confirmation."
     },
     {
+      "group": "SG-d66c8428",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Payment Reported: we are checking it. We will update this invoice once it is checked."
+    },
+    {
       "group": "SG-d6d9d6fc",
       "state": "RELEASED",
       "category": "queue released (COMMERCIAL)",
@@ -4518,6 +4847,14 @@
       "reason": "English-only saved label filled into the sentence",
       "queue": "ORDINARY_UI",
       "english": "{savedLabel}, read from the document."
+    },
+    {
+      "group": "SG-d9899339",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Amount Paid ({currency})"
     },
     {
       "group": "SG-d9bcf36d",
@@ -4704,6 +5041,14 @@
       "english": "Remove {fileName}"
     },
     {
+      "group": "SG-e00914ae",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Renew Now"
+    },
+    {
       "group": "SG-e00eb31b",
       "state": "RELEASED",
       "category": "content (legal, privacy, consent, sharing, access, AI, payment)",
@@ -4782,6 +5127,14 @@
       "reason": "Applicant screens: Sentence built around English-only helper output (a counted phrase, status word or description): waits until that value is translated.",
       "queue": "ORDINARY_UI",
       "english": "{description} {openCount} of {length} sections open."
+    },
+    {
+      "group": "SG-e495beb6",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): in queue 02 only for the word currency (a profile field, not a payment); released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Currency"
     },
     {
       "group": "SG-e4a97e33",
@@ -5144,12 +5497,28 @@
       "english": "Select"
     },
     {
+      "group": "SG-f4537149",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Only owners and admins can see and pay invoices."
+    },
+    {
       "group": "SG-f49c0f3e",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "Travel Consent Given"
+    },
+    {
+      "group": "SG-f514f7f1",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Access Offer Not Recorded"
     },
     {
       "group": "SG-f5a73aec",
@@ -5216,6 +5585,14 @@
       "english": "Paid plans for travellers are not offered yet, so there is nothing to choose or upgrade."
     },
     {
+      "group": "SG-f7fc29fa",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "You can compare it with the paid plans below."
+    },
+    {
       "group": "SG-f86300fe",
       "state": "RELEASED",
       "category": "queue released (PRIVACY_CONSENT_LEGAL)",
@@ -5230,6 +5607,14 @@
       "reason": "Invitation expiry rule (7 days) and revocation: a stated rule, owner sign-off.",
       "queue": "ORDINARY_UI",
       "english": "Invitations expire after 7 days. If this one has expired or was revoked, ask the sender for a new invitation."
+    },
+    {
+      "group": "SG-f91c5c9d",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "A payment for this invoice was started at {startedAt}. Check it before paying again."
     },
     {
       "group": "SG-f92f9f0f",
@@ -5302,6 +5687,14 @@
       "reason": "automated checks PASS",
       "queue": "PRIVACY_CONSENT_LEGAL",
       "english": "Past trips, where you lived and where you worked."
+    },
+    {
+      "group": "SG-fc9db6e9",
+      "state": "RELEASED",
+      "category": "queue released (COMMERCIAL)",
+      "reason": "batch G (2026-11-13): payment and plan screen wording, not an invoice or receipt record; released on the owner blanket sign-off, not reviewed line by line",
+      "queue": "COMMERCIAL",
+      "english": "Online payments for {invoiceRef}"
     },
     {
       "group": "SG-fd3b8956",
