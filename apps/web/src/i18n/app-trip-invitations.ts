@@ -49,7 +49,14 @@ export const appTripInvitationsCatalog = defineCatalog({
     'appTripInvitations.appTripInvitationsIdPage.youJoinedThisTrip': 'You joined this trip.',
   },
   bn: {
+    'appTripInvitations.appTripInvitationsAcceptAcceptForm.shareMore': 'আরও শেয়ার করুন',
+    'appTripInvitations.appTripInvitationsAcceptPage.askThePersonWhoInvitedYou':
+      'যিনি আপনাকে আমন্ত্রণ জানিয়েছেন তাঁর কাছে নতুন একটি লিংক চান, অথবা তিনি যে ইমেইল ঠিকানা ব্যবহার করেছেন সেটি দিয়ে সাইন ইন করুন।',
     'appTripInvitations.appTripInvitationsAcceptPage.goToHome': 'হোমে যান',
+    'appTripInvitations.appTripInvitationsAcceptPage.invitationEnds': 'আমন্ত্রণ শেষ হবে',
+    'appTripInvitations.appTripInvitationsAcceptPage.invitationUnavailable': 'আমন্ত্রণ পাওয়া যাচ্ছে না',
+    'appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser':
+      'আয়োজকের সঙ্গে আপনি যা শেয়ার করেন',
     'appTripInvitations.appTripInvitationsIdPage.why': 'কেন',
   },
 });

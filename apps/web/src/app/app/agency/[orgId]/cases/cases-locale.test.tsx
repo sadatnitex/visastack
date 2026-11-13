@@ -100,8 +100,9 @@ describe('the agency Cases page under Bengali', () => {
     // The deadline sits inside a Bengali sentence, so its date is Bengali too.
     expect(text).toContain('· শেষ তারিখ ৩ ডিসে, ২০২৬');
     expect(text).not.toContain('Dec 3, 2026');
-    // The administrator sentence waits for sign-off (access): English.
-    expect(text).toContain('Assign a team member and leave case notes');
+    // The administrator sentence is Bengali since the owner sign-off of 2026-11-12.
+    expect(text).toContain(bn[k('assignATeamMemberAndLeave')]);
+    expect(text).not.toContain('Assign a team member and leave case notes');
     expect(text).not.toMatch(/appAgency\./);
   });
 
@@ -116,7 +117,8 @@ describe('the agency Cases page under Bengali', () => {
   it('shows the Bengali empty state title and keeps the access explanation in English (administrator)', async () => {
     const text = await show('bn');
     expect(text).toContain(bn[k('noCasesYet')]);
-    expect(text).toContain('No cases are reachable yet');
+    expect(text).toContain(bn[k('noCasesAreReachableYetA')]);
+    expect(text).not.toContain('No cases are reachable yet');
     // These two still sit in props that the catalogue does not hold; they stay English.
     expect(text).toContain('Invite a Client');
   });

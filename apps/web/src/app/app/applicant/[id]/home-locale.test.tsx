@@ -155,9 +155,10 @@ describe('the traveller home under Bengali', () => {
     expect(text).toContain(`${bn[`${K}activeCases`]} ০ ${bn[`${K}documentsInYourWallet`]} ০`);
     expect(text).toContain('০ / ১২');
     expect(text).not.toContain('0 / 12');
-    // Held back or not yet drafted: English stays, never a raw key.
-    expect(`${K}completenessDoesNotVerifyIdentity` in bn).toBe(false);
-    expect(text).toContain(en[`${K}completenessDoesNotVerifyIdentity`]);
+    // The disclaimer is Bengali since the owner sign-off of 2026-11-12, and never a raw key.
+    expect(`${K}completenessDoesNotVerifyIdentity` in bn).toBe(true);
+    expect(text).toContain(bn[`${K}completenessDoesNotVerifyIdentity`]);
+    expect(text).not.toContain(en[`${K}completenessDoesNotVerifyIdentity`]);
     expect(text).not.toMatch(/appApplicant\./);
   });
 

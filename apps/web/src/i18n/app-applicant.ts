@@ -715,15 +715,22 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdReviewPage.yourFilesAreSaved': 'Your Files Are Saved',
   },
   bn: {
+    'appApplicant.appApplicantIdAiReview.changeItIfItIsNot': 'গ্রহণ করার আগে এটি ঠিক না হলে বদলে নিন।',
     'appApplicant.appApplicantIdAiReview.sensitive': 'সংবেদনশীল',
+    'appApplicant.appApplicantIdAiReview.weCouldNotFindTheseExact':
+      'ডকুমেন্টে এই হুবহু শব্দগুলো খুঁজে পাওয়া যায়নি। গ্রহণ করার আগে ডকুমেন্টটি দেখে নিন।',
     'appApplicant.appApplicantIdDocumentExpiryForm.expiryDate': 'মেয়াদ শেষের তারিখ',
     'appApplicant.appApplicantIdDocumentRenameForm.documentName': 'ডকুমেন্টের নাম',
     'appApplicant.appApplicantIdDocumentSuggestionCard.cancel': 'বাতিল করুন',
     'appApplicant.appApplicantIdDocumentSuggestionCard.kindOfDocument': 'ডকুমেন্টের ধরন',
+    'appApplicant.appApplicantIdDocumentSuggestionCard.nothingIsSavedUntilYouAccept':
+      'আপনি গ্রহণ না করা পর্যন্ত কিছুই সংরক্ষণ করা হয় না।',
     'appApplicant.appApplicantIdDocumentTypeForm.forExampleMarriageCertificate': 'যেমন: বিবাহ সনদ',
     'appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType': 'অন্য ধরনের জন্য একটি নাম',
     'appApplicant.appApplicantIdDocumentTypeForm.notSetYet': 'এখনও ঠিক করা হয়নি',
     'appApplicant.appApplicantIdDocumentTypeForm.save': 'সংরক্ষণ করুন',
+    'appApplicant.appApplicantIdDocumentUploader.appliesToTheFilesYouAdd':
+      'এটি আপনি এরপর যে ডকুমেন্টগুলো যোগ করবেন সেগুলোর ক্ষেত্রে প্রযোজ্য: সঠিক শেয়ারিং ক্যাটাগরিতে রাখে এবং নাম দেয়, যেমন পাসপোর্ট ও আপনার নামের প্রথম অংশ। দুটোই আপনি পরে বদলাতে পারবেন।',
     'appApplicant.appApplicantIdDocumentUploader.cameraPhoto': 'ক্যামেরার ছবি',
     'appApplicant.appApplicantIdDocumentUploader.chooseFiles': 'ডকুমেন্ট বেছে নিন',
     'appApplicant.appApplicantIdDocumentUploader.documentFiles': 'আপলোড করা ডকুমেন্ট',
@@ -733,13 +740,19 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdDocumentUploader.kindOfDocumentOptional': 'ডকুমেন্টের ধরন (ঐচ্ছিক)',
     'appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy': 'এই নতুন কপি সরান',
     'appApplicant.appApplicantIdDocumentUploader.removeThisNewCopyName': 'এই নতুন কপি সরান: {name}',
+    'appApplicant.appApplicantIdDocumentUploader.storedPrivatelyOnlyYouAndThe':
+      'গোপনীয়ভাবে সংরক্ষিত। শুধু আপনি এবং আপনি যাদের সঙ্গে শেয়ার করবেন তারাই এটি খুলতে পারবেন।',
     'appApplicant.appApplicantIdDocumentUploader.takeAPhoto': 'ছবি তুলুন',
     'appApplicant.appApplicantIdDocumentsAddPage.addDocuments': 'ডকুমেন্ট যোগ করুন',
     'appApplicant.appApplicantIdDocumentsAddPage.documentStorage': 'ডকুমেন্ট সংরক্ষণ',
+    'appApplicant.appApplicantIdDocumentsAddPage.dropYourFilesOrAWhole':
+      'আপনার ডকুমেন্ট বা পুরো একটি ফোল্ডার এখানে ছেড়ে দিন। আমরা প্রতিটি পরীক্ষা করি, যতটা পারি পড়ি, আর প্রতিটি তথ্য আপনি অনুমোদন করেন।',
     'appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments': 'আমার ডকুমেন্ট খুলুন',
     'appApplicant.appApplicantIdDocumentsAddPage.takeAPhotoOrSayWhat':
       'ছবি তুলুন, অথবা বলুন এটি কী ধরনের ডকুমেন্ট',
     'appApplicant.appApplicantIdDocumentsAddPage.whatHappensNext': 'এরপর কী হবে',
+    'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.itIsASeparateCopyChecked':
+      'এটি একটি আলাদা কপি, যেকোনো নতুন ডকুমেন্টের মতোই নিরাপত্তার জন্য পরীক্ষা করা হয়। একটি সরালে অন্যটি সরে যায় না।',
     'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate':
       'ডুপ্লিকেট মুছে ফেলবেন?',
     'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate484f53':
@@ -769,9 +782,13 @@ export const appApplicantCatalog = defineCatalog({
       'ডকুমেন্ট প্রতিস্থাপিত হয়েছে',
     'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.replaceWithANewerDocument':
       'নতুন ডকুমেন্ট দিয়ে প্রতিস্থাপন করুন',
+    'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.theOldDocumentStaysInYour':
+      'পুরোনো ডকুমেন্টটি আপনার রেকর্ডে থাকে, "প্রতিস্থাপিত" চিহ্নিত অবস্থায়। আপনি আগে যা পাঠিয়েছেন তা ঠিক আগের মতোই থাকে।',
     'appApplicant.appApplicantIdDocumentsManageRequestCancelAction.cancelRequest': 'অনুরোধ বাতিল করুন',
     'appApplicant.appApplicantIdDocumentsManageRequestCancelAction.removalRequested':
       'সরানোর অনুরোধ করা হয়েছে',
+    'appApplicant.appApplicantIdDocumentsManageRequestCancelAction.youAskedUsToRemoveDocumentname':
+      'আপনি আমাদের {documentName} সরাতে বলেছেন। আমাদের সহায়তা দল অনুরোধটি দেখছে। তারা সিদ্ধান্ত না নেওয়া পর্যন্ত আপনি এটি বাতিল করতে পারবেন।',
     'appApplicant.appApplicantIdDocumentsManageRequestRequestAction.askUsToRemoveThisFile':
       'এই ডকুমেন্টটি সরাতে আমাদের অনুরোধ করুন',
     'appApplicant.appApplicantIdDocumentsManageRequestRequestAction.whyShouldWeRemoveDocumentname':
@@ -782,6 +799,8 @@ export const appApplicantCatalog = defineCatalog({
       'ডকুমেন্টটি এখনই মুছে ফেলুন',
     'appApplicant.appApplicantIdDocumentsManageSelfDeleteSelfDeleteAction.typeDeleteToConfirm':
       'নিশ্চিত করতে DELETE লিখুন',
+    'appApplicant.appApplicantIdDocumentsNeedsDecision.aSuggestionIsOnlyAGuess':
+      'পরামর্শ কেবল একটি অনুমান। আপনি গ্রহণ না করা পর্যন্ত কিছুই সংরক্ষণ করা হয় না।',
     'appApplicant.appApplicantIdDocumentsNeedsDecision.addANewerCopyIfYou':
       'আপনার কাছে আরও নতুন কপি থাকলে সেটি যোগ করুন, অথবা এটি যেমন আছে তেমনই রাখুন।',
     'appApplicant.appApplicantIdExpiryPage.aboutTheseDates': 'এই তারিখগুলো সম্পর্কে',
@@ -802,12 +821,18 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdHistoryHistoryLog.partOfTheProfile': 'প্রোফাইলের অংশ',
     'appApplicant.appApplicantIdHistoryHistoryLog.profileHistoryEntries': 'প্রোফাইল ইতিহাসের এন্ট্রি',
     'appApplicant.appApplicantIdHistoryHistoryLog.showThisPart': 'এই অংশ দেখান',
+    'appApplicant.appApplicantIdHistoryPage.everySavedValueIsKeptAnd':
+      'প্রতিটি সংরক্ষিত মান রাখা হয় এবং কিছুই মুছে বা বদলে ফেলা হয় না। এটি পুরো ইতিহাস, ক্রম অনুযায়ী, সঙ্গে প্রতিটি মান কোথা থেকে এসেছে।',
     'appApplicant.appApplicantIdHistoryPage.history': 'ইতিহাস',
     'appApplicant.appApplicantIdHistoryPage.nothingSavedToThisProfileYet':
       'এই প্রোফাইলে এখনো কিছু সংরক্ষণ করা হয়নি',
     'appApplicant.appApplicantIdImportImportPanel.addAFolder': 'একটি ফোল্ডার যোগ করুন',
     'appApplicant.appApplicantIdImportImportPanel.dropFilesOrAFolderHere':
       'ডকুমেন্ট বা ফোল্ডার এখানে ছেড়ে দিন',
+    'appApplicant.appApplicantIdImportImportPanel.eachFileIsStoredPrivatelyAnd':
+      'প্রতিটি ডকুমেন্ট গোপনীয়ভাবে সংরক্ষণ করা হয় এবং একটি ডকুমেন্ট আপলোডের মতোই এটি পৌঁছানোর সময় পরীক্ষা করা হয়। শুধু আপনি এবং আপনি যাদের সঙ্গে শেয়ার করবেন তারাই এটি খুলতে পারবেন।',
+    'appApplicant.appApplicantIdImportImportPanel.eachFileWaitsInNeedsOne':
+      'প্রতিটি ডকুমেন্ট "একটি সিদ্ধান্ত দরকার" অংশে অপেক্ষা করে, যেখানে শুধু আপনি তা দেখতে পান, যতক্ষণ না আপনি ঠিক করেন ডকুমেন্টটি কার। ডকুমেন্টে থাকা নাম ও জন্মতারিখ আপনার ঠিক একজনের সঙ্গে মিললেই আমরা সেই ব্যক্তির নাম প্রস্তাব করি।',
     'appApplicant.appApplicantIdImportImportPanel.everyFileYouAddNowIs':
       'এখন থেকে আপনি যে ডকুমেন্ট যোগ করবেন তা এই ব্যক্তির অধীনে সংরক্ষণ হবে। দুটি ডকুমেন্টের মাঝখানে আপনি এটি বদলাতে পারেন।',
     'appApplicant.appApplicantIdImportImportPanel.filesToImport': 'আমদানির ডকুমেন্ট',
@@ -820,14 +845,22 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdImportImportPanel.notSureHelpMeDecide':
       'নিশ্চিত নই, ঠিক করতে সাহায্য করুন',
     'appApplicant.appApplicantIdImportImportPanel.pause': 'বিরতি দিন',
+    'appApplicant.appApplicantIdImportImportPanel.thisBrowserRemembersWhichFilesEarlier':
+      'এই ব্রাউজার মনে রাখে আগের আমদানিতে এখানে কোন ডকুমেন্টগুলো যোগ হয়েছিল (নাম নয়), যাতে আগে যোগ হওয়া ডকুমেন্ট আবার পাঠানো না হয়। আমদানি শেষ করতে একই ফোল্ডার আবার যোগ করুন।',
     'appApplicant.appApplicantIdImportImportPanel.whoAreTheseFilesFor': 'এই ডকুমেন্টগুলো কার জন্য?',
     'appApplicant.appApplicantIdImportImportPanel.yourFiles': 'আপনার ডকুমেন্ট',
+    'appApplicant.appApplicantIdImportImportPanel.yourFilesAreSavedAndChecked':
+      'আপনার ডকুমেন্টগুলো সংরক্ষণ ও পরীক্ষা করা হয়েছে। স্বয়ংক্রিয় পড়া বন্ধ আছে, তাই কিছুই পড়া হয়নি: তথ্য আপনি নিজেই যোগ করবেন। যেগুলোতে আপনার উত্তর দরকার, সেগুলো "একটি সিদ্ধান্ত দরকার" অংশে আছে।',
+    'appApplicant.appApplicantIdPage.aCaseIsWhereOneVisa':
+      'ভিসা ফাইল হলো সেই জায়গা যেখানে একটি ভিসা আবেদনের সব প্রস্তুতি একসঙ্গে থাকে। আপনি যে রুটের পরিকল্পনা করছেন তার জন্য একটি ভিসা ফাইল শুরু করুন, তাহলে আপনার সংরক্ষিত ডকুমেন্টগুলো এর চেকলিস্টের সঙ্গে মিলিয়ে দেখা হবে।',
     'appApplicant.appApplicantIdPage.aboutTheseTotals': 'এই মোট সংখ্যাগুলো সম্পর্কে',
     'appApplicant.appApplicantIdPage.activeCases': 'চলমান ভিসা ফাইল',
     'appApplicant.appApplicantIdPage.allCases': 'সব ভিসা ফাইল →',
     'appApplicant.appApplicantIdPage.checklistProgress': 'চেকলিস্টের অগ্রগতি',
     'appApplicant.appApplicantIdPage.closedAndCancelledCasesAreExcluded':
       'বন্ধ ও বাতিল ভিসা ফাইল বাদ দেওয়া হয়েছে।',
+    'appApplicant.appApplicantIdPage.completenessDoesNotVerifyIdentity':
+      'তথ্য সম্পূর্ণ হলেও তা পরিচয় যাচাই করে না।',
     'appApplicant.appApplicantIdPage.continueCase': 'ভিসা ফাইল চালিয়ে যান →',
     'appApplicant.appApplicantIdPage.continueProfile': 'প্রোফাইল চালিয়ে যান →',
     'appApplicant.appApplicantIdPage.continueWhereYouLeftOff':
@@ -848,6 +881,8 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdPage.noRecordedActivityYet': 'এখনো কোনো কার্যকলাপ রেকর্ড হয়নি',
     'appApplicant.appApplicantIdPage.noUpcomingCaseDates': 'আসন্ন কোনো ভিসা ফাইলের তারিখ নেই',
     'appApplicant.appApplicantIdPage.nothingIsWaitingForYou': 'আপনার জন্য কিছু অপেক্ষায় নেই।',
+    'appApplicant.appApplicantIdPage.openDocumentsToReviewProcessingAnd':
+      'প্রক্রিয়াকরণ ও নিরাপত্তার অবস্থা দেখতে ডকুমেন্ট খুলুন।',
     'appApplicant.appApplicantIdPage.profileChangesUploadsAndCaseUpdates':
       'প্রোফাইলের পরিবর্তন, আপলোড ও ভিসা ফাইলের আপডেট এখানে দেখা যাবে। এটি সাম্প্রতিক রেকর্ডের সারসংক্ষেপ, সম্পূর্ণ অডিট লগ নয়।',
     'appApplicant.appApplicantIdPage.profileHistory': 'প্রোফাইলের ইতিহাস →',
@@ -856,6 +891,8 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdPage.requestsSuggestedDetailsAndFlaggedDocuments':
       'অনুরোধ, পরামর্শ হিসেবে পাওয়া তথ্য এবং চিহ্নিত ডকুমেন্ট।',
     'appApplicant.appApplicantIdPage.requiredItemsOnFile': 'আবশ্যক আইটেম সংরক্ষিত আছে',
+    'appApplicant.appApplicantIdPage.requirementCompletenessIsNotAnApproval':
+      'প্রয়োজনীয় শর্ত পূরণ হওয়া অনুমোদনের পূর্বাভাস নয়।',
     'appApplicant.appApplicantIdPage.setATargetDeadlineOrTravel':
       'কোনো ভিসা ফাইলে লক্ষ্যমাত্রার শেষ তারিখ বা ভ্রমণের তারিখ ঠিক করুন। অ্যাপয়েন্টমেন্ট আলাদা আলাদা ভিসা ফাইলের ক্যালেন্ডারেই থাকে।',
     'appApplicant.appApplicantIdPage.startACase': 'ভিসা ফাইল শুরু করুন',
@@ -891,6 +928,10 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfilePage.aboutSuggestions': 'পরামর্শ সম্পর্কে',
     'appApplicant.appApplicantIdProfilePage.aboutThisProfile': 'এই প্রোফাইল সম্পর্কে',
     'appApplicant.appApplicantIdProfilePage.addInformation': 'তথ্য যোগ করুন',
+    'appApplicant.appApplicantIdProfilePage.aiSuggestionsDoNotChangeYour':
+      'আপনি অনুমোদন না করা পর্যন্ত এআই-এর পরামর্শ আপনার প্রোফাইল বদলায় না। আপনি কোনো তথ্য নিশ্চিত করলে তা ইস্যুকারী নিশ্চিত করার সমান নয়।',
+    'appApplicant.appApplicantIdProfilePage.aiSuggestionsWaitForYourApproval':
+      'এআই-এর পরামর্শ আপনার অনুমোদনের অপেক্ষায় থাকে।',
     'appApplicant.appApplicantIdProfilePage.allProfileHistory': 'প্রোফাইলের পুরো ইতিহাস →',
     'appApplicant.appApplicantIdProfilePage.confirmedByTheTraveller': 'ভ্রমণকারী নিশ্চিত করেছেন',
     'appApplicant.appApplicantIdProfilePage.essentialsAdded': 'প্রয়োজনীয়গুলো যোগ করা হয়েছে',
@@ -899,6 +940,8 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfilePage.latestChanges': 'সাম্প্রতিক পরিবর্তন',
     'appApplicant.appApplicantIdProfilePage.myProfile': 'আমার প্রোফাইল',
     'appApplicant.appApplicantIdProfilePage.noSavedChangesYet': 'এখনও কোনো সংরক্ষিত পরিবর্তন নেই',
+    'appApplicant.appApplicantIdProfilePage.oneReusableSetOfDetailsEvery':
+      'পুনর্ব্যবহারযোগ্য তথ্যের একটি সেট। সংরক্ষিত প্রতিটি পরিবর্তন আপনার ইতিহাসে থেকে যায়।',
     'appApplicant.appApplicantIdProfilePage.profileHealth': 'প্রোফাইলের অবস্থা',
     'appApplicant.appApplicantIdProfilePage.profileHealthAndLatestChanges':
       'প্রোফাইলের অবস্থা ও সাম্প্রতিক পরিবর্তন',
@@ -907,6 +950,10 @@ export const appApplicantCatalog = defineCatalog({
       'ডকুমেন্টের পরামর্শ পর্যালোচনা করুন →',
     'appApplicant.appApplicantIdProfilePage.selectedTravellerAndProfileCompletion':
       'নির্বাচিত ভ্রমণকারী ও প্রোফাইলের সম্পূর্ণতা',
+    'appApplicant.appApplicantIdProfilePage.theseCountsAreSeparateTheyAre':
+      'এই সংখ্যাগুলো আলাদা। এগুলো কোনো কিছু প্রমাণ করার স্কোর নয়। এজেন্সির পর্যালোচনা এবং ইস্যুকারীদের নিশ্চিতকরণ দেখতে একটি ঘর খুলুন।',
+    'appApplicant.appApplicantIdProfilePage.youDecideWhatBecomesAFact':
+      'আপনি ঠিক করেন কোনটি তথ্য হিসেবে গণ্য হবে',
     'appApplicant.appApplicantIdProfilePage.yourSavedFieldVersionsWillAppear':
       'আপনার সংরক্ষিত ঘরের সংস্করণগুলো এখানে দেখা যাবে।',
     'appApplicant.appApplicantIdRecordBrowser.namesKindsCategoriesOrCases':
@@ -922,8 +969,19 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdRecordSections.recordSections': 'রেকর্ডের অংশ',
     'appApplicant.appApplicantIdRemovalRecordsPage.records': 'রেকর্ড',
     'appApplicant.appApplicantIdRemovalRecordsPage.removalRecords': 'সরানোর রেকর্ড',
+    'appApplicant.appApplicantIdRemovalRecordsPage.whatWasDeletedFromThisRecord':
+      'এই রেকর্ড থেকে কী মুছে ফেলা হয়েছে এবং প্রতিটি অপসারণ এখন কোন অবস্থায় আছে। প্রতিটিতে এর রেফারেন্স কোড, ধরন এবং কখন ও কোন অ্যাকাউন্ট থেকে অনুরোধ করা হয়েছিল তা দেখানো হয়; কোনো নাম বা শিরোনাম দেখানো হয় না।',
     'appApplicant.appApplicantIdReviewPage.1FileSaved': '১টি ডকুমেন্ট সংরক্ষণ করা হয়েছে',
+    'appApplicant.appApplicantIdReviewPage.detailsWeReadFromYourDocuments':
+      'আপনার ডকুমেন্ট থেকে আমরা যে তথ্য পড়েছি। আপনি গ্রহণ না করা পর্যন্ত আপনার প্রোফাইলে কিছুই যোগ করা হয় না।',
+    'appApplicant.appApplicantIdReviewPage.filesNotReadYet': 'যেসব ডকুমেন্ট এখনো পড়া হয়নি',
     'appApplicant.appApplicantIdReviewPage.lengthFilesSaved': '{length}টি ডকুমেন্ট সংরক্ষণ করা হয়েছে',
+    'appApplicant.appApplicantIdReviewPage.readThisDocument': 'এই ডকুমেন্ট পড়ুন',
+    'appApplicant.appApplicantIdReviewPage.weCheckEachFileReadIt':
+      'আমরা প্রতিটি ডকুমেন্ট পরীক্ষা করি, পড়ি এবং আপনার অনুমোদনের জন্য তথ্যগুলো আপনার সামনে আনি। আপনি গ্রহণ না করা পর্যন্ত আপনার প্রোফাইলে কিছুই যোগ করা হয় না।',
+    'appApplicant.appApplicantIdReviewPage.whatWeFound': 'আমরা যা পেয়েছি',
+    'appApplicant.appApplicantIdReviewPage.youCanLeaveThisPageWe':
+      'আপনি এই পাতা ছেড়ে যেতে পারেন। আমরা কাজ চালিয়ে যাব, আর তথ্য প্রস্তুত হলে হোম আপনাকে জানাবে।',
     'appApplicant.appApplicantIdReviewPage.yourFilesAreSaved': 'আপনার ডকুমেন্টগুলো সংরক্ষণ করা হয়েছে',
   },
 });

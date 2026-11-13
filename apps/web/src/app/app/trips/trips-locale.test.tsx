@@ -34,7 +34,7 @@ afterEach(() => {
   container.remove();
 });
 
-function show(locale: 'en' | 'bn') {
+function show(locale: 'en' | 'bn', companionsOn = false) {
   act(() =>
     root.render(
       <I18nProvider locale={locale} pageLang="en">
@@ -42,6 +42,7 @@ function show(locale: 'en' | 'bn') {
           countries={[]}
           purposes={[]}
           travellers={[{ applicantId: 'p1', name: 'Rahima Akter' }]}
+          companionsOn={companionsOn}
         />
         <RemoveTravellerForm tripId="t1" applicantId="p1" name="Rahima Akter" />
       </I18nProvider>,
@@ -66,10 +67,19 @@ describe('trip forms under Bengali', () => {
     }
   });
 
-  it('keeps the invitation and sharing statement in English, held back', () => {
+  it('shows the invitation and sharing statement in Bengali when Add Someone Else is open (signed off 2026-11-12)', () => {
     const key = 'appTrips.appTripsTripForms.withAnEmailTheyAreInvited';
     expect(key in en).toBe(true);
-    expect(key in bn).toBe(false);
+    expect(key in bn).toBe(true);
+    show('bn', true);
+    // The button keeps its English name until its own wording is signed off.
+    const toggle = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Add Someone Else',
+    );
+    expect(toggle).toBeTruthy();
+    act(() => toggle?.click());
+    expect(container.textContent).toContain(bn[key]);
+    expect(container.textContent).not.toContain(en[key]);
   });
 });
 

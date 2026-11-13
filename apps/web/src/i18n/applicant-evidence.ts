@@ -65,6 +65,8 @@ export const applicantEvidenceCatalog = defineCatalog({
     'applicantEvidence.appApplicantIdEvidenceAnswerReceipt.answerSent': 'উত্তর পাঠানো হয়েছে',
     'applicantEvidence.appApplicantIdEvidenceAskAboutItemForm.yourQuestion': 'আপনার প্রশ্ন',
     'applicantEvidence.appApplicantIdEvidencePage.aboutRequests': 'অনুরোধ সম্পর্কে',
+    'applicantEvidence.appApplicantIdEvidencePage.anAgencyIsAskingYouFor':
+      'একটি এজেন্সি আপনার কাছে এটি চাইছে। এটি সরকারি নিয়ম নয়।',
     'applicantEvidence.appApplicantIdEvidencePage.nothingIsWaitingForYou':
       'আপনার জন্য কিছু অপেক্ষায় নেই।',
     'applicantEvidence.appApplicantIdEvidencePage.requestsFromAgencies': 'এজেন্সির অনুরোধ',

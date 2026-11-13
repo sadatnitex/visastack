@@ -60,7 +60,7 @@ describe('the public invitation page under Bengali', () => {
     }
   });
 
-  it('keeps the expiry rule and every consent or acceptance sentence in English', async () => {
+  it('shows the expiry rule and the consent or acceptance sentences in Bengali (signed off 2026-11-12)', async () => {
     const page = await render('bn', { kind: 'client', token: TOKEN });
     for (const key of [
       'invitation.invitationPage.invitationsExpireAfter7DaysIf',
@@ -69,14 +69,17 @@ describe('the public invitation page under Bengali', () => {
       'invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou',
       'invitation.invitationClientInvitationOffer.youCanStopSharingAtAny',
     ] as const) {
-      expect(key in invitationCatalog.bn, key).toBe(false);
+      expect(key in invitationCatalog.bn, key).toBe(true);
     }
     expect(page).toContain(
+      invitationCatalog.bn['invitation.invitationPage.invitationsExpireAfter7DaysIf'],
+    );
+    expect(page).not.toContain(
       invitationCatalog.en['invitation.invitationPage.invitationsExpireAfter7DaysIf'],
     );
   });
 
-  it('shows the open offer in Bengali, with the consent sentences still English', async () => {
+  it('shows the open offer in Bengali, including the consent sentences (signed off 2026-11-12)', async () => {
     preview.page = {
       state: 'open',
       view: {
@@ -100,12 +103,14 @@ describe('the public invitation page under Bengali', () => {
       expect(offer).toContain('They Could Not');
       expect(offer).not.toMatch(/invitation\.invitationClientInvitationOffer\./);
       expect(offer).not.toMatch(/\{[A-Za-z]+\}/);
-      // Consent wording is held back: the English sentence shows, not Bengali.
-      expect(offer).toContain(
-        invitationCatalog.en[
-          'invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou'
-        ],
-      );
+      for (const key of [
+        'invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou',
+        'invitation.invitationClientInvitationOffer.nothingIsSharedUntilYouAccept',
+        'invitation.invitationClientInvitationOffer.youCanStopSharingAtAny',
+      ] as const) {
+        expect(offer, key).toContain(invitationCatalog.bn[key]);
+        expect(offer, key).not.toContain(invitationCatalog.en[key]);
+      }
     } finally {
       preview.page = { state: 'unavailable' };
     }

@@ -103,18 +103,19 @@ afterEach(() => {
 });
 
 describe('document insights under Bengali', () => {
-  it('shows Bengali headings in the empty state and keeps the held claims in English', async () => {
+  it('shows Bengali headings and the signed-off summary claim in the empty state', async () => {
     mocks.getTravellerInsights.mockResolvedValue({ ok: true, value: empty() });
     const text = await render('bn');
     expect(text).toMatch(BENGALI);
     expect(text).toContain(bn[`${K}noDocumentsYet`]);
     expect(text).toContain(bn[`${K}noExpiryDatesYet`]);
     expect(text).toContain(bn[`${K}eachVisaApplicationIsACase`]);
-    expect(text).toContain('A summary of your saved documents and profile.');
+    expect(text).toContain(bn[`${K}aSummaryOfYourSavedDocuments`]);
+    expect(text).not.toContain(en[`${K}aSummaryOfYourSavedDocuments`]);
     expect(text).not.toMatch(/applicantInsights\.|\{[A-Za-z]+\}/);
   });
 
-  it('with documents and a case it shows the Bengali Coming Up, Open Cases and Open Profile labels and keeps the values and claims in English', async () => {
+  it('with documents and a case it shows the Bengali Coming Up, Open Cases and Open Profile labels and the summary claim, and keeps the case names as they are', async () => {
     mocks.getTravellerInsights.mockResolvedValue({ ok: true, value: populated() });
     const text = await render('bn');
     expect(text).toContain(bn[`${K}comingUp`]);
@@ -123,7 +124,7 @@ describe('document insights under Bengali', () => {
     expect(text).not.toContain(bn[`${K}noDocumentsYet`]);
     expect(text).not.toContain(bn[`${K}eachVisaApplicationIsACase`]);
     expect(text).toContain('Study Visa');
-    expect(text).toContain('A summary of your saved documents and profile.');
+    expect(text).toContain(bn[`${K}aSummaryOfYourSavedDocuments`]);
     expect(text).not.toMatch(/applicantInsights\.|\{[A-Za-z]+\}/);
   });
 
@@ -134,14 +135,98 @@ describe('document insights under Bengali', () => {
     expect(text).not.toMatch(/applicantInsights\./);
   });
 
-  it('holds back the claims about what the summary reads', () => {
-    for (const k of [
-      'aSummaryOfYourSavedDocuments',
-      'addADocumentAndAcceptWhat',
-      'embassiesUsuallyWantTheseHandedIn',
-    ]) {
+  it('the documents list says which details a document backs, in Bengali', async () => {
+    mocks.getTravellerInsights.mockResolvedValue({
+      ok: true,
+      value: buildTravellerInsights({
+        documents: [
+          {
+            id: 'doc-pass',
+            docType: 'PASSPORT',
+            expiresAt: '2027-01-23T12:00:00.000Z',
+            lifecycle: 'CURRENT',
+            safetyStatus: 'CLEAN',
+            createdAt: '2026-01-01T00:00:00Z',
+            reminderThresholds: [90, 60, 30, 7, 0],
+          },
+          {
+            id: 'doc-bank',
+            docType: 'BANK_STATEMENT',
+            expiresAt: null,
+            lifecycle: 'CURRENT',
+            safetyStatus: 'CLEAN',
+            createdAt: '2026-01-02T00:00:00Z',
+            reminderThresholds: [],
+          },
+        ],
+        facts: [
+          {
+            fieldKey: 'given_name',
+            repeatingRecordKey: null,
+            status: 'DOCUMENT_SUPPORTED',
+            isProtected: false,
+            value: 'Nusrat',
+            comparable: true,
+            sourceDocumentId: 'doc-pass',
+          },
+        ],
+        pendingReadings: [],
+        pendingCheckDocumentIds: [],
+        sections: { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
+        cases: [],
+        now: new Date('2026-10-25T12:00:00Z'),
+      }),
+    });
+    const text = await render('bn');
+    expect(text).toContain(bn[`${K}backsNoSavedDetailsYet`]);
+    expect(text).not.toContain(en[`${K}backsNoSavedDetailsYet`]);
+    expect(text).not.toMatch(/applicantInsights\./);
+  });
+
+  it('a case that asks for a document usually handed in as the original shows the Bengali optional line', async () => {
+    mocks.getTravellerInsights.mockResolvedValue({
+      ok: true,
+      value: buildTravellerInsights({
+        documents: [],
+        facts: [],
+        pendingReadings: [],
+        pendingCheckDocumentIds: [],
+        sections: { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
+        cases: [
+          {
+            id: 'case-1',
+            title: 'Study Visa',
+            hasChecklist: true,
+            readiness: {
+              overallState: 'NEEDS_ACTION',
+              requiredCount: 1,
+              satisfiedRequired: 0,
+              requirementResults: [
+                { kind: 'DOCUMENT', key: 'passport', optional: true, state: 'ATTENTION' },
+              ],
+            },
+          },
+        ],
+        now: new Date('2026-10-25T12:00:00Z'),
+      }),
+    });
+    const text = await render('bn');
+    expect(text).toContain(bn[`${K}optionalForThisCase`]);
+    expect(text).not.toContain(en[`${K}optionalForThisCase`]);
+    expect(text).not.toMatch(/applicantInsights\./);
+  });
+
+  it('keeps the embassy original-paper rule and its badge in English (official rule content)', () => {
+    for (const k of ['embassiesUsuallyWantTheseHandedIn', 'usuallyOriginal']) {
       expect(`${K}${k}` in en).toBe(true);
       expect(`${K}${k}` in bn).toBe(false);
+    }
+  });
+
+  it('has Bengali for the summary claim and the add-a-document claim (signed off 2026-11-12)', () => {
+    for (const k of ['aSummaryOfYourSavedDocuments', 'addADocumentAndAcceptWhat']) {
+      expect(`${K}${k}` in en).toBe(true);
+      expect(`${K}${k}` in bn).toBe(true);
     }
   });
 });

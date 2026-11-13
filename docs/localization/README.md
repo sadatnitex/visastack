@@ -16,6 +16,7 @@ Documentation and data only. Nothing in the product was changed. The language sw
 | `data/` | Glossary, existing Bengali catalogue review, drafting inputs and outputs, journeys, independent review, product copy findings |
 | `data/INDEPENDENT_REVIEW.md`, `data/REVIEW_RESPONSE.md` | A separate session's re-check of this work and what was done about each finding |
 | `data/review-queues/` | Four queues (ordinary UI, commercial, privacy and legal, official visa requirements). Assigned to the owner; nothing is reviewed |
+| `data/RELEASE_CLASSIFICATION_2026-11-12.md`, `.json` | Every group the owner's blanket approval of 2026-11-12 released or kept in English, with the reason. The register and queue `review_state` is derived from it (`tools/release-state.mjs`, `tools/apply-release-state.mjs`) |
 | `data/FLAGGED_AUDIT.csv` | Disposition of each of the 231 drafts flagged at PR head bd5eb8bc |
 | `data/ATTESTATION_STATUS.md` | What wording was observed, what is a language-model recommendation, what was never verified, and the research gaps |
 | `data/NUMBER_DATE_FORMAT_RULES.md`, `data/NUMBER_DATE_AUDIT.csv` | Bengali number and date rules (real `Intl` output) and the audit that no identifier changed |

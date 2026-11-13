@@ -71,7 +71,6 @@ vi.mock('./reading-switch', () => ({ ReadingSwitch: stub('ReadingSwitch') }));
 const { default: AddDocumentsPage } = await import('./page');
 
 const bn = appApplicantCatalog.bn as Record<string, string>;
-const en = appApplicantCatalog.en as Record<string, string>;
 const K = 'appApplicant.appApplicantIdDocumentsAddPage.';
 const BENGALI = /[ঀ-৿]/;
 
@@ -128,12 +127,10 @@ describe('the Add Documents page under Bengali', () => {
     expect(text).not.toMatch(/appApplicant\./);
   });
 
-  it('keeps the drop-your-files sentence, which speaks of automatic reading, in English', async () => {
+  it('shows the drop-your-files sentence, which speaks of automatic reading, in Bengali (signed off 2026-11-12)', async () => {
     const text = await render('bn');
-    expect(`${K}dropYourFilesOrAWhole` in bn).toBe(false);
-    expect(text).toContain(
-      en[`${K}dropYourFilesOrAWhole`] ?? en[`${K}dropYourFilesOrAWhole088508`],
-    );
+    expect(`${K}dropYourFilesOrAWhole` in bn).toBe(true);
+    expect(text).toContain(bn[`${K}dropYourFilesOrAWhole`]);
   });
 
   it('shows the state with details waiting and files needing an answer, held in English', async () => {

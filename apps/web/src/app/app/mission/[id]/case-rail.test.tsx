@@ -7,6 +7,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../../../lib/axe.test-support';
 import { stub } from '../../../../lib/next-mocks.test-support';
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+vi.mock('server-only', () => ({}));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 vi.mock('./attach-pack-form', () => ({ AttachPackForm: stub('AttachPackForm') }));
 vi.mock('./mission-buttons', () => ({
   CaseDetailsForm: stub('CaseDetailsForm'),
@@ -354,5 +365,20 @@ describe('the case rail', () => {
       const html = `<h1>Case</h1>${renderToStaticMarkup(<CaseRail {...state} />)}`;
       expect(await axeViolations(html)).toEqual([]);
     }
+  });
+});
+
+describe('the case rail under Bengali (wording signed off 2026-11-12)', () => {
+  it('says the itinerary reference is an optional label, in Bengali', async () => {
+    const { appMissionCatalog } = await import('../../../../i18n/app-mission');
+    const { primeLocale } = await import('../../../../lib/i18n-server');
+    loc.holder = null;
+    loc.locale = 'bn';
+    await primeLocale();
+    const html = renderToStaticMarkup(<CaseRail {...props()} />);
+    loc.locale = 'en';
+    const key = 'appMission.appMissionIdCaseRail.anOptionalLabelLinkingThisCase';
+    expect(html).toContain((appMissionCatalog.bn as Record<string, string>)[key]);
+    expect(html).not.toContain((appMissionCatalog.en as Record<string, string>)[key]);
   });
 });

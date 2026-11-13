@@ -34,5 +34,7 @@ export const componentsPwaCatalog = defineCatalog({
   bn: {
     'componentsPwa.pwaInstallAppCard.addVisastackToYourHomeScreen':
       'VisaStack আপনার হোম স্ক্রিনে যোগ করুন, অ্যাপের মতো খুলতে পারবেন - এই ওয়েবসাইটের মতোই একই সাইন ইন ও একই রেকর্ড থাকবে।',
+    'componentsPwa.pwaPwaRuntime.youAreOfflineReconnectToContinue':
+      'আপনি অফলাইনে আছেন। নিরাপদে চালিয়ে যেতে আবার সংযুক্ত হন। এখনও পাঠানো হয়নি এমন কিছু সংরক্ষণ করা হয়নি।',
   },
 });

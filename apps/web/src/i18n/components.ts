@@ -187,6 +187,8 @@ export const componentsCatalog = defineCatalog({
     'components.capturePreview.previewOfWhatYouJustCaptured':
       'আপনি এইমাত্র যা তুলেছেন তার প্রিভিউ, পাঠানোর আগে দেখে নেওয়ার জন্য দেখানো হচ্ছে',
     'components.checklistCorrectionForm.chooseOne': 'একটি বেছে নিন',
+    'components.checklistCorrectionForm.doNotIncludeNamesPassportNumbers':
+      'নাম, পাসপোর্ট নম্বর বা অন্য কোনো ব্যক্তিগত তথ্য লিখবেন না।',
     'components.checklistCorrectionForm.whatShouldItSayOptional': 'এতে কী লেখা থাকবে (ঐচ্ছিক)',
     'components.countryBrowser.allCountries': 'সব দেশ',
     'components.countryBrowser.filterByEntryRule': 'প্রবেশের নিয়ম অনুযায়ী ফিল্টার করুন',
@@ -200,14 +202,21 @@ export const componentsCatalog = defineCatalog({
     'components.documentWalletBrowser.category': 'ক্যাটাগরি',
     'components.documentWalletBrowser.documentMetadataList': 'ডকুমেন্টের মেটাডেটা তালিকা',
     'components.documentWalletBrowser.documentStateFilters': 'ডকুমেন্টের অবস্থা অনুযায়ী ফিল্টার',
+    'components.documentWalletBrowser.fileFormatIsCheckedWhenThe':
+      'ডকুমেন্ট খোলার সময় এর ফরম্যাট পরীক্ষা করা হয়। যাচাই করা ফরম্যাটের তথ্য এই মেটাডেটা অংশে রেকর্ড করা হয় না।',
     'components.documentWalletBrowser.next': 'পরবর্তী',
     'components.documentWalletBrowser.noDocumentsYet': 'এখনও কোনো ডকুমেন্ট নেই',
     'components.documentWalletBrowser.notSetYet': 'এখনও ঠিক করা হয়নি',
+    'components.documentWalletBrowser.openTheSecurePreviewBelowPermission':
+      'নিচের নিরাপদ প্রিভিউ খুলুন। ডকুমেন্টের বিষয়বস্তু দেখানোর আগে অনুমতি এবং বর্তমান নিরাপত্তা আবার পরীক্ষা করা হয়।',
     'components.documentWalletBrowser.previous': 'আগের',
+    'components.documentWalletBrowser.reviewSharingPermissions': 'শেয়ারিংয়ের অনুমতি পর্যালোচনা করুন',
     'components.documentWalletBrowser.selectAnAvailableRowToReview':
       'এর মেটাডেটা ও অনুমতিপ্রাপ্ত কাজ দেখতে একটি উপলব্ধ সারি নির্বাচন করুন।',
     'components.documentWalletBrowser.selectedDocument': 'নির্বাচিত ডকুমেন্ট',
     'components.documentWalletBrowser.selectedDocumentDetails': 'নির্বাচিত ডকুমেন্টের বিস্তারিত',
+    'components.documentWalletBrowser.sharingRequiresConsentAnExactReviewed':
+      'শেয়ার করতে সম্মতি, পর্যালোচনা করা সুনির্দিষ্ট পরিসর এবং প্রাপকের গ্রহণ দরকার। আপনি অনুমোদন না করা পর্যন্ত এআই-এর পরামর্শ কখনো আপনার প্রোফাইল হালনাগাদ করে না।',
     'components.documentWalletBrowser.viewSelectedDetails': 'নির্বাচিত বিবরণ দেখুন →',
     'components.documentWalletBrowser.why': 'কেন?',
     'components.purposeChoice.morePurposes': 'আরও উদ্দেশ্য',
@@ -220,5 +229,7 @@ export const componentsCatalog = defineCatalog({
     'components.timeZoneSelect.chooseATimeZone': 'টাইম জোন বেছে নিন',
     'components.versionNotice.aboutThisVersion': 'এই সংস্করণ সম্পর্কে',
     'components.versionNotice.hideThisNotice': 'এই নোটিশ লুকান',
+    'components.visaPhotoSizes.theseChecksAreAGuideOnly':
+      'এই পরীক্ষাগুলো শুধু একটি দিকনির্দেশনা। ছবিটি গ্রহণ করা হবে কি না, তা এগুলো বলতে পারে না।',
   },
 });

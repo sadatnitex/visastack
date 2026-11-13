@@ -87,23 +87,23 @@ describe('the public trust pages under Bengali', () => {
     expect(pack).toContain('UK Visas and Immigration');
   });
 
-  it('keeps the disclaimer, privacy claim and verification status in English', async () => {
+  it('shows the disclaimer, privacy claim and verification status in Bengali (signed off 2026-11-12)', async () => {
     const catalog = await render('bn', 'catalog');
     const pack = await render('bn', 'pack');
     for (const key of [
       'trust.publicTrustStory.clearBoundariesHumanControlNoApproval',
       'trust.publicTrustStory.privateByDesign',
     ] as const) {
-      expect(key in trustCatalog.bn, key).toBe(false);
-      expect(catalog, key).toContain(trustCatalog.en[key]);
+      expect(key in trustCatalog.bn, key).toBe(true);
+      expect(catalog, key).toContain(trustCatalog.bn[key]);
     }
     for (const key of [
       'trust.trustPackkeyPage.officialChannel',
       'trust.trustPackkeyPage.notCurrentlyVerified',
     ] as const) {
-      expect(key in trustCatalog.bn, key).toBe(false);
+      expect(key in trustCatalog.bn, key).toBe(true);
+      expect(pack, key).toContain(trustCatalog.bn[key]);
     }
-    expect(pack).toContain(trustCatalog.en['trust.trustPackkeyPage.officialChannel']);
   });
 
   it('writes the route dates for a Bengali reader, and keeps the English format for English', async () => {

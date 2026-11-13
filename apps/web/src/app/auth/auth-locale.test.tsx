@@ -65,21 +65,24 @@ describe('auth screens under Bengali', () => {
     // These two shared-shell keys have no Bengali yet, so English must show instead of a key.
     expect('auth.authAuthUi.visastack' in authCatalog.bn).toBe(false);
     expect('auth.authAuthUi.youStayInControlOfYour' in authCatalog.bn).toBe(false);
-    // Held back in English (scripts/i18n/register.mjs HOLDBACK, and the privacy, consent and legal
-    // queue until the owner signs it off).
+    // Signed off by the owner on 2026-11-12 (blanket approval): Bengali now.
     for (const key of [
       'auth.authAuthUi.privacy',
       'auth.authAuthUi.terms',
       'auth.authSignUpPage.visastackIsAFreePublicBeta',
       'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing',
     ]) {
-      expect(key in authCatalog.bn, key).toBe(false);
-      expect(signUp.body.textContent ?? '').toContain(
-        authCatalog.en[key as keyof typeof authCatalog.en] ?? 'MISSING',
-      );
+      expect(key in authCatalog.bn, key).toBe(true);
+    }
+    for (const key of [
+      'auth.authSignUpPage.visastackIsAFreePublicBeta',
+      'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing',
+    ] as const) {
+      expect(signUp.body.textContent ?? '').toContain(authCatalog.bn[key]);
     }
     for (const doc of [signIn, signUp]) {
-      expect(doc.body.textContent).toContain('Privacy');
+      expect(doc.body.textContent).toContain(authCatalog.bn['auth.authAuthUi.privacy']);
+      expect(doc.body.textContent).toContain(authCatalog.bn['auth.authAuthUi.terms']);
       expect(doc.body.textContent).toContain(
         authCatalog.en['auth.authAuthUi.youStayInControlOfYour'],
       );

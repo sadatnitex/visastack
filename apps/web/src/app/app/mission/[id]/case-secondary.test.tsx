@@ -5,6 +5,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../../../lib/axe.test-support';
 import { stub } from '../../../../lib/next-mocks.test-support';
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+vi.mock('server-only', () => ({}));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 vi.mock('./attempt-panel', () => ({ AttemptPanel: stub('AttemptPanel') }));
 vi.mock('./collaboration-panels', () => ({
   AppointmentsPanel: stub('AppointmentsPanel'),
@@ -247,5 +258,27 @@ describe('More for This Case', () => {
       const html = `<h1>Case</h1>${renderToStaticMarkup(<CaseSecondary {...withProps({ expanded })} />)}`;
       expect(await axeViolations(html)).toEqual([]);
     }
+  });
+});
+
+describe('the case secondary tabs under Bengali (wording signed off 2026-11-12)', () => {
+  it('shows the signed-off sentences in Bengali', async () => {
+    const { appMissionCatalog } = await import('../../../../i18n/app-mission');
+    const { primeLocale } = await import('../../../../lib/i18n-server');
+    loc.holder = null;
+    loc.locale = 'bn';
+    await primeLocale();
+    const html = renderToStaticMarkup(<CaseSecondary {...withProps()} />);
+    loc.locale = 'en';
+    const bn = appMissionCatalog.bn as Record<string, string>;
+    const en = appMissionCatalog.en as Record<string, string>;
+    for (const key of [
+      'appMission.appMissionIdCaseSecondary.askASponsorOrFamilyMember',
+      'appMission.appMissionIdCaseSecondary.notesAnAgencyWorkingThisCase',
+    ]) {
+      expect(html, key).toContain(bn[key]);
+      expect(html, key).not.toContain(en[key]);
+    }
+    expect(html).not.toMatch(/appMission\.app[A-Z]/);
   });
 });

@@ -62,8 +62,12 @@ export const appTripsCatalog = defineCatalog({
     'appTrips.appTripsPage.groupTrips': 'দলগত ভ্রমণ',
     'appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink':
       '। আমন্ত্রণ শেষ হবে {formatTimestampDate}। উত্তর দিতে আপনার ইমেইলের লিংকটি খুলুন।',
+    'appTrips.appTripsPage.planOneTripForSeveralTravellers':
+      'কয়েকজন ভ্রমণকারীর জন্য একটি ভ্রমণ পরিকল্পনা করুন। প্রত্যেক ভ্রমণকারীর নিজস্ব ভিসা ফাইল, ডকুমেন্ট ও গোপনীয়তা থাকে।',
     'appTrips.appTripsPage.startAGroupTrip': 'দলগত ভ্রমণ শুরু করুন',
     'appTrips.appTripsTripForms.chooseADocument': 'একটি ডকুমেন্ট বেছে নিন',
+    'appTrips.appTripsTripForms.eachTravellerKeepsTheirOwnCase':
+      'প্রত্যেক ভ্রমণকারীর নিজস্ব ভিসা ফাইল, ডকুমেন্ট ও গোপনীয়তা থাকে। আপনি না চাইলে ভ্রমণকারীদের মধ্যে কিছুই শেয়ার হয় না।',
     'appTrips.appTripsTripForms.familyMember': 'পরিবারের সদস্য',
     'appTrips.appTripsTripForms.forExampleJapan': 'যেমন: জাপান',
     'appTrips.appTripsTripForms.minorGuardian': 'অপ্রাপ্তবয়স্ক (অভিভাবক)',
@@ -78,6 +82,8 @@ export const appTripsCatalog = defineCatalog({
     'appTrips.appTripsTripForms.typeANameOrOpenThe': 'একটি নাম লিখুন অথবা তালিকা খুলুন।',
     'appTrips.appTripsTripForms.whereAreYouGoing': 'আপনি কোথায় যাচ্ছেন?',
     'appTrips.appTripsTripForms.whoSTravelling': 'কে কে ভ্রমণ করছেন?',
+    'appTrips.appTripsTripForms.withAnEmailTheyAreInvited':
+      'ইমেইল দিলে তাঁকে যোগ দিতে আমন্ত্রণ জানানো হয় এবং তিনি আপনার সঙ্গে কী শেয়ার করবেন তা বেছে নিতে পারেন।',
     'appTrips.appTripsTripForms.yesRemoveName': 'হ্যাঁ, সরান: {name}',
   },
 });

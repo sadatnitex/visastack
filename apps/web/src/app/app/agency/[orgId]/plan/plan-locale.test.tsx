@@ -54,6 +54,7 @@ vi.mock('./invoices/actions', () => ({
   submitClaimAction: async () => ({ ok: true, message: '' }),
 }));
 
+const { appAgencyCatalog } = await import('../../../../../i18n/app-agency');
 const { default: PlanPage } = await import('./page');
 const { default: InvoicesPage } = await import('./invoices/page');
 const { InvoiceCard } = await import('./invoices/invoice-card');
@@ -140,14 +141,40 @@ afterEach(() => {
 });
 
 describe('Plan and Usage under Bengali', () => {
-  it('reads exactly as English with the plan, price and AI wording held (plan shown)', async () => {
+  it('shows the plan wording in Bengali (signed off 2026-11-12) and keeps the price line English (plan shown)', async () => {
     const { en, bn } = await both(() =>
       renderServer(PlanPage({ params: Promise.resolve({ orgId: ORG }) })),
     );
     expect(en).toContain('the price is BDT 3,000.00');
-    expect(bn).toBe(en);
-    expect(bn).not.toMatch(BENGALI);
+    // The price line holds an English date and amount from helpers that do not follow the reader language.
+    expect(bn).toContain('the price is BDT 3,000.00');
+    expect(bn).toMatch(BENGALI);
+    // Every Bengali message whose English shows on the English page shows in Bengali on this page.
+    const bnCat = appAgencyCatalog.bn as Record<string, string>;
+    const enCat = appAgencyCatalog.en as Record<string, string>;
+    const shownInEnglish = Object.keys(bnCat).filter(
+      (key) =>
+        (enCat[key]?.length ?? 0) > 20 &&
+        !/\{/.test(enCat[key] ?? '') &&
+        en.includes(enCat[key] ?? '\u0000'),
+    );
+    expect(shownInEnglish.length).toBeGreaterThan(0);
+    for (const key of shownInEnglish) expect(bn, key).toContain(bnCat[key]);
     expect(bn).not.toMatch(/appAgency\./);
+  });
+
+  it('says the plan is complimentary during the public beta, in Bengali (signed off 2026-11-12)', async () => {
+    const base = usage();
+    mocks.usage.mockResolvedValue({
+      ...base,
+      value: { ...base.value, entitlements: { ...base.value.entitlements, bypassLimits: true } },
+    });
+    const { bn } = await both(() =>
+      renderServer(PlanPage({ params: Promise.resolve({ orgId: ORG }) })),
+    );
+    const key = 'appAgency.appAgencyOrgidPlanPage.complimentaryDuringPublicBetaNoPayment';
+    expect(bn).toContain((appAgencyCatalog.bn as Record<string, string>)[key]);
+    expect(bn).not.toContain((appAgencyCatalog.en as Record<string, string>)[key]);
   });
 
   it('reads exactly as English when the plan cannot be read for this person', async () => {
