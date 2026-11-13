@@ -7,6 +7,17 @@ import {
   textOf,
 } from '../../../../../lib/next-mocks.test-support';
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+vi.mock('server-only', () => ({}));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 /** Document Requests pages (UMPE P6). Synthetic values only; the services are stand-ins here. */
 
 const mocks = vi.hoisted(() => ({
@@ -541,5 +552,19 @@ describe('Document Requests pages', () => {
     expect(asRequester).toContain('Issued Revisions');
     expect(asRequester).not.toContain('Answers');
     expect(asRequester).not.toContain('Official Checklist Updates');
+  });
+});
+
+describe('the new document request page under Bengali (wording signed off 2026-11-12)', () => {
+  it('says no account or profile is needed, in Bengali', async () => {
+    const { appAgencyCatalog } = await import('../../../../../i18n/app-agency');
+    mocks.principal.mockResolvedValue({ ok: true, value: {} });
+    loc.holder = null;
+    loc.locale = 'bn';
+    const text = textOf(await renderServer(NewPage(props)));
+    loc.locale = 'en';
+    const key = 'appAgency.appAgencyOrgidCollectionNewPage.noAccountOrProfileIsNeeded';
+    expect(text).toContain((appAgencyCatalog.bn as Record<string, string>)[key]);
+    expect(text).not.toContain((appAgencyCatalog.en as Record<string, string>)[key]);
   });
 });

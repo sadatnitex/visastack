@@ -157,3 +157,11 @@ Every string in (d) on the page, the header and the footer is now one catalogue 
 | English | Register row | Draft | Conflict | Held until |
 | --- | --- | --- | --- | --- |
 | Public Trust (footer link to /trust) | SG-c1f08b9e | জনগণের আস্থা | The home page's own link names the same page "পাবলিক ট্রাস্ট" (আমাদের পাবলিক ট্রাস্ট পাতা পড়ুন), and no catalogue has a passing Bengali value for the identical English "Public Trust" to reuse. One page keeps one name. | The owner picks one name for the page; the register row is corrected and the HOLDBACK entry removed in the same change. |
+
+## After the release PR (#560) merged
+
+The release PR released the privacy, consent and legal queue and lifted several holds on the owner's blanket sign-off. On this branch, after merging it:
+
+- Refilled with `codemod.mjs --refill-bn --groups-from RELEASE_CLASSIFICATION_2026-11-12.json`: the header link "Privacy and Control" (গোপনীয়তা ও নিয়ন্ত্রণ) and the footer link "Privacy" (গোপনীয়তা). Both shipped on the blanket sign-off, not as reviewed translations.
+- Main's refill already filled these page strings that this audit listed as held: Record sharing starts with your permission, Select records, review the scope ..., Privacy and sharing are governed by ..., Please use made-up details ..., and the home error sentence.
+- The Public Trust hold (SG-c1f08b9e) is now also a KEPT row in `RELEASE_CLASSIFICATION_2026-11-12.json`, because the HOLDBACK map must equal that file's KEPT list.

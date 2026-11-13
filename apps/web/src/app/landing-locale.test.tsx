@@ -116,7 +116,7 @@ describe('the landing page headings that used to be split by a line break', () =
       'home.page.yesterdayStaysYesterday',
     ] as const) {
       expect(key in bn, key).toBe(false);
-      expect(html, key).toContain(`<h3>${homeCatalog.en[key].replace('\n', '<br/>')}</h3>`);
+      expect(html, key).toContain(`<h3>${homeCatalog.en[key].replaceAll('\n', '<br/>')}</h3>`);
     }
   });
 });
@@ -199,13 +199,17 @@ describe('the site header', () => {
     expect(nav).not.toMatch(/home\.(layout|page)\./);
   });
 
-  it('keeps held and undrafted header words in English under bn', async () => {
+  it('keeps the undrafted form name in English under bn', async () => {
     const nav = header(await shell('bn'));
-    // Privacy wording waits for its queue sign-off; the form name Language has no draft.
-    for (const key of ['home.layout.privacyAndControl', 'home.layout.language'] as const)
-      expect(key in bn, key).toBe(false);
-    expect(nav).toContain('href="/trust">Privacy and Control</a>');
+    expect('home.layout.language' in bn).toBe(false);
     expect(nav).toContain('aria-label="Language"');
+  });
+
+  it('shows the released privacy link in Bengali under bn (owner sign-off of the privacy queue)', async () => {
+    expect(bn['home.layout.privacyAndControl']).toBe('গোপনীয়তা ও নিয়ন্ত্রণ');
+    expect(header(await shell('bn'))).toContain(
+      `href="/trust"><span lang="bn">${bn['home.layout.privacyAndControl']}</span></a>`,
+    );
   });
 
   it('names Sign In exactly as the sign-in screen does under bn', async () => {
@@ -225,10 +229,11 @@ describe('the site header', () => {
   });
 
   it('marks the English that stays as English on a page marked Bengali', async () => {
-    const nav = header(await shell('bn', { pathname: '/auth/sign-in' }));
-    expect(nav).toContain('href="/trust"><span lang="en">Privacy and Control</span></a>');
-    expect(nav).toContain(`href="/#product">${bn['home.layout.product']}</a>`);
-    expect(nav).toContain(`href="/app">${SIGN_IN_BN}</a>`);
+    const html = await shell('bn', { pathname: '/auth/sign-in' });
+    expect(footer(html)).toContain('href="/status"><span lang="en">Status</span></a>');
+    expect(footer(html)).toContain('href="/trust"><span lang="en">Public Trust</span></a>');
+    expect(header(html)).toContain(`href="/#product">${bn['home.layout.product']}</a>`);
+    expect(header(html)).toContain(`href="/app">${SIGN_IN_BN}</a>`);
   });
 });
 
@@ -259,30 +264,24 @@ describe('the site footer', () => {
       ['/#capabilities', 'home.layout.features'],
       ['/status#about-this-version', 'home.layout.aboutThisVersion'],
       ['/terms', 'home.layout.terms'],
+      ['/privacy', 'home.layout.privacy'],
     ] as const)
       expect(foot, key).toContain(`href="${href}"><span lang="bn">${bn[key]}</span></a>`);
     expect(bn['home.layout.footer']).toBe('ফুটার');
     expect(bn['home.layout.features']).toBe('বৈশিষ্ট্য');
     expect(bn['home.layout.aboutThisVersion']).toBe('এই সংস্করণ সম্পর্কে');
     expect(bn['home.layout.terms']).toBe('শর্তাবলি');
+    expect(bn['home.layout.privacy']).toBe('গোপনীয়তা');
     expect(foot).not.toMatch(/home\.(layout|page)\./);
   });
 
   it('keeps held and undrafted footer words in English under bn', async () => {
     const foot = footer(await shell('bn'));
     // Public Trust is held (its draft names the page differently from the page's own link);
-    // Privacy waits for its queue sign-off; Status has no draft.
-    for (const key of [
-      'home.layout.publicTrust',
-      'home.layout.privacy',
-      'home.layout.status',
-    ] as const)
+    // Status has no draft.
+    for (const key of ['home.layout.publicTrust', 'home.layout.status'] as const)
       expect(key in bn, key).toBe(false);
-    for (const fragment of [
-      'href="/trust">Public Trust</a>',
-      'href="/privacy">Privacy</a>',
-      'href="/status">Status</a>',
-    ])
+    for (const fragment of ['href="/trust">Public Trust</a>', 'href="/status">Status</a>'])
       expect(foot, fragment).toContain(fragment);
   });
 });

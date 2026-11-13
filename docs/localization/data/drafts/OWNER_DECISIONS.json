@@ -64,5 +64,24 @@
     "D1_audit_trail_detail": "English extended: ...still holds technical details such as the IP address and device used, an internal reference number, and for invitations, the email address used.",
     "sign_up_notice_versions": "SIGNUP_TERMS_VERSION and SIGNUP_PRIVACY_VERSION raised from 2026-10-24.1 to 2026-11-12.1 because the Terms and Privacy Notice wording changed",
     "note": "Decisions only. No translation is marked reviewed or approved."
+  },
+  "release_blanket_approval_2026-11-12": {
+    "decided_on": "2026-11-12",
+    "decided_by": "owner (in the orchestrator session)",
+    "legal_consent_payment_signoff": {
+      "asked": "sign-off on the held-back legal, consent and payment wording",
+      "owner_words": "okay",
+      "recorded_as": "blanket approval by the owner (editor and legal reviewer) on 2026-11-12, given without a line-by-line reading of the Bengali",
+      "register_review_state": "OWNER_BLANKET_APPROVED_2026-11-12",
+      "effect": "Review queues 02 (COMMERCIAL) and 03 (PRIVACY_CONSENT_LEGAL) and the content holds on ordinary rows are released. Queue 04 (official visa requirements) stays refused. See data/RELEASE_CLASSIFICATION_2026-11-12.md for every released and every kept group."
+    },
+    "box": {
+      "asked": "the Bengali word for 'box'",
+      "owner_words": "same, box",
+      "read_as": "বক্স, the transliteration that sounds like box, not বাক্স",
+      "glossary_term": "T133",
+      "corrections": "one correction per affected group in drafts/bn-BD.corrections.jsonl"
+    },
+    "note": "Decisions only. No translation was reviewed line by line by a human or a lawyer. The word reviewed is not used for any of these rows."
   }
 }

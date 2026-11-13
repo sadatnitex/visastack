@@ -4,6 +4,17 @@ import { textOf } from '../../../../../lib/next-mocks.test-support';
 
 /** The agency's Answers panel (UMPE P7), from stand-in data. Synthetic values only. */
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+vi.mock('server-only', () => ({}));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 vi.mock('./collection-response-actions', () => ({
   downloadResponseFileAction: async () => undefined,
 }));
@@ -165,5 +176,71 @@ describe('the agency Answers panel', () => {
     expect(text).toContain('Needs Correction');
     expect(text).toContain('Kept 30 days after the request closes');
     expect(text).toContain('Place a Legal Hold');
+  });
+});
+
+describe('the agency Answers panel under Bengali (wording signed off 2026-11-12)', () => {
+  it('says whether a guest file was checked for viruses, and why guest files are kept', async () => {
+    const { appAgencyCatalog } = await import('../../../../../i18n/app-agency');
+    const { primeLocale } = await import('../../../../../lib/i18n-server');
+    loc.holder = null;
+    loc.locale = 'bn';
+    await primeLocale();
+    const file = (fileId: string, virusScanned: boolean) => ({
+      kind: 'GUEST_FILE' as const,
+      fileId,
+      title: `${fileId}.pdf`,
+      sizeBytes: 2048,
+      virusScanned,
+    });
+    const html = renderToStaticMarkup(
+      <CollectionResponsesPanel
+        organizationId="o1"
+        requestId="q1"
+        fileUnavailable={false}
+        responses={[]}
+        extras={{
+          guest: [
+            {
+              id: 'gs-1',
+              source: 'guest',
+              status: 'SUBMITTED_TO_AGENCY',
+              submissionNo: 2,
+              revisionNo: 1,
+              submittedAt: new Date('2026-12-03T00:00:00Z'),
+              retentionDays: 30,
+              consentVersion: 'guest-submit-2026-11-02',
+              guestNo: 1,
+              intact: true,
+              lines: [
+                {
+                  itemId: ITEM.id,
+                  item: ITEM,
+                  source: 'guest',
+                  versions: [file('scanned', true), file('unscanned', false)],
+                  missing: false,
+                },
+              ],
+            },
+          ],
+          reviews: new Map(),
+          hold: { reason: 'Court order', placedAt: new Date('2026-12-03T02:00:00Z') },
+        }}
+      />,
+    );
+    loc.locale = 'en';
+    const bn = appAgencyCatalog.bn as Record<string, string>;
+    const en = appAgencyCatalog.en as Record<string, string>;
+    const keys = [
+      'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.checkedForViruses',
+      'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.fileCheckedNotScannedForViruses',
+    ];
+    for (const key of keys) {
+      expect(html, key).toContain(bn[key]);
+      expect(html, key).not.toContain(en[key]);
+    }
+    const holdKey =
+      'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.aLegalHoldKeepsTheGuest';
+    expect(html).toContain((bn[holdKey] ?? '').replace('{reason}', 'Court order'));
   });
 });

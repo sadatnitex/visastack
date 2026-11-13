@@ -17,6 +17,16 @@ const mocks = vi.hoisted(() => ({
   own: vi.fn(),
 }));
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   openCollectionResponseDesk: mocks.desk,
@@ -42,6 +52,7 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
+const { collectCatalog } = await import('../../../i18n/collect');
 const { default: AccountPage, metadata } = await import('./page');
 const { default: AnswersPage } = await import('./answers/page');
 
@@ -92,6 +103,8 @@ const LETTER = {
 
 beforeEach(() => {
   vi.stubEnv('AGENCY_COLLECTION_REQUESTS', 'true');
+  loc.holder = null;
+  loc.locale = 'en';
   mocks.cookie = SESSION;
   for (const fn of [mocks.desk, mocks.people, mocks.access, mocks.propose, mocks.own]) {
     fn.mockReset();
@@ -282,5 +295,42 @@ describe('/collect/account/answers', () => {
     mocks.own.mockResolvedValue({ ok: true, value: [] });
     const text = textOf(await renderServer(AnswersPage({})));
     expect(text).toContain('You have not answered any agency requests yet.');
+  });
+});
+
+describe('/collect/account under Bengali (wording signed off 2026-11-12)', () => {
+  const bn = collectCatalog.bn as Record<string, string>;
+
+  it('an agency VisaStack has not reviewed is said so in Bengali, and nothing can be shared yet', async () => {
+    mocks.desk.mockResolvedValue({ ok: true, value: { ...DESK, agencyReviewed: false } });
+    loc.locale = 'bn';
+    const text = textOf(await renderServer(AccountPage({})));
+    expect(text).toContain(bn['collect.collectAccountPage.thisAgencyIsNotReviewedYet']);
+    expect(text).toContain(bn['collect.collectAccountPage.visastackHasNotFinishedReviewingThe']);
+  });
+
+  it('the list of answers says Submitted to Agency, and what the agency can open, in Bengali', async () => {
+    mocks.own.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          id: 'resp-1',
+          agencyName: 'Synthetic Agency One',
+          destination: 'GB',
+          revisionNo: 1,
+          submittedAt: new Date('2026-12-02T00:00:00Z'),
+          withdrawnAt: null,
+          documents: 1,
+          details: 0,
+          missing: 1,
+        },
+      ],
+    });
+    loc.locale = 'bn';
+    const text = textOf(
+      await renderServer(AnswersPage({ searchParams: Promise.resolve({ sent: '1' }) })),
+    );
+    expect(text).toContain(bn['collect.collectAccountAnswersPage.submittedToAgency']);
+    expect(text).toContain(bn['collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen']);
   });
 });

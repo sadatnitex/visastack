@@ -77,19 +77,36 @@ export const applicantMemoryCatalog = defineCatalog({
       'When you prepare a case, each snapshot you take and confirm is kept here exactly as it was.',
   },
   bn: {
+    'applicantMemory.appApplicantIdMemoryComparePage.1DetailIsStillTheVersion':
+      '১টি তথ্য এখনো এই স্ন্যাপশটে ব্যবহৃত সংস্করণেই আছে।',
+    'applicantMemory.appApplicantIdMemoryComparePage.aNoteWasSavedHiddenHere':
+      'একটি নোট সংরক্ষণ করা হয়েছে (গোপনীয়তার জন্য এখানে লুকানো আছে)',
     'applicantMemory.appApplicantIdMemoryComparePage.howItWasSaved': 'যেভাবে সংরক্ষণ করা হয়েছে',
     'applicantMemory.appApplicantIdMemoryComparePage.inSnapshotVersion': 'স্ন্যাপশট {version}-এ',
+    'applicantMemory.appApplicantIdMemoryComparePage.missiontitleThisDetailAsSnapshotVersion':
+      '{missionTitle}: স্ন্যাপশট {version}-এ এই তথ্য যেভাবে রেকর্ড করা ছিল, আজ ব্যবহৃত সংস্করণের পাশে।',
     'applicantMemory.appApplicantIdMemoryComparePage.none': 'নেই',
     'applicantMemory.appApplicantIdMemoryComparePage.noteSavedWithIt': 'এর সঙ্গে সংরক্ষিত নোট',
+    'applicantMemory.appApplicantIdMemoryComparePage.nothingDiffersByVersionEveryDetail':
+      'সংস্করণের দিক থেকে কোনো পার্থক্য নেই: এই স্ন্যাপশটের প্রতিটি তথ্য ও ডকুমেন্ট এখনো ব্যবহারে থাকা সংস্করণই।',
     'applicantMemory.appApplicantIdMemoryComparePage.result': 'ফলাফল',
     'applicantMemory.appApplicantIdMemoryComparePage.savedOn': 'সংরক্ষণের তারিখ',
     'applicantMemory.appApplicantIdMemoryComparePage.sinceSnapshotVersion':
       'স্ন্যাপশট {version}-এর পর থেকে',
+    'applicantMemory.appApplicantIdMemoryComparePage.snapshotVersionKeepsExactlyWhatIt':
+      'স্ন্যাপশট {version}-এ যা ছিল ঠিক তা-ই থাকে। কোনো তথ্য হালনাগাদ করলে একটি নতুন সংস্করণ যোগ হয়, কিন্তু কোনো স্ন্যাপশট কখনো বদলায় না।',
+    'applicantMemory.appApplicantIdMemoryComparePage.thisOlderSnapshotDidNotRecord':
+      'এই পুরোনো স্ন্যাপশটে হুবহু সংস্করণের তথ্য রাখা হয়নি, তাই পরিবর্তনগুলোর তালিকা দেওয়া যাচ্ছে না।',
     'applicantMemory.appApplicantIdMemoryComparePage.viewSnapshotVersion': 'স্ন্যাপশট {version} দেখুন',
     'applicantMemory.appApplicantIdMemoryMemoryCaseList.nothingHasBeenPreparedForThis':
       'এই ভিসা ফাইলের জন্য এখনো কিছু তৈরি করা হয়নি।',
     'applicantMemory.appApplicantIdMemoryPage.caseHistory': 'ভিসা ফাইলের ইতিহাস',
+    'applicantMemory.appApplicantIdMemoryPage.everyCaseForThisPersonWhat':
+      'এই ব্যক্তির প্রতিটি ভিসা ফাইল: কী প্রস্তুত করা হয়েছে, আপনি কী নিশ্চিত করেছেন, কার সঙ্গে শেয়ার করা হয়েছে, এবং আপনি কী জমা দিয়েছেন বলে জানিয়েছেন। একটি কপি একবার নেওয়ার পর আর কখনো বদলায় না।',
     'applicantMemory.appApplicantIdMemoryPage.noCasesYet': 'এখনো কোনো ভিসা ফাইল নেই',
     'applicantMemory.appApplicantIdMemoryPage.openSharing': 'শেয়ারিং খুলুন',
+    'applicantMemory.appApplicantIdMemoryPage.sharedOutsideACase': 'ভিসা ফাইলের বাইরে শেয়ার করা',
+    'applicantMemory.appApplicantIdMemoryPage.theseSharesAreOfThisPerson':
+      'এই শেয়ারগুলো এই ব্যক্তির রেকর্ডের, কোনো একটি ভিসা ফাইলের নয়।',
   },
 });

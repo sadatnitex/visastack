@@ -79,9 +79,10 @@ describe('the uploader under Bengali', () => {
     const labels = host.innerHTML;
     expect(labels).toContain(`aria-label="${bn[`${K}documentFiles`]}"`);
     expect(labels).toContain(`aria-label="${bn[`${K}cameraPhoto`]}"`);
-    // Held back: where the file is kept and who can open it.
-    expect(`${K}storedPrivatelyOnlyYouAndThe` in bn).toBe(false);
-    expect(text).toContain(en[`${K}storedPrivatelyOnlyYouAndThe`]);
+    // Where the file is kept and who can open it: Bengali since the owner sign-off of 2026-11-12.
+    expect(`${K}storedPrivatelyOnlyYouAndThe` in bn).toBe(true);
+    expect(text).toContain(bn[`${K}storedPrivatelyOnlyYouAndThe`]);
+    expect(text).not.toContain(en[`${K}storedPrivatelyOnlyYouAndThe`]);
     expect(text).not.toMatch(/appApplicant\./);
   });
 

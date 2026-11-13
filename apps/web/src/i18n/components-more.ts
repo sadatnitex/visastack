@@ -47,6 +47,7 @@ export const componentsMoreCatalog = defineCatalog({
       'A safe copy is a new picture of each page with the parts you choose covered in black. It is what people you share safe copies with can download, never the original.',
     'componentsMore.safeCopyEditor.accept': 'Accept',
     'componentsMore.safeCopyEditor.acceptBox': 'Accept Box',
+    'componentsMore.safeCopyEditor.acceptBoxNumber': 'Accept box {number}',
     'componentsMore.safeCopyEditor.addBox': 'Add Box',
     'componentsMore.safeCopyEditor.backToEditing': 'Back to Editing',
     'componentsMore.safeCopyEditor.boxesOnThisPage': 'Boxes on This Page',
@@ -78,6 +79,7 @@ export const componentsMoreCatalog = defineCatalog({
     'componentsMore.safeCopyEditor.previousPage': 'Previous Page',
     'componentsMore.safeCopyEditor.remove': 'Remove',
     'componentsMore.safeCopyEditor.removeBox': 'Remove Box',
+    'componentsMore.safeCopyEditor.removeBoxNumber': 'Remove box {number}',
     'componentsMore.safeCopyEditor.removeSafeCopy': 'Remove Safe Copy',
     'componentsMore.safeCopyEditor.reviewPages': 'Review Pages',
     'componentsMore.safeCopyEditor.safeCopiesAreNotAvailableHere':
@@ -88,11 +90,8 @@ export const componentsMoreCatalog = defineCatalog({
       'Safe copies can be made from PDF files and photos only.',
     'componentsMore.safeCopyEditor.safeCopy': 'Safe Copy',
     'componentsMore.safeCopyEditor.saveSafeCopy': 'Save Safe Copy',
-    'componentsMore.safeCopyEditor.selectBoxNumber': 'Select box {number}',
-    'componentsMore.safeCopyEditor.acceptBoxNumber': 'Accept box {number}',
-    'componentsMore.safeCopyEditor.removeBoxNumber': 'Remove box {number}',
-    'componentsMore.safeCopyEditor.tryAgainToShowPageNumber': 'Try again to show page {number}',
     'componentsMore.safeCopyEditor.select': 'Select',
+    'componentsMore.safeCopyEditor.selectBoxNumber': 'Select box {number}',
     'componentsMore.safeCopyEditor.selectedBox': 'Selected Box',
     'componentsMore.safeCopyEditor.showThePageAgain': 'Show the Page Again',
     'componentsMore.safeCopyEditor.suggestBoxes': 'Suggest Boxes',
@@ -102,6 +101,7 @@ export const componentsMoreCatalog = defineCatalog({
     'componentsMore.safeCopyEditor.thisPageShowsWhenYouScroll':
       'This page shows when you scroll to it.',
     'componentsMore.safeCopyEditor.tryAgain': 'Try Again',
+    'componentsMore.safeCopyEditor.tryAgainToShowPageNumber': 'Try again to show page {number}',
     'componentsMore.safeCopyEditor.youChoseNothingToHideOn':
       'You chose Nothing to Hide on This Document. Each page is shared as a picture, with no hidden text or file details.',
     'componentsMore.sourceNote.wordsCopiedFromTheSource': 'Words Copied from the Source',
@@ -109,12 +109,20 @@ export const componentsMoreCatalog = defineCatalog({
   bn: {
     'componentsMore.casePreparationSummary.actualCaseWorkflowState':
       'ভিসা ফাইলের প্রকৃত কর্মপ্রবাহের অবস্থা',
+    'componentsMore.casePreparationSummary.completenessIsNotAnApprovalProbability':
+      'সম্পূর্ণতা মানে অনুমোদনের সম্ভাবনা নয়। নিচের প্রতিটি প্রয়োজনীয়তা পর্যালোচনা করুন।',
     'componentsMore.casePreparationSummary.evidencePreparationCompleteness': 'প্রমাণ প্রস্তুতির সম্পূর্ণতা',
     'componentsMore.casePreparationSummary.evidenceProgress': 'প্রমাণের অগ্রগতি',
     'componentsMore.casePreparationSummary.howThisIsCounted': 'এটি কীভাবে গণনা করা হয়',
+    'componentsMore.casePreparationSummary.readinessIsCompletenessOnlyNeverAn':
+      'প্রস্তুতি মানে শুধু সম্পূর্ণতা - এটি কখনোই অনুমোদনের সম্ভাবনা নয়।',
+    'componentsMore.casePreparationSummary.theBarCountsRequiredItemsThat':
+      'এই বারে রাখা থাকা আবশ্যক আইটেম গোনা হয়। ঐচ্ছিক ও প্রযোজ্য নয় এমন আইটেম আলাদাভাবে গোনা হয়।',
     'componentsMore.lifecycleRemovalRecordList.nothingHasBeenRemovedFromThis':
       'এই রেকর্ড থেকে কিছু সরানো হয়নি।',
     'componentsMore.profilePhotoAccountPhotoCard.profilePhoto': 'প্রোফাইল ছবি',
+    'componentsMore.profilePhotoAccountPhotoCard.shownBesideYourNameInYour':
+      'আপনার ওয়ার্কস্পেসে আপনার নামের পাশে দেখানো হয়। শুধু আপনি এটি দেখতে পান, আর এটি কখনো ভিসার ছবি হিসেবে ব্যবহার বা শেয়ার করা হয় না।',
     'componentsMore.profilePhotoAccountPhotoCard.yourPhoto': 'আপনার ছবি',
     'componentsMore.requestThreadRequestThread.olderSendsAreNotShownHere':
       'আগে পাঠানোগুলো এখানে দেখানো হয় না।',
@@ -123,6 +131,8 @@ export const componentsMoreCatalog = defineCatalog({
     'componentsMore.safeCopyDownload.makingYourSafeCopyThisCan':
       'আপনার নিরাপদ কপি তৈরি করা হচ্ছে। এতে আধা মিনিট পর্যন্ত লাগতে পারে।',
     'componentsMore.safeCopyDownload.safeCopyDownloaded': 'নিরাপদ কপি ডাউনলোড করা হয়েছে।',
+    'componentsMore.safeCopyEditor.aSafeCopyIsANew':
+      'নিরাপদ কপি হলো প্রতিটি পাতার একটি নতুন ছবি, যাতে আপনার বেছে নেওয়া অংশগুলো কালো রঙে ঢাকা থাকে। আপনি যাঁদের সঙ্গে নিরাপদ কপি শেয়ার করেন, তাঁরা এটিই ডাউনলোড করতে পারেন, মূল ডকুমেন্ট কখনো নয়।',
     'componentsMore.safeCopyEditor.acceptBox': 'বক্স গ্রহণ করুন',
     'componentsMore.safeCopyEditor.changeSafeCopy': 'নিরাপদ কপি বদলান',
     'componentsMore.safeCopyEditor.everyPageMustShowBeforeThe':

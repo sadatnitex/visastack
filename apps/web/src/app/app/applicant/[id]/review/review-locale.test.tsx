@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { primeLocale } from '../../../../../lib/i18n-server';
-import { renderServer, stub, textOf } from '../../../../../lib/next-mocks.test-support';
+import { renderServer, stub, stubProps, textOf } from '../../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
   getApplicant: vi.fn(),
@@ -120,10 +120,46 @@ describe('the What We Found page under Bengali', () => {
     expect(text).toContain(bn[`${K}lengthFilesSaved`]?.replace('{length}', '২'));
   });
 
-  it('keeps what the AI found, and the page title when browsing, in English', async () => {
+  it('shows the What We Found heading in Bengali (signed off 2026-11-12)', async () => {
     const text = await render('bn');
-    expect(`${K}whatWeFound` in bn).toBe(false);
-    expect(text).toContain(en[`${K}whatWeFound`]);
+    expect(`${K}whatWeFound` in bn).toBe(true);
+    expect(text).toContain(bn[`${K}whatWeFound`]);
+  });
+
+  const withStates = (entries: Array<[string, { stage: string; reason?: string }]>) =>
+    mocks.listDocumentReadingStates.mockResolvedValue({
+      ok: true,
+      value: { states: new Map(entries), sourceOfRun: new Map() },
+    });
+  const renderHtml = async (batch?: string) => {
+    current.holder = null;
+    current.locale = 'bn';
+    await primeLocale();
+    return renderServer(
+      WhatWeFoundPage({
+        params: Promise.resolve({ id: 'a1' }),
+        searchParams: Promise.resolve(batch ? { batch } : {}),
+      }),
+    );
+  };
+
+  it('lists the files not read yet in Bengali, and names the button Read This Document (signed off 2026-11-12)', async () => {
+    withStates([[`${D1}-v1`, { stage: 'could_not_read', reason: 'PROTECTED' }]]);
+    const html = await renderHtml();
+    expect(textOf(html)).toContain(bn[`${K}filesNotReadYet`]);
+    expect(stubProps<{ label: string }>(html, 'ReadAgainButton')).toEqual([
+      expect.objectContaining({ label: bn[`${K}readThisDocument`] }),
+    ]);
+  });
+
+  it('tells the person they can leave the page while the files are read', async () => {
+    withStates([
+      [`${D1}-v1`, { stage: 'reading' }],
+      [`${D2}-v1`, { stage: 'checking' }],
+    ]);
+    const text = textOf(await renderHtml(`${D1},${D2}`));
+    expect(text).toContain(bn[`${K}youCanLeaveThisPageWe`]);
+    expect(text).not.toContain(en[`${K}youCanLeaveThisPageWe`]);
   });
 
   it('is the same English as before under English', async () => {

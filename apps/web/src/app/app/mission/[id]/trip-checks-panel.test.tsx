@@ -1,8 +1,19 @@
 import type { TripCheck } from '@visastack/core';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TripChecksPanel, tripChecksSummary } from './trip-checks-panel';
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+vi.mock('server-only', () => ({}));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 const checks: readonly TripCheck[] = [
   {
     key: 'passport_validity',
@@ -86,5 +97,24 @@ describe('trip checks panel', () => {
       meta: 'Could not be checked just now',
       status: null,
     });
+  });
+});
+
+describe('the trip checks panel under Bengali (wording signed off 2026-11-12)', () => {
+  it('shows the signed-off sentences in Bengali', async () => {
+    const { appMissionCatalog } = await import('../../../../i18n/app-mission');
+    const { primeLocale } = await import('../../../../lib/i18n-server');
+    loc.holder = null;
+    loc.locale = 'bn';
+    await primeLocale();
+    const html = renderToStaticMarkup(<TripChecksPanel checks={checks} />);
+    loc.locale = 'en';
+    const bn = appMissionCatalog.bn as Record<string, string>;
+    const en = appMissionCatalog.en as Record<string, string>;
+    for (const key of ['appMission.appMissionIdTripChecksPanel.commonChecksOfYourTripDates']) {
+      expect(html, key).toContain(bn[key]);
+      expect(html, key).not.toContain(en[key]);
+    }
+    expect(html).not.toMatch(/appMission\.app[A-Z]/);
   });
 });

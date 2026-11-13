@@ -65,36 +65,48 @@ function render(locale: 'en' | 'bn', proposals: readonly Finding[], canApprove =
 }
 
 describe('AI review under Bengali', () => {
-  it('shows the Bengali Sensitive badge only on a sensitive detail, and nothing in Bengali elsewhere', () => {
+  it('shows the Bengali Sensitive badge only on a sensitive detail', () => {
     const text = render('bn', [
       finding({ id: 'a', fieldLabel: 'Given Name' }),
       finding({ id: 'b', fieldLabel: 'Passport Number', sensitive: true }),
     ]);
     expect(text).toContain(bn[`${K}sensitive`]);
     expect(host.querySelectorAll('.finding-card .badge')).toHaveLength(3);
-    // Only the one badge is Bengali; the rest of the screen is held back.
-    expect(text.match(/[ঀ-৿]+/g)).toEqual([bn[`${K}sensitive`]]);
+    // One badge is the sensitive one; the Bengali AI wording (signed off 2026-11-12) sits beside it.
+    expect(text.split(bn[`${K}sensitive`] as string)).toHaveLength(2);
   });
 
-  it('shows no Bengali badge when nothing is sensitive, for a clear and a to-check detail', () => {
+  it('shows no Sensitive badge when nothing is sensitive, for a clear and a to-check detail', () => {
     const text = render('bn', [
       finding({ id: 'a', fieldLabel: 'Given Name' }),
       finding({ id: 'b', fieldLabel: 'Occupation', clear: false }),
     ]);
-    expect(text).not.toMatch(BENGALI);
+    expect(text).not.toContain(bn[`${K}sensitive`]);
     expect(text).toContain('Clear');
     expect(text).toContain('Please Check');
   });
 
-  it('keeps the AI promises and the approval wording in English, with no raw key', () => {
+  it('shows the AI promises and the approval wording in Bengali, with no raw key', () => {
     const text = render('bn', [
       finding({ id: 'a', fieldLabel: 'Given Name' }),
       finding({ id: 'd', fieldLabel: 'City', difference: { current: 'Chittagong' } }),
     ]);
     expect(text).toContain('Nothing is saved to your profile until you accept it.');
-    expect(text).toContain(en[`${K}changeItIfItIsNot`]);
-    expect(`${K}changeItIfItIsNot` in bn).toBe(false);
+    expect(text).toContain(bn[`${K}changeItIfItIsNot`]);
+    expect(text).not.toContain(en[`${K}changeItIfItIsNot`]);
     expect(text).not.toMatch(/appApplicant\./);
+  });
+
+  it('says in Bengali when the exact words could not be found in the document', () => {
+    const text = render('bn', [
+      finding({
+        id: 'u',
+        fieldLabel: 'Given Name',
+        evidence: [{ snippet: 'Value', verified: false }],
+      }),
+    ]);
+    expect(text).toContain(bn[`${K}weCouldNotFindTheseExact`]);
+    expect(text).not.toContain(en[`${K}weCouldNotFindTheseExact`]);
   });
 
   it('is the same English as before under English, with the Sensitive badge in English', () => {

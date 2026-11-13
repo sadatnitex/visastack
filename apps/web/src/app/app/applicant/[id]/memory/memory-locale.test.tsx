@@ -214,9 +214,10 @@ describe('Case History under Bengali', () => {
     );
     const { html, text } = await memory('bn');
     expect(text).toContain(bn[`${PAGE}openSharing`]);
-    expect(text).toContain(en[`${PAGE}sharedOutsideACase`]);
-    expect(text).toContain(en[`${PAGE}theseSharesAreOfThisPerson`]);
-    expect(`${PAGE}sharedOutsideACase` in bn).toBe(false);
+    // Bengali since the owner sign-off of 2026-11-12.
+    expect(text).toContain(bn[`${PAGE}sharedOutsideACase`]);
+    expect(text).toContain(bn[`${PAGE}theseSharesAreOfThisPerson`]);
+    expect(`${PAGE}sharedOutsideACase` in bn).toBe(true);
     expect(html).not.toMatch(RAW_KEY);
   });
 
@@ -280,8 +281,29 @@ describe('Then and Now under Bengali', () => {
     const { text } = await compare('bn', { snapshot: SNAP, version: PRIOR });
     expect(text.match(/Hidden here to keep it private/g)).toHaveLength(2);
     expect(text).toContain(bn[`${CMP}none`]);
-    expect(text).toContain('A note was saved (hidden here to keep it private)');
+    expect(text).toContain(bn[`${CMP}aNoteWasSavedHiddenHere`]);
+    expect(text).not.toContain('A note was saved (hidden here to keep it private)');
     expect(text).not.toMatch(RAW_KEY);
+  });
+
+  it('an older snapshot, an unchanged snapshot and a one-detail snapshot are Bengali (signed off 2026-11-12)', async () => {
+    const changesFor = (over: Record<string, unknown>) =>
+      ok({ snapshot: SNAPSHOT, review: REVIEW, changes: [], unchangedDetailCount: 0, ...over });
+    mocks.listChangesSinceSnapshot.mockResolvedValue(
+      changesFor({ snapshot: { ...SNAPSHOT, exact: false } }),
+    );
+    const older = await compare('bn', { snapshot: SNAP });
+    expect(older.text).toContain(bn[`${CMP}thisOlderSnapshotDidNotRecord`]);
+    expect(older.text).not.toContain(en[`${CMP}thisOlderSnapshotDidNotRecord`]);
+
+    mocks.listChangesSinceSnapshot.mockResolvedValue(changesFor({}));
+    const same = await compare('bn', { snapshot: SNAP });
+    expect(same.text).toContain(bn[`${CMP}nothingDiffersByVersionEveryDetail`]);
+
+    mocks.listChangesSinceSnapshot.mockResolvedValue(changesFor({ unchangedDetailCount: 1 }));
+    const one = await compare('bn', { snapshot: SNAP });
+    expect(one.text).toContain(bn[`${CMP}1DetailIsStillTheVersion`]);
+    expect(older.html + same.html + one.html).not.toMatch(RAW_KEY);
   });
 
   it('is the same English as before under English, with no Bengali', async () => {
