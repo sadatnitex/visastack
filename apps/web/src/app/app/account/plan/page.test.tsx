@@ -20,6 +20,20 @@ const mocks = vi.hoisted(() => ({
   count: vi.fn(),
 }));
 
+// The reader language: English unless a test below sets Bengali. React's cache keeps one value per
+// cached function for the test (one request), so the language the page primes reaches its parts.
+const lang = vi.hoisted(() => ({
+  locale: 'en' as 'en' | 'bn',
+  store: new Map<unknown, unknown>(),
+}));
+vi.mock('../../../../lib/locale', () => ({ getLocale: async () => lang.locale }));
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    if (!lang.store.has(build)) lang.store.set(build, build());
+    return lang.store.get(build);
+  },
+}));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com', self: { kind: 'self' } }),
@@ -51,6 +65,29 @@ vi.mock('../../../../lib/ai-usage', async (importOriginal) => ({
 }));
 
 const { default: Page } = await import('./page');
+const { appAccountCatalog } = await import('../../../../i18n/app-account');
+
+/** The page under Bengali: each named message is the catalogue's Bengali, never its English. */
+async function bengali(
+  keys: readonly string[],
+  params: Record<string, string> = {},
+  /** Words that also appear as plain English links elsewhere on the page (outside the catalogue). */
+  shared: readonly string[] = [],
+) {
+  lang.store.clear();
+  lang.locale = 'bn';
+  const text = textOf(await renderServer(Page({ searchParams: Promise.resolve(params) })));
+  const bn = appAccountCatalog.bn as Record<string, string>;
+  const en = appAccountCatalog.en as Record<string, string>;
+  for (const key of keys) {
+    const full = `appAccount.appAccountPlanPage.${key}`;
+    expect(full in bn, key).toBe(true);
+    expect(text, key).toContain(bn[full]);
+    if (!shared.includes(key)) expect(text, key).not.toContain(en[full]);
+  }
+  expect(text).not.toMatch(/appAccount\./);
+  return text;
+}
 const { STREAM_UPLOAD_LIMIT_LABEL } = await import('../../../../lib/upload-preflight');
 
 const MB = 1024 * 1024;
@@ -67,6 +104,8 @@ const feature = (overrides: Record<string, unknown>) => ({
 });
 
 beforeEach(() => {
+  lang.locale = 'en';
+  lang.store.clear();
   navigationState.pathname = '/app/account/plan';
   mocks.count.mockReset();
   mocks.count.mockResolvedValue(undefined);
@@ -253,6 +292,15 @@ describe('Plan & Usage for a traveller', () => {
     expect(text).toContain('Daily limits start again at 6 AM Bangladesh time.');
   });
 
+  it('under Bengali, says which AI features the plan leaves out', async () => {
+    await bengali(['notInYourPlan']);
+  });
+
+  it('under Bengali, names an unnamed plan Your Plan', async () => {
+    mocks.summary.mockResolvedValue({ plan: null, features: null, paidUntil: null, storage: null });
+    await bengali(['yourPlan']);
+  });
+
   it('falls back to the feature state when the plan has no rules to read', async () => {
     mocks.summary.mockResolvedValue({ plan: null, features: null, paidUntil: null, storage: null });
     mocks.applicants.mockResolvedValue([]);
@@ -417,6 +465,43 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     );
   });
 
+  it('under Bengali: the comparison table and the purchase to confirm', async () => {
+    await bengali(
+      [
+        'moreRoom',
+        'comparePlans',
+        'everythingInVisastackStaysFreeDuring',
+        'travellerFreeAndThePaidPlans',
+        'whatYouGet',
+        'price',
+        'storageForTheWholeAccount',
+        'storagePerPerson',
+        'youCanCompareItWithThe',
+      ],
+      {},
+      ['comparePlans'],
+    );
+    mocks.purchase.mockResolvedValue({
+      invoiceId: '00000000-0000-4000-8000-0000000000bb',
+      invoiceRef: 'TP-ABCDEF12-1',
+      planName: 'Traveller Plus',
+      amountMinorUnits: 49900,
+      currency: 'BDT',
+      periodStart: new Date('2026-11-01T10:00:00Z'),
+      periodEnd: new Date('2026-11-30T18:00:00Z'),
+    });
+    await bengali(
+      [
+        'beforeYouPay',
+        'confirmYourPurchase',
+        'coversYouFrom',
+        'coversYouUntil',
+        'noAutomaticChargeWeRemindYou',
+      ],
+      { purchase: '00000000-0000-4000-8000-0000000000bb' },
+    );
+  });
+
   it('says a purchase can no longer be paid, and never reads one for an address that is not an id', async () => {
     const gone = textOf(
       await renderServer(
@@ -561,6 +646,13 @@ describe('renewing a paid plan on Plan & Usage (ADR 0025 T4)', () => {
     expect(text).toContain('Renew Now');
     expect(stubProps(html, 'RenewalForm')).toEqual([{ renews: true }]);
     expect(mocks.renewal.mock.calls[0]?.[1]).toEqual({ kind: 'self' });
+  });
+
+  it('under Bengali, offers Renew Now for the waiting renewal', async () => {
+    const view = renewal({});
+    covered(view.paidUntil);
+    mocks.renewal.mockResolvedValue(view);
+    await bengali(['renewNow']);
   });
 
   it('says when the reminder comes before a renewal is made, and nothing is charged', async () => {

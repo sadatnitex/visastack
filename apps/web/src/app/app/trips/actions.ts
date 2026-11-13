@@ -3,10 +3,11 @@
 import {
   type AuthorizedApplicant,
   COMPANION_INVITATION_DAYS,
-  COMPANION_NAME_PROBLEM,
-  COMPANION_NOT_SWITCHED_ON,
+  COMPANION_NAME_PROBLEM_KEY,
+  COMPANION_NOT_SWITCHED_ON_KEY,
   type CompanionInvitationDelivery,
   type Db,
+  type ServiceError,
   TRIP_MAX_TRAVELLERS,
   accountPrincipal,
   addCompanion,
@@ -35,7 +36,9 @@ import { casePurpose, destinationRefusal, resolveCaseCountry } from '../../../li
 import { createKeyManagementPort } from '../../../lib/providers';
 import { sendEmailNow } from '../../../lib/send-now';
 import { reportServerError } from '../../../lib/server-error';
+import { serviceErrorMessage, serviceKeyMessage } from '../../../lib/service-error-message';
 import { withSession } from '../../../lib/session';
+import { companionRefusalField } from './companion-field';
 import { linkTripChecklist } from './trip-checklist';
 import { tripExists } from './trip-data';
 
@@ -115,17 +118,22 @@ type NewPerson =
  * so their absence means nobody is being added. The name follows the service's own rule and
  * wording, so a bad name is refused here, before anyone else is made.
  */
-function readNewPerson(formData: FormData): NewPerson {
+async function readNewPerson(formData: FormData): Promise<NewPerson> {
   if (!formData.has('newPersonName')) return { status: 'none' };
   const refuse = (message: string, field: string): NewPerson => ({
     status: 'refused',
     result: { ok: false, message, field },
   });
   const name = cleanCompanionName(String(formData.get('newPersonName') ?? ''));
-  if (name === null) return refuse(COMPANION_NAME_PROBLEM, 'newPersonName');
+  if (name === null) {
+    return refuse(await serviceKeyMessage(COMPANION_NAME_PROBLEM_KEY), 'newPersonName');
+  }
   const email = String(formData.get('newPersonEmail') ?? '').trim();
   if (email !== '' && !isEmailAddress(email.toLowerCase())) {
-    return refuse('Enter a valid email address, or leave it empty.', 'newPersonEmail');
+    return refuse(
+      await serviceKeyMessage('umpe_trip_companions.enter_a_valid_email_address_or'),
+      'newPersonEmail',
+    );
   }
   return { status: 'ready', name, email };
 }
@@ -136,7 +144,11 @@ function readNewPerson(formData: FormData): NewPerson {
  */
 async function companionsRefusal(db: Db, person: NewPerson): Promise<ActionState | null> {
   if (person.status !== 'ready' || (await tripCompanionsAvailable(db))) return null;
-  return { ok: false, message: COMPANION_NOT_SWITCHED_ON, field: 'newPersonName' };
+  return {
+    ok: false,
+    message: await serviceKeyMessage(COMPANION_NOT_SWITCHED_ON_KEY),
+    field: 'newPersonName',
+  };
 }
 
 /**
@@ -144,8 +156,8 @@ async function companionsRefusal(db: Db, person: NewPerson): Promise<ActionState
  * for every address, so nothing here depends on whether an address has an account); only the
  * consent refusal gets the usual pointer to Home.
  */
-function companionRefusal(error: { readonly code: string; readonly message: string }): ActionState {
-  return { ok: false, message: consentWords(error.code, error.message) };
+async function companionRefusal(error: ServiceError): Promise<ActionState> {
+  return { ok: false, message: await consentWords(error) };
 }
 
 /** What Add Someone Else did: the usual result, and whether an invitation was due but not queued. */
@@ -229,9 +241,9 @@ async function makeCompanion(
     return sent ? { ok: true, message: '' } : { ok: true, message: '', unsent: true };
   }
   // The form's own fields: the problem is shown beside the one it is about.
-  const refused = companionRefusal(added.error);
+  const refused = await companionRefusal(added.error);
   return added.error.code === 'invalid'
-    ? { ...refused, field: /email/i.test(refused.message) ? 'newPersonEmail' : 'newPersonName' }
+    ? { ...refused, field: companionRefusalField(added.error) }
     : refused;
 }
 
@@ -286,7 +298,7 @@ async function makeMember(
     return {
       refused: {
         ok: false,
-        message: consentWords(made.error.code, made.error.message),
+        message: await consentWords(made.error),
         ...(made.error.code === 'invalid' ? { field: 'newName' } : {}),
       },
     };
@@ -312,10 +324,10 @@ async function travellerProof(db: Db, accountId: string, applicantId: string) {
   );
 }
 
-function consentWords(code: string, message: string): string {
-  return code === 'consent_required'
+async function consentWords(error: ServiceError): Promise<string> {
+  return error.code === 'consent_required'
     ? 'Turn on Let VisaStack Process My Details on Home, then try again.'
-    : message;
+    : serviceErrorMessage(error);
 }
 
 /** Add each ticked traveller in turn; stops at the first refusal and says who was added. */
@@ -335,7 +347,7 @@ async function addEach(
       const lead = added > 0 ? `${added} added. ` : '';
       return {
         ok: false,
-        message: `${lead}${name}: ${consentWords(linked.error.code, linked.error.message)}`,
+        message: `${lead}${name}: ${await consentWords(linked.error)}`,
         field: 'traveller',
       };
     }
@@ -367,7 +379,7 @@ export async function startGroupTripAction(
   const travellers = ticked(formData);
   const member = readNewMember(formData);
   if (member.status === 'refused') return member.result;
-  const person = readNewPerson(formData);
+  const person = await readNewPerson(formData);
   if (person.status === 'refused') return person.result;
   if (travellers.length === 0 && member.status === 'none') {
     return {
@@ -414,7 +426,7 @@ export async function startGroupTripAction(
         return afterMember(
           {
             ok: false,
-            message: `${proof.value.applicant.displayName}: ${consentWords(started.error.code, started.error.message)}`,
+            message: `${proof.value.applicant.displayName}: ${await consentWords(started.error)}`,
             field: 'traveller',
           },
           createdId,
@@ -506,7 +518,7 @@ export async function addTravellersAction(
   const travellers = ticked(formData);
   const member = readNewMember(formData);
   if (member.status === 'refused') return member.result;
-  const person = readNewPerson(formData);
+  const person = await readNewPerson(formData);
   if (person.status === 'refused') return person.result;
   if (travellers.length === 0 && member.status === 'none' && person.status === 'none') {
     return {
@@ -569,7 +581,7 @@ export async function removeTravellerAction(
     const proof = await travellerProof(db, accountId, applicantId);
     if (!proof.ok) return { ok: false, message: TRAVELLER_UNAVAILABLE };
     const removed = await removeTravellerFromTrip(proof.value, tripId);
-    if (!removed.ok) return { ok: false, message: removed.error.message };
+    if (!removed.ok) return { ok: false, message: await serviceErrorMessage(removed.error) };
     return { ok: true, message: '' };
   });
   if (outcome.ok) backToTrip(String(formData.get('tripId')), 'removed');
@@ -593,10 +605,16 @@ export async function addTripEvidenceAction(
       { purpose: 'owner_trip' },
     );
     if (!proof.ok) {
-      return { ok: false, message: 'That document is not available.', field: 'documentId' };
+      return {
+        ok: false,
+        message: await serviceKeyMessage('umpe_trip_service.that_document_is_not_available'),
+        field: 'documentId',
+      };
     }
     const added = await addTripEvidence(proof.value, tripId);
-    if (!added.ok) return { ok: false, message: added.error.message, field: 'documentId' };
+    if (!added.ok) {
+      return { ok: false, message: await serviceErrorMessage(added.error), field: 'documentId' };
+    }
     return { ok: true, message: '' };
   });
   if (outcome.ok) backToTrip(String(formData.get('tripId')), 'shared');
@@ -611,13 +629,16 @@ export async function tripEvidenceAllowanceAction(
   const applicantId = String(formData.get('applicantId') ?? '');
   const allowed = formData.get('allowed') === 'yes';
   if (!UUID.test(evidenceId) || !UUID.test(applicantId)) {
-    return { ok: false, message: 'That shared document is not available.' };
+    return {
+      ok: false,
+      message: await serviceKeyMessage('umpe_trip_service.that_shared_document_is_not_available'),
+    };
   }
   return onTrip(formData, 'tripEvidenceAllowanceAction', async (db, accountId, tripId) => {
     const proof = await travellerProof(db, accountId, applicantId);
     if (!proof.ok) return { ok: false, message: TRAVELLER_UNAVAILABLE };
     const changed = await setTripEvidenceAllowance(proof.value, tripId, evidenceId, allowed);
-    if (!changed.ok) return { ok: false, message: changed.error.message };
+    if (!changed.ok) return { ok: false, message: await serviceErrorMessage(changed.error) };
     return {
       ok: true,
       message: allowed
@@ -634,7 +655,10 @@ export async function removeTripEvidenceAction(
   const evidenceId = String(formData.get('evidenceId') ?? '');
   const applicantId = String(formData.get('applicantId') ?? '');
   if (!UUID.test(evidenceId) || !UUID.test(applicantId)) {
-    return { ok: false, message: 'That shared document is not available.' };
+    return {
+      ok: false,
+      message: await serviceKeyMessage('umpe_trip_service.that_shared_document_is_not_available'),
+    };
   }
   const outcome = await onTrip(
     formData,
@@ -643,7 +667,7 @@ export async function removeTripEvidenceAction(
       const proof = await travellerProof(db, accountId, applicantId);
       if (!proof.ok) return { ok: false, message: TRAVELLER_UNAVAILABLE };
       const removed = await removeTripEvidence(proof.value, tripId, evidenceId);
-      if (!removed.ok) return { ok: false, message: removed.error.message };
+      if (!removed.ok) return { ok: false, message: await serviceErrorMessage(removed.error) };
       return { ok: true, message: '' };
     },
   );
@@ -663,7 +687,7 @@ export async function removeCompanionAction(
     const proof = await organiserProof(db, accountId, tripId);
     if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
     const removed = await removeCompanion(proof, tripId, String(formData.get('companionId') ?? ''));
-    return removed.ok ? { ok: true, message: '' } : companionRefusal(removed.error);
+    return removed.ok ? { ok: true, message: '' } : await companionRefusal(removed.error);
   });
   if (outcome.ok) backToTrip(String(formData.get('tripId')), 'removed-someone');
   return outcome;
@@ -691,7 +715,7 @@ export async function resendCompanionAction(
     // Checked before the link is replaced: with no key service the old link must not be killed.
     if (!keyService()) return { ok: false, message: INVITATION_NOT_SENT };
     const again = await resendInvitation(proof, tripId, companionId);
-    if (!again.ok) return companionRefusal(again.error);
+    if (!again.ok) return await companionRefusal(again.error);
     const sent = await deliverInvitation(proof, tripId, companionId, again.value.invitation);
     return sent
       ? { ok: true, message: INVITATION_SENT }

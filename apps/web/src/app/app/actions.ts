@@ -3,6 +3,7 @@
 import { CONSENT_TYPES, type ConsentType } from '@visastack/core';
 import { type ApplicantRelationship, createApplicant, setConsent } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { serviceErrorMessage } from '../../lib/service-error-message';
 import { withSession } from '../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -31,7 +32,9 @@ export async function setConsentAction(
       type: type as ConsentType,
       granted,
     });
-    if (!set.ok) return { ok: false, message: set.error.message } satisfies ActionState;
+    if (!set.ok) {
+      return { ok: false, message: await serviceErrorMessage(set.error) } satisfies ActionState;
+    }
     return {
       ok: true,
       message: granted ? 'Consent granted.' : 'Consent revoked.',
@@ -90,7 +93,9 @@ export async function createApplicantAction(
       relationship,
       authorityConfirmed,
     });
-    if (!created.ok) return { ok: false, message: created.error.message } satisfies ActionState;
+    if (!created.ok) {
+      return { ok: false, message: await serviceErrorMessage(created.error) } satisfies ActionState;
+    }
     return { ok: true, message: `${displayName} added.` } satisfies ActionState;
   });
   if (result.ok) {

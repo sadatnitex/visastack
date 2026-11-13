@@ -13,10 +13,13 @@ vi.mock('react', async (importOriginal) => ({
 }));
 
 import { appHomeCatalog } from '../../i18n/app-home';
+import { countryStartData } from '../../lib/country-start';
 import { primeLocale } from '../../lib/i18n-server';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
-import { StartCaseTile } from './(home)/home-cards';
-import { FirstRunConsent } from './first-run';
+import { PersonCard, StartCaseTile } from './(home)/home-cards';
+import { RecentActivity } from './(home)/recent-activity';
+import { TidyUpCard } from './(home)/tidy-up';
+import { FirstRunConsent, FirstRunCountry, FirstRunTask } from './first-run';
 
 const BENGALI = /[ঀ-৿]/;
 const bn = appHomeCatalog.bn as Record<string, string>;
@@ -70,6 +73,115 @@ describe('the signed-in home under Bengali', () => {
       expect(names(text), key).toBe(names(en[key] ?? ''));
       expect(text, key).not.toMatch(/\{[^}\w]|[^\w]\}/);
     }
+  });
+});
+
+/** A server piece of home or the first run, drawn as one request in the given language. */
+async function draw(locale: 'en' | 'bn', node: () => React.ReactElement): Promise<string> {
+  current.holder = null;
+  current.locale = locale;
+  await primeLocale();
+  return renderServer(node());
+}
+
+/** The text and spoken names of a piece, with each Bengali value and no English or raw key. */
+function expectBengali(html: string, keys: readonly string[]) {
+  const text = `${textOf(html)}\n${[...html.matchAll(/aria-label="([^"]*)"/g)].map((m) => m[1]).join('\n')}`;
+  for (const key of keys) {
+    const full = `appHome.${key}`;
+    expect(full in bn, key).toBe(true);
+    expect(text, key).toContain(bn[full]);
+    expect(text, key).not.toContain(en[full]);
+  }
+  expect(text).not.toMatch(/appHome\.app[A-Z]/);
+}
+
+describe('the first run under Bengali', () => {
+  it('what do you want to do: every task offered, with Skip for Now', async () => {
+    const html = await draw('bn', () => (
+      <FirstRunTask
+        requestHref="/app/requests/r1"
+        recordsHref="/app/applicant/a1"
+        briefHref="/app/applicant/a1/outputs"
+        countryName="Japan"
+        countryHref="/app/countries/jp"
+        documentsHref="/app/applicant/a1/documents"
+        tripHref="/app/trips/new"
+      />
+    ));
+    expectBengali(html, [
+      'appFirstRun.whatIsUsuallyAskedForAnd',
+      'appFirstRun.completeARequest',
+      'appFirstRun.anAgencyAskedYouForSomething',
+      'appFirstRun.addDocuments',
+      'appFirstRun.uploadAPassportPageOrAny',
+      'appFirstRun.startATrip',
+      'appFirstRun.sayWhereAndWhyAndSee',
+      'appFirstRun.prepareASummary',
+      'appFirstRun.chooseWhatGoesInThenCopy',
+      'appFirstRun.updateOrFindMyRecords',
+      'appFirstRun.documentsDetailsAndDates',
+      'appFirstRun.skipForNow',
+    ]);
+    // Left English at review: the country name inside it comes from an English-only list.
+    expect(textOf(html)).toContain('See Your Japan Checklist');
+  });
+
+  it('where do you want to go: the country step says what it gives, in Bengali', async () => {
+    const html = await draw('bn', () => (
+      <FirstRunCountry data={countryStartData()} iso2={null} action={async () => undefined} />
+    ));
+    expectBengali(html, ['appFirstRun.pickACountryAndSeeWhat', 'appFirstRun.skipForNow']);
+  });
+
+  it('the permission step after a country: the chosen country can be changed, in Bengali', async () => {
+    const html = await draw('bn', () => (
+      <FirstRunConsent locale="bn" hasCountryStep countryName="Japan" countryIso2="JP" />
+    ));
+    expectBengali(html, ['appFirstRun.change']);
+  });
+});
+
+describe('home cards under Bengali', () => {
+  it('a person card says what is needed next, in both states', async () => {
+    const card = (actionNeeded: boolean) => (
+      <PersonCard
+        href="/app/applicant/a1"
+        name="Synthetic Self"
+        documents={0}
+        cases={0}
+        requests={0}
+        actionNeeded={actionNeeded}
+      />
+    );
+    expectBengali(await draw('bn', () => card(true)), ['appHomeCards.actionNeeded']);
+    expectBengali(await draw('bn', () => card(false)), ['appHomeCards.addADocument']);
+  });
+
+  it('recent activity: empty, then with a blocked entry and See All', async () => {
+    expectBengali(
+      await draw('bn', () => <RecentActivity entries={[]} seeAllHref="/app/activity" />),
+      ['appRecentActivity.recentActivity', 'appRecentActivity.nothingYetEachTimeYourRecord'],
+    );
+    const entry = {
+      id: '1',
+      what: 'Opened your record',
+      at: '2026-11-01T00:00:00.000Z',
+      when: '1 Nov 2026',
+      who: 'Acme Visas',
+      blocked: true,
+    };
+    expectBengali(
+      await draw('bn', () => <RecentActivity entries={[entry]} seeAllHref="/app/activity" />),
+      ['appRecentActivity.blocked', 'appRecentActivity.seeAll'],
+    );
+  });
+
+  it('the tidy-up card names its button in Bengali', async () => {
+    expectBengali(
+      await draw('bn', () => <TidyUpCard line="2 copies" href="/app/applicant/a1/documents" />),
+      ['appTidyUp.tidyUp', 'appTidyUp.tidyUpDocuments'],
+    );
   });
 });
 

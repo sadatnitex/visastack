@@ -37,8 +37,18 @@ export const appContributorRequestsCatalog = defineCatalog({
       'PDF, PNG, JPEG, DOCX, TXT or MD · file type and structure are checked on upload.',
   },
   bn: {
+    'appContributorRequests.appContributorRequestsAcceptPage.applicantnameTheTraveller':
+      '{applicantName} (ভ্রমণকারী)',
+    'appContributorRequests.appContributorRequestsAcceptPage.contributorRequest': 'সহযোগীর অনুরোধ',
+    'appContributorRequests.appContributorRequestsAcceptPage.howLongItSKept': 'কত দিন রাখা হবে:',
+    'appContributorRequests.appContributorRequestsAcceptPage.message': 'মেসেজ:',
+    'appContributorRequests.appContributorRequestsAcceptPage.nameHelpingWithThisCase':
+      '{name} (এই ভিসা ফাইলে সাহায্য করছেন)',
+    'appContributorRequests.appContributorRequestsAcceptPage.provideOneDocument': 'একটি ডকুমেন্ট দিন',
     'appContributorRequests.appContributorRequestsAcceptPage.retentiondaysDaysFromUploadUnderThis':
       'আপলোডের দিন থেকে {retentionDays} দিন, এই প্ল্যাটফর্মের সাধারণ রেখে দেওয়ার নীতি অনুযায়ী।',
+    'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentMayBeIncludedIn':
+      'এই ডকুমেন্টটি সেই ভিসা ফাইলে যুক্ত হতে পারে, যা ভ্রমণকারী পর্যালোচনা করে জমা দেন। এমন কিছু আপলোড করবেন না, যা ভ্রমণকারী বা তাঁর ভিসা ফাইলে সাহায্যকারী কেউ শেষ পর্যন্ত দেখুক, তা আপনি চান না।',
     'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentTypeDoesnTHave':
       'এই ধরনের ডকুমেন্টের জন্য এখনো কোনো নির্দিষ্ট রেখে দেওয়ার মেয়াদ ঠিক করা হয়নি।',
     'appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsMissingItsToken':
@@ -47,5 +57,9 @@ export const appContributorRequestsCatalog = defineCatalog({
       'এই লিংকটি বৈধ নয়।',
     'appContributorRequests.appContributorRequestsAcceptPage.thisRequestWasSentToA':
       'এই অনুরোধটি আপনি যে ইমেইল ঠিকানা দিয়ে সাইন ইন করেছেন তার থেকে আলাদা একটি ঠিকানায় পাঠানো হয়েছিল। চালিয়ে যাওয়ার আগে যে ইমেইলে এটি পাঠানো হয়েছিল সেটি দিয়ে সাইন ইন করুন।',
+    'appContributorRequests.appContributorRequestsAcceptPage.whoWillSeeThis': 'এটি যাঁরা দেখবেন:',
+    'appContributorRequests.appContributorRequestsAcceptPage.why': 'কেন:',
+    'appContributorRequests.appContributorRequestsAcceptSubmitEvidenceForm.pdfPngJpegDocxTxtOr':
+      'PDF, PNG, JPEG, DOCX, TXT বা MD · আপলোডের সময় ডকুমেন্টের ফরম্যাট ও কাঠামো পরীক্ষা করা হয়।',
   },
 });
