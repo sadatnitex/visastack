@@ -470,6 +470,34 @@ export const HOLDBACK = new Map([
     'SG-c1f08b9e',
     'Term conflict: this footer draft names the Public Trust page differently from the page link on the home page; one page keeps one name, so it waits for the owner term decision.',
   ],
+  [
+    'SG-1ce16669',
+    'Applicant removal screens: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'SG-5cbaeb71',
+    'Applicant removal screens: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'SG-95ad8477',
+    'Applicant removal screens: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'SG-a467fb90',
+    'Applicant removal screens: the sentence names the Recently Deleted list in quotes, but its tab and menu still show the English name, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'SG-a516cfad',
+    'Applicant removal screens: the sentence names the Recently Deleted list, but its tab and menu still show the English name, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'SG-da772478',
+    'Applicant removal screens: the sentence names the Recently Deleted list, but its tab and menu still show the English name, so a Bengali name would not match what the person sees (label in name).',
+  ],
+  [
+    'SG-32ebd49c',
+    'Applicant removal screens: the sentence names the Ask Us to Remove This File action, but the Manage menu still shows it in English, so a Bengali name would not match what the person sees (label in name).',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

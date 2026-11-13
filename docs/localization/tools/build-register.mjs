@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check, loadGlossary } from './guardrail-check.mjs';
 import { approvedGroups, queueStates, registerStates } from './release-state.mjs';
+import { COMMERCIAL_RE, LEGAL_RE, OFFICIAL_RE } from './review-queue.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const LOC = path.join(ROOT, 'docs/localization');
@@ -93,12 +94,6 @@ const QUEUES = {
   OFFICIAL_VISA_REQUIREMENT: '04-official-visa-requirements',
   ORDINARY_UI: '01-ordinary-ui',
 };
-const LEGAL_RE =
-  /\b(consent|privacy|personal (data|information)|legal hold|legal requirement|retention|retain|erase|erasure|data protection|terms of|terms and|permanently delet\w*|audit trail|anonymi[sz]ed|lawful|withdraw consent|controller|processor)\b/i;
-const COMMERCIAL_RE =
-  /\b(invoice|receipt|refund|payment|price|pricing|billing|fee|fees|checkout|subscription|credit|charge|renew\w*|currency|plan|plans|purchase|paid|quota|fair.use)\b/i;
-const OFFICIAL_RE =
-  /\b(embassy|consulate|visa (rule|requirement|route|centre|center|application centre)|official (source|checklist|rule|requirement|page|website|pack)|immigration authority|checklist pack|issuing authority)\b/i;
 /** Which review queue a group belongs to: by file class first, then by what the words say. Precedence: legal, commercial, official, ordinary. */
 function reviewQueue(g) {
   const text = g.english;

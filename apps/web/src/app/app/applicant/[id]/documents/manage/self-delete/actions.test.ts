@@ -50,6 +50,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('next/server', () => ({ after: mocks.after }));
 
+import { REMOVAL_WORDS } from '../removal-words';
 import { selfDeleteAction, selfDeletePreviewAction } from './actions';
 import { GONE, NOT_ALLOWED, SWITCHED_OFF, TYPE_THE_WORD } from './messages';
 
@@ -78,10 +79,12 @@ describe('Delete My File actions', () => {
     expect(await selfDeletePreviewAction(APPLICANT, DOC)).toEqual({
       ok: false,
       message: SWITCHED_OFF,
+      messageKey: REMOVAL_WORDS.deletingNotAvailable,
     });
     expect(await selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).toEqual({
       ok: false,
       message: SWITCHED_OFF,
+      messageKey: REMOVAL_WORDS.deletingNotAvailable,
     });
     expect(mocks.requireAccess).not.toHaveBeenCalled();
     expect(mocks.previewDeleteMyFile).not.toHaveBeenCalled();
@@ -95,10 +98,12 @@ describe('Delete My File actions', () => {
       expect(await selfDeleteAction(bad, DOC, 'DELETE', NONE)).toEqual({
         ok: false,
         message: GONE,
+        messageKey: REMOVAL_WORDS.fileNoLongerHere,
       });
       expect(await selfDeleteAction(APPLICANT, bad, 'DELETE', NONE)).toEqual({
         ok: false,
         message: GONE,
+        messageKey: REMOVAL_WORDS.fileNoLongerHere,
       });
     }
     expect(mocks.requireAccess).not.toHaveBeenCalled();
@@ -110,10 +115,12 @@ describe('Delete My File actions', () => {
     expect(await selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).toEqual({
       ok: false,
       message: NOT_ALLOWED,
+      messageKey: REMOVAL_WORDS.notOwnerOfRecord,
     });
     expect(await selfDeletePreviewAction(APPLICANT, DOC)).toEqual({
       ok: false,
       message: NOT_ALLOWED,
+      messageKey: REMOVAL_WORDS.notOwnerOfRecord,
     });
     expect(mocks.requireAccess).toHaveBeenCalledWith(
       {},
@@ -144,6 +151,7 @@ describe('Delete My File actions', () => {
     expect(await selfDeleteAction(APPLICANT, DOC, 7 as unknown as string, NONE)).toEqual({
       ok: false,
       message: TYPE_THE_WORD,
+      messageKey: REMOVAL_WORDS.typeTheWordToConfirm,
     });
     expect(mocks.deleteMyFile).not.toHaveBeenCalled();
   });

@@ -12,16 +12,15 @@ import {
 } from '@visastack/services';
 import { documentRemovalRequestsOn } from '../../../../../../../lib/env';
 import { withSession } from '../../../../../../../lib/session';
-import { CANCELLED_MESSAGE, NOT_ALLOWED, REQUESTED_MESSAGE } from './messages';
+import { REMOVAL_WORDS as W, type WordedRefusal, said } from '../removal-words';
+import { CANCELLED_MESSAGE, REQUESTED_MESSAGE } from './messages';
 
 export type RemovalRequestResult =
   | { readonly ok: true; readonly message: string }
-  | { readonly ok: false; readonly message: string };
+  | ({ readonly ok: false; readonly message: string } & Partial<WordedRefusal>);
 
-const SWITCHED_OFF: RemovalRequestResult = {
-  ok: false,
-  message: 'Removal requests are not available yet.',
-};
+const NOT_ALLOWED = said(W.requestNotOwner);
+const SWITCHED_OFF = { ok: false, ...said(W.requestsNotAvailable) } as const;
 
 /** The owner's MANAGE proof for one document of `applicantId`, from the signed-in session. */
 async function manageProof(
@@ -42,35 +41,20 @@ async function manageProof(
 }
 
 /** The person's words for each refusal the service gives (REMOVAL_REQUEST_REFUSALS). */
-const REFUSAL_WORDS: ReadonlyMap<string, string> = new Map([
+const REFUSAL_WORDS: ReadonlyMap<string, WordedRefusal> = new Map([
   [REMOVAL_REQUEST_REFUSALS.notOwner, NOT_ALLOWED],
-  [REMOVAL_REQUEST_REFUSALS.unavailable, SWITCHED_OFF.message],
-  [
-    REMOVAL_REQUEST_REFUSALS.notLive,
-    'This document is already being removed or is in Recently Deleted.',
-  ],
-  [
-    REMOVAL_REQUEST_REFUSALS.legalHold,
-    'We have to keep this document for now because of a legal requirement, so it cannot be removed.',
-  ],
-  [
-    REMOVAL_REQUEST_REFUSALS.alreadyPending,
-    'You already asked us to remove this document. Refresh the page to see the request.',
-  ],
-  [
-    REMOVAL_REQUEST_REFUSALS.notPending,
-    'Support has already decided this request. Refresh the page to see the latest.',
-  ],
-  [REMOVAL_REQUEST_REFUSALS.reason, 'Choose a reason from the list.'],
+  [REMOVAL_REQUEST_REFUSALS.unavailable, said(W.requestsNotAvailable)],
+  [REMOVAL_REQUEST_REFUSALS.notLive, said(W.requestAlreadyRemoving)],
+  [REMOVAL_REQUEST_REFUSALS.legalHold, said(W.requestLegalHold)],
+  [REMOVAL_REQUEST_REFUSALS.alreadyPending, said(W.requestAlreadyAsked)],
+  [REMOVAL_REQUEST_REFUSALS.notPending, said(W.requestAlreadyDecided)],
+  [REMOVAL_REQUEST_REFUSALS.reason, said(W.chooseReasonFromList)],
 ]);
 
-function refusalMessage(code: string, message: string): string {
+function refusalMessage(code: string, message: string): WordedRefusal {
   if (code === 'forbidden') return NOT_ALLOWED;
-  if (code === 'not_found')
-    return 'That document is no longer here. Refresh the page and try again.';
-  return (
-    REFUSAL_WORDS.get(message) ?? 'This request could not be sent. Refresh the page and try again.'
-  );
+  if (code === 'not_found') return said(W.documentNoLongerHere);
+  return REFUSAL_WORDS.get(message) ?? said(W.requestCouldNotBeSent);
 }
 
 /** Ask Us to Remove This File: sends the owner's request, with the reason they chose. */
@@ -81,17 +65,16 @@ export async function requestRemovalAction(
 ): Promise<RemovalRequestResult> {
   if (!documentRemovalRequestsOn()) return SWITCHED_OFF;
   if (!(REMOVAL_REQUEST_REASONS as readonly string[]).includes(reason)) {
-    return { ok: false, message: 'Choose a reason from the list.' };
+    return { ok: false, ...said(W.chooseReasonFromList) };
   }
   return withSession(async ({ db, accountId }): Promise<RemovalRequestResult> => {
     const access = await manageProof(db, accountId, applicantId, documentId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...NOT_ALLOWED };
     const asked = await requestRemoval(access, {
       documentId,
       reason: reason as RemovalRequestReason,
     });
-    if (!asked.ok)
-      return { ok: false, message: refusalMessage(asked.error.code, asked.error.message) };
+    if (!asked.ok) return { ok: false, ...refusalMessage(asked.error.code, asked.error.message) };
     return { ok: true, message: REQUESTED_MESSAGE };
   });
 }
@@ -106,20 +89,16 @@ export async function cancelRemovalRequestAction(
 ): Promise<RemovalRequestResult> {
   return withSession(async ({ db, accountId }): Promise<RemovalRequestResult> => {
     const access = await manageProof(db, accountId, applicantId, documentId);
-    if (!access) return { ok: false, message: NOT_ALLOWED };
+    if (!access) return { ok: false, ...NOT_ALLOWED };
     const requestId = (await pendingRemovalRequests(access, [documentId])).get(
       documentId.toLowerCase(),
     );
     if (!requestId) {
-      return {
-        ok: false,
-        message:
-          'There is no waiting request for this document. Refresh the page to see the latest.',
-      };
+      return { ok: false, ...said(W.noWaitingRequest) };
     }
     const cancelled = await cancelRemovalRequest(access, requestId);
     if (!cancelled.ok) {
-      return { ok: false, message: refusalMessage(cancelled.error.code, cancelled.error.message) };
+      return { ok: false, ...refusalMessage(cancelled.error.code, cancelled.error.message) };
     }
     return { ok: true, message: CANCELLED_MESSAGE };
   });
