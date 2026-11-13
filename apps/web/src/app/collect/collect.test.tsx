@@ -20,6 +20,16 @@ const mocks = vi.hoisted(() => ({
   set: [] as { name: string; value: string; options: Record<string, unknown> }[],
 }));
 
+const loc = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', holder: null as unknown }));
+vi.mock('../../lib/locale', () => ({ getLocale: async () => loc.locale }));
+// Outside the server runtime React's cache remembers nothing; stand in for one request per render.
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  cache: (build: () => unknown) => () => {
+    loc.holder ??= build();
+    return loc.holder;
+  },
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   startGuestSession: mocks.start,
@@ -52,6 +62,7 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
+const { collectCatalog } = await import('../../i18n/collect');
 const { GET } = await import('./open/route');
 const { default: CollectPage, metadata } = await import('./page');
 const actions = await import('./actions');
@@ -123,6 +134,8 @@ beforeEach(() => {
     fn.mockReset();
   }
   mocks.cookie = undefined;
+  loc.holder = null;
+  loc.locale = 'en';
   mocks.set.length = 0;
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -394,5 +407,25 @@ describe('guest actions', () => {
     );
     expect(mocks.end).toHaveBeenCalled();
     expect(mocks.set[0]).toMatchObject({ name: 'vs_collect', value: '' });
+  });
+});
+
+describe('/collect under Bengali (wording signed off 2026-11-12)', () => {
+  const bn = () => collectCatalog.bn as Record<string, string>;
+
+  it('the forwarded-link desk says where the link comes from, in Bengali', async () => {
+    mocks.cookie = SESSION;
+    mocks.desk.mockResolvedValue(LANDING);
+    loc.locale = 'bn';
+    expect(await page()).toContain(bn()['collect.collectPage.thisPrivateLinkComesFromAn']);
+  });
+
+  it('the guest step says to confirm the email before the checklist, in Bengali', async () => {
+    mocks.cookie = SESSION;
+    mocks.desk.mockResolvedValue(LANDING);
+    loc.locale = 'bn';
+    expect(await page({ step: 'guest' })).toContain(
+      bn()['collect.collectPage.toSeeTheChecklistConfirmIt'],
+    );
   });
 });

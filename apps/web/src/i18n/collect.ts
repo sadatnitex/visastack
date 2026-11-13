@@ -124,8 +124,14 @@ export const collectCatalog = defineCatalog({
     'collect.collectRetentionChoice.howLongWhoMayKeepYour': 'How Long {who} May Keep Your Files',
   },
   bn: {
+    'collect.collectAccountAnswersPage.submittedToAgency': 'এজেন্সির কাছে জমা দেওয়া হয়েছে',
+    'collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen':
+      'এজেন্সির কাছে জমা দেওয়া হয়েছে। আপনি পাঠানোর সময় যা বেছে নিয়েছিলেন, ঠিক সেটুকুই তারা খুলতে পারবে।',
     'collect.collectAccountPage.answerAnAgencyRequest': 'এজেন্সির অনুরোধের উত্তর দিন',
+    'collect.collectAccountPage.thisAgencyIsNotReviewedYet': 'এই এজেন্সি এখনো পর্যালোচিত হয়নি',
     'collect.collectAccountPage.thisLinkIsNotOpen': 'এই লিংকটি খোলা নেই',
+    'collect.collectAccountPage.visastackHasNotFinishedReviewingThe':
+      'VisaStack এই অনুরোধ পাঠানো এজেন্সির পর্যালোচনা এখনো শেষ করেনি, তাই এখনই তাদের সঙ্গে কিছু শেয়ার করা যাবে না। কিছুই শেয়ার করা হয়নি। পরে আবার চেষ্টা করুন, অথবা এজেন্সিকে জিজ্ঞাসা করুন।',
     'collect.collectGuestDeskFiles.whatYouSent': 'আপনি যা পাঠিয়েছেন',
     'collect.collectGuestDeskFiles.yourFiles': 'আপনার ডকুমেন্ট',
     'collect.collectGuestProgress.allMandatoryPlaced': 'সব বাধ্যতামূলক বসানো হয়েছে',
@@ -140,7 +146,11 @@ export const collectCatalog = defineCatalog({
     'collect.collectGuestUploader.chooseFiles': 'ডকুমেন্ট বেছে নিন',
     'collect.collectPage.aCodeWasSentToThe':
       'এই অনুরোধ যে ইমেইল ঠিকানায় পাঠানো হয়েছিল, সেখানে একটি কোড পাঠানো হয়েছে।',
+    'collect.collectPage.thisPrivateLinkComesFromAn':
+      'এই ব্যক্তিগত লিংকটি এমন একটি এজেন্সির কাছ থেকে এসেছে, যারা VisaStack-এর মাধ্যমে আপনার কাছে ডকুমেন্ট চেয়েছে। এটি খোলায় কিছুই শেয়ার হয়নি।',
     'collect.collectPage.toComeBackOpenTheLink': 'ফিরে আসতে আপনার বার্তা থেকে লিংকটি আবার খুলুন।',
+    'collect.collectPage.toSeeTheChecklistConfirmIt':
+      'চেকলিস্ট দেখতে নিশ্চিত করুন যে এটি আপনিই: এই অনুরোধ যে ঠিকানায় পাঠানো হয়েছিল, সেখানে আমরা ছয় অঙ্কের একটি কোড ইমেইল করব। কোনো অ্যাকাউন্ট তৈরি হয় না।',
     'collect.collectPage.weSentASixDigitCode':
       'এই অনুরোধ যে ইমেইল ঠিকানায় পাঠানো হয়েছিল, সেখানে আমরা ছয় অঙ্কের একটি কোড পাঠিয়েছি।',
   },

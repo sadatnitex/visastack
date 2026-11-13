@@ -192,7 +192,12 @@ describe('the removal request under Bengali', () => {
     );
     expect(text()).toContain(bn[`${K}RequestCancelAction.removalRequested`]);
     expect(text()).toContain(bn[`${K}RequestCancelAction.cancelRequest`]);
-    expect(text()).toContain('You asked us to remove Passport.');
+    expect(text()).toContain(
+      bn[`${K}RequestCancelAction.youAskedUsToRemoveDocumentname`]?.replace(
+        '{documentName}',
+        'Passport',
+      ),
+    );
     expect(text()).toContain('Keep Request');
   });
 

@@ -146,10 +146,12 @@ describe('the sign-in page under Bengali (a Bengali page)', () => {
     expect(pageLang).toBe('bn');
     const r = wrongLanguage(doc, pageLang, authCatalog as unknown as Catalogue);
     expect(r.bengaliSeen.length).toBeGreaterThan(3);
-    expect(r.fallbackSeen.length).toBeGreaterThan(3);
+    // The Terms and Privacy links are Bengali since the owner's sign-off of 2026-11-12, so fewer
+    // English fallbacks remain on this page.
+    expect(r.fallbackSeen.length).toBeGreaterThan(1);
     expect(r.fallbackNotEn).toEqual([]);
     expect(r.bengaliNotBn).toEqual([]);
-    expect(doc.querySelectorAll('[lang="en"]').length).toBeGreaterThan(3);
+    expect(doc.querySelectorAll('[lang="en"]').length).toBeGreaterThan(1);
     expect(doc.querySelectorAll('[lang="bn"]').length).toBe(0);
   });
 

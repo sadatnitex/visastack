@@ -33,11 +33,18 @@ export const appClientInvitationsCatalog = defineCatalog({
     'appClientInvitations.appClientInvitationsAcceptPage.workWithAnAgency': 'Work with an Agency',
   },
   bn: {
+    'appClientInvitations.appClientInvitationsAcceptAcceptForm.aiTools': 'এআই টুল',
     'appClientInvitations.appClientInvitationsAcceptAcceptForm.profileNameOptional':
       'প্রোফাইলের নাম (ঐচ্ছিক)',
+    'appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe':
+      'আপনি গ্রহণ করলে তাঁরা যা করতে পারবেন:',
+    'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight':
+      'এই আমন্ত্রণ এখন দেখানো যাচ্ছে না। এজেন্সিকে আবার পাঠাতে বলুন।',
     'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsMissingIts':
       'এই আমন্ত্রণ লিংকে টোকেন নেই।',
     'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsNotValid':
       'এই আমন্ত্রণ লিংকটি বৈধ নয়।',
+    'appClientInvitations.appClientInvitationsAcceptPage.turnTheseOnBeforeAcceptingBoth':
+      'গ্রহণ করার আগে এগুলো চালু করুন (দুটিই আবশ্যক):',
   },
 });

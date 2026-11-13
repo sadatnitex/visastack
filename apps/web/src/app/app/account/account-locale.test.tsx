@@ -61,7 +61,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listMembershipsForAccount: async () => [],
   getTravellerPlanSummary: async () => ({
     plan: { key: 'traveller_free', name: 'Traveller Free' },
-    features: {},
+    features: { ai_automatic_reading: { included: true, dailyLimit: null } },
     paidUntil: null,
     storage: { accountBytes: null, personBytes: null },
   }),
@@ -75,7 +75,17 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 }));
 vi.mock('../../../lib/ai-usage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../lib/ai-usage')>()),
-  readAiUsage: async () => [],
+  readAiUsage: async () => [
+    {
+      feature: 'ai_automatic_reading',
+      name: 'Automatic Reading',
+      unit: 'files',
+      used: 1,
+      dailyLimit: null,
+      available: true,
+      reason: null,
+    },
+  ],
 }));
 
 import { I18nProvider } from '../../../components/i18n-provider';
@@ -87,7 +97,6 @@ const { default: PlanPage } = await import('./plan/page');
 
 const BENGALI = /[ঀ-৿]/;
 const bn = appAccountCatalog.bn as Record<string, string>;
-const en = appAccountCatalog.en as Record<string, string>;
 
 async function html(locale: 'en' | 'bn', page: () => Promise<React.JSX.Element>) {
   state.locale = locale;
@@ -116,11 +125,12 @@ beforeEach(() => {
 describe('account page under Bengali', () => {
   it('joins the English depth lines with the English "and", never a Bengali one', async () => {
     const shown = textOf(await account('bn'));
-    expect(shown).toMatch(/Browse: .*your plan, and privacy\./);
-    expect(shown).not.toContain('এবং');
+    const depth = shown.match(/Browse: .*your plan, and privacy\./)?.[0] ?? '';
+    expect(depth).toMatch(/your plan, and privacy\./);
+    expect(depth).not.toContain('এবং');
   });
 
-  it('shows the Bengali drafts on the cards, keeps Data Rights in English, and leaves the language switch as it was', async () => {
+  it('shows the Bengali drafts on the cards, including Data Rights (signed off 2026-11-12), and leaves the language switch as it was', async () => {
     const shown = textOf(await account('bn'));
     for (const k of [
       'account',
@@ -132,7 +142,9 @@ describe('account page under Bengali', () => {
     ]) {
       expect(shown).toContain(bn[`appAccount.appAccountPage.${k}`]);
     }
-    expect(shown).toContain(en['appAccount.appAccountPage.dataRights']);
+    expect(shown).toContain(bn['appAccount.appAccountPage.dataRights']);
+    expect(shown).toContain(bn['appAccount.appAccountPage.exportYourDataReviewConsentHistory']);
+    expect(shown).toContain(bn['appAccount.appAccountPage.yourPlanWhatItIncludesAnd']);
     // The switch: its card text and its button are the English the page always had.
     expect(shown).toContain('Preferences Language Applies immediately across the whole product.');
     expect(shown).toContain('Switch to English');
@@ -192,6 +204,9 @@ describe('plan page under Bengali', () => {
     const shown = textOf(await plan('bn'));
     expect(shown).toContain(bn['appAccount.appAccountPlanPage.storage']);
     expect(shown).toContain(bn['appAccount.appAccountPlanPage.yourWholeAccount']);
+    // The plan's feature rows say what the plan includes and whether it works now (signed off 2026-11-12).
+    expect(shown).toContain(bn['appAccount.appAccountPlanPage.inYourPlan']);
+    expect(shown).toContain(bn['appAccount.appAccountPlanPage.now']);
     expect(textOf(await plan('en'))).not.toMatch(BENGALI);
   });
 });

@@ -170,8 +170,10 @@ describe('the requests page under Bengali', () => {
     expect(text).toContain(bn[`${PAGE}aboutRequests`]);
     expect(text).toContain(bn[`${PANES}requestReference`]);
     expect(html).toContain('R-7K2Q9M');
-    // Held in English: the line that an agency request is not a government rule, the count, the status.
-    expect(text).toContain(en[`${PAGE}anAgencyIsAskingYouFor`]);
+    // The line that an agency request is not a government rule is Bengali since the owner sign-off
+    // of 2026-11-12; the other line, the count and the status stay English.
+    expect(text).toContain(bn[`${PAGE}anAgencyIsAskingYouFor`]);
+    expect(text).not.toContain(en[`${PAGE}anAgencyIsAskingYouFor`]);
     expect(text).toContain(en[`${PAGE}anAgencyRequestIsThatOrganisation`]);
     expect(text).toContain('1 request is waiting for you.');
     expect(text).toContain('Missing');

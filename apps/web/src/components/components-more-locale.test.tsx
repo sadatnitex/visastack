@@ -120,8 +120,11 @@ describe('server components under Bengali', () => {
     const out = await text(<CasePreparationSummary readiness={readiness} />);
     expect(out).toContain(bn('casePreparationSummary.evidenceProgress'));
     expect(out).toContain(bn('casePreparationSummary.howThisIsCounted'));
-    // The progress bar's name is a template with a number in it: it stays one English message.
-    expect(out).toContain('Readiness is completeness only - never an approval likelihood.');
+    // The three explanatory lines are Bengali (owner sign-off of 2026-11-12). The progress bar's name
+    // is a template with a number in it: it stays one English message.
+    expect(out).toContain(bn('casePreparationSummary.readinessIsCompletenessOnlyNeverAn'));
+    expect(out).toContain(bn('casePreparationSummary.completenessIsNotAnApprovalProbability'));
+    expect(out).toContain(bn('casePreparationSummary.theBarCountsRequiredItemsThat'));
     expect(out).toContain('1 of 2');
     expect(out).not.toMatch(RAW_KEY);
     const html = await renderServer(<CasePreparationSummary readiness={readiness} />);
@@ -196,13 +199,14 @@ describe('server components under Bengali', () => {
     expect(many).not.toMatch(RAW_KEY);
   });
 
-  it('photo card: Bengali heading and kicker, privacy sentence and the add link stay English until drafted', async () => {
+  it('photo card: Bengali heading, kicker and privacy sentence; the add link stays English until drafted', async () => {
     const self = await text(
       <AccountPhotoCard photo={{ self: { id: 'p1', name: 'Rahima Akter', photoUrl: null } }} />,
     );
     expect(self).toContain(bn('profilePhotoAccountPhotoCard.profilePhoto'));
     expect(self).toContain(bn('profilePhotoAccountPhotoCard.yourPhoto'));
-    expect(self).toContain('Only you can see it');
+    expect(self).toContain(bn('profilePhotoAccountPhotoCard.shownBesideYourNameInYour'));
+    expect(self).not.toContain('Only you can see it');
     const none = await text(<AccountPhotoCard photo={{ self: null }} />);
     expect(none).toContain(bn('profilePhotoAccountPhotoCard.profilePhoto'));
     expect(none).toContain('Add yourself as a traveller first to add your photo.');
@@ -455,11 +459,12 @@ describe('safe copy editor under Bengali', () => {
     await settle();
   }
 
-  it('closed section: heading and start button are Bengali, the long note and state label stay English', async () => {
+  it('closed section: heading, start button and the long note are Bengali, the state label stays English', async () => {
     await mount();
     expect(container.querySelector('summary')?.textContent).toBe(bn('safeCopyEditor.safeCopy'));
     expect(has(bn('safeCopyEditor.prepareSafeCopy'))).toBe(true);
-    expect(container.textContent).toContain('A safe copy is a new picture of each page');
+    expect(container.textContent).toContain(bn('safeCopyEditor.aSafeCopyIsANew'));
+    expect(container.textContent).not.toContain('A safe copy is a new picture of each page');
     expect(container.textContent).not.toMatch(RAW_KEY);
   });
 

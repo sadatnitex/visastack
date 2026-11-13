@@ -48,7 +48,7 @@ describe('the signed-in home under Bengali', () => {
     expect(text).not.toMatch(/appHome\./);
   });
 
-  it('keeps the consent screen in English where the wording is held back', async () => {
+  it('shows the consent screen in Bengali (signed off 2026-11-12)', async () => {
     const held = [
       'appHome.appFirstRun.letVisastackProcessMyDetails',
       'appHome.appFirstRun.thisDoesNotTurnOnAi',
@@ -56,8 +56,9 @@ describe('the signed-in home under Bengali', () => {
     ];
     const text = await render('bn', 'consent');
     for (const key of held) {
-      expect(key in bn, key).toBe(false);
-      expect(text).toContain(en[key] ?? 'MISSING');
+      expect(key in bn, key).toBe(true);
+      expect(text).toContain(bn[key]);
+      expect(text).not.toContain(en[key] ?? 'MISSING');
     }
     expect(text).not.toMatch(/appHome\.|\{[A-Za-z]+\}/);
   });

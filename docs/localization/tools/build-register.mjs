@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check, loadGlossary } from './guardrail-check.mjs';
+import { approvedGroups, queueStates, registerStates } from './release-state.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const LOC = path.join(ROOT, 'docs/localization');
@@ -42,6 +43,8 @@ for (const f of fs
 const decisions = JSON.parse(
   fs.readFileSync(path.join(draftDir, 'OWNER_DECISIONS.json'), 'utf8'),
 ).decisions;
+// Owner's blanket approval of 2026-11-12: the groups named in data/RELEASE_CLASSIFICATION_2026-11-12.json.
+const APPROVED = approvedGroups();
 const BN_DIGITS = '০১২৩৪৫৬৭৮৯';
 // Text that must keep its original characters: placeholders, tags, URLs, email addresses, and
 // code-like tokens (letters mixed with digits, such as P-A13JCX or ISO8601).
@@ -297,6 +300,11 @@ for (const g of [...groups.values()].sort(
         .join(','),
     );
   if (bn) {
+    const queueState = queueStates(g.sg, APPROVED, {
+      review_state: 'ASSIGNED_NOT_REVIEWED',
+      reviewer_sign_off: '',
+      sign_off_date: '',
+    });
     queues[rq.queue].push(
       [
         g.sg,
@@ -308,9 +316,9 @@ for (const g of [...groups.values()].sort(
         rq.also.join(' '),
         'owner (decision 2026-11-12)',
         'NO',
-        'ASSIGNED_NOT_REVIEWED',
-        '',
-        '',
+        queueState.review_state,
+        queueState.reviewer_sign_off,
+        queueState.sign_off_date,
       ]
         .map(q)
         .join(','),
@@ -322,6 +330,10 @@ for (const g of [...groups.values()].sort(
     if (bn) stats.qualified.drafted++;
   }
   if (checks.includes('VERSION_CONCEPT_REVIEW')) stats.versionReview++;
+  const registerState = registerStates(g.sg, APPROVED, {
+    review_state: bn ? 'ASSIGNED_NOT_REVIEWED' : '',
+    release_state: 'DRAFT_NOT_FOR_RELEASE',
+  });
   out.push(
     [
       g.sg,
@@ -348,8 +360,8 @@ for (const g of [...groups.values()].sort(
       legal,
       bn ? 'owner (decision 2026-11-12)' : '',
       '',
-      bn ? 'ASSIGNED_NOT_REVIEWED' : '',
-      'DRAFT_NOT_FOR_RELEASE',
+      registerState.review_state,
+      registerState.release_state,
       'ar fr de es zh-Hans: NOT_STARTED (Bengali ships first by owner decision; no other locale is justified until the owner names one)',
     ]
       .map(q)

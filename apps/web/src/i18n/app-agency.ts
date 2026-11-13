@@ -769,8 +769,16 @@ export const appAgencyCatalog = defineCatalog({
   bn: {
     'appAgency.appAgencyCreateOrgForm.organizationName': 'প্রতিষ্ঠানের নাম',
     'appAgency.appAgencyOrgidActivityPage.caseActivity': 'ভিসা ফাইলের কার্যকলাপ',
+    'appAgency.appAgencyOrgidActivityPage.newCaseNotesAppearHereWhen':
+      'আপনার টিম কোনো অ্যাক্সেসযোগ্য ভিসা ফাইলে নতুন নোট রেকর্ড করলে সেগুলো এখানে দেখা যাবে।',
     'appAgency.appAgencyOrgidActivityPage.noCaseActivityRecorded':
       'ভিসা ফাইলের কোনো কার্যকলাপ রেকর্ড করা হয়নি',
+    'appAgency.appAgencyOrgidActivityPage.recentNotesOnCasesYouCan':
+      'আপনি যেসব ভিসা ফাইলে অ্যাক্সেস পান, সেগুলোর সাম্প্রতিক নোট। এটি ভিসা ফাইলের কার্যকলাপ, প্রতিষ্ঠানের সম্পূর্ণ অডিট লগ নয়।',
+    'appAgency.appAgencyOrgidActivityPage.showingNotesFromTheTenMost':
+      'সম্প্রতি হালনাগাদ হওয়া দশটি অ্যাক্সেসযোগ্য ভিসা ফাইলের নোট দেখানো হচ্ছে। পুরো ইতিহাস দেখতে ভিসা ফাইল খুলুন।',
+    'appAgency.appAgencyOrgidAgencyAiTurnOff.ended': 'শেষ হয়েছে',
+    'appAgency.appAgencyOrgidAiConnectionsPage.aiTools': 'এআই টুল',
     'appAgency.appAgencyOrgidBrandingForm.agencyWorkspace': 'এজেন্সি ওয়ার্কস্পেস',
     'appAgency.appAgencyOrgidBrandingForm.poweredByVisastack': 'VisaStack দ্বারা চালিত',
     'appAgency.appAgencyOrgidCaseSearchForm.anyStage': 'যেকোনো ধাপ',
@@ -784,11 +792,15 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidCasesListPager.showOlderEntries': 'আগের এন্ট্রি দেখান',
     'appAgency.appAgencyOrgidCasesPage.aboutCases': 'ভিসা ফাইল সম্পর্কে',
     'appAgency.appAgencyOrgidCasesPage.askForADocumentOrDetail': 'ডকুমেন্ট বা তথ্য চান',
+    'appAgency.appAgencyOrgidCasesPage.assignATeamMemberAndLeave':
+      'যে ভিসা ফাইলে এই প্রতিষ্ঠানের অ্যাক্সেস-অনুমতি আছে, সেখানে টিমের একজন সদস্যকে দায়িত্ব দিন এবং ভিসা ফাইলের নোট রাখুন।',
     'appAgency.appAgencyOrgidCasesPage.cases': 'ভিসা ফাইল',
     'appAgency.appAgencyOrgidCasesPage.chooseACaseToOpenIts':
       'ওয়ার্কস্পেস খুলতে একটি ভিসা ফাইল বেছে নিন: সেখানে টিম, নোট, কাজ ও অ্যাপয়েন্টমেন্ট আছে।',
     'appAgency.appAgencyOrgidCasesPage.collaborate': 'একসঙ্গে কাজ',
     'appAgency.appAgencyOrgidCasesPage.deadlineFormatdateonly': '· শেষ তারিখ {formatDateOnly}',
+    'appAgency.appAgencyOrgidCasesPage.noCasesAreReachableYetA':
+      'পৌঁছানো যায় এমন কোনো ভিসা ফাইল এখনো নেই - কোনো ভ্রমণকারীকে নির্দিষ্ট একটি ভিসা ফাইলে এই প্রতিষ্ঠানকে অ্যাক্সেস দিতে হবে।',
     'appAgency.appAgencyOrgidCasesPage.noCasesYet': 'এখনো কোনো ভিসা ফাইল নেই',
     'appAgency.appAgencyOrgidCasesPage.openCase': 'ভিসা ফাইল খুলুন',
     'appAgency.appAgencyOrgidCasesPage.openCasedd4d13': 'ভিসা ফাইল খুলুন',
@@ -814,6 +826,8 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidClientInvitationForm.caseOwner': 'ভিসা ফাইলের মালিক',
     'appAgency.appAgencyOrgidClientInvitationForm.clientEmailAddress': 'ক্লায়েন্টের ইমেইল ঠিকানা',
     'appAgency.appAgencyOrgidClientInvitationForm.janeExampleCom': 'jane@example.com',
+    'appAgency.appAgencyOrgidClientInvitationForm.onlyThatEmailAddressCanAccept':
+      'শুধু সেই ইমেইল ঠিকানাই গ্রহণ করতে পারে।',
     'appAgency.appAgencyOrgidClientInvitationForm.requestedRouteOptional': 'অনুরোধ করা রুট (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidClientInvitationForm.travellerName': 'ভ্রমণকারীর নাম',
     'appAgency.appAgencyOrgidClientInvitationForm.usB1B2BusinessVisa': 'US B1/B2 বিজনেস ভিসা',
@@ -821,6 +835,10 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidClientsPage.aboutRequests': 'অনুরোধ সম্পর্কে',
     'appAgency.appAgencyOrgidClientsPage.activity': 'কার্যকলাপ',
     'appAgency.appAgencyOrgidClientsPage.addPeopleAndRequests': 'ব্যক্তি ও অনুরোধ যোগ করুন',
+    'appAgency.appAgencyOrgidClientsPage.askATravellerForASpecific':
+      'কোনো ভ্রমণকারীর কাছে নির্দিষ্ট তথ্য বা ডকুমেন্ট চান। সেটি দেবেন কি না, তা তিনি নিজে ঠিক করেন।',
+    'appAgency.appAgencyOrgidClientsPage.cannotBeAcceptedRevokeAndInvite':
+      'গ্রহণ করা যাবে না · প্রত্যাহার করে ইমেইলে আবার আমন্ত্রণ জানান',
     'appAgency.appAgencyOrgidClientsPage.clients': 'ক্লায়েন্ট',
     'appAgency.appAgencyOrgidClientsPage.collect': 'সংগ্রহ',
     'appAgency.appAgencyOrgidClientsPage.evidenceRequests': 'প্রমাণের অনুরোধ',
@@ -829,6 +847,8 @@ export const appAgencyCatalog = defineCatalog({
       'যাঁরা ইতিমধ্যে আপনার ক্লায়েন্ট, তাঁদের জন্য।',
     'appAgency.appAgencyOrgidClientsPage.intake': 'প্রাথমিক তথ্য',
     'appAgency.appAgencyOrgidClientsPage.inviteAClient': 'ক্লায়েন্টকে আমন্ত্রণ জানান',
+    'appAgency.appAgencyOrgidClientsPage.inviteATravellerAsANew':
+      'একজন ভ্রমণকারীকে নতুন ক্লায়েন্ট হিসেবে আমন্ত্রণ জানান। ফলে যে ভিসা ফাইলটি তৈরি হবে, সেটি তাঁর নিজের কোন ভ্রমণকারী প্রোফাইলের সঙ্গে যুক্ত হবে, তা শুধু তিনিই বেছে নেন। এই প্রতিষ্ঠান অ্যাক্সেস পায় তাঁর গ্রহণের মাধ্যমে, আমন্ত্রণের মাধ্যমে কখনোই নয়।',
     'appAgency.appAgencyOrgidClientsPage.noClientsInvitedYet':
       'এখনো কোনো ক্লায়েন্টকে আমন্ত্রণ জানানো হয়নি',
     'appAgency.appAgencyOrgidClientsPage.noEvidenceRequestsYet': 'এখনো কোনো প্রমাণের অনুরোধ নেই',
@@ -838,10 +858,14 @@ export const appAgencyCatalog = defineCatalog({
       'যে অনুরোধের লিংকে আপনি গিয়েছিলেন',
     'appAgency.appAgencyOrgidClientsPage.thisIsWhereYouAskA':
       'এখানে আপনি ক্লায়েন্টের কাছে নির্দিষ্ট ডকুমেন্ট বা তথ্য চান। সেটি এলে বা সময় পেরিয়ে গেলে আপনি এখানে দেখতে পাবেন।',
+    'appAgency.appAgencyOrgidClientsPage.thisIsWhereYouInviteThe':
+      'এখানে আপনি যাঁদের সহায়তা করেন তাঁদের আমন্ত্রণ জানান। প্রত্যেকে একটি লিংক পান, নিজের প্রোফাইল তৈরি করেন এবং আপনার সঙ্গে কী শেয়ার করবেন তা বেছে নেন। নিচের ফর্ম দিয়ে শুরু করুন।',
     'appAgency.appAgencyOrgidCollectionCollectionForms.countryOfResidence': 'বসবাসের দেশ',
     'appAgency.appAgencyOrgidCollectionCollectionForms.destination': 'গন্তব্য',
     'appAgency.appAgencyOrgidCollectionCollectionForms.email': 'ইমেইল',
     'appAgency.appAgencyOrgidCollectionCollectionForms.emailAddress': 'ইমেইল ঠিকানা',
+    'appAgency.appAgencyOrgidCollectionCollectionForms.forYourOwnReferenceOnlyNothing':
+      'শুধু আপনার নিজের রেফারেন্সের জন্য। লিংক খুললে কেউ এখানকার কিছু দেখতে পাবেন না।',
     'appAgency.appAgencyOrgidCollectionCollectionForms.name': 'নাম',
     'appAgency.appAgencyOrgidCollectionCollectionForms.nationality': 'জাতীয়তা',
     'appAgency.appAgencyOrgidCollectionCollectionForms.notSureYet': 'এখনো নিশ্চিত নই',
@@ -849,18 +873,38 @@ export const appAgencyCatalog = defineCatalog({
       'ব্যক্তির জন্য নোট (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.purpose': 'উদ্দেশ্য',
     'appAgency.appAgencyOrgidCollectionCollectionForms.specificRouteOptional': 'নির্দিষ্ট রুট (ঐচ্ছিক)',
+    'appAgency.appAgencyOrgidCollectionCollectionForms.theEmailNamesYourAgencyOnly':
+      'ইমেইলে আপনার এজেন্সির নাম শুধু তখনই থাকে, যখন VisaStack সেটি পর্যালোচনা করেছে; রুট, ডকুমেন্ট বা ব্যক্তির নাম কখনোই থাকে না।',
     'appAgency.appAgencyOrgidCollectionCollectionForms.travelFromOptional': 'কোথা থেকে ভ্রমণ (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.travelToOptional': 'কোথায় ভ্রমণ (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.whatYouAlreadyKnowOptional':
       'আপনি আগে থেকে যা জানেন (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionForms.whoItIsForOptional': 'কাদের জন্য (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidCollectionCollectionLinkPanel.copyLink': 'লিংক কপি করুন',
+    'appAgency.appAgencyOrgidCollectionCollectionLinkPanel.privateRequestLink':
+      'ব্যক্তিগত অনুরোধের লিংক',
+    'appAgency.appAgencyOrgidCollectionCollectionLinkPanel.thisLinkIsShownOnlyOnce':
+      'এই লিংকটি শুধু একবারই দেখানো হয়। WhatsApp খুললে একটি বার্তা তৈরি হয়; সেটি পাঠাবেন কি না তা আপনি ঠিক করেন, এবং পাঠানো হয়েছে কি না তা VisaStack দেখতে পারে না। অনুরোধ প্রত্যাহার করলে লিংকটি বন্ধ হয়ে যায়।',
+    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.aLegalHoldKeepsTheGuest':
+      'আইনি হোল্ডের কারণে এই অনুরোধের অতিথিদের ডকুমেন্ট অতিথিদের বেছে নেওয়া সময়ের পরেও রাখা হচ্ছে। কারণ: {reason}',
+    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.checkedForViruses':
+      'ভাইরাসের জন্য পরীক্ষা করা হয়েছে',
+    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.eachAnswerHoldsOnlyWhatThe':
+      'প্রতিটি উত্তরে শুধু সেটুকুই থাকে, যা ব্যক্তিটি বেছে নিয়েছিলেন - পাঠানোর সময় যেমন ছিল ঠিক তেমনই। আপনি নিশ্চিত করার পর ডকুমেন্টগুলো মূল ডকুমেন্ট হিসেবে ডাউনলোড হয়।',
+    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.fileCheckedNotScannedForViruses':
+      'ডকুমেন্টের ফরম্যাট পরীক্ষা করা হয়েছে, ভাইরাস স্ক্যান করা হয়নি',
+    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.guestFilesAreDeletedWhenThe':
+      'অতিথিদের ডকুমেন্ট মুছে ফেলা হয় যখন এই অনুরোধ বন্ধ হওয়ার পর প্রত্যেক অতিথির বেছে নেওয়া সময় শেষ হয়। আইনি হোল্ড থাকলে আপনি তা ছেড়ে না দেওয়া পর্যন্ত ডকুমেন্টগুলো রাখা হয়।',
+    'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.noAnswersYetAPersonWho':
+      'এখনো কোনো উত্তর আসেনি। আপনার লিংকের মাধ্যমে কেউ উত্তর দিলে - সাইন ইন করে হোক বা অ্যাকাউন্ট ছাড়াই - তিনি যা পাঠাতে বেছে নিয়েছেন ঠিক তা-সহ এখানে দেখা যাবে।',
     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisAnswerHasChangedSinceIt':
       'পাঠানোর পর এই উত্তর বদলে গেছে, সাধারণত কারণ ব্যক্তিটি তাঁর রেকর্ড থেকে একটি ডকুমেন্ট সরিয়েছেন। তাঁকে আবার উত্তর দিতে বলুন।',
     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.thisSubmissionNoLongerMatchesWhat':
       'এই জমা আর যা পাঠানো হয়েছিল তার সঙ্গে মিলছে না, তাই এর ডকুমেন্টগুলো দেওয়া হচ্ছে না।',
     'appAgency.appAgencyOrgidCollectionCollectionResponsePanel.titleVersionVersionnumber':
       '{title}, সংস্করণ {versionNumber}',
+    'appAgency.appAgencyOrgidCollectionNewPage.noAccountOrProfileIsNeeded':
+      'এখনো কোনো অ্যাকাউন্ট বা প্রোফাইলের দরকার নেই। কিছু পাঠানোর আগে আপনি চেকলিস্টটি দেখে নিতে পারবেন।',
     'appAgency.appAgencyOrgidCollectionPage.acceptedAccepted': '{accepted}টি গ্রহণ করা হয়েছে',
     'appAgency.appAgencyOrgidCollectionPage.for': 'জন্য:',
     'appAgency.appAgencyOrgidCollectionPage.noRequestsMatchBothFiltersTurn':
@@ -868,7 +912,11 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidCollectionPage.startOneWithNewRequestYou':
       'নতুন অনুরোধ দিয়ে শুরু করুন। আপনি এটি ব্যক্তিগত লিংক হিসেবে বা ইমেইলে ইস্যু করতে পারবেন।',
     'appAgency.appAgencyOrgidCollectionRequestPage.checklist': 'চেকলিস্ট',
+    'appAgency.appAgencyOrgidCollectionRequestPage.closeItWhenYouHaveWhat':
+      'প্রয়োজনীয় সবকিছু পেয়ে গেলে এটি বন্ধ করুন, অথবা তুলে নিতে প্রত্যাহার করুন। দুই ক্ষেত্রেই সব লিংক কাজ করা বন্ধ করবে।',
     'appAgency.appAgencyOrgidCollectionRequestPage.copiedLink': 'লিংক কপি করা হয়েছে',
+    'appAgency.appAgencyOrgidCollectionRequestPage.issuingFreezesThisChecklistAsA':
+      'ইস্যু করলে এই চেকলিস্ট একটি নম্বরযুক্ত সংস্করণ হিসেবে স্থির হয়ে যায়, যা আর কখনো বদলায় না, এবং একটি ব্যক্তিগত লিংক তৈরি হয়। আবার ইস্যু করলে পুরোনো লিংকগুলো বাতিল হয়ে নতুন সংস্করণের জন্য একটি লিংক পাওয়া যায়।',
     'appAgency.appAgencyOrgidCollectionRequestPage.sentBy': 'যিনি পাঠিয়েছেন',
     'appAgency.appAgencyOrgidCollectionRequestPage.share': 'শেয়ার করুন',
     'appAgency.appAgencyOrgidCollectionRequestPage.travelDates': 'ভ্রমণের তারিখ',
@@ -883,6 +931,8 @@ export const appAgencyCatalog = defineCatalog({
       'প্রথমে শেষ তারিখ পেরিয়ে যাওয়া আইটেম, তারপর {CHASE_AFTER_DAYS} দিনের পরও উত্তর না আসা অনুরোধ, পর্যালোচনার অপেক্ষায় থাকা আইটেম, সময় পেরিয়ে যাওয়া কাজ এবং মালিকহীন ভিসা ফাইল।',
     'appAgency.appAgencyOrgidDoNextList.why': 'কেন',
     'appAgency.appAgencyOrgidEvidenceCopies.acceptedCopy': 'গ্রহণ করা কপি',
+    'appAgency.appAgencyOrgidEvidenceCopies.downloadsTheOriginalYouConfirmIt':
+      'মূল ডকুমেন্টটি ডাউনলোড হবে। আগে আপনাকে নিশ্চিত করতে হবে যে এটি আপনিই।',
     'appAgency.appAgencyOrgidEvidenceCopies.earlierSendsEarliercount': 'আগে পাঠানো ({earlierCount})',
     'appAgency.appAgencyOrgidEvidenceCopies.receivedIsNotAccepted':
       'পাওয়া গেছে মানে গ্রহণ করা হয়েছে, এমন নয়।',
@@ -923,18 +973,25 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidMissionCollaboration.assigned': 'দায়িত্ব দেওয়া হয়েছে',
     'appAgency.appAgencyOrgidMissionCollaboration.caseReference': 'ভিসা ফাইলের রেফারেন্স',
     'appAgency.appAgencyOrgidMissionCollaboration.channel': 'চ্যানেল',
+    'appAgency.appAgencyOrgidMissionCollaboration.confirmed': 'নিশ্চিত করা হয়েছে',
     'appAgency.appAgencyOrgidMissionCollaboration.date': 'তারিখ',
     'appAgency.appAgencyOrgidMissionCollaboration.decision': 'সিদ্ধান্ত',
     'appAgency.appAgencyOrgidMissionCollaboration.dueDateOptional': 'শেষ তারিখ (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidMissionCollaboration.eGVisaInterviewPrepCall':
       'যেমন: ভিসা ইন্টারভিউ প্রস্তুতির কল',
+    'appAgency.appAgencyOrgidMissionCollaboration.exactClaimConfirmed': 'দাবিটি হুবহু নিশ্চিত করা হয়েছে',
+    'appAgency.appAgencyOrgidMissionCollaboration.expired': 'মেয়াদ শেষ হয়েছে',
     'appAgency.appAgencyOrgidMissionCollaboration.noAppointmentsScheduled':
       'কোনো অ্যাপয়েন্টমেন্ট নির্ধারিত নেই।',
+    'appAgency.appAgencyOrgidMissionCollaboration.noIssuerConfirmedYetLackOf':
+      'এখনো কোনো ইস্যুকারী নিশ্চিত করেননি। শুধু এটি না থাকলে প্রস্তুতিতে ঘাটতি ধরা হয় না।',
     'appAgency.appAgencyOrgidMissionCollaboration.noOpenTasks': 'কোনো খোলা কাজ নেই।',
     'appAgency.appAgencyOrgidMissionCollaboration.notes': 'নোট',
     'appAgency.appAgencyOrgidMissionCollaboration.place': 'স্থান',
     'appAgency.appAgencyOrgidMissionCollaboration.priority': 'অগ্রাধিকার',
     'appAgency.appAgencyOrgidMissionCollaboration.reasonOptional': 'কারণ (ঐচ্ছিক)',
+    'appAgency.appAgencyOrgidMissionCollaboration.requiresEvidenceAlreadySelectedForThat':
+      'ওই শর্তের জন্য আগে থেকে বেছে নেওয়া প্রমাণ লাগবে; শুধু স্টাফের টিক চিহ্ন কখনোই নিশ্চিতকরণ হিসেবে গ্রহণ করা হয় না।',
     'appAgency.appAgencyOrgidMissionCollaboration.taskDescription': 'কাজের বিবরণ',
     'appAgency.appAgencyOrgidMissionCollaboration.taskDescription9f2652': 'কাজের বিবরণ',
     'appAgency.appAgencyOrgidMissionCollaboration.tasks': 'কাজ',
@@ -942,7 +999,11 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidMissionCollaboration.timeZone': 'টাইম জোন',
     'appAgency.appAgencyOrgidMissionCollaboration.unassigned': 'দায়িত্বে কেউ নেই',
     'appAgency.appAgencyOrgidPage.aboutThisList': 'এই তালিকা সম্পর্কে',
+    'appAgency.appAgencyOrgidPage.activeCasesThisOrganizationCanStill':
+      'যেসব সক্রিয় ভিসা ফাইলে এই প্রতিষ্ঠান এখনো কাজ করতে পারে কিন্তু বর্তমানে কেউ দায়িত্বে নেই - সাধারণত একমাত্র দায়িত্বপ্রাপ্ত সদস্যকে সরিয়ে দেওয়ায় এমন হয়। ভিসা ফাইল অংশে গিয়ে একটি খুলে কাউকে দায়িত্ব দিন।',
     'appAgency.appAgencyOrgidPage.activeClients': 'সক্রিয় ক্লায়েন্ট',
+    'appAgency.appAgencyOrgidPage.actualStageCountsAppearWhenA':
+      'ভিসা ফাইল শেয়ার করা হলে এবং আপনি তা দেখতে পারলে প্রকৃত ধাপের সংখ্যা এখানে দেখা যাবে।',
     'appAgency.appAgencyOrgidPage.agencyOverview': 'এজেন্সির সারসংক্ষেপ',
     'appAgency.appAgencyOrgidPage.assignedCases': 'দায়িত্ব দেওয়া ভিসা ফাইল',
     'appAgency.appAgencyOrgidPage.assignedToYou': 'আপনাকে দায়িত্ব দেওয়া হয়েছে',
@@ -969,6 +1030,7 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidPage.noCaseStagesToShow': 'দেখানোর মতো কোনো ভিসা ফাইলের ধাপ নেই',
     'appAgency.appAgencyOrgidPage.noEvidenceRequestsYet': 'এখনো কোনো প্রমাণের অনুরোধ নেই।',
     'appAgency.appAgencyOrgidPage.noPackAttached': 'কোনো প্যাক যুক্ত নেই',
+    'appAgency.appAgencyOrgidPage.notYetAcknowledged': 'এখনো প্রাপ্তিস্বীকার করা হয়নি',
     'appAgency.appAgencyOrgidPage.nothing': 'কিছু নেই',
     'appAgency.appAgencyOrgidPage.nothingIsOverdueUnassignedOrWaiting':
       'এই মুহূর্তে সময় পেরিয়ে যাওয়া, দায়িত্বহীন বা ভ্রমণকারীর উত্তরের অপেক্ষায় থাকা কিছু নেই।',
@@ -980,34 +1042,71 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidPage.readiness': 'প্রস্তুতি',
     'appAgency.appAgencyOrgidPage.ready': 'প্রস্তুত',
     'appAgency.appAgencyOrgidPage.reassignmentQueue': 'পুনরায় দায়িত্ব দেওয়ার তালিকা',
+    'appAgency.appAgencyOrgidPage.recentNotesFromCasesYouCan':
+      'আপনি বর্তমানে যেসব ভিসা ফাইলে অ্যাক্সেস পান, সেগুলোর সাম্প্রতিক নোট। এটি প্রতিষ্ঠানের পূর্ণ অডিট লগ নয়।',
+    'appAgency.appAgencyOrgidPage.recentRequestsAvailableToYourAdministrator':
+      'আপনার অ্যাডমিন ভূমিকায় যেসব সাম্প্রতিক অনুরোধ দেখা যায়।',
     'appAgency.appAgencyOrgidPage.requestsAndTeam': 'অনুরোধ ও টিম',
+    'appAgency.appAgencyOrgidPage.requestsAndTeamManagementBelongTo':
+      'অনুরোধ ও টিম পরিচালনা এজেন্সির অ্যাডমিনদের দায়িত্ব। আপনাকে দায়িত্ব দেওয়া ভিসা ফাইলের টুল আগের মতোই পাবেন।',
     'appAgency.appAgencyOrgidPage.reviewissuesNeedsReplacement': '{reviewIssues} বদলাতে হবে',
+    'appAgency.appAgencyOrgidPage.searchCoversOnlyTheCasesYou':
+      'খোঁজা শুধু সেইসব ভিসা ফাইলে হয়, যেগুলো দেখার অনুমতি আপনার আগে থেকেই আছে - ভ্রমণকারী, ভিসা ফাইলের শিরোনাম, রেফারেন্স, গন্তব্য বা ধাপ দিয়ে।',
     'appAgency.appAgencyOrgidPage.setUpYourAgency': 'আপনার এজেন্সি সেট আপ করুন',
     'appAgency.appAgencyOrgidPage.teamMembers': 'টিমের সদস্য',
     'appAgency.appAgencyOrgidPage.traveller': 'ভ্রমণকারী',
+    'appAgency.appAgencyOrgidPage.travellerConfirmed': 'ভ্রমণকারী নিশ্চিত করেছেন',
     'appAgency.appAgencyOrgidPage.viewAccessibleCaseActivity': 'অ্যাক্সেসযোগ্য ভিসা ফাইলের কার্যকলাপ দেখুন',
     'appAgency.appAgencyOrgidPage.viewAllCases': 'সব ভিসা ফাইল দেখুন',
     'appAgency.appAgencyOrgidPage.whatNeedsYouFirst': 'প্রথমে কী আপনার মনোযোগ চায়',
+    'appAgency.appAgencyOrgidPage.youReAMemberOfThis':
+      'আপনি এই প্রতিষ্ঠানের সদস্য, কিন্তু অ্যাডমিন নন। প্রমাণ চাওয়া, একসঙ্গে এক্সপোর্ট এবং সদস্য পরিচালনা শুধু অ্যাডমিনদের জন্য - তবে ভিসা ফাইল অংশে আপনাকে যেসব ভিসা ফাইলে দায়িত্ব দেওয়া হয়েছে, সেখানে আপনি এখনো সহযোগিতা করতে পারবেন।',
     'appAgency.appAgencyOrgidPage.yourCaseWork': 'আপনার ভিসা ফাইলের কাজ',
     'appAgency.appAgencyOrgidPage.yourTeam': 'আপনার টিম',
+    'appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.noteOptional': 'নোট (ঐচ্ছিক)',
+    'appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.proofOfPaymentOptional':
+      'পেমেন্টের প্রমাণ (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.agency': 'এজেন্সি',
+    'appAgency.appAgencyOrgidPlanPage.aiFeatures': 'এআই সুবিধা',
+    'appAgency.appAgencyOrgidPlanPage.complimentaryDuringPublicBetaNoPayment':
+      'পাবলিক বিটা চলাকালে বিনামূল্যে। কোনো পেমেন্ট পদ্ধতি লাগে না। ন্যায্য ব্যবহারের সুরক্ষা এবং ব্যক্তিগত রেকর্ডের অনুমতি এখনও প্রযোজ্য। স্টোরেজ ও প্রক্রিয়াকরণ উপলব্ধ সক্ষমতার ওপর নির্ভরশীল থাকে।',
+    'appAgency.appAgencyOrgidPlanPage.currentPlan': 'বর্তমান প্ল্যান',
+    'appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes': 'আপনার প্ল্যানে যা আছে',
     'appAgency.appAgencyOrgidRequestConversation.conversation': 'কথোপকথন',
     'appAgency.appAgencyOrgidRequestEvidenceForm.chooseATraveller': 'একজন ভ্রমণকারী বেছে নিন…',
     'appAgency.appAgencyOrgidRequestEvidenceForm.dueDateOptional': 'শেষ তারিখ (ঐচ্ছিক)',
     'appAgency.appAgencyOrgidRequestEvidenceForm.forExampleNeededForTheVisa':
       'যেমন: ভিসা ফর্মের জন্য দরকার',
     'appAgency.appAgencyOrgidRequestEvidenceForm.messageOptional': 'বার্তা (ঐচ্ছিক)',
+    'appAgency.appAgencyOrgidRequestEvidenceForm.noTravellerHasGrantedThisOrganization':
+      'এখনো কোনো ভ্রমণকারী এই প্রতিষ্ঠানকে অ্যাক্সেস দেননি। অনুরোধ করার মতো কিছু নেই।',
+    'appAgency.appAgencyOrgidRequestEvidenceForm.onlyIfAccessIsLimitedTo':
+      'শুধু তখনই, যখন অ্যাক্সেস একটি ভিসা ফাইলে সীমাবদ্ধ।',
     'appAgency.appAgencyOrgidRequestEvidenceForm.theMessageAndTheDueDate':
       'প্রতিটি আইটেমের সঙ্গে বার্তা ও শেষ তারিখ যায়।',
     'appAgency.appAgencyOrgidRequestEvidenceForm.traveller': 'ভ্রমণকারী',
+    'appAgency.appAgencyOrgidRequestEvidenceForm.wholeTravellerRecordDefault':
+      'ভ্রমণকারীর পূর্ণ রেকর্ড (ডিফল্ট)',
+    'appAgency.appAgencyOrgidSettingsPage.bulkExport': 'একসঙ্গে এক্সপোর্ট',
+    'appAgency.appAgencyOrgidSettingsPage.downloadBulkExport': 'একসঙ্গে এক্সপোর্ট ডাউনলোড করুন',
+    'appAgency.appAgencyOrgidSettingsPage.downloadTheProfilesOfEveryTraveller':
+      'যেসব ভ্রমণকারী এই প্রতিষ্ঠানকে গ্রহণ করা এক্সপোর্ট-অনুমতি দিয়েছেন, তাঁদের সবার প্রোফাইল ডাউনলোড করুন। এক্সপোর্টের সময় প্রতিটি ভ্রমণকারীর অনুমতি নীতি-ব্যবস্থায় আবার পরীক্ষা করা হয়।',
     'appAgency.appAgencyOrgidSettingsPage.export': 'এক্সপোর্ট',
     'appAgency.appAgencyOrgidSettingsPage.on': 'চালু',
     'appAgency.appAgencyOrgidTeamPage.active': 'সক্রিয়',
     'appAgency.appAgencyOrgidTeamPage.members': 'সদস্য',
+    'appAgency.appAgencyOrgidTeamPage.membershipIsOrganizationalBookkeepingItNever':
+      'সদস্যপদ শুধু প্রতিষ্ঠানের নিজস্ব হিসাব রাখার বিষয় - এটি কখনো নিজে থেকে কোনো ভ্রমণকারীর রেকর্ডে অ্যাক্সেস দেয় না। অ্যাক্সেস সবসময় গ্রহণ করা অ্যাক্সেস-অনুমতির মাধ্যমেই পাওয়া যায়।',
     'appAgency.appAgencyOrgidTeamPage.team': 'টিম',
     'appAgency.appAgencyOrgidWorkspaceHeading.agencyOverview': 'এজেন্সির সারসংক্ষেপ',
+    'appAgency.appAgencyPage.agenciesCollaborateOnCasesAndRequest':
+      'এজেন্সিগুলো ভিসা ফাইলে একসঙ্গে কাজ করে এবং প্রমাণ চায়। শুধু সদস্য হওয়ার কারণে কখনোই কোনো রেকর্ডে অ্যাক্সেস মেলে না - অ্যাক্সেস সবসময় গ্রহণ করা অ্যাক্সেস-অনুমতির মাধ্যমেই পাওয়া যায়।',
     'appAgency.appAgencyPage.applyToRegisterAnAgency': 'এজেন্সি নিবন্ধনের জন্য আবেদন করুন',
     'appAgency.appAgencyPage.memberships': 'সদস্যপদ',
+    'appAgency.appAgencyPage.withdrawTheApplicationForNameIt':
+      '{name}-এর আবেদন কি তুলে নেবেন? এটি আর পর্যালোচনা করা হবে না এবং আপনি যাঁদের যুক্ত করেছিলেন তাঁরা অ্যাক্সেস হারাবেন। আপনি যেকোনো সময় আবার আবেদন করতে পারবেন।',
+    'appAgency.appAgencyPage.youBecomeTheOwnerNewOrganizations':
+      'আপনি মালিক হবেন। নতুন প্রতিষ্ঠান শুরুতে প্ল্যাটফর্ম অ্যাডমিনের যাচাইয়ের অপেক্ষায় থাকে।',
     'appAgency.appAgencyPage.yourOrganizations': 'আপনার প্রতিষ্ঠান',
   },
 });

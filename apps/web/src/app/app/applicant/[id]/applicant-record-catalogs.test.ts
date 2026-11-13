@@ -19,8 +19,24 @@ const CATALOGS = {
   'traveller-manage': applicantTravellerManageCatalog,
 } as const;
 
-/** Sharing, access, expiry, AI, memory, official-rule and date-in-sentence wording that stays English. */
+/** Wording still English after the owner sign-off of 2026-11-12: a date, count or label filled in by code that does not follow the reader language yet, or official-rule content. */
 const HELD: Record<string, string[]> = {
+  sharing: ['andPluralNotShownHereDelete', 'deleteDraftTitle'],
+  calendar: [],
+  evidence: [
+    'neededByFormatdateonly',
+    'youSentThisOnFormatmoment',
+    'kindlabelAddedAddedlabelScanlabel',
+  ],
+  insights: ['usuallyOriginal'],
+  memory: [],
+  missions: ['startANewCaseFromThisad706c', 'notAcceptedYet', 'optional'],
+  outputs: ['previewLabel'],
+  'traveller-manage': ['manage'],
+};
+
+/** Wording that was held for the owner sign-off and now has Bengali. */
+const SIGNED_OFF: Record<string, string[]> = {
   sharing: [
     'draftsYourAiAppsSavedFor',
     'aiTools',
@@ -34,32 +50,22 @@ const HELD: Record<string, string[]> = {
     'reviewAndConfirm',
     'invitationCreated',
     'sharingRequestCreated',
-    'andPluralNotShownHereDelete',
-    'deleteDraftTitle',
   ],
   calendar: ['makingANewLinkStopsThe', 'thisLinkIsShownOnlyNow', 'yourPrivateCalendarLink'],
-  evidence: [
-    'anAgencyIsAskingYouFor',
-    'neededByFormatdateonly',
-    'youSentThisOnFormatmoment',
-    'kindlabelAddedAddedlabelScanlabel',
-  ],
-  insights: ['aSummaryOfYourSavedDocuments', 'backsNoSavedDetailsYet', 'usuallyOriginal'],
+  evidence: ['anAgencyIsAskingYouFor'],
+  insights: ['aSummaryOfYourSavedDocuments', 'backsNoSavedDetailsYet'],
   memory: [
     'aNoteWasSavedHiddenHere',
     'snapshotVersionKeepsExactlyWhatIt',
     'sharedOutsideACase',
     'theseSharesAreOfThisPerson',
   ],
-  missions: ['startANewCaseFromThisad706c', 'optional', 'notAcceptedYet'],
   outputs: [
     'aShortMessageYouCanSend',
     'aSummaryIsAOneTime',
     'passportAndIdNumbersShowOnly',
     'theseAreTheConfirmedDetailsIn',
-    'previewLabel',
   ],
-  'traveller-manage': ['manage'],
 };
 
 const names = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join();
@@ -71,6 +77,14 @@ describe.each(Object.entries(CATALOGS))('applicant %s catalogue', (surface, cata
   it('leaves no placeholder missing or invented in any Bengali string', () => {
     for (const [key, text] of Object.entries(bn))
       expect(names(text), key).toBe(names(en[key] ?? ''));
+  });
+
+  it('has Bengali for the wording the owner signed off on 2026-11-12', () => {
+    for (const suffix of SIGNED_OFF[surface] ?? []) {
+      const keys = Object.keys(en).filter((k) => k.endsWith(`.${suffix}`));
+      expect(keys.length, suffix).toBeGreaterThan(0);
+      for (const k of keys) expect(k in bn, k).toBe(true);
+    }
   });
 
   it('holds back the wording that must stay English', () => {

@@ -226,7 +226,8 @@ describe('a Document Request under Bengali', () => {
     // The dates are written in Bengali; the word between them waits for the register.
     expect(text).toContain('৩ ডিসে, ২০২৬');
     expect(text).toContain('১০ ডিসে, ২০২৬');
-    expect(text).toContain('Issuing freezes this checklist');
+    expect(text).toContain(bn[k('CollectionRequestPage.issuingFreezesThisChecklistAsA')]);
+    expect(text).not.toContain('Issuing freezes this checklist');
     expect(text).toContain('No items yet. Add what your agency needs below.');
     expect(text).not.toMatch(/appAgency\./);
   });

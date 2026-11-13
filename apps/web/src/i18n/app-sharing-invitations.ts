@@ -37,5 +37,16 @@ export const appSharingInvitationsCatalog = defineCatalog({
     'appSharingInvitations.appSharingInvitationsAcceptPage.signInWithTheInvitedEmail':
       'Sign In with the Invited Email',
   },
-  bn: {},
+  bn: {
+    'appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds': 'অ্যাক্সেস শেষ হবে',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.askTheSenderForANew':
+      'প্রেরকের কাছে নতুন একটি লিংক চান, অথবা আমন্ত্রণ পাওয়া ইমেইল ঠিকানা দিয়ে সাইন ইন করুন।',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.invitationExpires':
+      'আমন্ত্রণের মেয়াদ শেষ হবে',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable':
+      'আমন্ত্রণ পাওয়া যাচ্ছে না',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.openingThisInvitationGrantsNoAccess':
+      'এই আমন্ত্রণ খুললে কোনো অ্যাক্সেস দেওয়া হয় না। গ্রহণ করার আগে সবকিছু পর্যালোচনা করুন।',
+    'appSharingInvitations.appSharingInvitationsAcceptPage.permissions': 'অনুমতি',
+  },
 });

@@ -60,8 +60,14 @@ export const invitationCatalog = defineCatalog({
     'invitation.invitingAgency.poweredByVisastack': 'Powered by VisaStack',
   },
   bn: {
+    'invitation.invitationClientInvitationOffer.anAdministratorAtAgencynameInvitedYou':
+      '{agencyName}-এর একজন অ্যাডমিনিস্ট্রেটর আপনাকে আপনার VisaStack রেকর্ডের একটি অংশ তাঁদের সঙ্গে শেয়ার করতে আমন্ত্রণ জানিয়েছেন। আপনি গ্রহণ করলে:',
     'invitation.invitationClientInvitationOffer.ifYouResetYourPasswordOpen':
       'আপনি পাসওয়ার্ড রিসেট করলে, এরপর এই আমন্ত্রণের লিংকটি আবার খুলুন।',
+    'invitation.invitationClientInvitationOffer.nothingIsSharedUntilYouAccept':
+      'আপনি গ্রহণ না করা পর্যন্ত কিছুই শেয়ার করা হয় না।',
+    'invitation.invitationClientInvitationOffer.openingThisLinkAcceptsNothingYou':
+      'এই লিংক খুললে কিছুই গ্রহণ করা হয় না। পর্যালোচনার পর আপনি সিদ্ধান্ত নেবেন।',
     'invitation.invitationClientInvitationOffer.reviewYourInvitation': 'আপনার আমন্ত্রণ পর্যালোচনা করুন',
     'invitation.invitationClientInvitationOffer.thisAgencyIsStillBeingReviewed':
       'এই এজেন্সির পর্যালোচনা এখনো চলছে',
@@ -69,11 +75,15 @@ export const invitationCatalog = defineCatalog({
       'এই আমন্ত্রণ আর খোলা নেই',
     'invitation.invitationClientInvitationOffer.visastackInvitation': 'VisaStack আমন্ত্রণ',
     'invitation.invitationClientInvitationOffer.whatHappensNext': 'এরপর কী হবে',
+    'invitation.invitationClientInvitationOffer.youCanStopSharingAtAny':
+      'আপনি যেকোনো সময় শেয়ারিং বন্ধ করতে পারেন।',
     'invitation.invitationLink.copyLink': 'লিংক কপি করুন',
     'invitation.invitationLink.privateInvitationLink': 'ব্যক্তিগত আমন্ত্রণ লিংক',
     'invitation.invitationLink.shareOnlyWithYourInviteeRevoking':
       'শুধু আপনার আমন্ত্রিত ব্যক্তির সঙ্গে শেয়ার করুন। আমন্ত্রণ প্রত্যাহার করলে এই লিংক আর কাজ করে না।',
     'invitation.invitationPage.incompleteInvitationLink': 'অসম্পূর্ণ আমন্ত্রণ লিংক',
+    'invitation.invitationPage.invitationsExpireAfter7DaysIf':
+      'আমন্ত্রণের মেয়াদ ৭ দিন পর শেষ হয়। এটির মেয়াদ শেষ হয়ে গেলে বা এটি প্রত্যাহার করা হলে প্রেরকের কাছে নতুন আমন্ত্রণ চান।',
     'invitation.invitingAgency.poweredByVisastack': 'VisaStack দ্বারা চালিত',
   },
 });

@@ -104,10 +104,12 @@ describe('the agency Clients page under Bengali', () => {
     expect(text).toContain(bn[k('noClientsInvitedYet')]);
     expect(text).toContain(bn[k('noEvidenceRequestsYet')]);
     expect(text).toContain(bn[k('thisIsWhereYouAskA')]);
-    // Held: what a traveller decides about access, and the invitation sentences.
-    expect(text).toContain('Invite a traveller as a new client. They alone choose');
-    expect(text).toContain('Ask a traveller for a specific detail or document. They decide');
-    expect(text).toContain('This is where you invite the people you help.');
+    // What a traveller decides about access, and the invitation sentences: Bengali since the
+    // owner sign-off of 2026-11-12.
+    expect(text).toContain(bn[k('inviteATravellerAsANew')]);
+    expect(text).toContain(bn[k('askATravellerForASpecific')]);
+    expect(text).toContain(bn[k('thisIsWhereYouInviteThe')]);
+    expect(text).not.toContain('They alone choose');
     expect(text).not.toMatch(/appAgency\./);
   });
 
@@ -146,6 +148,24 @@ describe('the agency Clients page under Bengali', () => {
     expect(text).toContain('· due Oct 20, 2026');
     expect(text).not.toContain(bn[k('noClientsInvitedYet')]);
     expect(text).not.toMatch(/appAgency\./);
+  });
+
+  it('says in Bengali that an invitation saved without a valid email cannot be accepted', async () => {
+    mocks.loadPendingClientInvitationPage.mockResolvedValue(
+      page([
+        {
+          id: 'ci2',
+          displayName: 'Old Invite',
+          contactDestination: 'not-an-email',
+          expiresAt: '2099-11-01T00:00:00Z',
+        },
+      ]),
+    );
+    const text = await show('bn');
+    expect(text).toContain(bn[k('cannotBeAcceptedRevokeAndInvite')]);
+    expect(bn[k('cannotBeAcceptedRevokeAndInvite')]).toContain('\u00b7');
+    expect(text).not.toContain('&middot;');
+    expect(text).not.toContain('Cannot be accepted');
   });
 
   it('names the request a link led to in Bengali when it is not on the page yet (linked state)', async () => {

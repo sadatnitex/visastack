@@ -204,6 +204,8 @@ export const homeCatalog = defineCatalog({
     'home.countryChecklistPicker.yourChecklistAppearsHereAsSoon':
       'দেশ বেছে নিলেই আপনার চেকলিস্ট এখানে দেখা যাবে।',
     'home.error.backToHome': 'হোমে ফিরে যান',
+    'home.error.thisIsOnOurSideNot':
+      'এটি আমাদের দিকের সমস্যা, আপনার নয়। আপনি আগে যা সংরক্ষণ করেছেন তা নিরাপদ আছে। কিছু লিখতে থাকলে হয়তো আবার লিখতে হতে পারে। একটু পরে আবার চেষ্টা করুন; সমস্যা চলতে থাকলে সাইন আউট করে আবার সাইন ইন করুন।',
     'home.page.01AReusableRecord': '০১ / বারবার ব্যবহারযোগ্য রেকর্ড',
     'home.page.02SpecificRequests': '০২ / নির্দিষ্ট অনুরোধ',
     'home.page.03YourChoice': '০৩ / আপনার পছন্দ',
@@ -215,6 +217,7 @@ export const homeCatalog = defineCatalog({
     'home.page.addYourDetailsOnce': 'আপনার তথ্য একবারই যোগ করুন',
     'home.page.added': 'যোগ করা হয়েছে',
     'home.page.addedToJapanCase': 'জাপান ভিসা ফাইলে যোগ করা হয়েছে',
+    'home.page.aiNeverChangesYourProfileOn': 'এআই কখনো নিজে থেকে আপনার প্রোফাইল বদলায় না',
     'home.page.aiSuggestionsFromYourDocumentsAnd':
       'আপনার ডকুমেন্ট থেকে এআই-এর পরামর্শ এবং কাগজপত্রের মেয়াদ শেষ হওয়ার আগেই সতর্কবার্তা, প্রতিটি ধাপে ধাপে চালু করা হচ্ছে। আজ ঠিক কোনটি কাজ করছে তা স্ট্যাটাস পাতায় দেখা যায়।',
     'home.page.answerAnAgencySDocumentRequest': 'এজেন্সির ডকুমেন্টের অনুরোধের উত্তর এক জায়গা থেকে দিন',
@@ -245,10 +248,15 @@ export const homeCatalog = defineCatalog({
     'home.page.home': '▣ হোম',
     'home.page.honestAboutWhereWeAre': 'আমরা এখন কোথায় আছি, সে বিষয়ে সৎ',
     'home.page.howItWorks': 'এটি যেভাবে কাজ করে',
+    'home.page.howVisastackTreatsYourInformation': 'VisaStack আপনার তথ্য কীভাবে সামলায়',
     'home.page.illustrativeInterfaceSampleInformation': 'উদাহরণ হিসেবে দেখানো ইন্টারফেস · নমুনা তথ্য',
     'home.page.illustrativeInterfaceWithSampleInformation': 'নমুনা তথ্যসহ উদাহরণ হিসেবে দেখানো ইন্টারফেস',
     'home.page.inThePilotToday': 'আজ পাইলটে যা আছে',
+    'home.page.inviteAnAgencyToSeeSpecific':
+      'নির্দিষ্ট সময়ের জন্য একটি এজেন্সিকে নির্দিষ্ট কিছু আইটেম দেখার আমন্ত্রণ জানান। আপনি তা অনুমোদন করেন, আপনি তা বন্ধ করতে পারেন, এবং তাঁরা কী খুলেছেন তা আপনি দেখতে পারেন।',
     'home.page.inviteOnlyPilot': 'শুধু আমন্ত্রিতদের জন্য পাইলট',
+    'home.page.itIsFreeToUseAt':
+      'আপলোড করা ডকুমেন্টের ভাইরাস স্ক্যানের মতো সুরক্ষা চালু করা শেষ না হওয়া পর্যন্ত এটি বিনামূল্যে, নিজের ঝুঁকিতে ব্যবহার করা যায়। আজ ঠিক কোনটি কাজ করছে তা স্ট্যাটাস পাতায় দেখা যায়।',
     'home.page.keepAClearRecordOfWho': 'কে কী করেছে এবং কখন, তার একটি স্পষ্ট রেকর্ড রাখুন',
     'home.page.keepAnAccurateHistoryOfPrevious':
       'আপনার পরিস্থিতি বদলালেও আগের ঘোষণাগুলোর একটি নির্ভুল ইতিহাস রাখুন।',
@@ -272,8 +280,13 @@ export const homeCatalog = defineCatalog({
     'home.page.passportSampleRecord': 'পাসপোর্ট · নমুনা রেকর্ড',
     'home.page.personalRecord': 'ব্যক্তিগত রেকর্ড',
     'home.page.pickACountrySeeWhatIs': 'একটি দেশ বেছে নিন। দেখুন সাধারণত কী চাওয়া হয়।',
+    'home.page.pleaseUseMadeUpDetailsOr':
+      'অনুগ্রহ করে বানানো তথ্য ব্যবহার করুন, অথবা এমন ডকুমেন্ট ব্যবহার করুন যাতে সব ব্যক্তিগত তথ্য স্থায়ীভাবে কালো করে ঢেকে দেওয়া হয়েছে। আসল আবেদনকারীর তথ্য এখনো গ্রহণ করা হয় না।',
+    'home.page.privacyAndSharingAreGovernedBy':
+      'গোপনীয়তা ও শেয়ারিং প্রোডাক্টের প্রকৃত অনুমতি দিয়ে নিয়ন্ত্রিত হয়।',
     'home.page.readOurPublicTrustPage': 'আমাদের পাবলিক ট্রাস্ট পাতা পড়ুন',
     'home.page.record': '▤ রেকর্ড',
+    'home.page.recordSharingStartsWithYourPermission': 'রেকর্ড শেয়ার শুরু হয় আপনার অনুমতিতে',
     'home.page.reminderBeforeItExpires': 'মেয়াদ শেষ হওয়ার আগে রিমাইন্ডার',
     'home.page.replaceBankStatement': 'ব্যাংক স্টেটমেন্ট প্রতিস্থাপন করুন',
     'home.page.requested': 'অনুরোধ করা হয়েছে',
@@ -282,6 +295,8 @@ export const homeCatalog = defineCatalog({
     'home.page.seeWhatIsMissing': 'কী নেই তা দেখুন',
     'home.page.seeWhatWorksToday': 'আজ কী কাজ করছে তা দেখুন',
     'home.page.seeYourChecklist': 'আপনার চেকলিস্ট দেখুন',
+    'home.page.selectRecordsReviewTheScopeAnd':
+      'রেকর্ড বেছে নিন, পরিধি পর্যালোচনা করুন এবং চাইলে শেয়ার করতে সম্মত হওয়ার আগে অ্যাক্সেস শেষের একটি তারিখ ঠিক করুন।',
     'home.page.shareOnlyWhatIsNeeded': 'শুধু যা দরকার তা-ই শেয়ার করুন',
     'home.page.sharing': 'শেয়ারিং',
     'home.page.sharingDecisionsAreRecorded': 'শেয়ারিংয়ের সিদ্ধান্ত রেকর্ড করা হয়',
