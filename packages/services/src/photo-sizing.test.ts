@@ -8,13 +8,6 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal } from './access/principal';
 import { type AccessRefusal, EACH_GRANT, requireAccess } from './access/require-access';
-// Every refusal is now one public answer; the reason the old code implied reaches only the gate's
-// `onRefused` hook, remembered here per result so each refusal is checked for both.
-const heardFor = new WeakMap<object, AccessRefusal>();
-function refusalOf(result: { readonly ok: boolean; readonly error?: { readonly code: string } }) {
-  return [result.ok ? undefined : result.error?.code, heardFor.get(result)?.reason];
-}
-
 import { verifyStepUp } from './access/step-up-proof';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
@@ -32,6 +25,13 @@ import {
 import { RATE_LIMITS } from './rate-limit';
 import { acceptGrant, createGrant } from './sharing';
 import { issueStepUpAssurance } from './step-up';
+
+// Every refusal is now one public answer; the reason the old code implied reaches only the gate's
+// `onRefused` hook, remembered here per result so each refusal is checked for both.
+const heardFor = new WeakMap<object, AccessRefusal>();
+function refusalOf(result: { readonly ok: boolean; readonly error?: { readonly code: string } }) {
+  return [result.ok ? undefined : result.error?.code, heardFor.get(result)?.reason];
+}
 
 const STEP_UP_SECRET = 'photo-step-up-secret';
 const PHOTO_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);

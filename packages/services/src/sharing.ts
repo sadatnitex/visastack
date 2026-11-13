@@ -411,8 +411,11 @@ export interface SharedWithEmail {
  * Activity and the denied-access signal.
  *
  * Limit: without invitations an existing account still gets a real pending grant, which the
- * sharer's own grant list shows and an email with no account does not. Only the invitation path
- * (invitations switched on, as in production) makes the two look the same afterwards too.
+ * sharer's own grant list shows and an email with no account does not; the sharer's own data
+ * export carries the same difference (their audit rows: `GRANT_CREATED` or
+ * `GRANT_RECIPIENT_NOT_REGISTERED`). Neither tells them more than the grant list already does. Only
+ * the invitation path (invitations switched on, as in production) makes the two look the same
+ * afterwards too.
  */
 export async function shareWithEmail(
   access: AuthorizedApplicant<'MANAGE'>,

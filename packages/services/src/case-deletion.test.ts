@@ -16,11 +16,11 @@ import { createMission, transitionMission } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import { acceptGrant, createGrant } from './sharing';
 
-/** What the web layer does: prove the caller may manage this case, then ask for the deletion. */
 // Every refusal is now one public answer; the reason the old code implied reaches only the gate's
 // `onRefused` hook, remembered here per result so each refusal is checked for both.
 const heardFor = new WeakMap<object, AccessRefusal>();
 
+/** What the web layer does: prove the caller may manage this case, then ask for the deletion. */
 async function remove(db: Db, accountId: string, missionId: string) {
   let heard: AccessRefusal | undefined;
   const access = await requireAccess(

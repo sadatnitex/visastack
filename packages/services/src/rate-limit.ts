@@ -79,6 +79,11 @@ export const RATE_LIMITS = {
   STAFF_FACTOR_ATTEMPT_DAY: { limit: 20, windowMs: 24 * HOUR_MS },
   // One audit row per lock window, so a stream of refused tries cannot flood the audit chain.
   STAFF_FACTOR_LOCK_AUDIT: { limit: 1, windowMs: 5 * 60 * 1000 },
+  // Refused record probes kept in the audit trail (apps/web hidden-record), per account: a made-up
+  // id is kept like a real one, so a loop of random ids could otherwise flood the audit chain. Far
+  // above what a person reaches by following a stale link; past it the probe is not kept, alike
+  // for a real and a made-up id.
+  HIDDEN_RECORD_PROBE_AUDIT: { limit: 60, windowMs: HOUR_MS },
   // The public client-invitation page and its logo (growth loop 1), per network address: a page
   // view is one use, the logo another, so these sit far above a person opening a link a few times.
   INVITATION_PREVIEW_IP: { limit: 60, windowMs: HOUR_MS },

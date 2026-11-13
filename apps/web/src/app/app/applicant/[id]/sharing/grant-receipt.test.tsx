@@ -3,8 +3,13 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// What the action answers without invitations, whether or not the email has an account.
+const ONE_LINE = vi.hoisted(
+  () =>
+    'If this email has a VisaStack account, they can accept your share now; if not, ask them to create one, then share again.',
+);
 const answer = vi.hoisted(() => ({
-  next: { ok: true, message: 'Shared. They see only what you chose.' } as {
+  next: { ok: true, message: ONE_LINE } as {
     ok: boolean;
     message: string;
     invitationUrl?: string;
@@ -19,7 +24,7 @@ let root: Root;
 let container: HTMLDivElement;
 
 beforeEach(() => {
-  answer.next = { ok: true, message: 'Shared. They see only what you chose.' };
+  answer.next = { ok: true, message: ONE_LINE };
   vi.stubGlobal('requestAnimationFrame', (run: () => void) => {
     run();
     return 1;
@@ -76,9 +81,10 @@ describe('the receipt after a sharing request (F2)', () => {
     expect(card.textContent).toContain('Not shared yet. They see nothing until they accept.');
     // An in-page link, so the sheet the form sits in on a phone closes before it scrolls.
     expect(card.querySelector('a')?.getAttribute('href')).toBe('#who-has-access');
-    // One account of the outcome: the old "Shared." line does not sit beside "Not shared yet."
-    expect(container.textContent).not.toContain('Shared. They see only what you chose.');
-    expect(card.textContent).toContain('only after they accept');
+    // One account of the outcome: the action's line is in the receipt, once, and nothing else is
+    // said beside it. It is the same line whether or not the email has an account.
+    expect(card.textContent).toContain(ONE_LINE);
+    expect(container.textContent?.split(ONE_LINE)).toHaveLength(2);
     expect(document.activeElement).toBe(card.querySelector('h3'));
   });
 

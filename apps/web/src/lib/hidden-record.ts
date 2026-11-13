@@ -1,8 +1,10 @@
 import {
   type AccessRefusal,
   type Db,
+  RATE_LIMITS,
   accountPrincipal,
   appendAuditEvent,
+  checkRateLimit,
   listAccessForApplicant,
   listComplaintsForMission,
   requireAccess,
@@ -85,6 +87,14 @@ async function recordRefusedProbe(
   ref: { readonly missionId: string } | { readonly applicantId: string },
 ): Promise<void> {
   try {
+    // Bounded per account, so a loop of made-up ids cannot flood the audit chain; the bound is
+    // the same for every id, so skipping a row says nothing about which ids are real.
+    const budget = await checkRateLimit(
+      db,
+      { subjectId: accountId, action: 'hidden_record.probe_audit' },
+      RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT,
+    );
+    if (!budget.allowed) return;
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
         eventType: 'HIDDEN_RECORD_REFUSED',

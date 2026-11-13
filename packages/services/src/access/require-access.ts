@@ -371,32 +371,36 @@ async function loadResource(tx: Db, key: RefKey, id: string): Promise<LoadedReso
  * The grants on this applicant that could ever reach this caller: made to the account itself, or
  * to an organization the account belongs to (read in the same statement). The access gate judges a
  * caller only against these, exactly as it did against the full list, so its answer is the same.
- * Reading only these, and always reading the case exceptions, means the statements sent never
- * depend on anyone's grants: a record that does not exist, a real record of someone else and a
- * case hidden from this caller by an exception all take the same database work.
+ * Their case exceptions are read the same way, for these grants only, and always (even when there
+ * are none). The statements sent therefore never depend on anyone's grants, and the rows read never
+ * depend on other people's: a record that does not exist, a real record of someone else and a case
+ * hidden from this caller by an exception all take the same database work.
  */
 async function loadRecipientGrantsForPolicy(
   db: Db,
   applicantId: string,
   accountId: string,
 ): Promise<PolicyGrant[]> {
-  const ownOrganizations = db
-    .select({ id: schema.memberships.organizationId })
-    .from(schema.memberships)
-    .where(eq(schema.memberships.accountId, accountId));
-  const rows = await db
-    .select()
-    .from(schema.grants)
-    .where(
-      and(
-        eq(schema.grants.applicantId, applicantId),
-        or(
-          eq(schema.grants.recipientAccountId, accountId),
-          inArray(schema.grants.recipientOrganizationId, ownOrganizations),
+  // Built afresh for each statement that uses it.
+  const reachesCaller = () =>
+    and(
+      eq(schema.grants.applicantId, applicantId),
+      or(
+        eq(schema.grants.recipientAccountId, accountId),
+        inArray(
+          schema.grants.recipientOrganizationId,
+          db
+            .select({ id: schema.memberships.organizationId })
+            .from(schema.memberships)
+            .where(eq(schema.memberships.accountId, accountId)),
         ),
       ),
     );
-  const exclusions = await loadCaseExclusions(db, { applicantId });
+  const rows = await db.select().from(schema.grants).where(reachesCaller());
+  const exclusions = await loadCaseExclusions(db, {
+    applicantId,
+    onlyGrants: db.select({ id: schema.grants.id }).from(schema.grants).where(reachesCaller()),
+  });
   return rows.map((row) => toPolicyGrant(row, exclusions.get(row.id)));
 }
 
@@ -472,7 +476,6 @@ async function contributorPermits(
   principal: AccountPrincipal,
   action: PermissionAction,
   key: RefKey,
-  applicantId: string,
   loaded: LoadedResource | undefined,
   contributorRequestId: string,
 ): Promise<boolean> {
@@ -490,11 +493,11 @@ async function contributorPermits(
     !request ||
     !isInFlightContributorRow(request, {
       actorAccountId: principal.accountId,
-      applicantId,
+      // No record: `NO_APPLICANT`, which no request names, so the request is refused like any other.
+      applicantId: loaded?.applicant.id ?? NO_APPLICANT,
     }) ||
     // A claimed request still ends when its link expires.
     request.expiresAt.getTime() <= Date.now() ||
-    // No record: `applicantId` is `NO_APPLICANT`, which no request names, so this is unreachable.
     loaded === undefined
   ) {
     return false;
@@ -649,15 +652,7 @@ export async function requireAccess<A extends PermissionAction>(
 
   if (
     opts.contributorRequestId !== undefined &&
-    (await contributorPermits(
-      tx,
-      principal,
-      action,
-      target.key,
-      applicantId,
-      loaded,
-      opts.contributorRequestId,
-    ))
+    (await contributorPermits(tx, principal, action, target.key, loaded, opts.contributorRequestId))
   ) {
     return answer(
       { kind: 'contributor', accountId, contributorRequestId: opts.contributorRequestId },

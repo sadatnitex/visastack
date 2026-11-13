@@ -2,6 +2,7 @@ import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import {
   type Db,
+  RATE_LIMITS,
   acceptGrant,
   createApplicant,
   createGrant,
@@ -214,6 +215,24 @@ describe("the audit trail keeps a probe of any record id that is not the caller'
       await ownsApplicant(world.db, world.stranger, MADE_UP),
     );
   });
+
+  it('keeps at most a bounded number of probes per account, then none, alike for real and made-up ids', async () => {
+    // A fresh prober, so the bound is counted from zero.
+    const prober = await account(world.db, `prober-${Date.now()}@example.com`);
+    const mine = async () =>
+      (await refused()).filter((row) => row.actorAccountId === prober).length;
+    const limit = RATE_LIMITS.HIDDEN_RECORD_PROBE_AUDIT.limit;
+    for (let index = 0; index < limit; index += 1) {
+      const id = `99999999-9999-4999-8999-${String(index).padStart(12, '0')}`;
+      expect(await ownsCase(world.db, prober, id)).toBe(false);
+    }
+    expect(await mine()).toBe(limit);
+    // Past the bound neither a made-up nor a real id writes a row, and the answer is unchanged.
+    expect(await ownsCase(world.db, prober, MADE_UP)).toBe(false);
+    expect(await ownsCase(world.db, prober, world.missionId)).toBe(false);
+    expect(await ownsApplicant(world.db, prober, world.applicantId)).toBe(false);
+    expect(await mine()).toBe(limit);
+  }, 120_000);
 });
 
 describe('ownsGrant', () => {
