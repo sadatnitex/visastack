@@ -4,7 +4,7 @@ import { createMalwareScanner } from '../../../lib/providers';
 import { createContentLimitsChecker } from '../../../lib/providers-media';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
-import { serviceErrorMessage } from '../../../lib/service-error-message';
+import { serviceErrorMessage, serviceKeyMessage } from '../../../lib/service-error-message';
 import { createStorage } from '../../../lib/storage';
 import {
   FILE_TOO_LARGE_MESSAGE,
@@ -68,7 +68,9 @@ export async function POST(request: Request): Promise<Response> {
   const proof = sessionProofFrom((await cookies()).get(COLLECT_COOKIE)?.value);
   if (!proof) return json('This page has closed. Open the link from your message again.', 403);
   const uploadId = request.headers.get('x-upload-id')?.trim() ?? '';
-  if (!isUploadId(uploadId)) return json('Choose the file again.', 400);
+  if (!isUploadId(uploadId)) {
+    return json(await serviceKeyMessage('umpe_guest_uploads.choose_the_file_again'), 400);
+  }
   const declaredType = request.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
 
   let bytes: Uint8Array;

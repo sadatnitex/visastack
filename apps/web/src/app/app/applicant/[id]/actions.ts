@@ -75,7 +75,7 @@ import { plainSentence } from '../../../../lib/plain-sentence';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { createPreviewRenderer } from '../../../../lib/providers-media';
 import { reportServerError } from '../../../../lib/server-error';
-import { serviceErrorMessage } from '../../../../lib/service-error-message';
+import { serviceErrorMessage, serviceErrorSentence } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import {
@@ -1087,9 +1087,9 @@ async function refusalText(error: ServiceError, hiddenLine: string): Promise<str
   return refusalLine(error, hiddenLine, await serviceErrorMessage(error));
 }
 
-/** The same, worded in the visitor's language when the refusal has a key. */
+/** The same, worded and punctuated in the visitor's language when the refusal has a key. */
 async function plainErrorText(error: ServiceError): Promise<string> {
-  return plainSentence(await serviceErrorMessage(error));
+  return serviceErrorSentence(error);
 }
 
 /**

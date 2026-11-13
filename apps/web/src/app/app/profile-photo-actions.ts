@@ -8,7 +8,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { photoAccess, profilePhotoPorts } from '../../lib/profile-photos';
-import { serviceErrorMessage } from '../../lib/service-error-message';
+import { serviceErrorMessage, serviceKeyMessage } from '../../lib/service-error-message';
 import { withSession } from '../../lib/session';
 import { createStorage } from '../../lib/storage';
 
@@ -32,7 +32,8 @@ export async function saveProfilePhotoAction(formData: FormData): Promise<Profil
     return { ok: false, message: 'Choose a photo first.' };
   }
   if (file.size > PROFILE_PHOTO_MAX_INPUT_BYTES) {
-    return { ok: false, message: 'Choose a photo smaller than 5 MB.' };
+    // The service's own words for this limit, so both say the same thing in every language.
+    return { ok: false, message: await serviceKeyMessage('photos.chooseAPhotoSmallerThan5') };
   }
   const result = await withSession(async ({ db, accountId }) => {
     const access = await photoAccess(db, accountId, applicantId, 'MANAGE');

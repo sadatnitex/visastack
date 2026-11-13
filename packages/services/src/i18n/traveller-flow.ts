@@ -9,6 +9,8 @@ export const travellerFlowEn = {
   'profile.core_processing_consent_is_required':
     'Core processing consent is required to edit facts',
   'profile.enter_a_real_date': 'enter a real date, as year, month and day',
+  'profile_sections.core_processing_consent_is_required':
+    'Core processing consent is required to change a profile',
   'profile_sections.this_section_is_always_open':
     'this section is always open and cannot be closed',
   'request_items.only_the_owner_of_this_record': 'Only the owner of this record can do this.',
@@ -22,6 +24,10 @@ export const travellerFlowEn = {
     'this request was sent to a different email address',
   'contributor_requests.not_in_a_completable_state':
     'contributor request not in a completable state',
+  'client_invitations.use_the_email_address_that_received':
+    'Use the email address that received this invitation.',
+  'client_invitations.this_invitation_can_no_longer_be_used':
+    'This invitation can no longer be used. Ask the agency to send you a new one by email.',
   'client_invitations.invitation_not_found': 'invitation not found',
   'client_invitations.already_used_or_revoked': 'this invitation has already been used or revoked',
   'client_invitations.this_invitation_has_expired': 'this invitation has expired',
@@ -53,10 +59,15 @@ export const travellerFlowEn = {
 export const travellerFlowBn = {
   'profile.applicant_not_found': 'আবেদনকারী খুঁজে পাওয়া যায়নি',
   'profile.core_processing_consent_is_required': 'তথ্য সম্পাদনা করতে মূল প্রক্রিয়াকরণের সম্মতি আবশ্যক',
+  'profile_sections.core_processing_consent_is_required': 'প্রোফাইল বদলাতে মূল প্রক্রিয়াকরণের সম্মতি আবশ্যক',
   'request_items.only_the_owner_of_this_record': 'শুধু এই রেকর্ডের মালিকই এটি করতে পারেন।',
   'request_items.request_not_found': 'অনুরোধটি খুঁজে পাওয়া যায়নি',
   'contributor_requests.request_not_found': 'অনুরোধটি খুঁজে পাওয়া যায়নি',
   'contributor_requests.this_request_has_expired': 'এই অনুরোধের মেয়াদ শেষ হয়ে গেছে',
+  'client_invitations.use_the_email_address_that_received':
+    'যে ইমেইল ঠিকানায় আপনি এই আমন্ত্রণটি পেয়েছেন, সেটি ব্যবহার করুন।',
+  'client_invitations.this_invitation_can_no_longer_be_used':
+    'এই আমন্ত্রণ আর ব্যবহার করা যাবে না। এজেন্সিকে ইমেইলে আপনাকে নতুন একটি পাঠাতে বলুন।',
   'client_invitations.invitation_not_found': 'আমন্ত্রণটি খুঁজে পাওয়া যায়নি',
   'client_invitations.already_used_or_revoked': 'এই আমন্ত্রণ আগেই ব্যবহার করা হয়েছে বা প্রত্যাহার করা হয়েছে',
   'client_invitations.this_invitation_has_expired': 'এই আমন্ত্রণের মেয়াদ শেষ হয়ে গেছে',

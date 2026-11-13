@@ -31,6 +31,18 @@ const OLD_ENGLISH: ReadonlyArray<readonly [string, string]> = [
     'contributor_requests.not_in_a_completable_state',
     'contributor request not in a completable state',
   ],
+  [
+    'profile_sections.core_processing_consent_is_required',
+    'Core processing consent is required to change a profile',
+  ],
+  [
+    'client_invitations.use_the_email_address_that_received',
+    'Use the email address that received this invitation.',
+  ],
+  [
+    'client_invitations.this_invitation_can_no_longer_be_used',
+    'This invitation can no longer be used. Ask the agency to send you a new one by email.',
+  ],
   ['client_invitations.invitation_not_found', 'invitation not found'],
   [
     'client_invitations.already_used_or_revoked',

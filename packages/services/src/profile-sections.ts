@@ -73,7 +73,7 @@ async function authorizeOwner(
   metadata: Readonly<Record<string, unknown>>,
 ): Promise<Result<true, ServiceError>> {
   const applicant = await getApplicant(db, input.applicantId);
-  if (!applicant) return err(serviceError('not_found', 'applicant not found'));
+  if (!applicant) return err(keyedError('not_found', 'profile.applicant_not_found'));
 
   const owns = applicant.ownerAccountId === input.actorAccountId;
   const decision = owns
@@ -105,7 +105,7 @@ async function authorizeOwner(
   }
   if (!(await hasConsent(db, applicant.ownerAccountId, 'CORE_PROCESSING'))) {
     return err(
-      serviceError('consent_required', 'Core processing consent is required to change a profile'),
+      keyedError('consent_required', 'profile_sections.core_processing_consent_is_required'),
     );
   }
   return ok(true);
