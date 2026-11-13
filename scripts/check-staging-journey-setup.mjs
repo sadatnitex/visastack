@@ -60,6 +60,11 @@ export const SUITES = {
     files: ['agency-loop.spec.ts', 'agency-loop-revoke.spec.ts'],
     groups: ['core', 'traveller', 'agency', 'exactCopy'],
   },
+  // The flagship journey: answer several requests from saved records, one receipt naming each exact copy.
+  records: {
+    files: ['answer-from-records.spec.ts'],
+    groups: ['core', 'traveller', 'agency', 'unrelated', 'exactCopy'],
+  },
   guest: { files: ['guest-request.spec.ts'], groups: ['core', 'agency', 'guest'] },
   ui: {
     files: ['responsive-a11y.spec.ts', 'session-expiry.spec.ts', 'performance.spec.ts'],
@@ -68,12 +73,13 @@ export const SUITES = {
 };
 
 /**
- * Specs that end or change a grant that other specs rely on. They run in their own last stage
- * (apps/web/playwright.signed-in.config.ts keeps the same list), after every other spec, and
- * `filesFor` puts them last. scripts/staging-journeys.test.mjs fails if the two lists drift or if
- * any other spec touches a grant.
+ * Specs that end or change a grant that other specs rely on, in the order they must run. They run
+ * in their own last stages (apps/web/playwright.signed-in.config.ts keeps the same list, one project
+ * for each, each waiting for the one before), after every other spec, and `filesFor` puts them last
+ * in this order. scripts/staging-journeys.test.mjs fails if the two lists drift or if any other
+ * spec touches a grant.
  */
-export const LAST_STAGE_SPECS = ['agency-loop-revoke.spec.ts'];
+export const LAST_STAGE_SPECS = ['answer-from-records.spec.ts', 'agency-loop-revoke.spec.ts'];
 
 /** Every setting name this suite can read. */
 export function allNames() {
@@ -136,8 +142,13 @@ export function filesFor(suite) {
   if (!found) throw new Error(`No suite named ${suite}`);
   return [
     ...found.filter((file) => !LAST_STAGE_SPECS.includes(file)),
-    ...found.filter((file) => LAST_STAGE_SPECS.includes(file)),
+    ...LAST_STAGE_SPECS.filter((file) => found.includes(file)),
   ];
+}
+
+/** Prints one line per suite (names only, never a value). A suite that is BLOCKED is not an error here. */
+function runReport() {
+  for (const line of report(process.env)) console.info(line);
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
