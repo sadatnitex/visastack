@@ -50,3 +50,12 @@ A starter list is due for review 120 days after it is published and shows "revie
 - A traveller cannot yet add their own items to the checklist, and an agency on the case does not yet see the traveller's wording (the next two packages). A traveller cannot hide a required item, and will not be able to.
 - The Trip Package panel and the evidence request screens still name an item by its document type, not by the sentence.
 - Document types were read by rules and have not been checked line by line by a person. Review them in the studio.
+
+## Update of 13 November 2026 (owner's research)
+
+- The supplied lists now cover 43 countries in 702 lines. Ten countries were added (Botswana, Colombia, Cuba, Gambia, Ireland, Kazakhstan, Kyrgyzstan, Montenegro, Netherlands, Peru: 150 lines, Tourist base plus Business for the Netherlands and Peru), in `packages/core/src/starter-checklists/seed-rows-new-countries.ts`.
+- The Tourist and Business lines of Germany, Italy, Japan, South Korea, Spain, Thailand and United Kingdom were replaced by 186 lines from the owner's research (official embassy, visa centre and government pages where found, agency files otherwise). Thailand's one Medical line from the first sheet stays. The earlier lines are in git history.
+- Each new line's reference reads "layer | link | grade | checked date", for example "German Embassy Dhaka checklist (read 2026-11-02) | https://dhaka.diplo.de/... | grade A | checked 2026-11-02". It is shown as the item's source as given. Grade A means read on an official page, B official but partial, D agency or informal. The lists stay starter lists, "Not official", whatever the grade, until an admin approves a list.
+- Nothing is loaded by itself. Pack Studio shows the new and changed lists when a platform admin presses Check What Would Change, and they reach cases only after Load.
+- Country names now resolve through the country intake names as well as the fixed list, so a sheet may name any country the intake holds.
+- Not changed, on purpose: Australia, Canada, Denmark, Malaysia, New Zealand, Singapore, Sweden and United States (the official items they lack are listed for the owner in `docs/product/master-profile-enrichment/country-intake/starter-diff-2026-11-13.md`), and purposes beyond Tourist, Business and Medical (staged in `docs/product/master-profile-enrichment/country-intake/staged/`).
