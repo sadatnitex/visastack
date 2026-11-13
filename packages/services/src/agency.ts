@@ -38,6 +38,15 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import {
+  type FieldPin,
+  evidenceFieldPinsPresent,
+  findFieldSubmissionByKey,
+  linkFieldDecision,
+  pinFieldVersion,
+  recordFieldSubmission,
+  waitingFieldSubmission,
+} from './evidence-field-answers';
+import {
   evidenceSubmissionsPresent,
   newerUnlinkedDecision,
   pinnedVersionIntact,
@@ -2974,6 +2983,14 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,200}$/;
  * `idempotencyKey` is answered with the first result and writes nothing. While migration 0132 has
  * not run, the older pointers alone are written (the same hardening applies) and no exact copy is
  * kept; nothing is faked.
+ *
+ * A detail (FIELD) send pins the same way (migration 0135): inside the same locked transaction the
+ * detail's row is locked and its current saved version is read and written to
+ * `evidence_request_fact_submissions`, so the send names the exact version, never "whatever the
+ * detail says later". When the screen names the version the person saw (`factVersionId`) and the
+ * detail has changed since, nothing is sent and the person is told the page is out of date. A
+ * retry with the same key is answered like a document retry. Until 0135 has run the older pointer
+ * alone is written and no exact value is kept.
  */
 export async function submitEvidenceResponse(
   db: Db,
@@ -2983,6 +3000,8 @@ export async function submitEvidenceResponse(
     readonly factId?: string;
     readonly documentId?: string;
     readonly documentVersionId?: string;
+    /** The saved version of the detail the person saw; must still be the current one. */
+    readonly factVersionId?: string;
     readonly idempotencyKey?: string;
   },
 ): Promise<Result<EvidenceSubmitResult, ServiceError>> {
@@ -2996,10 +3015,14 @@ export async function submitEvidenceResponse(
   ) {
     return err(serviceError('not_found', 'document not found for this applicant'));
   }
-  if (input.factId !== undefined && !isUuid(input.factId)) {
+  if (
+    (input.factId !== undefined && !isUuid(input.factId)) ||
+    (input.factVersionId !== undefined && !isUuid(input.factVersionId))
+  ) {
     return err(serviceError('not_found', 'fact not found for this applicant'));
   }
   const exact = await evidenceSubmissionsPresent(db);
+  const fieldPins = await evidenceFieldPinsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
   // Until the exact-copy tables exist a chosen version could not be kept, so it is not accepted.
   if (!exact && input.documentVersionId !== undefined) {
@@ -3007,6 +3030,14 @@ export async function submitEvidenceResponse(
       serviceError(
         'invalid',
         'Choosing an exact version is not available yet. Send the document and its newest version is used.',
+      ),
+    );
+  }
+  if (!fieldPins && input.factVersionId !== undefined) {
+    return err(
+      serviceError(
+        'invalid',
+        'Choosing an exact saved value is not available yet. Send the detail and its current value is used.',
       ),
     );
   }
@@ -3060,6 +3091,32 @@ export async function submitEvidenceResponse(
       }
     }
 
+    // The same for a detail: a retry of a send already recorded, while it is still the newest and
+    // undecided and names the same detail, is answered with it and writes nothing.
+    if (fieldPins && request.kind === 'FIELD' && input.idempotencyKey !== undefined) {
+      const earlier = await findFieldSubmissionByKey(tx, request.id, input.idempotencyKey);
+      if (earlier) {
+        if (
+          input.factId !== earlier.factId ||
+          (input.factVersionId !== undefined && input.factVersionId !== earlier.factVersionId)
+        ) {
+          return err(
+            serviceError('invalid', 'this retry key was already used for a different detail'),
+          );
+        }
+        const waiting = await waitingFieldSubmission(tx, request);
+        if (waiting?.id !== earlier.id) {
+          return err(
+            serviceError(
+              'stale',
+              'This was already sent and has moved on. Refresh to see where it stands.',
+            ),
+          );
+        }
+        return ok({ ...request, submissionId: earlier.id, replayed: true });
+      }
+    }
+
     if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
       return err(serviceError('invalid', 'this request is not awaiting a submission'));
     }
@@ -3082,6 +3139,7 @@ export async function submitEvidenceResponse(
     }
 
     let pin: SendPin | undefined;
+    let fieldPin: FieldPin | undefined;
     if (request.kind === 'FIELD') {
       if (!input.factId || input.documentId || input.documentVersionId) {
         return err(serviceError('invalid', 'a FIELD request is satisfied by exactly one factId'));
@@ -3106,8 +3164,17 @@ export async function submitEvidenceResponse(
       if (fact.fieldKey !== request.fieldKey) {
         return err(serviceError('invalid', "this fact does not match the request's field"));
       }
+      if (fieldPins) {
+        const pinned = await pinFieldVersion(tx, {
+          factId: input.factId,
+          fieldKey: fact.fieldKey,
+          ...(input.factVersionId !== undefined ? { expectedVersionId: input.factVersionId } : {}),
+        });
+        if (!pinned.ok) return pinned;
+        fieldPin = pinned.value;
+      }
     } else {
-      if (!input.documentId || input.factId) {
+      if (!input.documentId || input.factId || input.factVersionId) {
         return err(
           serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
         );
@@ -3219,6 +3286,17 @@ export async function submitEvidenceResponse(
       );
       submissionId = row.id;
     }
+    if (fieldPin) {
+      const row = await recordFieldSubmission(tx, {
+        requestId: request.id,
+        pin: fieldPin,
+        sentByAccountId: input.actorAccountId,
+        grantIdAtSend: grantId,
+        ...(input.idempotencyKey !== undefined ? { idempotencyKey: input.idempotencyKey } : {}),
+      });
+      submissionId = row.id;
+      roundNo = row.roundNo;
+    }
     await noticeAgencyOfEvidence(tx, {
       request,
       // Keyed on the send's own row (never on its round number, which can be reused once an
@@ -3240,7 +3318,14 @@ export async function submitEvidenceResponse(
       metadata: {
         factId: input.factId,
         documentId: input.documentId,
-        ...(submissionId ? { submissionId, documentVersionId: pin?.version.id, roundNo } : {}),
+        ...(submissionId
+          ? {
+              submissionId,
+              roundNo,
+              ...(pin ? { documentVersionId: pin.version.id } : {}),
+              ...(fieldPin ? { factVersionId: fieldPin.factVersionId } : {}),
+            }
+          : {}),
       },
     });
     await recordProductEvent(tx, {
@@ -3433,6 +3518,7 @@ export async function decideEvidenceResponse(
     return err(serviceError('not_found', 'evidence request not found'));
   }
   const exact = await evidenceSubmissionsPresent(db);
+  const fieldPins = await evidenceFieldPinsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
 
   // CAS-03's own request-status enum has no CONTRADICTION/CORRECTION_PROPOSED
@@ -3476,7 +3562,10 @@ export async function decideEvidenceResponse(
     // request still points at it. Anything else is an older, unpinned send.
     const pinned =
       exact && request.kind === 'DOCUMENT' ? await waitingSubmission(tx, request) : undefined;
-    if (input.submissionId !== undefined && input.submissionId !== pinned?.id) {
+    // A detail answer is judged the same way: the newest send, only while nobody has decided it.
+    const pinnedField =
+      fieldPins && request.kind === 'FIELD' ? await waitingFieldSubmission(tx, request) : undefined;
+    if (input.submissionId !== undefined && input.submissionId !== (pinned ?? pinnedField)?.id) {
       return err(
         serviceError(
           'stale',
@@ -3566,6 +3655,7 @@ export async function decideEvidenceResponse(
         .insert(schema.evidenceRequestDecisionSubmissions)
         .values({ decisionId: decision.id, submissionId: pinned.id });
     }
+    if (pinnedField) await linkFieldDecision(tx, decision.id, pinnedField.id);
     // The agency's "evidence arrived" notice is obsolete once the request has been decided; the
     // notices to the traveller about this decision are not touched.
     await cancelQueuedNotificationsForResource(tx, request.id, 'EVIDENCE_RESPONSE_RECEIVED');
@@ -3577,7 +3667,10 @@ export async function decideEvidenceResponse(
       applicantId: request.applicantId,
       resourceType: 'evidence_request',
       resourceId: request.id,
-      metadata: { outcome: input.outcome, ...(pinned ? { submissionId: pinned.id } : {}) },
+      metadata: {
+        outcome: input.outcome,
+        ...((pinned ?? pinnedField) ? { submissionId: (pinned ?? pinnedField)?.id } : {}),
+      },
     });
     // OPS-04 reworked evidence: the reviewer sent a submission back. The
     // dimension is which of the three kinds of "send back" it was, never the
