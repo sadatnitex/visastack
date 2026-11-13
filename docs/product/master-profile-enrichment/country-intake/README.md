@@ -64,3 +64,23 @@ The manual workflow was run against all 187 cited pages. What it showed, and wha
 - Quotes with a dash, a middle dot or a space before a full stop were wrongly reported as missing. The checker now decodes the page's character codes and ignores that space, so Ireland, Belarus, Malawi and Brunei pass.
 - Australia, Qatar, Ethiopia, Myanmar, South Africa, Kenya, Kazakhstan and Fiji pages do not contain the copied words when fetched (several build their text with scripts). Their country, route and requirement rows are marked low confidence and "needs check"; the facts were not changed.
 - Two rows to look at first: Kazakhstan (the quote says visa-free for Bangladesh while the status says visa required, and the page never names Bangladesh) and Fiji (marked visa-free from a page that does not name Bangladesh).
+
+## Corrections of 2026-11-13
+
+The owner's corrections file (13 rows, `visastack_corrections.csv`) was applied to the sheets where a
+matching field exists, then `batch-001.json` was rebuilt and `validation-report.csv` regenerated:
+
+- US visa bond: up to USD 20,000 (was 15,000) on the B1/B2 bond requirement, with the new link
+  (https://bd.usembassy.gov/visas/) and Checked on 2026-11-13; the route description says 20,000 and
+  the route and country rows name the change in their notes.
+- Singapore route channel and link (authorised visa agents in Dhaka); South Korea application centre,
+  Dhaka, USD 40; Netherlands apply and source link (VFS Global Dhaka); Poland apply link (the Polish
+  page on representation by the Netherlands); Vietnam e-visa fee USD 25, 90 days, official portal.
+- Notes only (no matching field): Spain centre address, Sweden's representation of Finland, Latvia,
+  Luxembourg, Slovenia and Iceland, Malaysia eVISA terms, Singapore processing, Bahrain (not on the
+  visa-on-arrival list; the e-visa status stays unconfirmed).
+- The corrections give no word-for-word text from the new pages, so where a row's source link changed
+  its copied words are left empty and the row is flagged for a check. No quote was invented.
+
+Starter checklist work of the same day: `starter-diff-2026-11-13.md` (official items missing from
+eight countries' starter lists, for the owner to decide) and `staged/` (extended purposes, staged only).

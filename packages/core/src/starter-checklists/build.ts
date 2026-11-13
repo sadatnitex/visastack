@@ -1,3 +1,4 @@
+import { DESTINATIONS, COUNTRY_CODES as ISO_COUNTRY_CODES } from '../destinations';
 import { type StarterNecessity, mapDocType, necessityFor } from './doc-type-rules';
 
 /**
@@ -61,7 +62,10 @@ export function isStarterPackKey(key: string | null | undefined): boolean {
 export const STARTER_NOTICE =
   'Starter list from agency files. Not official. Check the official page.';
 
-/** The two-letter codes of the countries in the supplied sheet, by the name the sheet uses. */
+/**
+ * The two-letter codes of the countries in the first supplied sheet, by the name that sheet uses.
+ * Kept as written because some names differ from the country intake (Hong Kong, Turkey).
+ */
 const COUNTRY_CODES: Readonly<Record<string, string>> = {
   Australia: 'AU',
   Canada: 'CA',
@@ -98,6 +102,33 @@ const COUNTRY_CODES: Readonly<Record<string, string>> = {
   'United States': 'US',
   Vietnam: 'VN',
 };
+
+let intakeCodes: ReadonlyMap<string, string> | undefined;
+
+/**
+ * Any other country, by the name the country intake sheets use (batch-001), taking a code only if
+ * the ISO table (`country-codes.json`) has it. That table holds codes only, no names, so the names
+ * come from the intake, which is the owner's own list.
+ */
+function intakeCodeOf(name: string): string | undefined {
+  if (intakeCodes === undefined) {
+    const iso = new Set(ISO_COUNTRY_CODES.map(([alpha2]) => alpha2));
+    intakeCodes = new Map(
+      DESTINATIONS.filter((destination) => iso.has(destination.iso2)).map((destination) => [
+        destination.country,
+        destination.iso2,
+      ]),
+    );
+  }
+  return intakeCodes.get(name);
+}
+
+/** The two-letter code for a country name as a sheet writes it, or undefined when it is not known. */
+export function starterCountryCode(name: string): string | undefined {
+  const trimmed = name.trim();
+  if (Object.hasOwn(COUNTRY_CODES, trimmed)) return COUNTRY_CODES[trimmed];
+  return intakeCodeOf(trimmed);
+}
 
 const PURPOSES: Readonly<
   Record<StarterPurpose, { readonly key: string; readonly label: string; readonly sheet: RegExp }>
@@ -179,6 +210,8 @@ export function buildStarterPacks(rows: readonly StarterSheetRow[]): StarterBuil
   const base = new Map<string, StarterRequirement[]>();
   const extras = new Map<string, StarterRequirement[]>();
   const countries: string[] = [];
+  /** The name the sheet used for each code, for a country not in the fixed list. */
+  const sheetNames = new Map<string, string>();
 
   for (const row of rows) {
     const text = plainText(row.text);
@@ -190,7 +223,7 @@ export function buildStarterPacks(rows: readonly StarterSheetRow[]): StarterBuil
       skipped.push({ row, reason: 'The sheet marks this line not to keep.' });
       continue;
     }
-    const iso2 = COUNTRY_CODES[row.country.trim()];
+    const iso2 = starterCountryCode(row.country);
     if (!iso2) {
       skipped.push({ row, reason: `The country "${row.country}" is not one we know yet.` });
       continue;
@@ -212,6 +245,7 @@ export function buildStarterPacks(rows: readonly StarterSheetRow[]): StarterBuil
       reference: plainText(row.reference),
     };
     if (!countries.includes(iso2)) countries.push(iso2);
+    if (!sheetNames.has(iso2)) sheetNames.set(iso2, row.country.trim());
     const bucket = purpose === 'tourist' ? base : extras;
     const id = purpose === 'tourist' ? iso2 : `${iso2}.${purpose}`;
     const already = bucket.get(id) ?? [];
@@ -224,7 +258,9 @@ export function buildStarterPacks(rows: readonly StarterSheetRow[]): StarterBuil
 
   const packs: StarterPackDefinition[] = [];
   const nameOf = (iso2: string) =>
-    Object.entries(COUNTRY_CODES).find(([, code]) => code === iso2)?.[0] ?? iso2;
+    Object.entries(COUNTRY_CODES).find(([, code]) => code === iso2)?.[0] ??
+    sheetNames.get(iso2) ??
+    iso2;
   for (const iso2 of countries) {
     const baseList = base.get(iso2) ?? [];
     const variants: [StarterPurpose, readonly StarterRequirement[]][] = [['tourist', baseList]];
