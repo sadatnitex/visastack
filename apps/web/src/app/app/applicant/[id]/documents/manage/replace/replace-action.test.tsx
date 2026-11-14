@@ -139,7 +139,9 @@ describe('What This Change Affects in the replace flow', () => {
     );
     // The review takes the place of the plain list and its count sentence: no second copy.
     expect(container.querySelector('.lc-replace-cases')).toBeNull();
-    expect(container.textContent).not.toContain('will be updated and will need to be confirmed');
+    expect(container.textContent).not.toContain(
+      'will ask you to choose the document and confirm again.',
+    );
     expect(container.textContent).not.toContain('We could not work out');
     expect(container.textContent).toContain('The old document stays in your records');
     expect(button('Replace')?.getAttribute('aria-disabled')).toBeNull();
@@ -154,7 +156,7 @@ describe('What This Change Affects in the replace flow', () => {
       [...container.querySelectorAll('.lc-replace-cases li')].map((li) => li.textContent),
     ).toEqual(['Japan Visit', 'UK Visit']);
     expect(container.textContent).toContain(
-      '2 cases will be updated and will need to be confirmed again.',
+      '2 cases will ask you to choose the document and confirm again.',
     );
     expect(container.textContent).toContain(
       'We could not work out what else this change affects this time. You can still replace the document.',
@@ -170,7 +172,7 @@ describe('What This Change Affects in the replace flow', () => {
 
   const caseNames = () =>
     [...container.querySelectorAll('.lc-replace-cases li')].map((li) => li.textContent);
-  const COUNT_LINE = '2 cases will be updated and will need to be confirmed again.';
+  const COUNT_LINE = '2 cases will ask you to choose the document and confirm again.';
 
   it('keeps the plain list of cases and their count when the review could not check the cases', async () => {
     mocks.preview.mockResolvedValue(
@@ -313,7 +315,7 @@ describe('Replace with a Newer Document', () => {
     expect(heading?.textContent).toBe('Replace Passport, Old?');
     expect(document.activeElement).toBe(heading);
     expect(container.textContent).toContain(
-      '2 cases will be updated and will need to be confirmed again.',
+      '2 cases will ask you to choose the document and confirm again.',
     );
     expect(
       [...container.querySelectorAll('.lc-replace-cases li')].map((li) => li.textContent),
@@ -488,11 +490,15 @@ describe('the Replace It link from a reminder', () => {
 describe('the words', () => {
   it('counts cases exactly', () => {
     expect(confirmMessage(0)).toBe('No open case uses this document, so nothing else changes.');
-    expect(confirmMessage(1)).toBe('1 case will be updated and will need to be confirmed again.');
-    expect(confirmMessage(2)).toBe('2 cases will be updated and will need to be confirmed again.');
-    expect(replacedMessage(2)).toContain('2 cases were updated and need to be confirmed again.');
+    expect(confirmMessage(1)).toBe('1 case will ask you to choose the document and confirm again.');
+    expect(confirmMessage(2)).toBe(
+      '2 cases will ask you to choose the document and confirm again.',
+    );
+    expect(replacedMessage(2)).toContain(
+      '2 cases ask you to choose the document and confirm again.',
+    );
     expect(replacedMessage(1)).toBe(
-      'Replaced. 1 case was updated and needs to be confirmed again. The old document stays in your records, marked Replaced.',
+      'Replaced. 1 case asks you to choose the document and confirm again. The old document stays in your records, marked Replaced.',
     );
   });
 });

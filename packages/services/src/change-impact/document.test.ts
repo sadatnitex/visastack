@@ -971,3 +971,43 @@ describe('a preview that names a newer document the replacement would refuse', (
     HEAVY,
   );
 });
+
+describe('a request the agency sent back, on a case that has since been cancelled', () => {
+  it(
+    'is history, not an action, while a request that belongs to no case still needs the traveller',
+    async () => {
+      const w = await buildImpactWorld();
+      // Two requests, both sent back and both waiting on the traveller: one belongs to a case, the
+      // other to no case at all.
+      const onCase = await askForDocument(w.db, w.agencyA, w.rahim, w.liveCaseId);
+      await sendDocument(w.db, w.rahim, onCase, w.p1.documentId);
+      await decide(w.db, w.agencyA, onCase, 'NEEDS_REPLACEMENT');
+      const alone = await askForDocument(w.db, w.agencyA, w.rahim);
+      await sendDocument(w.db, w.rahim, alone, w.p1.documentId);
+      await decide(w.db, w.agencyA, alone, 'NEEDS_REPLACEMENT');
+      await replaceWithNewerPassport(w);
+
+      // While the case is live, both ask for action.
+      const live = await readDocumentImpact(w);
+      expect(itemOf(live, `request:${onCase}`).outcome).toBe('ACTION_REQUIRED');
+      expect(itemOf(live, `request:${alone}`).outcome).toBe('ACTION_REQUIRED');
+
+      // The traveller cancels the case. Its request no longer needs anything from them, and the
+      // review says so as history; the independent request is unchanged.
+      await cancelCase(w.db, w.rahim, w.liveCaseId);
+      const after = await readDocumentImpact(w);
+      expect(itemOf(after, `request:${onCase}`)).toMatchObject({
+        outcome: 'HISTORY_PRESERVED',
+        reason: 'AGENCY_REQUEST_ON_FINISHED_CASE',
+      });
+      expect(itemOf(after, `request:${alone}`)).toMatchObject({
+        outcome: 'ACTION_REQUIRED',
+        reason: 'AGENCY_WAITING_FOR_REPLACEMENT',
+      });
+      // The request is still listed (nothing is hidden), it simply is not counted as an action.
+      expect(after.items.some((item) => item.id === `request:${onCase}`)).toBe(true);
+      expect(after.complete).toBe(true);
+    },
+    HEAVY,
+  );
+});

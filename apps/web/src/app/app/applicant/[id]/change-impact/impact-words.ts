@@ -155,14 +155,17 @@ export function impactSentence(
   ): ImpactMessage =>
     date ? { key: withDate, names, date } : { key: withoutDate, names, date: null };
   const sentAt = request?.sentAt;
-  // An agency that is no longer active arrives without a name. The two reasons an answered
-  // checklist can carry have their own sentences that name no agency; any other reason gets one
-  // plain sentence rather than a sentence with a gap where the name belongs.
+  // An agency that is no longer active arrives without a name. The reasons an answered
+  // checklist can carry, and a request on a finished case, have their own sentences that name no
+  // agency; any other reason gets one plain sentence rather than a sentence with a gap where the
+  // name belongs.
   const unnamed = request !== null && request.organizationName === '';
   if (
     unnamed &&
     item.reason !== 'AGENCY_HOLDS_CURRENT' &&
-    item.reason !== 'CHECKLIST_ANSWER_HOLDS_EARLIER'
+    item.reason !== 'CHECKLIST_ANSWER_HOLDS_EARLIER' &&
+    item.reason !== 'CHECKLIST_ANSWER_FINISHED' &&
+    item.reason !== 'AGENCY_REQUEST_ON_FINISHED_CASE'
   )
     return plain('changeImpact.reason.agencyNotNamed');
 
@@ -290,6 +293,15 @@ export function impactSentence(
             'changeImpact.reason.agencyAcceptedFinished.detailNoDate',
           );
     }
+    case 'AGENCY_REQUEST_ON_FINISHED_CASE':
+      return plain('changeImpact.reason.requestOnFinishedCase');
+    case 'CHECKLIST_ANSWER_FINISHED':
+      if (preview) return plain('changeImpact.reason.checklistFinished.documentPreview');
+      return plain(
+        document
+          ? 'changeImpact.reason.checklistFinished.document'
+          : 'changeImpact.reason.checklistFinished.detail',
+      );
     case 'LIVE_CASE_FOLLOWS_CURRENT':
       return plain(
         document

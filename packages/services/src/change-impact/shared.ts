@@ -1,5 +1,6 @@
 import { type Result, err } from '@visastack/core';
 import { ACCESS_REFUSAL, AuthorizedApplicant } from '../access/require-access';
+import { FINISHED_CASE_STATES } from '../attention';
 import type { Db } from '../db';
 import { serverErrorEvent } from '../error-report';
 import { type ServiceError, serviceError } from '../errors';
@@ -114,6 +115,7 @@ export function evidenceRequestItem(history: RequestHistory, rules: SendRules): 
   const reason = classifySend({
     standing: requestStanding(request.status),
     latest,
+    caseFinished: request.mission ? FINISHED_CASE_STATES.has(request.mission.state) : false,
     liveWork: agencyWorkIsLive({
       caseLive: request.mission ? !isInactiveCaseState(request.mission.state) : null,
       agencyHoldsLiveShare: rules.agenciesWithLiveShare.has(request.agencyId),
@@ -175,6 +177,9 @@ export async function evidenceRequestItems(
   });
 }
 
+/** The stored status of a checklist request its agency has ended as finished (not withdrawn). */
+const COLLECTION_CLOSED = 'CLOSED';
+
 /**
  * The traveller's live answers to agency checklists, one item each. An answer that holds the
  * current copy or value needs nothing, whatever the agency decided. For one that holds the
@@ -204,7 +209,13 @@ export function collectionAnswerDrafts(
           decidedAt: null,
           createdAt: answer.submittedAt,
         },
-        carries === 'CURRENT' ? 'AGENCY_HOLDS_CURRENT' : 'CHECKLIST_ANSWER_HOLDS_EARLIER',
+        carries === 'CURRENT'
+          ? 'AGENCY_HOLDS_CURRENT'
+          : // Only a collection recorded as closed is finished. A missing, unknown or unfinished
+            // status is never taken as closed: the answer stays "cannot tell".
+            answer.requestStatus === COLLECTION_CLOSED
+            ? 'CHECKLIST_ANSWER_FINISHED'
+            : 'CHECKLIST_ANSWER_HOLDS_EARLIER',
       ),
     );
   }
