@@ -81,7 +81,7 @@ async function seed() {
   });
   if (!isOk(applicant)) throw new Error('applicant');
   const applicantId = applicant.value.id;
-  for (const key of ['passport_number', 'occupation', 'given_name']) {
+  for (const key of ['passport_number', 'occupation', 'given_name', 'family_name']) {
     await registerFieldDefinition(db, { key, dataType: 'string', sensitivity: 'STANDARD' });
   }
   await registerFieldDefinition(db, {
@@ -90,12 +90,13 @@ async function seed() {
     sensitivity: 'STANDARD',
   });
   let counter = 0;
-  const addFile = async () => {
+  const addFile = async (docType: string | undefined = 'PASSPORT') => {
     counter += 1;
     const doc = await registerDocument(db, {
       actorAccountId: accountId,
       applicantId,
       originalName: `file-${counter}.pdf`,
+      ...(docType ? { docType } : {}),
     });
     if (!isOk(doc)) throw new Error('doc');
     const version = await addDocumentVersion(db, {
@@ -291,5 +292,45 @@ describe('the issue date a document supports for a changed detail', () => {
           .where(eq(schema.fieldProposals.id, reading?.proposal.id as string))
       )[0]?.status,
     ).toBe('APPROVED');
+  });
+  it('is not offered for a document type with no issue date, even for a detail a passport also carries', async () => {
+    const { addFile, read, pendingOf } = await seed();
+    const version = await addFile('NID');
+    await read(version, [{ family_name: 'Rahman', passport_issue_date: '2024-03-12' }]);
+    expect((await pendingOf('family_name', version))?.issueDate).toBeUndefined();
+  });
+
+  it('is not offered for a file whose kind is not known yet', async () => {
+    const { addFile, read, pendingOf } = await seed();
+    const version = await addFile('');
+    await read(version, [{ passport_number: 'A1234567', passport_issue_date: '2024-03-12' }]);
+    expect((await pendingOf('passport_number', version))?.issueDate).toBeUndefined();
+  });
+
+  it('never counts a date an AI app suggested for this document as the document’s own', async () => {
+    const { applicantId, addFile, read, pendingOf } = await seed();
+    const version = await addFile();
+    await read(version, [{ passport_number: 'A1234567' }]);
+    // An AI app names this passport and suggests an issue date: stored on the passport's version.
+    const [run] = await db
+      .insert(schema.aiExtractionRuns)
+      .values({
+        documentVersionId: version,
+        applicantId,
+        status: 'SUCCEEDED',
+        modelVersion: 'connector:app.example.com',
+        promptVersion: 'connection-1',
+      })
+      .returning();
+    await db.insert(schema.fieldProposals).values({
+      aiExtractionRunId: (run as { id: string }).id,
+      documentVersionId: version,
+      applicantId,
+      type: 'NEW',
+      fieldKey: 'passport_issue_date',
+      value: '2025-01-01',
+      confidence: 90,
+    });
+    expect((await pendingOf('passport_number', version))?.issueDate).toEqual({ status: 'none' });
   });
 });

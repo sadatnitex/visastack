@@ -497,7 +497,7 @@ describe('the date a changed detail took effect, from the document’s own issue
     const cases: [NonNullable<Finding['issueDate']>, string][] = [
       [
         { status: 'none' },
-        'This document does not show an issue date we could read. Enter the date it changed.',
+        'We have no issue date from this document to use. Enter the date it changed.',
       ],
       [
         { status: 'unreadable' },

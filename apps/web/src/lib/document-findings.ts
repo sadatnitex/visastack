@@ -1,5 +1,5 @@
 import { aiAppLabel } from '@visastack/core/ai-features';
-import { isRepeatingFieldKey, issueDateKeysFor } from '@visastack/core/catalogue';
+import { isIssueDateKey, isRepeatingFieldKey } from '@visastack/core/catalogue';
 import {
   type ProfileEntry,
   type ProposalWithEvidence,
@@ -89,6 +89,6 @@ export function findingViewModel(
     ...(differs ? { difference: { current: showCurrent ? current.value : null } } : {}),
     // The document's own issue date: only a hint for the date a changed detail took effect.
     ...(issueDate ? { issueDate } : {}),
-    ...(key && issueDateKeysFor(key).includes(key) ? { ownIssueDate: true } : {}),
+    ...(issueDate && key && isIssueDateKey(key) ? { ownIssueDate: true } : {}),
   };
 }

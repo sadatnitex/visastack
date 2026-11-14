@@ -3753,8 +3753,13 @@ async function issueDatesByVersion(
       fieldKey: schema.fieldProposals.fieldKey,
       value: schema.fieldProposals.value,
       corrected: schema.correctionFeedback.correctedValue,
+      modelVersion: schema.aiExtractionRuns.modelVersion,
     })
     .from(schema.fieldProposals)
+    .innerJoin(
+      schema.aiExtractionRuns,
+      eq(schema.aiExtractionRuns.id, schema.fieldProposals.aiExtractionRunId),
+    )
     .leftJoin(
       schema.correctionFeedback,
       eq(schema.correctionFeedback.fieldProposalId, schema.fieldProposals.id),
@@ -3769,7 +3774,8 @@ async function issueDatesByVersion(
     );
   const byVersion = new Map<string, { fieldKey: string; value: string }[]>();
   for (const row of rows) {
-    if (!row.versionId || !row.fieldKey) continue;
+    // An AI app's suggestion is not what the document shows, even when it names this document.
+    if (!row.versionId || !row.fieldKey || isConnectorModelVersion(row.modelVersion)) continue;
     const list = byVersion.get(row.versionId) ?? [];
     list.push({ fieldKey: row.fieldKey, value: row.corrected ?? row.value ?? '' });
     byVersion.set(row.versionId, list);
@@ -3821,33 +3827,33 @@ export async function listPendingProposals(
       : [],
   );
 
-  // The document's own issue date, read once for every document these readings came from.
-  const issueKeys = [
+  // The document's own issue date, read once for every document these readings came from. Which
+  // detail is its issue date depends on what kind of document it is, so the kind comes first.
+  const versionIds = [
     ...new Set(
       rows.flatMap((row) =>
-        row.proposal.fieldKey && !isConnectorModelVersion(row.modelVersion)
-          ? issueDateKeysFor(row.proposal.fieldKey)
+        row.proposal.documentVersionId &&
+        row.proposal.fieldKey &&
+        !isConnectorModelVersion(row.modelVersion)
+          ? [row.proposal.documentVersionId]
           : [],
       ),
     ),
   ];
-  const issueValues = await issueDatesByVersion(
-    db,
-    applicantId,
-    [
-      ...new Set(
-        rows.flatMap((row) =>
-          row.proposal.documentVersionId &&
-          row.proposal.fieldKey &&
-          !isConnectorModelVersion(row.modelVersion) &&
-          issueDateKeysFor(row.proposal.fieldKey).length > 0
-            ? [row.proposal.documentVersionId]
-            : [],
-        ),
-      ),
-    ],
-    issueKeys,
+  const typeOfVersion = new Map<string, string | null>(
+    await Promise.all(
+      versionIds.map(async (id) => [id, await getDocumentTypeOfVersion(db, id)] as const),
+    ),
   );
+  const issueKeysOfRow = (row: (typeof rows)[number]): readonly string[] =>
+    row.proposal.documentVersionId &&
+    row.proposal.fieldKey &&
+    !isConnectorModelVersion(row.modelVersion)
+      ? issueDateKeysFor(typeOfVersion.get(row.proposal.documentVersionId), row.proposal.fieldKey)
+      : [];
+  const issueValues = await issueDatesByVersion(db, applicantId, versionIds, [
+    ...new Set(rows.flatMap(issueKeysOfRow)),
+  ]);
   const now = new Date();
 
   const result: ProposalWithEvidence[] = [];
@@ -3858,10 +3864,7 @@ export async function listPendingProposals(
       .from(schema.evidenceLocations)
       .where(eq(schema.evidenceLocations.fieldProposalId, proposal.id));
     const connectionId = connectionIdOfRun(row);
-    const ownIssueKeys =
-      proposal.fieldKey && !isConnectorModelVersion(row.modelVersion)
-        ? issueDateKeysFor(proposal.fieldKey)
-        : [];
+    const ownIssueKeys = issueKeysOfRow(row);
     result.push({
       proposal,
       evidence,

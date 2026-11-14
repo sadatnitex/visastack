@@ -1,27 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { issueDateKeysFor, realIsoDay, resolveIssueDate } from './issue-date';
+import { isIssueDateKey, issueDateKeysFor, realIsoDay, resolveIssueDate } from './issue-date';
 
 const NOW = new Date('2026-11-14T10:00:00Z');
 
-describe('which issue date backs a detail', () => {
-  it('is the passport issue date for a detail a passport carries', () => {
-    expect(issueDateKeysFor('passport_number')).toEqual(['passport_issue_date']);
-    expect(issueDateKeysFor('passport_expiry')).toEqual(['passport_issue_date']);
-    expect(issueDateKeysFor('passport_issue_date')).toEqual(['passport_issue_date']);
+describe('which issue date backs a detail on a document type', () => {
+  it('is the passport issue date for a detail the passport carries', () => {
+    expect(issueDateKeysFor('PASSPORT', 'passport_number')).toEqual(['passport_issue_date']);
+    expect(issueDateKeysFor('PASSPORT', 'passport_expiry')).toEqual(['passport_issue_date']);
+    expect(issueDateKeysFor('PASSPORT', 'passport_issue_date')).toEqual(['passport_issue_date']);
+    expect(issueDateKeysFor('Passport', 'given_name')).toEqual(['passport_issue_date']);
   });
 
-  it('is nothing for a detail no document type with an issue date carries', () => {
-    expect(issueDateKeysFor('occupation')).toEqual([]);
-    expect(issueDateKeysFor('nid_number')).toEqual([]);
-    expect(issueDateKeysFor('not_a_field')).toEqual([]);
+  it('is nothing for a document type with no issue date, even for a detail a passport also carries', () => {
+    // The national ID card carries a family name, but has no issue-date detail of its own.
+    expect(issueDateKeysFor('NID', 'family_name')).toEqual([]);
+    expect(issueDateKeysFor('NID', 'nid_number')).toEqual([]);
+  });
+
+  it('is nothing for a detail the type does not carry, or an unknown or missing type', () => {
+    expect(issueDateKeysFor('PASSPORT', 'occupation')).toEqual([]);
+    expect(issueDateKeysFor('NOT_A_TYPE', 'passport_number')).toEqual([]);
+    expect(issueDateKeysFor(null, 'passport_number')).toEqual([]);
+    expect(issueDateKeysFor(undefined, 'passport_number')).toEqual([]);
   });
 
   it('never points at an earlier passport or a repeating record', () => {
-    for (const field of ['passport_number', 'given_name', 'nid_number']) {
-      for (const key of issueDateKeysFor(field)) {
-        expect(key.startsWith('historical_')).toBe(false);
-      }
-    }
+    expect(isIssueDateKey('passport_issue_date')).toBe(true);
+    expect(isIssueDateKey('historical_passport_issue_date')).toBe(false);
+    expect(isIssueDateKey('clearance_issue_date')).toBe(false);
+    expect(isIssueDateKey('passport_expiry')).toBe(false);
   });
 });
 

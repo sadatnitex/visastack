@@ -22,7 +22,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdAiReview.issueDateFuture':
       'The issue date we read is in the future, so it was not used. Enter the date it changed.',
     'appApplicant.appApplicantIdAiReview.issueDateNone':
-      'This document does not show an issue date we could read. Enter the date it changed.',
+      'We have no issue date from this document to use. Enter the date it changed.',
     'appApplicant.appApplicantIdAiReview.issueDateOtherDay':
       'This document’s issue date is {date}. Use it, or enter the date it changed.',
     'appApplicant.appApplicantIdAiReview.issueDateTakenFrom':

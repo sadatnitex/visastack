@@ -195,7 +195,10 @@ export interface AiProposalViewModel {
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-/** A real calendar day written year-month-day (no 31 February), for the date field. */
+/**
+ * A real calendar day written year-month-day (no 31 February), for the date field. Kept here, not
+ * imported from the catalogue package, so the whole catalogue never reaches the browser for it.
+ */
 function realDay(value: string): boolean {
   if (!ISO_DAY.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
