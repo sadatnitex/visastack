@@ -137,3 +137,36 @@ describe('a suggestion an AI app made (S21)', () => {
     expect(findingViewModel(reading('given_name', 'Nusrat'), new Map()).app).toBeUndefined();
   });
 });
+
+describe('the document’s own issue date for a reading', () => {
+  const none = new Map();
+
+  it('is handed to the screen exactly as the service decided it', () => {
+    const view = findingViewModel(
+      {
+        ...reading('passport_number', 'A1234567'),
+        issueDate: { status: 'found', date: '2024-03-12' },
+      },
+      none,
+    );
+    expect(view.issueDate).toEqual({ status: 'found', date: '2024-03-12' });
+    expect(view.ownIssueDate).toBeUndefined();
+  });
+
+  it('says nothing when the service offered none (no issue date for this detail)', () => {
+    const view = findingViewModel(reading('occupation', 'Engineer'), none);
+    expect(view.issueDate).toBeUndefined();
+    expect(view.ownIssueDate).toBeUndefined();
+  });
+
+  it('marks an issue date reading as its own, so its date follows the value being saved', () => {
+    const view = findingViewModel(
+      {
+        ...reading('passport_issue_date', '2024-03-12'),
+        issueDate: { status: 'found', date: '2024-03-12' },
+      },
+      none,
+    );
+    expect(view.ownIssueDate).toBe(true);
+  });
+});
