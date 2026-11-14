@@ -6,13 +6,18 @@ import {
   type ReplacementStatus,
   accountPrincipal,
   listReplacementOptions,
+  loadUploadQuotaConfig,
   replaceDocument,
   requireAccess,
 } from '@visastack/services';
 import { readDocumentChangeImpact } from '../../../../../../../lib/change-impact-read';
 import { documentTypeLabel } from '../../../../../../../lib/labels';
 import { withSession } from '../../../../../../../lib/session';
-import { pdfUploadsAccepted } from '../../../../../../../lib/upload-preflight';
+import {
+  pdfUploadsAccepted,
+  uploadLimitBytes,
+  uploadLimitLabel,
+} from '../../../../../../../lib/upload-preflight';
 import { replacedMessage } from './messages';
 
 /** One document the person can choose as the newer one, as the Replace flow shows it. */
@@ -36,6 +41,10 @@ export type ReplaceOptionsResult =
       readonly cases: readonly { readonly missionId: string; readonly title: string }[];
       /** Whether PDF files can be added here (they need a real virus scanner). */
       readonly pdfAccepted: boolean;
+      /** The largest file one upload may be, in bytes: the same limit the Add form checks. */
+      readonly limitBytes: number;
+      /** The same limit as people read it ("4 MB"). */
+      readonly limitLabel: string;
     }
   | { readonly ok: false; readonly message: string };
 
@@ -115,6 +124,7 @@ export async function replaceOptionsAction(
     if (!options.ok) {
       return { ok: false, message: refusalMessage(options.error.code, options.error.message) };
     }
+    const quota = loadUploadQuotaConfig();
     return {
       ok: true,
       docType: options.value.docType ?? '',
@@ -127,6 +137,8 @@ export async function replaceOptionsAction(
       })),
       cases: options.value.cases.map((c) => ({ missionId: c.missionId, title: c.title })),
       pdfAccepted: pdfUploadsAccepted(),
+      limitBytes: uploadLimitBytes(quota),
+      limitLabel: uploadLimitLabel(quota),
     };
   });
 }
