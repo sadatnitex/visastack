@@ -266,7 +266,7 @@ describe('Replace with a Newer Document under Bengali', () => {
     await click(container.querySelector(`input[value="${NEWER}"]`));
     await click(button(bn[`${K}ReplaceReplaceAction.continue`] as string));
     expect(text()).toContain('Replace Passport, Old?');
-    expect(text()).toContain('1 case will be updated');
+    expect(text()).toContain('1 case will ask you to choose the document and confirm again');
     await click(primary());
     expect(text()).toContain(bn[`${K}ReplaceReplaceAction.documentReplaced`]);
     expect(text()).toContain('Replaced.');

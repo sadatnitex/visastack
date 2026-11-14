@@ -222,6 +222,10 @@ export const QUIET_EMPTY = review(
 export const QUIET_WITH_HISTORY = review(DOCUMENT_SUBJECT, 'RECORDED', [
   item('FINISHED_CASE_KEPT', finishedCase),
   item('SHARE_ALREADY_COVERS', share({ reach: 'CATEGORY' })),
+  item(
+    'AGENCY_REQUEST_ON_FINISHED_CASE',
+    request({ requestId: 'r-8', caseTitle: 'Sample Cancelled Case' }),
+  ),
 ]);
 
 /** A document with no newer one named, and sends whose dates were never recorded. */
@@ -263,6 +267,13 @@ const CHECKLIST_ITEMS: readonly ImpactItem[] = [
     checklist({ requestId: 'a-3', organizationName: '' }),
     null,
     'response:a-3',
+  ),
+  item('CHECKLIST_ANSWER_FINISHED', checklist({ requestId: 'a-4' }), null, 'response:a-4'),
+  item(
+    'CHECKLIST_ANSWER_FINISHED',
+    checklist({ requestId: 'a-5', organizationName: '', sentAt: null }),
+    null,
+    'response:a-5',
   ),
 ];
 

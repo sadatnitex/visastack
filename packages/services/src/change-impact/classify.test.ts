@@ -161,13 +161,14 @@ describe('a send to an agency, judged on its latest round', () => {
     standing: RequestStanding,
     state: SendState | null,
     carries: SendCarries = 'EARLIER',
-    extra: { liveWork?: boolean; waitsEvenOnCurrent?: boolean } = {},
+    extra: { liveWork?: boolean; waitsEvenOnCurrent?: boolean; caseFinished?: boolean } = {},
   ) =>
     classifySend({
       standing,
       latest: state ? { state, carries } : null,
       liveWork: extra.liveWork ?? true,
       waitsEvenOnCurrent: extra.waitsEvenOnCurrent ?? false,
+      caseFinished: extra.caseFinished ?? false,
     });
 
   it('names the earlier copy by where it stands', () => {
@@ -177,6 +178,44 @@ describe('a send to an agency, judged on its latest round', () => {
       'AGENCY_ACCEPTED_EARLIER_FINISHED_WORK',
     );
     expect(judge('WAITING_ON_TRAVELLER', 'SENT_BACK')).toBe('AGENCY_WAITING_FOR_REPLACEMENT');
+  });
+
+  it('never asks for action on a request whose case has finished (closed or cancelled)', () => {
+    // The agency sent it back and it still waits on the traveller, but the case it belongs to is
+    // over, so it is history, not something to do (the same rule Needs Attention follows).
+    for (const carries of ['EARLIER', 'UNPINNED', 'CURRENT'] as const) {
+      expect(
+        judge('WAITING_ON_TRAVELLER', 'SENT_BACK', carries, {
+          caseFinished: true,
+          waitsEvenOnCurrent: true,
+        }),
+      ).toBe('AGENCY_REQUEST_ON_FINISHED_CASE');
+    }
+    // A request the change never touched is not listed at all, finished case or not.
+    expect(
+      judge('WAITING_ON_TRAVELLER', 'SENT_BACK', 'CURRENT', {
+        caseFinished: true,
+        waitsEvenOnCurrent: false,
+      }),
+    ).toBeNull();
+    // A finished case changes nothing for a request that is not waiting on the traveller.
+    expect(judge('WAITING_ON_AGENCY', 'AWAITING_DECISION', 'EARLIER', { caseFinished: true })).toBe(
+      'AGENCY_CHECKING_EARLIER',
+    );
+    expect(judge('ANSWERED', 'ACCEPTED', 'EARLIER', { caseFinished: true, liveWork: false })).toBe(
+      'AGENCY_ACCEPTED_EARLIER_FINISHED_WORK',
+    );
+    // A request on a live case, or on no case at all, is still a real obligation.
+    expect(judge('WAITING_ON_TRAVELLER', 'SENT_BACK', 'EARLIER', { caseFinished: false })).toBe(
+      'AGENCY_WAITING_FOR_REPLACEMENT',
+    );
+    // Missing or contradictory records are still reported as unknown, never turned into history.
+    expect(judge('ANSWERED', 'SENT_BACK', 'EARLIER', { caseFinished: true })).toBe(
+      'RECORD_INCOMPLETE',
+    );
+    expect(judge('WAITING_ON_TRAVELLER', 'SENT_BACK', 'BROKEN', { caseFinished: true })).toBe(
+      'RECORD_INCOMPLETE',
+    );
   });
 
   it('needs nothing when the agency holds the current copy or value', () => {

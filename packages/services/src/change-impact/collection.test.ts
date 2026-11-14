@@ -9,6 +9,7 @@ import { buildManifest, listRequirements } from '../packs';
 import { issueStepUpAssurance } from '../step-up';
 import {
   createCollectionRequest,
+  endCollectionRequest,
   issueCollectionRequest,
 } from '../umpe-collection-request-service';
 import { AGENCY_COLLECTION_REQUESTS_SWITCH } from '../umpe-collection-request-switch';
@@ -24,6 +25,7 @@ import {
   withdrawCollectionResponse,
 } from '../umpe-collection-response-service';
 import { startGuestSession } from '../umpe-guest-collection';
+import type { CollectionAnswer } from './load';
 import {
   AGENCY_B_NAME,
   EMPLOYMENT_FIELD,
@@ -39,6 +41,7 @@ import {
   readDocumentImpact,
   replaceWithNewerPassport,
 } from './scenario.test-support';
+import { collectionAnswerDrafts } from './shared';
 
 /*
  * An answered agency checklist (a collection response) carries exact copies and exact saved
@@ -350,4 +353,82 @@ describe('an answered agency checklist', () => {
     },
     HEAVY,
   );
+});
+
+describe('an answered agency checklist whose collection has ended', () => {
+  beforeEach(() => {
+    vi.stubEnv(AGENCY_COLLECTION_REQUESTS_SWITCH, 'true');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it(
+    'is history once the agency has closed the collection, and stays "cannot tell" while the collection is still open',
+    async () => {
+      const w = await buildImpactWorld();
+      await officialChecklist(w);
+      const answer = await answerChecklist(w);
+      const id = `response:${answer.responseId}`;
+      const [response] = await w.db
+        .select({ requestId: schema.agencyCollectionResponses.requestId })
+        .from(schema.agencyCollectionResponses)
+        .where(eq(schema.agencyCollectionResponses.id, answer.responseId));
+      if (!response) throw new Error('response');
+      await replaceWithNewerPassport(w);
+      await changeEmploymentDetail(w);
+
+      // Still being collected: where the answer stands is not known here, so it is never history.
+      for (const impact of [await readDocumentImpact(w), await readDetailImpact(w)]) {
+        expect(itemOf(impact, id)).toMatchObject({
+          outcome: 'UNKNOWN',
+          reason: 'CHECKLIST_ANSWER_HOLDS_EARLIER',
+        });
+      }
+
+      // The agency closes the collection: it is finished, and the earlier answer is on record.
+      must(
+        await endCollectionRequest(w.db, await agencyScope(w), response.requestId, 'CLOSED'),
+        'close',
+      );
+      for (const impact of [await readDocumentImpact(w), await readDetailImpact(w)]) {
+        expect(itemOf(impact, id)).toMatchObject({
+          outcome: 'HISTORY_PRESERVED',
+          reason: 'CHECKLIST_ANSWER_FINISHED',
+          nextStep: null,
+        });
+        expect(impact.complete).toBe(true);
+        expect(impact.counts.UNKNOWN).toBe(0);
+      }
+    },
+    HEAVY,
+  );
+});
+
+describe('judging a checklist answer from what is recorded about its collection', () => {
+  const answer = (requestStatus: string | null): CollectionAnswer => ({
+    responseId: 'r-1',
+    agencyId: 'a-1',
+    agencyName: 'Sample Agency',
+    submittedAt: new Date('2026-11-01T00:00:00Z'),
+    carriedIds: ['v-1'],
+    requestStatus,
+  });
+  const reasonFor = (requestStatus: string | null, carries: 'EARLIER' | 'CURRENT') =>
+    collectionAnswerDrafts([answer(requestStatus)], () => carries).map((d) => d.item.reason);
+
+  it('is history only for a collection recorded as closed that holds the earlier answer', () => {
+    expect(reasonFor('CLOSED', 'EARLIER')).toEqual(['CHECKLIST_ANSWER_FINISHED']);
+  });
+
+  it('never assumes a collection is closed from a missing or unfinished record', () => {
+    for (const status of [null, 'SENT', 'DRAFT', 'SOMETHING_NEW']) {
+      expect(reasonFor(status, 'EARLIER')).toEqual(['CHECKLIST_ANSWER_HOLDS_EARLIER']);
+    }
+  });
+
+  it('still needs nothing when the answer holds the current copy or value, closed or not', () => {
+    expect(reasonFor('CLOSED', 'CURRENT')).toEqual(['AGENCY_HOLDS_CURRENT']);
+    expect(reasonFor('SENT', 'CURRENT')).toEqual(['AGENCY_HOLDS_CURRENT']);
+  });
 });

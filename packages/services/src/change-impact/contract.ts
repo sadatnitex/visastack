@@ -113,6 +113,12 @@ export const IMPACT_REASON_OUTCOME = {
   FINISHED_CASE_KEPT: 'HISTORY_PRESERVED',
   // The agency accepted the earlier copy or answer and that work is over.
   AGENCY_ACCEPTED_EARLIER_FINISHED_WORK: 'HISTORY_PRESERVED',
+  // The agency sent the copy or answer back, but the case the request belongs to is closed or
+  // cancelled, so nothing is asked of the traveller any more (the rule Needs Attention follows).
+  AGENCY_REQUEST_ON_FINISHED_CASE: 'HISTORY_PRESERVED',
+  // A live answer to an agency's checklist holds the earlier copy or value and the agency has
+  // closed that collection: the answer stays on record as history.
+  CHECKLIST_ANSWER_FINISHED: 'HISTORY_PRESERVED',
 
   // A live case follows the current value and has no confirmation to renew.
   LIVE_CASE_FOLLOWS_CURRENT: 'NO_ACTION',

@@ -763,3 +763,31 @@ describe('a case made after the detail last changed', () => {
     HEAVY,
   );
 });
+
+describe('a detail request the agency sent back, on a case that has since been cancelled', () => {
+  it(
+    'is history, not an action, even though a detail request waits on the traveller whatever was sent',
+    async () => {
+      const w = await buildImpactWorld();
+      const onCase = await askForDetail(w.db, w.agencyA, w.rahim, w.liveCaseId);
+      await sendDetail(w.db, w.rahim, onCase, w.e.factId);
+      await decide(w.db, w.agencyA, onCase, 'CONTRADICTION');
+      const alone = await askForDetail(w.db, w.agencyA, w.rahim);
+      await sendDetail(w.db, w.rahim, alone, w.e.factId);
+      await decide(w.db, w.agencyA, alone, 'CONTRADICTION');
+      await changeEmploymentDetail(w);
+
+      const live = await readDetailImpact(w);
+      expect(itemOf(live, `request:${onCase}`).outcome).toBe('ACTION_REQUIRED');
+
+      await cancelCase(w.db, w.rahim, w.liveCaseId);
+      const after = await readDetailImpact(w);
+      expect(itemOf(after, `request:${onCase}`)).toMatchObject({
+        outcome: 'HISTORY_PRESERVED',
+        reason: 'AGENCY_REQUEST_ON_FINISHED_CASE',
+      });
+      expect(itemOf(after, `request:${alone}`).outcome).toBe('ACTION_REQUIRED');
+    },
+    HEAVY,
+  );
+});

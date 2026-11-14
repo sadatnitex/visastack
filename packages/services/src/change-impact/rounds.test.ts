@@ -30,6 +30,7 @@ function judged(request: RoundRequest) {
     latest: latest ? { state: latest.state, carries: 'EARLIER' } : null,
     liveWork: true,
     waitsEvenOnCurrent: false,
+    caseFinished: false,
   });
   return { latest, reason };
 }
@@ -117,6 +118,7 @@ describe('the latest round of a request', () => {
         latest: latest ? { state: latest.state, carries: 'EARLIER' } : null,
         liveWork: true,
         waitsEvenOnCurrent: false,
+        caseFinished: false,
       }),
     ).toBe('AGENCY_ACCEPTED_EARLIER_LIVE_WORK');
   });
