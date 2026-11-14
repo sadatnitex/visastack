@@ -562,5 +562,7 @@ describe('the date a changed detail took effect, from the document’s own issue
     expect((host.querySelector('input[name="effectiveFrom"]') as HTMLInputElement).value).toBe(
       '2024-03-14',
     );
+    // The day is now the person's own entry, so the note never credits the document with it.
+    expect(host.textContent).not.toContain('Taken from this document');
   });
 });

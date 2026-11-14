@@ -273,24 +273,26 @@ export function AiProposalReview({
   // One plain line under the date saying where it came from, or why it is empty. Said only when the
   // detail's document type has an issue date, so nothing is implied for a document that never has one.
   const issueReading = ownEdited ? undefined : proposal.issueDate;
-  const issueDateLine: string | null = suggestedDay
-    ? t(
-        changedDay === suggestedDay
-          ? 'appApplicant.appApplicantIdAiReview.issueDateTakenFrom'
-          : 'appApplicant.appApplicantIdAiReview.issueDateOtherDay',
-        { date: formatDateOnly(suggestedDay, locale) },
-      )
-    : issueReading && issueReading.status !== 'found'
+  const issueDateLine: string | null = ownEdited
+    ? null
+    : suggestedDay
       ? t(
-          issueReading.status === 'conflict'
-            ? 'appApplicant.appApplicantIdAiReview.issueDateConflict'
-            : issueReading.status === 'future'
-              ? 'appApplicant.appApplicantIdAiReview.issueDateFuture'
-              : issueReading.status === 'unreadable'
-                ? 'appApplicant.appApplicantIdAiReview.issueDateUnreadable'
-                : 'appApplicant.appApplicantIdAiReview.issueDateNone',
+          changedDay === suggestedDay
+            ? 'appApplicant.appApplicantIdAiReview.issueDateTakenFrom'
+            : 'appApplicant.appApplicantIdAiReview.issueDateOtherDay',
+          { date: formatDateOnly(suggestedDay, locale) },
         )
-      : null;
+      : issueReading && issueReading.status !== 'found'
+        ? t(
+            issueReading.status === 'conflict'
+              ? 'appApplicant.appApplicantIdAiReview.issueDateConflict'
+              : issueReading.status === 'future'
+                ? 'appApplicant.appApplicantIdAiReview.issueDateFuture'
+                : issueReading.status === 'unreadable'
+                  ? 'appApplicant.appApplicantIdAiReview.issueDateUnreadable'
+                  : 'appApplicant.appApplicantIdAiReview.issueDateNone',
+          )
+        : null;
   const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
   const label = mappable
     ? (proposal.fieldLabel ??
