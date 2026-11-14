@@ -156,14 +156,12 @@ describe('a look that is slow, abandoned or finished late', () => {
       const abandoned = Promise.all([
         documentRead(w.p1.documentId)(proof),
         detailRead(w.e.factId)(proof),
-      ]).then(
-        () => 'settled',
-        () => 'settled',
-      );
+      ]);
       // Meanwhile the saved result is already there and unchanged.
       expect(await writeCounts(w.db)).toEqual(countsBefore);
       expect(await historyFingerprint(w.db)).toBe(historyBefore);
-      expect(await abandoned).toBe('settled');
+      // The late look still ends in a real answer, not an error.
+      for (const result of await abandoned) expect(result.ok).toBe(true);
       // And after the late look has ended, still nothing was written or removed.
       expect(await writeCounts(w.db)).toEqual(countsBefore);
       expect(await historyFingerprint(w.db)).toBe(historyBefore);

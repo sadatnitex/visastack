@@ -191,6 +191,20 @@ describe('a send to an agency, judged on its latest round', () => {
         }),
       ).toBe('AGENCY_REQUEST_ON_FINISHED_CASE');
     }
+    // A request the change never touched is not listed at all, finished case or not.
+    expect(
+      judge('WAITING_ON_TRAVELLER', 'SENT_BACK', 'CURRENT', {
+        caseFinished: true,
+        waitsEvenOnCurrent: false,
+      }),
+    ).toBeNull();
+    // A finished case changes nothing for a request that is not waiting on the traveller.
+    expect(judge('WAITING_ON_AGENCY', 'AWAITING_DECISION', 'EARLIER', { caseFinished: true })).toBe(
+      'AGENCY_CHECKING_EARLIER',
+    );
+    expect(judge('ANSWERED', 'ACCEPTED', 'EARLIER', { caseFinished: true })).toBe(
+      'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+    );
     // A request on a live case, or on no case at all, is still a real obligation.
     expect(judge('WAITING_ON_TRAVELLER', 'SENT_BACK', 'EARLIER', { caseFinished: false })).toBe(
       'AGENCY_WAITING_FOR_REPLACEMENT',
