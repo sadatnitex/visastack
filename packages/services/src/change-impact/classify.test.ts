@@ -202,8 +202,8 @@ describe('a send to an agency, judged on its latest round', () => {
     expect(judge('WAITING_ON_AGENCY', 'AWAITING_DECISION', 'EARLIER', { caseFinished: true })).toBe(
       'AGENCY_CHECKING_EARLIER',
     );
-    expect(judge('ANSWERED', 'ACCEPTED', 'EARLIER', { caseFinished: true })).toBe(
-      'AGENCY_ACCEPTED_EARLIER_LIVE_WORK',
+    expect(judge('ANSWERED', 'ACCEPTED', 'EARLIER', { caseFinished: true, liveWork: false })).toBe(
+      'AGENCY_ACCEPTED_EARLIER_FINISHED_WORK',
     );
     // A request on a live case, or on no case at all, is still a real obligation.
     expect(judge('WAITING_ON_TRAVELLER', 'SENT_BACK', 'EARLIER', { caseFinished: false })).toBe(

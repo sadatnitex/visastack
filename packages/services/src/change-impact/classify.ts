@@ -330,7 +330,6 @@ export function classifySend(facts: SendFacts): ImpactReason | null {
     // A request that carries the current copy and is not about this change is never listed.
     if (latest.carries === 'CURRENT' && !facts.waitsEvenOnCurrent) return null;
     if (facts.caseFinished) return 'AGENCY_REQUEST_ON_FINISHED_CASE';
-    if (latest.carries === 'CURRENT') return 'AGENCY_WAITING_FOR_REPLACEMENT';
     return 'AGENCY_WAITING_FOR_REPLACEMENT';
   }
   if (latest.carries === 'CURRENT') return 'AGENCY_HOLDS_CURRENT';

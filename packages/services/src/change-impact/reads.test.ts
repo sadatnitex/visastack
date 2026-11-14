@@ -143,14 +143,13 @@ describe('a look that is slow, abandoned or finished late', () => {
   );
 
   it(
-    'leaves a saved replacement and a saved detail exactly as they were, even when its answer is never used',
+    'leaves a saved replacement and a saved detail exactly as they were while a look that ran long is still finishing',
     async () => {
       const w = await bothChanges();
       const countsBefore = await writeCounts(w.db);
       const historyBefore = await historyFingerprint(w.db);
 
-      // The screen gave up on this look (it ran past its budget); it is started and left to end
-      // on its own, as the platform does with a late look, and its ending is swallowed.
+      // A look is started and left to end on its own, as the platform does with a late look.
       const handle = freshHandle(w);
       const proof = await ownerManage(handle.db, handle.rahim);
       const abandoned = Promise.all([
