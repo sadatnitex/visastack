@@ -19,7 +19,8 @@ vi.mock('./actions', () => ({
   previewReplaceImpactAction: mocks.preview,
 }));
 // The panel sends the file the way the Add form does: one request to the upload route.
-vi.mock('../../../../../../../lib/document-upload-client', () => ({
+vi.mock('../../../../../../../lib/document-upload-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../../../../lib/document-upload-client')>()),
   sendDocumentFile: mocks.send,
   reportUploadProblem: mocks.report,
 }));

@@ -1,5 +1,7 @@
-import type { UploadOutcome } from '../../../../../../../lib/document-upload-client';
-import { UPLOAD_BUSY_LINE } from '../../../document-uploader';
+import {
+  UPLOAD_BUSY_LINE,
+  type UploadOutcome,
+} from '../../../../../../../lib/document-upload-client';
 
 /*
  * What the Replace panel says about the file being added as the newer document. One place, so

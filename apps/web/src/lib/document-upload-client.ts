@@ -137,6 +137,10 @@ export interface SendFileInput {
 /** A slow phone connection can take minutes for a few megabytes; past this the answer is unknown. */
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** What a file's line says when the service turned it away for now and gave no line of its own. */
+export const UPLOAD_BUSY_LINE =
+  'We are busy just now, so this file was not added. Try again in a few minutes.';
+
 /** What a person reads when their phone will not let the file be read. */
 export const UPLOAD_UNREADABLE_LINE =
   'Your phone would not let us read this file. It may be kept online only. Save it to your phone, or take a photo of it, then add it again.';
