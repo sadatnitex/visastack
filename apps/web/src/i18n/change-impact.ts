@@ -135,6 +135,12 @@ export const changeImpactCatalog = defineCatalog({
       "Your answer to an agency's checklist holds this copy. A newer document would not be sent to them. Your Answers shows where that answer stands.",
     'changeImpact.reason.checklistAnswer.documentPreviewNoDate':
       "Your answer to {agency}'s checklist holds this copy. A newer document would not be sent to them. Your Answers shows where that answer stands.",
+    'changeImpact.reason.checklistFinished.detail':
+      'The agency has closed this checklist, so it is no longer collecting answers. Your answer to it holds the earlier value and stays on record.',
+    'changeImpact.reason.checklistFinished.document':
+      'The agency has closed this checklist, so it is no longer collecting answers. Your answer to it holds the earlier copy and stays on record.',
+    'changeImpact.reason.checklistFinished.documentPreview':
+      'The agency has closed this checklist, so it is no longer collecting answers. Your answer to it holds this copy and stays on record. A newer document would not be sent to them.',
     'changeImpact.reason.couldNotCheck.cases':
       'We could not check your cases this time. Try again in a moment.',
     'changeImpact.reason.couldNotCheck.requests':
@@ -159,6 +165,8 @@ export const changeImpactCatalog = defineCatalog({
       'The record of what was sent to {agency} does not add up, so we cannot tell what this change means for it.',
     'changeImpact.reason.recordIncomplete.share':
       'The record of your sharing with {recipient} does not add up, so we cannot tell what this change means for it.',
+    'changeImpact.reason.requestOnFinishedCase':
+      'An agency asked you to send something again for {case}, but that case has ended, so nothing more is needed from you here. The request stays on record.',
     'changeImpact.reason.sentBeforeVersions.detail':
       'You answered {agency} on {date}, before exact copies were kept. We cannot tell which value was sent.',
     'changeImpact.reason.sentBeforeVersions.detailNoDate':

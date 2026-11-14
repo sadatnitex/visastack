@@ -120,6 +120,55 @@ describe('repeated reads', () => {
   );
 });
 
+describe('a look that is slow, abandoned or finished late', () => {
+  it(
+    'takes only share locks, which never block another look and end with the look',
+    async () => {
+      const w = await bothChanges();
+      const run = await measured(w);
+      const statements = [...run.documentStatements, ...run.detailStatements];
+      // The snapshot of the record being looked at is held with a share lock for the length of
+      // the look (so a replacement is seen wholly recorded or not at all). That lock makes a
+      // later save of the same record wait until the look ends, which is why a look past its
+      // budget is handed on to finish instead of being left hanging. It is never a write lock.
+      expect(
+        statements.filter((statement) => /\bfor\s+share\b/i.test(statement)).length,
+      ).toBeGreaterThan(0);
+      for (const statement of statements) {
+        expect(statement).not.toMatch(/\bfor\s+(update|no\s+key\s+update)\b/i);
+        expect(statement).not.toMatch(/\block\s+table\b/i);
+      }
+    },
+    HEAVY,
+  );
+
+  it(
+    'leaves a saved replacement and a saved detail exactly as they were while a look that ran long is still finishing',
+    async () => {
+      const w = await bothChanges();
+      const countsBefore = await writeCounts(w.db);
+      const historyBefore = await historyFingerprint(w.db);
+
+      // A look is started and left to end on its own, as the platform does with a late look.
+      const handle = freshHandle(w);
+      const proof = await ownerManage(handle.db, handle.rahim);
+      const abandoned = Promise.all([
+        documentRead(w.p1.documentId)(proof),
+        detailRead(w.e.factId)(proof),
+      ]);
+      // Meanwhile the saved result is already there and unchanged.
+      expect(await writeCounts(w.db)).toEqual(countsBefore);
+      expect(await historyFingerprint(w.db)).toBe(historyBefore);
+      // The late look still ends in a real answer, not an error.
+      for (const result of await abandoned) expect(result.ok).toBe(true);
+      // And after the late look has ended, still nothing was written or removed.
+      expect(await writeCounts(w.db)).toEqual(countsBefore);
+      expect(await historyFingerprint(w.db)).toBe(historyBefore);
+    },
+    HEAVY,
+  );
+});
+
 describe('the cost of one read', () => {
   it(
     'is the measured count on a cold handle, the presence check asked once in one statement',

@@ -150,7 +150,7 @@ describe('replace actions', () => {
     });
     const result = await replaceDocumentAction('a1', 'old', 'new');
     expect(result.ok).toBe(true);
-    expect(result.message).toContain('1 case was updated');
+    expect(result.message).toContain('1 case asks you to choose the document');
   });
 
   it('turn a refusal into plain words', async () => {

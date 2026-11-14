@@ -282,6 +282,11 @@ export interface SendFacts {
   /** The agency's work with the traveller is still live (see `agencyWorkIsLive`). */
   readonly liveWork: boolean;
   /**
+   * The request belongs to a case that is closed or cancelled. Such a request is left out of
+   * Needs Attention, so it is never an action here either; a request with no case is not affected.
+   */
+  readonly caseFinished: boolean;
+  /**
    * True for a detail: a request that was sent back and waits on the traveller is about this
    * detail even when the value sent is still the current one.
    */
@@ -322,9 +327,9 @@ export function classifySend(facts: SendFacts): ImpactReason | null {
   if (!agrees || latest.carries === 'BROKEN') return 'RECORD_INCOMPLETE';
 
   if (latest.state === 'SENT_BACK') {
-    if (latest.carries === 'CURRENT') {
-      return facts.waitsEvenOnCurrent ? 'AGENCY_WAITING_FOR_REPLACEMENT' : null;
-    }
+    // A request that carries the current copy and is not about this change is never listed.
+    if (latest.carries === 'CURRENT' && !facts.waitsEvenOnCurrent) return null;
+    if (facts.caseFinished) return 'AGENCY_REQUEST_ON_FINISHED_CASE';
     return 'AGENCY_WAITING_FOR_REPLACEMENT';
   }
   if (latest.carries === 'CURRENT') return 'AGENCY_HOLDS_CURRENT';

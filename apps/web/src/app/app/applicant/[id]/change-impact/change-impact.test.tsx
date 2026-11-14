@@ -305,19 +305,26 @@ describe('each reason has its own sentence and the right link', () => {
     const lines = (impact: ChangeImpact) =>
       [...dom(html(impact)).querySelectorAll('.ci-why')].map(words);
     const stands = 'Your Answers shows where that answer stands.';
+    const closed = 'The agency has closed this checklist, so it is no longer collecting answers.';
     expect(lines(CHECKLIST_DOCUMENT_RECORDED)).toEqual([
       `Your answer to ${AGENCY_A}'s checklist on ${SENT_DAY} holds the earlier copy. The newer one was not sent. ${stands}`,
       `Your answer to an agency's checklist holds the earlier copy. The newer one was not sent. ${stands}`,
+      `${closed} Your answer to it holds the earlier copy and stays on record.`,
+      `${closed} Your answer to it holds the earlier copy and stays on record.`,
       'You already sent an agency the current copy.',
     ]);
     expect(lines(CHECKLIST_DOCUMENT_PREVIEW)).toEqual([
       `Your answer to ${AGENCY_A}'s checklist on ${SENT_DAY} holds this copy. A newer document would not be sent to them. ${stands}`,
       `Your answer to an agency's checklist holds this copy. A newer document would not be sent to them. ${stands}`,
+      `${closed} Your answer to it holds this copy and stays on record. A newer document would not be sent to them.`,
+      `${closed} Your answer to it holds this copy and stays on record. A newer document would not be sent to them.`,
       'You already sent an agency the newer copy.',
     ]);
     expect(lines(CHECKLIST_DETAIL)).toEqual([
       `Your answer to ${AGENCY_A}'s checklist on ${SENT_DAY} holds the earlier value. The new value was not sent. ${stands}`,
       `Your answer to an agency's checklist holds the earlier value. The new value was not sent. ${stands}`,
+      `${closed} Your answer to it holds the earlier value and stays on record.`,
+      `${closed} Your answer to it holds the earlier value and stays on record.`,
       'You already sent an agency the current value.',
     ]);
     const host = dom(html(CHECKLIST_DOCUMENT_RECORDED));
@@ -332,9 +339,13 @@ describe('each reason has its own sentence and the right link', () => {
     expect([...host.querySelectorAll('.ci-about')].map(words)).toEqual([
       `Agency ${AGENCY_A}`,
       'Agency No Longer Active',
+      `Agency ${AGENCY_A}`,
+      'Agency No Longer Active',
       'Agency No Longer Active',
     ]);
+    // A closed checklist is history and offers nothing to open.
     expect(host.querySelectorAll('a')).toHaveLength(2);
+    expect(host.querySelectorAll('[data-outcome="HISTORY_PRESERVED"] a')).toHaveLength(0);
   });
 
   it('never leaves a gap where an agency has no name, whatever the reason', () => {
@@ -495,8 +506,12 @@ describe('a quiet change', () => {
     expect(words(host.querySelector('.ci-quiet'))).toBe(
       'No action is needed. What relates to this change is listed below.',
     );
-    expect(host.querySelectorAll('li')).toHaveLength(2);
+    expect(host.querySelectorAll('li')).toHaveLength(3);
     expect(host.querySelectorAll('a')).toHaveLength(0);
+    // A request an agency sent back on a case that has ended is history, in plain words.
+    expect(words(host.querySelector('[data-outcome="HISTORY_PRESERVED"]'))).toContain(
+      'that case has ended, so nothing more is needed from you here. The request stays on record.',
+    );
   });
 
   it('never raises an alert in any review, and a change that is not quiet has no calm line', () => {

@@ -908,6 +908,11 @@ export interface CollectionAnswer {
   /** Empty while the agency is not one VisaStack names to a traveller. */
   readonly agencyName: string;
   readonly submittedAt: Date;
+  /**
+   * The stored status of the checklist request this answer belongs to (never REVOKED, which is
+   * not live); null when it could not be read. Only the status, nothing the agency decided.
+   */
+  readonly requestStatus: string | null;
   /** The documents, or the saved values of the detail, this answer carried. */
   readonly carriedIds: readonly string[];
 }
@@ -916,8 +921,9 @@ export interface CollectionAnswer {
  * This traveller's live answers to agency checklists that carried one of the documents, or the
  * detail. "Live" is the access layer's own rule (`liveCollectionResponse`): not withdrawn, not
  * replaced by a newer answer, request not revoked. That rule asks, inside the same statement,
- * whether a withdrawal exists and whether the checklist request was revoked; nothing else of the
- * request is read. Two statements.
+ * whether a withdrawal exists and whether the checklist request was revoked. The same statement
+ * also reads the request's stored status (finished or not), and nothing else of the request.
+ * Two statements.
  *
  * What the agency decided about an answer is not read: its decisions live in tables kept for the
  * asking agency alone (the agency document request ratchet in access/enforcement.test.ts allows
@@ -942,6 +948,9 @@ export async function collectionAnswersCarrying(
       agencyName: schema.organizations.name,
       agencyStatus: schema.organizations.status,
       submittedAt: responses.submittedAt,
+      requestStatus: sql<
+        string | null
+      >`(select r.status from agency_collection_requests r where r.id = ${responses.requestId})`,
     })
     .from(responses)
     .innerJoin(schema.organizations, eq(schema.organizations.id, responses.organizationId))
@@ -975,6 +984,7 @@ export async function collectionAnswersCarrying(
     // Named only while VisaStack has reviewed the agency, as the traveller's own answers list does.
     agencyName: row.agencyStatus === 'ACTIVE' ? row.agencyName : '',
     submittedAt: row.submittedAt,
+    requestStatus: row.requestStatus ?? null,
     carriedIds: carried
       .filter((item) => item.responseId === row.responseId)
       .flatMap((item) => {
