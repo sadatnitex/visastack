@@ -6,9 +6,14 @@ import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 
 import { useLocale, useT } from '../../../../../../../components/i18n-provider';
 import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../../../../i18n/change-impact';
+import {
+  reportUploadProblem,
+  sendDocumentFile,
+} from '../../../../../../../lib/document-upload-client';
+import { newUploadId } from '../../../../../../../lib/document-upload-client-id';
 import { formatTimestampDate } from '../../../../../../../lib/format-date';
-import { acceptAttribute } from '../../../../../../../lib/upload-rules';
-import { uploadDocumentAction } from '../../../actions';
+import { photoNotShrunkMessage, shrinkPhoto } from '../../../../../../../lib/photo-shrink';
+import { acceptAttribute, checkChosenFile } from '../../../../../../../lib/upload-rules';
 import { ChangeImpactReview } from '../../../change-impact/change-impact-review';
 import { changeImpactHref } from '../../../change-impact/impact-words';
 import type { ManageActionProps } from '../registry';
@@ -20,6 +25,12 @@ import {
   replaceOptionsAction,
 } from './actions';
 import { confirmMessage } from './messages';
+import {
+  REPLACE_UPLOAD_FAILED,
+  REPLACE_UPLOAD_SHRINKING,
+  replaceUploadEnding,
+  replaceUploadProgressLine,
+} from './upload-notes';
 
 type Options = Extract<ReplaceOptionsResult, { ok: true }>;
 type Step = 'choose' | 'confirm' | 'done';
@@ -75,6 +86,8 @@ export function ReplaceAction({
   const root = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** The chosen file and its upload id, so adding the same file again never stores a second copy. */
+  const attempt = useRef<{ file: File; uploadId: string } | null>(null);
   const moveFocus = useRef(false);
   const headingId = useId();
   const choiceHintId = useId();
@@ -173,24 +186,76 @@ export function ReplaceAction({
       setUploadNote('Choose the file of the newer document first.');
       return;
     }
+    // The same checks and limits as the Add form, before anything is sent, so a file that is too
+    // big or of a kind we do not take is explained here and never reaches the host's own limit.
+    const check = checkChosenFile(file, {
+      limitBytes: options.limitBytes,
+      limitLabel: options.limitLabel,
+      pdfAccepted: options.pdfAccepted,
+      shrinkPhotos: true,
+    });
+    if (!check.ok) {
+      setUploadNote(check.reason);
+      return;
+    }
+    // One id per chosen file, kept across attempts: a repeat is answered with the copy the first
+    // attempt stored instead of storing another.
+    if (attempt.current?.file !== file) attempt.current = { file, uploadId: newUploadId() };
+    const { uploadId } = attempt.current;
     setBusy(true);
     setUploadNote(null);
     try {
-      const formData = new FormData();
-      formData.set('applicantId', applicantId);
-      formData.set('file', file);
-      if (options.docType) formData.set('docType', options.docType);
-      const uploaded = await uploadDocumentAction({ ok: true, message: '' }, formData);
-      if (!uploaded.ok) {
-        setUploadNote(uploaded.message || 'The file could not be added. Try again.');
-        return;
+      let toSend: File = file;
+      let contentType = check.contentType;
+      if (check.shrink) {
+        setUploadNote(REPLACE_UPLOAD_SHRINKING);
+        const shrunk = await shrinkPhoto(file, options.limitBytes);
+        if (!shrunk.ok) {
+          setUploadNote(
+            photoNotShrunkMessage(shrunk.reason, options.limitLabel, options.pdfAccepted),
+          );
+          if (shrunk.reason === 'unreadable') {
+            reportUploadProblem({
+              route: 'upload',
+              reason: 'unreadable',
+              status: 0,
+              redirected: false,
+              ms: 0,
+            });
+          }
+          return;
+        }
+        toSend = shrunk.file;
+        contentType = shrunk.file.type;
       }
-      if (fileRef.current) fileRef.current.value = '';
-      setUploadNote('Added. We are checking it now; you can choose it in a moment.');
-      await load();
-      watchChecks();
+      setUploadNote(replaceUploadProgressLine(0));
+      const outcome = await sendDocumentFile({
+        applicantId,
+        file: toSend,
+        contentType,
+        docType: options.docType,
+        subject: '',
+        uploadId,
+        fileName: toSend.name,
+        onProgress: (fraction) => {
+          if (fraction < 1) setUploadNote(replaceUploadProgressLine(fraction));
+          else setUploadNote('Sent. Checking the file.');
+        },
+      });
+      const ending = replaceUploadEnding(outcome);
+      setUploadNote(ending.line);
+      if (ending.added) {
+        // Only the file that was just added is let go: a different one chosen meanwhile stays.
+        if (fileRef.current?.files?.[0] === file) fileRef.current.value = '';
+        if (attempt.current?.file === file) attempt.current = null;
+      }
+      // After an unconfirmed upload the list is read again too: the file may well have arrived.
+      const reloaded = await load();
+      if (ending.added || reloaded?.candidates.some((c) => c.status === 'CHECKING')) {
+        watchChecks();
+      }
     } catch {
-      setUploadNote('The file could not be added. Check your connection and try again.');
+      setUploadNote(REPLACE_UPLOAD_FAILED);
     } finally {
       setBusy(false);
     }
@@ -460,7 +525,8 @@ export function ReplaceAction({
                     'appApplicant.appApplicantIdDocumentsManageReplaceReplaceAction.addTheDocument',
                   )}
             </button>
-            {uploadNote ? <output className="lc-replace-upload-note">{uploadNote}</output> : null}
+            {/* Always drawn, so the first line said into it is announced. */}
+            <output className="lc-replace-upload-note">{uploadNote}</output>
           </form>
           <div className="lc-replace-actions">
             <button

@@ -16,6 +16,7 @@ vi.mock('@visastack/services', () => ({
   requireAccess: mocks.requireAccess,
   listReplacementOptions: mocks.listReplacementOptions,
   replaceDocument: mocks.replaceDocument,
+  loadUploadQuotaConfig: () => ({ maxUploadBytes: 20 * 1024 * 1024 }),
   REPLACE_REFUSALS: {
     notOwner: 'only the record owner can replace a document',
     sameDocument: 'a document cannot replace itself',
@@ -35,7 +36,11 @@ vi.mock('../../../../../../../lib/session', () => ({
     return out;
   },
 }));
-vi.mock('../../../../../../../lib/upload-preflight', () => ({ pdfUploadsAccepted: () => false }));
+vi.mock('../../../../../../../lib/upload-preflight', () => ({
+  pdfUploadsAccepted: () => false,
+  uploadLimitBytes: () => 4 * 1024 * 1024,
+  uploadLimitLabel: () => '4 MB',
+}));
 
 import { previewReplaceImpactAction, replaceDocumentAction, replaceOptionsAction } from './actions';
 
@@ -208,6 +213,8 @@ describe('replace actions', () => {
       ],
       cases: [],
       pdfAccepted: false,
+      limitBytes: 4 * 1024 * 1024,
+      limitLabel: '4 MB',
     });
   });
 });

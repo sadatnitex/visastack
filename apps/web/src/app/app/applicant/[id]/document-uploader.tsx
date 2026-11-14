@@ -10,6 +10,7 @@ import { ReceiptCard } from '../../../../components/receipt-card';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import {
+  UPLOAD_BUSY_LINE,
   type UploadOutcome,
   reportUploadProblem,
   sendDocumentFile,
@@ -37,10 +38,6 @@ import {
  */
 export const UPLOAD_UNKNOWN_OUTCOME =
   'We could not confirm whether this upload finished. Check the list of documents below before uploading it again. If it is not there, try again.';
-
-/** What a file's line says when the service turned it away for now and gave no line of its own. */
-export const UPLOAD_BUSY_LINE =
-  'We are busy just now, so this file was not added. Try again in a few minutes.';
 
 /** Files taken in one go; more are listed as not added, so one drop cannot queue hundreds. */
 export const MAX_FILES_AT_ONCE = 20;
