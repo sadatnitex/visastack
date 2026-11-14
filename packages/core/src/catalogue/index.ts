@@ -13,6 +13,7 @@ export {
 } from './fields/amount-basis';
 export * from './modules';
 export * from './document-lookup';
+export * from './issue-date';
 export * from './queries';
 export * from './completion';
 export * from './report';

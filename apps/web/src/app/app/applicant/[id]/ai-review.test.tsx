@@ -411,3 +411,156 @@ describe('Read Again (S6)', () => {
     ]);
   });
 });
+
+describe('the date a changed detail took effect, from the document’s own issue date', () => {
+  const passportNumber = (overrides: Partial<Finding> = {}) =>
+    finding({
+      id: 'pn',
+      fieldKey: 'passport_number',
+      fieldLabel: 'Passport Number',
+      value: 'A1234567',
+      difference: { current: 'OLD000001' },
+      ...overrides,
+    });
+
+  function chooseChanged(): HTMLInputElement {
+    act(() => (host.querySelector('input[value="changed"]') as HTMLInputElement).click());
+    return host.querySelector('input[name="effectiveFrom"]') as HTMLInputElement;
+  }
+
+  function type(input: HTMLInputElement, value: string) {
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  const noteOf = (input: HTMLInputElement) =>
+    host.querySelector(`[id="${input.getAttribute('aria-describedby')}"]`)?.textContent;
+
+  it('fills the date from the one issue date read from the same document, and says where it came from', () => {
+    render([passportNumber({ issueDate: { status: 'found', date: '2024-03-12' } })]);
+    const date = chooseChanged();
+    expect(date.value).toBe('2024-03-12');
+    expect(date.required).toBe(true);
+    expect(noteOf(date)).toMatch(
+      /^Taken from this document’s issue date, (12 Mar 2024|Mar 12, 2024)\. Change it if it is wrong\.$/,
+    );
+  });
+
+  it('never saves it until the person presses Save My Choice, and then sends exactly what is shown', async () => {
+    vi.mocked(actions.decideProposalAction).mockClear();
+    vi.mocked(actions.decideProposalAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    render([passportNumber({ issueDate: { status: 'found', date: '2024-03-12' } })]);
+    chooseChanged();
+    expect(actions.decideProposalAction).not.toHaveBeenCalled();
+    await act(async () => {
+      (host.querySelector('button[value="approve"]') as HTMLButtonElement).click();
+    });
+    expect(actions.decideProposalAction).toHaveBeenCalledTimes(1);
+    const sent = vi.mocked(actions.decideProposalAction).mock.calls[0]?.[1] as FormData;
+    expect(sent.get('resolution')).toBe('changed');
+    expect(sent.get('effectiveFrom')).toBe('2024-03-12');
+  });
+
+  it('is not filled while the person has not chosen "it changed"', () => {
+    render([passportNumber({ issueDate: { status: 'found', date: '2024-03-12' } })]);
+    expect(host.querySelector('input[name="effectiveFrom"]')).toBeNull();
+  });
+
+  it('lets the person override it, and what they typed is what is sent', async () => {
+    vi.mocked(actions.decideProposalAction).mockClear();
+    vi.mocked(actions.decideProposalAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    render([passportNumber({ issueDate: { status: 'found', date: '2024-03-12' } })]);
+    const date = chooseChanged();
+    type(date, '2023-12-01');
+    expect(date.value).toBe('2023-12-01');
+    expect(noteOf(date)).toMatch(
+      /^This document’s issue date is (12 Mar 2024|Mar 12, 2024)\. Use it, or enter the date it changed\.$/,
+    );
+    await act(async () => {
+      (host.querySelector('button[value="approve"]') as HTMLButtonElement).click();
+    });
+    const sent = vi.mocked(actions.decideProposalAction).mock.calls[0]?.[1] as FormData;
+    expect(sent.get('effectiveFrom')).toBe('2023-12-01');
+  });
+
+  it('keeps what the person typed when they switch choices and come back', () => {
+    render([passportNumber({ issueDate: { status: 'found', date: '2024-03-12' } })]);
+    type(chooseChanged(), '2023-12-01');
+    act(() => (host.querySelector('input[value="keep"]') as HTMLInputElement).click());
+    expect(chooseChanged().value).toBe('2023-12-01');
+  });
+
+  it('stays empty, with a plain reason, when no usable issue date was found', () => {
+    const cases: [NonNullable<Finding['issueDate']>, string][] = [
+      [
+        { status: 'none' },
+        'This document does not show an issue date we could read. Enter the date it changed.',
+      ],
+      [
+        { status: 'unreadable' },
+        'We could not read an issue date from this document. Enter the date it changed.',
+      ],
+      [
+        { status: 'conflict' },
+        'We found more than one issue date on this document, so none was chosen. Enter the date it changed.',
+      ],
+      [
+        { status: 'future' },
+        'The issue date we read is in the future, so it was not used. Enter the date it changed.',
+      ],
+    ];
+    for (const [issueDate, line] of cases) {
+      render([passportNumber({ issueDate })]);
+      const date = chooseChanged();
+      expect(date.value).toBe('');
+      expect(date.required).toBe(true);
+      expect(noteOf(date)).toBe(line);
+      act(() => root.render(<div />));
+    }
+  });
+
+  it('says nothing, and fills nothing, for a detail whose document has no issue date', () => {
+    render([
+      finding({
+        id: 'oc',
+        fieldKey: 'occupation',
+        fieldLabel: 'Occupation',
+        value: 'Engineer',
+        difference: { current: 'Teacher' },
+      }),
+    ]);
+    const date = chooseChanged();
+    expect(date.value).toBe('');
+    expect(date.getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('names its note for screen readers and keeps the date within today', () => {
+    render([passportNumber({ issueDate: { status: 'found', date: '2024-03-12' } })]);
+    const date = chooseChanged();
+    expect(date.getAttribute('aria-describedby')).toBeTruthy();
+    expect(date.max).toBe(new Date().toISOString().slice(0, 10));
+  });
+
+  it('follows the value being saved when the reading is itself an issue date', () => {
+    render([
+      finding({
+        id: 'pi',
+        fieldKey: 'passport_issue_date',
+        fieldLabel: 'Passport Issue Date',
+        value: '2024-03-12',
+        editor: { kind: 'date' },
+        difference: { current: '2019-01-05' },
+        issueDate: { status: 'found', date: '2024-03-12' },
+        ownIssueDate: true,
+      }),
+    ]);
+    expect(chooseChanged().value).toBe('2024-03-12');
+    type(host.querySelector('input[name="correctedValue"]') as HTMLInputElement, '2024-03-14');
+    expect((host.querySelector('input[name="effectiveFrom"]') as HTMLInputElement).value).toBe(
+      '2024-03-14',
+    );
+  });
+});

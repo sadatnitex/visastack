@@ -1,14 +1,16 @@
 'use client';
 
+import type { IssueDateReading } from '@visastack/core/catalogue';
 import type { ReadingSource } from '@visastack/services';
 import Link from 'next/link';
 import { useActionState, useCallback, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import { useT } from '../../../../components/i18n-provider';
+import { useLocale, useT } from '../../../../components/i18n-provider';
 import { StatusBadge } from '../../../../components/ui';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../i18n/change-impact';
 import { humanizeFieldKey } from '../../../../lib/field-key-label';
+import { formatDateOnly } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
 import {
@@ -181,6 +183,23 @@ export interface AiProposalViewModel {
    * the server. `rationale` is then the app's own reason, shown as the app's words.
    */
   readonly app?: string;
+  /**
+   * What the same document's own issue date comes to (decided on the server), for a detail whose
+   * document type has an issue date. It only prefills the date a changed detail took effect: the
+   * person sees it, can change it, and nothing is saved until they press Save My Choice.
+   */
+  readonly issueDate?: IssueDateReading;
+  /** This reading is itself an issue date, so its date follows the value the person is about to save. */
+  readonly ownIssueDate?: boolean;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A real calendar day written year-month-day (no 31 February), for the date field. */
+function realDay(value: string): boolean {
+  if (!ISO_DAY.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 /** A reading still waiting for the person: accept, change, settle a difference, or skip. */
@@ -211,6 +230,7 @@ export function AiProposalReview({
   readonly canApprove: boolean;
 }) {
   const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
       const result = await decideProposalAction(previous, formData);
@@ -229,9 +249,45 @@ export function AiProposalReview({
       : '';
   const [editedValue, setEditedValue] = useState(readAsWritten ? '' : (proposal.value ?? ''));
   const [choice, setChoice] = useState('');
+  // The day the detail changed. Until the person types, it follows the document's own issue date
+  // (when there is exactly one clear one); once they type, their entry always wins.
+  const [typedDay, setTypedDay] = useState<string | null>(null);
   const headingId = useId();
   const valueId = useId();
   const dateId = useId();
+  const dateNoteId = useId();
+  const today = new Date().toISOString().slice(0, 10);
+  // An issue date being corrected by hand is itself the day its values took effect.
+  const ownEdited = proposal.ownIssueDate === true && editedValue !== (proposal.value ?? '');
+  const suggestedDay: string | null = ownEdited
+    ? realDay(editedValue) && editedValue <= today
+      ? editedValue
+      : null
+    : proposal.issueDate?.status === 'found'
+      ? proposal.issueDate.date
+      : null;
+  const changedDay = typedDay ?? suggestedDay ?? '';
+  // One plain line under the date saying where it came from, or why it is empty. Said only when the
+  // detail's document type has an issue date, so nothing is implied for a document that never has one.
+  const issueReading = ownEdited ? undefined : proposal.issueDate;
+  const issueDateLine: string | null = suggestedDay
+    ? t(
+        changedDay === suggestedDay
+          ? 'appApplicant.appApplicantIdAiReview.issueDateTakenFrom'
+          : 'appApplicant.appApplicantIdAiReview.issueDateOtherDay',
+        { date: formatDateOnly(suggestedDay, locale) },
+      )
+    : issueReading && issueReading.status !== 'found'
+      ? t(
+          issueReading.status === 'conflict'
+            ? 'appApplicant.appApplicantIdAiReview.issueDateConflict'
+            : issueReading.status === 'future'
+              ? 'appApplicant.appApplicantIdAiReview.issueDateFuture'
+              : issueReading.status === 'unreadable'
+                ? 'appApplicant.appApplicantIdAiReview.issueDateUnreadable'
+                : 'appApplicant.appApplicantIdAiReview.issueDateNone',
+        )
+      : null;
   const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
   const label = mappable
     ? (proposal.fieldLabel ??
@@ -398,9 +454,17 @@ export function AiProposalReview({
                   type="date"
                   name="effectiveFrom"
                   className="input"
-                  max={new Date().toISOString().slice(0, 10)}
+                  max={today}
                   required
+                  value={changedDay}
+                  onChange={(event) => setTypedDay(event.target.value)}
+                  {...(issueDateLine ? { 'aria-describedby': dateNoteId } : {})}
                 />
+                {issueDateLine ? (
+                  <small className="muted" id={dateNoteId}>
+                    {issueDateLine}
+                  </small>
+                ) : null}
               </div>
             ) : null}
             <label>

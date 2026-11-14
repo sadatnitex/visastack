@@ -2,7 +2,13 @@ import { createHash } from 'node:crypto';
 import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import type { AiReadingFeature } from '@visastack/core/ai-features';
-import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
+import {
+  CATALOGUE_DOCUMENTS,
+  type IssueDateReading,
+  isRepeatingFieldKey,
+  issueDateKeysFor,
+  resolveIssueDate,
+} from '@visastack/core/catalogue';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, SystemScope } from './access';
@@ -3720,6 +3726,55 @@ export interface ProposalWithEvidence {
   readonly evidence: readonly EvidenceLocationRow[];
   /** Set when the person's own AI app made this suggestion through its connection. */
   readonly fromApp?: ProposalApp;
+  /**
+   * What the same document's own issue date comes to, for a detail that document type carries an
+   * issue date for. Absent when no known document type has an issue date for this detail, so
+   * nothing is offered. Only a hint for the "it changed" date: nothing is saved from it.
+   */
+  readonly issueDate?: IssueDateReading;
+}
+
+/**
+ * The issue date each document version's readings support, for the versions and issue-date details
+ * asked about: every reading of those details from the same version that is still waiting or was
+ * accepted (a reading the person skipped says nothing), as the person corrected it when they did.
+ * Several different days, an unreadable one or a future one never produce a date.
+ */
+async function issueDatesByVersion(
+  db: Db,
+  applicantId: string,
+  versionIds: readonly string[],
+  issueKeys: readonly string[],
+): Promise<ReadonlyMap<string, readonly { readonly fieldKey: string; readonly value: string }[]>> {
+  if (versionIds.length === 0 || issueKeys.length === 0) return new Map();
+  const rows = await db
+    .select({
+      versionId: schema.fieldProposals.documentVersionId,
+      fieldKey: schema.fieldProposals.fieldKey,
+      value: schema.fieldProposals.value,
+      corrected: schema.correctionFeedback.correctedValue,
+    })
+    .from(schema.fieldProposals)
+    .leftJoin(
+      schema.correctionFeedback,
+      eq(schema.correctionFeedback.fieldProposalId, schema.fieldProposals.id),
+    )
+    .where(
+      and(
+        eq(schema.fieldProposals.applicantId, applicantId),
+        inArray(schema.fieldProposals.documentVersionId, [...versionIds]),
+        inArray(schema.fieldProposals.fieldKey, [...issueKeys]),
+        inArray(schema.fieldProposals.status, ['PENDING', 'APPROVED']),
+      ),
+    );
+  const byVersion = new Map<string, { fieldKey: string; value: string }[]>();
+  for (const row of rows) {
+    if (!row.versionId || !row.fieldKey) continue;
+    const list = byVersion.get(row.versionId) ?? [];
+    list.push({ fieldKey: row.fieldKey, value: row.corrected ?? row.value ?? '' });
+    byVersion.set(row.versionId, list);
+  }
+  return byVersion;
 }
 
 /** Pending proposals for an applicant (the review queue), newest first. */
@@ -3766,6 +3821,35 @@ export async function listPendingProposals(
       : [],
   );
 
+  // The document's own issue date, read once for every document these readings came from.
+  const issueKeys = [
+    ...new Set(
+      rows.flatMap((row) =>
+        row.proposal.fieldKey && !isConnectorModelVersion(row.modelVersion)
+          ? issueDateKeysFor(row.proposal.fieldKey)
+          : [],
+      ),
+    ),
+  ];
+  const issueValues = await issueDatesByVersion(
+    db,
+    applicantId,
+    [
+      ...new Set(
+        rows.flatMap((row) =>
+          row.proposal.documentVersionId &&
+          row.proposal.fieldKey &&
+          !isConnectorModelVersion(row.modelVersion) &&
+          issueDateKeysFor(row.proposal.fieldKey).length > 0
+            ? [row.proposal.documentVersionId]
+            : [],
+        ),
+      ),
+    ],
+    issueKeys,
+  );
+  const now = new Date();
+
   const result: ProposalWithEvidence[] = [];
   for (const row of rows) {
     const { proposal } = row;
@@ -3774,9 +3858,23 @@ export async function listPendingProposals(
       .from(schema.evidenceLocations)
       .where(eq(schema.evidenceLocations.fieldProposalId, proposal.id));
     const connectionId = connectionIdOfRun(row);
+    const ownIssueKeys =
+      proposal.fieldKey && !isConnectorModelVersion(row.modelVersion)
+        ? issueDateKeysFor(proposal.fieldKey)
+        : [];
     result.push({
       proposal,
       evidence,
+      ...(ownIssueKeys.length > 0 && proposal.documentVersionId
+        ? {
+            issueDate: resolveIssueDate(
+              (issueValues.get(proposal.documentVersionId) ?? [])
+                .filter((reading) => ownIssueKeys.includes(reading.fieldKey))
+                .map((reading) => reading.value),
+              now,
+            ),
+          }
+        : {}),
       ...(isConnectorModelVersion(row.modelVersion)
         ? {
             fromApp: {

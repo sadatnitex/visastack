@@ -17,6 +17,18 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdAiReview.dateItChanged': 'Date It Changed',
     'appApplicant.appApplicantIdAiReview.fallbackProviderUsed': 'Fallback Provider Used',
     'appApplicant.appApplicantIdAiReview.foundAs': 'Found as',
+    'appApplicant.appApplicantIdAiReview.issueDateConflict':
+      'We found more than one issue date on this document, so none was chosen. Enter the date it changed.',
+    'appApplicant.appApplicantIdAiReview.issueDateFuture':
+      'The issue date we read is in the future, so it was not used. Enter the date it changed.',
+    'appApplicant.appApplicantIdAiReview.issueDateNone':
+      'This document does not show an issue date we could read. Enter the date it changed.',
+    'appApplicant.appApplicantIdAiReview.issueDateOtherDay':
+      'This document’s issue date is {date}. Use it, or enter the date it changed.',
+    'appApplicant.appApplicantIdAiReview.issueDateTakenFrom':
+      'Taken from this document’s issue date, {date}. Change it if it is wrong.',
+    'appApplicant.appApplicantIdAiReview.issueDateUnreadable':
+      'We could not read an issue date from this document. Enter the date it changed.',
     'appApplicant.appApplicantIdAiReview.keepMyCurrentValue': 'Keep My Current Value',
     'appApplicant.appApplicantIdAiReview.noLegibleTextWasFound': 'No legible text was found.',
     'appApplicant.appApplicantIdAiReview.pleaseCheck': 'Please Check',

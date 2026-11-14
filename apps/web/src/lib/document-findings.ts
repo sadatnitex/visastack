@@ -1,5 +1,5 @@
 import { aiAppLabel } from '@visastack/core/ai-features';
-import { isRepeatingFieldKey } from '@visastack/core/catalogue';
+import { isRepeatingFieldKey, issueDateKeysFor } from '@visastack/core/catalogue';
 import {
   type ProfileEntry,
   type ProposalWithEvidence,
@@ -49,7 +49,7 @@ export function confirmedValues(
  * server: the page only learns that a sensitive or protected detail differs, never its value.
  */
 export function findingViewModel(
-  { proposal, evidence, fromApp }: ProposalWithEvidence,
+  { proposal, evidence, fromApp, issueDate }: ProposalWithEvidence,
   confirmed: ReadonlyMap<string, ConfirmedValue>,
   /** Where the reading came from (decided from the records); omitted when it is not known. */
   source?: ReadingSource,
@@ -87,5 +87,8 @@ export function findingViewModel(
     // A suggestion the person's own AI app made (S21): named by the app, cleaned again here.
     ...(fromApp ? { app: aiAppLabel(fromApp), clear: false } : {}),
     ...(differs ? { difference: { current: showCurrent ? current.value : null } } : {}),
+    // The document's own issue date: only a hint for the date a changed detail took effect.
+    ...(issueDate ? { issueDate } : {}),
+    ...(key && issueDateKeysFor(key).includes(key) ? { ownIssueDate: true } : {}),
   };
 }
