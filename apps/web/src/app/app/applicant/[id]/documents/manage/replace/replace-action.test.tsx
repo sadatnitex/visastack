@@ -7,8 +7,10 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   options: vi.fn(),
   replace: vi.fn(),
-  upload: vi.fn(),
   preview: vi.fn(),
+  send: vi.fn(),
+  report: vi.fn(),
+  shrink: vi.fn(),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('./actions', () => ({
@@ -16,7 +18,15 @@ vi.mock('./actions', () => ({
   replaceDocumentAction: mocks.replace,
   previewReplaceImpactAction: mocks.preview,
 }));
-vi.mock('../../../actions', () => ({ uploadDocumentAction: mocks.upload }));
+// The panel sends the file the way the Add form does: one request to the upload route.
+vi.mock('../../../../../../../lib/document-upload-client', () => ({
+  sendDocumentFile: mocks.send,
+  reportUploadProblem: mocks.report,
+}));
+vi.mock('../../../../../../../lib/photo-shrink', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../../../../lib/photo-shrink')>()),
+  shrinkPhoto: mocks.shrink,
+}));
 
 import {
   APPLICANT_ID,
@@ -62,6 +72,8 @@ const loaded = (overrides: Record<string, unknown> = {}) => ({
     { missionId: 'm2', title: 'UK Visit' },
   ],
   pdfAccepted: false,
+  limitBytes: 4 * 1024 * 1024,
+  limitLabel: '4 MB',
   ...overrides,
 });
 
@@ -364,7 +376,7 @@ describe('Replace with a Newer Document', () => {
           cases: [],
         }),
       );
-    mocks.upload.mockResolvedValue({ ok: true, message: 'Added' });
+    mocks.send.mockResolvedValue({ kind: 'added', message: 'Added', title: 'Passport, New' });
     await render();
     expect(container.textContent).toContain('You have no other document of this kind yet.');
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
@@ -374,10 +386,13 @@ describe('Replace with a Newer Document', () => {
     await act(async () => {
       container.querySelector('form')?.requestSubmit();
     });
-    const sent = mocks.upload.mock.calls[0]?.[1] as FormData;
-    expect(sent.get('applicantId')).toBe('a1');
-    expect(sent.get('docType')).toBe('PASSPORT');
-    expect(sent.get('file')).toBe(file);
+    const sent = mocks.send.mock.calls[0]?.[0];
+    expect(sent.applicantId).toBe('a1');
+    expect(sent.docType).toBe('PASSPORT');
+    expect(sent.file).toBe(file);
+    expect(sent.contentType).toBe('image/jpeg');
+    expect(sent.fileName).toBe('passport.jpg');
+    expect(typeof sent.uploadId).toBe('string');
     expect(container.textContent).toContain('We are checking it now');
     expect(radio(PENDING)?.disabled).toBe(true);
 
@@ -478,5 +493,219 @@ describe('the words', () => {
     expect(replacedMessage(1)).toBe(
       'Replaced. 1 case was updated and needs to be confirmed again. The old document stays in your records, marked Replaced.',
     );
+  });
+});
+
+describe('adding the newer document the way the Add form does', () => {
+  const SIZE_5_MB = 5 * 1024 * 1024;
+
+  /** A file of a stated size without holding that many bytes in memory. */
+  function fileOf(name: string, type: string, size: number): File {
+    const file = new File(['x'], name, { type });
+    Object.defineProperty(file, 'size', { value: size });
+    return file;
+  }
+  async function chooseAndAdd(file: File) {
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('no file input');
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+    });
+  }
+  const note = () => container.querySelector('.lc-replace-upload-note');
+  const noOptions = () => loaded({ candidates: [], cases: [] });
+
+  beforeEach(() => {
+    mocks.options.mockResolvedValue(noOptions());
+  });
+
+  it('has its polite line in place before anything is said, so the first message is announced', async () => {
+    await render();
+    expect(note()?.tagName).toBe('OUTPUT');
+    expect(note()?.textContent).toBe('');
+  });
+
+  it('says plainly that a file over the limit is too large, and sends nothing', async () => {
+    await render();
+    // PDF files are off here, so a PDF gets the PDF reason; a Word file shows the size line.
+    await chooseAndAdd(fileOf('Scan.pdf', 'application/pdf', SIZE_5_MB));
+    expect(note()?.textContent).toContain('PDF files can be added only while');
+    await chooseAndAdd(
+      fileOf(
+        'Letter.docx',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        SIZE_5_MB,
+      ),
+    );
+    expect(note()?.textContent).toBe(
+      'This file is larger than 4 MB. Choose a smaller copy, or take a photo of it instead.',
+    );
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('Check your connection');
+  });
+
+  it('gives a PDF over the limit the size line when PDF files are accepted', async () => {
+    mocks.options.mockResolvedValue(loaded({ candidates: [], cases: [], pdfAccepted: true }));
+    await render();
+    await chooseAndAdd(fileOf('Scan.pdf', 'application/pdf', SIZE_5_MB));
+    expect(note()?.textContent).toContain('This file is larger than 4 MB.');
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('refuses a kind of file we do not take before sending', async () => {
+    await render();
+    await chooseAndAdd(fileOf('movie.mov', 'video/quicktime', 1000));
+    expect(note()?.textContent).toContain('This kind of file cannot be added.');
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('makes a photo over the limit smaller, then sends the smaller one', async () => {
+    const small = new File(['y'], 'smaller.jpg', { type: 'image/jpeg' });
+    mocks.shrink.mockResolvedValue({ ok: true, file: small, fromBytes: SIZE_5_MB, toBytes: 1 });
+    mocks.send.mockResolvedValue({ kind: 'added', message: 'Added', title: null });
+    await render();
+    const big = fileOf('photo.jpg', 'image/jpeg', SIZE_5_MB);
+    await chooseAndAdd(big);
+    expect(mocks.shrink).toHaveBeenCalledWith(big, 4 * 1024 * 1024);
+    expect(mocks.send.mock.calls[0]?.[0].file).toBe(small);
+    // The private name hint is the name of the file that is sent, as the Add form does.
+    expect(mocks.send.mock.calls[0]?.[0].fileName).toBe('smaller.jpg');
+    expect(container.textContent).toContain('We are checking it now');
+  });
+
+  it('says why a photo could not be made smaller and sends nothing', async () => {
+    mocks.shrink.mockResolvedValue({ ok: false, reason: 'still_too_large' });
+    await render();
+    await chooseAndAdd(fileOf('photo.jpg', 'image/jpeg', SIZE_5_MB));
+    expect(note()?.textContent).toContain('making it smaller would lose detail');
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('reports a photo the browser could not read, and says so', async () => {
+    mocks.shrink.mockResolvedValue({ ok: false, reason: 'unreadable' });
+    await render();
+    await chooseAndAdd(fileOf('photo.jpg', 'image/jpeg', SIZE_5_MB));
+    expect(note()?.textContent).toContain('We could not make this photo smaller than 4 MB.');
+    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ reason: 'unreadable' }));
+  });
+
+  it("shows the server's own reason when it refuses the file", async () => {
+    mocks.send.mockResolvedValue({
+      kind: 'refused',
+      message: 'You have reached your storage limit.',
+    });
+    await render();
+    await chooseAndAdd(fileOf('a.jpg', 'image/jpeg', 1000));
+    expect(note()?.textContent).toBe('You have reached your storage limit.');
+    expect(container.textContent).not.toContain('Check your connection');
+  });
+
+  it("says it is busy, with the server's line or a plain one", async () => {
+    mocks.send.mockResolvedValueOnce({
+      kind: 'busy',
+      message: 'Too many uploads this hour.',
+      retryAfterSeconds: 60,
+    });
+    await render();
+    await chooseAndAdd(fileOf('a.jpg', 'image/jpeg', 1000));
+    expect(note()?.textContent).toBe('Too many uploads this hour.');
+    mocks.send.mockResolvedValueOnce({ kind: 'busy', message: null, retryAfterSeconds: null });
+    await chooseAndAdd(fileOf('a.jpg', 'image/jpeg', 1000));
+    expect(note()?.textContent).toContain('We are busy just now');
+  });
+
+  it('does not claim failure when no answer came back: it says to check the list, and reads it again', async () => {
+    mocks.send.mockResolvedValue({ kind: 'unknown' });
+    await render();
+    const before = mocks.options.mock.calls.length;
+    await chooseAndAdd(fileOf('a.jpg', 'image/jpeg', 1000));
+    expect(note()?.textContent).toBe(
+      'We could not confirm whether the file was added. Check the list above before trying again. If it is not there, add it again.',
+    );
+    expect(mocks.options.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it('never blames the connection when the panel itself fails', async () => {
+    mocks.send.mockRejectedValue(new Error('boom'));
+    await render();
+    await chooseAndAdd(fileOf('a.jpg', 'image/jpeg', 1000));
+    expect(note()?.textContent).toBe(
+      'We could not confirm whether the file was added. Check the list above before trying again.',
+    );
+    expect(container.textContent).not.toContain('Check your connection');
+  });
+
+  it('sends the same upload id when the same file is added again, and a new one for another file', async () => {
+    mocks.send.mockResolvedValue({ kind: 'unknown' });
+    await render();
+    const first = fileOf('a.jpg', 'image/jpeg', 1000);
+    await chooseAndAdd(first);
+    await chooseAndAdd(first);
+    await chooseAndAdd(fileOf('b.jpg', 'image/jpeg', 1000));
+    const ids = mocks.send.mock.calls.map((call) => call[0].uploadId);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).not.toBe(ids[0]);
+  });
+
+  it('shows how far the file has got in one polite line, in steps of ten', async () => {
+    mocks.send.mockImplementation(async (input: { onProgress: (f: number) => void }) => {
+      input.onProgress(0.47);
+      return { kind: 'unknown' };
+    });
+    let seen = '';
+    const watch = new MutationObserver(() => {
+      const text = note()?.textContent ?? '';
+      if (text.startsWith('Uploading, 40%')) seen = text;
+    });
+    await render();
+    watch.observe(container, { childList: true, subtree: true, characterData: true });
+    await chooseAndAdd(fileOf('a.jpg', 'image/jpeg', 1000));
+    watch.disconnect();
+    expect(seen).toBe('Uploading, 40% sent. Please keep this page open.');
+    expect(note()?.tagName).toBe('OUTPUT');
+  });
+
+  it('keeps the button available to the keyboard while a file is being sent', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    mocks.send.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await render();
+    await chooseAndAdd(fileOf('a.jpg', 'image/jpeg', 1000));
+    const adding = button('Adding');
+    expect(adding?.getAttribute('aria-disabled')).toBe('true');
+    expect(adding?.hasAttribute('disabled')).toBe(false);
+    await act(async () => finish({ kind: 'unknown' }));
+  });
+
+  it('lets go of the chosen file once it is added, but keeps a different one chosen meanwhile', async () => {
+    const reset = vi.fn();
+    async function addWhileChoosing(chooseOther: boolean) {
+      reset.mockReset();
+      let finish: (value: unknown) => void = () => undefined;
+      mocks.send.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const first = fileOf('a.jpg', 'image/jpeg', 1000);
+      await chooseAndAdd(first);
+      const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+      if (!input) throw new Error('no file input');
+      Object.defineProperty(input, 'value', { configurable: true, get: () => '', set: reset });
+      if (chooseOther) {
+        const second = fileOf('b.jpg', 'image/jpeg', 1000);
+        Object.defineProperty(input, 'files', { value: [second], configurable: true });
+      }
+      await act(async () => finish({ kind: 'added', message: 'Added', title: null }));
+    }
+    await render();
+    await addWhileChoosing(false);
+    expect(reset).toHaveBeenCalledWith('');
+    await addWhileChoosing(true);
+    expect(reset).not.toHaveBeenCalled();
   });
 });
