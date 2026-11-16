@@ -64,6 +64,7 @@ The rule itself is in `CLAUDE.md` (sections 5 and 7). Two practical notes: write
 
 ## 6. Owner decisions in force (newest first)
 
+- 16 Nov: operating system for all sessions, in `.claude/skills/conductor/` (the skill holds the owner's exact words): three session types (orchestrator on Sonnet, guardian on Opus or higher, builders on Sonnet or Opus by risk); auto-merge by the guardian after the Merge Gate; deferred controls are waived only while not deployed; hygiene of branches and environments inside every unit; current brand contract and up-to-date docs on every change, newest dated decision wins and older text is marked superseded. Replaces the 25 Oct review-helper window and the two-helper cap for planned parallel work.
 - 1 Nov: Founding A follow-up, both YES: a REJECTED application also ends Founding Access; backup reconciliation replays SUBSCRIPTION_ENDED.
 - 1 Nov: "G-Z accepted": the Resource Lifecycle Programme is accepted (`docs/roadmap/lifecycle/STATUS.md`).
 - 1 Nov: "Founding A": when an agency withdraws or is terminated, Founding Access stops renewing at once, no automatic refund. Refined the same day to "Close the record": Founding Access is free and never invoiced, so the plan ends at that moment. Merged as #405 (`b8bb2df4`).
