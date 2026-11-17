@@ -22610,17 +22610,15 @@ button.wallet-stack-card {
   .lift-status-glance[data-until="browse"] {
   display: none;
 }
-/* Words that cannot break, such as a long case title or a stage label, wrap inside their box. */
-.lift-next-title,
-.lift-next-body,
-.lift-count > dt,
-.lift-step > span,
-.lift-steps-now,
-.lift-steps-position {
+/* Words that cannot break, such as a long case title or a stage label, wrap inside their box. Scoped to the status panel. */
+.lift-status .lift-next-title,
+.lift-status .lift-next-body,
+.lift-status .lift-count > dt,
+.lift-status .lift-step > span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.lift-status-main > * {
+.lift-status .lift-status-main > * {
   min-width: 0;
 }
 @media (max-width: 760px) {

@@ -89,8 +89,9 @@ async function expand(node: ReactNode): Promise<ReactNode> {
     try {
       const out = await (el.type as (props: unknown) => ReactNode | Promise<ReactNode>)(el.props);
       return expand(out);
-    } catch {
-      // A client component: keep it and expand what it wraps.
+    } catch (error) {
+      // A client component (its hooks throw outside a render) stays as it is; any other error is real.
+      if (!/hook|error #321|reading 'use[A-Z]/i.test(String(error))) throw error;
     }
   }
   const children = el.props.children;
@@ -100,9 +101,18 @@ async function expand(node: ReactNode): Promise<ReactNode> {
 
 export default function Wald3Fixture(props: Wald3FixtureProps) {
   const [tree, setTree] = useState<ReactNode>(null);
+  const [failure, setFailure] = useState<unknown>(null);
   useEffect(() => {
-    expand(<Wald3Panel {...props} />).then(setTree);
+    let live = true;
+    expand(<Wald3Panel {...props} />).then(
+      (done) => live && setTree(done),
+      (error) => live && setFailure(error),
+    );
+    return () => {
+      live = false;
+    };
   }, [props]);
+  if (failure) throw failure;
   return tree ?? <div data-wald3-loading="" />;
 }
 

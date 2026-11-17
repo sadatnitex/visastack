@@ -1,3 +1,4 @@
+import type { MissionState } from '@visastack/core';
 import { createTranslator } from '@visastack/i18n';
 import type { Readiness } from '@visastack/services';
 import { describe, expect, it, vi } from 'vitest';
@@ -27,7 +28,15 @@ const readiness: Readiness = {
   ],
 };
 
-const panel = (selfReviewed: boolean, state: 'IN_REVIEW' | 'CANCELLED' = 'IN_REVIEW') =>
+const between = (html: string) => {
+  const from = html.indexOf('lift-status-glance');
+  const to = html.indexOf('lift-status-stages');
+  expect(from).toBeGreaterThanOrEqual(0);
+  expect(to).toBeGreaterThan(from);
+  return html.slice(from, to);
+};
+
+const panel = (selfReviewed: boolean, state: MissionState = 'IN_REVIEW') =>
   renderServer(
     <CaseStatusPanel
       missionId="m1"
@@ -59,10 +68,7 @@ const panel = (selfReviewed: boolean, state: 'IN_REVIEW' | 'CANCELLED' = 'IN_REV
 describe('the compact stage line of the case status panel', () => {
   it('names the stage and shows the step bar without the picture track', async () => {
     const html = await panel(false);
-    const glance = html.slice(
-      html.indexOf('lift-status-glance'),
-      html.indexOf('lift-status-stages'),
-    );
+    const glance = between(html);
     expect(glance).toContain('Now: In Review');
     expect(glance).toContain('lift-strip-part-current');
     expect(glance).not.toContain('journey-track');
@@ -81,8 +87,8 @@ describe('the compact stage line of the case status panel', () => {
     expect(await panel(true)).toMatch(/class="lift-status-stages" data-level="everything"/);
   });
 
-  it('says the same position as the step bar, for a current and a cancelled case', async () => {
-    for (const state of ['IN_REVIEW', 'CANCELLED'] as const) {
+  it('says the same position as the step bar, for every stage', async () => {
+    for (const state of Object.keys(CASE_STATE_LABELS) as (keyof typeof CASE_STATE_LABELS)[]) {
       const html = await panel(false, state);
       const [compact, full] = [...html.matchAll(/lift-steps-position">([^<]*)</g)].map((m) => m[1]);
       expect(compact, state).toBe(full);
@@ -91,10 +97,7 @@ describe('the compact stage line of the case status panel', () => {
 
   it('claims nothing about earlier stages or approval', async () => {
     const html = await panel(false);
-    const glance = html.slice(
-      html.indexOf('lift-status-glance'),
-      html.indexOf('lift-status-stages'),
-    );
+    const glance = between(html);
     expect(glance).not.toMatch(/approved|reviewed|done|complete|submitted/i);
   });
 });
