@@ -83,6 +83,27 @@ describe('googleAuthorizationUrl', () => {
   });
 });
 
+describe('googleAuthorizationUrl with the Neon Auth address', () => {
+  const BASE = 'https://auth.example.test/neondb/auth';
+  it("accepts only Neon Auth's own start address under the configured base", () => {
+    const start = `${BASE}/sign-in/social/init?token=t`;
+    expect(googleAuthorizationUrl(start, BASE)).toBe(start);
+    expect(googleAuthorizationUrl(start, `${BASE}/`)).toBe(start);
+    expect(googleAuthorizationUrl(start)).toBeNull();
+    for (const bad of [
+      'https://auth.example.test/neondb/auth/sign-in/social',
+      'https://auth.example.test/other/sign-in/social/init',
+      'https://auth.example.test:8443/neondb/auth/sign-in/social/init',
+      'http://auth.example.test/neondb/auth/sign-in/social/init',
+      'https://x@auth.example.test/neondb/auth/sign-in/social/init',
+    ]) {
+      expect(googleAuthorizationUrl(bad, BASE), bad).toBeNull();
+    }
+    expect(googleAuthorizationUrl(start, 'http://auth.example.test/neondb/auth')).toBeNull();
+    expect(googleAuthorizationUrl(start, 'not a url')).toBeNull();
+  });
+});
+
 describe('startedFromThisSite', () => {
   const ORIGIN = 'https://app.example.test';
   const headers = (values: Record<string, string>) => ({
