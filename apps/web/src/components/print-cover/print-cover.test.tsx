@@ -64,6 +64,13 @@ describe('the printed pack cover', () => {
     expect(out).toContain('Items Not Shown');
   });
 
+  it('takes invisible control characters out of the name and place, as the page does', () => {
+    const out = html({ name: 'Nusrat\u0007 Jahan', destination: 'United\u0001 Kingdom' });
+    expect(out).toContain('Nusrat Jahan');
+    expect(out).toContain('United Kingdom');
+    expect(out).not.toMatch(/[\u0000-\u0008]/);
+  });
+
   it('uses a singular for one item', () => {
     expect(html({ readiness: { required: 1, satisfied: 1, withheld: 0 } })).toContain(
       '1 of 1 item ready',

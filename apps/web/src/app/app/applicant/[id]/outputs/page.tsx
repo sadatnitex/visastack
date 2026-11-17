@@ -622,7 +622,8 @@ export default async function OutputsPage({
           referenceCode={printedCase.referenceCode}
           preparedOn={formatLongDay(output.preparedOn, locale) ?? longDay(output.preparedOn)}
           readiness={
-            printedCase.readiness
+            // Counts print only where the screen shows them (the agency brief and the handover).
+            printedCase.readiness && request.template !== 'trip_essentials'
               ? {
                   required: printedCase.readiness.requiredCount,
                   satisfied: printedCase.readiness.satisfiedCount,

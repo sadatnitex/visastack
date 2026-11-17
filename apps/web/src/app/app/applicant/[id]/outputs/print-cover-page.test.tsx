@@ -128,6 +128,11 @@ describe('the printed cover on the briefs and summaries page', () => {
     },
   );
 
+  it('prints no counts on Trip Essentials, which does not show them on screen', async () => {
+    const html = await render({ output: 'trip_essentials', preview: '1', case: missionId });
+    expect(html).not.toMatch(/Gathered|Items Not Shown/);
+  });
+
   it('does not put the cover on an output that is not about a case', async () => {
     const html = await render({ output: 'confirmed_sheet', preview: '1' });
     expect(html).not.toContain('data-print-cover');

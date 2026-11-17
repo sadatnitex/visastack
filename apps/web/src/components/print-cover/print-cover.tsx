@@ -1,3 +1,4 @@
+import { cleanText } from '@visastack/services';
 import { resolveCaseCountry } from '../../lib/case-choices';
 import { flagSrc } from '../../lib/flag-policy';
 
@@ -39,9 +40,12 @@ export function PrintCover({
   preparedOn,
   readiness,
 }: PrintCoverProps) {
-  const country = destination ? resolveCaseCountry(destination) : null;
+  // The same cleaning the page's own rows get: invisible control characters out, nothing else.
+  const traveller = cleanText(name);
+  const destinationText = destination ? cleanText(destination) : null;
+  const country = destinationText ? resolveCaseCountry(destinationText) : null;
   const flag = country ? flagSrc(country.iso2) : null;
-  const place = country?.name ?? destination;
+  const place = country?.name ?? destinationText;
   const counts =
     readiness && readiness.required > 0
       ? itemsLine(Math.min(readiness.satisfied, readiness.required), readiness.required)
@@ -49,7 +53,7 @@ export function PrintCover({
   return (
     <section className="print-cover" data-print-cover="true">
       <p className="print-cover-kicker">VisaStack Case Pack</p>
-      <p className="print-cover-name">{name}</p>
+      <p className="print-cover-name">{traveller}</p>
       {place ? (
         <div className="print-cover-place">
           {flag ? (
@@ -62,7 +66,7 @@ export function PrintCover({
         {referenceCode ? (
           <div>
             <dt>Case Reference</dt>
-            <dd>{referenceCode}</dd>
+            <dd>{cleanText(referenceCode)}</dd>
           </div>
         ) : null}
         <div>
