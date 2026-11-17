@@ -614,6 +614,15 @@ function renderedLiftClasses(): Set<string> {
   return found;
 }
 
+/** Removes each later pass's own whole block (start line to its own end line); nothing else. */
+const LATER_BLOCK_NAMES =
+  '(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+[a-z]?)';
+const stripKnownLaterBlocks = (text: string): string =>
+  text.replace(
+    new RegExp(`/\\* WP-${LATER_BLOCK_NAMES} [\\s\\S]*?/\\* end WP-${LATER_BLOCK_NAMES} \\*/`, 'g'),
+    '',
+  );
+
 describe('the lift block in globals.css', () => {
   it('defines every lift- class the components can write, in every variant', () => {
     const found = renderedLiftClasses();
@@ -659,12 +668,22 @@ describe('the lift block in globals.css', () => {
     const afterLast = tail.slice(
       tail.indexOf('/* end WP-LIFT-C */') + '/* end WP-LIFT-C */'.length,
     );
-    const withoutPlain = afterLast.replace(
-      /\/\* WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+) [\s\S]*?\/\* end WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+) \*\//g,
-      '',
-    );
+    const withoutPlain = stripKnownLaterBlocks(afterLast);
     expect(withoutPlain.trim()).toBe('');
     expect(css.match(/\/\* WP-LIFT-A /g)).toHaveLength(1);
+  });
+
+  it('accepts a lettered picture block and still fails on a malformed marker', () => {
+    const good = '/* WP-PIC4b a note */ .a { color: red; } /* end WP-PIC4b */';
+    expect(stripKnownLaterBlocks(good).trim()).toBe('');
+    // A block with no end line, an unknown name and an upper-case letter all leave text behind.
+    for (const bad of [
+      '/* WP-PIC4b a note */ .a { color: red; }',
+      '/* WP-PICX a note */ .a { color: red; } /* end WP-PICX */',
+      '/* WP-PIC4B a note */ .a { color: red; } /* end WP-PIC4B */',
+    ]) {
+      expect(stripKnownLaterBlocks(bad).trim(), bad).not.toBe('');
+    }
   });
 });
 
