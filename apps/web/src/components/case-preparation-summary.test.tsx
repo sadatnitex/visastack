@@ -38,8 +38,8 @@ describe('case progress represents preparation and actual workflow state', () =>
     const html = await renderServer(<CasePreparationSummary readiness={readiness} />);
     // One big number and a bar named in words; the number is the count, never a score.
     expect(html).toContain('1 of 4');
-    expect(html).toContain('aria-label="1 of 4 required items on file"');
-    expect(html).toContain('25%');
+    expect(html).toContain('aria-label="1 of 4 items ready"');
+    expect(html.match(/readiness-seg-on/g)).toHaveLength(1);
     for (const text of [
       'On File',
       'Missing',
@@ -54,8 +54,8 @@ describe('case progress represents preparation and actual workflow state', () =>
       expect(html).toContain(text);
     expect(html).toContain('<dt>Out of Date or Two Values</dt><dd>2</dd>');
     expect(html).toContain('<dt>Not Applicable</dt><dd>1</dd>');
-    // The ring is gone from the case page.
-    expect(html).not.toContain('progress-ring');
+    // The segment ring is back on the case page, one segment per required item.
+    expect(html).toContain('readiness-seg');
   });
 
   it('counts each state once for every place that shows the numbers', () => {

@@ -1,11 +1,13 @@
 import type { Readiness } from '@visastack/services';
 import type { ComponentProps, ReactNode } from 'react';
 import { componentsMoreCatalog } from '../i18n/components-more';
+import { humanizeCode } from '../lib/format-code';
 import { getT } from '../lib/i18n-server';
-import { progressRingPercent } from '../lib/readiness-words';
+import { documentKindLabel } from '../lib/item-names';
+import { fieldLabel } from '../lib/master-profile';
 import { CaseStageTrackerView } from './case-stage-tracker-view';
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE } from './progress-ring';
-import { ProgressMeter } from './ui-lift';
+import { type ReadinessSegmentItem, ReadinessSegmentRing } from './readiness-segments';
 
 /**
  * The case's stages with the current one marked. `nextStates` are the stages the page offers as
@@ -78,6 +80,42 @@ export function countRequirementItems(
 }
 
 /**
+ * One legend entry per required item, from the results the page already holds (no new read). A
+ * group of alternatives is one item (ready when one member is on file); a covered alternative and
+ * an optional item are not counted. Names come from the same helpers the checklist uses.
+ */
+export function segmentItemsFromResults(
+  results: readonly Readiness['requirementResults'][number][],
+): ReadinessSegmentItem[] {
+  const items = new Map<string, ReadinessSegmentItem & { required: boolean }>();
+  for (const r of results) {
+    if (r.coveredByAlternative) continue;
+    const key = r.groupKey ? `group:${r.groupKey}` : r.packRequirementId;
+    const seen = items.get(key);
+    const ready = r.state === 'SATISFIED';
+    if (seen) {
+      items.set(key, {
+        ...seen,
+        ready: seen.ready || ready,
+        required: seen.required || !r.optional,
+      });
+      continue;
+    }
+    items.set(key, {
+      key,
+      label:
+        r.kind === 'FIELD' ? (fieldLabel(r.key) ?? humanizeCode(r.key)) : documentKindLabel(r.key),
+      type: r.kind === 'DOCUMENT' ? r.key : null,
+      ready,
+      required: !r.optional,
+    });
+  }
+  return [...items.values()]
+    .filter((item) => item.required)
+    .map(({ key, label, type, ready }) => ({ key, label, type, ready }));
+}
+
+/**
  * Evidence Progress: how many required items are on file as one big number and a bar, what that
  * means in a word and a sentence (`children`), the six counts and how it is counted. Exact computed requirement states; no score or probability is invented.
  */
@@ -95,7 +133,6 @@ export async function CasePreparationSummary({
   const t = await getT(componentsMoreCatalog);
   const counts = countRequirementItems(readiness.requirementResults);
   const { requiredCount, satisfiedRequired } = readiness;
-  const unit = 'required items on file';
   const shortUnit = 'required on file';
   return (
     <section
@@ -107,21 +144,26 @@ export async function CasePreparationSummary({
       </h2>
       {requiredCount > 0 ? (
         <>
-          <p className="lift-progress-figure">
-            <span className="lift-progress-numeral">
-              {t.node('componentsMore.casePreparationSummary.satisfiedrequiredOfRequiredcount', {
-                satisfiedRequired,
-                requiredCount,
-              })}
-            </span>
-            <span className="lift-progress-unit">{shortUnit}</span>
-          </p>
-          <ProgressMeter
-            value={satisfiedRequired}
-            max={requiredCount}
-            label={unit}
-            valueText={`${progressRingPercent(satisfiedRequired, requiredCount)}%`}
-          />
+          <div className="lift-progress-row">
+            <p className="lift-progress-figure">
+              <span className="lift-progress-numeral">
+                {t.node('componentsMore.casePreparationSummary.satisfiedrequiredOfRequiredcount', {
+                  satisfiedRequired,
+                  requiredCount,
+                })}
+              </span>
+              <span className="lift-progress-unit">{shortUnit}</span>
+            </p>
+            {/* The legend (one picture per item) shows from Browse; the ring itself always. */}
+            <div className="lift-progress-ring">
+              <ReadinessSegmentRing
+                done={satisfiedRequired}
+                total={requiredCount}
+                size="sm"
+                items={segmentItemsFromResults(readiness.requirementResults)}
+              />
+            </div>
+          </div>
         </>
       ) : (
         <>
