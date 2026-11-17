@@ -13,6 +13,7 @@ describe('isNeonProtectedPath', () => {
       '/auth/reauth',
       '/auth/confirmed',
       '/auth/social-return',
+      '/auth/accept-terms',
       '/collect/account',
       '/collect/account/answers',
     ]) {
@@ -34,6 +35,7 @@ describe('isNeonProtectedPath', () => {
       '/auth/reauthorize',
       '/auth/confirmedx',
       '/auth/social-returnx',
+      '/auth/accept-termsx',
       '/auth/google',
       '/application',
       '/applications/1',

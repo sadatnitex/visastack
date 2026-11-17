@@ -14,11 +14,13 @@
 // P1 (10 Nov 2026): the landing page for the email confirmation link (/auth/confirmed) runs the
 // check so that a sign-in Neon Auth made when the link was confirmed can be passed on; with no
 // sign-in the check sends the visitor to the ordinary sign-in form (see `neonLoginUrlFor`).
+// The page that asks a new Google sign-in to agree to the terms (/auth/accept-terms) needs a
+// signed-in person too, and the check renews their session cookie before it is drawn.
 // The Google sign-in return page (/auth/social-return) runs it for the same reason: the sign-in
 // Neon Auth made at Google is handed over by the check, and with none the visitor is sent to the
 // sign-in form with the Google message.
 const NEON_PROTECTED =
-  /^\/(app|pilot-access-denied|oauth\/authorize|auth\/reauth|auth\/confirmed|auth\/social-return|collect\/account)(\/|$)/;
+  /^\/(app|pilot-access-denied|oauth\/authorize|auth\/reauth|auth\/confirmed|auth\/social-return|auth\/accept-terms|collect\/account)(\/|$)/;
 
 /**
  * Whether the Neon sign-in check must run for this path. The landing page, status page, trust

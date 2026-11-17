@@ -28,6 +28,7 @@ vi.mock('@visastack/services', () => ({
   attributeInvitation: mocks.attribute,
   touchAccountActivity: mocks.touch,
 }));
+vi.mock('./notice-gate', () => ({ mustAcknowledgeNotices: vi.fn(async () => false) }));
 vi.mock('./pilot-access', () => ({
   checkPilotAccess: vi.fn(async () => ({ allowed: true, invitationId: 'invite-test' })),
 }));

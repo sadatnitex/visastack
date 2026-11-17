@@ -51,6 +51,23 @@ export async function getAccountByNeonUserId(
   return id ? findByNeonUserId(db, id) : undefined;
 }
 
+/**
+ * Whether signing this identity in would NOT create a new account: an account is already bound to
+ * the Neon user id, or already holds the address (which provisioning sends to controlled recovery
+ * and never turns into a second account). The sign-in gate for agreement to the terms
+ * (`notice-gate.ts`) applies only when this is false, that is, only at the moment an account would
+ * be created.
+ */
+export async function neonAccountExists(
+  db: Db,
+  input: { readonly neonUserId: string; readonly email: string },
+): Promise<boolean> {
+  const id = input.neonUserId.trim();
+  if (id && (await findByNeonUserId(db, id))) return true;
+  const email = normalizeEmail(input.email);
+  return email.length > 0 && Boolean(await findByEmail(db, email));
+}
+
 /** Audit metadata `kind` for a refused sign-in whose address belongs to an unbound older account. */
 export const SIGN_IN_CONFLICT_UNBOUND = 'unbound_account';
 /** Audit metadata `kind` for a refused sign-in whose address is bound to a different identity. */

@@ -166,6 +166,7 @@ export {
 export {
   type ProvisionNeonAccountInput,
   getAccountByNeonUserId,
+  neonAccountExists,
   provisionNeonAccount,
 } from './accounts-neon';
 
@@ -1592,6 +1593,11 @@ export {
   acknowledgeSignupNotices,
   type SignupNoticeInput,
 } from './signup-notices';
+export {
+  SIGNIN_NOTICES_EVENT,
+  acknowledgeSignInNotices,
+  type SignInNoticeInput,
+} from './signin-notices';
 export { listPlatformMembers, type PlatformMember } from './platform-directory';
 export {
   searchWorkspaceRecords,

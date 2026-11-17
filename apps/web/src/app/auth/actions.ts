@@ -271,3 +271,31 @@ export async function reauthAction(formData: FormData): Promise<void> {
   if (error) redirect(`${back}&e=failed`);
   redirect(returnTo);
 }
+
+/**
+ * "One last step": a person signed in with Google agrees to the terms of use and the privacy notice
+ * before an account is created for them (notice-gate.ts). Needs a signed-in, confirmed identity read
+ * from the server session, never from the form; the tick is required and checked here, not only in
+ * the browser; nothing is passed on unless the agreement was written to the audit log.
+ */
+export async function acceptNoticesAction(formData: FormData): Promise<void> {
+  const next = safeReturnPath(field(formData, 'next'));
+  const target = signInTarget(next);
+  const { requestSessionReader } = await import('../../lib/neon-request-session');
+  const { data } = await requestSessionReader().getSession();
+  const user = data?.user;
+  if (!user?.id) redirect(target ? `/auth/sign-in?${target.slice(1)}` : '/auth/sign-in');
+  if (!user.emailVerified) redirect('/auth/verify-email');
+  if (field(formData, 'acceptNotices') !== 'yes') redirect(`/auth/accept-terms?e=notices${target}`);
+  const { acknowledgeNotices } = await import('../../lib/notice-gate');
+  const { withPublicDb } = await import('../../lib/public-db');
+  let recorded = false;
+  try {
+    recorded = await withPublicDb((db) => acknowledgeNotices(db, user.id));
+  } catch (error) {
+    const { reportServerError } = await import('../../lib/server-error');
+    reportServerError('acceptNotices', error, { step: 'record agreement' });
+  }
+  if (!recorded) redirect(`/auth/accept-terms?e=failed${target}`);
+  redirect(next);
+}

@@ -361,3 +361,8 @@ Built and switched off; nothing changes for anyone until you act. Details and th
 2. **Set up Google** (Google Cloud Console client, then Google in Neon Auth with both site addresses trusted). Never paste the secret into chat.
 3. **Allow the live checks** on the main and fallback addresses, then switch `GOOGLE_SIGN_IN_ENABLED` on in Vercel Production.
 4. **LinkedIn:** say if you want the "Connect LinkedIn" profile import built next, using the existing VisaStack LinkedIn app (check it is still active and has the OpenID Connect product).
+
+### Google sign-in: decisions recorded 17 Nov 2026
+
+Owner, 17 Nov 2026: "consetn1, linkedin b". Step 1 above is decided: option 1, the "One Last Step" page (built, switched off with Google). LinkedIn: option b, a "Connect LinkedIn" button using the existing VisaStack LinkedIn app, which brings only name, photo, language and a verified email address (LinkedIn's sign-in gives no work history); not built yet. Still yours: steps 2 and 3 (set up Google, allow the live checks) and, for LinkedIn, checking the app is active with the "Sign In with LinkedIn using OpenID Connect" product and adding VisaStack's return address to it.
+

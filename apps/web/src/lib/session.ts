@@ -18,6 +18,7 @@ import { after } from 'next/server';
 import { cache } from 'react';
 import { sendWaitingEmailsSoon } from './email-backstop';
 import { NeonIdentityPort } from './identity-provider';
+import { mustAcknowledgeNotices } from './notice-gate';
 import { checkPilotAccess } from './pilot-access';
 import { reportServerError } from './server-error';
 import { enforceSessionAgeLimit, isStaffContext } from './session-age';
@@ -238,6 +239,13 @@ async function resolveSignedInAccount(
   });
   if (!access.allowed) {
     redirect('/pilot-access-denied');
+  }
+
+  // Agreement to the terms and privacy notice, at the one moment an account would be created for a
+  // person who did not come through the sign-up form (Google). Before the invitation is claimed, so
+  // stopping here uses nothing up. See notice-gate.ts.
+  if (await mustAcknowledgeNotices(db, user)) {
+    redirect('/auth/accept-terms');
   }
 
   // Claim the invitation BEFORE provisioning, not after (Codex review, PR

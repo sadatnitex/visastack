@@ -49,6 +49,22 @@ vi.mock('../../lib/signup-form', () => ({
   consumeSignupForm: (input: unknown) => consumeSignupForm(input),
 }));
 
+const requestGetSession = vi.fn();
+vi.mock('../../lib/neon-request-session', () => ({
+  requestSessionReader: () => ({ getSession: requestGetSession }),
+}));
+const acknowledgeNotices = vi.fn();
+vi.mock('../../lib/notice-gate', () => ({
+  acknowledgeNotices: (...args: unknown[]) => acknowledgeNotices(...args),
+}));
+vi.mock('../../lib/public-db', () => ({
+  withPublicDb: async (work: (db: unknown) => Promise<unknown>) => work({ db: true }),
+}));
+const reportServerError = vi.fn();
+vi.mock('../../lib/server-error', () => ({
+  reportServerError: (...args: unknown[]) => reportServerError(...args),
+}));
+
 function form(values: Record<string, string>): FormData {
   const data = new FormData();
   for (const [key, value] of Object.entries(values)) data.set(key, value);
@@ -541,5 +557,78 @@ describe('the confirmation page remembers the address (no typing it twice)', () 
       '/auth/verify-email?e=invalid',
     );
     expect(sendVerificationEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('acceptNoticesAction (One Last Step)', () => {
+  const signedIn = {
+    data: { user: { id: 'neon-user-1', email: 'p@example.test', emailVerified: true } },
+  };
+  const agree = { acceptNotices: 'yes', next: '/app' };
+
+  beforeEach(() => {
+    requestGetSession.mockReset().mockResolvedValue(signedIn);
+    acknowledgeNotices.mockReset().mockResolvedValue(true);
+    reportServerError.mockReset();
+  });
+
+  it('records the agreement for the signed-in identity and goes on to where they were headed', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    expect(await destination(() => acceptNoticesAction(form(agree)))).toBe('/app');
+    expect(acknowledgeNotices).toHaveBeenCalledWith({ db: true }, 'neon-user-1');
+    expect(
+      await destination(() => acceptNoticesAction(form({ ...agree, next: '/app/documents' }))),
+    ).toBe('/app/documents');
+  });
+
+  it('takes the identity from the session, never from the form', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    await destination(() => acceptNoticesAction(form({ ...agree, neonUserId: 'someone-else' })));
+    expect(acknowledgeNotices.mock.calls[0]?.[1]).toBe('neon-user-1');
+  });
+
+  it('needs the tick, checked here and not only in the browser', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    for (const values of [
+      { next: '/app' },
+      { acceptNotices: 'no', next: '/app' },
+      { acceptNotices: 'YES' },
+    ]) {
+      expect(await destination(() => acceptNoticesAction(form(values)))).toBe(
+        '/auth/accept-terms?e=notices',
+      );
+    }
+    expect(acknowledgeNotices).not.toHaveBeenCalled();
+  });
+
+  it('sends someone with no session to sign in and someone unconfirmed to confirm', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    requestGetSession.mockResolvedValue({ data: null });
+    expect(await destination(() => acceptNoticesAction(form(agree)))).toBe('/auth/sign-in');
+    requestGetSession.mockResolvedValue({ data: { user: { id: 'u', emailVerified: false } } });
+    expect(await destination(() => acceptNoticesAction(form(agree)))).toBe('/auth/verify-email');
+    expect(acknowledgeNotices).not.toHaveBeenCalled();
+  });
+
+  it('does not go on when the agreement was not recorded, and logs a write failure', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    acknowledgeNotices.mockResolvedValueOnce(false);
+    expect(await destination(() => acceptNoticesAction(form(agree)))).toBe(
+      '/auth/accept-terms?e=failed',
+    );
+    acknowledgeNotices.mockRejectedValueOnce(new Error('audit down'));
+    expect(await destination(() => acceptNoticesAction(form(agree)))).toBe(
+      '/auth/accept-terms?e=failed',
+    );
+    expect(reportServerError).toHaveBeenCalledTimes(1);
+  });
+
+  it('never goes anywhere outside the site', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    expect(
+      await destination(() =>
+        acceptNoticesAction(form({ ...agree, next: 'https://evil.example' })),
+      ),
+    ).toBe('/app');
   });
 });

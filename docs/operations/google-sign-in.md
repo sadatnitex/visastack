@@ -9,6 +9,7 @@ Status on 17 Nov 2026: built and switched off. Until the switch below is turned 
 - `apps/web/src/app/auth/social-return/page.tsx`: where Google sends the person back. It is a page of its own so a Google return never says "email confirmed". A visitor with no session is sent to the sign-in form with the Google message.
 - Return addresses use the host the person is on (the main address or the fallback address), because the sign-in cookies Neon Auth sets belong to that host only.
 - While someone is signed in, only a person with no password can start Google (it is how they pass the "Confirm it is you" check). Someone with a password who clicks the button is sent on to where they were headed, because otherwise one tap on a device that is still signed in to Google would replace the password check.
+- `apps/web/src/app/auth/accept-terms/page.tsx` ("One Last Step"): added 17 Nov 2026 after the owner chose option 1 for agreement to the terms. A person who signs in with Google, has no account yet and has no password is stopped before any account is created and asked to tick the terms and privacy notice. The tick is checked on the server and written to the audit log (`SIGNIN_NOTICES_ACKNOWLEDGED`, with the identity and the notice versions); a short signed cookie carries "agreed" to the next request. People who came through the email sign-up form, and everyone who already has an account, never see it. Anything that cannot be read counts as "must agree".
 - Nothing about who may get in was changed. After Google, every request goes through the same checks as an email sign-in: the invitation check, the confirmed-email rule, and the account binding that refuses an email already tied to another identity.
 
 ## Owner decision on record
@@ -17,7 +18,7 @@ Status on 17 Nov 2026: built and switched off. Until the switch below is turned 
 
 ## Before switching it on (every item must be true)
 
-1. **The owner decides how agreement to the terms is recorded for Google sign-ups (D5 in `docs/operations/public-beta-sign-in.md`).** The email form requires a tick and records a versioned acknowledgement before the account exists (`docs/public-beta/SIGNUP-SAFEGUARDS.md`). That record holds a random form number, not an account or an email, so a Google sign-up cannot be matched to one without new storage. Today the Google button only shows a line saying that continuing means agreeing. Until the owner decides, Google must stay off.
+1. **Agreement to the terms: decided and built (17 Nov 2026).** Owner, 17 Nov 2026: "consetn1, linkedin b", that is option 1, the "One Last Step" page described above. What stays to prove live is in the list below. (The earlier text of this item, kept as history: the email form records a versioned acknowledgement keyed to a random form number, which cannot be matched to a Google account, so Google had to stay off until the owner decided. That decision is now made.)
 2. **Google is set up in Neon Auth for the production project** (owner steps, no secret is ever pasted into chat or into the repository):
    - In Google Cloud Console, make a project named VisaStack, set up the consent screen with the VisaStack name, logo and the privacy and terms links, publish it to production, and create a "Web application" client.
    - Register one redirect address with Google: the Neon Auth address followed by `/callback/google` (the address is `NEON_AUTH_BASE_URL` in the Neon console for the production branch).
@@ -34,10 +35,12 @@ Status on 17 Nov 2026: built and switched off. Until the switch below is turned 
 - That signing in with Google again on the "Confirm it is you" page really makes a fresh session (the app measures recency from the session's creation time).
 - That Neon Auth's own limits do not count every visitor against this server's single address (Neon Auth sees only that address). The app-side limit is `AUTH_SIGN_IN_IP`, shared with password attempts from the same address.
 - An uninvited Google account lands on the "not invited" page, and an invited one lands in the product.
+- A brand-new Google sign-in lands on "One Last Step"; no account exists before the tick (check that no account row appears for the identity until the tick); after the tick the person reaches the product and the audit log holds one `SIGNIN_NOTICES_ACKNOWLEDGED` event for them; signing in again, or opening `/auth/accept-terms` by hand, goes straight on.
+- An email sign-up (the form, a password) never sees "One Last Step".
 
 ## Known limits
 
-- Agreement to the terms is a line of text, not a recorded acknowledgement (see item 1 above).
+- Agreement to the terms for a Google sign-up is recorded in the audit log by identity (not by account), because the account does not exist yet when the person agrees. Someone who agrees and then never finishes leaves an agreement record and no account.
 - A Google address spelled differently from the one a person used for an invitation (for example `john.doe@gmail.com` and `johndoe@gmail.com`) is a different address to Neon Auth. In the pilot that person sees "not invited".
 - Neon Auth sees only this server's address, so any limit Neon Auth applies to sign-in starts is counted against everyone together. A script that stays under this site's own limits from several addresses could use it up for everyone. Not measured.
 - A person who only ever signed in with Google has no password. If Google sign-in is later switched off they cannot sign in, except by asking for a password reset (not tried). Switch it off only after telling people.
