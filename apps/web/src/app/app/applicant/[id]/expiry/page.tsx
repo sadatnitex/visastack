@@ -179,7 +179,7 @@ function timelineFor(
     .filter((m) => tripChecksApply(m.state))
     .filter((m) => {
       const day = tripDay(m);
-      return day !== null && valid(day);
+      return day instanceof Date && valid(day);
     })
     .sort((a, b) => (tripDay(a)?.getTime() ?? 0) - (tripDay(b)?.getTime() ?? 0));
   // The nearest trip that has not ended its first day where the person is, else the latest past one.
