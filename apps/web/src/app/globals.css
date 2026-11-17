@@ -21846,26 +21846,26 @@ body:lang(bn),
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
+  min-width: 24px;
 }
 .journey-stage-picture {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--edge-control);
   border-radius: 50%;
   background: var(--bg-elevated);
   color: inherit;
 }
 .journey-stage-picture .icon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 .journey-stage .explain-tip {
-  /* The 44 px button reaches past the 28 px row instead of making the row 44 px tall. */
-  margin-block: -8px;
+  /* The 44 px button reaches past the 24 px row instead of making the row 44 px tall. */
+  margin-block: -10px;
 }
 .journey-stage .explain-tip-trigger {
   display: inline-flex;
@@ -21895,5 +21895,9 @@ body:lang(bn),
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+/* The card around the track and the step bar gives them less air above and below, so the first checklist row stays inside its phone height budget. */
+.lift-status-stages:has(> .journey-track) {
+  padding-block: var(--space-1);
 }
 /* end WP-PIC8 */
