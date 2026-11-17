@@ -21787,7 +21787,7 @@ body:lang(bn),
   gap: var(--space-1);
 }
 .desk-strip .progress-ring-sm .progress-ring-graphic {
-  width: 1.5rem;
+  width: 1.25rem;
 }
 .desk-docs {
   display: inline-flex;
