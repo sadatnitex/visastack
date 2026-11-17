@@ -8260,3 +8260,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - New shared ExplainTip (components/explain-tip.tsx, lib/use-explain-tip.ts) on the existing popover helpers: opens on hover, focus and tap, closes on Escape, outside press and blur, one open at a time, 44 px trigger, text linked by aria-describedby. First use: next to the Fallback Provider Used badge on the AI review screen (the badge keeps its title= because an existing locale test reads it). A ratchet test holds plain title= attributes at 6 or fewer.
 - Independent review fixed: hover bridge moved to the non-clipping holder; press marks reset on document pointerup and pointercancel; neutral ask icon instead of a tick. NOT verified: a real-browser hover and touch check on a phone.
+
+## 17 Nov 2026: WP-PIC3 flags for every country code
+
+- CountryFlag now draws a same-origin SVG flag (flag-icons 7.6.0, MIT, LICENSE and SOURCE.txt vendored in apps/web/public/flags, about 1.65 MB in total, loaded only for flags shown) for every code in the destinations list, per owner decision D4 (17 Nov 2026). An owner-editable hide-list in apps/web/src/lib/flag-policy.ts removes any flag. Hidden, unknown or failed flags fall back to the previous emoji, letters badge or globe; the underlay is hidden once the picture loads (review fix for pennant-shaped flags such as Nepal).
+- NOT verified: a visual check of every flag on a phone screen; the legal position of showing flags of contested places (owner's accepted risk under D4).
