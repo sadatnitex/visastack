@@ -8307,3 +8307,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - The import screen now lists files still waiting to send, each as a document picture with Waiting, Sending or Could Not Send, a Try Again button on the existing retry, and an Offline badge when the browser reports offline. A file the queue is holding for a retry shows Waiting, never Sending; nothing is called Uploaded or Received early; the read-out stays quiet during an import except when going offline.
 - NOT verified: a real phone on a weak or offline network; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC8 case journey track (built, not yet shown)
+
+- A journey track for the case page: each stage drawn as a small picture, the current stage marked Now (aria-current, screen reader text), earlier stages marked Before and later ones Later. It never ticks a stage as done, because a case keeps no stage history and real moves can skip stages, and it makes no Submitted claim. Opt-in prop, off by default; the default step bar is unchanged.
+- NOT shown to users yet: switching it on for the case page changes a page-outline test and is a follow-up. NOT verified: a phone at 320 px; Bengali for the new words.
