@@ -277,10 +277,11 @@ async function withChangeImpactBatch(
   return batch ? { ...saved, changeImpactBatch: batch } : saved;
 }
 
-/** Save a Master Profile fact (append-only immutable version). */
 /** Said when a save carries the stand-in for a protected detail instead of a real value. */
 const PROTECTED_STAND_IN_LINE =
   'This detail is saved and protected. Type the new value to change it, or leave it as it is.';
+
+/** Save a Master Profile fact (append-only immutable version). */
 
 export async function saveFactAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');

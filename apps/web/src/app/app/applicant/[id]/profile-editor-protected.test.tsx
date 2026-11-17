@@ -118,7 +118,7 @@ describe('protected details in the profile editor', () => {
     expect(input.placeholder).toBe('Saved and Protected');
     const hint = hintFor('passport_number');
     expect(hint?.textContent).toBe(
-      'Saved and Protected. It is not shown here. Type a new value only to replace it.',
+      'Saved and Protected. It cannot be shown or changed here right now.',
     );
     expect(input.getAttribute('aria-describedby')).toContain('f-passport_number-locked');
   });
@@ -134,6 +134,29 @@ describe('protected details in the profile editor', () => {
     });
     expect(box('passport_number').value).toBe('');
     expect(hintFor('passport_number')?.textContent).toMatch(/could not be opened just now/);
+  });
+
+  it('asks for a lost value to be added again, with no badge claiming it is confirmed', () => {
+    render({
+      passport_number: { factId: 'f-pp', value: null, status: null, locked: 'lost' },
+    });
+    const input = box('passport_number');
+    expect(input.value).toBe('');
+    expect(input.placeholder).not.toBe('Saved and Protected');
+    expect(hintFor('passport_number')?.textContent).toBe(
+      'This detail needs to be added again. Type it and press Save.',
+    );
+    const row = input.closest('form');
+    expect(row?.querySelector('.field-badges .badge-neutral')).toBeNull();
+  });
+
+  it('links the hint to a protected choice box too', () => {
+    render({
+      marital_status: { factId: 'f-ms', value: '[protected]', status: 'DECLARED' },
+    });
+    const select = container.querySelector<HTMLSelectElement>('#f-marital_status');
+    expect(select?.value).toBe('');
+    expect(select?.getAttribute('aria-describedby')).toContain('f-marital_status-locked');
   });
 
   it('shows the stored value after a save, not the text typed before it', () => {

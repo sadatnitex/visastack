@@ -195,8 +195,12 @@ interface FieldRowProps {
   readonly locked?: ProtectedLock | undefined;
 }
 
-/** Why a saved, protected value is not shown: no key here, or it could not be opened. */
-export type ProtectedLock = 'no_key' | 'unreadable';
+/**
+ * Why a saved, protected value is not shown: no key here (it cannot be shown or changed now), it
+ * could not be opened, or what was stored is the stand-in itself (saved over the real value before
+ * WALD2), so the real value has to be typed again.
+ */
+export type ProtectedLock = 'no_key' | 'unreadable' | 'lost';
 
 /**
  * The stand-in a keyless read shows for a protected detail. Case and spaces do not matter. Mirrors
@@ -213,9 +217,10 @@ export function protectedStandIn(value: string | null | undefined): ProtectedLoc
 
 /** Plain words under a protected detail whose value is saved but not shown. */
 const LOCKED_HINT: Readonly<Record<ProtectedLock, string>> = {
-  no_key: 'Saved and Protected. It is not shown here. Type a new value only to replace it.',
+  no_key: 'Saved and Protected. It cannot be shown or changed here right now.',
   unreadable:
     'Saved and Protected, but it could not be opened just now. Type a new value only to replace it.',
+  lost: 'This detail needs to be added again. Type it and press Save.',
 };
 
 /** Same UTC day — the common case where a value is effective the moment it's saved. */
@@ -286,7 +291,7 @@ function FieldRow({
             defaultValue={shownValue ?? ''}
             className="input"
             onChange={(event) => onChoice?.(event.target.value)}
-            {...fieldProblem(state, 'value', messageId)}
+            {...fieldProblem(state, 'value', messageId, ...(lock ? [hintId] : []))}
           >
             <option {...t.lang('appApplicant.appApplicantIdProfileEditor.select')} value="">
               {t('appApplicant.appApplicantIdProfileEditor.select')}
@@ -305,7 +310,9 @@ function FieldRow({
             name="value"
             type={field.type === 'date' ? 'date' : 'text'}
             defaultValue={shownValue ?? ''}
-            placeholder={lock ? 'Saved and Protected' : (field.placeholder ?? '')}
+            placeholder={
+              lock && lock !== 'lost' ? 'Saved and Protected' : (field.placeholder ?? '')
+            }
             className="input"
             {...fieldProblem(state, 'value', messageId, ...(lock ? [hintId] : []))}
           />
@@ -718,15 +725,16 @@ function matchesSearch(label: string, search: string): boolean {
 
 function displayValue(field: EditorFieldDef, current: ProfileValue | undefined): string {
   const value = current?.value;
-  if (current?.locked === 'unreadable') return 'Could not read this detail';
+  const lock = current?.locked ?? protectedStandIn(value);
+  if (lock === 'unreadable') return 'Could not read this detail';
+  if (lock === 'lost') return 'Needs to be added again';
+  if (lock === 'no_key') return 'Protected detail';
   if (!value && current?.status === 'STALE') return 'No Longer Current';
   if (!value) {
     return current?.status && field.sensitivity !== 'STANDARD'
       ? 'Protected detail'
       : 'Not recorded';
   }
-  if (value === '[protected: could not decrypt]') return 'Could not read this detail';
-  if (value === '[protected]') return 'Protected detail';
   return field.type === 'date' ? formatDateOnly(value) : value;
 }
 
