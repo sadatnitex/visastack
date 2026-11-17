@@ -533,6 +533,7 @@ describe('organization actor ratchet', () => {
       'agency#listNotes',
       'agency#createTaskForOrg',
       'access-ends#listAccessEndsForOrg',
+      'org-case-readiness#listCaseReadinessForOrg',
       'missions#listSelectedEvidenceForOrg',
     ]) {
       expect(byId.has(id), id).toBe(true);

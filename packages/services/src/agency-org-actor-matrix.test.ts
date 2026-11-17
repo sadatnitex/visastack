@@ -36,6 +36,7 @@ import {
   listSelectedEvidenceForOrg,
   selectEvidence,
 } from './missions';
+import { listCaseReadinessForOrg } from './org-case-readiness';
 import { addMembership, setMembershipActive } from './organizations';
 import {
   addPackVersion,
@@ -247,6 +248,7 @@ type Call = (
 /** Every agency read told an organization id. */
 const READS: ReadonlyArray<readonly [string, Call]> = [
   ['listAccessEndsForOrg', (w, a, o, m) => listAccessEndsForOrg(w.db, a, o, [m])],
+  ['listCaseReadinessForOrg', (w, a, o, m) => listCaseReadinessForOrg(w.db, a, o, [m])],
   ['listTasksForOrg', (w, a, o, m) => listTasksForOrg(w.db, a, o, w.rahim.applicantId, m)],
   [
     'listAppointmentsForOrg',

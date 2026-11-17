@@ -20,10 +20,16 @@ const mocks = vi.hoisted(() => ({
   loadEvidenceRequests: vi.fn(async () => [] as unknown[]),
   // P9: when access to each listed case ends; asked for the listed case ids only.
   listAccessEndsForOrg: vi.fn(async (..._args: unknown[]) => new Map<string, Date | null>()),
+  // WP-PIC18: each listed case's readiness; asked for the listed case ids only.
+  listCaseReadinessForOrg: vi.fn(async (..._args: unknown[]) => new Map<string, unknown>()),
 }));
 vi.mock('@visastack/services', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@visastack/services')>();
-  return { ...actual, listAccessEndsForOrg: mocks.listAccessEndsForOrg };
+  return {
+    ...actual,
+    listAccessEndsForOrg: mocks.listAccessEndsForOrg,
+    listCaseReadinessForOrg: mocks.listCaseReadinessForOrg,
+  };
 });
 
 vi.mock('../../../../../lib/session', () => ({
@@ -128,6 +134,7 @@ const aCase = (id: string, applicantName: string) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.listCaseReadinessForOrg.mockResolvedValue(new Map());
   navigationState.pathname = '/app/agency/o1/cases';
   mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: true, member: true });
   mocks.loadMembers.mockResolvedValue([
@@ -245,10 +252,77 @@ describe('agency Cases', () => {
     expect(emptySlot).not.toContain('country-flag');
   });
 
+  it('draws each listed case its readiness ring and documents missing, read once for exactly the listed cases (WP-PIC18)', async () => {
+    mocks.listCaseReadinessForOrg.mockResolvedValue(
+      new Map([
+        [
+          M1,
+          {
+            requiredCount: 5,
+            satisfiedRequired: 3,
+            missing: [
+              { kind: 'DOCUMENT', optional: false, reason: 'not_provided' },
+              {
+                kind: 'DOCUMENT',
+                optional: false,
+                reason: 'not_provided',
+                alternatives: [{ kind: 'DOCUMENT' }, { kind: 'DOCUMENT' }],
+              },
+              { kind: 'DOCUMENT', optional: true, reason: 'not_provided' },
+            ],
+          },
+        ],
+        [M2, { requiredCount: 4, satisfiedRequired: 4, missing: [] }],
+      ]),
+    );
+    const html = await renderServer(Page(props));
+    expect(mocks.listCaseReadinessForOrg).toHaveBeenCalledTimes(1);
+    expect(mocks.listCaseReadinessForOrg).toHaveBeenCalledWith({}, 'acct-1', 'o1', [M1, M2]);
+    const rowOf = (id: string) =>
+      html.split(`href="/app/agency/o1/cases?case=${id}#mission-${id}"`)[1]?.split('</a>')[0] ?? '';
+    // Inside the row link, as phrasing content: no block element and no second control.
+    expect(rowOf(M1)).toContain('<span class="agency-case-list-strip"><span class="desk-strip">');
+    expect(rowOf(M1)).not.toMatch(/<(div|a|button)\b/);
+    expect(rowOf(M1)).toContain('aria-label="3 of 5 Ready"');
+    expect(textOf(rowOf(M1))).toContain('3 of 5 Ready');
+    expect(textOf(rowOf(M1))).toContain('2 Documents Missing');
+    expect(textOf(rowOf(M2))).toContain('4 of 4 Ready');
+    expect(textOf(rowOf(M2))).toContain('No Documents Missing');
+    // The place stays in the meta line only: one flag per row, none in the strip.
+    expect(rowOf(M1).split('agency-case-list-strip')[1]).not.toContain('country-flag');
+    // The row's own words and action are untouched.
+    expect(textOf(rowOf(M1))).toContain(`Rahim Uddin · Case ${M1}`);
+    expect(rowOf(M1)).toContain('agency-case-list-action');
+  });
+
+  it('still lists every case, without pictures, when the readiness read fails (WP-PIC18)', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.listCaseReadinessForOrg.mockRejectedValue(new Error('readiness table missing'));
+    const html = await renderServer(Page(props));
+    const text = textOf(html);
+    expect(text).toContain(`Rahim Uddin · Case ${M1}`);
+    expect(text).toContain(`Nusrat Jahan · Case ${M2}`);
+    expect(html).not.toContain('agency-case-list-strip');
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(String(logged.mock.calls[0]?.[0])).toContain('agency-cases.readiness');
+    logged.mockRestore();
+  });
+
+  it('draws no strip for a case with no readiness entry (manual mode, no checklist, not readable)', async () => {
+    mocks.listCaseReadinessForOrg.mockResolvedValue(
+      new Map([[M1, { requiredCount: 2, satisfiedRequired: 1, missing: [] }]]),
+    );
+    const html = await renderServer(Page(props));
+    expect(html.match(/class="agency-case-list-strip"/g)).toHaveLength(1);
+    expect(html.match(/agency-case-list-pictured/g)).toHaveLength(1);
+  });
+
   it('asks about no cases when the list is empty', async () => {
     mocks.loadCaseListPage.mockResolvedValue(listOf(true, []));
     await renderServer(Page(props));
     expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'acct-1', 'o1', []);
+    // WP-PIC18: no readiness is read for an empty list.
+    expect(mocks.listCaseReadinessForOrg).not.toHaveBeenCalled();
   });
 
   it('opens one case in its workspace, with the people who can be assigned', async () => {

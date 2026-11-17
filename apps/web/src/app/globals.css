@@ -21806,6 +21806,37 @@ body:lang(bn),
 }
 /* end WP-PIC14 */
 
+/* WP-PIC18 agency Cases list rows (17 Nov 2026, picture-first upgrade, unit Q9): the same picture strip as the desk's Do Next rows (a small readiness ring in counts only and the required documents never provided), without the place, since the flag already shows in the meta line. Inside the row link, not a control. Wide screens: inline at the end of the meta line. Phones: the action moves up beside the title and the strip takes the row the action gave up, so a row grows no taller. Flat: tokens only, no shadow, gradient, blur or translucency. */
+.agency-case-list-pictured {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "title title action"
+    "meta strip action";
+}
+.agency-case-list-strip {
+  grid-area: strip;
+  min-width: 0;
+}
+.agency-case-list-strip .desk-strip {
+  flex-wrap: nowrap;
+}
+@media (max-width: 40rem) {
+  .agency-case-list-pictured {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title action"
+      "meta meta"
+      "strip strip";
+  }
+  .agency-case-list-pictured .agency-case-list-action {
+    align-self: start;
+  }
+  .agency-case-list-strip .desk-strip {
+    flex-wrap: wrap;
+  }
+}
+/* end WP-PIC18 */
+
 /* WP-PIC6 Country Card (17 Nov 2026, picture-first upgrade, unit U6): the flag, the name, the entry type as a picture beside its plain word, and where the fact came from, above the country summary. Flat: no shadow, gradient, blur or translucency; tokens only; every control keeps a 44 px target. */
 .country-card {
   display: grid;

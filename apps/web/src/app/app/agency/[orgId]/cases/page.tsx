@@ -1,4 +1,9 @@
-import { isUuid, listAccessEndsForOrg, summarizeCaseTriage } from '@visastack/services';
+import {
+  isUuid,
+  listAccessEndsForOrg,
+  listCaseReadinessForOrg,
+  summarizeCaseTriage,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DepthScope } from '../../../../../components/depth';
@@ -21,6 +26,7 @@ import {
   pagingHref,
 } from '../../../../../lib/paging';
 import { buildRequestPicker, requestPickerIndex } from '../../../../../lib/request-picker';
+import { reportServerError } from '../../../../../lib/server-error';
 import { withSession } from '../../../../../lib/session';
 import { caseAnchorId } from '../case-anchor';
 import { caseNeedsYou, caseReviewLink } from '../case-needs';
@@ -36,6 +42,8 @@ import {
   loadOpenCase,
   loadOrgAccess,
 } from '../console-data';
+import { DeskPictureStrip } from '../desk-picture-strip';
+import { deskPictureOf } from '../do-next';
 import { MissionCollaboration } from '../mission-collaboration';
 import { RequestEvidenceForm } from '../request-evidence-form';
 import { STAGE_LABELS } from '../stage-labels';
@@ -131,12 +139,21 @@ export default async function AgencyCasesPage({
     const travellerRequests = read.filter((r) => r.missionId === null);
     // When access to each listed case ends. Asked only for the cases this member can already see
     // on this page, so it adds no case and no detail. The traveller alone can extend it.
-    const accessEnds = await listAccessEndsForOrg(
-      db,
-      accountId,
-      orgId,
-      list.cases.map((c) => c.missionId),
-    );
+    // WP-PIC18: with it, each listed case's readiness, worked out exactly as the case page works it
+    // out, in one read for the whole page; not asked at all for an empty list. A case this member
+    // may not read, in manual mode or with no checklist gets nothing.
+    const listedIds = list.cases.map((c) => c.missionId);
+    const [accessEnds, readiness] = await Promise.all([
+      listAccessEndsForOrg(db, accountId, orgId, listedIds),
+      // The pictures are a help, never a gate: if they cannot be read the list still shows,
+      // without them, and the failure is logged (sanitised: no query values).
+      listedIds.length > 0
+        ? listCaseReadinessForOrg(db, accountId, orgId, listedIds).catch((error: unknown) => {
+            reportServerError('agency-cases.readiness', error);
+            return new Map<string, never>();
+          })
+        : Promise.resolve(new Map<string, never>()),
+    ]);
     return {
       admin: access.admin,
       members,
@@ -145,6 +162,7 @@ export default async function AgencyCasesPage({
       requests,
       travellerRequests,
       accessEnds,
+      readiness,
       viewerAccountId: accountId,
     };
   });
@@ -207,11 +225,18 @@ export default async function AgencyCasesPage({
             >
               {data.list.cases.map((row) => {
                 const isOpen = open?.missionId === row.missionId;
+                // The same picture as the desk's Do Next rows (`deskPictureOf`), without the place:
+                // the flag already shows in the meta line.
+                const picture = deskPictureOf({
+                  readiness: data.readiness.get(row.missionId) ?? null,
+                });
                 return (
                   <li key={row.missionId} className="agency-case-list-row">
                     <Link
                       href={caseHref(pathname, query, row.missionId)}
-                      className={`agency-case-list-link${isOpen ? ' agency-case-list-open' : ''}`}
+                      className={`agency-case-list-link${isOpen ? ' agency-case-list-open' : ''}${
+                        picture ? ' agency-case-list-pictured' : ''
+                      }`}
                       aria-current={isOpen ? 'true' : undefined}
                     >
                       <span className="agency-case-list-title">
@@ -237,6 +262,11 @@ export default async function AgencyCasesPage({
                           </>
                         ) : null}
                       </span>
+                      {picture ? (
+                        <span className="agency-case-list-strip">
+                          <DeskPictureStrip picture={picture} as="span" countLabel="Ready" />
+                        </span>
+                      ) : null}
                       <span className="agency-case-list-action">
                         {isOpen
                           ? t.node('appAgency.appAgencyOrgidCasesPage.openNow')

@@ -895,6 +895,7 @@ export {
 } from './notifications';
 
 export { listAccessEndsForOrg } from './access-ends';
+export { listCaseReadinessForOrg } from './org-case-readiness';
 export {
   type ExpirySweepResult,
   type SweepResult,
