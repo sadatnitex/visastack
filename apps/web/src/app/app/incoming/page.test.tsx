@@ -21,7 +21,7 @@ vi.mock('../../../lib/i18n-server', async (importOriginal) => ({
 interface PanelProps {
   readonly people?: unknown;
   readonly ownerKey?: unknown;
-  readonly missed?: unknown;
+  readonly notice?: unknown;
   readonly retryUnknown?: unknown;
   readonly limitBytes?: unknown;
 }
@@ -79,15 +79,25 @@ describe('WP-PIC11 the shared files page', () => {
       { id: 'p2', name: 'Nadia Example' },
     ]);
     expect(props?.ownerKey).toMatch(/^[A-Za-z0-9_-]{32}$/);
-    expect(props?.missed).toBe(false);
+    expect(props?.notice).toBeNull();
     expect(props?.retryUnknown).toBe(true);
     expect(typeof props?.limitBytes).toBe('number');
   });
 
-  it('passes on that a share did not come through', async () => {
+  it('passes on that a share did not come through, or held nothing usable', async () => {
     switchOn();
     await page({ missed: '1' });
-    expect(panel.props[0]?.missed).toBe(true);
+    expect(panel.props[0]?.notice).toBe('missed');
+    await page({ none: '1' });
+    expect(panel.props[1]?.notice).toBe('none');
+  });
+
+  it('after the switch went off, a phone still sharing lands on one plain line, not an error', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('WEB_SHARE_TARGET', 'off');
+    const html = await page({ missed: '1' });
+    expect(textOf(html)).toContain('not available right now, so nothing was kept');
+    expect(panel.props).toHaveLength(0);
   });
 
   it('asks for processing permission first, and sends nothing', async () => {

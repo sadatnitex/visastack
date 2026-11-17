@@ -100,7 +100,7 @@ async function show(props: Partial<Parameters<typeof IncomingPanel>[0]> = {}) {
     root.render(
       <IncomingPanel
         ownerKey={KEY}
-        missed={false}
+        notice={null}
         people={PEOPLE}
         limitBytes={4 * 1024 * 1024}
         limitLabel="4 MB"
@@ -191,8 +191,65 @@ describe('WP-PIC11 shared files waiting on the phone', () => {
       'fetch',
       vi.fn(async () => Response.json({ files: [], dropped: 0, at: 0 })),
     );
-    await show({ missed: true });
+    await show({ notice: 'missed' });
     expect(container.querySelector('h2')?.textContent).toBe('That Share Did Not Come Through');
+  });
+
+  it('says which files it takes when the share held none it can use', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ files: [], dropped: 0, at: 0 })),
+    );
+    await show({ notice: 'none' });
+    expect(container.querySelector('h2')?.textContent).toBe('Nothing VisaStack Can Take');
+  });
+
+  it('finishes and clears the phone copy even when no file could be read back', async () => {
+    const base = fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) =>
+        url.startsWith('/share-target/file/')
+          ? new Response('gone', { status: 404 })
+          : base(url, init),
+      ),
+    );
+    await show();
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    expect(sent).toEqual([]);
+    expect(container.textContent).toContain('2 files could no longer be read');
+    expect(container.textContent).toContain('Finished: 0 added');
+    expect(calls.some((c) => c.url === '/share-target/clear')).toBe(true);
+  });
+
+  it('keeps two shared files with the same name and size apart', async () => {
+    const twins = {
+      files: [
+        { n: 0, name: 'document.pdf', type: 'application/pdf', size: 4 },
+        { n: 1, name: 'document.pdf', type: 'application/pdf', size: 4 },
+      ],
+      dropped: 0,
+      at: INBOX.at,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, method: init?.method ?? 'GET' });
+        if (url.startsWith('/share-target/list')) return Response.json(twins);
+        if (url.startsWith('/share-target/file/'))
+          return new Response(new TextEncoder().encode('%PDF'));
+        return Response.json({});
+      }),
+    );
+    await show();
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    expect(sent.map((s) => s.fileName)).toEqual(['document.pdf', 'document.pdf']);
   });
 
   it('uses Title Case names and passes the accessibility check', async () => {

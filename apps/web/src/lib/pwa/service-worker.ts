@@ -17,6 +17,7 @@ import {
   SHARE_MAX_FILES,
   SHARE_MAX_FILE_BYTES,
   SHARE_TARGET_PATH,
+  isShareTargetSwitchOn,
 } from './share-target';
 
 export { CACHE_PREFIX, PUBLIC_STATIC_PATHS, PUBLIC_STATIC_PREFIXES, STATIC_PREFIXES };
@@ -30,6 +31,13 @@ export { CACHE_PREFIX, PUBLIC_STATIC_PATHS, PUBLIC_STATIC_PREFIXES, STATIC_PREFI
  * not a public static file (API calls, page data, document previews, signed download links,
  * other origins, anything but GET) is not even intercepted: the browser handles it exactly as it
  * would without a worker.
+ *
+ * One exception, by owner decision (17 Nov 2026, picture-first Phase 2, unit P2d), and only while
+ * the owner's share switch is on: files the person shares to VisaStack from another app. The phone
+ * posts them to `/share-target`; the worker answers that one post itself and keeps the files in its
+ * own inbox on this device, not in the static cache, for at most 15 minutes, so they are never sent
+ * anywhere before the person signs in and confirms on `/app/incoming`. Still no page is stored.
+ * See `share-target.ts`.
  *
  * The offline screen is built into the worker itself, so showing it never needs a stored page.
  * The script is plain JavaScript in a string so the file served to browsers is exactly the text
@@ -110,8 +118,16 @@ export const OFFLINE_CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-/** Builds the worker served while the service worker is switched on. */
-export function buildServiceWorkerScript(version: string): string {
+/**
+ * Builds the worker served while the service worker is switched on. `share` says whether it takes
+ * files shared from another app (default: the owner's switch, read where `/sw.js` is served). The
+ * script differs with it, so switching sharing off reaches devices as an ordinary worker update.
+ */
+export function buildServiceWorkerScript(
+  version: string,
+  options: { readonly share?: boolean } = {},
+): string {
+  const SHARE_ON = options.share ?? isShareTargetOn((name) => process.env[name]);
   const constants = {
     VERSION: normaliseVersion(version),
     CACHE_PREFIX,
@@ -133,6 +149,7 @@ export function buildServiceWorkerScript(version: string): string {
     SHARE_MAX_FILE_BYTES,
     SHARE_MAX_AGE_MS,
     INCOMING_PATH,
+    SHARE_ON,
   };
   const declarations = Object.entries(constants)
     .map(([name, value]) => `const ${name} = ${JSON.stringify(value)};`)
@@ -231,9 +248,11 @@ const SHARE_META = self.location.origin + SHARE_TARGET_PATH + '/meta';
 function shareKind(request) {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return null;
-  if (request.method === 'POST' && url.pathname === SHARE_TARGET_PATH) return 'receive';
+  // While sharing is switched off the share post is left to the server, which keeps nothing.
+  if (request.method === 'POST' && url.pathname === SHARE_TARGET_PATH) return SHARE_ON ? 'receive' : null;
+  if (request.mode === 'navigate') return null;
   if (request.method === 'POST' && url.pathname === SHARE_CLEAR_PATH) return 'clear';
-  if (request.method !== 'GET' || request.mode === 'navigate') return null;
+  if (request.method !== 'GET') return null;
   if (url.pathname === SHARE_LIST_PATH) return 'list';
   if (url.pathname.startsWith(SHARE_FILE_PREFIX)) return 'file';
   return null;
@@ -244,7 +263,7 @@ async function hasInbox() {
 }
 
 async function clearInbox() {
-  if (await hasInbox()) await caches.delete(SHARE_INBOX_CACHE);
+  await caches.delete(SHARE_INBOX_CACHE);
 }
 
 // The inbox's record, or null when nothing is waiting. An expired or unreadable inbox is emptied.
@@ -280,16 +299,22 @@ function notFound() {
   return noStore('Not found', 404, 'text/plain; charset=utf-8');
 }
 
-// A share comes from the phone itself (no Origin) or from a VisaStack page. A post from another
-// site, or from a page hiding where it came from ("null"), is turned away with nothing kept.
+// A share comes from the phone itself (no Origin, no referrer) or from a VisaStack page. A post from
+// another site, or from a page hiding where it came from (Origin "null"), is turned away with
+// nothing kept. Chromium shows the worker the Origin of a form post (checked 17 Nov 2026); the
+// referrer check covers a browser that does not, unless the other site also hides its referrer.
 function fromThisDeviceOrSite(request) {
   const origin = request.headers.get('origin');
-  return origin === null || origin === self.location.origin;
+  if (origin !== null && origin !== self.location.origin) return false;
+  const referrer = typeof request.referrer === 'string' ? request.referrer : '';
+  if (/^https?:/i.test(referrer) && new URL(referrer).origin !== self.location.origin) return false;
+  return true;
 }
 
 async function receiveShare(event) {
   const accepted = fromThisDeviceOrSite(event.request);
   let kept = 0;
+  let offered = 0;
   if (accepted) {
     try {
       const form = await event.request.formData();
@@ -307,15 +332,20 @@ async function receiveShare(event) {
         files.push({ n, name: String(file.name || 'Shared file').slice(0, 200), type, size: file.size });
       }
       kept = files.length;
+      offered = shared.length;
       const meta = { at: Date.now(), owner: null, files, dropped: shared.length - files.length };
       await cache.put(SHARE_META, noStore(JSON.stringify(meta), 200, 'application/json'));
       if (kept === 0) await clearInbox();
     } catch {
       await clearInbox();
       kept = 0;
+      offered = 0;
     }
   }
-  const target = self.location.origin + INCOMING_PATH + (kept > 0 ? '' : '?missed=1');
+  // Kept: the files wait. Offered but none usable: say which files VisaStack takes. Otherwise the
+  // share did not come through at all.
+  const outcome = kept > 0 ? '' : offered > 0 ? '?none=1' : '?missed=1';
+  const target = self.location.origin + INCOMING_PATH + outcome;
   return Response.redirect(target, 303);
 }
 
@@ -329,6 +359,7 @@ async function fromIncomingPage(event) {
 async function answerShare(event, kind) {
   if (kind === 'receive') return receiveShare(event);
   if (kind === 'clear') {
+    if (!(await fromIncomingPage(event))) return notFound();
     await clearInbox();
     return noStore('{}', 200, 'application/json');
   }
@@ -372,8 +403,9 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name.startsWith(CACHE_PREFIX) && name !== STATIC_CACHE)
           .map((name) => caches.delete(name)),
       );
-      // Reading the inbox empties it when its time is up.
-      await readInbox();
+      // Reading the inbox empties it when its time is up; with sharing switched off it simply goes.
+      if (SHARE_ON) await readInbox();
+      else await clearInbox();
       if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
       await self.clients.claim();
     })(),
@@ -431,4 +463,13 @@ self.addEventListener('activate', (event) => {
 export function isServiceWorkerEnabled(read: (name: string) => string | undefined): boolean {
   if (read('NODE_ENV') !== 'production') return false;
   return read('PWA_SERVICE_WORKER')?.trim().toLowerCase() !== 'off';
+}
+
+/**
+ * Whether files shared from another app are taken: the owner's switch (`WEB_SHARE_TARGET=on`) and
+ * the service worker that keeps them on the device must both be on. The manifest, `/sw.js` and the
+ * shared files page all ask this one question, so they always agree.
+ */
+export function isShareTargetOn(read: (name: string) => string | undefined): boolean {
+  return isServiceWorkerEnabled(read) && isShareTargetSwitchOn(read);
 }

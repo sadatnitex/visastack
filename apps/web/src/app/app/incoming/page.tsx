@@ -10,8 +10,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../components/ui';
 import { primeLocale } from '../../../lib/i18n-server';
-import { isServiceWorkerEnabled } from '../../../lib/pwa/service-worker';
-import { isShareTargetSwitchOn } from '../../../lib/pwa/share-target';
+import { isShareTargetOn } from '../../../lib/pwa/service-worker';
 import { withSession } from '../../../lib/session';
 import { pdfUploadsAccepted, uploadLimitBytes } from '../../../lib/upload-preflight';
 import { IncomingPanel } from './incoming-panel';
@@ -25,17 +24,35 @@ export const dynamic = 'force-dynamic';
  * Where a photo or PDF shared from another app lands (WP-PIC11). The files are still only on this
  * phone, held by the service worker; this page shows them as pictures, asks who they are for, and
  * sends them only when the person presses Add These Files, through the same upload as Add
- * Documents. It exists only while the owner's share switch and the service worker are both on.
+ * Documents. It exists only while the owner's share switch and the service worker are both on;
+ * a phone that still offers the old share after the switch went off lands on one plain line.
  */
 export default async function IncomingPage({
   searchParams,
 }: {
-  readonly searchParams?: Promise<{ readonly missed?: string | string[] }>;
+  readonly searchParams?: Promise<{
+    readonly missed?: string | string[];
+    readonly none?: string | string[];
+  }>;
 } = {}) {
   await primeLocale();
-  const read = (name: string) => process.env[name];
-  if (!(isServiceWorkerEnabled(read) && isShareTargetSwitchOn(read))) notFound();
-  const missed = (await searchParams)?.missed === '1';
+  const query = (await searchParams) ?? {};
+  const missed = query.missed === '1';
+  if (!isShareTargetOn((name) => process.env[name])) {
+    if (!missed) notFound();
+    return (
+      <>
+        <PageHeader title="Shared Files" back={{ href: '/app', label: 'Home' }} />
+        <article className="card">
+          <p className="card-body">
+            Sharing to VisaStack from other apps is not available right now, so nothing was kept.
+            Add your files from your documents instead.
+          </p>
+        </article>
+      </>
+    );
+  }
+  const notice = missed ? 'missed' : query.none === '1' ? 'none' : null;
 
   const data = await withSession(async ({ db, accountId }) => {
     const [everyone, coreGranted, receiptsReady] = await Promise.all([
@@ -79,7 +96,7 @@ export default async function IncomingPage({
       ) : (
         <IncomingPanel
           ownerKey={data.ownerKey}
-          missed={missed}
+          notice={notice}
           people={data.people}
           limitBytes={limitBytes}
           limitLabel={mbLabel(limitBytes)}

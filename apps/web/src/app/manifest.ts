@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { deepLinkPath } from '../lib/deep-links';
-import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
-import { isShareTargetSwitchOn, shareTargetEntry } from '../lib/pwa/share-target';
+import { isShareTargetOn } from '../lib/pwa/service-worker';
+import { shareTargetEntry } from '../lib/pwa/share-target';
 
 // Read per request so the owner's share switch (`WEB_SHARE_TARGET`) takes effect without a rebuild,
 // the same way `/sw.js` reads `PWA_SERVICE_WORKER`.
@@ -22,8 +22,7 @@ export const dynamic = 'force-dynamic';
 // worker is on: the worker is what keeps a shared file on the device until the person signs in and
 // confirms (`lib/pwa/share-target.ts`). Without it the phone never offers VisaStack as a share target.
 export default function manifest(): MetadataRoute.Manifest {
-  const read = (name: string) => process.env[name];
-  const share = isServiceWorkerEnabled(read) && isShareTargetSwitchOn(read);
+  const share = isShareTargetOn((name) => process.env[name]);
   return {
     id: '/',
     name: 'VisaStack',

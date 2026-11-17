@@ -1,6 +1,11 @@
 import { runInNewContext } from 'node:vm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CACHE_PREFIX, buildRetirementScript, buildServiceWorkerScript } from './service-worker';
+import {
+  CACHE_PREFIX,
+  buildRetirementScript,
+  buildServiceWorkerScript,
+  isShareTargetOn,
+} from './service-worker';
 import {
   INCOMING_PATH,
   SHARE_INBOX_CACHE,
@@ -19,6 +24,7 @@ import {
 const ORIGIN = 'https://vs.obsidianglobal.studio';
 
 interface FakeRequest {
+  readonly referrer?: string;
   readonly url: string;
   readonly method: string;
   readonly mode: string;
@@ -135,6 +141,10 @@ function share(files: File[], origin: string | null = null): FakeRequest {
   };
 }
 
+function clear(mode: string): FakeRequest {
+  return { url: `${ORIGIN}/share-target/clear`, method: 'POST', mode, headers: new Headers() };
+}
+
 function get(path: string, mode = 'cors'): FakeRequest {
   return { url: `${ORIGIN}${path}`, method: 'GET', mode, headers: new Headers() };
 }
@@ -146,7 +156,7 @@ const ELSEWHERE = 'client-elsewhere';
 
 let sw: ReturnType<typeof load>;
 beforeEach(() => {
-  sw = load(buildServiceWorkerScript('build-1'));
+  sw = load(buildServiceWorkerScript('build-1', { share: true }));
   sw.clients.set(PAGE, { url: `${ORIGIN}${INCOMING_PATH}` });
   sw.clients.set(ELSEWHERE, { url: `${ORIGIN}/app/applicant/a1` });
 });
@@ -192,6 +202,19 @@ describe('receiving a share', () => {
     expect(sw.network).not.toHaveBeenCalled();
   });
 
+  it('turns away a post whose referrer is another site, even with no Origin', async () => {
+    const request = { ...share([photo('planted.jpg')]), referrer: 'https://evil.example/page' };
+    const response = await sw.dispatchFetch(request);
+    expect(response?.headers.get('location')).toBe(`${ORIGIN}${INCOMING_PATH}?missed=1`);
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it('accepts a referrer from VisaStack itself', async () => {
+    const request = { ...share([photo('a.jpg')]), referrer: `${ORIGIN}/app` };
+    await sw.dispatchFetch(request);
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
+  });
+
   it('keeps only photos and PDFs within the limits, and counts the rest', async () => {
     const many = Array.from({ length: SHARE_MAX_FILES + 2 }, (_, i) => photo(`p${i}.jpg`));
     await sw.dispatchFetch(
@@ -209,9 +232,9 @@ describe('receiving a share', () => {
     expect(body.dropped).toBe(3 + 3);
   });
 
-  it('keeps nothing and says so when nothing usable was shared', async () => {
+  it('keeps nothing and says which files it takes when nothing usable was shared', async () => {
     const response = await sw.dispatchFetch(share([photo('page.svg', 100, 'image/svg+xml')]));
-    expect(response?.headers.get('location')).toBe(`${ORIGIN}${INCOMING_PATH}?missed=1`);
+    expect(response?.headers.get('location')).toBe(`${ORIGIN}${INCOMING_PATH}?none=1`);
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
   });
 
@@ -276,14 +299,18 @@ describe('reading the inbox', () => {
   });
 
   it('empties the inbox when the page asks (after hand-off or Cancel)', async () => {
-    const response = await sw.dispatchFetch({
-      url: `${ORIGIN}/share-target/clear`,
-      method: 'POST',
-      mode: 'cors',
-      headers: new Headers(),
-    });
+    const response = await sw.dispatchFetch(clear('cors'), PAGE);
     expect(response?.status).toBe(200);
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it('lets no other page, and no form from anywhere, empty the inbox', async () => {
+    expect((await sw.dispatchFetch(clear('cors'), ELSEWHERE))?.status).toBe(404);
+    expect((await sw.dispatchFetch(clear('cors'), ''))?.status).toBe(404);
+    // A form posted as a page is not answered by the worker at all: the browser sends it to the
+    // server, which has no such route.
+    expect(await sw.dispatchFetch(clear('navigate'), PAGE)).toBeUndefined();
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
   });
 
   it('forgets the files once their time is up', async () => {
@@ -301,6 +328,40 @@ describe('reading the inbox', () => {
   it('keeps files still within their time when the worker starts again', async () => {
     await sw.dispatchLifecycle('activate');
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
+  });
+});
+
+describe('while sharing is switched off', () => {
+  it('a share post is left to the server and nothing is kept', async () => {
+    const off = load(buildServiceWorkerScript('build-1', { share: false }));
+    // Not answered by the worker: the browser sends it to the server fallback, which keeps nothing.
+    expect(await off.dispatchFetch(share([photo('a.jpg')]))).toBeUndefined();
+    expect(off.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it('files left from before the switch went off are removed when the worker starts', async () => {
+    const off = load(buildServiceWorkerScript('build-1', { share: false }));
+    off.stores.set(SHARE_INBOX_CACHE, new StringCache());
+    await off.dispatchLifecycle('activate');
+    expect(off.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it('the worker script changes with the switch, so devices pick the change up', () => {
+    expect(buildServiceWorkerScript('build-1', { share: true })).not.toBe(
+      buildServiceWorkerScript('build-1', { share: false }),
+    );
+  });
+
+  it('is on only with the owner switch and the service worker both on', () => {
+    const env = (values: Record<string, string>) => (name: string) => values[name];
+    expect(isShareTargetOn(env({ NODE_ENV: 'production', WEB_SHARE_TARGET: 'on' }))).toBe(true);
+    expect(isShareTargetOn(env({ NODE_ENV: 'production' }))).toBe(false);
+    expect(
+      isShareTargetOn(
+        env({ NODE_ENV: 'production', WEB_SHARE_TARGET: 'on', PWA_SERVICE_WORKER: 'off' }),
+      ),
+    ).toBe(false);
+    expect(isShareTargetOn(env({ NODE_ENV: 'test', WEB_SHARE_TARGET: 'on' }))).toBe(false);
   });
 });
 

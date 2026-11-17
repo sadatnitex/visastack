@@ -58,7 +58,10 @@ export async function clearSharedInbox(): Promise<void> {
   }
 }
 
-/** One waiting file read back from the inbox as a File the upload queue takes. */
+/**
+ * One waiting file read back from the inbox as a File the upload queue takes. `lastModified` is the
+ * share time plus the file's place, so two files with the same name and size stay two files.
+ */
 async function candidateFor(
   file: SharedFile,
   ownerKey: string,
@@ -86,7 +89,7 @@ const fileWord = (n: number) => `${n} ${n === 1 ? 'file' : 'files'}`;
  */
 export function IncomingPanel({
   ownerKey,
-  missed,
+  notice,
   people,
   limitBytes,
   limitLabel,
@@ -95,8 +98,11 @@ export function IncomingPanel({
 }: {
   /** Ties the waiting files to this account on this phone; null reads nothing. */
   readonly ownerKey: string | null;
-  /** The share reached the server instead of the phone's own inbox, so nothing was kept. */
-  readonly missed: boolean;
+  /**
+   * Why nothing may be waiting: `missed`, the share reached the server instead of the phone's own
+   * inbox; `none`, the share held no photo or PDF VisaStack takes; null, an ordinary visit.
+   */
+  readonly notice: 'missed' | 'none' | null;
   readonly people: readonly { readonly id: string; readonly name: string }[];
   readonly limitBytes: number;
   readonly limitLabel: string;
@@ -107,6 +113,8 @@ export function IncomingPanel({
   const [inbox, setInbox] = useState<SharedInbox>(parseInbox(null));
   const [personId, setPersonId] = useState<string>(people[0]?.id ?? '');
   const [unreadable, setUnreadable] = useState(0);
+  // True once every waiting file has been read back and handed to the queue.
+  const [handedOver, setHandedOver] = useState(false);
   const forId = useId();
   const titleId = useId();
 
@@ -145,7 +153,7 @@ export function IncomingPanel({
   });
   const counts = countItems(items);
   const finished =
-    phase === 'sending' && items.length > 0 && items.every((item) => FINAL_STATES.has(item.state));
+    phase === 'sending' && handedOver && items.every((item) => FINAL_STATES.has(item.state));
 
   // Every file has an answer: the copies on this phone are no longer needed.
   useEffect(() => {
@@ -156,11 +164,12 @@ export function IncomingPanel({
     if (!ownerKey || phase !== 'ready') return;
     setPhase('sending');
     const read = await Promise.all(
-      inbox.files.map((file) => candidateFor(file, ownerKey, inbox.at)),
+      inbox.files.map((file) => candidateFor(file, ownerKey, inbox.at + file.n)),
     );
     const candidates = read.filter((c): c is ImportCandidate => c !== null);
     setUnreadable(read.length - candidates.length);
     await queue.add(candidates);
+    setHandedOver(true);
   }, [ownerKey, phase, inbox, queue]);
 
   const cancel = useCallback(async () => {
@@ -186,7 +195,14 @@ export function IncomingPanel({
               <h2 id={titleId}>Shared Files Removed</h2>
               <p>Nothing was sent. The originals are still in the app you shared them from.</p>
             </>
-          ) : missed ? (
+          ) : notice === 'none' ? (
+            <>
+              <h2 id={titleId}>Nothing VisaStack Can Take</h2>
+              <p>
+                {`VisaStack takes photos (JPEG, PNG or HEIC) and PDFs, each up to 25 MB, up to ${SHARE_MAX_FILES} at a time. Nothing was kept.`}
+              </p>
+            </>
+          ) : notice === 'missed' ? (
             <>
               <h2 id={titleId}>That Share Did Not Come Through</h2>
               <p>
@@ -225,7 +241,7 @@ export function IncomingPanel({
         <h2 id={titleId}>Shared Just Now</h2>
         <p>
           {waiting
-            ? `${fileWord(inbox.files.length)} from another app. They are still only on this phone: nothing is sent until you choose Add These Files.`
+            ? `${fileWord(inbox.files.length)} from another app. They are still only on this phone: nothing is sent until you choose Add These Files. Only add files you shared yourself just now.`
             : `Adding ${fileWord(inbox.files.length)} for ${chosen?.name ?? 'this person'}. Please keep this page open.`}
         </p>
         {inbox.dropped > 0 ? (
