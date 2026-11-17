@@ -11,6 +11,7 @@ import {
 } from '@simplewebauthn/server';
 import { type Result, err, ok } from '@visastack/core';
 import { sql } from 'drizzle-orm';
+import { type SelfScope, selfScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import type { Db } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -256,14 +257,17 @@ export async function startPasskeyRegistration(
 /** Check the new passkey against the challenge this browser was given, then keep it. */
 export async function finishPasskeyRegistration(
   db: Db,
+  self: SelfScope,
   input: {
-    readonly accountId: string;
     readonly rp: PasskeyRelyingParty;
     readonly expectedChallenge: string;
     readonly response: RegistrationResponseJSON;
     readonly label: string | null | undefined;
   },
 ): Promise<Result<{ readonly id: string }, ServiceError>> {
+  const scopeProblem = selfScopeProblem(self);
+  if (scopeProblem) return err(scopeProblem);
+  const accountId = self.accountId;
   let verified: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
   try {
     verified = await verifyRegistrationResponse({
@@ -285,18 +289,18 @@ export async function finishPasskeyRegistration(
     // One account's saves run one at a time, so two tabs cannot both pass the limit check.
     inserted = await db.transaction(async (tx) => {
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`visastack:passkeys:${input.accountId}`}))`,
+        sql`select pg_advisory_xact_lock(hashtext(${`visastack:passkeys:${accountId}`}))`,
       );
       return rowsOf<{ id: string }>(
         await tx.execute(sql`
           insert into passkey_credentials
             (account_id, credential_id, public_key, sign_count, transports, aaguid, device_type,
              backed_up, label)
-          select ${input.accountId}, ${info.credential.id},
+          select ${accountId}, ${info.credential.id},
             ${Buffer.from(info.credential.publicKey)}, ${info.credential.counter},
             ${transportsLiteral(info.credential.transports)}::text[], ${info.aaguid},
             ${info.credentialDeviceType}, ${info.credentialBackedUp}, ${label}
-          where (select count(*) from passkey_credentials where account_id = ${input.accountId})
+          where (select count(*) from passkey_credentials where account_id = ${accountId})
             < ${PASSKEY_LIMIT}
           on conflict (credential_id) do nothing
           returning id`),
@@ -315,8 +319,8 @@ export async function finishPasskeyRegistration(
       ),
     );
   }
-  const count = await countPasskeys(db, input.accountId);
-  await audit(db, input.accountId, 'PASSKEY_ADDED', 'ALLOWED', { count });
+  const count = await countPasskeys(db, accountId);
+  await audit(db, accountId, 'PASSKEY_ADDED', 'ALLOWED', { count });
   return ok({ id: row.id });
 }
 
@@ -356,8 +360,8 @@ export async function startPasskeyConfirmation(
  */
 export async function finishPasskeyConfirmation(
   db: Db,
+  self: SelfScope,
   input: {
-    readonly accountId: string;
     readonly rp: PasskeyRelyingParty;
     readonly expectedChallenge: string;
     /** When the challenge was given out; a challenge older than the credential's last use is refused. */
@@ -367,16 +371,19 @@ export async function finishPasskeyConfirmation(
     readonly now?: Date;
   },
 ): Promise<Result<{ readonly confirmedAt: Date }, ServiceError>> {
+  const scopeProblem = selfScopeProblem(self);
+  if (scopeProblem) return err(scopeProblem);
+  const accountId = self.accountId;
   let existing: CredentialRow[];
   try {
-    existing = await credentialsFor(db, input.accountId);
+    existing = await credentialsFor(db, accountId);
   } catch (error) {
     if (isMissingRelationError(error)) return err(UNAVAILABLE);
     throw error;
   }
   const row = existing.find((candidate) => candidate.credential_id === input.response.id);
   if (!row) {
-    await audit(db, input.accountId, 'PASSKEY_CHECK_FAILED', 'DENIED', { reason: 'unknown' });
+    await audit(db, accountId, 'PASSKEY_CHECK_FAILED', 'DENIED', { reason: 'unknown' });
     return err(NOT_ACCEPTED);
   }
   const storedCount = Number(row.sign_count ?? 0);
@@ -400,7 +407,7 @@ export async function finishPasskeyConfirmation(
     }
     newCounter = verified.authenticationInfo.newCounter;
   } catch {
-    await audit(db, input.accountId, 'PASSKEY_CHECK_FAILED', 'DENIED', { reason: 'signature' });
+    await audit(db, accountId, 'PASSKEY_CHECK_FAILED', 'DENIED', { reason: 'signature' });
     return err(NOT_ACCEPTED);
   }
   const now = input.now ?? new Date();
@@ -415,17 +422,17 @@ export async function finishPasskeyConfirmation(
           last_used_session_ref = ${input.sessionRef},
           last_challenge_hash = ${challengeHash}
       where id = ${row.id}
-        and account_id = ${input.accountId}
+        and account_id = ${accountId}
         and last_challenge_hash is distinct from ${challengeHash}
         and (last_used_at is null or last_used_at <= ${input.challengeIssuedAt.toISOString()}::timestamptz)
         and ((sign_count = 0 and ${newCounter} = 0) or ${newCounter} > sign_count)
       returning id`),
   );
   if (!updated[0]) {
-    await audit(db, input.accountId, 'PASSKEY_CHECK_FAILED', 'DENIED', { reason: 'replay' });
+    await audit(db, accountId, 'PASSKEY_CHECK_FAILED', 'DENIED', { reason: 'replay' });
     return err(NOT_ACCEPTED);
   }
-  await audit(db, input.accountId, 'PASSKEY_CONFIRMED', 'ALLOWED', {});
+  await audit(db, accountId, 'PASSKEY_CONFIRMED', 'ALLOWED', {});
   return ok({ confirmedAt: now });
 }
 
@@ -473,14 +480,18 @@ export async function renamePasskey(
 
 export async function removePasskey(
   db: Db,
-  input: { readonly accountId: string; readonly id: string },
+  self: SelfScope,
+  input: { readonly id: string },
 ): Promise<Result<true, ServiceError>> {
+  const scopeProblem = selfScopeProblem(self);
+  if (scopeProblem) return err(scopeProblem);
+  const accountId = self.accountId;
   let removed: { id: string }[];
   try {
     removed = rowsOf<{ id: string }>(
       await db.execute(sql`
         delete from passkey_credentials
-        where id = ${input.id} and account_id = ${input.accountId}
+        where id = ${input.id} and account_id = ${accountId}
         returning id`),
     );
   } catch (error) {
@@ -488,8 +499,8 @@ export async function removePasskey(
     throw error;
   }
   if (!removed[0]) return err(serviceError('not_found', 'That passkey is no longer on your list.'));
-  const count = await countPasskeys(db, input.accountId);
-  await audit(db, input.accountId, 'PASSKEY_REMOVED', 'ALLOWED', { count });
+  const count = await countPasskeys(db, accountId);
+  await audit(db, accountId, 'PASSKEY_REMOVED', 'ALLOWED', { count });
   return ok(true);
 }
 

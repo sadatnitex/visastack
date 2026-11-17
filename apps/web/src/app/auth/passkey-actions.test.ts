@@ -40,9 +40,12 @@ vi.mock('../../lib/neon-recency', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/neon-recency')>()),
   neonSessionRef: async () => state.sessionRef,
 }));
+// The session's own scope for acct-1; the actions must hand it on, never an id they picked.
+const SELF = { kind: 'self', accountId: 'acct-1' };
 vi.mock('../../lib/session', () => ({
-  withSession: async (fn: (ctx: { db: unknown; accountId: string; email: string }) => unknown) =>
-    fn({ db: { fake: true }, accountId: 'acct-1', email: 'p@example.test' }),
+  withSession: async (
+    fn: (ctx: { db: unknown; accountId: string; email: string; self: unknown }) => unknown,
+  ) => fn({ db: { fake: true }, accountId: 'acct-1', email: 'p@example.test', self: SELF }),
 }));
 vi.mock('../../lib/session-age', () => ({ isStaffContext: async () => state.staff }));
 const passwordIsRecent = vi.fn(async () => true);
@@ -121,8 +124,8 @@ describe('confirming with a passkey', () => {
     expect(finished).toEqual({ ok: true, next: '/app/privacy' });
     expect(service.finishPasskeyConfirmation).toHaveBeenCalledWith(
       { fake: true },
+      SELF,
       expect.objectContaining({
-        accountId: 'acct-1',
         expectedChallenge: 'chal-1',
         sessionRef: 'ref-1',
       }),
@@ -237,7 +240,8 @@ describe('adding and removing a passkey', () => {
     });
     expect(service.finishPasskeyRegistration).toHaveBeenCalledWith(
       { fake: true },
-      expect.objectContaining({ accountId: 'acct-1', expectedChallenge: 'chal-2', label: 'Phone' }),
+      SELF,
+      expect.objectContaining({ expectedChallenge: 'chal-2', label: 'Phone' }),
     );
   });
 
@@ -261,7 +265,7 @@ describe('adding and removing a passkey', () => {
     expect(await redirectOf(removePasskeyAction(formWith(id)))).toBe(
       '/app/account/passkeys?n=removed',
     );
-    expect(service.removePasskey).toHaveBeenCalledWith({ fake: true }, { accountId: 'acct-1', id });
+    expect(service.removePasskey).toHaveBeenCalledWith({ fake: true }, SELF, { id });
   });
 });
 

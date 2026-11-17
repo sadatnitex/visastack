@@ -193,7 +193,7 @@ export async function finishPasskeyConfirmAction(
   const next = d.recency.safeReturnPath(typeof returnTo === 'string' ? returnTo : null);
   const sessionRef = await d.recency.neonSessionRef();
   if (!sessionRef) redirect('/auth/sign-in');
-  return d.session.withSession(async ({ db, accountId, email }) => {
+  return d.session.withSession(async ({ db, accountId, email, self }) => {
     const challenge = await takeChallenge(d, { purpose: 'confirm', accountId, sessionRef });
     if (!(await withinPasskeyLimit(d, db, accountId))) return SLOW;
     if (await d.sessionAge.isStaffContext(db, { accountId, email })) return STAFF;
@@ -202,8 +202,7 @@ export async function finishPasskeyConfirmAction(
     if (!response) return { ok: false, message: 'That passkey could not be checked. Try again.' };
     // An answer to another challenge (an older tab, another purpose) is "try again", not a failure.
     if (d.web.challengeOfAnswer(response) !== challenge.challenge) return EXPIRED;
-    const confirmed = await d.passkeys.finishPasskeyConfirmation(db, {
-      accountId,
+    const confirmed = await d.passkeys.finishPasskeyConfirmation(db, self, {
       rp: d.web.passkeyRelyingParty(),
       expectedChallenge: challenge.challenge,
       challengeIssuedAt: challenge.issuedAt,
@@ -258,27 +257,28 @@ export async function finishPasskeyAddAction(
   if (!d.web.passkeysEnabled()) return OFF;
   const sessionRef = await d.recency.neonSessionRef();
   if (!sessionRef) redirect('/auth/sign-in');
-  const result = await d.session.withSession(async ({ db, accountId }): Promise<PasskeyFinish> => {
-    const challenge = await takeChallenge(d, { purpose: 'add', accountId, sessionRef });
-    if (!(await d.staffFactor.passwordIsRecent())) return reauthFailure(d);
-    if (!challenge) return EXPIRED;
-    const response = browserAnswer<RegistrationResponseJSON>(answer);
-    if (!response) return { ok: false, message: 'That passkey could not be saved. Try again.' };
-    if (d.web.challengeOfAnswer(response) !== challenge.challenge) return EXPIRED;
-    const saved = await d.passkeys.finishPasskeyRegistration(db, {
-      accountId,
-      rp: d.web.passkeyRelyingParty(),
-      expectedChallenge: challenge.challenge,
-      response,
-      label: typeof label === 'string' ? label : null,
-    });
-    if (!saved.ok) {
-      return saved.error.code === 'upstream_error'
-        ? UNAVAILABLE
-        : { ok: false, message: saved.error.message };
-    }
-    return { ok: true, next: d.web.PASSKEYS_PATH };
-  });
+  const result = await d.session.withSession(
+    async ({ db, accountId, self }): Promise<PasskeyFinish> => {
+      const challenge = await takeChallenge(d, { purpose: 'add', accountId, sessionRef });
+      if (!(await d.staffFactor.passwordIsRecent())) return reauthFailure(d);
+      if (!challenge) return EXPIRED;
+      const response = browserAnswer<RegistrationResponseJSON>(answer);
+      if (!response) return { ok: false, message: 'That passkey could not be saved. Try again.' };
+      if (d.web.challengeOfAnswer(response) !== challenge.challenge) return EXPIRED;
+      const saved = await d.passkeys.finishPasskeyRegistration(db, self, {
+        rp: d.web.passkeyRelyingParty(),
+        expectedChallenge: challenge.challenge,
+        response,
+        label: typeof label === 'string' ? label : null,
+      });
+      if (!saved.ok) {
+        return saved.error.code === 'upstream_error'
+          ? UNAVAILABLE
+          : { ok: false, message: saved.error.message };
+      }
+      return { ok: true, next: d.web.PASSKEYS_PATH };
+    },
+  );
   if (result.ok) revalidatePath(d.web.PASSKEYS_PATH);
   return result;
 }
@@ -318,7 +318,7 @@ export async function removePasskeyAction(formData: FormData): Promise<void> {
   if (!d.web.passkeysEnabled()) redirect('/app/account');
   const id = passkeyId(formData);
   let outcome = 'removed';
-  await d.session.withSession(async ({ db, accountId }) => {
+  await d.session.withSession(async ({ db, self }) => {
     if (!(await d.staffFactor.passwordIsRecent())) {
       outcome = 'reauth';
       return;
@@ -327,7 +327,7 @@ export async function removePasskeyAction(formData: FormData): Promise<void> {
       outcome = 'missing';
       return;
     }
-    const removed = await d.passkeys.removePasskey(db, { accountId, id });
+    const removed = await d.passkeys.removePasskey(db, self, { id });
     if (!removed.ok) outcome = removed.error.code === 'upstream_error' ? 'unavailable' : 'missing';
   });
   if (outcome === 'reauth') redirect(d.recency.neonReauthUrl(d.web.PASSKEYS_PATH));

@@ -6,6 +6,7 @@ import { createMigratedPglite, migrationsFolder } from '@visastack/db/testing';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
+import { selfPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import {
@@ -78,8 +79,7 @@ async function addPasskey(
 ): Promise<string> {
   const options = await startPasskeyRegistration(db, { accountId, email: 'x@example.com', rp: RP });
   if (!isOk(options)) throw new Error('registration options failed');
-  const saved = await finishPasskeyRegistration(db, {
-    accountId,
+  const saved = await finishPasskeyRegistration(db, selfPrincipal(accountId), {
     rp: RP,
     expectedChallenge: options.value.challenge,
     response: key.register(options.value.challenge),
@@ -98,8 +98,7 @@ async function confirmWith(
   const challengeIssuedAt = new Date();
   const options = await startPasskeyConfirmation(db, { accountId, rp: RP });
   if (!isOk(options)) throw new Error('confirmation options failed');
-  return finishPasskeyConfirmation(db, {
-    accountId,
+  return finishPasskeyConfirmation(db, selfPrincipal(accountId), {
     rp: RP,
     expectedChallenge: options.value.challenge,
     challengeIssuedAt,
@@ -160,8 +159,7 @@ describe('passkeys', () => {
     const options = await startPasskeyConfirmation(db, { accountId: owner, rp: RP });
     if (!isOk(options)) throw new Error('options failed');
     const challenge = options.value.challenge;
-    const crossAccount = await finishPasskeyConfirmation(db, {
-      accountId: owner,
+    const crossAccount = await finishPasskeyConfirmation(db, selfPrincipal(owner), {
       rp: RP,
       expectedChallenge: challenge,
       challengeIssuedAt: issuedAt,
@@ -169,8 +167,7 @@ describe('passkeys', () => {
       sessionRef: 's',
     });
     expect(isErr(crossAccount)).toBe(true);
-    const wrongChallenge = await finishPasskeyConfirmation(db, {
-      accountId: owner,
+    const wrongChallenge = await finishPasskeyConfirmation(db, selfPrincipal(owner), {
       rp: RP,
       expectedChallenge: challenge,
       challengeIssuedAt: issuedAt,
@@ -178,8 +175,7 @@ describe('passkeys', () => {
       sessionRef: 's',
     });
     expect(isErr(wrongChallenge)).toBe(true);
-    const wrongSite = await finishPasskeyConfirmation(db, {
-      accountId: owner,
+    const wrongSite = await finishPasskeyConfirmation(db, selfPrincipal(owner), {
       rp: RP,
       expectedChallenge: challenge,
       challengeIssuedAt: issuedAt,
@@ -199,8 +195,7 @@ describe('passkeys', () => {
     const options = await startPasskeyConfirmation(db, { accountId, rp: RP });
     if (!isOk(options)) throw new Error('options failed');
     const challenge = options.value.challenge;
-    const first = await finishPasskeyConfirmation(db, {
-      accountId,
+    const first = await finishPasskeyConfirmation(db, selfPrincipal(accountId), {
       rp: RP,
       expectedChallenge: challenge,
       challengeIssuedAt: issuedAt,
@@ -208,8 +203,7 @@ describe('passkeys', () => {
       sessionRef: 's',
     });
     expect(isOk(first)).toBe(true);
-    const replay = await finishPasskeyConfirmation(db, {
-      accountId,
+    const replay = await finishPasskeyConfirmation(db, selfPrincipal(accountId), {
       rp: RP,
       expectedChallenge: challenge,
       challengeIssuedAt: issuedAt,
@@ -235,8 +229,7 @@ describe('passkeys', () => {
     if (!isOk(older)) throw new Error('options failed');
     const keptBack = key.confirm(older.value.challenge);
     expect(isOk(await confirmWith(db, accountId, key, 's-new'))).toBe(true);
-    const replayed = await finishPasskeyConfirmation(db, {
-      accountId,
+    const replayed = await finishPasskeyConfirmation(db, selfPrincipal(accountId), {
       rp: RP,
       expectedChallenge: older.value.challenge,
       challengeIssuedAt: olderIssuedAt,
@@ -253,8 +246,7 @@ describe('passkeys', () => {
     const options = await startPasskeyRegistration(db, { accountId, email: 'x@e.com', rp: RP });
     if (!isOk(options)) throw new Error('options failed');
     const weak = new SoftPasskey({ ...RP, withoutUserVerification: true });
-    const saved = await finishPasskeyRegistration(db, {
-      accountId,
+    const saved = await finishPasskeyRegistration(db, selfPrincipal(accountId), {
       rp: RP,
       expectedChallenge: options.value.challenge,
       response: weak.register(options.value.challenge),
@@ -279,9 +271,9 @@ describe('passkeys', () => {
     expect(isErr(await renamePasskey(db, { accountId: other, id: firstId, label: 'x' }))).toBe(
       true,
     );
-    expect(isErr(await removePasskey(db, { accountId: other, id: firstId }))).toBe(true);
+    expect(isErr(await removePasskey(db, selfPrincipal(other), { id: firstId }))).toBe(true);
     expect(isOk(await renamePasskey(db, { accountId, id: firstId, label: 'Tablet' }))).toBe(true);
-    expect(isOk(await removePasskey(db, { accountId, id: firstId }))).toBe(true);
+    expect(isOk(await removePasskey(db, selfPrincipal(accountId), { id: firstId }))).toBe(true);
     const list = await listPasskeys(db, accountId);
     expect(list.state === 'ok' ? list.passkeys.length : -1).toBe(PASSKEY_LIMIT - 1);
 
@@ -293,8 +285,7 @@ describe('passkeys', () => {
       rp: RP,
     });
     if (!isOk(again)) throw new Error('options failed');
-    const duplicate = await finishPasskeyRegistration(db, {
-      accountId: other,
+    const duplicate = await finishPasskeyRegistration(db, selfPrincipal(other), {
       rp: RP,
       expectedChallenge: again.value.challenge,
       response: twice.register(again.value.challenge),
@@ -322,7 +313,7 @@ describe('passkeys', () => {
     const id = await addPasskey(db, accountId, key);
     await confirmWith(db, accountId, key, 'secret-session-ref');
     await confirmWith(db, accountId, new SoftPasskey(RP), 'secret-session-ref');
-    await removePasskey(db, { accountId, id });
+    await removePasskey(db, selfPrincipal(accountId), { id });
     const rows = await auditRows(db);
     expect(rows.map((row) => row.event_type)).toEqual([
       'PASSKEY_ADDED',
@@ -340,5 +331,18 @@ describe('passkeys', () => {
     expect(normalisePasskeyLabel(null)).toBe('Passkey');
     expect(normalisePasskeyLabel('  a\u0000b\nc  ')).toBe('a b c');
     expect(normalisePasskeyLabel('x'.repeat(200))).toHaveLength(60);
+  });
+});
+
+describe('the session scope', () => {
+  it('refuses a scope that is not a genuine, fresh one from the session, before any read', async () => {
+    const forged = { kind: 'self', accountId: '11111111-1111-4111-8111-111111111111' } as never;
+    const untouched = {} as Db;
+    const removed = await removePasskey(untouched, forged, { id: 'x' });
+    expect(isErr(removed) && removed.error.code).toBe('forbidden');
+    const confirmed = await finishPasskeyConfirmation(untouched, forged, {} as never);
+    expect(isErr(confirmed) && confirmed.error.code).toBe('forbidden');
+    const saved = await finishPasskeyRegistration(untouched, forged, {} as never);
+    expect(isErr(saved) && saved.error.code).toBe('forbidden');
   });
 });
