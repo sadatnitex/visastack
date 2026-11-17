@@ -8,7 +8,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./i18n": "./src/i18n/index.ts"
+    "./i18n": "./src/i18n/index.ts",
+    "./passkeys": "./src/passkeys.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tooling.json",
@@ -16,6 +17,7 @@
     "test:pg": "vitest run --config vitest.pg.config.ts"
   },
   "dependencies": {
+    "@simplewebauthn/server": "14.0.3",
     "@visastack/core": "workspace:*",
     "@visastack/db": "workspace:*",
     "@visastack/i18n": "workspace:*",

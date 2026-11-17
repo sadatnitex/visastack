@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { safeReturnPath } from '../../../lib/neon-recency';
+import { passkeyOfferedAtReauth } from '../../../lib/passkey-offer';
 import {
   googleSignInEnabled,
   sessionSignInMethods,
@@ -10,6 +11,7 @@ import {
 import { reauthAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 import { GoogleButton } from '../google-button';
+import { PasskeyConfirm } from '../passkey-confirm';
 
 export const metadata: Metadata = { title: 'Confirm it is you' };
 export const dynamic = 'force-dynamic';
@@ -58,6 +60,9 @@ export default async function ReauthPage({
   return (
     <AuthShell title={t.node('auth.authReauthPage.confirmItIsYou')}>
       <p className="card-body">{t.node('auth.authReauthPage.forYourSafetyPleaseTypeYour')}</p>
+      {(await passkeyOfferedAtReauth()) ? (
+        <PasskeyConfirm returnTo={safeReturnPath(returnTo)} />
+      ) : null}
       <ErrorLine id="reauth-error" message={error} />
       <div className="card u-mb-100">
         <form action={reauthAction} className="field-list">

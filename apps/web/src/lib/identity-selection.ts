@@ -20,8 +20,9 @@
 // The Google sign-in return page (/auth/social-return) runs it for the same reason: the sign-in
 // Neon Auth made at Google is handed over by the check, and with none the visitor is sent to the
 // sign-in form with the Google message.
+// The email sign-in link landing (/auth/link-return, Q8) runs it for the same reason.
 const NEON_PROTECTED =
-  /^\/(app|pilot-access-denied|oauth\/authorize|auth\/reauth|auth\/confirmed|auth\/social-return|auth\/accept-terms|auth\/notice-check|collect\/account)(\/|$)/;
+  /^\/(app|pilot-access-denied|oauth\/authorize|auth\/reauth|auth\/confirmed|auth\/social-return|auth\/link-return|auth\/accept-terms|auth\/notice-check|collect\/account)(\/|$)/;
 
 /**
  * Whether the Neon sign-in check must run for this path. The landing page, status page, trust

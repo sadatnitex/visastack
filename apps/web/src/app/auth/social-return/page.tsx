@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
 import { signInNextSuffix } from '../../../lib/confirmed-landing';
 import { safeReturnPath } from '../../../lib/neon-recency';
+import { landAfterSignIn } from '../land-after-sign-in';
 
 export const metadata: Metadata = { title: 'Signed In' };
 export const dynamic = 'force-dynamic';
@@ -20,26 +20,5 @@ export default async function SocialReturnPage({
 }: { searchParams: Promise<{ next?: string | string[] }> }) {
   const { next } = await searchParams;
   const destination = safeReturnPath(next);
-  let user: { id: string; email: string } | undefined;
-  try {
-    const { requestSessionReader } = await import('../../../lib/neon-request-session');
-    const { data } = await requestSessionReader().getSession();
-    if (data?.user?.id) user = { id: data.user.id, email: data.user.email };
-  } catch {
-    user = undefined;
-  }
-  if (!user) redirect(`/auth/sign-in?e=social${signInNextSuffix(destination)}`);
-
-  // A new person must agree to the terms first; asking here (not only inside `withSession`) keeps
-  // the destination they were headed for. Anything that cannot be read goes straight on, and
-  // `withSession` asks again, so nobody gets an account without agreeing.
-  let mustAgree: boolean;
-  try {
-    const { mustAcknowledgeNotices } = await import('../../../lib/notice-gate');
-    const { withPublicDb } = await import('../../../lib/public-db');
-    mustAgree = await withPublicDb((db) => mustAcknowledgeNotices(db, user));
-  } catch {
-    mustAgree = false;
-  }
-  redirect(mustAgree ? `/auth/notice-check?next=${encodeURIComponent(destination)}` : destination);
+  return landAfterSignIn(destination, `/auth/sign-in?e=social${signInNextSuffix(destination)}`);
 }

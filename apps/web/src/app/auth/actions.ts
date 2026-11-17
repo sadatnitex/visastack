@@ -116,6 +116,59 @@ export async function signInAction(formData: FormData): Promise<void> {
   redirect(next);
 }
 
+/** How long the email sign-in step may wait for Neon Auth before answering anyway. */
+const SIGN_IN_LINK_TIMEOUT_MS = 8000;
+
+/**
+ * "Email me a sign-in link" (Q8): password-free sign-in with the link sign-in Neon Auth already
+ * offers. Off unless SIGN_IN_LINKS is on. Every valid address gets exactly the same steps and the
+ * same answer, so the form never reveals who has an account: there is no account lookup at all.
+ * Someone without an account who opens a link meets the same agreement and invitation checks as
+ * a new Google sign-in (`/auth/link-return`, then `/auth/notice-check`). Email sending is rate
+ * limited first and refused if the limit cannot be read. A Neon Auth failure is logged with its
+ * status only, never the address, and the person still sees the ordinary answer.
+ */
+export async function signInLinkAction(formData: FormData): Promise<void> {
+  const next = safeReturnPath(field(formData, 'next'));
+  const target = signInTarget(next);
+  const { signInLinksEnabled } = await import('../../lib/sign-in-links');
+  if (!signInLinksEnabled())
+    redirect(target ? `/auth/sign-in?${target.slice(1)}` : '/auth/sign-in');
+  const email = field(formData, 'email').trim();
+  if (!validEmail(email)) redirect(`/auth/sign-in?e=link_invalid${target}`);
+  const allowed = await withinAuthLimits({
+    email,
+    byEmail: 'AUTH_EMAIL_SEND_EMAIL',
+    byAddress: 'AUTH_EMAIL_SEND_IP',
+    onFailure: 'deny',
+  });
+  if (!allowed) redirect(`/auth/sign-in?e=slow${target}`);
+  const origin = resolveBaseUrl();
+  const { reportServerError } = await import('../../lib/server-error');
+  try {
+    const { getNeonAuth } = await import('../../lib/neon-auth');
+    const { withTimeout } = await import('../../lib/social-sign-in');
+    const { error } = await withTimeout(
+      getNeonAuth().signIn.magicLink({
+        email,
+        callbackURL: `${origin}/auth/link-return?next=${encodeURIComponent(next)}`,
+        errorCallbackURL: `${origin}/auth/sign-in?e=link_expired${target}`,
+      }),
+      SIGN_IN_LINK_TIMEOUT_MS,
+    );
+    if (error) {
+      const detail = error as { status?: unknown; code?: unknown };
+      reportServerError('signInLink', new Error('Neon Auth did not send a sign-in link'), {
+        status: String(detail.status ?? ''),
+        code: String(detail.code ?? ''),
+      });
+    }
+  } catch (error) {
+    reportServerError('signInLink', error);
+  }
+  redirect(`/auth/sign-in?n=link_sent${target}`);
+}
+
 export async function signUpAction(formData: FormData): Promise<void> {
   const next = safeReturnPath(field(formData, 'next'));
   const target = signInTarget(next);

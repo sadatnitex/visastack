@@ -46,3 +46,21 @@ threat model formally approved.
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](../operations/current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Passkeys and sign-in links (Q8, 17 Nov 2026)
+
+Appended; earlier sections are unchanged. Decision record: `docs/adr/0028-passkeys-and-sign-in-links.md`.
+
+| Threat | Control |
+|---|---|
+| A passkey used to get into an account | A passkey never signs anyone in. It only records that the current sign-in (hash of the Neon session id) was confirmed. |
+| A stolen sign-in adds its own passkey | Adding or removing a passkey needs the password typed in the last five minutes. |
+| A passkey confirmation reused later or elsewhere | Bound to the session hash, so a new sign-in finds nothing; counts for five minutes only. The challenge cookie is signed, two minutes long, bound to purpose, account and sign-in, and cleared when read. The database refuses the same challenge twice and a counter that goes backwards. |
+| A passkey weakens staff protection | Staff (platform role or organization membership) are excluded: password plus authenticator code, unchanged. |
+| A passkey stretches a session | The absolute 7-day and 12-hour limits never read passkeys. |
+| Guessing with passkey attempts | Rate limited with the same limits as the password re-check. |
+| The sign-in link form shows who has an account | Same steps, same Neon call and same answer for every valid address; no account lookup. |
+| Sign-in links used to flood an inbox | Email sending limits per address and per network address, refused if the counter cannot be read. |
+| A sign-in link skips invitation or agreement | The link lands on `/auth/link-return`, then `/auth/notice-check`, the same checks as a new Google sign-in. |
+| Personal data in logs | Audit rows hold kinds and counts only; no credential id, key, address or session hash. Link failures log status codes only. |
+
