@@ -31,10 +31,10 @@ import type { ItemMark } from '../../../lib/item-icons';
  * "No Visa Needed". The plain word always sits beside the picture, so colour is never the only signal.
  */
 export const ENTRY_MARK: Readonly<Record<EntryStatus, ItemMark>> = {
-  VISA_REQUIRED: { icon: 'file', tone: 'blue' },
-  E_VISA: { icon: 'globe', tone: 'teal' },
+  VISA_REQUIRED: { icon: 'key', tone: 'blue' },
+  E_VISA: { icon: 'mail', tone: 'teal' },
   VISA_ON_ARRIVAL: { icon: 'plane', tone: 'violet' },
-  ETA: { icon: 'shield', tone: 'blue' },
+  ETA: { icon: 'clock', tone: 'blue' },
   VISA_FREE: { icon: 'check', tone: 'green' },
   NOT_FOUND: { icon: 'search', tone: 'amber' },
 };

@@ -2,6 +2,7 @@ import { DESTINATIONS, type Destination, type EntryStatus } from '@visastack/cor
 import { describe, expect, it } from 'vitest';
 import { ENTRY_ORDER } from '../../../../lib/country-view';
 import { primeLocale } from '../../../../lib/i18n-server';
+import { GENERIC_DOCUMENT_ICON, STATUS_ICON_BY_WORD } from '../../../../lib/item-icons';
 import { renderServer } from '../../../../lib/next-mocks.test-support';
 import { CountryCard, ENTRY_EXPLAIN, ENTRY_MARK } from '../country-view';
 
@@ -26,6 +27,12 @@ describe('the Country Card entry type', () => {
       words.add(html.match(/country-card-word">([^<]+)</)?.[1] ?? '');
     }
     expect(words.size).toBe(ENTRY_ORDER.length);
+  });
+
+  it('borrows no picture that a status or a document already wears', () => {
+    const taken = new Set<string>([GENERIC_DOCUMENT_ICON, ...Object.values(STATUS_ICON_BY_WORD)]);
+    for (const status of ENTRY_ORDER)
+      expect(taken.has(ENTRY_MARK[status].icon), status).toBe(false);
   });
 
   it('never lets an unresearched country look or read like No Visa Needed', async () => {

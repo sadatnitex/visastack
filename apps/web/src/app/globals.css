@@ -21723,10 +21723,6 @@ body:lang(bn),
   margin: 0;
   color: var(--text-secondary);
 }
-.country-card-entry .explain-tip-trigger {
-  min-width: 44px;
-  min-height: 44px;
-}
 .country-card[data-entry="NOT_FOUND"] {
   border-style: dashed;
 }
