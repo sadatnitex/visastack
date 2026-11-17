@@ -54,6 +54,7 @@ export function readAloud(text: string, onEnd: () => void, source?: Element | nu
     }
   ).SpeechSynthesisUtterance;
   let ended = false;
+  let current: unknown;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let poll: ReturnType<typeof setInterval> | undefined;
   const finish = () => {
@@ -61,12 +62,13 @@ export function readAloud(text: string, onEnd: () => void, source?: Element | nu
     ended = true;
     clearTimeout(timer);
     clearInterval(poll);
-    speaking.clear();
+    if (current) speaking.delete(current);
     onEnd();
   };
   try {
     api.cancel();
     const utterance = new Utterance(clean);
+    current = utterance;
     utterance.lang = pageLanguage(source);
     utterance.onend = finish;
     utterance.onerror = finish;
@@ -74,7 +76,6 @@ export function readAloud(text: string, onEnd: () => void, source?: Element | nu
     // onend nor onerror ever fires: speak on the next tick, and reset on a safety timer.
     timer = setTimeout(() => {
       if (ended) return;
-      speaking.clear();
       speaking.add(utterance);
       try {
         api.speak(utterance);
@@ -88,7 +89,18 @@ export function readAloud(text: string, onEnd: () => void, source?: Element | nu
         if (api.speaking === true) started = true;
         else if (started) finish();
       }, 500);
-      timer = setTimeout(finish, Math.max(SAFETY_MIN_MS, clean.length * SAFETY_PER_CHAR_MS));
+      timer = setTimeout(
+        () => {
+          // The voice may still be going: silence it so the label and the sound agree.
+          try {
+            api.cancel();
+          } catch {
+            // Nothing to stop.
+          }
+          finish();
+        },
+        Math.max(SAFETY_MIN_MS, clean.length * SAFETY_PER_CHAR_MS),
+      );
     }, 0);
   } catch {
     finish();

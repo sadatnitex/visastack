@@ -74,6 +74,8 @@ export function CapturePreview({
         release = null;
         setShape(height > width ? 'page' : 'card');
         setShown('ready');
+        // One short tap per photo that was read, never for an unreadable one or a stale file.
+        tapSuccess();
       },
       () => {
         if (current) setShown('unreadable');
@@ -87,14 +89,6 @@ export function CapturePreview({
 
   const unreadable = shown === 'unreadable';
   const passport = isPassportKind(documentKind);
-
-  // One short tap per photo when it was read and is ready to check, never for an unreadable one.
-  const tapped = useRef<File | null>(null);
-  useEffect(() => {
-    if (shown !== 'ready' || tapped.current === file) return;
-    tapped.current = file;
-    tapSuccess();
-  }, [shown, file]);
 
   return (
     <section className="capture-preview" aria-labelledby={headingId} aria-describedby={hintId}>

@@ -231,8 +231,14 @@ describe('readAloud', () => {
     readAloud('Hello', done);
     vi.advanceTimersByTime(1);
     expect(done).not.toHaveBeenCalled();
+    const { api } = {
+      api: (window as { speechSynthesis: { cancel: { mockClear: () => void } } }).speechSynthesis,
+    };
+    api.cancel.mockClear();
     vi.advanceTimersByTime(4000);
     expect(done).toHaveBeenCalledTimes(1);
+    // The voice is silenced too, so the label and the sound agree.
+    expect(api.cancel).toHaveBeenCalled();
   });
   it('resets when the voice stops without telling us', () => {
     const { api } = stubSpeech();

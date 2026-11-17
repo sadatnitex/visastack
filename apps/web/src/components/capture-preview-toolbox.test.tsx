@@ -75,6 +75,13 @@ describe('photo check toolbox', () => {
     expect(vibrate).toHaveBeenCalledTimes(1);
     await act(async () => root.unmount());
   });
+  it('does not tap for a replacement photo that turns out unreadable', async () => {
+    await show('PASSPORT', photo('good.jpg'));
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    await show('PASSPORT', photo('bad.jpg'));
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
   it('never taps for a photo that cannot be shown', async () => {
     await show('PASSPORT', photo('bad.jpg'));
     expect(vibrate).not.toHaveBeenCalled();
