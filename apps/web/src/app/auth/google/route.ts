@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withinAddressLimit } from '../../../lib/auth-throttle';
 import { signInNextSuffix } from '../../../lib/confirmed-landing';
+import { readEnv } from '../../../lib/env';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { reportServerError } from '../../../lib/server-error';
 import {
@@ -78,7 +79,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       }),
       NEON_AUTH_TIMEOUT_MS,
     );
-    const target = error ? null : googleAuthorizationUrl(data?.url);
+    const target = error ? null : googleAuthorizationUrl(data?.url, readEnv('NEON_AUTH_BASE_URL'));
     if (!target) {
       const detail = error as { status?: unknown; code?: unknown } | null;
       reportServerError('googleSignInStart', new Error('Neon Auth gave no Google address'), {

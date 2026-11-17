@@ -8275,3 +8275,9 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - CountryFlag now draws a same-origin SVG flag (flag-icons 7.6.0, MIT, LICENSE and SOURCE.txt vendored in apps/web/public/flags, about 1.65 MB in total, loaded only for flags shown) for every code in the destinations list, per owner decision D4 (17 Nov 2026). An owner-editable hide-list in apps/web/src/lib/flag-policy.ts removes any flag. Hidden, unknown or failed flags fall back to the previous emoji, letters badge or globe; the underlay is hidden once the picture loads (review fix for pennant-shaped flags such as Nepal).
 - NOT verified: a visual check of every flag on a phone screen; the legal position of showing flags of contested places (owner's accepted risk under D4).
+
+### 17 Nov 2026: Google sign-in start refused Neon Auth's own start address
+
+- Found when the owner switched Google on: clicking "Continue with Google" showed "We could not sign you in with Google". Neon Auth answers the server-made start with its own address (`<base>/sign-in/social/init?token=...`), which then forwards the browser to Google, not with Google's address directly. The start route accepted only accounts.google.com, so it refused the reply. Neon Auth settings were correct (own Google client, both site addresses trusted); a direct call to the start for both hosts returned that address.
+- Fix: the route also accepts an address on exactly the configured Neon Auth host and path (`/sign-in/social/init`), secure and with no embedded login, and nothing else. Two deliberate breaks (path check removed, host check removed) each turned a test red.
+- NOT verified: the full round trip through Google on the live site; this is the live check in docs/operations/google-sign-in.md.
