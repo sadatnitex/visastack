@@ -382,7 +382,7 @@ describe('agreement to the terms before an account is created', () => {
     ]);
     for (const r of results) {
       expect(r.status).toBe('rejected');
-      expect((r as PromiseRejectedResult).reason.message).toBe('REDIRECT:/auth/accept-terms');
+      expect((r as PromiseRejectedResult).reason.message).toBe('REDIRECT:/auth/notice-check');
     }
     expect(h.mustAcknowledge).toHaveBeenCalledWith(expect.anything(), {
       id: 'neon-1',

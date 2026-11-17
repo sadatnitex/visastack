@@ -54,8 +54,14 @@ vi.mock('../../lib/neon-request-session', () => ({
   requestSessionReader: () => ({ getSession: requestGetSession }),
 }));
 const acknowledgeNotices = vi.fn();
+const mustAcknowledgeNotices = vi.fn();
 vi.mock('../../lib/notice-gate', () => ({
   acknowledgeNotices: (...args: unknown[]) => acknowledgeNotices(...args),
+  mustAcknowledgeNotices: (...args: unknown[]) => mustAcknowledgeNotices(...args),
+}));
+const checkPilotAccess = vi.fn();
+vi.mock('../../lib/pilot-access', () => ({
+  checkPilotAccess: (...args: unknown[]) => checkPilotAccess(...args),
 }));
 vi.mock('../../lib/public-db', () => ({
   withPublicDb: async (work: (db: unknown) => Promise<unknown>) => work({ db: true }),
@@ -569,6 +575,8 @@ describe('acceptNoticesAction (One Last Step)', () => {
   beforeEach(() => {
     requestGetSession.mockReset().mockResolvedValue(signedIn);
     acknowledgeNotices.mockReset().mockResolvedValue(true);
+    mustAcknowledgeNotices.mockReset().mockResolvedValue(true);
+    checkPilotAccess.mockReset().mockResolvedValue({ allowed: true });
     reportServerError.mockReset();
   });
 
@@ -630,5 +638,18 @@ describe('acceptNoticesAction (One Last Step)', () => {
         acceptNoticesAction(form({ ...agree, next: 'https://evil.example' })),
       ),
     ).toBe('/app');
+  });
+
+  it('writes nothing for someone who may not get an account, or who has nothing to agree to', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    checkPilotAccess.mockResolvedValue({ allowed: false });
+    expect(await destination(() => acceptNoticesAction(form(agree)))).toBe('/pilot-access-denied');
+    checkPilotAccess.mockResolvedValue({ allowed: true });
+    mustAcknowledgeNotices.mockResolvedValue(false);
+    expect(await destination(() => acceptNoticesAction(form({ ...agree, next: '/app/x' })))).toBe(
+      '/app/x',
+    );
+    expect(acknowledgeNotices).not.toHaveBeenCalled();
+    expect(checkPilotAccess).toHaveBeenCalledWith({ db: true }, { email: 'p@example.test' });
   });
 });

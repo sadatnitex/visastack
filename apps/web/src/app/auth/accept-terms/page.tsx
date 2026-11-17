@@ -16,8 +16,8 @@ const ERRORS: Record<string, string> = {
 
 /**
  * "One last step": a person who signed in with Google agrees to the terms of use and the privacy
- * notice before an account is created for them. `withSession` sends them here at the moment an
- * account would be created (see `lib/notice-gate.ts`); nobody else ever sees it. A person who has
+ * notice before an account is created for them. `withSession` sends them here (through `/auth/notice-check`) at the
+ * moment an account would be created (see `lib/notice-gate.ts`); nobody else ever sees it. A person who has
  * nothing to agree to (an account exists, or they came through the sign-up form, or they already
  * agreed) is sent straight on, so the page can be opened at any time without harm.
  */
@@ -50,9 +50,8 @@ export default async function AcceptTermsPage({
     <AuthShell title="One Last Step">
       <div lang="en">
         <p className="card-body">
-          You are signed in with Google. Before your VisaStack account is created, please read and
-          agree to the terms of use and the privacy notice. Nothing is saved to an account until you
-          do.
+          You are signed in. Before your VisaStack account is created, please read and agree to the
+          terms of use and the privacy notice. Nothing is saved to an account until you do.
         </p>
         <ErrorLine id="notices-error" message={error} />
         <div className="card u-mb-100">

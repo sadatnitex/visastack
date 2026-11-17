@@ -69,3 +69,6 @@ Earlier implementation snapshots and provider-specific instructions above are re
 ## Google sign-in (17 Nov 2026)
 
 D10 above, the Google part: superseded, replaced by [google-sign-in.md](google-sign-in.md). Google sign-in is now built and switched off. Password strength, breach checks, change of email address and other accounts (LinkedIn is not offered by Neon Auth) stay deferred. D5 (consent at sign-up) now also decides when Google can be switched on, because the Google path does not record an acknowledgement of the terms.
+
+D5 (consent at sign-up), the Google part, 17 Nov 2026: the sentence above that D5 "decides when Google can be switched on" is superseded, replaced by [google-sign-in.md](google-sign-in.md): the owner chose the "One Last Step" page ("consetn1, linkedin b") and it is built, so D5 no longer holds Google back. D5 itself (lawyer-approved wording, acceptance of later notice revisions) stays open.
+

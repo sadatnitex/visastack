@@ -245,7 +245,7 @@ async function resolveSignedInAccount(
   // person who did not come through the sign-up form (Google). Before the invitation is claimed, so
   // stopping here uses nothing up. See notice-gate.ts.
   if (await mustAcknowledgeNotices(db, user)) {
-    redirect('/auth/accept-terms');
+    redirect('/auth/notice-check');
   }
 
   // Claim the invitation BEFORE provisioning, not after (Codex review, PR

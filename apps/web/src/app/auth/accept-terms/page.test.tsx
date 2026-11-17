@@ -76,11 +76,18 @@ describe('One Last Step page', () => {
     expect(await visit()).toBe('/auth/verify-email');
   });
 
-  it('shows the form (and the reason) when the check itself cannot be made', async () => {
+  it('shows the form, not a redirect, when the check itself cannot be made', async () => {
     mustAcknowledgeNotices.mockRejectedValue(new Error('database down'));
-    const document = (await visit({ e: 'failed' })) as Document;
+    const document = (await visit()) as Document;
     expect(document.querySelector('input[name="acceptNotices"]')).not.toBeNull();
-    expect(document.querySelector('#notices-error')?.textContent).toContain('could not save');
+    expect(document.querySelector('#notices-error')).toBeNull();
+  });
+
+  it('shows the reason a save failed or the tick was missing', async () => {
+    const failed = (await visit({ e: 'failed' })) as Document;
+    expect(failed.querySelector('#notices-error')?.textContent).toContain('could not save');
+    const missing = (await visit({ e: 'notices' })) as Document;
+    expect(missing.querySelector('#notices-error')?.textContent).toContain('terms and privacy');
   });
 
   it('never carries a destination outside the site, and marks its English text', async () => {
