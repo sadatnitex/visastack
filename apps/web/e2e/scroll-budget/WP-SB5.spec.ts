@@ -152,7 +152,9 @@ test.describe('WP-SB5 scroll budget', () => {
         // The worst case is really measured: the longest strip wraps onto a second line.
         const tallest = await page
           .locator('.do-next-item .desk-strip')
-          .evaluateAll((strips) => Math.max(...strips.map((s) => s.getBoundingClientRect().height)));
+          .evaluateAll((strips) =>
+            Math.max(...strips.map((s) => s.getBoundingClientRect().height)),
+          );
         const line = await page
           .locator('.do-next-item .desk-docs')
           .first()

@@ -126,8 +126,7 @@ function requiredDocumentsNotProvided(readiness: DeskReadiness): number | null {
       (m.alternatives ? m.alternatives.every((a) => a.kind === 'DOCUMENT') : m.kind === 'DOCUMENT'),
   ).length;
   if (notProvided > 0) return notProvided;
-  const outstanding =
-    required.length > 0 || readiness.satisfiedRequired < readiness.requiredCount;
+  const outstanding = required.length > 0 || readiness.satisfiedRequired < readiness.requiredCount;
   return outstanding ? null : 0;
 }
 

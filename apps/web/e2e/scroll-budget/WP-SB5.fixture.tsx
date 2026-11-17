@@ -432,8 +432,8 @@ function DoNextCard({ total, strips }: { total: number; strips: boolean }) {
               </h3>
             </div>
             <p className="do-next-context" data-value>
-              Traveller With a Long Family Name Number {n} · Visitor Visa Application Number {n}{' '}
-              for the Summer
+              Traveller With a Long Family Name Number {n} · Visitor Visa Application Number {n} for
+              the Summer
             </p>
             {strips ? (
               <DeskPictureStrip
