@@ -33,6 +33,12 @@ export const SHARE_FILE_PREFIX = `${SHARE_TARGET_PATH}/file/`;
 export const SHARE_LIST_PATH = `${SHARE_TARGET_PATH}/list`;
 export const SHARE_CLEAR_PATH = `${SHARE_TARGET_PATH}/clear`;
 
+/**
+ * The header the incoming page sends its account key in. The key never goes in an address, so it
+ * cannot reach a server log even if no worker is there to answer.
+ */
+export const SHARE_KEY_HEADER = 'x-visastack-share-key';
+
 /** Most files one share keeps; the rest are counted and the page says so. */
 export const SHARE_MAX_FILES = 10;
 
@@ -90,14 +96,19 @@ export interface SharedInbox {
   readonly dropped: number;
   /** When the share arrived (ms), or 0 with nothing waiting. */
   readonly at: number;
+  /**
+   * A random value the worker makes for this one share once an account has opened it. Picture
+   * addresses carry it instead of the account key; it means nothing outside this device and share.
+   */
+  readonly token: string;
 }
 
-export const EMPTY_INBOX: SharedInbox = { files: [], dropped: 0, at: 0 };
+export const EMPTY_INBOX: SharedInbox = { files: [], dropped: 0, at: 0, token: '' };
 
 /** Reads the worker's answer defensively: anything unexpected is an empty inbox. */
 export function parseInbox(value: unknown): SharedInbox {
   if (!value || typeof value !== 'object') return EMPTY_INBOX;
-  const raw = value as { files?: unknown; dropped?: unknown; at?: unknown };
+  const raw = value as { files?: unknown; dropped?: unknown; at?: unknown; token?: unknown };
   if (!Array.isArray(raw.files)) return EMPTY_INBOX;
   const files = raw.files
     .filter(
@@ -113,10 +124,12 @@ export function parseInbox(value: unknown): SharedInbox {
     .slice(0, SHARE_MAX_FILES);
   const dropped = Number.isInteger(raw.dropped) ? Math.max(0, raw.dropped as number) : 0;
   const at = typeof raw.at === 'number' && raw.at > 0 ? raw.at : 0;
-  return { files, dropped, at };
+  const token = typeof raw.token === 'string' && /^[0-9a-f]{32}$/.test(raw.token) ? raw.token : '';
+  if (!token) return EMPTY_INBOX;
+  return { files, dropped, at, token };
 }
 
-/** The address of one waiting file, carrying the account key the worker checks. */
-export function sharedFileUrl(n: number, key: string): string {
-  return `${SHARE_FILE_PREFIX}${n}?k=${encodeURIComponent(key)}`;
+/** The address of one waiting file, carrying this share's token (never the account key). */
+export function sharedFileUrl(n: number, token: string): string {
+  return `${SHARE_FILE_PREFIX}${n}?t=${encodeURIComponent(token)}`;
 }

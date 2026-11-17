@@ -95,6 +95,9 @@ function load(script: string) {
     Headers,
     Promise,
     Date: FakeDate,
+    Uint8Array,
+    Array,
+    crypto: globalThis.crypto,
   });
 
   async function dispatchFetch(req: FakeRequest, clientId = '') {
@@ -162,7 +165,9 @@ beforeEach(() => {
 });
 
 async function list(key = KEY, clientId = PAGE) {
-  const response = await sw.dispatchFetch(get(`/share-target/list?k=${key}`), clientId);
+  const request = get('/share-target/list');
+  if (key) request.headers.set('x-visastack-share-key', key);
+  const response = await sw.dispatchFetch(request, clientId);
   return { status: response?.status, body: await response?.json().catch(() => null) };
 }
 
@@ -263,17 +268,24 @@ describe('reading the inbox', () => {
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
   });
 
-  it('serves the picture to its owner only, from the device', async () => {
-    await list(KEY);
-    const mine = await sw.dispatchFetch(get(`/share-target/file/0?k=${KEY}`, 'no-cors'), PAGE);
+  it('serves the picture by this share token only, from the device', async () => {
+    const { token } = (await list(KEY)).body;
+    expect(token).toMatch(/^[0-9a-f]{32}$/);
+    const mine = await sw.dispatchFetch(get(`/share-target/file/0?t=${token}`, 'no-cors'), PAGE);
     expect(mine?.status).toBe(200);
     expect(mine?.headers.get('content-type')).toBe('image/jpeg');
     expect(mine?.headers.get('cache-control')).toBe('no-store');
     expect(mine?.headers.get('x-content-type-options')).toBe('nosniff');
-    const theirs = await sw.dispatchFetch(get(`/share-target/file/0?k=${OTHER}`, 'no-cors'), PAGE);
-    expect(theirs?.status).toBe(404);
+    const guessed = await sw.dispatchFetch(
+      get(`/share-target/file/0?t=${'0'.repeat(32)}`, 'no-cors'),
+      PAGE,
+    );
+    expect(guessed?.status).toBe(404);
+    // The account key is not a picture address, even for its owner.
+    const byKey = await sw.dispatchFetch(get(`/share-target/file/0?t=${KEY}`, 'no-cors'), PAGE);
+    expect(byKey?.status).toBe(404);
     const elsewhere = await sw.dispatchFetch(
-      get(`/share-target/file/0?k=${KEY}`, 'no-cors'),
+      get(`/share-target/file/0?t=${token}`, 'no-cors'),
       ELSEWHERE,
     );
     expect(elsewhere?.status).toBe(404);
@@ -281,21 +293,34 @@ describe('reading the inbox', () => {
   });
 
   it('does not serve a file before the page has opened the inbox for an account', async () => {
-    const early = await sw.dispatchFetch(get(`/share-target/file/0?k=${KEY}`, 'no-cors'), PAGE);
+    const early = await sw.dispatchFetch(get('/share-target/file/0?t=', 'no-cors'), PAGE);
     expect(early?.status).toBe(404);
   });
 
   it('never answers a file address opened as a page: that goes to the network', async () => {
-    await list(KEY);
-    await sw.dispatchFetch(get(`/share-target/file/0?k=${KEY}`, 'navigate'), PAGE);
+    const { token } = (await list(KEY)).body;
+    await sw.dispatchFetch(get(`/share-target/file/0?t=${token}`, 'navigate'), PAGE);
     expect(sw.network).toHaveBeenCalledTimes(1);
   });
 
-  it('empties the inbox when a different account opens it', async () => {
-    expect((await list(KEY)).body.files).toHaveLength(1);
-    expect((await list(OTHER)).body.files).toEqual([]);
+  it("a different account's key empties the inbox and reads nothing", async () => {
+    const first = (await list(KEY)).body;
+    expect(first.files).toHaveLength(1);
+    const other = (await list(OTHER)).body;
+    expect(other.files).toEqual([]);
+    expect(other.token).toBe('');
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
     expect((await list(KEY)).body.files).toEqual([]);
+    const late = await sw.dispatchFetch(
+      get(`/share-target/file/0?t=${first.token}`, 'no-cors'),
+      PAGE,
+    );
+    expect(late?.status).toBe(404);
+  });
+
+  it('never needs the account key in an address', async () => {
+    const leaky = get(`/share-target/list?k=${KEY}`);
+    expect((await sw.dispatchFetch(leaky, PAGE))?.status).toBe(404);
   });
 
   it('empties the inbox when the page asks (after hand-off or Cancel)', async () => {

@@ -36,11 +36,13 @@ describe('reading the worker answer', () => {
       ],
       dropped: 2,
       at: 5,
+      token: 'ab'.repeat(16),
     });
     expect(inbox).toEqual({
       files: [{ n: 0, name: 'a.jpg', type: 'image/jpeg', size: 10 }],
       dropped: 2,
       at: 5,
+      token: 'ab'.repeat(16),
     });
   });
 
@@ -51,7 +53,7 @@ describe('reading the worker answer', () => {
       type: 'image/jpeg',
       size: 1,
     }));
-    expect(parseInbox({ files }).files).toHaveLength(SHARE_MAX_FILES);
+    expect(parseInbox({ files, token: 'cd'.repeat(16) }).files).toHaveLength(SHARE_MAX_FILES);
   });
 
   it.each([null, undefined, 'text', 4, {}, { files: 'no' }])(
@@ -61,9 +63,15 @@ describe('reading the worker answer', () => {
     },
   );
 
-  it('builds a same-site file address, never a data or blob one', () => {
+  it('treats an answer without a well formed share token as nothing waiting', () => {
+    const files = [{ n: 0, name: 'a.jpg', type: 'image/jpeg', size: 1 }];
+    expect(parseInbox({ files })).toEqual(EMPTY_INBOX);
+    expect(parseInbox({ files, token: 'not-hex' })).toEqual(EMPTY_INBOX);
+  });
+
+  it('builds a same-site file address with the share token, never a data or blob one', () => {
     const url = sharedFileUrl(3, 'a b/c');
-    expect(url).toBe('/share-target/file/3?k=a%20b%2Fc');
+    expect(url).toBe('/share-target/file/3?t=a%20b%2Fc');
     expect(url.startsWith('/')).toBe(true);
   });
 });

@@ -54,9 +54,11 @@ const INBOX = {
   ],
   dropped: 1,
   at: Date.UTC(2026, 10, 17, 9, 0, 0),
+  token: 'ab'.repeat(16),
 };
+const TOKEN = INBOX.token;
 
-let calls: { url: string; method: string }[] = [];
+let calls: { url: string; method: string; key: string | null }[] = [];
 let container: HTMLDivElement;
 let root: Root;
 
@@ -74,7 +76,11 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push({ url, method: init?.method ?? 'GET' });
+      calls.push({
+        url,
+        method: init?.method ?? 'GET',
+        key: new Headers(init?.headers).get('x-visastack-share-key'),
+      });
       if (url.startsWith('/share-target/list')) return Response.json(INBOX);
       if (url.startsWith('/share-target/file/0'))
         return new Response(new Uint8Array([255, 216, 255, 0]));
@@ -134,14 +140,16 @@ describe('WP-PIC11 shared files waiting on the phone', () => {
     await show();
     expect(container.querySelector('h2')?.textContent).toBe('Shared Just Now');
     const images = [...container.querySelectorAll('img')];
-    expect(images.map((img) => img.getAttribute('src'))).toEqual([`/share-target/file/0?k=${KEY}`]);
+    expect(images.map((img) => img.getAttribute('src'))).toEqual([
+      `/share-target/file/0?t=${TOKEN}`,
+    ]);
     expect(container.innerHTML).not.toMatch(/(src|href)="(data|blob):/);
     expect(container.textContent).toContain('bank.pdf');
     expect(container.textContent).toContain('nothing is sent until you choose Add These Files');
     expect(container.textContent).toContain('1 file not kept');
     expect(container.textContent).not.toMatch(/Uploaded/);
     expect(sent).toEqual([]);
-    expect(calls.map((c) => c.url)).toEqual([`/share-target/list?k=${KEY}`]);
+    expect(calls).toEqual([{ url: '/share-target/list', method: 'GET', key: KEY }]);
   });
 
   it('adds them for the chosen person through the normal upload, then clears the phone copy', async () => {
@@ -161,6 +169,8 @@ describe('WP-PIC11 shared files waiting on the phone', () => {
     ]);
     expect(calls.some((c) => c.url === '/share-target/clear' && c.method === 'POST')).toBe(true);
     expect(container.textContent).toContain('Finished: 2 added');
+    // The account key never appears in any address the page asked for.
+    expect(calls.every((c) => !c.url.includes(KEY))).toBe(true);
     const links = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(links).toContain('/app/applicant/p2/documents');
   });
@@ -233,11 +243,12 @@ describe('WP-PIC11 shared files waiting on the phone', () => {
       ],
       dropped: 0,
       at: INBOX.at,
+      token: TOKEN,
     };
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
-        calls.push({ url, method: init?.method ?? 'GET' });
+        calls.push({ url, method: init?.method ?? 'GET', key: null });
         if (url.startsWith('/share-target/list')) return Response.json(twins);
         if (url.startsWith('/share-target/file/'))
           return new Response(new TextEncoder().encode('%PDF'));

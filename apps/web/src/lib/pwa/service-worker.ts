@@ -12,6 +12,7 @@ import {
   SHARE_FILES_FIELD,
   SHARE_FILE_PREFIX,
   SHARE_INBOX_CACHE,
+  SHARE_KEY_HEADER,
   SHARE_LIST_PATH,
   SHARE_MAX_AGE_MS,
   SHARE_MAX_FILES,
@@ -144,6 +145,7 @@ export function buildServiceWorkerScript(
     SHARE_CLEAR_PATH,
     SHARE_FILES_FIELD,
     SHARE_INBOX_CACHE,
+    SHARE_KEY_HEADER,
     SHARE_ACCEPT,
     SHARE_MAX_FILES,
     SHARE_MAX_FILE_BYTES,
@@ -363,23 +365,33 @@ async function answerShare(event, kind) {
     await clearInbox();
     return noStore('{}', 200, 'application/json');
   }
-  const key = new URL(event.request.url).searchParams.get('k') || '';
-  if (!key || !(await fromIncomingPage(event))) return notFound();
+  if (!(await fromIncomingPage(event))) return notFound();
+  const empty = () => noStore(JSON.stringify({ files: [], dropped: 0, at: 0, token: '' }), 200, 'application/json');
   const inbox = await readInbox();
-  if (!inbox) return kind === 'list' ? noStore(JSON.stringify({ files: [], dropped: 0, at: 0 }), 200, 'application/json') : notFound();
-  const { cache, meta } = inbox;
   if (kind === 'list') {
+    // The account key comes in a header, never in the address.
+    const key = event.request.headers.get(SHARE_KEY_HEADER) || '';
+    if (!key) return notFound();
+    if (!inbox) return empty();
+    const { cache, meta } = inbox;
     if (meta.owner === null) {
       meta.owner = key;
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      meta.token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
       await cache.put(SHARE_META, noStore(JSON.stringify(meta), 200, 'application/json'));
     } else if (meta.owner !== key) {
       // Another account on this device: the waiting files were not shared by it, so they go.
       await clearInbox();
-      return noStore(JSON.stringify({ files: [], dropped: 0, at: 0 }), 200, 'application/json');
+      return empty();
     }
-    return noStore(JSON.stringify({ files: meta.files, dropped: meta.dropped, at: meta.at }), 200, 'application/json');
+    return noStore(JSON.stringify({ files: meta.files, dropped: meta.dropped, at: meta.at, token: meta.token }), 200, 'application/json');
   }
-  if (meta.owner !== key) return notFound();
+  if (!inbox) return notFound();
+  const { cache, meta } = inbox;
+  // Pictures carry this share's random token, made when its owner first opened it.
+  const token = new URL(event.request.url).searchParams.get('t') || '';
+  if (meta.owner === null || typeof meta.token !== 'string' || !token || token !== meta.token) return notFound();
   const n = new URL(event.request.url).pathname.slice(SHARE_FILE_PREFIX.length);
   if (!/^[0-9]{1,2}$/.test(n)) return notFound();
   const stored = await cache.match(self.location.origin + SHARE_FILE_PREFIX + n);

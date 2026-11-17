@@ -15,6 +15,7 @@ import {
 } from '../../../lib/import/import-queue';
 import {
   SHARE_CLEAR_PATH,
+  SHARE_KEY_HEADER,
   SHARE_LIST_PATH,
   SHARE_MAX_FILES,
   SHARE_PICTURE_TYPES,
@@ -33,9 +34,11 @@ export async function readSharedInbox(ownerKey: string | null): Promise<SharedIn
     return parseInbox(null);
   }
   try {
-    const response = await fetch(`${SHARE_LIST_PATH}?k=${encodeURIComponent(ownerKey)}`, {
+    // The key goes in a header, never in the address, so no server log can ever hold it.
+    const response = await fetch(SHARE_LIST_PATH, {
       cache: 'no-store',
       credentials: 'same-origin',
+      headers: { [SHARE_KEY_HEADER]: ownerKey },
     });
     if (!response.ok) return parseInbox(null);
     return parseInbox(await response.json());
@@ -64,11 +67,11 @@ export async function clearSharedInbox(): Promise<void> {
  */
 async function candidateFor(
   file: SharedFile,
-  ownerKey: string,
+  token: string,
   at: number,
 ): Promise<ImportCandidate | null> {
   try {
-    const response = await fetch(sharedFileUrl(file.n, ownerKey), { cache: 'no-store' });
+    const response = await fetch(sharedFileUrl(file.n, token), { cache: 'no-store' });
     if (!response.ok) return null;
     const blob = await response.blob();
     return {
@@ -164,7 +167,7 @@ export function IncomingPanel({
     if (!ownerKey || phase !== 'ready') return;
     setPhase('sending');
     const read = await Promise.all(
-      inbox.files.map((file) => candidateFor(file, ownerKey, inbox.at + file.n)),
+      inbox.files.map((file) => candidateFor(file, inbox.token, inbox.at + file.n)),
     );
     const candidates = read.filter((c): c is ImportCandidate => c !== null);
     setUnreadable(read.length - candidates.length);
@@ -252,10 +255,10 @@ export function IncomingPanel({
         <ul className="incoming-grid">
           {inbox.files.map((file) => (
             <li key={file.n} className="incoming-tile">
-              {ownerKey && SHARE_PICTURE_TYPES.includes(file.type) ? (
+              {SHARE_PICTURE_TYPES.includes(file.type) ? (
                 <img
                   className="incoming-picture"
-                  src={sharedFileUrl(file.n, ownerKey)}
+                  src={sharedFileUrl(file.n, inbox.token)}
                   alt=""
                   loading="lazy"
                   decoding="async"
