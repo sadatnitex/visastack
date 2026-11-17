@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useSyncExternalStore } from 'react';
+import { appApplicantCatalog } from '../i18n/app-applicant';
 import { type ImportItem, type ImportSnapshot, canTryAgain } from '../lib/import/import-queue';
 import { documentMark } from '../lib/item-icons';
+import { useT } from './i18n-provider';
 import { Icon, type IconName } from './icons';
 import { MarkTile } from './mark-tile';
 
@@ -115,6 +117,7 @@ export function WaitingUploads({
   /** The queue's own retry for one file. */
   readonly onRetry: (id: number) => void;
 }) {
+  const t = useT(appApplicantCatalog);
   const snapshot = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const offline = useSyncExternalStore(subscribeOnline, offlineNow, () => false);
   const rows: { item: ImportItem; kind: WaitingKind }[] = [];
@@ -160,10 +163,12 @@ export function WaitingUploads({
                   <button
                     type="button"
                     className="btn btn-secondary waiting-uploads-retry"
-                    aria-label={`Try Again: ${item.name}`}
+                    aria-label={t('appApplicant.appApplicantIdDocumentUploader.tryAgainName', {
+                      name: item.name,
+                    })}
                     onClick={() => onRetry(item.id)}
                   >
-                    Try Again
+                    {t.node('appApplicant.appApplicantIdDocumentUploader.tryAgain')}
                   </button>
                 ) : null}
               </li>
@@ -176,7 +181,11 @@ export function WaitingUploads({
               aria-expanded={showAll}
               onClick={() => setShowAll((current) => !current)}
             >
-              {showAll ? 'Show Fewer' : `Show All ${rows.length}`}
+              {showAll
+                ? t.node('appApplicant.appApplicantIdImportImportPanel.showFewer')
+                : t.node('appApplicant.appApplicantIdImportImportPanel.showAllLength', {
+                    length: rows.length,
+                  })}
             </button>
           ) : null}
         </section>
