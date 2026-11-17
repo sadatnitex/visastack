@@ -5,6 +5,23 @@ import {
   PUBLIC_STATIC_PREFIXES,
   STATIC_PREFIXES,
 } from './constants';
+import {
+  INCOMING_PATH,
+  SHARE_ACCEPT,
+  SHARE_CLEAR_MESSAGE,
+  SHARE_CLEAR_PATH,
+  SHARE_FILES_FIELD,
+  SHARE_FILE_PREFIX,
+  SHARE_INBOX_CACHE,
+  SHARE_KEY_HEADER,
+  SHARE_LIST_PATH,
+  SHARE_MAX_AGE_MS,
+  SHARE_MAX_FILES,
+  SHARE_MAX_FILE_BYTES,
+  SHARE_TARGET_PATH,
+  SHARE_TOKEN_HEADER,
+  isShareTargetSwitchOn,
+} from './share-target';
 
 export { CACHE_PREFIX, PUBLIC_STATIC_PATHS, PUBLIC_STATIC_PREFIXES, STATIC_PREFIXES };
 
@@ -17,6 +34,13 @@ export { CACHE_PREFIX, PUBLIC_STATIC_PATHS, PUBLIC_STATIC_PREFIXES, STATIC_PREFI
  * not a public static file (API calls, page data, document previews, signed download links,
  * other origins, anything but GET) is not even intercepted: the browser handles it exactly as it
  * would without a worker.
+ *
+ * One exception, by owner decision (17 Nov 2026, picture-first Phase 2, unit P2d), and only while
+ * the owner's share switch is on: files the person shares to VisaStack from another app. The phone
+ * posts them to `/share-target`; the worker answers that one post itself and keeps the files in its
+ * own inbox on this device, not in the static cache, for at most 15 minutes, so they are never sent
+ * anywhere before the person signs in and confirms on `/app/incoming`. Still no page is stored.
+ * See `share-target.ts`.
  *
  * The offline screen is built into the worker itself, so showing it never needs a stored page.
  * The script is plain JavaScript in a string so the file served to browsers is exactly the text
@@ -97,8 +121,16 @@ export const OFFLINE_CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-/** Builds the worker served while the service worker is switched on. */
-export function buildServiceWorkerScript(version: string): string {
+/**
+ * Builds the worker served while the service worker is switched on. `share` says whether it takes
+ * files shared from another app (default: the owner's switch, read where `/sw.js` is served). The
+ * script differs with it, so switching sharing off reaches devices as an ordinary worker update.
+ */
+export function buildServiceWorkerScript(
+  version: string,
+  options: { readonly share?: boolean } = {},
+): string {
+  const SHARE_ON = options.share ?? isShareTargetOn((name) => process.env[name]);
   const constants = {
     VERSION: normaliseVersion(version),
     CACHE_PREFIX,
@@ -109,6 +141,21 @@ export function buildServiceWorkerScript(version: string): string {
     PRECACHE_PATHS,
     OFFLINE_HTML,
     OFFLINE_CSP,
+    SHARE_TARGET_PATH,
+    SHARE_FILE_PREFIX,
+    SHARE_LIST_PATH,
+    SHARE_CLEAR_PATH,
+    SHARE_FILES_FIELD,
+    SHARE_INBOX_CACHE,
+    SHARE_KEY_HEADER,
+    SHARE_TOKEN_HEADER,
+    SHARE_CLEAR_MESSAGE,
+    SHARE_ACCEPT,
+    SHARE_MAX_FILES,
+    SHARE_MAX_FILE_BYTES,
+    SHARE_MAX_AGE_MS,
+    INCOMING_PATH,
+    SHARE_ON,
   };
   const declarations = Object.entries(constants)
     .map(([name, value]) => `const ${name} = ${JSON.stringify(value)};`)
@@ -195,6 +242,240 @@ async function fromNetwork(event) {
   }
 }
 
+/*
+ * Files shared from another app (WP-PIC11). The phone posts them to SHARE_TARGET_PATH; this worker
+ * answers that post itself, so the files stay on the device. They wait in SHARE_INBOX_CACHE (never
+ * a page, never a VisaStack record) until the signed-in person adds them or cancels, at most
+ * SHARE_MAX_AGE_MS. The inbox belongs to the first account that opens it on INCOMING_PATH: a
+ * different account asking empties it, and a page with no account key can read nothing.
+ */
+const SHARE_META = self.location.origin + SHARE_TARGET_PATH + '/meta';
+
+function shareKind(request) {
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return null;
+  // While sharing is switched off the share post is left to the server, which keeps nothing.
+  if (request.method === 'POST' && url.pathname === SHARE_TARGET_PATH) return SHARE_ON ? 'receive' : null;
+  if (request.mode === 'navigate') return null;
+  if (request.method === 'POST' && url.pathname === SHARE_CLEAR_PATH) return 'clear';
+  if (request.method !== 'GET') return null;
+  if (url.pathname === SHARE_LIST_PATH) return 'list';
+  if (url.pathname.startsWith(SHARE_FILE_PREFIX)) return 'file';
+  return null;
+}
+
+async function hasInbox() {
+  return (await caches.keys()).includes(SHARE_INBOX_CACHE);
+}
+
+async function clearInbox() {
+  await caches.delete(SHARE_INBOX_CACHE);
+}
+
+// A share being written carries this mark; a write cut off for longer than this is left over.
+const SHARE_WRITE_GRACE_MS = 60 * 1000;
+const SHARE_AT_HEADER = 'X-VisaStack-Shared-At';
+
+// What the inbox holds: nothing, a share still being written, one ready to read, or something left
+// over (past its time, or a write that never finished) that can go.
+async function inboxState() {
+  if (!(await hasInbox())) return { kind: 'none' };
+  const cache = await caches.open(SHARE_INBOX_CACHE);
+  const now = Date.now();
+  const stored = await cache.match(SHARE_META);
+  const meta = stored ? await stored.json().catch(() => null) : null;
+  if (!meta || typeof meta.at !== 'number') {
+    // No record: only files from a write cut off before its mark. Kept while any is young.
+    const entries = await Promise.all((await cache.keys()).map((key) => cache.match(key)));
+    const young = entries.some((entry) => {
+      const at = Number(entry && entry.headers.get(SHARE_AT_HEADER));
+      return at > 0 && now >= at && now - at <= SHARE_MAX_AGE_MS;
+    });
+    return { kind: young ? 'writing' : 'stale' };
+  }
+  if (now < meta.at) return { kind: 'stale' };
+  if (meta.writing) return { kind: now - meta.at > SHARE_WRITE_GRACE_MS ? 'stale' : 'writing' };
+  if (now - meta.at > SHARE_MAX_AGE_MS) return { kind: 'stale' };
+  return { kind: 'ready', cache, meta };
+}
+
+// The inbox's record, or null when nothing is ready. Anything left over is emptied; a share still
+// being written is left alone.
+async function readInbox() {
+  const state = await inboxState();
+  if (state.kind === 'stale') await clearInbox();
+  return state.kind === 'ready' ? { cache: state.cache, meta: state.meta } : null;
+}
+
+// Empties the inbox once its time is up, whatever request woke the worker, so files never outlive
+// SHARE_MAX_AGE_MS just because nobody opened the incoming page again (for example after signing
+// out), and removes what a cut-off write left behind. A share still being written is never touched.
+async function sweepInbox() {
+  try {
+    if (!(await hasInbox())) return;
+    if (!SHARE_ON) {
+      await clearInbox();
+      return;
+    }
+    if ((await inboxState()).kind === 'stale') await clearInbox();
+  } catch {
+    // A failed sweep is retried on the next request; the inbox is still read with its time checked.
+  }
+}
+
+// Each time the browser starts this worker.
+sweepInbox();
+
+function noStore(body, status, type) {
+  return new Response(body, {
+    status,
+    headers: {
+      'Content-Type': type,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+function notFound() {
+  return noStore('Not found', 404, 'text/plain; charset=utf-8');
+}
+
+// A share comes from the phone itself (no Origin, no referrer) or from a VisaStack page. A post from
+// another site, or from a page hiding where it came from (Origin "null"), is turned away with
+// nothing kept. Chromium shows the worker the Origin of a form post (checked 17 Nov 2026); the
+// referrer check covers a browser that does not, unless the other site also hides its referrer.
+function fromThisDeviceOrSite(request) {
+  const origin = request.headers.get('origin');
+  if (origin !== null && origin !== self.location.origin) return false;
+  const referrer = typeof request.referrer === 'string' ? request.referrer : '';
+  if (/^https?:/i.test(referrer) && new URL(referrer).origin !== self.location.origin) return false;
+  return true;
+}
+
+// A share with no Origin cannot prove it came from the phone rather than a planted form, so it may
+// not push aside a share still waiting for its owner to open it; one from a VisaStack page may.
+async function mayReplaceWaiting(request) {
+  if (request.headers.get('origin') === self.location.origin) return true;
+  const inbox = await readInbox();
+  return !inbox || inbox.meta.owner !== null;
+}
+
+// Written one at a time with every read, claim and clear of the inbox, behind a "writing" mark, so
+// nothing can read or remove a share half way through.
+function receiveShare(event) {
+  return oneAtATime(() => writeShare(event));
+}
+
+async function writeShare(event) {
+  const accepted = fromThisDeviceOrSite(event.request) && (await mayReplaceWaiting(event.request));
+  let kept = 0;
+  let offered = 0;
+  if (accepted) {
+    try {
+      // A new share replaces anything an account already opened, or anything past its time.
+      await clearInbox();
+      const cache = await caches.open(SHARE_INBOX_CACHE);
+      const at = Date.now();
+      await cache.put(SHARE_META, noStore(JSON.stringify({ at, writing: true }), 200, 'application/json'));
+      const form = await event.request.formData();
+      const shared = form.getAll(SHARE_FILES_FIELD).filter((value) => value && typeof value === 'object');
+      const files = [];
+      for (const file of shared) {
+        const type = String(file.type || '').toLowerCase();
+        if (files.length >= SHARE_MAX_FILES) continue;
+        if (!SHARE_ACCEPT.includes(type) || !(file.size > 0) || file.size > SHARE_MAX_FILE_BYTES) continue;
+        const n = files.length;
+        const stored = noStore(file, 200, type);
+        stored.headers.set(SHARE_AT_HEADER, String(at));
+        await cache.put(self.location.origin + SHARE_FILE_PREFIX + n, stored);
+        files.push({ n, name: String(file.name || 'Shared file').slice(0, 200), type, size: file.size });
+      }
+      kept = files.length;
+      offered = shared.length;
+      const meta = { at, owner: null, files, dropped: shared.length - files.length };
+      await cache.put(SHARE_META, noStore(JSON.stringify(meta), 200, 'application/json'));
+      if (kept === 0) await clearInbox();
+    } catch {
+      await clearInbox();
+      kept = 0;
+      offered = 0;
+    }
+  }
+  // Kept: the files wait. Offered but none usable: say which files VisaStack takes. Otherwise the
+  // share did not come through at all.
+  const outcome = kept > 0 ? '' : offered > 0 ? '?none=1' : '?missed=1';
+  const target = self.location.origin + INCOMING_PATH + outcome;
+  return Response.redirect(target, 303);
+}
+
+// Only INCOMING_PATH, open in this browser, may read the inbox.
+async function fromIncomingPage(event) {
+  if (!event.clientId || !self.clients.get) return false;
+  const client = await self.clients.get(event.clientId);
+  return !!client && new URL(client.url).pathname === INCOMING_PATH;
+}
+
+// Reading, claiming and clearing the inbox run one at a time, so two tabs opening it together
+// cannot both claim it and leave one holding a token that no longer works.
+let inboxTurn = Promise.resolve();
+function oneAtATime(work) {
+  const result = inboxTurn.then(work);
+  inboxTurn = result.catch(() => undefined);
+  return result;
+}
+
+// A clear names the share it is for: a page left open from an earlier share never empties a newer
+// one. It answers ok only when it removed that share.
+async function clearShare(event) {
+  const token = event.request.headers.get(SHARE_TOKEN_HEADER) || '';
+  const inbox = await readInbox();
+  if (!inbox || !token || inbox.meta.token !== token) return noStore('{"cleared":false}', 409, 'application/json');
+  await clearInbox();
+  return noStore('{"cleared":true}', 200, 'application/json');
+}
+
+async function answerShare(event, kind) {
+  if (kind === 'receive') return receiveShare(event);
+  if (!(await fromIncomingPage(event))) return notFound();
+  if (kind === 'clear') return oneAtATime(() => clearShare(event));
+  if (kind === 'list') return oneAtATime(() => readShare(event, kind));
+  return readShare(event, kind);
+}
+
+async function readShare(event, kind) {
+  const empty = () => noStore(JSON.stringify({ files: [], dropped: 0, at: 0, token: '' }), 200, 'application/json');
+  const inbox = await readInbox();
+  if (kind === 'list') {
+    // The account key comes in a header, never in the address.
+    const key = event.request.headers.get(SHARE_KEY_HEADER) || '';
+    if (!key) return notFound();
+    if (!inbox) return empty();
+    const { cache, meta } = inbox;
+    if (meta.owner === null) {
+      meta.owner = key;
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      meta.token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      await cache.put(SHARE_META, noStore(JSON.stringify(meta), 200, 'application/json'));
+    } else if (meta.owner !== key) {
+      // Another account on this device: the waiting files were not shared by it, so they go.
+      await clearInbox();
+      return empty();
+    }
+    return noStore(JSON.stringify({ files: meta.files, dropped: meta.dropped, at: meta.at, token: meta.token }), 200, 'application/json');
+  }
+  if (!inbox) return notFound();
+  const { cache, meta } = inbox;
+  // Pictures carry this share's random token, made when its owner first opened it.
+  const token = new URL(event.request.url).searchParams.get('t') || '';
+  if (meta.owner === null || typeof meta.token !== 'string' || !token || token !== meta.token) return notFound();
+  const n = new URL(event.request.url).pathname.slice(SHARE_FILE_PREFIX.length);
+  if (!/^[0-9]{1,2}$/.test(n)) return notFound();
+  const stored = await cache.match(self.location.origin + SHARE_FILE_PREFIX + n);
+  return stored || notFound();
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) =>
@@ -212,6 +493,8 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name.startsWith(CACHE_PREFIX) && name !== STATIC_CACHE)
           .map((name) => caches.delete(name)),
       );
+      // The sweep empties an inbox past its time; with sharing switched off it simply goes.
+      await sweepInbox();
       if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
       await self.clients.claim();
     })(),
@@ -221,9 +504,28 @@ self.addEventListener('activate', (event) => {
 // A waiting update starts only when the person chooses Reload Now, never in the middle of their work.
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  // Signing out empties the shared inbox, whatever share it holds. Only a VisaStack page may ask.
+  if (event.data && event.data.type === SHARE_CLEAR_MESSAGE && fromOwnPage(event.source)) {
+    event.waitUntil(oneAtATime(clearInbox));
+  }
 });
 
+function fromOwnPage(source) {
+  try {
+    return !!source && typeof source.url === 'string' && new URL(source.url).origin === self.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener('fetch', (event) => {
+  const share = shareKind(event.request);
+  // Any request is a chance to drop an inbox past its time. A share post decides for itself.
+  if (share !== 'receive') event.waitUntil(sweepInbox());
+  if (share) {
+    event.respondWith(answerShare(event, share));
+    return;
+  }
   const kind = classify(event.request);
   if (kind === 'static') event.respondWith(fromStaticCache(event));
   else if (kind === 'navigate') event.respondWith(fromNetwork(event));
@@ -240,12 +542,15 @@ export function buildRetirementScript(): string {
   return `/* VisaStack service worker retirement: remove stored files and unregister. */
 'use strict';
 const CACHE_PREFIX = ${JSON.stringify(CACHE_PREFIX)};
+const SHARE_INBOX_CACHE = ${JSON.stringify(SHARE_INBOX_CACHE)};
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const names = await caches.keys();
       await Promise.all(names.filter((name) => name.startsWith(CACHE_PREFIX)).map((name) => caches.delete(name)));
+      // Files shared from another app and still waiting go too.
+      if (names.includes(SHARE_INBOX_CACHE)) await caches.delete(SHARE_INBOX_CACHE);
       await self.registration.unregister();
     })(),
   );
@@ -261,4 +566,13 @@ self.addEventListener('activate', (event) => {
 export function isServiceWorkerEnabled(read: (name: string) => string | undefined): boolean {
   if (read('NODE_ENV') !== 'production') return false;
   return read('PWA_SERVICE_WORKER')?.trim().toLowerCase() !== 'off';
+}
+
+/**
+ * Whether files shared from another app are taken: the owner's switch (`WEB_SHARE_TARGET=on`) and
+ * the service worker that keeps them on the device must both be on. The manifest, `/sw.js` and the
+ * shared files page all ask this one question, so they always agree.
+ */
+export function isShareTargetOn(read: (name: string) => string | undefined): boolean {
+  return isServiceWorkerEnabled(read) && isShareTargetSwitchOn(read);
 }
