@@ -8302,3 +8302,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - On the photo check after a passport photo is taken (own, spouse or host passport), a passport-shaped outline with corner marks and the line "Fit the passport inside the lines" shows where the passport should sit. It ignores taps and is hidden from screen readers; Use This and Retake work as before; the camera setting (camera=()) is unchanged; nothing says the photo will be accepted.
 - NOT verified: a real phone camera; a passport held sideways; Bengali for the new line (marked as English, listed for the localization lane).
+
+## 17 Nov 2026: WP-PIC9 waiting uploads list
+
+- The import screen now lists files still waiting to send, each as a document picture with Waiting, Sending or Could Not Send, a Try Again button on the existing retry, and an Offline badge when the browser reports offline. A file the queue is holding for a retry shows Waiting, never Sending; nothing is called Uploaded or Received early; the read-out stays quiet during an import except when going offline.
+- NOT verified: a real phone on a weak or offline network; Bengali for the new words.
