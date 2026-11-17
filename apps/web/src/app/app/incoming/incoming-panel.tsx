@@ -273,6 +273,8 @@ export function IncomingPanel({
   }
 
   const chosen = people.find((person) => person.id === personId) ?? people[0];
+  // Links name the person from the server's own list, escaped, never the raw value of the choice.
+  const chosenPath = `/app/applicant/${encodeURIComponent(chosen?.id ?? '')}/documents`;
   const waiting = phase === 'ready';
 
   return (
@@ -377,13 +379,10 @@ export function IncomingPanel({
                       Try Again for All Paused Files
                     </button>
                   ) : null}
-                  <Link className="btn btn-primary" href={`/app/applicant/${personId}/documents`}>
+                  <Link className="btn btn-primary" href={chosenPath}>
                     Open Documents
                   </Link>
-                  <Link
-                    className="btn btn-secondary"
-                    href={`/app/applicant/${personId}/documents/add`}
-                  >
+                  <Link className="btn btn-secondary" href={`${chosenPath}/add`}>
                     Add More Files
                   </Link>
                 </p>

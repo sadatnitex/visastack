@@ -277,6 +277,18 @@ describe('WP-PIC11 shared files waiting on the phone', () => {
     expect(container.textContent).not.toContain('Nothing was sent');
   });
 
+  it("links to the chosen person from the server's own list, escaped", async () => {
+    await show({ people: [{ id: 'p 1', name: 'Rahim Example' }] });
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    const links = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(links).toContain('/app/applicant/p%201/documents');
+    expect(links).toContain('/app/applicant/p%201/documents/add');
+    expect(links.some((href) => href?.includes('p 1'))).toBe(false);
+  });
+
   it('Cancel removes them from the phone and sends nothing', async () => {
     await show();
     await act(async () => {
