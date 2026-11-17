@@ -48,6 +48,8 @@ const applicationFiles = [
 /** The files that read the cookie secret today. Adding a file here is a security decision. */
 const COOKIE_SECRET_USERS = [
   'apps/web/src/lib/env.ts',
+  // Q8: checks the signed "link pending" mark in the sign-in filter (Web Crypto, no Neon import).
+  'apps/web/src/lib/link-return-gate.ts',
   'apps/web/src/lib/neon-auth.ts',
   'apps/web/src/lib/payment-result.ts',
   'apps/web/src/lib/pending-confirmation.ts',
