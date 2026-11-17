@@ -48,6 +48,7 @@ async function show(documentKind?: string) {
 describe('isPassportKind', () => {
   it('is true only for the passport kind', () => {
     expect(isPassportKind('passport')).toBe(true);
+    expect(isPassportKind('PASSPORT')).toBe(true);
     expect(isPassportKind('nid')).toBe(false);
     expect(isPassportKind('')).toBe(false);
     expect(isPassportKind(undefined)).toBe(false);
@@ -60,7 +61,7 @@ describe('CaptureFrameGuide', () => {
     const guide = host.querySelector('[data-capture-guide="passport"]') as HTMLElement;
     expect(guide).not.toBeNull();
     expect(guide.getAttribute('aria-hidden')).toBe('true');
-    expect(guide.querySelectorAll('.capture-guide-corner')).toHaveLength(4);
+    expect(guide.querySelectorAll('.capture-guide-corner')).toHaveLength(8);
     expect(guide.querySelector('img, svg image')).toBeNull();
     expect(host.innerHTML).not.toMatch(/data:|blob:/);
   });
@@ -71,10 +72,11 @@ describe('CaptureFrameGuide', () => {
 
 describe('CapturePreview with a passport', () => {
   it('shows the passport guide and hint instead of the plain outline', async () => {
-    await show('passport');
+    await show('PASSPORT');
     expect(host.querySelector('[data-capture-guide="passport"]')).not.toBeNull();
     expect(host.querySelector('.capture-outline')).toBeNull();
     expect(host.textContent).toContain('Fit the passport inside the lines');
+    expect(host.querySelector('.capture-guide-hint')?.getAttribute('aria-hidden')).toBeNull();
   });
   it('keeps Use This and Retake exactly as before', async () => {
     const { onUse, onRetake } = await show('passport');

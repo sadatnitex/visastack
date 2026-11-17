@@ -21694,49 +21694,36 @@ body:lang(bn),
 }
 /* end WP-PIC1 */
 
-/* WP-PIC7 Scan frame guide (17 Nov 2026, picture-first upgrade, unit U7). When the document is a passport, a thin outline in the passport cover's shape (640 by 910) with four corner marks is drawn over the photo check, and a one-line hint sits under it. Flat: no shadow, gradient, blur or translucency; tokens and the existing capture colours only. The guide only draws: it ignores taps and never covers the buttons. */
+/* WP-PIC7 Scan frame guide (17 Nov 2026, picture-first upgrade, unit U7). When the document is a passport, a thin outline in the passport cover's shape (64 by 91) with four corner marks is drawn over the photo check, and a one-line hint sits under it. Each line is a dark stroke under a white one so it shows on any photo. Flat: no shadow, gradient, blur or translucency; the existing capture colours only. The guide only draws: it ignores taps and never covers the buttons. */
 .capture-guide {
   position: absolute;
-  inset: 0;
-  margin: auto;
+  inset: 6%;
+  width: 88%;
   height: 88%;
-  aspect-ratio: 640 / 910;
-  max-width: 88%;
   pointer-events: none;
-  border: 1px solid #ffffff;
-  outline: 1px solid #152b37;
-  border-radius: var(--radius-sm);
+  fill: none;
+  stroke-linecap: round;
 }
+.capture-guide-line,
 .capture-guide-corner {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border: 0 solid #ffffff;
-  filter: none;
+  fill: none;
+  stroke: #ffffff;
+  vector-effect: non-scaling-stroke;
 }
-.capture-guide-corner[data-corner="top-left"] {
-  top: -2px;
-  left: -2px;
-  border-top-width: 4px;
-  border-left-width: 4px;
+.capture-guide [data-layer="under"] {
+  stroke: #152b37;
 }
-.capture-guide-corner[data-corner="top-right"] {
-  top: -2px;
-  right: -2px;
-  border-top-width: 4px;
-  border-right-width: 4px;
+.capture-guide [data-layer="under"] .capture-guide-line {
+  stroke-width: 3px;
 }
-.capture-guide-corner[data-corner="bottom-left"] {
-  bottom: -2px;
-  left: -2px;
-  border-bottom-width: 4px;
-  border-left-width: 4px;
+.capture-guide [data-layer="under"] .capture-guide-corner {
+  stroke-width: 7px;
 }
-.capture-guide-corner[data-corner="bottom-right"] {
-  right: -2px;
-  bottom: -2px;
-  border-right-width: 4px;
-  border-bottom-width: 4px;
+.capture-guide [data-layer="over"] .capture-guide-line {
+  stroke-width: 1px;
+}
+.capture-guide [data-layer="over"] .capture-guide-corner {
+  stroke-width: 4px;
 }
 .capture-guide-hint {
   margin: 0;
