@@ -14,6 +14,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CollapsibleGroup } from '../../../../../components/collapsible-group';
+import { PrintCover } from '../../../../../components/print-cover/print-cover';
 import { SelectedScopeSummary } from '../../../../../components/selected-scope-summary';
 import { WhatsAppShare } from '../../../../../components/share/whatsapp-share';
 import { StickyActionBar } from '../../../../../components/sticky-action-bar';
@@ -234,6 +235,8 @@ export default async function OutputsPage({
     output?.selection.layers.includes(layer.key),
   ).map((layer) => layer.label);
   const chosenCase = ready.cases.find((item) => item.id === ready.missionId) ?? null;
+  // The cover prints only for a case output, and only from the case the page already shows.
+  const printedCase = template.needsCase ? (output?.cases[0] ?? null) : null;
   const whatsapp = template.whatsapp
     ? composeShareMessage(
         { template: 'summary-link', link: `${resolveBaseUrl()}/app/shared` },
@@ -612,6 +615,23 @@ export default async function OutputsPage({
         )
       ) : null}
 
+      {output && text && printedCase ? (
+        <PrintCover
+          name={output.person.displayName}
+          destination={printedCase.destination}
+          referenceCode={printedCase.referenceCode}
+          preparedOn={formatLongDay(output.preparedOn, locale) ?? longDay(output.preparedOn)}
+          readiness={
+            printedCase.readiness
+              ? {
+                  required: printedCase.readiness.requiredCount,
+                  satisfied: printedCase.readiness.satisfiedCount,
+                }
+              : null
+          }
+        />
+      ) : null}
+
       {output && text ? (
         <section
           id="output-preview"
@@ -688,7 +708,7 @@ export default async function OutputsPage({
                   : t('applicantOutputs.appApplicantIdOutputsPage.copyAll')
               }
             />
-            {request.template === 'trip_essentials' ? <PrintButton /> : null}
+            {template.needsCase ? <PrintButton /> : null}
           </div>
           <form method="post" action={`${pageHref}/download`} className="output-actions">
             {carriedFields.map(([name, value]) => (
