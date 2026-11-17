@@ -93,6 +93,8 @@ describe('JourneyTrack', () => {
     expect(html).not.toContain('aria-current');
     const current = items(html)[1] ?? '';
     expect(current).toContain('Now: ');
+    // Read before the stage's own button, so it reads "Now: Intake".
+    expect(current.indexOf('Now: ')).toBeLessThan(current.indexOf('<button'));
     expect(current).toContain('journey-stage-word');
   });
   it('keeps list semantics on the ordered list', () => {
@@ -121,6 +123,7 @@ describe('CaseStageTrackerView with the journey track', () => {
     expect(html).toContain('journey-track');
     expect(html).toContain('lift-steps');
     // The step bar alone carries aria-current, so the page has one current step.
+    expect(html.match(/aria-current="step"/g)).toHaveLength(1);
   });
   it('falls back to the step bar alone for a cancelled case', () => {
     const html = renderToStaticMarkup(<CaseStageTrackerView {...base} state="CANCELLED" journey />);
