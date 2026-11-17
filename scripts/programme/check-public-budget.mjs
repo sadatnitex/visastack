@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import ts from 'typescript';
 
@@ -9,7 +9,7 @@ import ts from 'typescript';
  * Performance budget for the public site (WP-PUB1, ADR 0029). Four checks:
  *
  * 1. First-load JavaScript per public route, gzipped, may grow at most 10 KB over the recorded
- *    baseline (`check-public-budget.baseline.json`, taken from a build of main before the public
+ *    baseline (`check-public-budget.baseline.mjs`, taken from a build of main before the public
  *    site upgrade). Read from the build's `app-build-manifest.json`, so it needs `next build` first.
  * 2. The scroll engine (`scene-engine.ts`) stays at or under 2 KB gzipped, comments removed.
  * 3. With `--base <url>`: the pictures each public page asks for weigh at most 150 KB together.
@@ -23,7 +23,7 @@ import ts from 'typescript';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const BASELINE_FILE = join(
   dirname(fileURLToPath(import.meta.url)),
-  'check-public-budget.baseline.json',
+  'check-public-budget.baseline.mjs',
 );
 export const ENGINE_FILE = join(ROOT, 'apps/web/src/components/public-site/scene-engine.ts');
 
@@ -195,6 +195,21 @@ export async function checkPages(base, routes = PUBLIC_ROUTES, read = fetch) {
   return { problems, report };
 }
 
+/** The baseline file's text: a module, so it can sit beside this script. */
+export function baselineModule(sizes) {
+  const lines = Object.entries(sizes).map(([route, bytes]) => `  '${route}': ${bytes},`);
+  return [
+    '/**',
+    ' * Gzipped first-load JavaScript per public route, from a build of main before the public site',
+    ' * upgrade. Written by `check-public-budget.mjs --write-baseline`.',
+    ' */',
+    'export default {',
+    ...lines,
+    '};',
+    '',
+  ].join('\n');
+}
+
 /** One line of the report. */
 function say(line) {
   process.stdout.write(`${line}\n`);
@@ -216,10 +231,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   if (existsSync(join(nextDir, 'app-build-manifest.json'))) {
     const current = measureRoutes(nextDir);
     if (process.argv.includes('--write-baseline')) {
-      writeFileSync(BASELINE_FILE, `${JSON.stringify(current, null, 2)}\n`);
+      writeFileSync(BASELINE_FILE, baselineModule(current));
       say(`baseline written: ${JSON.stringify(current)}`);
     } else {
-      const baseline = JSON.parse(readFileSync(BASELINE_FILE, 'utf8'));
+      const { default: baseline } = await import(pathToFileURL(BASELINE_FILE).href);
       for (const [route, bytes] of Object.entries(current))
         say(`${route}: ${bytes} bytes gzipped (baseline ${baseline[route] ?? 'none'})`);
       problems.push(...routeProblems(current, baseline));

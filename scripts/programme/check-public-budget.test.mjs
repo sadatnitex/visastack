@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import {
   BASELINE_FILE,
   LIMITS,
@@ -56,8 +56,8 @@ test('a first load more than 10 KB over the baseline fails, and so does a lost p
   );
 });
 
-test('the recorded baseline covers the public pages that exist today', () => {
-  const baseline = JSON.parse(readFileSync(BASELINE_FILE, 'utf8'));
+test('the recorded baseline covers the public pages that exist today', async () => {
+  const { default: baseline } = await import(pathToFileURL(BASELINE_FILE).href);
   for (const route of ['/', '/trust', '/privacy', '/terms', '/status'])
     assert.ok(Number.isInteger(baseline[route]) && baseline[route] > 0, route);
 });
