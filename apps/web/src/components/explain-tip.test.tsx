@@ -267,6 +267,83 @@ describe('ExplainTip: opening and closing', () => {
   });
 });
 
+describe('ExplainTip: what a real browser does in between', () => {
+  it('resting on the icon and then clicking it keeps the popup open', async () => {
+    const { host, unmount } = await mount(
+      <ExplainTip label={LABEL} text={TEXT}>
+        {picture}
+      </ExplainTip>,
+    );
+    const { trigger, popup } = tip(host);
+    await act(async () => hoverIn(trigger));
+    await act(async () => vi.advanceTimersByTime(EXPLAIN_OPEN_DELAY));
+    expect(popup.hidden).toBe(false);
+    await act(async () => pointer('pointerdown', 'mouse', trigger));
+    await act(async () => trigger.focus());
+    await act(async () => pointer('pointerup', 'mouse', trigger));
+    await act(async () => trigger.click());
+    expect(popup.hidden).toBe(false);
+    // A second click on a popup a click holds open closes it.
+    await act(async () => trigger.click());
+    expect(popup.hidden).toBe(true);
+    await unmount();
+  });
+
+  it('pressing on the popup text while the trigger has focus does not close it', async () => {
+    const { host, unmount } = await mount(
+      <ExplainTip label={LABEL} text={TEXT}>
+        {picture}
+      </ExplainTip>,
+    );
+    const { trigger, popup } = tip(host);
+    await act(async () => trigger.focus());
+    expect(popup.hidden).toBe(false);
+    // The press lands on text that cannot take focus, so focus leaves the button for the page.
+    await act(async () => pointer('pointerdown', 'mouse', popup));
+    await act(async () => trigger.blur());
+    expect(popup.hidden).toBe(false);
+    await act(async () => pointer('pointerup', 'mouse', popup));
+    await unmount();
+  });
+
+  it('a popup a pen tap opened stays when the pen lifts away', async () => {
+    const { host, unmount } = await mount(
+      <ExplainTip label={LABEL} text={TEXT}>
+        {picture}
+      </ExplainTip>,
+    );
+    const { trigger, popup } = tip(host);
+    await act(async () => trigger.click());
+    expect(popup.hidden).toBe(false);
+    await act(async () => hoverOut(trigger));
+    await act(async () => vi.advanceTimersByTime(EXPLAIN_CLOSE_DELAY * 4));
+    expect(popup.hidden).toBe(false);
+    await unmount();
+  });
+
+  it('Escape on the trigger closes only the popup, not a menu or dialog around it', async () => {
+    const outer = vi.fn();
+    document.addEventListener('keydown', outer);
+    const { host, unmount } = await mount(
+      <ExplainTip label={LABEL} text={TEXT}>
+        {picture}
+      </ExplainTip>,
+    );
+    const { trigger, popup } = tip(host);
+    await act(async () => trigger.focus());
+    await act(async () => {
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(popup.hidden).toBe(true);
+    expect(outer).not.toHaveBeenCalled();
+    // Closed, it no longer holds Escape back.
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(outer).toHaveBeenCalledTimes(1);
+    document.removeEventListener('keydown', outer);
+    await unmount();
+  });
+});
+
 describe('ExplainTip: where it opens', () => {
   it('opens below with room, flips above near the bottom edge, and stays inside a 320 px screen', async () => {
     vi.stubGlobal('innerHeight', 640);
@@ -290,6 +367,7 @@ describe('ExplainTip: where it opens', () => {
     at(40, 138);
     await act(async () => trigger.click());
     expect(wrap.getAttribute('data-placement')).toBe('below');
+    expect(wrap.style.getPropertyValue('--explain-tip-max-height')).toMatch(/^\d+px$/);
     const shift = Number.parseFloat(wrap.style.getPropertyValue('--explain-tip-shift'));
     const align = wrap.getAttribute('data-align');
     const left = (align === 'end' ? 138 + 44 - 288 : 138) + shift;
@@ -376,6 +454,8 @@ describe('ExplainTip pilot: the backup reader badge on a document reading', () =
         document.getElementById(trigger.getAttribute('aria-describedby') ?? '')?.textContent,
       ).toBe(hint);
       expect(trigger.querySelector('svg.icon')).not.toBeNull();
+      // The badge says the same words, so screen readers hear them once, from the button.
+      expect(host.querySelector('.badge-neutral')?.getAttribute('aria-hidden')).toBe('true');
       await act(async () => trigger.click());
       expect(popup.hidden).toBe(false);
       expect(popup.textContent).toContain(hint);

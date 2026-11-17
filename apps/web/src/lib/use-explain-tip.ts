@@ -78,6 +78,8 @@ export interface ExplainTipState {
     readonly onPointerEnter: (event: PointerEvent<HTMLElement>) => void;
     readonly onPointerLeave: (event: PointerEvent<HTMLElement>) => void;
     readonly onBlur: (event: FocusEvent<HTMLElement>) => void;
+    readonly onPointerDown: () => void;
+    readonly onPointerUp: () => void;
   };
   /** Handlers for the trigger button. */
   readonly triggerProps: {
@@ -96,7 +98,7 @@ export function useExplainTip({
   openDelay = EXPLAIN_OPEN_DELAY,
   closeDelay = EXPLAIN_CLOSE_DELAY,
 }: { readonly openDelay?: number; readonly closeDelay?: number } = {}): ExplainTipState {
-  const popupId = `explain-${useId().replaceAll(':', '')}`;
+  const popupId = `explain-${useId()}`;
   const wrapRef = useRef<HTMLSpanElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popupRef = useRef<HTMLSpanElement | null>(null);
@@ -106,6 +108,12 @@ export function useExplainTip({
   // Set by a press on the trigger, so the focus that press brings does not open the popup before
   // the click decides (a click on a closed popup opens it; on an open one, closes it).
   const pressing = useRef(false);
+  // Set by any press inside the holder, so the blur that press causes (focus moving from the
+  // trigger to the page) does not close a popup someone is pressing on to read or select.
+  const pressInside = useRef(false);
+  // How it was opened. A popup a press opened stays until a second press, Escape or a press
+  // outside: the pointer leaving does not close it (a pen lifting, a mouse moving on after a click).
+  const how = useRef<'hover' | 'focus' | 'press' | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -114,15 +122,20 @@ export function useExplainTip({
 
   const close = useCallback(() => {
     clearTimer();
+    how.current = null;
     setOpen(false);
   }, [clearTimer]);
 
-  const show = useCallback(() => {
-    clearTimer();
-    if (closeOpenTip && closeOpenTip !== close) closeOpenTip();
-    closeOpenTip = close;
-    setOpen(true);
-  }, [clearTimer, close]);
+  const show = useCallback(
+    (by: 'hover' | 'focus' | 'press') => {
+      clearTimer();
+      if (closeOpenTip && closeOpenTip !== close) closeOpenTip();
+      closeOpenTip = close;
+      how.current = by;
+      setOpen(true);
+    },
+    [clearTimer, close],
+  );
 
   // Forget this popup as "the open one" once it closes or leaves the page.
   useEffect(() => {
@@ -136,20 +149,27 @@ export function useExplainTip({
     [clearTimer, close],
   );
 
-  // While open: Escape closes it, and so does a press anywhere outside it.
+  // While open: Escape closes it, and so does a press anywhere outside it. Escape is heard first
+  // (capture), and when focus is on the trigger it goes no further, so a menu or dialog around the
+  // popup stays open: one Escape closes one thing.
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+      if (event.key !== 'Escape') return;
+      close();
+      const wrap = wrapRef.current;
+      if (wrap && event.target instanceof Node && wrap.contains(event.target)) {
+        event.stopPropagation();
+      }
     };
     const onPress = (event: globalThis.PointerEvent) => {
       const wrap = wrapRef.current;
       if (wrap && event.target instanceof Node && !wrap.contains(event.target)) close();
     };
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, { capture: true });
     document.addEventListener('pointerdown', onPress);
     return () => {
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, { capture: true });
       document.removeEventListener('pointerdown', onPress);
     };
   }, [open, close]);
@@ -172,7 +192,16 @@ export function useExplainTip({
     const left = placed.align === 'end' ? box.right - width : box.left;
     const shift =
       viewport.width > 0 ? shiftIntoView({ left, width, viewportWidth: viewport.width }) : 0;
-    setFit({ ...placed, shift });
+    // Only a real change re-draws, so scrolling with the popup open does not re-render every frame.
+    setFit((last) =>
+      last &&
+      last.placement === placed.placement &&
+      last.align === placed.align &&
+      last.maxHeight === placed.maxHeight &&
+      last.shift === shift
+        ? last
+        : { ...placed, shift },
+    );
   }, []);
 
   useLayoutEffect(() => {
@@ -200,7 +229,7 @@ export function useExplainTip({
       if (!hovers(event)) return;
       clearTimer();
       if (open) return;
-      timer.current = setTimeout(show, openDelay);
+      timer.current = setTimeout(() => show('hover'), openDelay);
     },
     [clearTimer, open, show, openDelay],
   );
@@ -209,8 +238,11 @@ export function useExplainTip({
     (event: PointerEvent<HTMLElement>) => {
       if (!hovers(event)) return;
       clearTimer();
-      // Keep it open while the trigger holds keyboard focus: the person may still be reading.
-      if (!open || wrapRef.current?.contains(document.activeElement)) return;
+      // Keep it open while the trigger holds keyboard focus (the person may still be reading), and
+      // when a press opened it.
+      if (!open || how.current === 'press' || wrapRef.current?.contains(document.activeElement)) {
+        return;
+      }
       timer.current = setTimeout(close, closeDelay);
     },
     [clearTimer, open, close, closeDelay],
@@ -220,6 +252,10 @@ export function useExplainTip({
     (event: FocusEvent<HTMLElement>) => {
       const next = event.relatedTarget;
       pressing.current = false;
+      if (pressInside.current) {
+        pressInside.current = false;
+        return;
+      }
       if (next instanceof Node && wrapRef.current?.contains(next)) return;
       close();
     },
@@ -231,13 +267,15 @@ export function useExplainTip({
       pressing.current = true;
     },
     onFocus: () => {
-      if (pressing.current) return;
-      show();
+      if (pressing.current || open) return;
+      show('focus');
     },
+    // A press on a popup that a press opened closes it; a press on one that hover or focus opened
+    // keeps it, so resting on the icon and then clicking it never shuts what was asked for.
     onClick: () => {
       pressing.current = false;
-      if (open) close();
-      else show();
+      if (open && how.current === 'press') close();
+      else show('press');
     },
   };
 
@@ -248,7 +286,17 @@ export function useExplainTip({
     wrapRef,
     triggerRef,
     popupRef,
-    wrapProps: { onPointerEnter, onPointerLeave, onBlur },
+    wrapProps: {
+      onPointerEnter,
+      onPointerLeave,
+      onBlur,
+      onPointerDown: () => {
+        pressInside.current = true;
+      },
+      onPointerUp: () => {
+        pressInside.current = false;
+      },
+    },
     triggerProps,
     close,
   };

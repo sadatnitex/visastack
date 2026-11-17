@@ -31,7 +31,12 @@ export interface ExplainTipProps {
 export function ExplainTip({ label, text, children, className }: ExplainTipProps) {
   const { open, fit, popupId, wrapRef, triggerRef, popupRef, wrapProps, triggerProps } =
     useExplainTip();
-  const style = fit ? ({ '--explain-tip-shift': `${fit.shift}px` } as CSSProperties) : undefined;
+  const style = fit
+    ? ({
+        '--explain-tip-shift': `${fit.shift}px`,
+        '--explain-tip-max-height': `${fit.maxHeight}px`,
+      } as CSSProperties)
+    : undefined;
   return (
     <span
       ref={wrapRef}

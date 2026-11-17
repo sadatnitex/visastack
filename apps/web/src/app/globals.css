@@ -21565,6 +21565,8 @@ body:lang(bn),
   position: relative;
   display: inline-flex;
   vertical-align: middle;
+  /* The 44 px target reaches past the line instead of making the line 44 px tall. */
+  margin-block: -12px;
 }
 .explain-tip-trigger {
   display: inline-flex;
@@ -21596,6 +21598,8 @@ body:lang(bn),
   gap: var(--space-1);
   width: max-content;
   max-width: min(18rem, calc(100vw - 2rem));
+  max-height: var(--explain-tip-max-height, none);
+  overflow-y: auto;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--edge-control);
   border-radius: var(--radius-sm);

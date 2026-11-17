@@ -106,8 +106,10 @@ export function OcrResultView({
     >
       {usedFallback ? (
         <p style={{ marginBottom: '0.4rem' }}>
+          {/* Hidden from screen readers: the Explain button beside it carries the same name and hint. */}
           <span
             className="badge badge-neutral"
+            aria-hidden="true"
             title={t('appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr')}
           >
             {t.node('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
