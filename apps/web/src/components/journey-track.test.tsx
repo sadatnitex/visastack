@@ -88,12 +88,12 @@ describe('JourneyTrack', () => {
     // Only a case that is in Submitted now says so.
     expect(items(render('SUBMITTED'))[5]).toContain('journey-stage-current');
   });
-  it('marks the current item with aria-current and Now in the text a screen reader reads', () => {
+  it('says Now in words for the current item and adds no aria-current of its own', () => {
     const html = render('INTAKE');
-    expect(html.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-current');
     const current = items(html)[1] ?? '';
-    expect(current).toContain('aria-current="step"');
     expect(current).toContain('Now: ');
+    expect(current).toContain('journey-stage-word');
   });
   it('keeps list semantics on the ordered list', () => {
     expect(render('INTAKE')).toContain('<ol class="journey-track-list" role="list">');
@@ -120,8 +120,7 @@ describe('CaseStageTrackerView with the journey track', () => {
     const html = renderToStaticMarkup(<CaseStageTrackerView {...base} journey />);
     expect(html).toContain('journey-track');
     expect(html).toContain('lift-steps');
-    // The step bar marks one item and the track marks one: each is a list of its own.
-    expect(html.match(/aria-current="step"/g)).toHaveLength(2);
+    // The step bar alone carries aria-current, so the page has one current step.
   });
   it('falls back to the step bar alone for a cancelled case', () => {
     const html = renderToStaticMarkup(<CaseStageTrackerView {...base} state="CANCELLED" journey />);
