@@ -8297,3 +8297,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - Each country page opens with a Country card: the flag, the name, the entry type as a picture and a word (Not Yet Researched never looks like No Visa Needed), an explain button, and the source with its checked date. The ExplainTip stylesheet test now ends the WP-PIC1 block at its own end line instead of requiring it to be last (guard correction decided by the Guardian; start and end markers each exactly once).
 - NOT verified: a phone visual check; Bengali for any new words.
+
+## 17 Nov 2026: WP-PIC7 passport outline as the photo frame guide
+
+- On the photo check after a passport photo is taken (own, spouse or host passport), a passport-shaped outline with corner marks and the line "Fit the passport inside the lines" shows where the passport should sit. It ignores taps and is hidden from screen readers; Use This and Retake work as before; the camera setting (camera=()) is unchanged; nothing says the photo will be accepted.
+- NOT verified: a real phone camera; a passport held sideways; Bengali for the new line (marked as English, listed for the localization lane).

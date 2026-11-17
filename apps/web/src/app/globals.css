@@ -21594,44 +21594,6 @@ body:lang(bn),
 }
 /* end WP-PIC3 */
 
-/* WP-PIC7 Scan frame guide (17 Nov 2026, picture-first upgrade, unit U7). When the document is a passport, a thin outline in the passport cover's shape (64 by 91) with four corner marks is drawn over the photo check, and a one-line hint sits under it. Each line is a dark stroke under a white one so it shows on any photo. Flat: no shadow, gradient, blur or translucency; the existing capture colours only. The guide only draws: it ignores taps and never covers the buttons. */
-.capture-guide {
-  position: absolute;
-  inset: 6%;
-  width: 88%;
-  height: 88%;
-  pointer-events: none;
-  fill: none;
-  stroke-linecap: round;
-}
-.capture-guide-line,
-.capture-guide-corner {
-  fill: none;
-  stroke: #ffffff;
-  vector-effect: non-scaling-stroke;
-}
-.capture-guide [data-layer="under"] {
-  stroke: #152b37;
-}
-.capture-guide [data-layer="under"] .capture-guide-line {
-  stroke-width: 3px;
-}
-.capture-guide [data-layer="under"] .capture-guide-corner {
-  stroke-width: 7px;
-}
-.capture-guide [data-layer="over"] .capture-guide-line {
-  stroke-width: 1px;
-}
-.capture-guide [data-layer="over"] .capture-guide-corner {
-  stroke-width: 4px;
-}
-.capture-guide-hint {
-  margin: 0;
-  text-align: center;
-  font-size: var(--text-small);
-  font-weight: 600;
-}
-/* end WP-PIC7 */
 
 /* WP-PIC1 Explain popup (17 Nov 2026): a picture that explains itself. Pointing at it, focusing it or tapping it shows its name and one plain sentence beside it (components/explain-tip.tsx, lib/use-explain-tip.ts). It replaces the plain title= hint, which touch screens and keyboards never show. Flat: a solid raised surface and a control-strength border, no shadow. The popup fades and rises on the press speed only, and not at all under reduced motion. The script measures where it fits (lib/popover-placement.ts) and sets data-placement, data-align and --explain-tip-shift on the holder; without them it opens below, lined up with the trigger's right edge. */
 .explain-tip {
@@ -21769,3 +21731,42 @@ body:lang(bn),
   font-weight: 600;
 }
 /* end WP-PIC6 */
+
+/* WP-PIC7 Scan frame guide (17 Nov 2026, picture-first upgrade, unit U7). When the document is a passport, a thin outline in the passport cover's shape (64 by 91) with four corner marks is drawn over the photo check, and a one-line hint sits under it. Each line is a dark stroke under a white one so it shows on any photo. Flat: no shadow, gradient, blur or translucency; the existing capture colours only. The guide only draws: it ignores taps and never covers the buttons. */
+.capture-guide {
+  position: absolute;
+  inset: 6%;
+  width: 88%;
+  height: 88%;
+  pointer-events: none;
+  fill: none;
+  stroke-linecap: round;
+}
+.capture-guide-line,
+.capture-guide-corner {
+  fill: none;
+  stroke: #ffffff;
+  vector-effect: non-scaling-stroke;
+}
+.capture-guide [data-layer="under"] {
+  stroke: #152b37;
+}
+.capture-guide [data-layer="under"] .capture-guide-line {
+  stroke-width: 3px;
+}
+.capture-guide [data-layer="under"] .capture-guide-corner {
+  stroke-width: 7px;
+}
+.capture-guide [data-layer="over"] .capture-guide-line {
+  stroke-width: 1px;
+}
+.capture-guide [data-layer="over"] .capture-guide-corner {
+  stroke-width: 4px;
+}
+.capture-guide-hint {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+/* end WP-PIC7 */
