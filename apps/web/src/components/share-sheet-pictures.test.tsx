@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { documentPicture } from '../lib/document-picture';
-import type { DocumentIcon } from '../lib/item-icons';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
 import type { DocumentScope, ProfileScope } from './selected-scope-summary';
-import {
-  SHARE_EXPLAIN_TEXT,
-  SHARE_KINDS,
-  SharePictureStrip,
-  countDocumentKinds,
-  sharePictureModel,
-} from './share-sheet-pictures';
+import { SHARE_EXPLAIN_TEXT, SharePictureStrip, sharePictureModel } from './share-sheet-pictures';
 
 const strip = (
   profile: ProfileScope,
@@ -29,37 +21,8 @@ function rowText(html: string, row: 'leaves' | 'private'): string | null {
 /** The drawing each picture in the strip shows, in order. */
 const drawn = (html: string) => [...html.matchAll(/data-picture="([^"]+)"/g)].map((m) => m[1]);
 
-describe('SHARE_KINDS', () => {
-  it('draws every kind with its own picture, never the plain paper by mistake', () => {
-    for (const [kind, { key }] of Object.entries(SHARE_KINDS) as [
-      DocumentIcon,
-      { key: string },
-    ][]) {
-      expect(documentPicture(key, { generic: 'picture' }).mark.icon).toBe(kind);
-    }
-  });
-});
-
-describe('countDocumentKinds', () => {
-  it('groups chosen documents by kind, in first-seen order, and skips missing ones', () => {
-    expect(
-      countDocumentKinds([
-        'Passport',
-        'Bank Statement',
-        'Bank Statement',
-        'Notes from Rahim',
-        'Document details unavailable',
-      ]),
-    ).toEqual([
-      { kind: 'docPassport', count: 1 },
-      { kind: 'docBank', count: 2 },
-      { kind: 'file', count: 1 },
-    ]);
-  });
-});
-
 describe('SharePictureStrip', () => {
-  it('draws each kind of chosen document with its picture and a count, never the names', async () => {
+  it('draws every chosen document as a plain Document with one count, never the names', async () => {
     const html = await strip(
       { kind: 'nothing' },
       {
@@ -69,14 +32,40 @@ describe('SharePictureStrip', () => {
       },
     );
     const leaves = rowText(html, 'leaves') ?? '';
-    expect(leaves).toContain('Passport');
-    expect(leaves).toContain('Bank Papers');
-    expect(leaves).toContain('2 documents');
-    expect(html).toContain('×2');
+    expect(leaves).toContain('Document');
+    expect(leaves).toContain('4 documents');
+    expect(html).toContain('\u00d74');
     expect(html).not.toContain('Rahim');
-    expect(html).not.toContain('Bank Statement');
-    expect(drawn(html)).toEqual(['docPassport', 'docBank', 'file']);
+    expect(html).not.toContain('Bank');
+    expect(html).not.toContain('Passport');
+    // No guessed kinds: one plain paper picture for all of them.
+    expect(drawn(html)).toEqual(['file']);
     expect(rowText(html, 'private')).toContain('Profile Details');
+  });
+
+  it('counts documents whose details failed to load, so the count never drops', async () => {
+    const names = [
+      'Document details unavailable',
+      'Document details unavailable',
+      'Document details unavailable',
+    ];
+    const html = await strip({ kind: 'nothing' }, { kind: 'chosen', names, onlyInParts: false });
+    const leaves = rowText(html, 'leaves') ?? '';
+    expect(leaves).not.toContain('Nothing Yet');
+    expect(leaves).toContain('3 documents');
+    expect(drawn(html)).toEqual(['file']);
+  });
+
+  it('counts a document the person named "Document details unavailable" like any other', async () => {
+    const html = await strip(
+      { kind: 'nothing' },
+      {
+        kind: 'chosen',
+        names: ['Passport', 'Document details unavailable'],
+        onlyInParts: false,
+      },
+    );
+    expect(rowText(html, 'leaves')).toContain('2 documents');
   });
 
   it('says chosen documents open only inside chosen parts, as the access rules do', async () => {
@@ -137,6 +126,9 @@ describe('SharePictureStrip', () => {
     expect(html).toContain('class="explain-tip-trigger"');
     expect(html).toContain('aria-live="off"');
     expect(textOf(html)).toContain('What They Get');
+    expect(SHARE_EXPLAIN_TEXT).toBe(
+      'Only what you see here is shared. You can stop sharing at any time; copies already downloaded stay with them.',
+    );
     expect(textOf(html)).toContain(SHARE_EXPLAIN_TEXT);
     expect(textOf(html)).toContain('Stays Private');
     expect(html).not.toMatch(/data:|blob:/);

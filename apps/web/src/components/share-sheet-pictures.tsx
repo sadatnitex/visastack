@@ -4,73 +4,27 @@
  *
  * Presentation only. It draws exactly the scope `SelectedScopeSummary` is given (itself worked out
  * by `describeGrantScope` from the access rules) and decides nothing: no grant rule, scope or
- * permission is read or changed here. Documents are drawn by KIND only (a passport picture with a
- * count), never by their names, so nothing a person typed, and no other person's name, appears in
+ * permission is read or changed here. Documents are drawn as a count, never by their names, so nothing a person typed, and no other person's name, appears in
  * the strip. Documents the recipient cannot open (no Preview) are drawn as staying private, which
  * is what the access rules do.
  *
- * The kind is read from the name the summary already has; a name that is not a known type name
- * ("scan_0012.pdf") is counted as a plain Document. The strip never guesses beyond that.
+ * The summary has document names, not stored types, so chosen documents are drawn as one plain
+ * Document picture with their count; a kind is never guessed from what a person typed. Every
+ * listed document counts, including one whose details failed to load.
  */
-import { documentPicture } from '../lib/document-picture';
-import type { DocumentIcon } from '../lib/item-icons';
 import { ExplainTip } from './explain-tip';
 import { Icon } from './icons';
 import { DocumentPicture } from './pictures/document-picture';
 import type { DocumentScope, GrantTense, ProfileScope } from './selected-scope-summary';
 
-/** The plain word for each kind of paper, in Title Case, and a catalogue key that draws that kind. */
-export const SHARE_KINDS: Readonly<
-  Record<DocumentIcon, { readonly word: string; readonly key: string }>
-> = {
-  docPassport: { word: 'Passport', key: 'PASSPORT' },
-  docId: { word: 'ID Card', key: 'NID' },
-  docPhoto: { word: 'Photo', key: 'PHOTO' },
-  docBank: { word: 'Bank Papers', key: 'BANK_STATEMENT' },
-  docSalary: { word: 'Salary Papers', key: 'SALARY_SLIP' },
-  docTax: { word: 'Tax Papers', key: 'TAX_RETURN' },
-  docLicence: { word: 'Licence', key: 'TRADE_LICENSE' },
-  docCertificate: { word: 'Certificate', key: 'BIRTH_CERTIFICATE' },
-  docLetter: { word: 'Letter', key: 'NOC_EMPLOYER' },
-  docFlight: { word: 'Flight Booking', key: 'FLIGHT_TICKET' },
-  docHotel: { word: 'Hotel Booking', key: 'HOTEL_BOOKING' },
-  docInsurance: { word: 'Insurance', key: 'TRAVEL_INSURANCE' },
-  file: { word: 'Document', key: '' },
-};
-
-/** The sentence behind the strip's explain button. */
+/** The sentence behind the strip's explain button, matching the grant pane's revoke wording. */
 export const SHARE_EXPLAIN_TEXT =
-  'Only what you see here is shared. You can take it back at any time.';
-
-/** The name a grant card gives a document that no longer exists; it is not drawn as leaving. */
-const MISSING_DOCUMENT_NAME = 'Document details unavailable';
-
-export interface DocumentKindCount {
-  readonly kind: DocumentIcon;
-  readonly count: number;
-}
-
-/** Chosen documents grouped by kind, in the order each kind first appears. Names never leave this function. */
-export function countDocumentKinds(names: readonly string[]): readonly DocumentKindCount[] {
-  const counts = new Map<DocumentIcon, number>();
-  for (const name of names) {
-    if (name === MISSING_DOCUMENT_NAME) continue;
-    // `documentMark` only ever chooses a document kind, so the icon is a document kind.
-    const kind = documentPicture(name, { generic: 'picture' }).mark.icon as DocumentIcon;
-    counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  }
-  return [...counts].map(([kind, count]) => ({ kind, count }));
-}
+  'Only what you see here is shared. You can stop sharing at any time; copies already downloaded stay with them.';
 
 type Leaving =
   | { readonly key: string; readonly type: 'profile'; readonly word: string }
   | { readonly key: string; readonly type: 'documents'; readonly word: string }
-  | {
-      readonly key: string;
-      readonly type: 'kind';
-      readonly kind: DocumentIcon;
-      readonly count: number;
-    }
+  | { readonly key: string; readonly type: 'count'; readonly count: number }
   | { readonly key: string; readonly type: 'note'; readonly word: string };
 
 /** What the strip draws: what leaves, and what specifically stays private. */
@@ -103,13 +57,14 @@ export function sharePictureModel(
       word: 'Documents in Chosen Parts',
     });
   } else if (documents.kind === 'chosen') {
-    const groups = countDocumentKinds(documents.names);
-    for (const group of groups) {
-      leaves.push({ key: `kind-${group.kind}`, type: 'kind', ...group });
-    }
-    // The access rules open only the chosen documents inside the chosen parts.
-    if (documents.onlyInParts && groups.length > 0) {
-      leaves.push({ key: 'only-in-parts', type: 'note', word: 'Only Those in Chosen Parts' });
+    // Every listed document counts, whatever its name says: a name never decides what is drawn.
+    const count = documents.names.length;
+    if (count > 0) {
+      leaves.push({ key: 'documents-chosen', type: 'count', count });
+      // The access rules open only the chosen documents inside the chosen parts.
+      if (documents.onlyInParts) {
+        leaves.push({ key: 'only-in-parts', type: 'note', word: 'Only Those in Chosen Parts' });
+      }
     }
   }
 
@@ -127,16 +82,10 @@ function LeavingItem({ item }: { readonly item: Leaving }) {
           <Icon name="user" size={20} />
         </span>
       ) : (
-        <DocumentPicture
-          type={item.type === 'kind' ? SHARE_KINDS[item.kind].key : null}
-          generic="picture"
-          size={28}
-        />
+        <DocumentPicture type={null} generic="picture" size={28} />
       )}
-      <span className="share-pics-word">
-        {item.type === 'kind' ? SHARE_KINDS[item.kind].word : item.word}
-      </span>
-      {item.type === 'kind' ? (
+      <span className="share-pics-word">{item.type === 'count' ? 'Document' : item.word}</span>
+      {item.type === 'count' ? (
         <>
           <span className="share-pics-count" aria-hidden="true">
             {`×${item.count}`}
