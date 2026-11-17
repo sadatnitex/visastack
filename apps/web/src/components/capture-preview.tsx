@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { componentsCatalog } from '../i18n/components';
+import { CAPTURE_GUIDE_HINT, CaptureFrameGuide, isPassportKind } from './capture-frame-guide';
 import { useT } from './i18n-provider';
 import { decodePhoto } from './profile-photo/photo-canvas';
 
@@ -29,8 +30,11 @@ export function CapturePreview({
   file,
   onUse,
   onRetake,
+  documentKind,
 }: {
   readonly file: File;
+  /** The kind of document being captured; a passport gets its own outline as the frame guide. */
+  readonly documentKind?: string | undefined;
   readonly onUse: (file: File) => void;
   readonly onRetake: () => void;
 }) {
@@ -81,6 +85,7 @@ export function CapturePreview({
   }, [file]);
 
   const unreadable = shown === 'unreadable';
+  const passport = isPassportKind(documentKind);
 
   return (
     <section className="capture-preview" aria-labelledby={headingId} aria-describedby={hintId}>
@@ -100,8 +105,19 @@ export function CapturePreview({
           aria-label={t('components.capturePreview.previewOfWhatYouJustCaptured')}
           {...t.lang('components.capturePreview.previewOfWhatYouJustCaptured')}
         />
-        {shown === 'ready' ? <span className="capture-outline" aria-hidden="true" /> : null}
+        {shown === 'ready' ? (
+          passport ? (
+            <CaptureFrameGuide />
+          ) : (
+            <span className="capture-outline" aria-hidden="true" />
+          )
+        ) : null}
       </div>
+      {passport && shown === 'ready' ? (
+        <p className="capture-guide-hint" lang="en">
+          {CAPTURE_GUIDE_HINT}
+        </p>
+      ) : null}
       <p className="capture-note">{t.node('components.capturePreview.weCheckTheFileAgainAfter')}</p>
       <div className="capture-actions">
         <button type="button" className="btn btn-primary" onClick={() => onUse(file)}>
