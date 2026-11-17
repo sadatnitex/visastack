@@ -48,13 +48,25 @@ describe('the Country Card entry type', () => {
     expect(free).not.toContain('Not Yet Researched');
   });
 
-  it('shows the source and the check date, or says the source is not recorded', async () => {
+  it('shows the source once: in the card only when no summary follows, and one plain line when it is missing', async () => {
     await primeLocale();
-    const withSource = await card('VISA_REQUIRED');
-    expect(withSource).toContain('Source:');
-    expect(withSource).toMatch(/Checked on|Check date not given/);
-    const without = await card('VISA_REQUIRED', { source: null });
+    const researched = await card('VISA_REQUIRED');
+    expect(researched).not.toContain('Source:');
+    const unresearched = await card('NOT_FOUND');
+    expect(unresearched).toContain('Source:');
+    expect(unresearched).toMatch(/Checked on|Check date not given/);
+    const without = await card('NOT_FOUND', { source: null });
     expect(without).toContain('Source Not Recorded');
     expect(without).not.toContain('Source:');
+    expect(without).not.toContain('Check date not given');
+    expect(without).not.toContain('No source is given');
+  });
+
+  it('reads an entry type it does not know as not researched, and does not crash', async () => {
+    await primeLocale();
+    const html = await card('SOMETHING_NEW' as EntryStatus);
+    expect(html).toContain('Not Yet Researched');
+    expect(html).toContain(`data-mark="${ENTRY_MARK.NOT_FOUND.icon}"`);
+    expect(html).not.toContain('No Visa Needed');
   });
 });

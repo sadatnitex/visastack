@@ -224,12 +224,15 @@ function Facts({ destination }: { readonly destination: Destination }) {
  */
 export function CountryCard({ destination }: { readonly destination: Destination }) {
   const stay = stayLabel(destination.maximumStayDays);
-  const mark = ENTRY_MARK[destination.entryStatus];
-  const word = ENTRY_SHORT_LABEL[destination.entryStatus];
+  // An entry type this screen does not know yet reads as not researched, never as a crash or a guess.
+  const status: EntryStatus =
+    destination.entryStatus in ENTRY_MARK ? destination.entryStatus : 'NOT_FOUND';
+  const mark = ENTRY_MARK[status];
+  const word = ENTRY_SHORT_LABEL[status];
   return (
     <section
       className="country-card"
-      data-entry={destination.entryStatus}
+      data-entry={status}
       aria-label={`${destination.country} At a Glance`}
     >
       <div className="country-card-head">
@@ -239,12 +242,13 @@ export function CountryCard({ destination }: { readonly destination: Destination
       <div className="country-card-entry">
         <MarkTile mark={mark} size="lg" />
         <strong className="country-card-word">{word}</strong>
-        <ExplainTip label={word} text={ENTRY_EXPLAIN[destination.entryStatus]}>
+        <ExplainTip label={word} text={ENTRY_EXPLAIN[status]}>
           <Icon name="ask" size={18} />
         </ExplainTip>
       </div>
       {destination.researched && stay ? <p className="country-card-stay">{stay}</p> : null}
-      <SourceNote source={destination.source} />
+      {/* The summary below shows the source of a researched country; the card shows it only when there is no summary. */}
+      {destination.researched ? null : <SourceNote source={destination.source} />}
     </section>
   );
 }

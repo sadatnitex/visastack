@@ -9,27 +9,30 @@ import { getT } from '../lib/i18n-server';
  */
 export async function SourceNote({ source }: { readonly source: DestinationSource | null }) {
   const t = await getT(componentsMoreCatalog);
+  if (source === null) {
+    return (
+      <div className="source-note">
+        <span className="source-note-missing">Source Not Recorded</span>
+      </div>
+    );
+  }
   const notes = trustNotes(source);
   return (
     <div className="source-note">
-      {source ? (
-        <span>
-          Source:{' '}
-          <a href={source.url} target="_blank" rel="noopener noreferrer">
-            {source.title ?? source.publisher ?? source.url}
-          </a>
-          {source.publisher && source.title ? ` (${source.publisher})` : ''}
-        </span>
-      ) : (
-        <span className="source-note-missing">Source Not Recorded</span>
-      )}
+      <span>
+        Source:{' '}
+        <a href={source.url} target="_blank" rel="noopener noreferrer">
+          {source.title ?? source.publisher ?? source.url}
+        </a>
+        {source.publisher && source.title ? ` (${source.publisher})` : ''}
+      </span>
       <span className="muted">{checkedOnLabel(source)}</span>
       {notes.map((note) => (
         <span className="badge badge-warning" key={note}>
           {note}
         </span>
       ))}
-      {source?.exactWords ? (
+      {source.exactWords ? (
         <details className="source-note-words">
           <summary>{t.node('componentsMore.sourceNote.wordsCopiedFromTheSource')}</summary>
           <p>{source.exactWords}</p>
