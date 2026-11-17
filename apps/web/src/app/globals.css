@@ -21864,7 +21864,8 @@ body:lang(bn),
   height: 16px;
 }
 .journey-stage .explain-tip {
-  margin-block: 0;
+  /* The 44 px button reaches past the 28 px row instead of making the row 44 px tall. */
+  margin-block: -8px;
 }
 .journey-stage .explain-tip-trigger {
   display: inline-flex;
@@ -21880,5 +21881,19 @@ body:lang(bn),
 .journey-stage-later .journey-stage-picture {
   border-style: dashed;
   opacity: 0.7;
+}
+/* With the track drawn, the step bar's segment strip repeats it and its "Stage 2 of 7" line stays for screen readers only, which keeps the case page inside its phone height budget. */
+.journey-track + .lift-steps .lift-steps-strip {
+  display: none;
+}
+.journey-track + .lift-steps .lift-steps-position {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 /* end WP-PIC8 */
