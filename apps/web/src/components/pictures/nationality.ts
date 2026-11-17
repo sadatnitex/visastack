@@ -25,12 +25,36 @@ const BANGLADESH_FORMS: ReadonlySet<string> = new Set([
   'বাংলাদেশী',
 ]);
 
-/** Lower case, canonical Unicode form, and no spaces, dots, apostrophes, hyphens or brackets. */
+/** Plain separators people type: dots, commas, apostrophes, underscores, brackets, hyphens. */
+const ASCII_SEPARATORS = ".,'_()-";
+
+/**
+ * Other characters that carry no letters, by code point (numbers, so the source holds no
+ * lookalike or invisible characters): the curly apostrophe and acute accent, every hyphen and
+ * dash from U+2010 to U+2015, and the invisible joiners some Bangla keyboards insert between
+ * letters (U+200B to U+200D, U+2060, U+FEFF).
+ */
+const SILENT_CODE_POINTS: ReadonlySet<number> = new Set([
+  0x2019, 0x00b4, 0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x200b, 0x200c, 0x200d, 0x2060,
+  0xfeff,
+]);
+
+function isSeparator(character: string): boolean {
+  return (
+    character.trim() === '' ||
+    ASCII_SEPARATORS.includes(character) ||
+    SILENT_CODE_POINTS.has(character.codePointAt(0) ?? 0)
+  );
+}
+
+/**
+ * Lower case, canonical Unicode form, and no spaces, dots, apostrophes, hyphens, brackets or the
+ * invisible joiners some Bangla keyboards insert between letters.
+ */
 export function foldNationality(value: string): string {
-  return value
-    .normalize('NFC')
-    .toLowerCase()
-    .replace(/[\s.,'’´‐-―_()-]+/g, '');
+  return Array.from(value.normalize('NFC').toLowerCase())
+    .filter((character) => !isSeparator(character))
+    .join('');
 }
 
 /** True when the saved nationality names Bangladesh (BD, BGD, Bangladesh, Bangladeshi, Bangla). */

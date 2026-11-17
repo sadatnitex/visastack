@@ -3,7 +3,6 @@ import { type DocumentPictureChoice, documentPicture } from '../../lib/document-
 import { Icon } from '../icons';
 import { DOCUMENT_CANVAS, documentDrawing, hasDocumentDrawing } from './document-drawings';
 import { pictureNaming } from './picture-naming';
-import { SaveDataFlag } from './save-data-flag';
 import './pictures-depth.css';
 
 /**
@@ -19,7 +18,7 @@ import './pictures-depth.css';
  * decoration and hidden from screen readers.
  *
  * Depth: `depth` adds the soft shadow from `pictures-depth.css`. Motion classes (`pic-float`,
- * `pic-arrive`) are passed through `className`; at most one moving hero per screen.
+ * `pic-lift`) are passed through `className`; at most one moving hero per screen.
  */
 export interface DocumentPictureProps {
   /** A stored document type, a catalogue key or a typed name, as `documentMark` accepts. */
@@ -40,14 +39,11 @@ function classes(...names: ReadonlyArray<string | false | undefined>): string {
   return names.filter(Boolean).join(' ');
 }
 
-/** The shapes for a choice, or null when the picture cannot be drawn and the icon must show. */
+/** The shapes for a choice, or null when there is no drawing and the icon must show. */
 function drawingFor(choice: DocumentPictureChoice): ReactNode {
-  if (choice.kind !== 'picture' || !hasDocumentDrawing(choice.picture)) return null;
-  try {
-    return documentDrawing(choice.picture);
-  } catch {
-    return null;
-  }
+  return choice.kind === 'picture' && hasDocumentDrawing(choice.picture)
+    ? documentDrawing(choice.picture)
+    : null;
 }
 
 export function DocumentPicture({
@@ -71,10 +67,11 @@ export function DocumentPicture({
         data-picture="icon"
         data-mark={choice.mark.icon}
         {...tone}
+        // The icon tile takes the same box as a picture, so rows line up whatever the type.
+        style={{ width, height }}
         {...pictureNaming(label)}
       >
         <Icon name={choice.mark.icon} size={Math.max(16, Math.round(width / 2))} />
-        <SaveDataFlag />
       </span>
     );
   }
@@ -82,7 +79,7 @@ export function DocumentPicture({
   return (
     <span
       className={classes('pic', 'pic-document', depth && 'pic-depth', className)}
-      data-picture={choice.kind === 'picture' ? choice.picture : 'icon'}
+      data-picture={choice.kind === 'picture' ? choice.picture : undefined}
       {...tone}
       {...pictureNaming(label)}
     >
@@ -95,7 +92,6 @@ export function DocumentPicture({
       >
         {drawing}
       </svg>
-      <SaveDataFlag />
     </span>
   );
 }

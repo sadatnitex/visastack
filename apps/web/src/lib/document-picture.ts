@@ -1,9 +1,10 @@
 import {
+  DOCUMENT_ICONS,
   type DocumentIcon,
+  GENERIC_DOCUMENT_ICON,
   type ItemMark,
-  documentKey,
+  documentCatalogueKey,
   documentMark,
-  hasOwnDocumentIcon,
 } from './item-icons';
 
 /**
@@ -105,22 +106,8 @@ export const ICON_ONLY_DOCUMENT_TYPES: readonly string[] = [
   'OTHER',
 ];
 
-/** Every illustration name, in a fixed order, for tests and legends. */
-export const DOCUMENT_PICTURE_NAMES: readonly DocumentPictureName[] = [
-  'docPassport',
-  'docId',
-  'docPhoto',
-  'docBank',
-  'docSalary',
-  'docTax',
-  'docLicence',
-  'docCertificate',
-  'docLetter',
-  'docFlight',
-  'docHotel',
-  'docInsurance',
-  'file',
-];
+/** Every illustration name: exactly the document kinds `item-icons.ts` knows. */
+export const DOCUMENT_PICTURE_NAMES: readonly DocumentPictureName[] = DOCUMENT_ICONS;
 
 /**
  * The picture for a stored type, a catalogue key or a typed name ("Bank Statement"). A type with
@@ -131,10 +118,11 @@ export function documentPicture(
   typeOrName: string | null | undefined,
   { generic = 'icon' }: { readonly generic?: 'icon' | 'picture' } = {},
 ): DocumentPictureChoice {
+  const key = documentCatalogueKey(typeOrName);
   const mark = documentMark(typeOrName);
-  const key = documentKey(typeOrName);
-  const picture = DOCUMENT_PICTURE_NAMES.find((name) => name === mark.icon);
-  if (picture && (hasOwnDocumentIcon(typeOrName) || generic === 'picture')) {
+  // `documentMark` only ever chooses a document kind, so the icon name is a picture name.
+  const picture = mark.icon as DocumentPictureName;
+  if (picture !== GENERIC_DOCUMENT_ICON || generic === 'picture') {
     return { kind: 'picture', picture, mark, key };
   }
   return { kind: 'icon', mark, key };

@@ -96,6 +96,11 @@ describe('DocumentPicture', () => {
     }
   });
 
+  it('gives the icon tile the same box as a picture, so rows line up', () => {
+    const html = renderToString(<DocumentPicture type="COURT_ORDER" size={48} />);
+    expect(html).toContain('style="width:48px;height:60px"');
+  });
+
   it('draws the generic paper instead of the icon only when asked', () => {
     const html = renderToString(<DocumentPicture type="COURT_ORDER" generic="picture" />);
     expect(html).toContain('data-picture="file"');

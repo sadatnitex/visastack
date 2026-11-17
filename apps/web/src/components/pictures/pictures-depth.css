@@ -18,7 +18,8 @@
      .pic-glow    a soft glow BEHIND a hero picture; put it on the element that wraps the picture
 
    Motion, for hero pictures only:
-     .pic-float   floats in and settles once when the screen opens (the one moving hero)
+     .pic-float   floats in and settles once when the screen opens (the one moving hero);
+                  it holds nothing after it ends, so .pic-lift still works on the same element
      .pic-lift    rises a little on pointer hover or keyboard focus inside it
 
    Usage rules:
@@ -29,7 +30,8 @@
       --motion-slow.
    4. Every animation and transition sits inside @media (prefers-reduced-motion: no-preference)
       and behind html:not([data-save-data]), so motion stops for people who ask for less motion
-      and when the browser reports data saver (set by SaveDataFlag in this folder). Pictures
+      and when the browser reports data saver (set from the Save-Data header by the root layout, and
+      in the browser by SaveDataFlag in this folder). Pictures
       still show, standing still.
    5. No automatic dark appearance here or anywhere.
    Guards: pictures-depth.test.ts in this folder. */
@@ -118,7 +120,7 @@ img.pic-cover {
     }
   }
   html:not([data-save-data]) .pic-float {
-    animation: pic-float-in var(--motion-slow) var(--motion-ease) both;
+    animation: pic-float-in var(--motion-slow) var(--motion-ease) backwards;
   }
   html:not([data-save-data]) .pic-lift {
     transition: transform var(--motion-state) var(--motion-ease);

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { passportCoverFor } from './nationality';
 import { NeutralPassportCover, passportCoverHeight } from './neutral-passport-cover';
-import { SaveDataFlag } from './save-data-flag';
 import './pictures-depth.css';
 
 /**
@@ -64,38 +63,33 @@ export function PassportCover({
   const extra = [depth ? 'pic-depth' : '', className ?? ''].filter(Boolean).join(' ');
 
   // An error that happened before the page became interactive fires no onError: check once.
+  // Checked again whenever the cover changes, since the real cover's element appears only then.
   useEffect(() => {
-    if (image.current && failedToLoad(image.current)) setFailed(true);
-  }, []);
+    if (kind === 'bangladesh' && image.current && failedToLoad(image.current)) setFailed(true);
+  }, [kind]);
 
   if (kind === 'neutral' || failed) {
     return (
-      <>
-        <NeutralPassportCover
-          width={w}
-          className={extra || undefined}
-          label={decorative ? undefined : (label ?? COVER_LABELS.neutral)}
-        />
-        <SaveDataFlag />
-      </>
+      <NeutralPassportCover
+        width={w}
+        className={extra || undefined}
+        label={decorative ? undefined : (label ?? COVER_LABELS.neutral)}
+      />
     );
   }
 
   return (
-    <>
-      <img
-        ref={image}
-        className={extra ? `pic pic-cover ${extra}` : 'pic pic-cover'}
-        data-picture="passport-bd"
-        src={BANGLADESH_COVER_SRC}
-        width={w}
-        height={passportCoverHeight(w)}
-        alt={decorative ? '' : (label ?? COVER_LABELS.bangladesh)}
-        decoding="async"
-        draggable={false}
-        onError={() => setFailed(true)}
-      />
-      <SaveDataFlag />
-    </>
+    <img
+      ref={image}
+      className={extra ? `pic pic-cover ${extra}` : 'pic pic-cover'}
+      data-picture="passport-bd"
+      src={BANGLADESH_COVER_SRC}
+      width={w}
+      height={passportCoverHeight(w)}
+      alt={decorative ? '' : (label ?? COVER_LABELS.bangladesh)}
+      decoding="async"
+      draggable={false}
+      onError={() => setFailed(true)}
+    />
   );
 }

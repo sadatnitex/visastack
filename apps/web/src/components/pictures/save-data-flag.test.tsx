@@ -36,15 +36,10 @@ function fakeConnection(saveData: boolean) {
   };
 }
 
-function mount(count = 1) {
+function mount() {
   act(() => {
     root = createRoot(container);
-    root.render(
-      Array.from({ length: count }, (_, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list of identical flags
-        <SaveDataFlag key={index} />
-      )),
-    );
+    root.render(<SaveDataFlag />);
   });
 }
 
@@ -72,10 +67,10 @@ describe('SaveDataFlag', () => {
     expect(document.documentElement.hasAttribute(SAVE_DATA_ATTRIBUTE)).toBe(false);
   });
 
-  it('follows a change while the page is open, with one listener for many pictures', () => {
+  it('follows a change while the page is open, and lets go when it unmounts', () => {
     const connection = fakeConnection(false);
     vi.stubGlobal('navigator', { connection });
-    mount(5);
+    mount();
     expect(connection.listeners.size).toBe(1);
     act(() => connection.change(true));
     expect(document.documentElement.hasAttribute(SAVE_DATA_ATTRIBUTE)).toBe(true);
@@ -84,6 +79,18 @@ describe('SaveDataFlag', () => {
     act(() => root?.unmount());
     root = undefined;
     expect(connection.listeners.size).toBe(0);
+  });
+
+  it('keeps the mark the server set from the request header when the browser says nothing new', () => {
+    document.documentElement.setAttribute(SAVE_DATA_ATTRIBUTE, '');
+    vi.stubGlobal('navigator', { connection: fakeConnection(false) });
+    mount();
+    expect(document.documentElement.hasAttribute(SAVE_DATA_ATTRIBUTE)).toBe(true);
+    vi.stubGlobal('navigator', {});
+    act(() => root?.unmount());
+    root = undefined;
+    mount();
+    expect(document.documentElement.hasAttribute(SAVE_DATA_ATTRIBUTE)).toBe(true);
   });
 
   it('renders nothing', () => {

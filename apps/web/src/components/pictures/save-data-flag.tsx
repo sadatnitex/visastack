@@ -3,14 +3,14 @@
 import { useEffect } from 'react';
 
 /**
- * Marks the page when the browser says data saver is on, so picture motion stays still
- * (ADR 0027). It sets `data-save-data` on the `html` element when `navigator.connection.saveData`
- * is true, and follows the setting if it changes while the page is open. Browsers without the
- * Network Information API (Safari, Firefox) are left alone: the attribute is simply never set and
- * the reduced-motion setting still applies. Nothing is drawn, sent or stored.
+ * Keeps picture motion still when the browser says data saver is on (ADR 0027).
  *
- * Every picture component renders one of these. It is cheap: the first one on a page does the
- * work and the rest return at once.
+ * The root layout marks the first paint from the `Save-Data` request header
+ * (`save-data-request.ts`) and mounts this once. In the browser it then adds `data-save-data` to
+ * the `html` element when `navigator.connection.saveData` is true, and follows the setting when it
+ * changes while the page is open. It never clears a mark the server set from the header unless the
+ * browser later reports a change. Browsers without the Network Information API (Safari, Firefox)
+ * are left alone. Nothing is drawn, sent or stored.
  */
 
 /** The attribute the picture stylesheet reads. */
@@ -37,31 +37,19 @@ export function applySaveData(root: Element, connection: NetworkInformationLike 
   else root.removeAttribute(SAVE_DATA_ATTRIBUTE);
 }
 
-let mounted = 0;
-let stop: (() => void) | undefined;
-
-/** Starts following the setting for the whole page; returns the release for one picture. */
+/** Marks the page now if data saver is on, then follows changes; returns the clean-up. */
 export function watchSaveData(): () => void {
-  mounted += 1;
-  if (mounted === 1 && typeof navigator !== 'undefined' && typeof document !== 'undefined') {
-    const connection = connectionOf(navigator);
-    if (connection) {
-      const root = document.documentElement;
-      const update = () => applySaveData(root, connection);
-      update();
-      connection.addEventListener?.('change', update);
-      stop = () => connection.removeEventListener?.('change', update);
-    }
-  }
-  return () => {
-    mounted = Math.max(0, mounted - 1);
-    if (mounted === 0) {
-      stop?.();
-      stop = undefined;
-    }
-  };
+  if (typeof navigator === 'undefined' || typeof document === 'undefined') return () => undefined;
+  const connection = connectionOf(navigator);
+  if (!connection) return () => undefined;
+  const root = document.documentElement;
+  if (connection.saveData === true) root.setAttribute(SAVE_DATA_ATTRIBUTE, '');
+  const update = () => applySaveData(root, connection);
+  connection.addEventListener?.('change', update);
+  return () => connection.removeEventListener?.('change', update);
 }
 
+/** Mounted once, in the root layout. Renders nothing. */
 export function SaveDataFlag() {
   useEffect(() => watchSaveData(), []);
   return null;

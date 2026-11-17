@@ -22,6 +22,9 @@ describe('isBangladeshNationality', () => {
     BANGLADESH_BN,
     `${BANGLADESH_BN}ি`,
     `${BANGLADESH_BN}ী`,
+    // Some Bangla keyboards put invisible joiners between letters.
+    `${BANGLADESH_BN.slice(0, 3)}\u200c${BANGLADESH_BN.slice(3)}\u200d`,
+    'Bangla\u200bdeshi',
   ])('reads %j as Bangladesh', (value) => {
     expect(isBangladeshNationality(value)).toBe(true);
     expect(passportCoverFor(value)).toBe('bangladesh');

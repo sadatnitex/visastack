@@ -535,6 +535,15 @@ function canonicalDocumentKey(typeOrName: string | null | undefined): string {
   return DOCUMENT_NAME_TO_KEY.get(key) ?? key;
 }
 
+/**
+ * The catalogue key a stored type, a label or an alias stands for ("Nikah Nama" is
+ * MARRIAGE_CERTIFICATE); the written key when it is none of them. Read by the picture layer
+ * (`document-picture.ts`) so its key agrees with the icon chosen here.
+ */
+export function documentCatalogueKey(typeOrName: string | null | undefined): string {
+  return canonicalDocumentKey(typeOrName);
+}
+
 /** True when the type has a picture of its own and does not fall back to the plain document. */
 export function hasOwnDocumentIcon(typeOrName: string | null | undefined): boolean {
   return DOCUMENT_ICON_BY_KEY.has(canonicalDocumentKey(typeOrName));

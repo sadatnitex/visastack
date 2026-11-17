@@ -50,6 +50,14 @@ describe('documentPicture', () => {
       key: 'BANK_STATEMENT',
     });
     expect(documentPicture('Travel Insurance')).toMatchObject({ picture: 'docInsurance' });
+    expect(documentPicture('Passport Bio Page')).toMatchObject({
+      picture: 'docPassport',
+      key: 'PASSPORT',
+    });
+    expect(documentPicture('Nikah Nama')).toMatchObject({
+      picture: 'docCertificate',
+      key: 'MARRIAGE_CERTIFICATE',
+    });
   });
 
   it('falls back to the icon for an unknown word, nothing at all, or an icon-only type', () => {

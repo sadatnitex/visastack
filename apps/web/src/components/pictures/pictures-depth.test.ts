@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
  * - durations are only the shared speeds;
  * - every animation and transition sits inside @media (prefers-reduced-motion: no-preference)
  *   and behind html:not([data-save-data]);
+ * - a one-shot animation never holds its end state (it would block the hover lift);
  * - no automatic dark appearance;
  * - at most one moving hero per screen (no source file names the moving class twice).
  * Each guard is shown failing on a bad example, so a broken guard cannot pass quietly.
@@ -125,6 +126,9 @@ function checkPictureSheet(css: string): string[] {
         if (decl.prop === 'transition' && !MOVING.has(tokens[0] ?? ''))
           errors.push(`transition moves ${tokens[0]}: ${where}`);
         if (decl.prop === 'animation') {
+          // A held end state (both, forwards) would pin transform and block .pic-lift.
+          if (tokens.some((token) => token === 'both' || token === 'forwards'))
+            errors.push(`animation holds its end state: ${where}`);
           const name = tokens.find((token) => keyframes.has(token));
           if (!name) errors.push(`animation names no keyframes here: ${where}`);
         }
@@ -148,7 +152,7 @@ function checkPictureSheet(css: string): string[] {
 const GOOD_MOTION = `
 @media (prefers-reduced-motion: no-preference) {
   @keyframes k { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-  html:not([data-save-data]) .a { animation: k var(--motion-slow) var(--motion-ease) both; }
+  html:not([data-save-data]) .a { animation: k var(--motion-slow) var(--motion-ease) backwards; }
   html:not([data-save-data]) .b { transition: transform var(--motion-state) var(--motion-ease), opacity var(--motion-press) var(--motion-ease); }
 }`;
 
@@ -191,6 +195,11 @@ describe('pictures-depth.css keeps the motion rules', () => {
       'keyframes that change a shadow',
       '@media (prefers-reduced-motion: no-preference) { @keyframes k { to { box-shadow: 0 0 4px red; } } html:not([data-save-data]) .a { animation: k var(--motion-slow) ease; } }',
       'keyframes k animate box-shadow',
+    ],
+    [
+      'an animation that holds its end state',
+      '@media (prefers-reduced-motion: no-preference) { @keyframes k { to { opacity: 1; } } html:not([data-save-data]) .a { animation: k var(--motion-slow) ease forwards; } }',
+      'animation holds its end state',
     ],
     [
       'a raw time',
