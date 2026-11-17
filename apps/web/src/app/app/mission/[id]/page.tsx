@@ -1069,11 +1069,11 @@ export default async function MissionPage({
 
         {/* Each link shows at the level its section shows at, so none points at a hidden block. */}
         <nav className="jump-nav" aria-label="Sections of this case" {...atLevel('browse')}>
-          {/* Below 761 px the links sit behind one 44 px "Jump To Section" row (a native fold, no
+          {/* Below 761 px the links sit behind one 44 px "Jump to Section" row (a native fold, no
               script); from 761 px they are the wrapping pills. Same links, same order, both sets
               hold each link's own level. */}
           <details className="jump-select">
-            <summary>Jump To Section</summary>
+            <summary>Jump to Section</summary>
             <div className="jump-select-list">{jumpLinks}</div>
           </details>
           <div className="jump-links">{jumpLinks}</div>

@@ -61,7 +61,7 @@ describe('WAL0 the case section links never scroll sideways', () => {
     expect(rules).toMatch(/flex-wrap:\s*wrap/);
   });
 
-  it('folds the links behind one Jump To Section row below 761 px, and draws the pills from 761 px', () => {
+  it('folds the links behind one Jump to Section row below 761 px, and draws the pills from 761 px', () => {
     expect(css).toMatch(/\.jump-select \{\s*display: none;/);
     expect(css).toMatch(
       /@media \(max-width: 760px\) \{\s*\.lift-case \.jump-nav \.jump-links \{\s*display: none;/,
@@ -73,7 +73,7 @@ describe('WAL0 the case section links never scroll sideways', () => {
   it('draws the fold from the same links as the pills, in one native details element', () => {
     const casePage = readFileSync(resolve(__dirname, '../app/app/mission/[id]/page.tsx'), 'utf8');
     expect(casePage).toMatch(
-      /<details className="jump-select">\s*<summary>Jump To Section<\/summary>/,
+      /<details className="jump-select">\s*<summary>Jump to Section<\/summary>/,
     );
     expect(casePage).toMatch(/<div className="jump-select-list">\{jumpLinks\}<\/div>/);
     expect(casePage).toMatch(/<div className="jump-links">\{jumpLinks\}<\/div>/);

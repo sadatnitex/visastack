@@ -22571,7 +22571,7 @@ button.wallet-stack-card {
 }
 /* end WP-PIC5 */
 
-/* WP-WAL0 Documents sheet on a phone: while a document sheet is open the Add button and its spacer are gone (the page also leaves the button out when the address names a document), and the sheet's last control clears the bottom bar and the phone's bottom edge. Tokens only. */
+/* WP-WAL0 Documents sheet, More panel and case section links. Documents sheet on a phone: while a document sheet is open the Add button and its spacer are gone (a sheet opened in the browser too), and the sheet's last control clears the bottom bar and the phone's bottom edge. Tokens only. */
 @media (max-width: 760px) {
   body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab,
   body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab-space {
@@ -22581,7 +22581,6 @@ button.wallet-stack-card {
   .wallet-selected-document[data-sheet="open"] {
     padding-bottom: calc(61px + env(safe-area-inset-bottom, 0px) + var(--space-4));
   }
-
 }
 
 /* The More menu opens as a panel on the row under its button, inside the screen: from 641 to 760 px the button can sit on the left or the right depending on how the header buttons wrap, so a panel anchored to the button's right edge ran off the left edge. At 640 px and below an earlier rule already puts the panel in the flow. */
@@ -22606,7 +22605,7 @@ button.wallet-stack-card {
     padding-inline: var(--space-3);
   }
 }
-/* WP-WAL0 Jump To Section: below 761 px the case page's section links are one closed 44 px native fold (no script) that opens into full-width 44 px links in the page flow, so nothing scrolls sideways and nothing is covered. From 761 px the same links are the wrapping pills and the fold is not drawn. */
+/* Jump to Section: below 761 px the case page's section links are one closed 44 px native fold (no script) that opens into full-width 44 px links in the page flow, so nothing scrolls sideways and nothing is covered. From 761 px the same links are the wrapping pills and the fold is not drawn. */
 .jump-select {
   display: none;
 }

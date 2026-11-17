@@ -8,16 +8,16 @@ Unit WAL0, Class B. Branch claude/wal0-sheet-and-strip. Example data only.
 |---|---|
 | globals.css, WP-PIC16 rule `.document-wallet-layout` | The view-transition name (it makes a stacking context around the open sheet) now applies only above 760 px. List and Stack still fade on wider screens, where the chosen document is a side panel. |
 | globals.css, new block "WP-WAL0" (end of file) | Add button and spacer hidden while a sheet is open (also a client-opened one); open sheet bottom padding `61px + safe-area inset + space-4` so its last control clears the bottom bar; More panel kept inside the screen from 641 to 760 px; depth switch fits 320 px. |
-| globals.css, new block "WP-WAL0 Jump To Section" | Below 761 px the case section links are one closed 44 px native fold, opening into full-width 44 px links in the page flow. From 761 px the pills wrap. |
+| globals.css, new block "WP-WAL0 Jump to Section" | Below 761 px the case section links are one closed 44 px native fold, opening into full-width 44 px links in the page flow. From 761 px the pills wrap. |
 | globals.css, existing rules edited where the defect lived | `.lift-case .jump-nav` (two rules) and the phone `.jump-nav` rule: nowrap and overflow-x auto removed. `.task-row .row-key`: `overflow-wrap: anywhere` (a pasted address stretched the whole page). |
-| mission/[id]/page.tsx | The section links render once (`jumpLinks`) inside a `details.jump-select` fold ("Jump To Section") and the `.jump-links` pills. |
+| mission/[id]/page.tsx | The section links render once (`jumpLinks`) inside a `details.jump-select` fold ("Jump to Section") and the `.jump-links` pills. |
 | documents/page.tsx | Comment only: the Add button stays in the page; the stylesheet hides it while the sheet is open (the page cannot know when the sheet is closed in the browser, so a server-side omission would lose the button after closing). |
 | e2e/scroll-budget/WAL0.fixture.tsx, WAL0.spec.ts | New. Real document browser, Safe Copy, reading status, workspace shell with bottom bar and the Add button markup; real page header, More menu, depth switch, tasks panel with a 120-character unbroken title; section links markup. |
 | src/components/wal0-sheet.test.ts | New unit guards. |
 
-Approved guard corrections (Guardian 7, owner D4): case-lift-b.test.ts (strip test now asserts wrapping, no overflow-x auto), WP-SB2.spec.ts (:284 rewritten for the new phone behaviour), case-structure.test.tsx (one added line "summary: Jump To Section" in each of the three expected outlines), and WP-SB2.spec.ts LIFT.desktopPage.everything 3300 to 3330 (WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways, measured 3321), and LIFT.firstRow.desktop 1100 to 1120 (same cause, measured 1116). The Guardian approved no other budget change.
+Approved guard corrections (Guardian 7, owner D4): case-lift-b.test.ts (strip test now asserts wrapping, no overflow-x auto), WP-SB2.spec.ts (:284 rewritten for the new phone behaviour), case-structure.test.tsx (one added line "summary: Jump to Section" in each of the three expected outlines), and WP-SB2.spec.ts LIFT.desktopPage.everything 3300 to 3330 (WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways, measured 3321), and LIFT.firstRow.desktop 1100 to 1120 (same cause, measured 1116). The Guardian approved no other budget change.
 
-New words for the localization list: "Jump To Section".
+New words for the localization list: "Jump to Section".
 
 ## Causes found
 
@@ -39,7 +39,7 @@ Green, on the fixed build: WAL0.spec.ts 40 of 40 at the sheet sizes and every ca
 
 - The real signed-in case and documents pages in a real browser with real data (the specs render the real components in a fixture; the case page strip markup in the fixture is a copy of the page's, kept in step by a source guard in wal0-sheet.test.ts).
 - Safari and Firefox on a phone (only Chromium was run).
-- The Jump To Section fold stays open after a link is tapped (a native fold has no close behaviour without script); a follow-up if it proves annoying.
+- The Jump to Section fold stays open after a link is tapped (a native fold has no close behaviour without script); a follow-up if it proves annoying.
 - The section links exist twice in the page (the fold and the pills, one hidden by the stylesheet).
 - Prepare Safe Copy overlap was not reproduced, so no fix was made for it.
 - The current-section mark on the pills: the page has none today, so none was kept.

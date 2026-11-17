@@ -284,7 +284,7 @@ test.describe('WP-LIFT-B the real case page', () => {
   });
 
   // Approved guard correction (Guardian 7, owner D4, WAL0): the strip used to be one row that
-  // scrolled sideways. Below 761 px it is now one closed 44px "Jump To Section" row that opens
+  // scrolled sideways. Below 761 px it is now one closed 44px "Jump to Section" row that opens
   // into full-width 44px links in the page flow; nothing scrolls sideways.
   test('on a phone the section links are one closed row that opens into 44px links, with no sideways scroll', async ({
     page,

@@ -1,16 +1,17 @@
-import { DocumentWalletBrowser } from '../../src/components/document-wallet-browser';
-import { DepthScope } from '../../src/components/depth-scope';
-import { SafeCopyEditor } from '../../src/components/safe-copy-editor';
+import Link from 'next/link';
 import { ReadingStatus } from '../../src/app/app/applicant/[id]/reading-status';
 import { CaseMoreMenu } from '../../src/app/app/mission/[id]/case-more-menu';
 import { TasksPanel } from '../../src/app/app/mission/[id]/collaboration-panels';
 import { SnapshotButton } from '../../src/app/app/mission/[id]/mission-buttons';
-import { DepthSwitch } from '../../src/components/depth-switch';
-import { PageHeader } from '../../src/components/ui';
-import { depthCopyFor } from '../../src/lib/ccd/depth-copy';
 import { WorkspaceShell } from '../../src/app/app/workspace-shell';
-import { readingStatusCopy } from '../../src/lib/document-reading';
+import { DepthScope } from '../../src/components/depth-scope';
+import { DepthSwitch } from '../../src/components/depth-switch';
+import { DocumentWalletBrowser } from '../../src/components/document-wallet-browser';
+import { SafeCopyEditor } from '../../src/components/safe-copy-editor';
+import { PageHeader } from '../../src/components/ui';
 import type { DepthChoice } from '../../src/lib/ccd/depth';
+import { depthCopyFor } from '../../src/lib/ccd/depth-copy';
+import { readingStatusCopy } from '../../src/lib/document-reading';
 
 /**
  * WAL0 fixture (Example data only).
@@ -108,9 +109,9 @@ function Sheet({ addButton }: { readonly addButton: boolean }) {
         {addButton ? (
           <>
             <div className="docs-add-fab-space" aria-hidden="true" />
-            <a className="docs-add-fab" href="/add" aria-label="Add Documents">
+            <Link className="docs-add-fab" href="/add" aria-label="Add Documents">
               <span aria-hidden="true">Add</span>
-            </a>
+            </Link>
           </>
         ) : null}
       </div>
@@ -171,7 +172,7 @@ function Strip({ depth }: { readonly depth: DepthChoice }) {
           <DepthSwitch family="case" initial={depth} copy={depthCopyFor('case')} notesBehindInfo />
           <nav className="jump-nav" aria-label="Sections of this case" data-level="browse">
             <details className="jump-select">
-              <summary>Jump To Section</summary>
+              <summary>Jump to Section</summary>
               <div className="jump-select-list">
                 {LINKS.map(([href, label, level]) => (
                   <a key={href} href={href} data-level={level}>
