@@ -22097,6 +22097,21 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC15 progress card: the Share Progress Card control on the Cases page (owner decision D5). */
+.progress-card-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.progress-card-share .btn {
+  min-height: 44px;
+}
+.progress-card-share-status:empty {
+  display: none;
+}
+/* end WP-PIC15 */
 /* WP-PIC5 Documents as a stack of picture cards (17 Nov 2026, picture-first upgrade, unit U5). An opt-in view beside the list: each document is a card with its picture, name and state word, cards overlapping a little with a small sideways offset. Flat: no shadow or gradient here, the soft depth comes only from .pic-depth in the picture stylesheet. Cards are at least 44 px tall; the stack works from 320 px. Nothing moves, so there is no motion to switch off. */
 .wallet-view-switch {
   min-inline-size: 0;

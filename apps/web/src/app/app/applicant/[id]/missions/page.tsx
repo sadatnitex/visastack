@@ -7,6 +7,7 @@ import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { SearchableList } from '../../../../../components/list-pattern';
 import { MarkTile } from '../../../../../components/mark-tile';
+import { ProgressCardShare } from '../../../../../components/progress-card-share';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { applicantMissionsCatalog } from '../../../../../i18n/applicant-missions';
@@ -24,6 +25,7 @@ import { openCasesNewestFirst } from '../../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
+import { progressCardOn } from '../../../../../lib/progress-card/switch';
 import { withSession } from '../../../../../lib/session';
 import { caseStatus } from '../../../../../lib/status-words';
 import { CreateMissionForm } from './create-mission-form';
@@ -142,6 +144,11 @@ export default async function MissionsPage({
   const { active: activeCases, past: pastCases } = data.groups;
   const active = activeCases[0];
   const hasNoCase = activeCases.length + pastCases.length === 0;
+  // WP-PIC15: a picture of the current case's count, only while the owner's switch is on and the
+  // case has required items to count (this page is the record owner's alone).
+  const cardReadiness = active ? data.readiness.get(active.id) : undefined;
+  const showProgressCard =
+    progressCardOn() && active !== undefined && (cardReadiness?.requiredCount ?? 0) > 0;
   // The main way to start a case is the same three questions as Start a Trip, with this traveller
   // already chosen. The person is checked again on that page against the signed-in account. Without
   // consent the start card explains what to turn on first, so the links stay on this page.
@@ -252,6 +259,18 @@ export default async function MissionsPage({
               ) : null}
             </SearchableList>
           </article>
+
+          {showProgressCard && active ? (
+            <article className="card progress-card-host" {...atLevel('browse')}>
+              <p className="card-kicker">Share</p>
+              <h2 className="card-title">Progress Card</h2>
+              <p className="card-body">
+                A picture of how many items are ready for {active.title}, to save or send. It shows
+                counts only: no names, documents or reference codes.
+              </p>
+              <ProgressCardShare missionId={active.id} />
+            </article>
+          ) : null}
 
           <article
             className="card"
