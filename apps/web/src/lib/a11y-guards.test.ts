@@ -151,6 +151,8 @@ describe('the slow picture speed is defined once and only ever moves for people 
     }));
 
   type SlowUse = { chain: string[]; alias: boolean };
+  // var( --motion-slow ) in any letter case, never the longer name --motion-slower.
+  const SLOW_VAR = /var\(\s*--motion-slow\s*[,)]/iy;
   // For each use of var(--motion-slow): the at-rule preludes around it, and whether it only
   // hands the speed on to another custom property (which would carry it past the gate).
   function slowUses(source: string): SlowUse[] {
@@ -167,7 +169,9 @@ describe('the slow picture speed is defined once and only ever moves for people 
         start = i + 1;
       } else if (ch === ';') {
         start = i + 1;
-      } else if (source.startsWith('var(--motion-slow', i)) {
+      } else if (ch === 'v' || ch === 'V') {
+        SLOW_VAR.lastIndex = i;
+        if (!SLOW_VAR.test(source)) continue;
         uses.push({
           chain: stack.filter((prelude) => prelude.startsWith('@')),
           alias: /^--[\w-]+\s*:/.test(source.slice(start, i).trim()),
@@ -176,14 +180,18 @@ describe('the slow picture speed is defined once and only ever moves for people 
     }
     return uses;
   }
-  // Gated means a media rule whose every comma-separated query (a comma means "or") asks for
-  // prefers-reduced-motion: no-preference.
+  // Gated means a media rule whose every comma-separated query (a comma means "or") is a plain
+  // "and" list that asks for prefers-reduced-motion: no-preference, with no "not" and no "or".
   const gates = (prelude: string) =>
-    /^@media\s/.test(prelude) &&
+    /^@media\s/i.test(prelude) &&
     prelude
-      .replace(/^@media\s+/, '')
+      .replace(/^@media\s+/i, '')
       .split(',')
-      .every((query) => /\(\s*prefers-reduced-motion\s*:\s*no-preference\s*\)/.test(query));
+      .every(
+        (query) =>
+          /\(\s*prefers-reduced-motion\s*:\s*no-preference\s*\)/i.test(query) &&
+          !/(?:^|[\s(])(?:not|or)(?=[\s(])/i.test(query),
+      );
   const gated = (use: SlowUse) => !use.alias && use.chain.some(gates);
 
   it('defines --motion-slow exactly once, as a calm speed of at most 700ms', () => {
@@ -206,10 +214,14 @@ describe('the slow picture speed is defined once and only ever moves for people 
     expect(misses).toEqual([]);
   });
 
+  const componentCode = (file: string) =>
+    /\.(?:ts|tsx|js|jsx|mjs)$/.test(file) && !/\.test\.[cm]?[jt]sx?$/.test(file);
+  const namesSlow = (text: string) => /--motion-slow(?![\w-])/.test(text);
+
   it('never reaches the slow speed from component code, where no media query can gate it', () => {
     const misses = files
-      .filter((file) => /\.(?:ts|tsx)$/.test(file) && !/\.test\.tsx?$/.test(file))
-      .filter((file) => readFileSync(file, 'utf8').includes('--motion-slow'))
+      .filter(componentCode)
+      .filter((file) => namesSlow(readFileSync(file, 'utf8')))
       .map((file) => file.slice(SRC.length));
     expect(misses).toEqual([]);
   });
@@ -242,5 +254,29 @@ describe('the slow picture speed is defined once and only ever moves for people 
         '@media (prefers-reduced-motion: no-preference) { :root { --hero-speed: var(--motion-slow); } }',
       ),
     ).toEqual([false]);
+    for (const negated of [
+      '@media not (prefers-reduced-motion: no-preference)',
+      '@media (not (prefers-reduced-motion: no-preference))',
+      '@media (prefers-reduced-motion: no-preference) or (min-width: 0)',
+      '@media not all and (prefers-reduced-motion: no-preference)',
+    ])
+      expect(verdicts(`${negated} { .a { animation-duration: var(--motion-slow); } }`)).toEqual([
+        false,
+      ]);
+    expect(
+      verdicts(
+        '.a { animation-duration: var( --motion-slow ); } .b { transition-duration: VAR(--motion-slow, 1s); }',
+      ),
+    ).toEqual([false, false]);
+    expect(verdicts('.a { animation-duration: var(--motion-slower); }')).toEqual([]);
+  });
+
+  it('the component-code check reads every script kind and ignores longer names', () => {
+    for (const file of ['a.ts', 'a.tsx', 'a.js', 'a.jsx', 'a.mjs'])
+      expect(componentCode(`/src/x/${file}`)).toBe(true);
+    expect(componentCode('/src/x/a.test.ts')).toBe(false);
+    expect(componentCode('/src/x/a.css')).toBe(false);
+    expect(namesSlow("const speed = 'var(--motion-slow)';")).toBe(true);
+    expect(namesSlow("const speed = 'var(--motion-slower)';")).toBe(false);
   });
 });
