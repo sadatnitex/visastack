@@ -12,6 +12,8 @@
 - Bangla visitors now see Home, Privacy and Trust and Countries in English in the header (marked as English) where Product and Privacy and Control were in Bangla before; the Bangla words are on the list for the localization lane.
 - NOT verified: scenes on a real page (no page uses them until PUB2); the scroll engine on real phones and in Safari; back-forward cache restore in a real browser (unit-tested only); a measured layout shift on a real scene (no page has one until PUB2; the spec proves the early mark is set before React starts); the budget baseline came from a main build that compiled but ran out of memory in a later build step on this machine; Bengali for Home, Privacy and Trust, Countries and Example; the /trust page title still reads "Privacy and Control" (PUB3).
 
+- Fix after review: the early scenes script reads its nonce through ScenesBoot (scenes-boot.tsx), which, like the request path reader, gives none when there is no request, so the signed-in shell renders in unit tests again; the whole web test suite was run on the fixed head.
+
 ## New words for the localization lane (Guardian, 17 Nov 2026)
 
 Shown in English, marked lang="en" on a Bangla page, until the catalogue has them:
