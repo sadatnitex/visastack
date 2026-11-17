@@ -1,7 +1,6 @@
 import { catalogResolve, formatDate } from '@visastack/i18n';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
@@ -11,10 +10,9 @@ import { requestSavesData } from '../components/pictures/save-data-request';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { publicNavLinks } from '../components/public-site/public-nav';
 import { publicText } from '../components/public-site/public-text';
-import { SCENES_BOOT_SCRIPT } from '../components/public-site/scene-engine';
+import { ScenesBoot } from '../components/public-site/scenes-boot';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
-import { NONCE_REQUEST_HEADER } from '../lib/csp';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getT, primePage } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
@@ -99,8 +97,6 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // Data saver from the request (Save-Data: on) keeps picture motion still from the first paint.
   const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};
   const fonts = `${inter.variable} ${bengali.variable}`;
-  // This request's script nonce (lib/csp.ts), for the one inline script below.
-  const nonce = (await headers()).get(NONCE_REQUEST_HEADER);
 
   return (
     // The scenes mark (data-scenes) may be set by the early script before React hydrates; React
@@ -113,16 +109,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
       suppressHydrationWarning
     >
       <head>
-        {/* WP-PUB1 (ADR 0029): marks scroll scenes live before the first paint, so a scene has its
-          scroll length from the start and nothing jumps. A fixed string, nonce'd; without
-          JavaScript it never runs and every scene stays a finished section. */}
-        {nonce ? (
-          <script
-            nonce={nonce}
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: a fixed string from the engine, no input
-            dangerouslySetInnerHTML={{ __html: SCENES_BOOT_SCRIPT }}
-          />
-        ) : null}
+        {/* WP-PUB1 (ADR 0029): the early scenes mark, nonce'd; see scenes-boot.tsx. */}
+        <ScenesBoot />
       </head>
       <body>
         <I18nProvider locale={locale} pageLang={htmlLang}>
