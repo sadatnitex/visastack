@@ -11,6 +11,16 @@ const redirect = vi.fn((to: string) => {
 });
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 vi.mock('server-only', () => ({}));
+/** Cookies the response would set, by name, in the order they were set. */
+const setCookies: string[] = [];
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: () => undefined,
+    set: (name: string) => {
+      setCookies.push(name);
+    },
+  }),
+}));
 
 const magicLink = vi.fn();
 const signInEmail = vi.fn();
@@ -51,7 +61,13 @@ async function outcome(values: Record<string, string>): Promise<string> {
 
 beforeEach(() => {
   vi.stubEnv('SIGN_IN_LINKS', 'on');
-  magicLink.mockReset().mockResolvedValue({ data: { status: true }, error: null });
+  setCookies.length = 0;
+  // Neon Auth's answer sets its own short-lived check cookie in this browser.
+  magicLink.mockReset().mockImplementation(async () => {
+    const { cookies } = await import('next/headers');
+    (await cookies()).set('__Secure-neon-auth.session_challenge', 'x', {});
+    return { data: { status: true }, error: null };
+  });
   withinAuthLimits.mockReset().mockResolvedValue(true);
   reportServerError.mockReset();
   signupAccountExists.mockReset();
@@ -71,11 +87,25 @@ describe('signInLinkAction', () => {
     });
   });
 
-  it('gives the same answer and takes the same steps for any valid address', async () => {
+  it('gives the same answer, cookies and limits for an address with or without an account', async () => {
+    signupAccountExists.mockImplementation(async (email: string) => email === 'known@example.com');
     const known = await outcome({ email: 'known@example.com' });
+    const knownCookies = [...setCookies];
+    const knownLimit = withinAuthLimits.mock.calls[0]?.[0] as {
+      byEmail: string;
+      byAddress: string;
+    };
+    setCookies.length = 0;
     const unknown = await outcome({ email: 'nobody@example.com' });
+    const unknownLimit = withinAuthLimits.mock.calls[1]?.[0] as {
+      byEmail: string;
+      byAddress: string;
+    };
     expect(known).toBe('/auth/sign-in?n=link_sent');
     expect(unknown).toBe(known);
+    expect(setCookies).toEqual(knownCookies);
+    expect(knownCookies).toEqual(['__Secure-neon-auth.session_challenge']);
+    expect({ ...unknownLimit, email: '' }).toEqual({ ...knownLimit, email: '' });
     expect(magicLink).toHaveBeenCalledTimes(2);
     expect(signupAccountExists).not.toHaveBeenCalled();
   });
