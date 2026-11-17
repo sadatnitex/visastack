@@ -35,7 +35,7 @@ const STAGE_SENTENCES: Readonly<Record<MissionState, string>> = {
   CANCELLED: 'The case was stopped.',
 };
 
-const KIND_WORDS = { done: 'Done', later: 'Later', unrecorded: 'Not recorded' } as const;
+const KIND_WORDS = { before: 'Before', later: 'Later' } as const;
 
 /** The one sentence that says what happens in a stage. */
 export function journeyStageSentence(stage: MissionState): string {
@@ -43,11 +43,13 @@ export function journeyStageSentence(stage: MissionState): string {
 }
 
 /**
- * The case's stages as small pictures along a line. Stages before the current one carry a tick,
- * the current one is marked with its word, later ones are plain. `stages` is the same ordered path
- * the step bar shows, so the order and the words never differ. A case that is not on the path (for
- * example a cancelled one) draws nothing, so the step bar alone stays. The track scrolls inside
- * its own box on a narrow screen.
+ * The case's stages as small pictures along a line. The current stage is marked with its word and
+ * `aria-current`; stages before it are plain "Before" markers and later ones plain "Later" ones.
+ * Nothing is ticked or called done: the page keeps no stage history and real moves skip stages, so
+ * a stage before the current one may never have been entered. Submitted gets no special claim.
+ * `stages` is the same ordered path the step bar shows, so order and words never differ. A case
+ * that is not on the path (for example a cancelled one) draws nothing, so the step bar alone
+ * stays. The track wraps onto more rows on a narrow screen, so the explain popup is never clipped.
  */
 export function JourneyTrack({
   state,
@@ -64,24 +66,20 @@ export function JourneyTrack({
   if (at < 0) return null;
   return (
     <section className="journey-track" aria-label={ariaLabel}>
-      <ol className="journey-track-list">
+      {/* biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: the list has list-style none, which makes Safari drop the list semantics unless the role is stated. */}
+      <ol className="journey-track-list" role="list">
         {stages.map((stage, index) => {
-          // A stage is ticked only when the case moved on through it. Submitted is never ticked from
-          // position: a case can be closed without a submission report, so only a case that is in
-          // Submitted now shows it, and a closed case shows it as not recorded.
-          const past = index < at;
-          const kind =
-            index === at
-              ? 'current'
-              : past && stage === 'SUBMITTED'
-                ? 'unrecorded'
-                : past
-                  ? 'done'
-                  : 'later';
+          // There is no stage history, so nothing before the current stage is claimed as finished:
+          // real moves skip stages. Earlier stages are plain "Before" markers, Submitted included.
+          const kind = index === at ? 'current' : index < at ? 'before' : 'later';
           const label = labels[stage] ?? stage;
           const picture = <Icon name={STAGE_ICONS[stage]} size={22} />;
           return (
-            <li key={stage} className={`journey-stage journey-stage-${kind}`}>
+            <li
+              key={stage}
+              className={`journey-stage journey-stage-${kind}`}
+              aria-current={kind === 'current' ? 'step' : undefined}
+            >
               {kind === 'current' ? (
                 <ExplainTip label={label} text={journeyStageSentence(stage)}>
                   {picture}
@@ -91,15 +89,13 @@ export function JourneyTrack({
                   {picture}
                 </span>
               )}
-              {kind === 'done' ? (
-                <span className="journey-stage-tick" aria-hidden="true">
-                  <Icon name="check" size={12} />
-                </span>
-              ) : null}
               {kind === 'current' ? (
-                <span className="journey-stage-word" aria-hidden="true">
-                  {label} - Now
-                </span>
+                <>
+                  <span className="sr-only">Now: </span>
+                  <span className="journey-stage-word" aria-hidden="true">
+                    {label} - Now
+                  </span>
+                </>
               ) : (
                 <span className="sr-only">
                   {label}: {KIND_WORDS[kind]}

@@ -21594,7 +21594,7 @@ body:lang(bn),
 }
 /* end WP-PIC3 */
 
-/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along a line (components/journey-track.tsx), above the existing step bar. Finished stages carry a tick, the current stage shows its word, later stages stay plain, so state is never colour alone. Flat: borders and solid surfaces, no shadow. The track wraps onto more rows on a narrow screen so the explain popup is never clipped. */
+/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along a line (components/journey-track.tsx), above the existing step bar. The current stage shows its word, earlier and later stages stay plain (nothing is ticked: there is no stage history), so state is never colour alone. Flat: borders and solid surfaces, no shadow. The track wraps onto more rows on a narrow screen so the explain popup is never clipped. */
 .journey-track {
   max-width: 100%;
   margin-block-end: var(--space-3);
@@ -21632,27 +21632,13 @@ body:lang(bn),
 .journey-stage .explain-tip {
   margin-block: 0;
 }
-.journey-stage-later .journey-stage-picture,
-.journey-stage-unrecorded .journey-stage-picture {
+.journey-stage-later .journey-stage-picture {
   border-style: dashed;
   opacity: 0.7;
 }
 .journey-stage-current .explain-tip-trigger {
   border-width: 2px;
   border-color: currentColor;
-}
-.journey-stage-tick {
-  position: absolute;
-  top: 0;
-  inset-inline-end: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--edge-control);
-  border-radius: 50%;
-  background: var(--bg-elevated);
 }
 .journey-stage-word {
   max-width: 9rem;

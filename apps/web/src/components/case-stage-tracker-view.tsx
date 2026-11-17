@@ -10,9 +10,8 @@ import { StepBar } from './ui-lift';
  * The case's stages with the current one marked. `nextStates` are the stages the page offers as
  * buttons; when cancelling is offered from the page's More menu instead (`cancelInMore`), the line
  * below says so rather than listing it as a next stage. Only the current stage is marked: the page
- * keeps no history of finished stages, so the step bar never ticks an earlier stage. With `journey`
- * the picture track above it ticks the stages before the current one by their order on the path
- * (never Submitted, see journey-track.tsx).
+ * keeps no history of finished stages, so an earlier stage is never ticked. With `journey` the
+ * picture track above it also marks only the current stage (earlier ones are plain "Before").
  */
 export function CaseStageTrackerView({
   state,
@@ -62,7 +61,7 @@ export function CaseStageTrackerView({
         children: (
           <p>
             {journey
-              ? 'Stages before the current one are ticked by their order on the path.'
+              ? 'Only the current stage is marked. Stages before it are shown plain, not as finished.'
               : 'Only the current state is marked. This is not a completed-stage history.'}{' '}
             {nextStates.length
               ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and traveller confirmation are checked by the existing actions.${cancelLine}`
