@@ -21573,6 +21573,81 @@ body:lang(bn),
 }
 /* end WP-PIC0 */
 
+/* WP-PIC11 Shared files (17 Nov 2026, picture-first upgrade, unit P2d). Files shared to VisaStack from another app show on /app/incoming as a grid of pictures (PDFs and HEIC photos as a plain file tile), with who they are for and one confirm. Flat: hairlines and the existing surface tokens only, no shadow, gradient or blur. The grid keeps two tiles a row on a phone. */
+.incoming-card {
+  display: block;
+}
+.incoming-card h2 {
+  margin: 0 0 var(--space-2);
+}
+.incoming-grid {
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--space-2);
+}
+.incoming-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.incoming-picture,
+.incoming-file {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+.incoming-picture {
+  object-fit: cover;
+}
+.incoming-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.incoming-name {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.incoming-note {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.incoming-person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.incoming-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.incoming-lines {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-small);
+}
+/* end WP-PIC11 */
+
 /* WP-PIC3 SVG flags (17 Nov 2026, picture-first upgrade, unit U3). The real flag is a same-origin static picture laid over the emoji or letters badge, which stay underneath as the fallback. Round like before; flat: no shadow, gradient, blur or translucency; tokens only. */
 .country-flag {
   position: relative;
@@ -21864,58 +21939,116 @@ body:lang(bn),
   min-width: 44px;
 }
 /* end WP-PIC9 */
-/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along a line (components/journey-track.tsx), above the existing step bar. The current stage shows its word, earlier and later stages stay plain (nothing is ticked: there is no stage history), so state is never colour alone. Flat: borders and solid surfaces, no shadow. The track wraps onto more rows on a narrow screen so the explain popup is never clipped. */
+/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along one compact row (components/journey-track.tsx), above the existing step bar. The current stage is the one full-size circle with a heavy border and the explain button, and the step bar's "Now:" line below names it, so state is never colour alone; earlier and later stages are small plain circles (nothing is ticked: there is no stage history). The row is 44 px tall (the current stage's button is a transparent 44 px target with its 28 px circle drawn inside, so nothing overhangs the row or covers a neighbour); the track adds no padding or margin and the card around it has none above or below, and the gaps around the card are tighter, so the case page stays inside its phone height budget. The card stops clipping while it holds the track, so the explain popup is never cut off at its bottom edge. Flat: borders and solid surfaces, no shadow. A narrow screen wraps it onto a second row. */
 .journey-track {
   max-width: 100%;
-  margin-block-end: var(--space-3);
-  padding-block: var(--space-2);
+  margin: 0;
+  padding: 0;
 }
 .journey-track-list {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
-  flex-wrap: wrap;
 }
 .journey-stage {
-  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--space-1);
-  min-width: 44px;
+  justify-content: center;
+  min-width: 24px;
 }
-.journey-stage-picture,
-.journey-stage .explain-tip-trigger {
+.journey-stage-picture {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--edge-control);
   border-radius: 50%;
   background: var(--bg-elevated);
   color: inherit;
 }
+.journey-stage-picture .icon {
+  width: 14px;
+  height: 14px;
+}
 .journey-stage .explain-tip {
+  /* The row is 44 px tall, so the button needs no overhang and nothing paints outside the track. */
   margin-block: 0;
+}
+/* The 44 px button is invisible; the circle people see (28 px, heavy border) is drawn inside it. */
+.journey-stage .explain-tip-trigger {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+}
+.journey-stage .explain-tip-picture {
+  width: 28px;
+  height: 28px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+}
+.journey-stage .explain-tip-picture .icon {
+  width: 14px;
+  height: 14px;
 }
 .journey-stage-later .journey-stage-picture {
   border-style: dashed;
   opacity: 0.7;
 }
-.journey-stage-current .explain-tip-trigger {
-  border-width: 2px;
-  border-color: currentColor;
+/* With the track drawn, the step bar's segment strip repeats it and its "Stage 2 of 7" line stays for screen readers only, which keeps the case page inside its phone height budget. */
+.journey-track + .lift-steps .lift-steps-strip {
+  display: none;
 }
-.journey-stage-word {
-  max-width: 9rem;
-  font-size: var(--text-small);
-  font-weight: 600;
-  text-align: center;
-  overflow-wrap: anywhere;
+.journey-track + .lift-steps .lift-steps-position {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* The card around the track and the step bar gives them less air above and below, so the first checklist row stays inside its phone height budget. */
+.lift-status-stages:has(> .journey-track) {
+  padding-block: 0;
+}
+/* The explain popup of the current stage can open below the card, so the card stops clipping it; its top block rounds its own corners instead. These rules apply only where the stages row is actually drawn: the same depth levels that show it (Everything when the traveller is the only reviewer, Browse otherwise; every level with scripts off). At Glance the row is hidden, the card keeps clipping and keeps its normal gaps. */
+:is(
+    .depth-scope:is(:has(.depth-nojs), [data-depth="browse"], [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="browse"] > .journey-track),
+    .depth-scope:is(:has(.depth-nojs), [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="everything"] > .journey-track)
+  ) {
+  overflow: visible;
+  margin-bottom: var(--space-1);
+}
+:is(
+    .depth-scope:is(:has(.depth-nojs), [data-depth="browse"], [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="browse"] > .journey-track),
+    .depth-scope:is(:has(.depth-nojs), [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="everything"] > .journey-track)
+  )
+  + .case-journey-reminder {
+  margin-bottom: 0;
+}
+:is(
+    .depth-scope:is(:has(.depth-nojs), [data-depth="browse"], [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="browse"] > .journey-track),
+    .depth-scope:is(:has(.depth-nojs), [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="everything"] > .journey-track)
+  )
+  > .lift-status-main {
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+  overflow: clip;
 }
 /* end WP-PIC8 */
 
@@ -22076,6 +22209,138 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC10 deadline timeline: today, appointment, passport end and trip start on one wrapping line.
+   Flat: shared tokens, no shadow, gradient or animation. Pictures are decorative; words carry the state. */
+.deadline-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.deadline-timeline-item {
+  display: grid;
+  flex: 1 1 7rem;
+  gap: var(--space-1);
+  min-width: 7rem;
+  min-height: 2.75rem;
+  padding: var(--space-2);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  align-content: start;
+}
+.deadline-timeline-picture {
+  display: inline-flex;
+  color: var(--text-secondary);
+}
+.deadline-timeline-label {
+  font-weight: 700;
+}
+.deadline-timeline-date {
+  font-size: var(--text-small);
+}
+.deadline-timeline-phrase {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+.deadline-timeline-today {
+  border-width: 2px;
+}
+.deadline-timeline-past .deadline-timeline-date {
+  text-decoration: line-through;
+}
+.deadline-timeline-gap {
+  border-style: dashed;
+  border-color: var(--warning);
+}
+/* end WP-PIC10 */
+/* WP-PIC13 printed pack cover (17 Nov 2026, picture-first upgrade, unit Q1). The first printed page of a case output: name, place with its flag in grey, case reference, date and a count of what is gathered. Hidden on screen. Black and white only, so a home printer needs no colour: every colour is fixed to black or white and the flag is drawn in grey with a hard outline, with the country name beside it. Nothing here moves. */
+.print-cover {
+  display: none;
+}
+@media print {
+  .print-cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.25rem;
+    box-sizing: border-box;
+    min-height: 75vh;
+    padding: 2rem 1rem;
+    color: #000;
+    background: #fff;
+    text-align: left;
+    break-after: page;
+    page-break-after: always;
+  }
+  .print-cover * {
+    color: #000;
+    background: transparent;
+    box-shadow: none;
+    text-shadow: none;
+  }
+  .print-cover-kicker {
+    margin: 0;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 2px solid #000;
+    padding-bottom: 0.5rem;
+  }
+  .print-cover-name {
+    margin: 0;
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+  .print-cover-place {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .print-cover-flag {
+    width: 6rem;
+    height: auto;
+    border: 2px solid #000;
+    filter: grayscale(1) contrast(1.2);
+  }
+  .print-cover-country {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+  .print-cover-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0;
+  }
+  .print-cover-facts div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    border-bottom: 1px solid #000;
+    padding-bottom: 0.5rem;
+  }
+  .print-cover-facts dt {
+    min-width: 10rem;
+    font-weight: 600;
+  }
+  .print-cover-facts dd {
+    margin: 0;
+  }
+  .print-cover-note {
+    margin: 0;
+    font-size: 1rem;
+    border: 2px solid #000;
+    padding: 0.75rem 1rem;
+  }
+}
+/* end WP-PIC13 */
+
 /* WP-PIC5 Documents as a stack of picture cards (17 Nov 2026, picture-first upgrade, unit U5). An opt-in view beside the list: each document is a card with its picture, name and state word, cards overlapping a little with a small sideways offset. Flat: no shadow or gradient here, the soft depth comes only from .pic-depth in the picture stylesheet. Cards are at least 44 px tall; the stack works from 320 px. Nothing moves, so there is no motion to switch off. */
 .wallet-view-switch {
   min-inline-size: 0;
