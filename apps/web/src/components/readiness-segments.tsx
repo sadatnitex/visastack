@@ -23,8 +23,7 @@ export const RING_TIP_LABEL = 'What This Ring Counts';
 export const RING_TIP_TEXT = 'The ring counts what is ready, not whether a visa will be approved.';
 export const ITEM_READY_WORD = 'Ready';
 export const ITEM_NEEDED_WORD = 'Still Needed';
-export const NOW_LABEL = 'Now';
-export const AFTER_STEP_LABEL = 'After This Step';
+export { AFTER_STEP_LABEL, NOW_LABEL } from './ui-lift/next-step-panel';
 /** Past this many items the segments turn into slivers, so the plain ring is drawn instead. */
 export const MAX_SEGMENTS = 24;
 
@@ -54,9 +53,10 @@ export interface ReadinessSegmentRingProps {
 
 /** The counts the segments show: whole numbers, never more done than total. */
 export function segmentRingCounts(done: number, total: number): { done: number; total: number } {
-  if (!(total > 0)) return { done: 0, total: 0 };
+  if (!Number.isFinite(total) || total < 1) return { done: 0, total: 0 };
   const whole = Math.floor(total);
-  return { done: Math.max(0, Math.min(Math.floor(done), whole)), total: whole };
+  const ready = Number.isFinite(done) ? Math.floor(done) : 0;
+  return { done: Math.max(0, Math.min(ready, whole)), total: whole };
 }
 
 function Segments({ done, total }: { readonly done: number; readonly total: number }) {
@@ -87,12 +87,33 @@ function Segments({ done, total }: { readonly done: number; readonly total: numb
 
 function RingTip(): ReactNode {
   return (
-    <ExplainTip label={RING_TIP_LABEL} text={RING_TIP_TEXT} className="readiness-segring-tip">
+    <ExplainTip label={RING_TIP_LABEL} text={RING_TIP_TEXT}>
       <Icon name="ask" size={18} />
     </ExplainTip>
   );
 }
 
+function Legend({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <ul className="readiness-legend">
+      {items.map((item) => (
+        <li key={item.key} className="readiness-legend-row" data-ready={item.ready ? 'yes' : 'no'}>
+          <DocumentPicture type={item.type} size={28} />
+          <span className="readiness-legend-name">{item.label}</span>
+          <span className="readiness-legend-state">
+            {item.ready ? ITEM_READY_WORD : ITEM_NEEDED_WORD}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Not for use inside a link: it holds a button (the tip), a list and, when empty, a link of its own.
+ * Put it beside a link, not in one.
+ */
 export function ReadinessSegmentRing({
   done,
   total,
@@ -107,7 +128,7 @@ export function ReadinessSegmentRing({
   if (counts.total === 0) {
     // Nothing to count: the same teaching ring as today, with the same way to get a checklist.
     return (
-      <span className="readiness-segring">
+      <div className="readiness-segring">
         <ProgressRing
           done={0}
           total={0}
@@ -116,24 +137,23 @@ export function ReadinessSegmentRing({
           emptyLabel={emptyLabel}
           {...(emptyAction ? { emptyAction } : {})}
         />
-      </span>
+      </div>
     );
   }
   if (counts.total > MAX_SEGMENTS) {
     return (
-      <span className="readiness-segring">
+      <div className="readiness-segring">
         <ProgressRing done={counts.done} total={counts.total} size={size} />
         {tip ? <RingTip /> : null}
-      </span>
+        <Legend items={items} />
+      </div>
     );
   }
   const words = progressRingWords(counts.done, counts.total);
   const full = counts.done >= counts.total;
   return (
-    <span className="readiness-segring">
-      <span
-        className={`progress-ring progress-ring-${size}${full ? ' progress-ring-full' : ''} readiness-segring-ring`}
-      >
+    <div className="readiness-segring">
+      <span className={`progress-ring progress-ring-${size}${full ? ' progress-ring-full' : ''}`}>
         <span className="progress-ring-graphic">
           <svg viewBox="0 0 100 100" role="img" aria-label={words}>
             <Segments done={counts.done} total={counts.total} />
@@ -146,23 +166,7 @@ export function ReadinessSegmentRing({
         </span>
       </span>
       {tip ? <RingTip /> : null}
-      {items && items.length > 0 ? (
-        <ul className="readiness-legend">
-          {items.map((item) => (
-            <li
-              key={item.key}
-              className="readiness-legend-row"
-              data-ready={item.ready ? 'yes' : 'no'}
-            >
-              <DocumentPicture type={item.type} size={28} />
-              <span className="readiness-legend-name">{item.label}</span>
-              <span className="readiness-legend-state">
-                {item.ready ? ITEM_READY_WORD : ITEM_NEEDED_WORD}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </span>
+      <Legend items={items} />
+    </div>
   );
 }

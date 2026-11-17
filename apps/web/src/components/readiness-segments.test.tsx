@@ -91,6 +91,11 @@ describe('ReadinessSegmentRing', () => {
     expect(host.querySelector('.progress-ring-fill')).not.toBeNull();
   });
 
+  it('keeps the legend, so what is missing is still named, beside a long ring', () => {
+    const host = render(<ReadinessSegmentRing done={1} total={30} items={items} />);
+    expect(host.querySelectorAll('.readiness-legend-row')).toHaveLength(4);
+  });
+
   it('has no accessibility violations', async () => {
     const host = render(<ReadinessSegmentRing done={2} total={4} items={items} />);
     expect(await axeViolations(host)).toEqual([]);
@@ -144,6 +149,23 @@ describe('NextStepPanel before and after ring (opt-in)', () => {
       const host = render(<NextStepPanel {...base} beforeAfter={ring} />);
       expect(host.querySelector('.lift-next-hero')).toBeNull();
     }
+  });
+
+  it('uses the count the page knows the step will reach, and ignores a broken count', () => {
+    const host = render(
+      <NextStepPanel
+        {...base}
+        beforeAfter={{ done: 2, total: 6, documentType: 'passport', afterDone: 4 }}
+      />,
+    );
+    const labels = [...host.querySelectorAll('.progress-ring svg')].map((s) =>
+      s.getAttribute('aria-label'),
+    );
+    expect(labels).toEqual(['2 of 6 items ready', '4 of 6 items ready']);
+    const broken = render(<NextStepPanel {...base} beforeAfter={{ done: Number.NaN, total: 4 }} />);
+    expect(broken.querySelector('.lift-next-hero')).toBeNull();
+    expect(segmentRingCounts(Number.NaN, 4)).toEqual({ done: 0, total: 4 });
+    expect(segmentRingCounts(1, Number.POSITIVE_INFINITY)).toEqual({ done: 0, total: 0 });
   });
 
   it('works inside the dark ink panel and has no accessibility violations', async () => {

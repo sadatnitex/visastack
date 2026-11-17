@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react';
 import { DocumentPicture } from '../pictures/document-picture';
 import { ProgressRing } from '../progress-ring';
-import { AFTER_STEP_LABEL, NOW_LABEL } from '../readiness-segments';
 import { AboutDisclosure } from './about-disclosure';
 import { LiftHeading, LiftLink } from './lift-parts';
 import type { LiftAction, LiftHeadingLevel } from './types';
+
+/** Captions of the two rings in the opt-in before and after hero. */
+export const NOW_LABEL = 'Now';
+export const AFTER_STEP_LABEL = 'After This Step';
 
 export interface NextStepPanelProps {
   /** The small heading above the title ("Next Step"). It is the panel's real heading. */
@@ -28,8 +31,11 @@ export interface NextStepPanelProps {
   readonly why?: ReactNode;
   /**
    * Opt-in: the ring now and the ring after this step is done, with the step's document picture as
-   * the hero. `done` and `total` are the counts already computed; the "after" count is one more, and
-   * nothing is drawn when there is no checklist or nothing left to do. Only a document TYPE is passed.
+   * the hero. `done` and `total` are the counts already computed. The "after" ring is one more item
+   * ready unless the page passes `afterDone`, the count it knows the step will reach (a step that
+   * adds several items, or none). Nothing is drawn when there is no checklist or nothing is left to
+   * do. Only a document TYPE is passed. The hero is the screen's one moving picture, so use at most
+   * one panel with this option per page.
    */
   readonly beforeAfter?: NextStepBeforeAfter | undefined;
 }
@@ -38,12 +44,18 @@ export interface NextStepBeforeAfter {
   readonly done: number;
   readonly total: number;
   readonly documentType?: string | null | undefined;
+  /** The ready count after the step, when the page knows it. Default: one more than `done`. */
+  readonly afterDone?: number | undefined;
 }
 
 /** The hero: this step's document picture, then the ring now and the ring after the step. */
-function BeforeAfterHero({ done, total, documentType }: NextStepBeforeAfter) {
-  if (!(total > 0) || done >= total) return null;
+function BeforeAfterHero({ done, total, documentType, afterDone }: NextStepBeforeAfter) {
+  if (!Number.isFinite(total) || !Number.isFinite(done) || total < 1) return null;
+  const all = Math.floor(total);
   const now = Math.max(0, Math.floor(done));
+  if (now >= all) return null;
+  const after =
+    afterDone !== undefined && Number.isFinite(afterDone) ? Math.floor(afterDone) : now + 1;
   return (
     <div className="lift-next-hero pic-depth">
       <span className="lift-next-hero-picture pic-glow">
@@ -51,14 +63,14 @@ function BeforeAfterHero({ done, total, documentType }: NextStepBeforeAfter) {
       </span>
       <div className="lift-next-rings">
         <span className="lift-next-ring">
-          <ProgressRing done={now} total={total} size="sm" />
+          <ProgressRing done={now} total={all} size="sm" />
           <span className="lift-next-ring-caption">{NOW_LABEL}</span>
         </span>
         <span className="lift-next-ring-arrow" aria-hidden="true">
           {'\u2192'}
         </span>
         <span className="lift-next-ring">
-          <ProgressRing done={now + 1} total={total} size="sm" />
+          <ProgressRing done={Math.max(now, after)} total={all} size="sm" />
           <span className="lift-next-ring-caption">{AFTER_STEP_LABEL}</span>
         </span>
       </div>
