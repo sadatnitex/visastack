@@ -1,4 +1,8 @@
+'use client';
+
 import { resolveDocumentType } from '@visastack/core/catalogue';
+import { useEffect } from 'react';
+import { holdScreenAwake } from '../lib/browser-toolbox/wake-lock';
 
 /**
  * The passport outline drawn over the photo check (picture-first upgrade, unit U7). A thin outline
@@ -33,6 +37,8 @@ const CORNERS = [
 ] as const;
 
 export function CaptureFrameGuide() {
+  // The screen stays awake while the outline is open (released on close, unmount and page hide).
+  useEffect(() => holdScreenAwake(), []);
   return (
     <svg
       className="capture-guide"

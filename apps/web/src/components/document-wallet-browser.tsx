@@ -2,7 +2,9 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { componentsCatalog } from '../i18n/components';
+import { withViewTransition } from '../lib/browser-toolbox/view-transition';
 import { DEPTH_PHONE_QUERY } from '../lib/ccd/depth';
 import { formatTimestampDate } from '../lib/format-date';
 import { documentMark } from '../lib/item-icons';
@@ -313,7 +315,7 @@ export function DocumentWalletBrowser({
                   key={choice}
                   type="button"
                   aria-pressed={view === choice}
-                  onClick={() => setView(choice)}
+                  onClick={() => withViewTransition(() => flushSync(() => setView(choice)))}
                 >
                   {choice === 'list' ? 'List' : 'Stack'}
                 </button>

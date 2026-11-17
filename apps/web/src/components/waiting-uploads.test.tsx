@@ -269,3 +269,19 @@ describe('mount', () => {
     expect(src).toContain('<WaitingUploads source={queue} onRetry={(id) => queue.retry(id)} />');
   });
 });
+
+describe('WaitingUploads vibration', () => {
+  const vibrate = vi.fn(() => true);
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'vibrate');
+    vibrate.mockClear();
+  });
+  it('taps once when a sending file arrives, never for a refusal', () => {
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate });
+    const source = store([item(1, 'uploading'), item(2, 'uploading')]);
+    render(<WaitingUploads source={source} onRetry={() => undefined} />);
+    expect(vibrate).not.toHaveBeenCalled();
+    act(() => source.set([item(1, 'added'), item(2, 'refused')]));
+    expect(vibrate).toHaveBeenCalledTimes(1);
+  });
+});
