@@ -21827,7 +21827,7 @@ body:lang(bn),
   min-width: 44px;
 }
 /* end WP-PIC9 */
-/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along one compact row (components/journey-track.tsx), above the existing step bar. The current stage is the one full-size circle with a heavy border and the explain button, and the step bar's "Now:" line below names it, so state is never colour alone; earlier and later stages are small plain circles (nothing is ticked: there is no stage history). It adds no padding or margin of its own so the case page stays inside its phone height budget. Flat: borders and solid surfaces, no shadow. A narrow screen wraps it onto a second row rather than clipping the explain popup. */
+/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along one compact row (components/journey-track.tsx), above the existing step bar. The current stage is the one full-size circle with a heavy border and the explain button, and the step bar's "Now:" line below names it, so state is never colour alone; earlier and later stages are small plain circles (nothing is ticked: there is no stage history). The row is 44 px tall (the current stage's button is a transparent 44 px target with its 28 px circle drawn inside, so nothing overhangs the row or covers a neighbour); the track adds no padding or margin and the card around it has none above or below, so the case page stays inside its phone height budget. The card stops clipping while it holds the track, so the explain popup is never cut off at its bottom edge. Flat: borders and solid surfaces, no shadow. A narrow screen wraps it onto a second row. */
 .journey-track {
   max-width: 100%;
   margin: 0;
@@ -21864,19 +21864,28 @@ body:lang(bn),
   height: 14px;
 }
 .journey-stage .explain-tip {
-  /* The 44 px button reaches past the 24 px row instead of making the row 44 px tall. */
-  margin-block: -10px;
+  /* The row is 44 px tall, so the button needs no overhang and nothing paints outside the track. */
+  margin-block: 0;
 }
+/* The 44 px button is invisible; the circle people see (28 px, heavy border) is drawn inside it. */
 .journey-stage .explain-tip-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 44px;
   height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+}
+.journey-stage .explain-tip-picture {
+  width: 28px;
+  height: 28px;
   border: 2px solid currentColor;
   border-radius: 50%;
   background: var(--bg-elevated);
-  color: inherit;
+}
+.journey-stage .explain-tip-picture .icon {
+  width: 14px;
+  height: 14px;
 }
 .journey-stage-later .journey-stage-picture {
   border-style: dashed;
@@ -21898,6 +21907,18 @@ body:lang(bn),
 }
 /* The card around the track and the step bar gives them less air above and below, so the first checklist row stays inside its phone height budget. */
 .lift-status-stages:has(> .journey-track) {
-  padding-block: var(--space-1);
+  padding-block: 0;
+}
+/* The explain popup of the current stage can open below the card, so the card stops clipping it; its own children round their corners instead. */
+.lift-status:has(.journey-track) {
+  overflow: visible;
+}
+.lift-status:has(.journey-track) > :first-child {
+  border-start-start-radius: var(--radius-lg);
+  border-start-end-radius: var(--radius-lg);
+}
+.lift-status:has(.journey-track) > :last-child {
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
 }
 /* end WP-PIC8 */

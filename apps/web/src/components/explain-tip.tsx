@@ -31,9 +31,6 @@ export interface ExplainTipProps {
 export function ExplainTip({ label, text, children, className }: ExplainTipProps) {
   const { open, fit, popupId, wrapRef, triggerRef, popupRef, wrapProps, triggerProps } =
     useExplainTip();
-  // The page's own ids are what a page outline lists. These two exist only to link the button to
-  // its sentence, so they keep React's generated form (leading "_R_") and drop the readable prefix.
-  const domId = popupId.replace(/^explain-/, '');
   return (
     <span
       ref={wrapRef}
@@ -47,7 +44,7 @@ export function ExplainTip({ label, text, children, className }: ExplainTipProps
         ref={triggerRef}
         type="button"
         className="explain-tip-trigger"
-        aria-describedby={`${domId}-text`}
+        aria-describedby={`${popupId}-text`}
         {...triggerProps}
       >
         <span className="explain-tip-picture" aria-hidden="true">
@@ -55,9 +52,9 @@ export function ExplainTip({ label, text, children, className }: ExplainTipProps
         </span>
         <span className="sr-only">{label}</span>
       </button>
-      <span ref={popupRef} id={domId} role="tooltip" className="explain-tip-popup" hidden={!open}>
+      <span ref={popupRef} id={popupId} role="tooltip" className="explain-tip-popup" hidden={!open}>
         <span className="explain-tip-title">{label}</span>
-        <span className="explain-tip-text" id={`${domId}-text`}>
+        <span className="explain-tip-text" id={`${popupId}-text`}>
           {text}
         </span>
       </span>
