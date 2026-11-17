@@ -44,7 +44,7 @@ export function journeyStageSentence(stage: MissionState): string {
 
 /**
  * The case's stages as small pictures along a line. The current stage is marked with its word and
- * `aria-current`; stages before it are plain "Before" markers and later ones plain "Later" ones.
+ * "Now:" for screen readers, read before the stage (the step bar already carries `aria-current`); stages before it are plain "Before" markers and later ones plain "Later" ones.
  * Nothing is ticked or called done: the page keeps no stage history and real moves skip stages, so
  * a stage before the current one may never have been entered. Submitted gets no special claim.
  * `stages` is the same ordered path the step bar shows, so order and words never differ. A case
@@ -75,11 +75,8 @@ export function JourneyTrack({
           const label = labels[stage] ?? stage;
           const picture = <Icon name={STAGE_ICONS[stage]} size={22} />;
           return (
-            <li
-              key={stage}
-              className={`journey-stage journey-stage-${kind}`}
-              aria-current={kind === 'current' ? 'step' : undefined}
-            >
+            <li key={stage} className={`journey-stage journey-stage-${kind}`}>
+              {kind === 'current' ? <span className="sr-only">Now: </span> : null}
               {kind === 'current' ? (
                 <ExplainTip label={label} text={journeyStageSentence(stage)}>
                   {picture}
@@ -89,14 +86,7 @@ export function JourneyTrack({
                   {picture}
                 </span>
               )}
-              {kind === 'current' ? (
-                <>
-                  <span className="sr-only">Now: </span>
-                  <span className="journey-stage-word" aria-hidden="true">
-                    {label} - Now
-                  </span>
-                </>
-              ) : (
+              {kind === 'current' ? null : (
                 <span className="sr-only">
                   {label}: {KIND_WORDS[kind]}
                 </span>

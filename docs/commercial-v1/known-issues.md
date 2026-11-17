@@ -8327,3 +8327,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - Before a traveller shares with an agency, the existing summary also draws what leaves (profile sections as icons, chosen documents as one document picture with the total count) and what stays private as a muted row, with an explain button: "Only what you see here is shared. You can stop sharing at any time; copies already downloaded stay with them." Presentation only: no change to what is shared, consent, revocation or audit. Every listed item is counted, including ones whose details could not be loaded (review fix).
 - NOT verified: a real device and screen reader; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC8b case journey track shown on the case page
+
+- The case page now shows the journey track (built in WP-PIC8) above the step bar: one picture per stage, the current stage marked Now with an explain button (44 px target, 28 px circle, no overhang). While the track shows, the step bar's segment strip is hidden and its "Stage n of m" line is read to screen readers only; the step bar keeps the only current-stage marker and its "Now:" line. Explain popups now use plain generated ids. The case card lets the explain popup open past its edge while the track shows. Measured on a production build: phone first checklist row 1491 of 1500 px, phone full case page within its 3700 px limit.
+- NOT verified: a real phone and screen reader; dark mode on a real device; Bengali for the new words.

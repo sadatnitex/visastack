@@ -14,6 +14,7 @@ import { Icon } from './icons';
 import { ListFilterBar } from './list-pattern';
 import { useSheetBehaviour } from './list-pattern/use-sheet';
 import { MarkTile } from './mark-tile';
+import type { PassportCoverKind } from './pictures/nationality';
 import { EmptyState, StatusBadge } from './ui';
 
 export interface WalletBrowserDocument {
@@ -105,13 +106,17 @@ export function DocumentWalletBrowser({
   applicantId,
   documents,
   initialSelection,
-  nationality,
+  coverKind,
 }: {
   readonly applicantId: string;
   readonly documents: readonly WalletBrowserDocument[];
   readonly initialSelection?: string;
-  /** The traveller's saved nationality, for the passport card of the stack view; neutral cover when absent. */
-  readonly nationality?: string | null;
+  /**
+   * Which passport cover the stack view's passport card shows, chosen on the server from the
+   * traveller's saved nationality. Only the cover kind crosses to the browser, never the value
+   * itself; the neutral cover when absent.
+   */
+  readonly coverKind?: PassportCoverKind | undefined;
 }) {
   const t = useT(componentsCatalog);
   const [selectedId, setSelectedId] = useState(initialSelection ?? documents[0]?.id ?? '');
@@ -317,7 +322,7 @@ export function DocumentWalletBrowser({
           }
           {visible.length && view === 'stack' ? (
             <DocumentWalletStack
-              nationality={nationality}
+              nationality={coverKind}
               onOpen={openDocument}
               items={visible.map((doc) => ({
                 id: doc.id,

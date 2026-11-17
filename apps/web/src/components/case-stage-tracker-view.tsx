@@ -60,9 +60,7 @@ export function CaseStageTrackerView({
         summary: 'About Stages',
         children: (
           <p>
-            {journey
-              ? 'Only the current stage is marked. Stages before it are shown plain, not as finished.'
-              : 'Only the current state is marked. This is not a completed-stage history.'}{' '}
+            Only the current state is marked. This is not a completed-stage history.{' '}
             {nextStates.length
               ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and traveller confirmation are checked by the existing actions.${cancelLine}`
               : cancelInMore

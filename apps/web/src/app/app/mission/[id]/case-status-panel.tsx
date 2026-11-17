@@ -236,6 +236,7 @@ export function CaseStatusPanel({
             labels={stateLabels}
             nextStates={nextStageStates}
             cancelInMore={cancelInMore}
+            journey
           />
         </div>
       </div>
