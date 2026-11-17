@@ -2,14 +2,19 @@ import {
   type Destination,
   type DestinationRequirement,
   type DestinationRoute,
+  type EntryStatus,
   routesForDestination,
 } from '@visastack/core/destinations';
 import { CountryFlag } from '../../../components/country-flag';
+import { ExplainTip } from '../../../components/explain-tip';
+import { Icon } from '../../../components/icons';
+import { MarkTile } from '../../../components/mark-tile';
 import { SourceNote } from '../../../components/source-note';
 import { EmptyState, PageHeader, StatusBadge } from '../../../components/ui';
 import { appCountriesCatalog } from '../../../i18n/app-countries';
 import {
   ENTRY_LABEL,
+  ENTRY_SHORT_LABEL,
   THIN_LIST,
   isUnofficial,
   moneyLabel,
@@ -18,6 +23,31 @@ import {
 } from '../../../lib/country-view';
 import { humanizeCode } from '../../../lib/format-code';
 import { getServerT } from '../../../lib/i18n-server';
+import type { ItemMark } from '../../../lib/item-icons';
+
+/**
+ * The picture each entry type wears on the Country Card (WP-PIC6). Six different symbols, so no state
+ * can pass for another: "Not Yet Researched" is a magnifier in amber and never the green tick of
+ * "No Visa Needed". The plain word always sits beside the picture, so colour is never the only signal.
+ */
+export const ENTRY_MARK: Readonly<Record<EntryStatus, ItemMark>> = {
+  VISA_REQUIRED: { icon: 'key', tone: 'blue' },
+  E_VISA: { icon: 'mail', tone: 'teal' },
+  VISA_ON_ARRIVAL: { icon: 'plane', tone: 'violet' },
+  ETA: { icon: 'clock', tone: 'blue' },
+  VISA_FREE: { icon: 'check', tone: 'green' },
+  NOT_FOUND: { icon: 'search', tone: 'amber' },
+};
+
+/** One plain sentence per entry type, shown by the explain popup beside the picture. */
+export const ENTRY_EXPLAIN: Readonly<Record<EntryStatus, string>> = {
+  VISA_REQUIRED: 'You must get a visa before you travel.',
+  E_VISA: 'You apply online and get the visa by email before you travel.',
+  VISA_ON_ARRIVAL: 'You get the visa at the border when you arrive.',
+  ETA: 'You ask for a travel permit online before you go. It is not a visa.',
+  VISA_FREE: 'You can enter without a visa for a short stay. Check how long you may stay.',
+  NOT_FOUND: 'We have not collected the rules yet. That does not mean no visa is needed.',
+};
 
 const HOW_TO_APPLY: Readonly<Record<string, string>> = {
   E_VISA_PORTAL: 'Online, on the official e-visa site',
@@ -188,6 +218,41 @@ function Facts({ destination }: { readonly destination: Destination }) {
   );
 }
 
+/**
+ * The Country Card (WP-PIC6): the flag, the name, the entry type as a picture beside its plain word, and
+ * where the fact came from. Added above the existing summary; nothing below it changed.
+ */
+export function CountryCard({ destination }: { readonly destination: Destination }) {
+  const stay = stayLabel(destination.maximumStayDays);
+  // An entry type this screen does not know yet reads as not researched, never as a crash or a guess.
+  const status: EntryStatus =
+    destination.entryStatus in ENTRY_MARK ? destination.entryStatus : 'NOT_FOUND';
+  const mark = ENTRY_MARK[status];
+  const word = ENTRY_SHORT_LABEL[status];
+  return (
+    <section
+      className="country-card"
+      data-entry={status}
+      aria-label={`${destination.country} At a Glance`}
+    >
+      <div className="country-card-head">
+        <CountryFlag iso2={destination.iso2} name={destination.country} size="lg" />
+        <p className="country-card-name">{destination.country}</p>
+      </div>
+      <div className="country-card-entry">
+        <MarkTile mark={mark} size="lg" />
+        <strong className="country-card-word">{word}</strong>
+        <ExplainTip label={word} text={ENTRY_EXPLAIN[status]}>
+          <Icon name="ask" size={18} />
+        </ExplainTip>
+      </div>
+      {destination.researched && stay ? <p className="country-card-stay">{stay}</p> : null}
+      {/* The summary below shows the source of a researched country; the card shows it only when there is no summary. */}
+      {destination.researched ? null : <SourceNote source={destination.source} />}
+    </section>
+  );
+}
+
 /** One country's page. `backHref` is the list it came from, so the way back stays in the same workspace. */
 export function CountryView({
   destination,
@@ -215,6 +280,7 @@ export function CountryView({
           </StatusBadge>
         }
       />
+      <CountryCard destination={destination} />
       {destination.researched ? (
         <Facts destination={destination} />
       ) : (
