@@ -21559,3 +21559,9 @@ body:lang(bn),
   color: var(--text-secondary);
 }
 /* end WP-CI */
+
+/* WP-GOOGLE-SIGN-IN Continue with Google button (17 Nov 2026): the link sits above the email form and matches its width and height, so the two ways in line up. The Google mark keeps its own colours. */
+.auth-social .btn {
+  width: 100%;
+  min-height: 52px;
+}

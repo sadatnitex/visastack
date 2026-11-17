@@ -34,6 +34,30 @@ export interface AuthThrottleInput {
   readonly onFailure: 'allow' | 'deny';
 }
 
+/**
+ * True when this network address is within one limit. For steps that take no email address, such
+ * as starting Google sign-in: it counts the address only, so nobody else's attempts are blocked.
+ */
+export async function withinAddressLimit(input: {
+  readonly byAddress: AuthLimit;
+  readonly onFailure: 'allow' | 'deny';
+}): Promise<boolean> {
+  try {
+    const address = await clientAddress();
+    return await withPublicDb(async (db) => {
+      const decision = await checkRateLimit(
+        db,
+        { subjectId: digest('net', address), action: `auth.${input.byAddress}`, label: 'attempt' },
+        RATE_LIMITS[input.byAddress],
+      );
+      return decision.allowed;
+    });
+  } catch (error) {
+    reportServerError('authThrottle', error, { step: 'rate limit check' });
+    return input.onFailure === 'allow';
+  }
+}
+
 /** True when this attempt is within the limits. */
 export async function withinAuthLimits(input: AuthThrottleInput): Promise<boolean> {
   try {

@@ -1,11 +1,14 @@
+import Link from 'next/link';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { googleSignInEnabled } from '../../lib/social-sign-in';
 
 /**
  * "Continue with Google", shown only when Google sign-in has been switched on for this deployment.
  * A plain link (not a form, and not the framework's link, which would start the sign-in while the
- * page is only being prepared). Creating an account this way carries the same acknowledgement of
- * the terms and privacy notice as the sign-up form, so the line under the button says so.
+ * page is only being prepared); `nofollow` keeps crawlers from starting sign-ins. The button text
+ * and the line under it are English only for now, so they are marked as English on a page shown
+ * in Bengali. The line under the button is only a notice; see docs/operations/current-platform.md
+ * for why switching Google on waits for the owner's decision on recording agreement to the terms.
  */
 export function GoogleButton({ next, notice }: { next: string | undefined; notice: boolean }) {
   if (!googleSignInEnabled()) return null;
@@ -14,6 +17,7 @@ export function GoogleButton({ next, notice }: { next: string | undefined; notic
       <a
         className="btn btn-secondary"
         href={`/auth/google?next=${encodeURIComponent(safeReturnPath(next))}`}
+        rel="nofollow"
       >
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
           <path
@@ -32,13 +36,13 @@ export function GoogleButton({ next, notice }: { next: string | undefined; notic
             fill="#34A853"
             d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
           />
-        </svg>{' '}
-        Continue with Google
+        </svg>
+        <span lang="en">Continue with Google</span>
       </a>
       {notice ? (
-        <p className="card-body">
-          By continuing you agree to the <a href="/terms">terms of use</a> and acknowledge the{' '}
-          <a href="/privacy">privacy notice</a>.
+        <p className="card-body" lang="en">
+          By continuing you agree to the <Link href="/terms">terms of use</Link> and acknowledge the{' '}
+          <Link href="/privacy">privacy notice</Link>.
         </p>
       ) : null}
     </div>
