@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   owner: 'acct-1',
   docType: 'passport' as string | null,
-  browserProps: [] as Array<{ readonly nationality?: unknown }>,
+  browserProps: [] as Array<{ readonly coverKind?: unknown }>,
 }));
 
 const PROOF = { proof: 'owner' };
@@ -108,7 +108,7 @@ vi.mock('../document-suggestion-card', () => ({
 }));
 vi.mock('../../../../../components/auto-refresh', () => ({ AutoRefresh: stub('AutoRefresh') }));
 vi.mock('../../../../../components/document-wallet-browser', () => ({
-  DocumentWalletBrowser: (props: { readonly nationality?: unknown }) => {
+  DocumentWalletBrowser: (props: { readonly coverKind?: unknown }) => {
     mocks.browserProps.push(props);
     return null;
   },
@@ -158,7 +158,7 @@ async function coverProp(): Promise<unknown> {
     DocumentsPage({ params: Promise.resolve({ id: 'a1' }), searchParams: Promise.resolve({}) }),
   );
   expect(mocks.browserProps.length).toBeGreaterThan(0);
-  return mocks.browserProps.at(-1)?.nationality;
+  return mocks.browserProps.at(-1)?.coverKind;
 }
 
 describe('the passport cover on the Documents page', () => {

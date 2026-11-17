@@ -261,6 +261,7 @@ export default async function ApplicantOverviewPage({
                         done={essentials.answered}
                         total={essentials.total}
                         afterDone={essentials.total}
+                        countLabel="Essentials Added"
                       />
                     ),
                   }
@@ -270,8 +271,6 @@ export default async function ApplicantOverviewPage({
                       title: 'Continue Your Profile',
                       why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
                       action: 'Open Profile',
-                      // One more detail after this step: the page cannot know how many more.
-                      beforeAfter: <BeforeAfterHero done={completed} total={completion.total} />,
                     }
                   : partial || data.attentionRead === null
                     ? {

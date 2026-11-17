@@ -5,7 +5,6 @@ import {
   type AuthorizedApplicant,
   CONVERTED_FROM_HEIC_SOURCE,
   DEFAULT_DOCUMENT_PROTECTION,
-  type Db,
   type DocumentAction,
   type DocumentLifecycleStatus,
   type VersionScanEvidence,
@@ -199,12 +198,12 @@ const COVER_HISTORY_PAGES = 5;
  * missing or unreadable gives the neutral cover; the value itself never leaves this function.
  */
 async function travellerCoverKind(
-  db: Db,
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
 ): Promise<PassportCoverKind> {
   let before: string | undefined;
   for (let page = 0; page < COVER_HISTORY_PAGES; page += 1) {
-    const read = await listApplicantProfile(db, proof, {
+    // The history read runs on the proof's own connection, the one the gate checked.
+    const read = await listApplicantProfile(proof.tx, proof, {
       history: { pack: 'universal', limit: 100, ...(before ? { before } : {}) },
     });
     if (!read.ok) return 'neutral';
@@ -386,7 +385,7 @@ export default async function ApplicantDocumentsPage({
       // Read only when there is a passport card to draw.
       readingAccess.ok &&
       documentRows.some((doc) => documentCatalogueKey(doc.docType) === 'PASSPORT')
-        ? travellerCoverKind(db, readingAccess.value).catch((): PassportCoverKind => 'neutral')
+        ? travellerCoverKind(readingAccess.value).catch((): PassportCoverKind => 'neutral')
         : Promise.resolve<PassportCoverKind>('neutral'),
     ]);
     const detailsAvailable =
@@ -710,8 +709,8 @@ export default async function ApplicantDocumentsPage({
           applicantId={id}
           {...(selection ? { initialSelection: selection } : {})}
           // Only the cover kind ('bangladesh' or 'neutral') reaches the browser, never the saved
-          // nationality itself; the passport cover reads either word back to the same cover.
-          nationality={data.coverKind}
+          // nationality itself.
+          coverKind={data.coverKind}
           documents={listedDocuments.map((doc) => {
             const badge = safetyBadge(doc, data.scanEvidence);
             const processingKey = doc.processingStatus

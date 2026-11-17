@@ -1,4 +1,6 @@
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ProgressRing } from '../../../../components/progress-ring';
 import { AFTER_STEP_LABEL, NOW_LABEL } from '../../../../components/ui-lift/next-step-panel';
 import { buildMasterProfileView } from '../../../../lib/master-profile';
 import { renderServer } from '../../../../lib/next-mocks.test-support';
@@ -118,12 +120,23 @@ describe('the Next Step ring on the traveller page', () => {
     const card = cardHtml(html);
     expect(card).toContain('Add Your Essentials');
     expect(ringCaptions(card)).toBe(2);
-    // Now: none of the essentials; after the step: every one of them.
-    expect(card).toContain(`0 of ${total}`);
-    expect(card).toContain(`${total} of ${total}`);
+    // Now: none of the essentials; after the step: every one of them. Said as essentials added,
+    // both on screen and as the ring's text alternative, never as "items ready".
+    expect(card).toContain(`aria-label="0 of ${total} Essentials Added"`);
+    expect(card).toContain(`aria-label="${total} of ${total} Essentials Added"`);
+    expect(card).toContain(`>0 of ${total} Essentials Added<`);
+    expect(card).not.toContain('items ready');
   });
 
-  it('shows the ring on Continue Your Profile with the profile counts', async () => {
+  it('draws no document picture and nothing that moves on a profile step', async () => {
+    const card = cardHtml(await renderServer(Overview(params)));
+    expect(ringCaptions(card)).toBe(2);
+    expect(card).not.toContain('lift-next-hero-picture');
+    expect(card).not.toContain('pic-float');
+    expect(card).not.toContain('pic-glow');
+  });
+
+  it('shows no ring on Continue Your Profile (one more of many says too little)', async () => {
     const { entries, noneDeclared } = allEssentials();
     service.listApplicantProfile.mockResolvedValue(entries);
     service.getProfileSectionState.mockResolvedValue({
@@ -134,7 +147,7 @@ describe('the Next Step ring on the traveller page', () => {
     const html = await renderServer(Overview(params));
     const card = cardHtml(html);
     expect(card).toContain('Continue Your Profile');
-    expect(ringCaptions(card)).toBe(2);
+    expect(ringCaptions(card)).toBe(0);
   });
 
   it('shows no ring on any other step', async () => {
@@ -145,5 +158,18 @@ describe('the Next Step ring on the traveller page', () => {
     const html = await renderServer(Overview(params));
     expect(cardHtml(html)).toContain('Found in Your Documents');
     expect(ringCaptions(cardHtml(html))).toBe(0);
+  });
+});
+
+describe('the progress ring words', () => {
+  it('keeps "items ready" by default and takes a count noun when given one', () => {
+    const plain = renderToStaticMarkup(<ProgressRing done={2} total={5} size="sm" />);
+    expect(plain).toContain('aria-label="2 of 5 items ready"');
+    const named = renderToStaticMarkup(
+      <ProgressRing done={3} total={9} size="sm" countLabel="Essentials Added" />,
+    );
+    expect(named).toContain('aria-label="3 of 9 Essentials Added"');
+    expect(named).toContain('>3 of 9 Essentials Added<');
+    expect(named).not.toContain('items ready');
   });
 });
