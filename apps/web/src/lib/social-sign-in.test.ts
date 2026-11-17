@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { googleSignInEnabled, safeProviderRedirect } from './social-sign-in';
 
-const SECRET = 'test-only-cookie-key-with-at-least-thirty-two-characters';
-
 function env(values: Record<string, string>) {
   return (name: string) => values[name];
 }
@@ -11,7 +9,6 @@ describe('googleSignInEnabled', () => {
   const ready = {
     GOOGLE_SIGN_IN_ENABLED: 'true',
     NEON_AUTH_BASE_URL: 'https://auth.example.test/neondb/auth',
-    NEON_AUTH_COOKIE_SECRET: SECRET,
   };
 
   it('is on only when switched on and Neon Auth is configured', () => {
@@ -31,7 +28,6 @@ describe('googleSignInEnabled', () => {
     expect(googleSignInEnabled(env({ ...ready, NEON_AUTH_BASE_URL: 'http://auth.test' }))).toBe(
       false,
     );
-    expect(googleSignInEnabled(env({ ...ready, NEON_AUTH_COOKIE_SECRET: 'short' }))).toBe(false);
   });
 });
 

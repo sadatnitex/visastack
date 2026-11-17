@@ -6,12 +6,9 @@ vi.mock('../../../lib/neon-auth', () => ({ getNeonAuth: () => ({ signIn: { socia
 
 import { GET } from './route';
 
-const SECRET = 'test-only-cookie-key-with-at-least-thirty-two-characters';
-
 function enable(): void {
   vi.stubEnv('GOOGLE_SIGN_IN_ENABLED', 'true');
   vi.stubEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/neondb/auth');
-  vi.stubEnv('NEON_AUTH_COOKIE_SECRET', SECRET);
 }
 
 function request(query = ''): Request {
