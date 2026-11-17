@@ -226,14 +226,12 @@ describe('readAloud', () => {
     expect(done).toHaveBeenCalledTimes(1);
   });
   it('resets when the browser drops the line and neither end nor error fires', () => {
-    stubSpeech();
+    const speech = stubSpeech();
     const done = vi.fn();
     readAloud('Hello', done);
     vi.advanceTimersByTime(1);
     expect(done).not.toHaveBeenCalled();
-    const { api } = {
-      api: (window as { speechSynthesis: { cancel: { mockClear: () => void } } }).speechSynthesis,
-    };
+    const { api } = speech;
     api.cancel.mockClear();
     vi.advanceTimersByTime(4000);
     expect(done).toHaveBeenCalledTimes(1);
