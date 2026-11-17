@@ -49,9 +49,10 @@ const nextConfig = {
   reactStrictMode: true,
   env: { VISASTACK_BUILD_VERSION: buildVersion },
   // WP-PIC15: the progress card draws the destination's flag from public/flags on the server, and
-  // a Vercel function does not carry the public folder unless it is named here (this route only).
+  // a Vercel function does not carry the public folder unless it is named here (the progress card
+  // routes only; the key is a glob, so the route's [missionId] folder is matched with a wildcard).
   outputFileTracingIncludes: {
-    '/api/progress-card/[missionId]': ['./public/flags/*.svg'],
+    '/api/progress-card/*': ['./public/flags/*.svg'],
   },
   poweredByHeader: false,
   transpilePackages: ['@visastack/core', '@visastack/db'],

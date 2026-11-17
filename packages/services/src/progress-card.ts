@@ -24,7 +24,7 @@ export interface CaseProgressCounts {
  */
 const FINISHED_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED']);
 
-/** The audit event a card leaves behind: which case, by whom, and nothing it showed. */
+/** The audit event a card leaves behind: ids and role (which case, by whom), nothing it showed. */
 export const PROGRESS_CARD_MADE = 'PROGRESS_CARD_MADE';
 
 /**
@@ -34,8 +34,9 @@ export const PROGRESS_CARD_MADE = 'PROGRESS_CARD_MADE';
  * unknown case. A case with no checklist, or a checklist with nothing required, has nothing to
  * count and answers the same way.
  *
- * One count-only audit event is written for each card made (no counts, no text). No card is
- * given without it: when the audit row cannot be written the answer is the same not-found.
+ * One audit event is written for each card made. It holds ids and the actor's role only (which
+ * case, which record, who asked): no counts and no text. No card is given without it: when the
+ * audit row cannot be written the answer is the same not-found.
  */
 export async function readCaseProgressCounts(
   access: AuthorizedApplicant<'VIEW_METADATA'>,

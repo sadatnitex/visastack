@@ -100,7 +100,10 @@ describe('the progress card route', () => {
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(response.headers.get('cross-origin-resource-policy')).toBe('same-origin');
-    expect(response.headers.get('content-disposition')).toMatch(/^inline/);
+    // Saved as a file rather than opened in the tab (Firefox ignores the link's download name for inline).
+    expect(response.headers.get('content-disposition')).toBe(
+      'attachment; filename="visastack-progress-card.png"',
+    );
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect([...bytes.slice(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   }, 60_000);

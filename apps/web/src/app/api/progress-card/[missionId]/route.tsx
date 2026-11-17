@@ -7,6 +7,7 @@ import {
   progressCardElement,
 } from '../../../../lib/progress-card/card-image';
 import { progressCardModel } from '../../../../lib/progress-card/card-model';
+import { PROGRESS_CARD_FILE_NAME } from '../../../../lib/progress-card/file-name';
 import { progressCardOn } from '../../../../lib/progress-card/switch';
 import { withSession } from '../../../../lib/session';
 
@@ -65,7 +66,7 @@ export async function GET(
     height: PROGRESS_CARD_HEIGHT,
     headers: {
       ...PRIVATE_HEADERS,
-      'Content-Disposition': 'inline; filename="progress-card.png"',
+      'Content-Disposition': `attachment; filename="${PROGRESS_CARD_FILE_NAME}"`,
       'Content-Security-Policy': "default-src 'none'; sandbox",
     },
   });

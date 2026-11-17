@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq, sql } from 'drizzle-orm';
@@ -10,7 +11,7 @@ import { type Cases, freshDb, twoCases } from './finished-case-freeze.test-suppo
 import { createMission } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
 import { PROGRESS_CARD_MADE, readCaseProgressCounts } from './progress-card';
-import { acceptGrant, createGrant } from './sharing';
+import { acceptGrant, createGrant, revokeGrant } from './sharing';
 
 /**
  * WP-PIC15: the progress card's one read. Counts only, the record's owner only, and one audit row
@@ -181,6 +182,95 @@ describe('readCaseProgressCounts', () => {
     expect((await readCaseProgressCounts(await view(cases.accountId, bare.value.id))).ok).toBe(
       false,
     );
+    expect(await cardEvents()).toHaveLength(0);
+  });
+  /**
+   * What the web route does: the access gate for this person and this case, then the owner-only
+   * read. Every refusal becomes the same not-found there, so each case below must be refused at
+   * one of the two steps and leave no audit row.
+   */
+  const routeAnswer = async (accountId: string, missionId: string) => {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { missionId },
+      { purpose: 'self' },
+    );
+    if (!proof.ok) return 'not found';
+    const read = await readCaseProgressCounts(proof.value);
+    return read.ok ? 'card' : 'not found';
+  };
+  const sharedWithRelative = async (expiryAt?: Date) => {
+    const relativeId = await account(`relative-${randomUUID()}@example.com`);
+    const grant = await createGrant(db, {
+      actorAccountId: cases.accountId,
+      applicantId: cases.applicantId,
+      recipientAccountId: relativeId,
+      actions: ['VIEW_METADATA'],
+      purpose: 'family-help',
+      ...(expiryAt ? { expiryAt } : {}),
+    });
+    if (!isOk(grant)) throw new Error(`grant: ${grant.error.message}`);
+    const accepted = await acceptGrant(db, { actorAccountId: relativeId, grantId: grant.value.id });
+    if (!isOk(accepted)) throw new Error('accept');
+    return { relativeId, grantId: grant.value.id };
+  };
+
+  it('gives the owner a card through the same steps the route takes', async () => {
+    expect(await routeAnswer(cases.accountId, cases.openId)).toBe('card');
+  });
+
+  it("refuses another traveller asking for this traveller's case, like a missing case", async () => {
+    const stranger = await twoCases(db, 'FIELD');
+    // Control: each traveller gets a card for their own case.
+    expect(await routeAnswer(stranger.accountId, stranger.openId)).toBe('card');
+    expect(await cardEvents()).toHaveLength(1);
+    expect(await routeAnswer(stranger.accountId, cases.openId)).toBe('not found');
+    expect(await routeAnswer(cases.accountId, stranger.openId)).toBe('not found');
+    // Only the control's card left a row: neither refusal wrote one.
+    expect(await cardEvents()).toHaveLength(1);
+  });
+
+  /** Whether the share itself still lets this person view the case (the gate, not the card). */
+  const shareStillOpens = async (accountId: string) =>
+    (
+      await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { missionId: cases.openId },
+        { purpose: EACH_GRANT },
+      )
+    ).ok;
+
+  it('refuses a person whose share was revoked, like a missing case', async () => {
+    const { relativeId, grantId } = await sharedWithRelative();
+    // Control: the live share does open the case, so the refusal below is the revocation's doing.
+    expect(await shareStillOpens(relativeId)).toBe(true);
+    const revoked = await revokeGrant(db, { actorAccountId: cases.accountId, grantId });
+    if (!isOk(revoked)) throw new Error('revoke');
+    expect(await shareStillOpens(relativeId)).toBe(false);
+    expect(await routeAnswer(relativeId, cases.openId)).toBe('not found');
+    expect(await cardEvents()).toHaveLength(0);
+  });
+
+  it('refuses a person whose share has expired, like a missing case', async () => {
+    const { relativeId, grantId } = await sharedWithRelative(new Date(Date.now() + 60_000));
+    expect(await shareStillOpens(relativeId)).toBe(true);
+    await db
+      .update(schema.grants)
+      .set({ expiryAt: new Date(Date.now() - 60_000) })
+      .where(eq(schema.grants.id, grantId));
+    expect(await shareStillOpens(relativeId)).toBe(false);
+    expect(await routeAnswer(relativeId, cases.openId)).toBe('not found');
+    expect(await cardEvents()).toHaveLength(0);
+  });
+
+  it('refuses a case that does not exist or has been deleted, like any other refusal', async () => {
+    expect(await routeAnswer(cases.accountId, randomUUID())).toBe('not found');
+    await db.execute(sql`DELETE FROM missions WHERE id = ${cases.openId}`);
+    expect(await routeAnswer(cases.accountId, cases.openId)).toBe('not found');
     expect(await cardEvents()).toHaveLength(0);
   });
 });
