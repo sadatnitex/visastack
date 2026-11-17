@@ -136,9 +136,9 @@ export function PushCard({ publicKey }: { readonly publicKey: string }) {
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={state === 'working'}
+          aria-disabled={state === 'working' || undefined}
           aria-busy={state === 'working'}
-          onClick={isOn ? turnOff : turnOn}
+          onClick={state === 'working' ? undefined : isOn ? turnOff : turnOn}
         >
           {isOn ? 'Turn Off' : 'Turn On Notifications'}
         </button>
