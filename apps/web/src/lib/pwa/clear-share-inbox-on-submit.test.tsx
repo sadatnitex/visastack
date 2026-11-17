@@ -32,9 +32,10 @@ afterEach(() => {
 async function signOut(action: () => Promise<void>) {
   await act(async () => {
     root.render(
-      <ClearShareInboxOnSubmit action={action}>
+      <form action={action}>
+        <ClearShareInboxOnSubmit />
         <button type="submit">Sign Out</button>
-      </ClearShareInboxOnSubmit>,
+      </form>,
     );
   });
   await act(async () => {
@@ -73,14 +74,24 @@ describe('signing out', () => {
     expect(action).toHaveBeenCalledTimes(1);
   });
 
-  it('wraps both signed-in sign-out forms', () => {
+  it('adds nothing to the form it sits in', async () => {
+    serviceWorker(undefined);
+    await act(async () => {
+      root.render(
+        <form>
+          <ClearShareInboxOnSubmit />
+        </form>,
+      );
+    });
+    const form = container.querySelector('form') as HTMLFormElement;
+    expect([...new FormData(form).keys()]).toEqual([]);
+  });
+
+  it('sits inside both signed-in sign-out forms', () => {
     for (const file of ['../../app/app/workspace-frame.tsx', '../../app/app/account/page.tsx']) {
       const source = readFileSync(new URL(file, import.meta.url), 'utf8');
       expect(source).toMatch(
-        /<ClearShareInboxOnSubmit\s+action=\{async \(\) => \{\s*'use server';\s*await signOutCurrentUser\(\);/,
-      );
-      expect(source).not.toMatch(
-        /<form\s+action=\{async \(\) => \{\s*'use server';\s*await signOutCurrentUser/,
+        /<form\s+action=\{async \(\) => \{\s*'use server';\s*await signOutCurrentUser\(\);\s*\}\}\s*>\s*<ClearShareInboxOnSubmit \/>/,
       );
     }
   });

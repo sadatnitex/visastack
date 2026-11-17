@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import { SHARE_CLEAR_MESSAGE } from './share-target';
 
 /**
@@ -18,23 +18,18 @@ export function postClearShareInbox(): void {
 }
 
 /**
- * A sign-out form that also empties the shared files waiting on this phone, so the next person to
- * use it never sees them. The sign-out itself is untouched: the server action runs exactly as
- * before (nothing is delayed or prevented), and the form works the same before the page has loaded
- * its scripts.
+ * Placed inside a sign-out form: when that form is sent, the shared files waiting on this phone
+ * are emptied too, so the next person to use it never sees them. The sign-out itself is untouched:
+ * it only listens, never delays or stops the form, and the form works the same before the page has
+ * loaded its scripts. It renders one hidden field with no name, so nothing is added to the form.
  */
-export function ClearShareInboxOnSubmit({
-  action,
-  className,
-  children,
-}: {
-  readonly action: (formData: FormData) => void | Promise<void>;
-  readonly className?: string;
-  readonly children: ReactNode;
-}) {
-  return (
-    <form action={action} className={className} onSubmit={postClearShareInbox}>
-      {children}
-    </form>
-  );
+export function ClearShareInboxOnSubmit() {
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const form = field.current?.form;
+    if (!form) return;
+    form.addEventListener('submit', postClearShareInbox);
+    return () => form.removeEventListener('submit', postClearShareInbox);
+  }, []);
+  return <input ref={field} type="hidden" />;
 }

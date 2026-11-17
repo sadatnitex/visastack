@@ -57,17 +57,18 @@ export async function WorkspaceFrame({
       toolbarState={account.toolbar}
       initialCaseSubject={caseSubject}
       signOut={
-        <ClearShareInboxOnSubmit
+        <form
           action={async () => {
             'use server';
             await signOutCurrentUser();
           }}
         >
+          <ClearShareInboxOnSubmit />
           <button type="submit" className="btn btn-secondary nav-cta">
             <Icon name="logout" size={18} />
             {t.node('appHome.appWorkspaceFrame.signOut')}
           </button>
-        </ClearShareInboxOnSubmit>
+        </form>
       }
     >
       <ShareOriginsProvider origin={resolveBaseUrl()}>{children}</ShareOriginsProvider>

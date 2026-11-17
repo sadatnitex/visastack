@@ -84,16 +84,17 @@ export default async function AccountPage() {
             <p className="card-body u-mb-125">
               {t.node('appAccount.appAccountPage.signOutOfThisDevice')}
             </p>
-            <ClearShareInboxOnSubmit
+            <form
               action={async () => {
                 'use server';
                 await signOutCurrentUser();
               }}
             >
+              <ClearShareInboxOnSubmit />
               <button type="submit" className="btn btn-secondary">
                 {t.node('appAccount.appAccountPage.signOut')}
               </button>
-            </ClearShareInboxOnSubmit>
+            </form>
           </article>
 
           {data.photo ? (
