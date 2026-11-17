@@ -71,6 +71,7 @@ import {
   paymentPorts,
 } from './providers';
 import { reportServerError } from './server-error';
+import { createPushPort } from './web-push';
 
 /**
  * Runs the erasure outbox worker (master directive §7 "PR 4") on its own
@@ -209,9 +210,11 @@ export async function triggerNotificationWorker(
     const { gate, ...workerOptions } = options;
     if (gate && !(await gate(handle))) return { sent: 0, retrying: 0, failed: 0 };
     const encryption = createKeyManagementPort();
+    const push = createPushPort();
     return await runNotificationWorker(handle, createEmailPort(), resolveBaseUrl(), {
       timeBudgetMs: 35_000,
       ...(encryption ? { encryption } : {}),
+      ...(push ? { push } : {}),
       ...workerOptions,
     });
   } catch (error) {

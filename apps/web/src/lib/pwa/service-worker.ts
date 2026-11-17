@@ -5,6 +5,7 @@ import {
   PUBLIC_STATIC_PREFIXES,
   STATIC_PREFIXES,
 } from './constants';
+import { buildPushWorkerSection, isWebPushSwitchOn } from './push-worker';
 import {
   INCOMING_PATH,
   SHARE_ACCEPT,
@@ -129,13 +130,19 @@ export const OFFLINE_CSP = [
  */
 export function buildServiceWorkerScript(
   version: string,
-  options: { readonly share?: boolean; readonly uploadSync?: boolean } = {},
+  options: {
+    readonly share?: boolean;
+    readonly uploadSync?: boolean;
+    readonly push?: boolean;
+  } = {},
 ): string {
   const SHARE_ON = options.share ?? isShareTargetOn((name) => process.env[name]);
   // WP-PIC17: the sync wake is written into the worker only while its switch is on, so with the
   // switch off the worker is exactly the one served before.
   const UPLOAD_SYNC_ON =
     options.uploadSync ?? isBackgroundUploadSyncEnabled((name) => process.env[name]);
+  // WP-PIC18: the alert handlers likewise, only while Web Push is switched on.
+  const PUSH_ON = options.push ?? isWebPushSwitchOn((name) => process.env[name]);
   const constants = {
     VERSION: normaliseVersion(version),
     CACHE_PREFIX,
@@ -536,7 +543,7 @@ self.addEventListener('fetch', (event) => {
   if (kind === 'static') event.respondWith(fromStaticCache(event));
   else if (kind === 'navigate') event.respondWith(fromNetwork(event));
 });
-${UPLOAD_SYNC_ON ? UPLOAD_SYNC_LISTENER : ''}`;
+${UPLOAD_SYNC_ON ? UPLOAD_SYNC_LISTENER : ''}${PUSH_ON ? buildPushWorkerSection() : ''}`;
 }
 
 /**
