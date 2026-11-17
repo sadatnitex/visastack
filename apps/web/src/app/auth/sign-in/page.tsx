@@ -10,6 +10,7 @@ import {
 } from '../../../lib/pending-confirmation';
 import { signInAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
+import { GoogleButton } from '../google-button';
 
 export const metadata: Metadata = { title: 'Sign In' };
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,14 @@ const ERRORS: Record<string, string> = {
   invalid: 'Enter a valid email address and a password of at least 8 characters.',
   failed: 'We could not sign you in with those details. Check them and try again.',
   slow: 'Too many attempts. Please wait a little while and try again.',
+  social: 'We could not sign you in with Google. Try again, or use your email and password.',
+  social_off: 'Google sign-in is not available yet. Use your email and password.',
+  social_start:
+    'Google sign-in could not start from here. Use the Continue with Google button on this page, or sign in with your email and password.',
 };
+
+/** The codes about the email form itself; the others describe Google and must not mark the form invalid. */
+const FORM_ERRORS = new Set(['invalid', 'failed', 'slow']);
 
 const NOTICES: Record<string, string> = {
   created: 'Your account is ready. Check your inbox to confirm your email address, then sign in.',
@@ -33,6 +41,7 @@ export default async function SignInPage({
   const t = getServerT(authCatalog);
   const { e, n, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
+  const formError = e && FORM_ERRORS.has(e) ? error : undefined;
   const notice = n ? NOTICES[n] : undefined;
   // After the confirmation link, start with the address this browser just asked us to confirm
   // (the signed, short-lived cookie the confirmation page already uses). It is read here and put
@@ -45,6 +54,7 @@ export default async function SignInPage({
     <AuthShell title={t.node('auth.authSignInPage.signIn')}>
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorLine id="signin-error" message={error} />
+      <GoogleButton next={next} notice />
       <div className="card u-mb-100">
         <form action={signInAction} className="field-list">
           <input type="hidden" name="next" value={safeReturnPath(next)} />
@@ -57,7 +67,7 @@ export default async function SignInPage({
             required
             maxLength={254}
             defaultValue={prefill ?? undefined}
-            errorId={error ? 'signin-error' : undefined}
+            errorId={formError ? 'signin-error' : undefined}
           />
           <TextField
             id="password"

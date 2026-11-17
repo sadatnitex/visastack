@@ -352,3 +352,12 @@ Done on the owner's blanket approval of 4 Nov 2026: migration 0132 (exact copies
 ## Owner decision pack (added 5 Nov 2026)
 
 One page with a recommendation, the exact wording and a tick box for each open owner item (D1 consent line, overdue checklists, official pages as stand-ins, the test checklist, the landing proof line, where the site runs, launch routes and the reviewer, counsel, the recovery drill, the master key copy): [OWNER-DECISION-PACK-2026-11-05.md](OWNER-DECISION-PACK-2026-11-05.md). Supporting documents prepared with it: [ROUTE-REVIEWER-BRIEF.md](ROUTE-REVIEWER-BRIEF.md) (what a route checklist holds and what the qualified reviewer signs) and [the restore drill sign-off sheet](../operations/restore-drill-signoff.md). Bangla and staff sign-in protection are left out on the owner's instruction.
+
+## Google sign-in (added 17 Nov 2026)
+
+Built and switched off; nothing changes for anyone until you act. Details and the exact order: `docs/operations/google-sign-in.md`.
+
+1. **Decide how agreement to the terms is recorded for Google sign-ups.** The email form records a versioned acknowledgement. Google cannot without new storage. Options: a "One last step" page after the first Google sign-in (recommended), or keep Google off until the email code sign-in exists.
+2. **Set up Google** (Google Cloud Console client, then Google in Neon Auth with both site addresses trusted). Never paste the secret into chat.
+3. **Allow the live checks** on the main and fallback addresses, then switch `GOOGLE_SIGN_IN_ENABLED` on in Vercel Production.
+4. **LinkedIn:** say if you want the "Connect LinkedIn" profile import built next, using the existing VisaStack LinkedIn app (check it is still active and has the OpenID Connect product).

@@ -65,3 +65,7 @@ Password recovery replaces the initial form with a check-email confirmation afte
 Neon Auth is configured for production; legacy WorkOS references do not authorize email-only record linking or claim current staff MFA acceptance. Use https://vs.obsidianglobal.studio for the canonical production custom domain; verify preview aliases against their exact deployment. Email confirmation or password reset does not transfer existing account records or privileges.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Google sign-in (17 Nov 2026)
+
+D10 above, the Google part: superseded, replaced by [google-sign-in.md](google-sign-in.md). Google sign-in is now built and switched off. Password strength, breach checks, change of email address and other accounts (LinkedIn is not offered by Neon Auth) stay deferred. D5 (consent at sign-up) now also decides when Google can be switched on, because the Google path does not record an acknowledgement of the terms.

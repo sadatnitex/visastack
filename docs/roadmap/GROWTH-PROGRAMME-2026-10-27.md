@@ -79,3 +79,7 @@ Small Commercial V1 (S12 and later, S24 never merged without the owner) continue
 4. Then G11, G12, G10, G13, G14, G15.
 
 Each package: plan note, code, tests with proven guards, code and security review as CLAUDE.md requires, one full check, draft PR, CI on the exact commit, merge, deploy check, plain-language report.
+
+## Update 17 Nov 2026: G9 order changed by the owner
+
+Owner, 17 Nov 2026: "yes, go with option A. and adding linkedin based login later, we did it for older version, also have the visastack app, we should use that". G9 above (email one-time code first, then Google, then phone code), the order: superseded, replaced by [docs/operations/google-sign-in.md](../operations/google-sign-in.md) for the Google part. Google sign-in is built and switched off; the email one-time code and the phone code are not built; LinkedIn is not a Neon Auth sign-in option and is planned as a profile import first. The event `SIGN_IN_METHOD_USED` is not added yet.
