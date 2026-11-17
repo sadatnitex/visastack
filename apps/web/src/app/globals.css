@@ -21827,7 +21827,7 @@ body:lang(bn),
   min-width: 44px;
 }
 /* end WP-PIC9 */
-/* WP-PIC12 share sheet pictures (17 Nov 2026, picture-first upgrade, unit P2e): under the grant review brief, what leaves is drawn as pictures (document kinds with a count, profile parts with the person icon) and what stays private as a muted row with the lock and its words. Presentation only. Flat: no shadow, gradient, blur or translucency; tokens only; state is said in words, never by colour alone. */
+/* WP-PIC12 share sheet pictures (17 Nov 2026, picture-first upgrade, unit P2e): under the grant review brief, what leaves is drawn as pictures (document kinds with a count, profile parts with the person icon) and what specifically stays private as a muted row with the lock and its words. Presentation only. Flat: no shadow, gradient, blur or translucency; tokens only; state is said in words, never by colour alone. */
 .share-pics {
   display: grid;
   gap: 0.5rem;
@@ -21877,8 +21877,9 @@ body:lang(bn),
   color: var(--text-secondary);
   font-size: var(--text-small);
 }
-.share-pics-empty {
+.share-pics-note {
   color: var(--text-secondary);
+  font-size: var(--text-small);
 }
 @media (max-width: 480px) {
   .share-pics-row {

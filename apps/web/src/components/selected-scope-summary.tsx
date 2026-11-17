@@ -181,7 +181,7 @@ export function SelectedScopeSummary(props: SelectedScopeSummaryProps) {
       {/* WP-PIC12: the same scope drawn as pictures, for live and not-yet access only: a one-time
           copy and ended access have nothing about to leave. */}
       {props.snapshot || tense === 'ended' ? null : (
-        <SharePictureStrip profile={profile} documents={documents} />
+        <SharePictureStrip profile={profile} documents={documents} tense={tense} />
       )}
       {tense === 'ended' ? null : (
         <p className="scope-summary-private">Everything you did not select stays private.</p>

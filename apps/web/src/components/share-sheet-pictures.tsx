@@ -8,39 +8,45 @@
  * count), never by their names, so nothing a person typed, and no other person's name, appears in
  * the strip. Documents the recipient cannot open (no Preview) are drawn as staying private, which
  * is what the access rules do.
+ *
+ * The kind is read from the name the summary already has; a name that is not a known type name
+ * ("scan_0012.pdf") is counted as a plain Document. The strip never guesses beyond that.
  */
-import type { DocumentIcon } from '../lib/item-icons';
 import { documentPicture } from '../lib/document-picture';
+import type { DocumentIcon } from '../lib/item-icons';
 import { ExplainTip } from './explain-tip';
 import { Icon } from './icons';
 import { DocumentPicture } from './pictures/document-picture';
-import type { DocumentScope, ProfileScope } from './selected-scope-summary';
+import type { DocumentScope, GrantTense, ProfileScope } from './selected-scope-summary';
 
-/** The plain word for each kind of paper, in Title Case. */
-export const SHARE_KIND_WORD: Readonly<Record<DocumentIcon, string>> = {
-  docPassport: 'Passport',
-  docId: 'ID Card',
-  docPhoto: 'Photo',
-  docBank: 'Bank Papers',
-  docSalary: 'Salary Papers',
-  docTax: 'Tax Papers',
-  docLicence: 'Licence',
-  docCertificate: 'Certificate',
-  docLetter: 'Letter',
-  docFlight: 'Flight Booking',
-  docHotel: 'Hotel Booking',
-  docInsurance: 'Insurance',
-  file: 'Document',
+/** The plain word for each kind of paper, in Title Case, and a catalogue key that draws that kind. */
+export const SHARE_KINDS: Readonly<
+  Record<DocumentIcon, { readonly word: string; readonly key: string }>
+> = {
+  docPassport: { word: 'Passport', key: 'PASSPORT' },
+  docId: { word: 'ID Card', key: 'NID' },
+  docPhoto: { word: 'Photo', key: 'PHOTO' },
+  docBank: { word: 'Bank Papers', key: 'BANK_STATEMENT' },
+  docSalary: { word: 'Salary Papers', key: 'SALARY_SLIP' },
+  docTax: { word: 'Tax Papers', key: 'TAX_RETURN' },
+  docLicence: { word: 'Licence', key: 'TRADE_LICENSE' },
+  docCertificate: { word: 'Certificate', key: 'BIRTH_CERTIFICATE' },
+  docLetter: { word: 'Letter', key: 'NOC_EMPLOYER' },
+  docFlight: { word: 'Flight Booking', key: 'FLIGHT_TICKET' },
+  docHotel: { word: 'Hotel Booking', key: 'HOTEL_BOOKING' },
+  docInsurance: { word: 'Insurance', key: 'TRAVEL_INSURANCE' },
+  file: { word: 'Document', key: '' },
 };
 
 /** The sentence behind the strip's explain button. */
 export const SHARE_EXPLAIN_TEXT =
   'Only what you see here is shared. You can take it back at any time.';
 
+/** The name a grant card gives a document that no longer exists; it is not drawn as leaving. */
+const MISSING_DOCUMENT_NAME = 'Document details unavailable';
+
 export interface DocumentKindCount {
   readonly kind: DocumentIcon;
-  /** A name that stands for the kind, given to the picture so it draws that kind. */
-  readonly sample: string;
   readonly count: number;
 }
 
@@ -48,25 +54,21 @@ export interface DocumentKindCount {
 export function countDocumentKinds(names: readonly string[]): readonly DocumentKindCount[] {
   const counts = new Map<DocumentIcon, number>();
   for (const name of names) {
+    if (name === MISSING_DOCUMENT_NAME) continue;
+    // `documentMark` only ever chooses a document kind, so the icon is a document kind.
     const kind = documentPicture(name, { generic: 'picture' }).mark.icon as DocumentIcon;
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
-  // The picture is drawn from the kind's own word, not from the person's document name.
-  return [...counts].map(([kind, count]) => ({ kind, sample: SHARE_KIND_WORD[kind], count }));
+  return [...counts].map(([kind, count]) => ({ kind, count }));
 }
 
 type Leaving =
   | { readonly key: string; readonly type: 'profile'; readonly word: string }
   | { readonly key: string; readonly type: 'documents'; readonly word: string }
-  | {
-      readonly key: string;
-      readonly type: 'kind';
-      readonly word: string;
-      readonly sample: string;
-      readonly count: number;
-    };
+  | { readonly key: string; readonly type: 'kind'; readonly kind: DocumentIcon; readonly count: number }
+  | { readonly key: string; readonly type: 'note'; readonly word: string };
 
-/** What the strip draws: what leaves, and what stays private. */
+/** What the strip draws: what leaves, and what specifically stays private. */
 export function sharePictureModel(
   profile: ProfileScope,
   documents: DocumentScope,
@@ -96,22 +98,23 @@ export function sharePictureModel(
       word: 'Documents in Chosen Parts',
     });
   } else if (documents.kind === 'chosen') {
-    for (const group of countDocumentKinds(documents.names)) {
-      leaves.push({
-        key: `kind-${group.kind}`,
-        type: 'kind',
-        word: SHARE_KIND_WORD[group.kind],
-        sample: group.sample,
-        count: group.count,
-      });
+    const groups = countDocumentKinds(documents.names);
+    for (const group of groups) {
+      leaves.push({ key: `kind-${group.kind}`, type: 'kind', ...group });
+    }
+    // The access rules open only the chosen documents inside the chosen parts.
+    if (documents.onlyInParts && groups.length > 0) {
+      leaves.push({ key: 'only-in-parts', type: 'note', word: 'Only Those in Chosen Parts' });
     }
   }
 
-  stays.push('Everything Else');
   return { leaves, stays };
 }
 
 function LeavingItem({ item }: { readonly item: Leaving }) {
+  if (item.type === 'note') {
+    return <li className="share-pics-item share-pics-note">{item.word}</li>;
+  }
   return (
     <li className="share-pics-item">
       {item.type === 'profile' ? (
@@ -120,12 +123,14 @@ function LeavingItem({ item }: { readonly item: Leaving }) {
         </span>
       ) : (
         <DocumentPicture
-          type={item.type === 'kind' ? item.sample : null}
+          type={item.type === 'kind' ? SHARE_KINDS[item.kind].key : null}
           generic="picture"
           size={28}
         />
       )}
-      <span className="share-pics-word">{item.word}</span>
+      <span className="share-pics-word">
+        {item.type === 'kind' ? SHARE_KINDS[item.kind].word : item.word}
+      </span>
       {item.type === 'kind' ? (
         <>
           <span className="share-pics-count" aria-hidden="true">
@@ -141,16 +146,22 @@ function LeavingItem({ item }: { readonly item: Leaving }) {
 export function SharePictureStrip({
   profile,
   documents,
+  tense = 'live',
 }: {
   readonly profile: ProfileScope;
   readonly documents: DocumentScope;
+  /** Live access reads "They Get"; paused or not yet accepted access reads "They Could Get". */
+  readonly tense?: Exclude<GrantTense, 'ended'>;
 }) {
   const { leaves, stays } = sharePictureModel(profile, documents);
+  const term = tense === 'live' ? 'They Get' : 'They Could Get';
   return (
-    <div className="share-pics" data-share-pictures="">
+    // The rows above already say all of this in words, so a live region around the summary
+    // (the grant form) does not read the strip out again on every change.
+    <div className="share-pics" data-share-pictures="" aria-live="off">
       <div className="share-pics-row share-pics-leaves">
         <p className="share-pics-term">
-          <span>They Get</span>
+          <span>{term}</span>
           <ExplainTip label="What They Get" text={SHARE_EXPLAIN_TEXT}>
             <Icon name="ask" size={18} />
           </ExplainTip>
@@ -159,25 +170,28 @@ export function SharePictureStrip({
           {leaves.length > 0 ? (
             leaves.map((item) => <LeavingItem key={item.key} item={item} />)
           ) : (
-            <li className="share-pics-item share-pics-empty">Nothing Yet</li>
+            <li className="share-pics-item share-pics-note">Nothing Yet</li>
           )}
         </ul>
       </div>
-      <div className="share-pics-row share-pics-private">
-        <p className="share-pics-term">
-          <span className="share-pics-icon" aria-hidden="true">
-            <Icon name="lock" size={18} />
-          </span>
-          <span>Stays Private</span>
-        </p>
-        <ul className="share-pics-list">
-          {stays.map((word) => (
-            <li key={word} className="share-pics-item">
-              <span className="share-pics-word">{word}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {/* Only what specifically stays private; the line below the summary says the rest. */}
+      {stays.length > 0 ? (
+        <div className="share-pics-row share-pics-private">
+          <p className="share-pics-term">
+            <span className="share-pics-icon" aria-hidden="true">
+              <Icon name="lock" size={18} />
+            </span>
+            <span>Stays Private</span>
+          </p>
+          <ul className="share-pics-list">
+            {stays.map((word) => (
+              <li key={word} className="share-pics-item">
+                <span className="share-pics-word">{word}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
