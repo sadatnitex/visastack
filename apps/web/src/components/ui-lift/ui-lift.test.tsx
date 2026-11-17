@@ -660,7 +660,7 @@ describe('the lift block in globals.css', () => {
       tail.indexOf('/* end WP-LIFT-C */') + '/* end WP-LIFT-C */'.length,
     );
     const withoutPlain = afterLast.replace(
-      /\/\* WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+) [\s\S]*?\/\* end WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+) \*\//g,
+      /\/\* WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+[a-z]?) [\s\S]*?\/\* end WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+[a-z]?) \*\//g,
       '',
     );
     expect(withoutPlain.trim()).toBe('');

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { progressRingWords } from '../lib/readiness-words';
+import { atLevel } from './depth';
 import { ExplainTip } from './explain-tip';
 import { Icon } from './icons';
 import { DocumentPicture } from './pictures/document-picture';
@@ -116,7 +117,7 @@ function RingTip(): ReactNode {
 function Legend({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined }) {
   if (!items || items.length === 0) return null;
   return (
-    <ul className="readiness-legend">
+    <ul className="readiness-legend" {...atLevel('browse')}>
       {items.map((item) => (
         <li key={item.key} className="readiness-legend-row" data-ready={item.ready ? 'yes' : 'no'}>
           <DocumentPicture type={item.type} size={28} />

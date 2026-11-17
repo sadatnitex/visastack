@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import type { Readiness } from '@visastack/services';
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer } from '../../../../lib/next-mocks.test-support';
@@ -71,11 +70,8 @@ describe('case readiness segment ring', () => {
     const html = await render(make([row('a', 'SATISFIED'), row('b', 'CRITICAL_GAP')], 1, 2));
     expect(html).toContain('What This Ring Counts');
     expect(html).toContain('not whether a visa will be approved');
-    const css = readFileSync(new URL('../../../globals.css', import.meta.url), 'utf8');
-    const start = css.indexOf('/* WP-PIC4b');
-    const block = css.slice(start, css.indexOf('/* end WP-PIC4b */'));
-    expect(block).toMatch(/data-depth="glance"\] \.lift-progress-ring \.readiness-legend/);
-    expect(block).toMatch(/data-depth="auto"\] \.lift-progress-ring \.readiness-legend/);
+    // The legend is a Browse block, so Glance shows the ring alone (and the 30-word rule holds).
+    expect(html).toMatch(/<ul class="readiness-legend" data-level="browse">/);
   });
 
   it('counts a group of alternatives as one segment and skips a covered alternative', () => {
