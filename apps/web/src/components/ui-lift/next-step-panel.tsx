@@ -49,8 +49,11 @@ export interface NextStepBeforeAfter {
   readonly afterDone?: number | undefined;
 }
 
-/** The hero: this step's document picture, then the ring now and the ring after the step. */
-function BeforeAfterHero({ done, total, documentType, afterDone }: NextStepBeforeAfter) {
+/**
+ * The hero: this step's document picture, then the ring now and the ring after the step. Exported
+ * so the traveller page's Next Step card can show the same hero (WP-PIC13).
+ */
+export function BeforeAfterHero({ done, total, documentType, afterDone }: NextStepBeforeAfter) {
   if (!Number.isFinite(total) || !Number.isFinite(done) || total < 1) return null;
   const all = Math.floor(total);
   const now = Math.max(0, Math.floor(done));

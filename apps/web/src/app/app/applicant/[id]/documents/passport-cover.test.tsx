@@ -9,6 +9,7 @@ import { renderServer, stub } from '../../../../../lib/next-mocks.test-support';
 const mocks = vi.hoisted(() => ({
   listApplicantProfile: vi.fn(),
   requireAccess: vi.fn(),
+  owner: 'acct-1',
   browserProps: [] as Array<{ readonly nationality?: unknown }>,
 }));
 
@@ -16,7 +17,11 @@ const PROOF = { proof: 'owner' };
 
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
-  getApplicant: async () => ({ id: 'a1', ownerAccountId: 'acct-1', displayName: 'Karim Hossain' }),
+  getApplicant: async () => ({
+    id: 'a1',
+    ownerAccountId: mocks.owner,
+    displayName: 'Karim Hossain',
+  }),
   getWalletView: async () => ({ ok: true, value: [] }),
   listDocumentsDetailed: async () => ({
     ok: true,
@@ -157,6 +162,7 @@ async function coverProp(): Promise<unknown> {
 describe('the passport cover on the Documents page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.owner = 'acct-1';
     mocks.requireAccess.mockResolvedValue({ ok: true, value: PROOF });
     mocks.listApplicantProfile.mockImplementation(async (_db: unknown, subject: unknown) =>
       typeof subject === 'string' ? [] : historyPage([]),
@@ -254,6 +260,23 @@ describe('the passport cover on the Documents page', () => {
     mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     expect(await coverProp()).toBe('neutral');
     expect(historyCalls().length).toBe(0);
+  });
+
+  it('reads no nationality and draws no stack for a viewer who is not the owner (an agency)', async () => {
+    mocks.owner = 'acct-traveller';
+    mocks.listApplicantProfile.mockImplementation(async (_db: unknown, subject: unknown) =>
+      typeof subject === 'string'
+        ? []
+        : historyPage([{ fieldKey: 'nationality', value: 'Bangladeshi', isCurrent: true }]),
+    );
+    mocks.browserProps.length = 0;
+    await expect(
+      renderServer(
+        DocumentsPage({ params: Promise.resolve({ id: 'a1' }), searchParams: Promise.resolve({}) }),
+      ),
+    ).rejects.toThrow();
+    expect(mocks.browserProps).toHaveLength(0);
+    expect(historyCalls()).toHaveLength(0);
   });
 
   it('shows the neutral cover when the history read is refused or fails', async () => {

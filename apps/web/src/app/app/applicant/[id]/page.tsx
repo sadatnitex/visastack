@@ -253,6 +253,12 @@ export default async function ApplicantOverviewPage({
                     title: 'Add Your Essentials',
                     why: `${essentials.answered} of ${essentials.total} essentials added: the details most visa forms ask for first. This is completeness, not verification.`,
                     action: 'Open Profile',
+                    // WP-PIC13: the ring now and after this step, from the counts above.
+                    beforeAfter: {
+                      done: essentials.answered,
+                      total: essentials.total,
+                      afterDone: essentials.total,
+                    },
                   }
                 : completeness < 100
                   ? {
@@ -260,6 +266,11 @@ export default async function ApplicantOverviewPage({
                       title: 'Continue Your Profile',
                       why: `${completed} of ${completion.total} details in your open sections have values. This is completeness, not verification.`,
                       action: 'Open Profile',
+                      beforeAfter: {
+                        done: completed,
+                        total: completion.total,
+                        afterDone: completion.total,
+                      },
                     }
                   : partial || data.attentionRead === null
                     ? {

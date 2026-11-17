@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { EmptyArt, type EmptyArtKind } from './empty-art';
 import { Icon, type IconName } from './icons';
 import { AboutDisclosure } from './ui-lift/about-disclosure';
+import { BeforeAfterHero, type NextStepBeforeAfter } from './ui-lift/next-step-panel';
 
 /**
  * Small shared building blocks for the signed-in screens. They carry no state and no
@@ -23,19 +24,25 @@ export function StatusBadge({
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
-/** The one thing to do next, with the reason, so the person never has to guess. */
+/**
+ * The one thing to do next, with the reason, so the person never has to guess. Opt-in
+ * `beforeAfter` (WP-PIC13): the ring now and the ring after this step, from counts the page
+ * already has; without it the card is exactly as before.
+ */
 export function NextStepCard({
   title,
   why,
   href,
   action,
   tone,
+  beforeAfter,
 }: {
   readonly title: string;
   readonly why?: string;
   readonly href: string;
   readonly action: string;
   readonly tone?: 'warning' | 'ok';
+  readonly beforeAfter?: NextStepBeforeAfter | undefined;
 }) {
   return (
     <section
@@ -49,6 +56,7 @@ export function NextStepCard({
         <h2 className="next-step-title" id="next-step-title">
           {title}
         </h2>
+        {beforeAfter ? <BeforeAfterHero {...beforeAfter} /> : null}
         {why ? (
           <AboutDisclosure summary="Why This Step" className="next-step-fold">
             <p className="next-step-why">{why}</p>
