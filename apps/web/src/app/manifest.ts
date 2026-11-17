@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { deepLinkPath } from '../lib/deep-links';
+import { isShareTargetOn } from '../lib/pwa/service-worker';
+import { shareTargetEntry } from '../lib/pwa/share-target';
 
 // Install and home-screen details. The icons come from the VisaStack brand pack (the maskable one
 // keeps the mark inside the centre safe zone). Every icon is a full-bleed, opaque blue square:
@@ -11,7 +13,14 @@ import { deepLinkPath } from '../lib/deep-links';
 // `id` and `scope` are the installed app's identity: changing either makes devices treat it as a
 // different app, so keep them stable. The start page and shortcuts use the same HTTPS routes as the
 // website (`lib/deep-links.ts`), which a later Android or iOS app can claim without new links.
+//
+// `share_target` (WP-PIC11) appears only when the owner has set `WEB_SHARE_TARGET=on` AND the service
+// worker is on: the worker is what keeps a shared file on the device until the person signs in and
+// confirms (`lib/pwa/share-target.ts`). Without it the phone never offers VisaStack as a share target.
+// The manifest stays a static file read when the site is built, so changing the switch takes effect
+// on the next deployment (the worker and `/app/incoming` read it on every request).
 export default function manifest(): MetadataRoute.Manifest {
+  const share = isShareTargetOn((name) => process.env[name]);
   return {
     id: '/',
     name: 'VisaStack',
@@ -56,5 +65,6 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
       },
     ],
+    ...(share ? { share_target: shareTargetEntry() } : {}),
   };
 }
