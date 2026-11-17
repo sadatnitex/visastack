@@ -22188,6 +22188,44 @@ body:lang(bn),
   color: var(--text-secondary);
 }
 /* end WP-PIC4 */
+/* WP-PIC4b case segment ring (17 Nov 2026, unit Q3): on the case page the "X of Y" count sits beside a small segment ring, one segment per required item, replacing the bar in the same row so the page grows no taller. The legend of document pictures is a closed Browse fold inside How This Is Counted, so it adds no row. Presentation only. Flat: no shadow, gradient, blur or translucency; tokens only. */
+.lift-progress-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+.lift-progress-row > .lift-progress-figure {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lift-progress-ring {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.lift-progress-ring .readiness-segring {
+  display: contents;
+}
+.lift-progress-ring .readiness-segring-plain {
+  display: contents;
+}
+.lift-progress-ring .progress-ring-text {
+  display: none;
+}
+/* The legend is a closed fold inside "How This Is Counted": one 44px target, and no row of its own on the page. */
+.readiness-legend-fold > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+.readiness-legend-fold .readiness-legend {
+  min-width: 0;
+}
+/* end WP-PIC4b */
 /* WP-PIC12 share sheet pictures (17 Nov 2026, picture-first upgrade, unit P2e): under the grant review brief, what leaves is drawn as pictures (chosen documents as one document picture with the total count, profile parts with the person icon) and what specifically stays private as a muted row with the lock and its words. Presentation only. Flat: no shadow, gradient, blur or translucency; tokens only; state is said in words, never by colour alone. */
 .share-pics {
   display: grid;

@@ -1,11 +1,18 @@
+import { necessityCanBlock, requirementNecessity } from '@visastack/core';
 import type { Readiness } from '@visastack/services';
 import type { ComponentProps, ReactNode } from 'react';
 import { componentsMoreCatalog } from '../i18n/components-more';
+import { humanizeCode } from '../lib/format-code';
 import { getT } from '../lib/i18n-server';
-import { progressRingPercent } from '../lib/readiness-words';
+import { documentKindLabel } from '../lib/item-names';
+import { fieldLabel } from '../lib/master-profile';
 import { CaseStageTrackerView } from './case-stage-tracker-view';
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE } from './progress-ring';
-import { ProgressMeter } from './ui-lift';
+import {
+  ReadinessLegendFold,
+  type ReadinessSegmentItem,
+  ReadinessSegmentRing,
+} from './readiness-segments';
 
 /**
  * The case's stages with the current one marked. `nextStates` are the stages the page offers as
@@ -78,6 +85,50 @@ export function countRequirementItems(
 }
 
 /**
+ * One legend entry per required item, from the results the page already holds (no new read),
+ * counted exactly as `computeLiveReadiness` counts `requiredCount`: an item that does not apply
+ * (state Not Applicable, or a group none of whose members applies) is skipped, a single item is
+ * required when its necessity can block, and a group is one item that is required when any
+ * applicable member can block. A covered alternative is not an item of its own. Names come from the
+ * same helpers the checklist uses. When the page's counts and this list ever disagree, the ring
+ * draws the counts alone (see `filledMask`).
+ */
+export function segmentItemsFromResults(
+  results: readonly Readiness['requirementResults'][number][],
+): ReadinessSegmentItem[] {
+  const items = new Map<string, ReadinessSegmentItem & { required: boolean }>();
+  for (const r of results) {
+    if (r.state === 'NOT_APPLICABLE') continue;
+    const key = r.groupKey ? `group:${r.groupKey}` : r.packRequirementId;
+    const blocks = necessityCanBlock(
+      requirementNecessity({ optional: r.optional, necessity: r.necessity ?? null }),
+    );
+    const seen = items.get(key);
+    const ready = r.state === 'SATISFIED';
+    if (seen) {
+      items.set(key, {
+        ...seen,
+        ready: seen.ready || ready,
+        required: seen.required || blocks,
+      });
+      continue;
+    }
+    if (r.coveredByAlternative) continue;
+    items.set(key, {
+      key,
+      label:
+        r.kind === 'FIELD' ? (fieldLabel(r.key) ?? humanizeCode(r.key)) : documentKindLabel(r.key),
+      type: r.kind === 'DOCUMENT' ? r.key : null,
+      ready,
+      required: blocks,
+    });
+  }
+  return [...items.values()]
+    .filter((item) => item.required)
+    .map(({ key, label, type, ready }) => ({ key, label, type, ready }));
+}
+
+/**
  * Evidence Progress: how many required items are on file as one big number and a bar, what that
  * means in a word and a sentence (`children`), the six counts and how it is counted. Exact computed requirement states; no score or probability is invented.
  */
@@ -95,7 +146,6 @@ export async function CasePreparationSummary({
   const t = await getT(componentsMoreCatalog);
   const counts = countRequirementItems(readiness.requirementResults);
   const { requiredCount, satisfiedRequired } = readiness;
-  const unit = 'required items on file';
   const shortUnit = 'required on file';
   return (
     <section
@@ -107,21 +157,28 @@ export async function CasePreparationSummary({
       </h2>
       {requiredCount > 0 ? (
         <>
-          <p className="lift-progress-figure">
-            <span className="lift-progress-numeral">
-              {t.node('componentsMore.casePreparationSummary.satisfiedrequiredOfRequiredcount', {
-                satisfiedRequired,
-                requiredCount,
-              })}
-            </span>
-            <span className="lift-progress-unit">{shortUnit}</span>
-          </p>
-          <ProgressMeter
-            value={satisfiedRequired}
-            max={requiredCount}
-            label={unit}
-            valueText={`${progressRingPercent(satisfiedRequired, requiredCount)}%`}
-          />
+          <div className="lift-progress-row">
+            <p className="lift-progress-figure">
+              <span className="lift-progress-numeral">
+                {t.node('componentsMore.casePreparationSummary.satisfiedrequiredOfRequiredcount', {
+                  satisfiedRequired,
+                  requiredCount,
+                })}
+              </span>
+              <span className="lift-progress-unit">{shortUnit}</span>
+            </p>
+            {/* The ring always shows and the count beside it carries the words; its legend sits inside "How This Is Counted", so a long checklist adds no row of its own. */}
+            <div className="lift-progress-ring">
+              <ReadinessSegmentRing
+                done={satisfiedRequired}
+                total={requiredCount}
+                size="sm"
+                items={segmentItemsFromResults(readiness.requirementResults)}
+                legend={false}
+                decorative
+              />
+            </div>
+          </div>
         </>
       ) : (
         <>
@@ -136,6 +193,11 @@ export async function CasePreparationSummary({
         <summary>{t.node('componentsMore.casePreparationSummary.howThisIsCounted')}</summary>
         <div className="lift-help-body">
           {explain}
+          <ReadinessLegendFold
+            done={satisfiedRequired}
+            total={requiredCount}
+            items={segmentItemsFromResults(readiness.requirementResults)}
+          />
           <dl className="lift-counts">
             {(
               [
