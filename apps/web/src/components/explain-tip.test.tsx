@@ -425,15 +425,16 @@ describe('ExplainTip: where it opens', () => {
 describe('ExplainTip: stylesheet (WP-PIC1 block)', () => {
   const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8');
   const marker = '/* WP-PIC1 ';
+  const endMarker = '/* end WP-PIC1 */';
   const start = css.indexOf(marker);
-  const rest = start < 0 ? '' : css.slice(start);
-  const nextMarker = rest.slice(marker.length).search(/\n\/\* WP-/);
-  const block = nextMarker < 0 ? rest : rest.slice(0, marker.length + nextMarker);
+  const end = css.indexOf(endMarker);
+  const block = start < 0 || end < start ? '' : css.slice(start, end);
   const rules = block.replace(/\/\*[\s\S]*?\*\//g, '');
 
-  it('is one marked block at the end of the stylesheet', () => {
+  it('is one marked block, closed by its own end line', () => {
     expect(css.split(marker).length - 1).toBe(1);
-    expect(nextMarker).toBe(-1);
+    expect(css.split(endMarker).length - 1).toBe(1);
+    expect(end).toBeGreaterThan(start);
   });
 
   it('gives the trigger a 44 px target and draws every class the component uses', () => {

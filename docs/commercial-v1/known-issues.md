@@ -8292,3 +8292,23 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - New picture layer (apps/web/src/components/pictures): server-rendered pictures for document types with today's icon as fallback, and a passport cover chosen from the traveller's recorded nationality: the real Bangladesh cover (apps/web/public/pictures/passport-bd.png, sha256 53aff64a5f0138b13e62ac04ced8a098f7a9d5a84a35fe1d2b9594549751636d, owner decision D1) for Bangladeshi travellers, a neutral cover for everyone else or when the file fails. Depth and motion only in pictures-depth.css (ADR 0027), off under reduced motion and data saver (html[data-save-data], set from the Save-Data header and navigator.connection.saveData).
 - Security and correctness reviews passed after one fix round on the motion guard. NOT verified: the pictures are not yet on any page; a legal check of the state seal and Bengali text on the cover is advised before the public release.
+
+## 17 Nov 2026: WP-PIC6 Country card
+
+- Each country page opens with a Country card: the flag, the name, the entry type as a picture and a word (Not Yet Researched never looks like No Visa Needed), an explain button, and the source with its checked date. The ExplainTip stylesheet test now ends the WP-PIC1 block at its own end line instead of requiring it to be last (guard correction decided by the Guardian; start and end markers each exactly once).
+- NOT verified: a phone visual check; Bengali for any new words.
+
+## 17 Nov 2026: WP-PIC7 passport outline as the photo frame guide
+
+- On the photo check after a passport photo is taken (own, spouse or host passport), a passport-shaped outline with corner marks and the line "Fit the passport inside the lines" shows where the passport should sit. It ignores taps and is hidden from screen readers; Use This and Retake work as before; the camera setting (camera=()) is unchanged; nothing says the photo will be accepted.
+- NOT verified: a real phone camera; a passport held sideways; Bengali for the new line (marked as English, listed for the localization lane).
+
+## 17 Nov 2026: WP-PIC9 waiting uploads list
+
+- The import screen now lists files still waiting to send, each as a document picture with Waiting, Sending or Could Not Send, a Try Again button on the existing retry, and an Offline badge when the browser reports offline. A file the queue is holding for a retry shows Waiting, never Sending; nothing is called Uploaded or Received early; the read-out stays quiet during an import except when going offline.
+- NOT verified: a real phone on a weak or offline network; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC8 case journey track (built, not yet shown)
+
+- A journey track for the case page: each stage drawn as a small picture, the current stage marked Now (aria-current, screen reader text), earlier stages marked Before and later ones Later. It never ticks a stage as done, because a case keeps no stage history and real moves can skip stages, and it makes no Submitted claim. Opt-in prop, off by default; the default step bar is unchanged.
+- NOT shown to users yet: switching it on for the case page changes a page-outline test and is a follow-up. NOT verified: a phone at 320 px; Bengali for the new words.
