@@ -128,3 +128,81 @@ describe('motion stays on the shared speeds', () => {
     );
   });
 });
+
+// ADR 0027 (owner decision D2, 17 Nov 2026): one slow speed for gentle picture and hero motion.
+describe('the slow picture speed is defined once and only ever moves for people who allow motion', () => {
+  function cssFiles(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) found.push(...cssFiles(full));
+      else if (entry.name.endsWith('.css')) found.push(full);
+    }
+    return found;
+  }
+
+  // Returns, for each use of var(--motion-slow), the chain of at-rule preludes around it.
+  function slowUses(text: string): string[][] {
+    const source = text.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '));
+    const uses: string[][] = [];
+    const stack: string[] = [];
+    let preludeStart = 0;
+    for (let i = 0; i < source.length; i += 1) {
+      const ch = source[i];
+      if (ch === '{') {
+        stack.push(source.slice(preludeStart, i).trim());
+        preludeStart = i + 1;
+      } else if (ch === '}') {
+        stack.pop();
+        preludeStart = i + 1;
+      } else if (ch === ';') {
+        preludeStart = i + 1;
+      } else if (source.startsWith('var(--motion-slow', i)) {
+        uses.push(stack.filter((prelude) => prelude.startsWith('@')));
+      }
+    }
+    return uses;
+  }
+
+  it('defines --motion-slow exactly once, as a calm speed of at most 700ms', () => {
+    const definitions = [...css.matchAll(/--motion-slow:\s*(\d+)ms;/g)];
+    expect(definitions).toHaveLength(1);
+    expect(css.match(/--motion-slow\s*:/g) ?? []).toHaveLength(1);
+    const everywhere = cssFiles(SRC).flatMap(
+      (file) => readFileSync(file, 'utf8').match(/--motion-slow\s*:/g) ?? [],
+    );
+    expect(everywhere).toHaveLength(1);
+    const ms = Number(definitions[0]?.[1]);
+    expect(ms).toBeGreaterThan(320);
+    expect(ms).toBeLessThanOrEqual(700);
+  });
+
+  it('uses var(--motion-slow) only inside a prefers-reduced-motion: no-preference block', () => {
+    const misses: string[] = [];
+    for (const file of cssFiles(SRC)) {
+      for (const chain of slowUses(readFileSync(file, 'utf8'))) {
+        if (
+          !chain.some((prelude) =>
+            /^@media\s*\(prefers-reduced-motion:\s*no-preference\)/.test(prelude),
+          )
+        )
+          misses.push(file.slice(SRC.length));
+      }
+    }
+    expect(misses).toEqual([]);
+  });
+
+  it('the guard itself tells a gated use from an ungated one', () => {
+    expect(
+      slowUses(
+        '/* var(--motion-slow) */ @media (prefers-reduced-motion: no-preference) { .a { transition: opacity var(--motion-slow) var(--motion-ease); } }',
+      ),
+    ).toEqual([['@media (prefers-reduced-motion: no-preference)']]);
+    expect(slowUses('.a { transition: opacity var(--motion-slow) var(--motion-ease); }')).toEqual([
+      [],
+    ]);
+    expect(
+      slowUses('@media (width > 40rem) { .a { animation-duration: var(--motion-slow); } }'),
+    ).toEqual([['@media (width > 40rem)']]);
+  });
+});

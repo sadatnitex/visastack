@@ -21559,3 +21559,8 @@ body:lang(bn),
   color: var(--text-secondary);
 }
 /* end WP-CI */
+/* WP-PIC0 Visual depth for illustrations (ADR 0027, owner decision D2, 17 Nov 2026). One new shared speed for gentle picture and hero motion, slower than the others so a picture settles calmly. Use it only inside @media (prefers-reduced-motion: no-preference); the picture stylesheet also turns motion off when data saver is on. Every other speed stays as it was. */
+:root {
+  --motion-slow: 600ms;
+}
+/* end WP-PIC0 */
