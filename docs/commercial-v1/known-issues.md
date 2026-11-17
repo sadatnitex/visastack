@@ -8287,3 +8287,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - After the fix for Neon Auth's own start address (#595) was deployed, the live start still sent the visitor back to the sign-in form with the Google message. The same SDK call made from outside the site returned the expected start address, so the cause is specific to the deployed server.
 - A failed start now adds a fixed reason to the address (`why=neon_<status number>`, `address`, `timeout` or `failed`; never provider text) so the failure can be told apart without server logs, which the build sessions cannot read.
 - NOT verified: the cause itself; to be read from the reason on the live site.
+
+## 17 Nov 2026: WP-PIC2 picture layer and passport cover
+
+- New picture layer (apps/web/src/components/pictures): server-rendered pictures for document types with today's icon as fallback, and a passport cover chosen from the traveller's recorded nationality: the real Bangladesh cover (apps/web/public/pictures/passport-bd.png, sha256 53aff64a5f0138b13e62ac04ced8a098f7a9d5a84a35fe1d2b9594549751636d, owner decision D1) for Bangladeshi travellers, a neutral cover for everyone else or when the file fails. Depth and motion only in pictures-depth.css (ADR 0027), off under reduced motion and data saver (html[data-save-data], set from the Save-Data header and navigator.connection.saveData).
+- Security and correctness reviews passed after one fix round on the motion guard. NOT verified: the pictures are not yet on any page; a legal check of the state seal and Bengali text on the cover is advised before the public release.
