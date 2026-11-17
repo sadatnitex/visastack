@@ -30,18 +30,18 @@ export const dynamic = 'force-dynamic';
 export default async function IncomingPage({
   searchParams,
 }: {
-  readonly searchParams?: Promise<{
+  readonly searchParams: Promise<{
     readonly missed?: string | string[];
     readonly none?: string | string[];
   }>;
-} = {}) {
+}) {
   await primeLocale();
-  const query = (await searchParams) ?? {};
+  const query = await searchParams;
   const missed = query.missed === '1';
   if (!isShareTargetOn((name) => process.env[name])) {
     if (!missed) notFound();
     return (
-      <>
+      <section className="section container">
         <PageHeader title="Shared Files" back={{ href: '/app', label: 'Home' }} />
         <article className="card">
           <p className="card-body">
@@ -49,7 +49,7 @@ export default async function IncomingPage({
             Add your files from your documents instead.
           </p>
         </article>
-      </>
+      </section>
     );
   }
   const notice = missed ? 'missed' : query.none === '1' ? 'none' : null;
@@ -72,7 +72,7 @@ export default async function IncomingPage({
   const limitBytes = uploadLimitBytes(loadUploadQuotaConfig());
 
   return (
-    <>
+    <section className="section container">
       <PageHeader
         title="Shared Files"
         description="Photos and PDFs you share to VisaStack from another app wait here, on this phone only, until you add them."
@@ -104,6 +104,6 @@ export default async function IncomingPage({
           retryUnknown={data.receiptsReady}
         />
       )}
-    </>
+    </section>
   );
 }
