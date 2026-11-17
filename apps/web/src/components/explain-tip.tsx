@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useExplainTip } from '../lib/use-explain-tip';
 
 export interface ExplainTipProps {
@@ -31,12 +31,6 @@ export interface ExplainTipProps {
 export function ExplainTip({ label, text, children, className }: ExplainTipProps) {
   const { open, fit, popupId, wrapRef, triggerRef, popupRef, wrapProps, triggerProps } =
     useExplainTip();
-  const style = fit
-    ? ({
-        '--explain-tip-shift': `${fit.shift}px`,
-        '--explain-tip-max-height': `${fit.maxHeight}px`,
-      } as CSSProperties)
-    : undefined;
   return (
     <span
       ref={wrapRef}
@@ -44,7 +38,6 @@ export function ExplainTip({ label, text, children, className }: ExplainTipProps
       data-open={open ? 'true' : undefined}
       data-placement={fit?.placement}
       data-align={fit?.align}
-      style={style}
       {...wrapProps}
     >
       <button

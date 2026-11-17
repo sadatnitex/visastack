@@ -224,6 +224,20 @@ export function useExplainTip({
     };
   }, [open, place]);
 
+  // The sideways shift and the height limit are written straight onto the holder as custom
+  // properties the stylesheet reads (as the account menu does), never as an inline style prop.
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    if (fit) {
+      wrap.style.setProperty('--explain-tip-shift', `${fit.shift}px`);
+      wrap.style.setProperty('--explain-tip-max-height', `${fit.maxHeight}px`);
+    } else {
+      wrap.style.removeProperty('--explain-tip-shift');
+      wrap.style.removeProperty('--explain-tip-max-height');
+    }
+  }, [fit]);
+
   const onPointerEnter = useCallback(
     (event: PointerEvent<HTMLElement>) => {
       if (!hovers(event)) return;
