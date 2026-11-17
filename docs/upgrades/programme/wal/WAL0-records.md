@@ -15,7 +15,7 @@ Unit WAL0, Class B. Branch claude/wal0-sheet-and-strip. Example data only.
 | e2e/scroll-budget/WAL0.fixture.tsx, WAL0.spec.ts | New. Real document browser, Safe Copy, reading status, workspace shell with bottom bar and the Add button markup; real page header, More menu, depth switch, tasks panel with a 120-character unbroken title; section links markup. |
 | src/components/wal0-sheet.test.ts | New unit guards. |
 
-Approved guard corrections (Guardian 7, owner D4): case-lift-b.test.ts (strip test now asserts wrapping, no overflow-x auto), WP-SB2.spec.ts (:284 rewritten for the new phone behaviour), case-structure.test.tsx (one added line "summary: Jump to Section" in each of the three expected outlines), and WP-SB2.spec.ts LIFT.desktopPage.everything 3300 to 3330 (WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways, measured 3321), and LIFT.firstRow.desktop 1100 to 1120 (same cause, measured 1116). The Guardian approved no other budget change.
+Approved guard corrections (Guardian 7, owner D4): case-lift-b.test.ts (strip test now asserts wrapping, no overflow-x auto), WP-SB2.spec.ts (:284 rewritten for the new phone behaviour), case-structure.test.tsx (one added line "summary: Jump to Section" in each of the three expected outlines), and WP-SB2.spec.ts LIFT.desktopPage.everything 3300 to 3330 (WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways, measured 3321), and LIFT.firstRow.desktop 1100 to 1120 (same cause, measured 1116). The Guardian approved no other budget change. Also ui-lift.test.tsx: `WALD?[0-9]+` added to LATER_BLOCK_NAMES (one token) so the WP-WAL0 block at the end of globals.css passes the end-of-file guard.
 
 New words for the localization list: "Jump to Section".
 
