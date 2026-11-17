@@ -41,6 +41,7 @@ const items: WalletStackItem[] = [
     docType: 'PASSPORT',
     kindLine: 'Passport',
     state: { label: 'Needs Review', tone: 'warning' },
+    date: '11 Oct 2026',
     selected: false,
   },
   {
@@ -49,6 +50,7 @@ const items: WalletStackItem[] = [
     docType: 'BANK_STATEMENT',
     kindLine: 'Bank Statement',
     state: null,
+    date: null,
     selected: true,
   },
 ];
@@ -89,6 +91,7 @@ describe('the stack of cards', () => {
         docType: 'PASSPORT_BIO_PAGE',
         kindLine: 'Passport',
         state: null,
+        date: null,
         selected: false,
         manage: <button type="button">Manage</button>,
       },
@@ -190,12 +193,36 @@ describe('the documents browser with the stack view', () => {
     expect(second.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('shows the example card, not a view switch, when there are no documents', () => {
+  it('keeps the default empty list exactly as today: no example card', () => {
     act(() => root.render(<DocumentWalletBrowser applicantId="a1" documents={[]} />));
-    expect(container.querySelector('[data-testid="wallet-ghost-card"]')).not.toBeNull();
-    expect(container.querySelector('.wallet-view-switch')).toBeNull();
-    // The existing empty state with its Add a Document link is still there.
+    expect(container.querySelector('[data-testid="wallet-ghost-card"]')).toBeNull();
     expect(container.textContent).toContain('Add a Document');
+  });
+
+  it('shows the example card only in the stack view when there are no documents', () => {
+    act(() => root.render(<DocumentWalletBrowser applicantId="a1" documents={[]} />));
+    const stackButton = [...container.querySelectorAll('.wallet-view-switch button')].find(
+      (b) => b.textContent === 'Stack',
+    ) as HTMLButtonElement;
+    act(() => stackButton.click());
+    expect(container.querySelectorAll('[data-testid="wallet-ghost-card"]')).toHaveLength(1);
+    expect(container.querySelector('button.wallet-stack-card')).toBeNull();
+    expect(container.textContent).toContain('Add a Document');
+  });
+
+  it('gives the selected card the row jump link and every card its date', () => {
+    act(() => root.render(<DocumentWalletBrowser applicantId="a1" documents={records} />));
+    const stackButton = [...container.querySelectorAll('.wallet-view-switch button')].find(
+      (b) => b.textContent === 'Stack',
+    ) as HTMLButtonElement;
+    act(() => stackButton.click());
+    const links = container.querySelectorAll('.wallet-stack a.wallet-detail-jump');
+    expect(links).toHaveLength(1);
+    expect(links[0]?.getAttribute('href')).toBe('#wallet-selected-document');
+    expect(links[0]?.closest('li')?.querySelector('button')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(container.querySelectorAll('.wallet-stack [data-value="date"]')).toHaveLength(3);
   });
 
   it('never shows the example card next to real documents', () => {
@@ -219,7 +246,7 @@ describe('the stack styles', () => {
     expect(block).not.toMatch(/box-shadow|text-shadow|filter:|gradient\(/);
     expect(block).toMatch(/min-height:\s*(?:44px|2\.75rem|[4-9]\d*(?:\.\d+)?rem)/);
     expect(block).not.toMatch(/transition|animation/);
-    expect(block).not.toMatch(/—/);
+    expect(block).not.toContain(String.fromCodePoint(0x2014));
   });
 
   it('does not use data: or blob: images', () => {

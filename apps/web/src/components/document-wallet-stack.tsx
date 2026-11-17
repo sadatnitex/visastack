@@ -24,7 +24,11 @@ export interface WalletStackItem {
   readonly kindLine: string;
   /** The one word a row shows when something is not normal, or null (a normal file shows none). */
   readonly state: { readonly label: string; readonly tone: Tone } | null;
+  /** The date the row shows, already formatted, or null. */
+  readonly date: string | null;
   readonly selected: boolean;
+  /** The row's skip link text, set on the selected card only. */
+  readonly jump?: ReactNode;
   /** The row's Manage menu, drawn under the card exactly as under a row. */
   readonly manage?: ReactNode;
 }
@@ -53,7 +57,11 @@ export function DocumentWalletStack({
   onOpen,
 }: {
   readonly items: readonly WalletStackItem[];
-  /** The traveller's saved nationality, when the page has it; the neutral cover otherwise. */
+  /**
+   * The traveller's saved nationality, matched by the passport cover (a Bangladeshi traveller sees
+   * the real cover). The documents page does not load it yet, so the neutral cover shows until a
+   * follow-up passes it in. Never read from a document.
+   */
   readonly nationality?: string | null | undefined;
   readonly onOpen: (id: string, opener: HTMLButtonElement) => void;
 }) {
@@ -79,6 +87,11 @@ export function DocumentWalletStack({
               <span className="wallet-stack-kind" data-value="kind">
                 {item.kindLine}
               </span>
+              {item.date ? (
+                <span className="wallet-stack-date" data-value="date">
+                  {item.date}
+                </span>
+              ) : null}
             </span>
             {item.state ? (
               <span className="wallet-stack-state">
@@ -86,6 +99,11 @@ export function DocumentWalletStack({
               </span>
             ) : null}
           </button>
+          {item.selected && item.jump ? (
+            <a className="wallet-detail-jump" href="#wallet-selected-document">
+              {item.jump}
+            </a>
+          ) : null}
           {item.manage ? <div className="wallet-document-manage">{item.manage}</div> : null}
         </li>
       ))}

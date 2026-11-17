@@ -21683,6 +21683,9 @@ button.wallet-stack-card {
 .wallet-stack-kind {
   color: var(--text-secondary);
 }
+.wallet-stack-date {
+  color: var(--text-secondary);
+}
 .wallet-stack-state {
   flex: none;
 }

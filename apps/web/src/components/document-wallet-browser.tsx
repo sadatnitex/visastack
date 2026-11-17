@@ -300,7 +300,7 @@ export function DocumentWalletBrowser({
             {plural(matches.length, 'document')} {agree(matches.length, 'matches', 'match')}. Page{' '}
             {activePage + 1} of {pageCount}.
           </output>
-          {documents.length > 0 ? (
+          {
             <fieldset className="wallet-view-switch" data-view={view}>
               <legend className="sr-only">Show Documents As</legend>
               {(['list', 'stack'] as const).map((choice) => (
@@ -314,7 +314,7 @@ export function DocumentWalletBrowser({
                 </button>
               ))}
             </fieldset>
-          ) : null}
+          }
           {visible.length && view === 'stack' ? (
             <DocumentWalletStack
               nationality={nationality}
@@ -325,7 +325,11 @@ export function DocumentWalletBrowser({
                 docType: doc.docType ?? null,
                 kindLine: rowKindLine(doc),
                 state: rowState(doc),
+                date: doc.updatedAt ? formatTimestampDate(doc.updatedAt) : null,
                 selected: selectedId === doc.id,
+                ...(selectedId === doc.id
+                  ? { jump: t.node('components.documentWalletBrowser.viewSelectedDetails') }
+                  : {}),
                 ...(doc.manage ? { manage: doc.manage } : {}),
               }))}
             />
@@ -375,7 +379,7 @@ export function DocumentWalletBrowser({
             </ul>
           ) : (
             <>
-              {documents.length === 0 ? <DocumentWalletGhostCard /> : null}
+              {documents.length === 0 && view === 'stack' ? <DocumentWalletGhostCard /> : null}
               <EmptyState
                 art="documents"
                 title={
