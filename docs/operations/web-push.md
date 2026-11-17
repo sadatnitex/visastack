@@ -58,7 +58,7 @@ Changing the key pair later makes every existing browser subscription stop worki
 
 Set `WEB_PUSH` to anything but `true` (or remove it) and redeploy. The card disappears, the actions refuse, the worker sends no alerts and the service worker no longer carries the alert handlers. The table can stay; it is additive.
 
-## Not yet in place
+## Known limits
 
 - Only the known push services are accepted (Google `fcm.googleapis.com` and `android.googleapis.com`, Mozilla, Apple `*.push.apple.com`, Microsoft `*.notify.windows.com`). A browser using any other push service sees "That did not work" on Turn On.
 - A sign-in that ends by expiring (not by signing out) keeps its browsers until the push service reports them gone or the person turns alerts off.
