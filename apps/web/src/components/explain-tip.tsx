@@ -4,10 +4,13 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useExplainTip } from '../lib/use-explain-tip';
 
 export interface ExplainTipProps {
-  /** The name of what the picture stands for, in Title Case. It is the button's name. */
-  readonly label: string;
+  /**
+   * The name of what the picture stands for, in Title Case. It is the button's name. Words in
+   * another language than the page come marked (`t.node`), so they are read in their own voice.
+   */
+  readonly label: ReactNode;
   /** One plain sentence that says what it means. Shown when someone points, focuses or taps. */
-  readonly text: string;
+  readonly text: ReactNode;
   /** What a person sees: an icon, a small picture or a symbol. Hidden from screen readers. */
   readonly children: ReactNode;
   /** An extra class for the page's own spacing. */

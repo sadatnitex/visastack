@@ -4,8 +4,10 @@ import type { IssueDateReading } from '@visastack/core/catalogue';
 import type { ReadingSource } from '@visastack/services';
 import Link from 'next/link';
 import { useActionState, useCallback, useId, useState } from 'react';
+import { ExplainTip } from '../../../../components/explain-tip';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
+import { Icon } from '../../../../components/icons';
 import { StatusBadge } from '../../../../components/ui';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../i18n/change-impact';
@@ -110,6 +112,13 @@ export function OcrResultView({
           >
             {t.node('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
           </span>
+          {/* WP-PIC1: the same hint, reachable by tap, keyboard focus and screen reader. */}
+          <ExplainTip
+            label={t.node('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
+            text={t.node('appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr')}
+          >
+            <Icon name="stateCheck" size={18} />
+          </ExplainTip>
         </p>
       ) : null}
       {reviewIssues.length > 0 ? (

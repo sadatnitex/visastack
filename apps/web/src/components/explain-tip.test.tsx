@@ -5,8 +5,21 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { appApplicantCatalog } from '../i18n/app-applicant';
 import { EXPLAIN_CLOSE_DELAY, EXPLAIN_OPEN_DELAY } from '../lib/use-explain-tip';
 import { ExplainTip } from './explain-tip';
+import { I18nProvider } from './i18n-provider';
+
+vi.mock('../app/app/applicant/[id]/actions', () => ({
+  acceptClearDetailsAction: vi.fn(),
+  decideClassificationProposalAction: vi.fn(),
+  decideInconsistencyFlagAction: vi.fn(),
+  decideProposalAction: vi.fn(),
+  readAgainAction: vi.fn(),
+  runClassificationAction: vi.fn(),
+  runInconsistencyCheckAction: vi.fn(),
+}));
+const { OcrResultView } = await import('../app/app/applicant/[id]/ai-review');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -343,5 +356,47 @@ describe('ExplainTip: stylesheet (WP-PIC1 block)', () => {
     expect(rules).toMatch(
       /@media \(prefers-reduced-motion: reduce\) \{\s*\.explain-tip-popup \{\s*animation: none;/,
     );
+  });
+});
+
+describe('ExplainTip pilot: the backup reader badge on a document reading', () => {
+  const K = 'appApplicant.appApplicantIdAiReview.';
+  for (const locale of ['en', 'bn'] as const) {
+    it(`puts the badge hint behind a tap, focus and screen reader (${locale})`, async () => {
+      const words = appApplicantCatalog[locale] as Record<string, string>;
+      const { host, unmount } = await mount(
+        <I18nProvider locale={locale} pageLang="en">
+          <OcrResultView text="" reviewIssues={[]} usedFallback />
+        </I18nProvider>,
+      );
+      const { trigger, popup } = tip(host);
+      const hint = words[`${K}theFirstReaderTimedOutOr`];
+      expect(trigger.textContent?.trim()).toBe(words[`${K}fallbackProviderUsed`]);
+      expect(
+        document.getElementById(trigger.getAttribute('aria-describedby') ?? '')?.textContent,
+      ).toBe(hint);
+      expect(trigger.querySelector('svg.icon')).not.toBeNull();
+      await act(async () => trigger.click());
+      expect(popup.hidden).toBe(false);
+      expect(popup.textContent).toContain(hint);
+      // Bengali words on an English page are marked as Bengali (WCAG 3.1.2), in the name and the hint.
+      if (locale === 'bn') {
+        expect(trigger.querySelector('[lang="bn"]')?.textContent).toBe(
+          words[`${K}fallbackProviderUsed`],
+        );
+        expect(popup.querySelector('.explain-tip-text [lang="bn"]')?.textContent).toBe(hint);
+      }
+      await unmount();
+    });
+  }
+
+  it('shows no Explain popup when the first reader answered', async () => {
+    const { host, unmount } = await mount(
+      <I18nProvider locale="en" pageLang="en">
+        <OcrResultView text="" reviewIssues={[]} usedFallback={false} />
+      </I18nProvider>,
+    );
+    expect(host.querySelector('.explain-tip')).toBeNull();
+    await unmount();
   });
 });
