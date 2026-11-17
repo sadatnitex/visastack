@@ -1,4 +1,6 @@
 'use client';
+import type { ReactNode } from 'react';
+import { documentCatalogueKey } from '../lib/item-icons';
 import { DocumentPicture } from './pictures/document-picture';
 import { PassportCover } from './pictures/passport-cover';
 import { StatusBadge } from './ui';
@@ -23,6 +25,8 @@ export interface WalletStackItem {
   /** The one word a row shows when something is not normal, or null (a normal file shows none). */
   readonly state: { readonly label: string; readonly tone: Tone } | null;
   readonly selected: boolean;
+  /** The row's Manage menu, drawn under the card exactly as under a row. */
+  readonly manage?: ReactNode;
 }
 
 const CARD_PICTURE = 48;
@@ -35,7 +39,8 @@ function CardPicture({
   readonly nationality: string | null | undefined;
 }) {
   // The word is beside the picture, so the picture is decoration for a screen reader.
-  return docType === 'PASSPORT' ? (
+  // The same alias table as the picture (for example PASSPORT_BIO_PAGE is a passport) decides.
+  return documentCatalogueKey(docType) === 'PASSPORT' ? (
     <PassportCover nationality={nationality} width={CARD_PICTURE} decorative />
   ) : (
     <DocumentPicture type={docType} size={CARD_PICTURE} />
@@ -55,7 +60,11 @@ export function DocumentWalletStack({
   return (
     <ul className="wallet-stack" aria-label="Document Cards">
       {items.map((item) => (
-        <li key={item.id} id={`document-${item.id}`}>
+        <li
+          key={item.id}
+          id={`document-${item.id}`}
+          data-selected={item.selected ? 'true' : undefined}
+        >
           <button
             type="button"
             className="wallet-stack-card pic-depth"
@@ -77,6 +86,7 @@ export function DocumentWalletStack({
               </span>
             ) : null}
           </button>
+          {item.manage ? <div className="wallet-document-manage">{item.manage}</div> : null}
         </li>
       ))}
     </ul>

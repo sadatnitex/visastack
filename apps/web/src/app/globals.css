@@ -21695,6 +21695,9 @@ body:lang(bn),
 /* end WP-PIC1 */
 /* WP-PIC5 Documents as a stack of picture cards (17 Nov 2026, picture-first upgrade, unit U5). An opt-in view beside the list: each document is a card with its picture, name and state word, cards overlapping a little with a small sideways offset. Flat: no shadow or gradient here, the soft depth comes only from .pic-depth in the picture stylesheet. Cards are at least 44 px tall; the stack works from 320 px. Nothing moves, so there is no motion to switch off. */
 .wallet-view-switch {
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
   display: flex;
   gap: 0.5rem;
   margin: 0.5rem 0;
@@ -21731,6 +21734,9 @@ body:lang(bn),
 .wallet-stack > li:nth-child(even) {
   margin-left: 0.5rem;
   margin-right: -0.5rem;
+}
+.wallet-stack > li[data-selected] {
+  z-index: 1;
 }
 .wallet-stack > li:focus-within,
 .wallet-stack > li:hover {

@@ -81,6 +81,26 @@ describe('the stack of cards', () => {
     expect(container.querySelectorAll('.pic-document, .pic-fallback')).toHaveLength(1);
   });
 
+  it('treats an alias of passport as a passport and keeps the Manage menu under its card', () => {
+    const aliased: WalletStackItem[] = [
+      {
+        id: 'alias',
+        name: 'Bio page',
+        docType: 'PASSPORT_BIO_PAGE',
+        kindLine: 'Passport',
+        state: null,
+        selected: false,
+        manage: <button type="button">Manage</button>,
+      },
+    ];
+    act(() => root.render(<DocumentWalletStack items={aliased} onOpen={() => undefined} />));
+    expect(container.querySelector('[data-picture="passport-neutral"]')).not.toBeNull();
+    expect(container.querySelector('li > .wallet-document-manage button')?.textContent).toBe(
+      'Manage',
+    );
+    expect(container.querySelector('li[data-selected]')).toBeNull();
+  });
+
   it('keeps the pictures decorative so a screen reader reads the name and state once', () => {
     act(() => root.render(<DocumentWalletStack items={items} onOpen={() => undefined} />));
     for (const picture of container.querySelectorAll('.pic')) {

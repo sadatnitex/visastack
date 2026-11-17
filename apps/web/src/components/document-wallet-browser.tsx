@@ -301,12 +301,8 @@ export function DocumentWalletBrowser({
             {activePage + 1} of {pageCount}.
           </output>
           {documents.length > 0 ? (
-            <div
-              className="wallet-view-switch"
-              role="group"
-              aria-label="Show Documents As"
-              data-view={view}
-            >
+            <fieldset className="wallet-view-switch" data-view={view}>
+              <legend className="sr-only">Show Documents As</legend>
               {(['list', 'stack'] as const).map((choice) => (
                 <button
                   key={choice}
@@ -317,7 +313,7 @@ export function DocumentWalletBrowser({
                   {choice === 'list' ? 'List' : 'Stack'}
                 </button>
               ))}
-            </div>
+            </fieldset>
           ) : null}
           {visible.length && view === 'stack' ? (
             <DocumentWalletStack
@@ -330,6 +326,7 @@ export function DocumentWalletBrowser({
                 kindLine: rowKindLine(doc),
                 state: rowState(doc),
                 selected: selectedId === doc.id,
+                ...(doc.manage ? { manage: doc.manage } : {}),
               }))}
             />
           ) : visible.length ? (
@@ -380,25 +377,25 @@ export function DocumentWalletBrowser({
             <>
               {documents.length === 0 ? <DocumentWalletGhostCard /> : null}
               <EmptyState
-              art="documents"
-              title={
-                documents.length
-                  ? t('components.documentWalletBrowser.noDocumentsMatch')
-                  : t('components.documentWalletBrowser.noDocumentsYet')
-              }
-              {...(documents.length
-                ? {}
-                : {
-                    why: 'Then use it on every case.',
-                    action: {
-                      href: `/app/applicant/${applicantId}/documents/add`,
-                      label: 'Add a Document',
-                    },
-                  })}
-            >
-              {documents.length
-                ? t.node('components.documentWalletBrowser.clearTheSearchOrChooseAnother')
-                : t.node('components.documentWalletBrowser.addEachPaperOnce')}
+                art="documents"
+                title={
+                  documents.length
+                    ? t('components.documentWalletBrowser.noDocumentsMatch')
+                    : t('components.documentWalletBrowser.noDocumentsYet')
+                }
+                {...(documents.length
+                  ? {}
+                  : {
+                      why: 'Then use it on every case.',
+                      action: {
+                        href: `/app/applicant/${applicantId}/documents/add`,
+                        label: 'Add a Document',
+                      },
+                    })}
+              >
+                {documents.length
+                  ? t.node('components.documentWalletBrowser.clearTheSearchOrChooseAnother')
+                  : t.node('components.documentWalletBrowser.addEachPaperOnce')}
               </EmptyState>
             </>
           )}
