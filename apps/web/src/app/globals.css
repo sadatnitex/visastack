@@ -22097,6 +22097,53 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC10 deadline timeline: today, appointment, passport end and trip start on one wrapping line.
+   Flat: shared tokens, no shadow, gradient or animation. Pictures are decorative; words carry the state. */
+.deadline-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.deadline-timeline-item {
+  display: grid;
+  flex: 1 1 7rem;
+  gap: var(--space-1);
+  min-width: 7rem;
+  min-height: 2.75rem;
+  padding: var(--space-2);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  align-content: start;
+}
+.deadline-timeline-picture {
+  display: inline-flex;
+  color: var(--text-secondary);
+}
+.deadline-timeline-label {
+  font-weight: 700;
+}
+.deadline-timeline-date {
+  font-size: var(--text-small);
+}
+.deadline-timeline-phrase {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+.deadline-timeline-today {
+  border-width: 2px;
+}
+.deadline-timeline-past .deadline-timeline-date {
+  text-decoration: line-through;
+}
+.deadline-timeline-gap {
+  border-style: dashed;
+  border-color: var(--warning);
+}
+/* end WP-PIC10 */
 /* WP-PIC5 Documents as a stack of picture cards (17 Nov 2026, picture-first upgrade, unit U5). An opt-in view beside the list: each document is a card with its picture, name and state word, cards overlapping a little with a small sideways offset. Flat: no shadow or gradient here, the soft depth comes only from .pic-depth in the picture stylesheet. Cards are at least 44 px tall; the stack works from 320 px. Nothing moves, so there is no motion to switch off. */
 .wallet-view-switch {
   min-inline-size: 0;
