@@ -1,4 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { type Page, expect, test } from '@playwright/test';
 
 /**
  * WP-PUB1: the frame every public page shares. The header lists the five public pages, none of its
@@ -63,4 +65,75 @@ test('public pages load nothing from another site', async ({ page, baseURL }) =>
   });
   for (const route of PUBLIC_ROUTES) await page.goto(route);
   expect(foreign).toEqual([]);
+});
+
+/**
+ * The flat check in ux-public.spec.ts skips only an element that carries data-pub-depth itself
+ * (ADR 0029). This runs the same test on a dark chapter that holds a shadowed chip: the chip is
+ * caught, the chapter's own glow is not.
+ */
+test('the flat check catches a shadow on a chip inside a dark chapter', async ({ page }) => {
+  const spec = readFileSync(join(__dirname, '..', 'ux-public.spec.ts'), 'utf8');
+  expect(spec).toContain(
+    "element.closest('.c1-hero, .c1-darkstage') ||\n                element.hasAttribute('data-pub-depth')",
+  );
+  await page.setContent(
+    '<section class="pub-chapter-dark" data-pub-depth style="background-image: radial-gradient(#1d4c98, #0b1a30)"><h2>Chapter</h2><span class="pub-chip" style="box-shadow: 0 1px 2px #000">Saved</span></section>',
+  );
+  const flagged = await page.locator('body').evaluate((body) =>
+    [...body.querySelectorAll('*')]
+      .filter((element) => {
+        if (element.closest('.c1-hero, .c1-darkstage') || element.hasAttribute('data-pub-depth'))
+          return false;
+        const css = getComputedStyle(element);
+        return (
+          css.boxShadow !== 'none' ||
+          css.textShadow !== 'none' ||
+          css.backdropFilter !== 'none' ||
+          /(?:linear|radial)-gradient|blur\(|drop-shadow\(/.test(css.backgroundImage + css.filter)
+        );
+      })
+      .map((element) => element.className),
+  );
+  expect(flagged).toEqual(['pub-chip']);
+});
+
+/**
+ * The scenes mark is set by the early script in the page head, before React starts, so a scene
+ * has its scroll length from the first paint. React's own scripts are blocked here, so only the
+ * early script can have set it. No page holds a scene until PUB2, so a layout-shift measurement
+ * on a real scene lands with PUB2's page; this proves the mark that prevents the shift.
+ */
+test.describe('the early scenes mark', () => {
+  const blockReact = (page: Page) =>
+    page.route('**/_next/static/chunks/**', (route) => route.abort());
+
+  test('is set before React starts on a big screen with motion welcome', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await blockReact(page);
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
+  });
+
+  for (const [name, setup] of [
+    ['reduced motion', (page: Page) => page.emulateMedia({ reducedMotion: 'reduce' })],
+    ['a phone screen', (page: Page) => page.setViewportSize({ width: 390, height: 844 })],
+    ['a short screen', (page: Page) => page.setViewportSize({ width: 1280, height: 560 })],
+  ] as const)
+    test(`stays off with ${name}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await setup(page);
+      await blockReact(page);
+      await page.goto('/');
+      await expect(page.locator('html')).not.toHaveAttribute('data-scenes', /.*/);
+    });
+});
+
+test.describe('without JavaScript', () => {
+  test.use({ javaScriptEnabled: false });
+  test('pages never mark scenes live', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', /.*/);
+  });
 });

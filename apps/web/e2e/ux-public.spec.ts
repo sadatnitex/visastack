@@ -813,7 +813,12 @@ test.describe('flat UI reference geometry and interaction', () => {
             .filter((element) => {
               // Owner decision D1: only the Harbor hero and product chapter on the landing may
               // use soft shadows and gradients. Everything else stays flat, on every page.
-              if (element.closest('.c1-hero, .c1-darkstage, [data-pub-depth]')) return false;
+              // ADR 0029: on the public site only an element that carries data-pub-depth itself.
+              if (
+                element.closest('.c1-hero, .c1-darkstage') ||
+                element.hasAttribute('data-pub-depth')
+              )
+                return false;
               const css = getComputedStyle(element);
               return (
                 css.boxShadow !== 'none' ||

@@ -23,7 +23,7 @@ Since 11 October 2026 the product is flat, enforced by `scripts/check-flat-desig
 ### Scope
 
 1. All depth for the public site's scenes lives in ONE stylesheet: `apps/web/src/components/public-site/public-scenes.css`. That exact path is the third and last entry of `EFFECTS_EXCEPTIONS`. Any other file, including `public-site.css` next to it, keeps the full flat rule.
-2. Every selector in that stylesheet is scoped to `[data-pub-depth]`. Only the shared public components set that attribute: a dark chapter (`<Chapter tone="dark">`), headline words (`<HeadlineWords>`), the tilting passport (`<PassportTilt>`) and a raised story card (`<StoryCard raised>`). The browser flat check in `e2e/ux-public.spec.ts` skips exactly those elements and their contents (`.c1-hero, .c1-darkstage, [data-pub-depth]`).
+2. In that stylesheet the last part of every selector carries `[data-pub-depth]` itself (never inside `:not()`), so depth sits only on the marked element. Only the shared public components set that attribute: a dark chapter (`<Chapter tone="dark">`, for its canvas), headline words (`<HeadlineWords>`), the glow (`<DepthGlow>`), the tilting passport (`<PassportTilt>`) and a raised story card (`<StoryCard raised>`). The browser flat check in `e2e/ux-public.spec.ts` skips only an element that carries the attribute itself, not its contents: a shadowed chip inside a dark chapter still fails.
 3. Inline style effects in components stay forbidden everywhere.
 
 ### Colour
@@ -34,7 +34,7 @@ Brand tokens only, from `apps/web/src/app/globals.css`: the canvas is `--chapter
 
 - A dependency-free scroll engine (`scene-engine.ts`, at most 2 KB gzipped, measured at 1.1 KB) writes `--p` (0 to 1) and `data-step` on each `[data-scene]`. One passive scroll listener throttled to animation frames, one IntersectionObserver, a fresh measure on resize and on return from the back-forward cache.
 - The server always renders each scene's finished step. The engine runs, and sets `html[data-scenes="live"]`, only when motion is welcome: not under `prefers-reduced-motion: reduce`, not with data saver, not below 760 px wide (phones keep still pictures), not below 600 px high (a pinned stage is one screen high, so a short or zoomed screen would cut its words off). Without JavaScript, every scene is an ordinary section showing its finished state.
-- Scenes are pinned (sticky stage, 1 to 4 screen heights) only while `html[data-scenes="live"]` is set; pinning lives in the flat `public-site.css` since it is layout, not decoration.
+- Scenes are pinned (sticky stage just below the sticky header, 1 to 4 screen heights) only while `html[data-scenes="live"]` is set; pinning lives in the flat `public-site.css` since it is layout, not decoration. A tiny fixed script, nonce'd by the root layout, sets that mark in the page head before the first paint with the same tests as the runtime, so scenes have their length from the start and nothing jumps when the page comes to life; without JavaScript it never runs. The engine reads every box before it writes and writes a step only when it changes.
 - In `public-scenes.css`, movement uses `transform` and `opacity` only, driven by `--p` (no timed transitions or keyframe animations), inside `@media (prefers-reduced-motion: no-preference)` and under `html[data-scenes="live"]:not([data-save-data])`. A guard test enforces each rule and is shown failing on a bad example.
 
 ### Still forbidden

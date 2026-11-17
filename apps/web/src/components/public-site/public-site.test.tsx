@@ -12,8 +12,8 @@ import { PassportTilt, PublicPicture, isSelfHosted } from './public-picture';
 import { publicText } from './public-text';
 import { READINESS_NOTE, ReadinessRing } from './readiness-ring';
 import { Chapter, Scene, tonesAlternate } from './scene';
-import { SCENES_ATTRIBUTE } from './scene-engine';
-import { SCENE_MIN_HEIGHT, SCENE_MIN_WIDTH, ScenesRuntime } from './scenes-runtime';
+import { SCENES_ATTRIBUTE, SCENE_MIN_HEIGHT, SCENE_MIN_WIDTH } from './scene-engine';
+import { ScenesRuntime } from './scenes-runtime';
 import { ExampleTag, HeadlineWords, STATUS_WORDS, StatusChip, StoryCard } from './story';
 
 const APP = join(__dirname, '..', '..', 'app');

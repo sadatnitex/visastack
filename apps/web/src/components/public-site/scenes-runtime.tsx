@@ -3,15 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SAVE_DATA_ATTRIBUTE } from '../pictures/save-data-flag';
-import { type SceneHandle, startScenes } from './scene-engine';
-
-/** Below this width scenes stay still (owner, 17 Nov 2026: phones keep still pictures). */
-export const SCENE_MIN_WIDTH = 760;
-/**
- * Below this height scenes stay still too: a pinned stage is one screen high, so on a short or
- * zoomed screen its words could be cut off (WCAG 1.4.10 reflow).
- */
-export const SCENE_MIN_HEIGHT = 600;
+import { SCENE_SCREEN_QUERY, type SceneHandle, startScenes } from './scene-engine';
 
 /**
  * Starts the scroll engine for the scenes on the page and renders nothing. It starts again when
@@ -25,9 +17,7 @@ export function ScenesRuntime() {
     if (typeof window.matchMedia !== 'function') return;
     const html = document.documentElement;
     const lessMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const wide = window.matchMedia(
-      `(min-width: ${SCENE_MIN_WIDTH}px) and (min-height: ${SCENE_MIN_HEIGHT}px)`,
-    );
+    const wide = window.matchMedia(SCENE_SCREEN_QUERY);
     let handle: SceneHandle = { stop() {} };
     const start = () => {
       handle.stop();

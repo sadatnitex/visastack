@@ -39,12 +39,14 @@ export const SCENES_ATTRIBUTE = 'data-scenes';
 
 /**
  * How far through a pinned scene the visitor has scrolled, from 0 (its top has just reached the
- * top of the screen) to 1 (its end is leaving). A scene no taller than the screen counts as
- * finished once its top has reached the top. Never outside 0..1, never NaN.
+ * pinned line) to 1 (its end is leaving). `offset` is where the stage pins, below the sticky
+ * header; the stage is the screen height minus it. A scene no taller than that counts as finished
+ * once its top has reached the line. Never outside 0..1, never NaN.
  */
-export function progressFor(box: SceneBox, viewportHeight: number): number {
-  const travel = box.height - viewportHeight;
-  const raw = travel > 0 ? -box.top / travel : box.top <= 0 ? 1 : 0;
+export function progressFor(box: SceneBox, viewportHeight: number, offset = 0): number {
+  const travel = box.height - (viewportHeight - offset);
+  const scrolled = offset - box.top;
+  const raw = travel > 0 ? scrolled / travel : box.top <= offset ? 1 : 0;
   return Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
 }
 
@@ -55,64 +57,114 @@ export function stepFor(progress: number, steps: number): number {
   return Math.min(count - 1, Math.floor(p * count));
 }
 
+/** Below this width scenes stay still (owner, 17 Nov 2026: phones keep still pictures). */
+export const SCENE_MIN_WIDTH = 760;
+/**
+ * Below this height scenes stay still too: a pinned stage is one screen high, so on a short or
+ * zoomed screen its words could be cut off (WCAG 1.4.10 reflow).
+ */
+export const SCENE_MIN_HEIGHT = 600;
+/** The screens on which scenes may move. */
+export const SCENE_SCREEN_QUERY = `(min-width: ${SCENE_MIN_WIDTH}px) and (min-height: ${SCENE_MIN_HEIGHT}px)`;
+
+/**
+ * Runs in the page head before the first paint (nonce'd by the root layout), so a scene has its
+ * scroll length from the start and nothing jumps when the page comes to life. Same tests as the
+ * runtime: motion welcome, no data saver, a screen big enough. Without JavaScript it never runs
+ * and every scene stays an ordinary finished section. The runtime takes over from here.
+ */
+export const SCENES_BOOT_SCRIPT = `(function(){try{var d=document.documentElement,c=navigator.connection,m=function(q){return matchMedia(q).matches};if(!m('(prefers-reduced-motion: reduce)')&&m('${SCENE_SCREEN_QUERY}')&&!d.hasAttribute('data-save-data')&&!(c&&c.saveData))d.setAttribute('${SCENES_ATTRIBUTE}','live')}catch(e){}})()`;
+
 interface Tracked {
   readonly element: HTMLElement;
+  readonly stage: HTMLElement | null;
   readonly steps: number;
   readonly finished: string | null;
+  /** What the engine last wrote, so an unchanged value is never written again. */
+  p: string;
+  step: string;
+}
+
+/** The pinned line below the sticky header, read from a stage's own sticky top. */
+function pinLine(win: Window, scenes: readonly Tracked[]): number {
+  const stage = scenes.find((scene) => scene.stage)?.stage;
+  const top = stage ? Number.parseFloat(win.getComputedStyle(stage).top) : 0;
+  return Number.isFinite(top) ? Math.max(0, top) : 0;
 }
 
 /**
- * Starts the scenes under `root`. With reduced motion or data saver it writes nothing: the
- * server-rendered finished steps stay. The returned handle undoes everything it did.
+ * Starts the scenes under `root`. With reduced motion or data saver it writes nothing (and
+ * clears the early mark): the server-rendered finished steps stay. The returned handle undoes
+ * everything it did.
  */
 export function startScenes(root: Document | Element, options: SceneOptions): SceneHandle {
   const doc = 'documentElement' in root ? root : root.ownerDocument;
   const win = doc.defaultView;
+  const html = doc.documentElement;
   const scenes: Tracked[] = [...root.querySelectorAll<HTMLElement>('[data-scene]')].map(
     (element) => ({
       element,
+      stage: element.querySelector<HTMLElement>('.pub-scene-stage'),
       steps: Number(element.getAttribute('data-steps') ?? '1') || 1,
       finished: element.getAttribute('data-step'),
+      p: '',
+      step: element.getAttribute('data-step') ?? '',
     }),
   );
-  if (options.reduce || options.saveData || !win || scenes.length === 0) return { stop() {} };
+  if (options.reduce || options.saveData || !win) {
+    html.removeAttribute(SCENES_ATTRIBUTE);
+    return { stop() {} };
+  }
+  if (scenes.length === 0) return { stop() {} };
 
-  const html = doc.documentElement;
   const near = new Set<Tracked>(typeof win.IntersectionObserver === 'function' ? [] : scenes);
   let frame = 0;
   let viewport = win.innerHeight;
+  let line = 0;
 
-  const paint = (scene: Tracked) => {
-    const box = scene.element.getBoundingClientRect();
-    const p = progressFor({ top: box.top, height: box.height }, viewport);
-    scene.element.style.setProperty('--p', p.toFixed(4));
-    scene.element.setAttribute('data-step', String(stepFor(p, scene.steps)));
+  // Every box is read before anything is written, so the browser lays the page out once.
+  const paint = (list: Iterable<Tracked>) => {
+    const batch = [...list];
+    const boxes = batch.map((scene) => scene.element.getBoundingClientRect());
+    batch.forEach((scene, index) => {
+      const box = boxes[index] as DOMRect;
+      const progress = progressFor({ top: box.top, height: box.height }, viewport, line);
+      const p = progress.toFixed(4);
+      const step = String(stepFor(progress, scene.steps));
+      if (p !== scene.p) scene.element.style.setProperty('--p', p);
+      if (step !== scene.step) scene.element.setAttribute('data-step', step);
+      scene.p = p;
+      scene.step = step;
+    });
   };
   const update = () => {
     frame = 0;
-    for (const scene of near) paint(scene);
+    paint(near);
   };
   const schedule = () => {
     if (frame === 0) frame = win.requestAnimationFrame(update);
   };
   const measure = () => {
     viewport = win.innerHeight;
-    for (const scene of scenes) paint(scene);
+    line = pinLine(win, scenes);
+    paint(scenes);
   };
 
   const observer =
     typeof win.IntersectionObserver === 'function'
       ? new win.IntersectionObserver(
           (entries) => {
+            const leaving: Tracked[] = [];
             for (const entry of entries) {
               const scene = scenes.find((s) => s.element === entry.target);
               if (!scene) continue;
               if (entry.isIntersecting) near.add(scene);
               else {
                 near.delete(scene);
-                paint(scene);
+                leaving.push(scene);
               }
             }
+            paint(leaving);
             schedule();
           },
           { rootMargin: '50% 0px' },

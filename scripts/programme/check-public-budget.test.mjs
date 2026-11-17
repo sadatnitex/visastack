@@ -11,6 +11,7 @@ import {
   entriesFor,
   foreignAddresses,
   pictureAddresses,
+  publicFileFor,
   routeProblems,
 } from './check-public-budget.mjs';
 
@@ -153,4 +154,40 @@ test('pages are read for pictures and origins, and a heavy page fails', async ()
     arrayBuffer: async () => new ArrayBuffer(30 * 1024),
   }));
   assert.match(big.problems[0] ?? '', /pictures weigh/);
+});
+
+test('a picture address can never reach outside the public folder', () => {
+  const dir = '/srv/site/public';
+  assert.equal(publicFileFor('/flags/gb.svg', dir), '/srv/site/public/flags/gb.svg');
+  for (const path of [
+    '/..%2F..%2Fpackage.json',
+    '/../secret',
+    '/%2e%2e/%2e%2e/etc/passwd',
+    '/%E0%A4%A',
+  ])
+    assert.equal(publicFileFor(path, dir), null, path);
+});
+
+test('only the site itself is asked, every request has a time limit, and traversal is reported', async () => {
+  const asked = [];
+  const read = async (url, init) => {
+    asked.push(String(url));
+    assert.ok(init?.signal instanceof AbortSignal, 'every request carries a time limit');
+    const { pathname } = new URL(url);
+    if (pathname === '/')
+      return {
+        status: 200,
+        ok: true,
+        text: async () =>
+          '<img src="https://cdn.example.com/a.png"><img src="/..%2F..%2Fpackage.json"><img src="/_next/image?url=x">',
+      };
+    return { status: 200, ok: true, arrayBuffer: async () => new ArrayBuffer(10) };
+  };
+  const { problems, report } = await checkPages('http://localhost:3100', ['/'], read);
+  assert.deepEqual(asked, ['http://localhost:3100/', 'http://localhost:3100/_next/image?url=x']);
+  assert.deepEqual(problems, [
+    '/: loads from another origin: https://cdn.example.com/a.png',
+    '/: picture address leaves the public folder: /..%2F..%2Fpackage.json',
+  ]);
+  assert.deepEqual(report, { '/': 10 });
 });

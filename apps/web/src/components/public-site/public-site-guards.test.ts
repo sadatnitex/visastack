@@ -156,11 +156,35 @@ describe('contrast on the public site', () => {
   });
 });
 
+/** Every use of a tone token outside the tone blocks, with the fallback it names (or none). */
+function toneUses(css: string): { name: string; fallback: string | null }[] {
+  const uses: { name: string; fallback: string | null }[] = [];
+  postcss.parse(css).walkDecls((decl) => {
+    const rule = decl.parent as Rule;
+    if (rule.selector === '.pub-chapter-light' || rule.selector === '.pub-chapter-dark') return;
+    for (const match of decl.value.matchAll(
+      /var\(\s*(--pub-[\w-]+)\s*(?:,\s*((?:[^()]|\([^()]*\))+))?\)/g,
+    )) {
+      const name = match[1] ?? '';
+      if (TONES.light.has(name)) uses.push({ name, fallback: match[2]?.trim() ?? null });
+    }
+  });
+  return uses;
+}
+
 describe('parts outside a chapter', () => {
-  it('fall back to the light tone, so nothing is left without colour', () => {
-    expect(blockOf(SITE, ':root')).toEqual(TONES.light);
+  it('fall back to the light tone at every use, and no page inherits the tone names', () => {
     expect(TONES.light.size).toBe(12);
     expect(TONES.dark.size).toBe(12);
+    const uses = [...toneUses(SITE), ...toneUses(SCENES)];
+    expect(uses.length).toBeGreaterThan(15);
+    for (const { name, fallback } of uses) expect(fallback, name).toBe(TONES.light.get(name));
+    expect(/(^|[\s,}]):root\b/.test(SITE)).toBe(false);
+  });
+  it('catches a use without the light fallback', () => {
+    expect(toneUses('.x { color: var(--pub-ink) }')).toEqual([
+      { name: '--pub-ink', fallback: null },
+    ]);
   });
 });
 
@@ -220,6 +244,31 @@ function rulesOf(css: string): { rule: Rule; media: string[] }[] {
 }
 
 /** Reasons a depth stylesheet breaks the rules of ADR 0029. */
+/** The last compound of a selector (after the last combinator), with :not(...) groups removed. */
+function lastCompound(selector: string): string {
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < selector.length; i++) {
+    const ch = selector[i];
+    if (ch === '(' || ch === '[') depth += 1;
+    else if (ch === ')' || ch === ']') depth -= 1;
+    else if (depth === 0 && /[\s>+~]/.test(ch ?? '')) start = i + 1;
+  }
+  let last = selector.slice(start);
+  for (;;) {
+    const at = last.indexOf(':not(');
+    if (at === -1) break;
+    let level = 0;
+    let end = at + 4;
+    for (; end < last.length; end++) {
+      if (last[end] === '(') level += 1;
+      if (last[end] === ')' && --level === 0) break;
+    }
+    last = last.slice(0, at) + last.slice(end + 1);
+  }
+  return last;
+}
+
 function depthProblems(css: string): string[] {
   const problems: string[] = [];
   postcss.parse(css).walkAtRules('media', (rule) => {
@@ -227,7 +276,8 @@ function depthProblems(css: string): string[] {
   });
   for (const { rule, media } of rulesOf(css)) {
     for (const selector of rule.selectors)
-      if (!selector.includes('[data-pub-depth]')) problems.push(`unscoped: ${selector}`);
+      if (!lastCompound(selector).includes('[data-pub-depth]'))
+        problems.push(`unscoped: ${selector}`);
     rule.each((node) => {
       if (node.type !== 'decl') return;
       const { prop } = node as Declaration;
@@ -262,7 +312,16 @@ describe('the one depth stylesheet (ADR 0029)', () => {
     expect(depthProblems('.card { box-shadow: 0 1px 2px var(--text) }')).toEqual([
       'unscoped: .card',
     ]);
-    expect(depthProblems('[data-pub-depth] .x { transform: scale(2) }')[0]).toMatch(
+    expect(depthProblems('.x:not([data-pub-depth]) { box-shadow: 0 1px 2px var(--text) }')).toEqual(
+      ['unscoped: .x:not([data-pub-depth])'],
+    );
+    expect(depthProblems('[data-pub-depth] .card { box-shadow: 0 1px 2px var(--text) }')).toEqual([
+      'unscoped: [data-pub-depth] .card',
+    ]);
+    expect(depthProblems('.a[data-pub-depth] > .card[data-pub-depth] { opacity: 1 }')[0]).toMatch(
+      /motion outside/,
+    );
+    expect(depthProblems('.x[data-pub-depth] { transform: scale(2) }')[0]).toMatch(
       /motion outside/,
     );
     expect(

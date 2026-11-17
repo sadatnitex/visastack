@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import ts from 'typescript';
@@ -181,17 +181,43 @@ export function pictureAddresses(html) {
   ];
 }
 
+/** How long one request may take before the check gives up on it. */
+export const REQUEST_TIMEOUT_MS = 15_000;
+const PUBLIC_DIR = join(ROOT, 'apps/web/public');
+
+/**
+ * The file in the site's public folder that serves this address, or null when the address would
+ * reach outside that folder (for example through an encoded "../") or cannot be read as a path.
+ */
+export function publicFileFor(pathname, publicDir = PUBLIC_DIR) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  const file = resolve(publicDir, `.${decoded}`);
+  return file.startsWith(`${resolve(publicDir)}${sep}`) ? file : null;
+}
+
 async function fetchBytes(url, read) {
-  const response = await read(url);
+  const response = await read(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   return Buffer.from(await response.arrayBuffer()).length;
 }
 
+/**
+ * Reads each public page from the site at `base` and checks what it asks the browser to load.
+ * Only the site itself is ever asked: an address on another origin is reported, never fetched.
+ */
 export async function checkPages(base, routes = PUBLIC_ROUTES, read = fetch) {
+  const own = new URL(base).origin;
   const problems = [];
   const report = {};
   for (const route of routes) {
-    const response = await read(new URL(route, base));
+    const response = await read(new URL(route, base), {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (response.status === 404) continue;
     if (!response.ok) {
       problems.push(`${route}: HTTP ${response.status}`);
@@ -202,11 +228,24 @@ export async function checkPages(base, routes = PUBLIC_ROUTES, read = fetch) {
       problems.push(`${route}: loads from another origin: ${address.slice(0, 80)}`);
     let images = 0;
     for (const address of pictureAddresses(html)) {
-      const url = new URL(address, base);
+      let url;
+      try {
+        url = new URL(address, base);
+      } catch {
+        continue;
+      }
+      // Reported above as another origin; never fetched.
+      if (url.origin !== own) continue;
+      const local = url.search === '' ? publicFileFor(url.pathname) : null;
+      if (url.search === '' && local === null) {
+        problems.push(
+          `${route}: picture address leaves the public folder: ${address.slice(0, 80)}`,
+        );
+        continue;
+      }
       // A plain file from the site's own folder is weighed on disk; anything else as served.
-      const local = join(ROOT, 'apps/web/public', decodeURIComponent(url.pathname));
       images +=
-        url.search === '' && existsSync(local) && statSync(local).isFile()
+        local && existsSync(local) && statSync(local).isFile()
           ? statSync(local).size
           : await fetchBytes(url, read);
     }

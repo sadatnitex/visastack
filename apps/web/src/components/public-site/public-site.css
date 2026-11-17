@@ -1,8 +1,8 @@
 /* WP-PUB1 public site: tone tokens. Every colour is a globals.css token; nothing here is a new hue.
    Components read only the --pub-* names below, so a chapter's tone decides every colour inside it.
-   Outside any chapter the light tone applies, so a part is never left without colour.
+   Outside any chapter every use falls back to the light tone (var(--pub-x, light value)), so a part
+   is never left without colour and no other page inherits these names.
    The contrast test (public-site-guards.test.ts) reads these two blocks and the chip blocks. */
-:root,
 .pub-chapter-light {
   --pub-canvas: var(--bg);
   --pub-ink: var(--text);
@@ -36,28 +36,31 @@
 /* WP-PUB1 public site: chapters. Dark and light chapters alternate; each is a designed section,
    not a theme, so the page stays the same under either device appearance. */
 .pub-chapter {
-  background-color: var(--pub-canvas);
-  color: var(--pub-ink-soft);
+  background-color: var(--pub-canvas, var(--bg));
+  color: var(--pub-ink-soft, var(--text-secondary));
   padding-block: var(--space-8);
 }
 
 .pub-chapter :where(h1, h2, h3, strong) {
-  color: var(--pub-ink);
+  color: var(--pub-ink, var(--text));
 }
 
 .pub-chapter :where(a, button):focus-visible {
-  outline: 3px solid var(--pub-focus);
+  outline: 3px solid var(--pub-focus, var(--accent));
   outline-offset: 2px;
 }
 
 .pub-words {
-  color: var(--pub-words-from);
+  color: var(--pub-words-from, var(--accent));
 }
 
 /* WP-PUB1 public site: scenes. Without JavaScript, with reduced motion or with data saver a scene is
    a normal section showing its finished step. Only while the engine runs (html[data-scenes="live"])
    is a scene stretched to its scroll length and its stage pinned to the screen. */
 .pub-scene {
+  /* The stage pins just below the sticky header (.nav: 12px from the top, header height high);
+     the engine reads the same line from the stage's own top. */
+  --pub-nav-offset: calc(var(--header-height) + 12px);
   position: relative;
 }
 
@@ -84,8 +87,8 @@ html[data-scenes="live"] .pub-scene[data-len="4"] {
 
 html[data-scenes="live"] .pub-scene-stage {
   position: sticky;
-  top: 0;
-  height: 100svh;
+  top: var(--pub-nav-offset);
+  height: calc(100svh - var(--pub-nav-offset));
   overflow: clip;
 }
 
@@ -106,9 +109,9 @@ html[data-scenes="live"] .pub-scene-stage {
 }
 
 .pub-button-primary {
-  background-color: var(--pub-button);
-  border-color: var(--pub-edge-strong);
-  color: var(--pub-button-ink);
+  background-color: var(--pub-button, var(--accent));
+  border-color: var(--pub-edge-strong, var(--accent));
+  color: var(--pub-button-ink, var(--bg-elevated));
 }
 
 .pub-button-primary:hover {
@@ -117,12 +120,12 @@ html[data-scenes="live"] .pub-scene-stage {
 
 .pub-button-secondary {
   background-color: transparent;
-  border-color: var(--pub-edge-strong);
-  color: var(--pub-ink);
+  border-color: var(--pub-edge-strong, var(--accent));
+  color: var(--pub-ink, var(--text));
 }
 
 .pub-button-secondary:hover {
-  border-color: var(--pub-accent);
+  border-color: var(--pub-accent, var(--accent));
 }
 
 /* WP-PUB1 public site: story cards. Flat: solid surface, edge by tone. */
@@ -132,16 +135,16 @@ html[data-scenes="live"] .pub-scene-stage {
   align-content: start;
   min-width: 0;
   padding: var(--space-5);
-  border: 1px solid var(--pub-edge);
+  border: 1px solid var(--pub-edge, var(--edge-card));
   border-radius: var(--radius-lg);
-  background-color: var(--pub-card);
-  color: var(--pub-ink-soft);
+  background-color: var(--pub-card, var(--bg-elevated));
+  color: var(--pub-ink-soft, var(--text-secondary));
 }
 
 .pub-card-title {
   margin: 0;
   font-size: var(--text-lead);
-  color: var(--pub-ink);
+  color: var(--pub-ink, var(--text));
 }
 
 .pub-card-body {
@@ -231,13 +234,13 @@ html[data-scenes="live"] .pub-scene-stage {
 }
 
 .pub-readiness .progress-ring-words {
-  color: var(--pub-ink);
+  color: var(--pub-ink, var(--text));
 }
 
 .pub-readiness-note {
   margin: 0;
   font-size: var(--text-small);
-  color: var(--pub-ink-soft);
+  color: var(--pub-ink-soft, var(--text-secondary));
 }
 
 /* WP-PUB1 public site: flag ring. Flags sit on a circle around the centre; --i and --n place them. */
@@ -275,7 +278,7 @@ html[data-scenes="live"] .pub-scene-stage {
   display: block;
   width: 36px;
   height: 27px;
-  border: 1px solid var(--pub-edge);
+  border: 1px solid var(--pub-edge, var(--edge-card));
   border-radius: 4px;
   object-fit: cover;
 }

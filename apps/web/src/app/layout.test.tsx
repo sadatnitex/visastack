@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   locale: 'en',
   pathname: null as string | null,
   beta: true,
+  nonce: null as string | null,
 }));
 vi.mock('../lib/page-language', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/page-language')>();
@@ -18,7 +19,11 @@ vi.mock('../lib/page-language', async (importOriginal) => {
   };
 });
 vi.mock('next/headers', () => ({
-  headers: async () => new Headers(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
+  headers: async () =>
+    new Headers({
+      ...(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
+      ...(state.nonce ? { 'x-nonce': state.nonce } : {}),
+    }),
 }));
 vi.mock('../lib/version-notice-state', () => ({
   hasSeenVersionNotice: async () => state.noticeSeen,
@@ -207,5 +212,23 @@ describe('the public site frame (WP-PUB1)', () => {
     expect(pilot.detail).toBe(
       'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',
     );
+  });
+});
+
+describe('the early scenes mark (WP-PUB1, ADR 0029)', () => {
+  afterEach(() => {
+    state.nonce = null;
+  });
+  it("runs before the first paint with this request's nonce", async () => {
+    const { SCENES_BOOT_SCRIPT } = await import('../components/public-site/scene-engine');
+    state.nonce = 'bm9uY2Utb25lLXR3by10aHJlZQ==';
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    const head = html.slice(html.indexOf('<head>'), html.indexOf('</head>'));
+    expect(head).toContain(`<script nonce="${state.nonce}">${SCENES_BOOT_SCRIPT}</script>`);
+    expect(SCENES_BOOT_SCRIPT).not.toMatch(/[<>]/);
+  });
+  it('is left out when the request carries no nonce, so it is never blocked by the policy', async () => {
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(html).not.toContain('data-scenes');
   });
 });

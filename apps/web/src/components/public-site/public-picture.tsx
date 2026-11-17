@@ -44,6 +44,11 @@ export function PublicPicture({
   );
 }
 
+/** A soft brand glow placed behind a hero picture (inside a positioned parent). Decoration only. */
+export function DepthGlow() {
+  return <span className="pub-glow" data-pub-depth="" aria-hidden="true" />;
+}
+
 export interface PassportTiltProps {
   /** The nationality whose cover is shown; the public story shows the real Bangladesh cover. */
   readonly nationality?: string;
