@@ -117,8 +117,8 @@ describe('deskPictureOf', () => {
         requiredCount: 4,
         satisfiedRequired: 2,
         missing: [
-          { kind: 'DOCUMENT', optional: false, reason: 'expired' },
-          { kind: 'DOCUMENT', optional: false, reason: 'conflict' },
+          { kind: 'DOCUMENT', optional: false, reason: 'stale_evidence' },
+          { kind: 'DOCUMENT', optional: false, reason: 'unresolved_conflict' },
         ],
       },
     });

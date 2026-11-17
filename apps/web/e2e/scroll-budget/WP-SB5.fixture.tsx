@@ -377,12 +377,15 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
   );
 }
 
-/** WP-PIC14: the longest destination names the strip has to wrap, worst case for its height. */
+/**
+ * WP-PIC14: long destination names that are recognised countries, so each draws its flag before
+ * the name: the worst case for the strip's height.
+ */
 const LONG_DESTINATIONS = [
   'Saint Vincent and the Grenadines',
-  'United Kingdom of Great Britain and Northern Ireland',
   'Bosnia and Herzegovina',
-  'Schengen Area',
+  'Trinidad and Tobago',
+  'Papua New Guinea',
 ];
 
 /**
@@ -393,7 +396,8 @@ const LONG_DESTINATIONS = [
  * strip with a long destination on every row. With `strips: false` the rows draw no strip.
  */
 const DO_NEXT_CAP = 8;
-const TIERS = ['Past Due', 'Due Soon', 'Ready to Review', 'Needs Assignment'];
+// The page's own tier headings (TIER_LABEL in do-next-list.tsx).
+const TIERS = ['Past Due', 'Waiting for Review', 'Overdue Tasks', 'Needs an Owner'];
 
 function DoNext({
   total,
@@ -458,7 +462,8 @@ function DoNextCard({ total, strips }: { total: number; strips: boolean }) {
               </div>
             </dl>
             <div className="do-next-action">
-              {n % 2 === 0 ? (
+              {/* Even rows (row 0 too, the one Glance shows) carry the taller follow-up control. */}
+              {n % 2 === 1 ? (
                 <a
                   href={`/app/agency/o1/cases#mission-${caseId(n)}`}
                   className="btn btn-secondary do-next-link"
@@ -479,7 +484,7 @@ function DoNextCard({ total, strips }: { total: number; strips: boolean }) {
       <p className="muted do-next-more" data-only="glance">
         {total - 1} more need you. Choose Browse to see them.
       </p>
-      <p className="muted do-next-more">
+      <p className="muted do-next-more do-next-quiet" data-level="browse">
         4 more requests in this view have had no reply.{' '}
         <a href="/app/agency/o1/clients?status=open">See All Open Requests</a>
       </p>

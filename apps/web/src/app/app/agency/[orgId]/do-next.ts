@@ -20,7 +20,11 @@
  * "Nobody assigned" as its owner.
  */
 
-import { type TriageDocumentState, evidenceRequestTriageGroup } from '@visastack/services';
+import {
+  type MissingRequirement,
+  type TriageDocumentState,
+  evidenceRequestTriageGroup,
+} from '@visastack/services';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel, titleCase } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
@@ -87,12 +91,9 @@ export interface DeskReadiness {
   readonly requiredCount: number;
   readonly satisfiedRequired: number;
   /** What is still missing; read only for its kind, whether it is optional and why it is missing. */
-  readonly missing?: readonly {
-    readonly kind: string;
-    readonly optional: boolean;
-    readonly reason?: string;
-    readonly alternatives?: readonly { readonly kind: string }[];
-  }[];
+  readonly missing?: readonly (Pick<MissingRequirement, 'kind' | 'optional' | 'alternatives'> & {
+    readonly reason?: MissingRequirement['reason'];
+  })[];
 }
 
 /**
@@ -115,6 +116,7 @@ export interface DeskPicture {
  * a document. Null when the missing list was not read with the readiness, and null for a zero
  * while anything required is still outstanding for another reason (out of date, in conflict, an
  * answer), so the row never says "No Documents Missing" beside a case table that says some are.
+ * A non-zero count is documents never provided only; the case table counts every missing item.
  */
 function requiredDocumentsNotProvided(readiness: DeskReadiness): number | null {
   const missing = readiness.missing;
