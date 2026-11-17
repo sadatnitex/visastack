@@ -28,7 +28,7 @@ import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
  */
 
 const STAFF_MAX_SESSION_AGE_SECONDS = 12 * 60 * 60;
-const TRAVELLER_MAX_SESSION_AGE_SECONDS = 7 * 24 * 60 * 60;
+export const TRAVELLER_MAX_SESSION_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 /** True if the account currently holds any active organization membership or platform role. */
 export async function isStaffContext(

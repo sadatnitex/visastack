@@ -7489,3 +7489,42 @@ export const webPushSubscriptions = pgTable(
     check('web_push_subscriptions_failures_nonnegative', sql`${table.failureCount} >= 0`),
   ],
 );
+
+// --- Passkeys (Q8, ADR 0028) ------------------------------------------------
+// A passkey never signs anyone in: it only confirms a sensitive action for the sign-in already
+// held. One row per passkey; the signature counter guards against a copied key.
+export const passkeyCredentials = pgTable(
+  'passkey_credentials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id').notNull(),
+    publicKey: bytea('public_key').notNull(),
+    signCount: bigint('sign_count', { mode: 'number' }).notNull().default(0),
+    transports: text('transports').array().notNull().default(sql`'{}'::text[]`),
+    aaguid: text('aaguid'),
+    deviceType: text('device_type').notNull(),
+    backedUp: boolean('backed_up').notNull().default(false),
+    label: text('label').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    lastUsedSessionRef: text('last_used_session_ref'),
+    lastChallengeHash: text('last_challenge_hash'),
+  },
+  (table) => [
+    unique('passkey_credentials_credential_id_unique').on(table.credentialId),
+    index('passkey_credentials_account_idx').on(table.accountId),
+    check(
+      'passkey_credentials_device_type',
+      sql`${table.deviceType} in ('singleDevice', 'multiDevice')`,
+    ),
+    check('passkey_credentials_label_length', sql`char_length(${table.label}) between 1 and 60`),
+    check('passkey_credentials_sign_count', sql`${table.signCount} >= 0`),
+    check(
+      'passkey_credentials_credential_id_length',
+      sql`char_length(${table.credentialId}) between 1 and 1366`,
+    ),
+  ],
+);

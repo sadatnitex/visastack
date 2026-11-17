@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   CONFIRMED_PATH,
+  LINK_RETURN_PATH,
   SOCIAL_RETURN_PATH,
   confirmedCallbackNext,
   confirmedFailedDestination,
@@ -162,5 +163,21 @@ describe('the request filter can load this file', () => {
         expect(spec, `${file} imports ${spec}`).toBe('./safe-return-path');
       expect(source).not.toMatch(/server-only|node:/);
     }
+  });
+});
+
+describe('the email sign-in link landing (Q8)', () => {
+  it('sends a visitor with no sign-in to the form with the link line, keeping only a safe next', () => {
+    expect(LINK_RETURN_PATH).toBe('/auth/link-return');
+    expect(neonLoginUrlFor(LINK_RETURN_PATH, '')).toBe('/auth/sign-in?e=link');
+    expect(neonLoginUrlFor(LINK_RETURN_PATH, '?next=%2Fapp%2Fcases')).toBe(
+      '/auth/sign-in?e=link&next=%2Fapp%2Fcases',
+    );
+    expect(neonLoginUrlFor(LINK_RETURN_PATH, '?next=https%3A%2F%2Fevil.example')).toBe(
+      '/auth/sign-in?e=link',
+    );
+    expect(neonLoginUrlFor(LINK_RETURN_PATH, '?error=EXPIRED_TOKEN')).toBe(
+      '/auth/sign-in?e=link_expired',
+    );
   });
 });

@@ -8,6 +8,7 @@ import {
   verifyStepUpAssurance,
 } from '@visastack/services';
 import { neonReauthUrl, neonSessionAgeSeconds } from './neon-recency';
+import { passkeyConfirmationAgeSeconds } from './passkey-recency';
 import { staffFactorGate } from './staff-factor';
 
 /**
@@ -25,6 +26,18 @@ import { staffFactorGate } from './staff-factor';
  */
 
 const STEP_UP_MAX_AGE_SECONDS = 5 * 60;
+
+/**
+ * Seconds since this person last proved it is them in this sign-in: the password typed at sign-in
+ * (or at the re-check page), or, for travellers only, a passkey used in this same sign-in
+ * (`./passkey-recency.ts`, off unless PASSKEYS is on). The passkey is asked about only when the
+ * password is too old, so nothing changes for anyone who signed in recently.
+ */
+async function secondsSinceConfirmed(accountId: string): Promise<number> {
+  const passwordAge = await neonSessionAgeSeconds();
+  if (passwordAge <= STEP_UP_MAX_AGE_SECONDS) return passwordAge;
+  return Math.min(passwordAge, await passkeyConfirmationAgeSeconds(accountId));
+}
 
 const NOT_CONFIGURED_MESSAGE = 'STEP_UP_SIGNING_SECRET is not configured';
 
@@ -62,7 +75,7 @@ export async function establishStepUp(
   request: StepUpRequest,
   returnTo: string,
 ): Promise<StepUpResult> {
-  if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
+  if ((await secondsSinceConfirmed(request.accountId)) > STEP_UP_MAX_AGE_SECONDS) {
     return { satisfied: false, reauthUrl: neonReauthUrl(returnTo) };
   }
   // Staff also need an authenticator code proved in this sign-in (S3). It sits behind the
@@ -139,7 +152,7 @@ export async function establishStepUpProof(
   request: StepUpRequest & { readonly action: PermissionAction },
   returnTo: string,
 ): Promise<StepUpProofOutcome> {
-  if ((await neonSessionAgeSeconds()) > STEP_UP_MAX_AGE_SECONDS) {
+  if ((await secondsSinceConfirmed(request.accountId)) > STEP_UP_MAX_AGE_SECONDS) {
     return { kind: 'reauth_required', reauthUrl: neonReauthUrl(returnTo) };
   }
   const factor = await staffFactorGate(request.accountId, returnTo);

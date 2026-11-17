@@ -12,6 +12,7 @@ import { depthWord } from '../../../lib/ccd/depth-words';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../../../lib/language-choice';
+import { passkeysEnabled } from '../../../lib/passkeys';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { ClearShareInboxOnSubmit } from '../../../lib/pwa/clear-share-inbox-on-submit';
 import { withSession } from '../../../lib/session';
@@ -149,6 +150,11 @@ export default async function AccountPage() {
             <Link href="/app/privacy" className="btn btn-secondary">
               {t.node('appAccount.appAccountPage.openPrivacy')}
             </Link>
+            {passkeysEnabled() ? (
+              <p className="card-body">
+                <Link href="/app/account/passkeys">Manage Your Passkeys</Link>
+              </p>
+            ) : null}
           </article>
 
           {showWhatsApp ? (

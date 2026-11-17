@@ -28,6 +28,12 @@ export const CONFIRMED_PATH = '/auth/confirmed';
  */
 export const SOCIAL_RETURN_PATH = '/auth/social-return';
 
+/**
+ * Where a person lands after the sign-in link in their email (Q8, owner decision 17 Nov 2026).
+ * Like the Google return, the sign-in check runs on it first and hands over the sign-in Neon Auth
+ * made when the link was opened; with none, the visitor gets the sign-in form with the link line.
+ */
+export const LINK_RETURN_PATH = '/auth/link-return';
 /** The plain-language line shown once after confirming. */
 export const CONFIRMED_LINE = 'Your email is confirmed.';
 
@@ -86,6 +92,13 @@ export function neonLoginUrlFor(pathname: string, search: string): string {
     // validated destination (the one-time code Neon Auth adds to the address is not copied on).
     const next = safeReturnPath(new URLSearchParams(search).get('next'));
     return `/auth/sign-in?e=social${signInNextSuffix(next)}`;
+  }
+  if (pathname === LINK_RETURN_PATH) {
+    // No session after the email link: opened on another device or browser, or it expired.
+    const params = new URLSearchParams(search);
+    const next = safeReturnPath(params.get('next'));
+    const code = params.has('error') ? 'link_expired' : 'link';
+    return `/auth/sign-in?e=${code}${signInNextSuffix(next)}`;
   }
   if (pathname === CONFIRMED_PATH) {
     const params = new URLSearchParams(search);

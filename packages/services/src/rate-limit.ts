@@ -60,6 +60,12 @@ export const RATE_LIMITS = {
   AUTH_SIGN_UP_EMAIL: { limit: 3, windowMs: HOUR_MS },
   AUTH_EMAIL_SEND_EMAIL: { limit: 3, windowMs: HOUR_MS },
   AUTH_EMAIL_SEND_IP: { limit: 10, windowMs: HOUR_MS },
+  /**
+   * Confirming it is you with a passkey (Q8), per account. Its own bucket, so a flood of failed
+   * password sign-ins against an address never blocks the owner's passkey, and passkey use never
+   * spends the password sign-in allowance.
+   */
+  PASSKEY_CONFIRM: { limit: 20, windowMs: HOUR_MS },
   /** One shared bucket per actor across all five AI Gateway tasks (extraction, OCR, classification, explanation, inconsistency check). */
   AI_RUN: { limit: 150, windowMs: HOUR_MS },
   /**
