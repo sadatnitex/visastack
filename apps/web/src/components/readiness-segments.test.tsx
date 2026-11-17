@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { axeViolations } from '../lib/axe.test-support';
+import { CaseReadinessRing } from './case-readiness-ring';
 import {
   AFTER_STEP_LABEL,
   NOW_LABEL,
@@ -92,13 +93,65 @@ describe('ReadinessSegmentRing', () => {
   });
 
   it('keeps the legend, so what is missing is still named, beside a long ring', () => {
-    const host = render(<ReadinessSegmentRing done={1} total={30} items={items} />);
-    expect(host.querySelectorAll('.readiness-legend-row')).toHaveLength(4);
+    const many: ReadinessSegmentItem[] = Array.from({ length: 30 }, (_, n) => ({
+      key: `k${n}`,
+      label: `Item ${n}`,
+      type: 'passport',
+      ready: n === 0,
+    }));
+    const host = render(<ReadinessSegmentRing done={1} total={30} items={many} />);
+    expect(host.querySelectorAll('.readiness-legend-row')).toHaveLength(30);
   });
 
   it('has no accessibility violations', async () => {
     const host = render(<ReadinessSegmentRing done={2} total={4} items={items} />);
     expect(await axeViolations(host.innerHTML)).toEqual([]);
+  });
+});
+
+describe('segments follow each item, not just a count', () => {
+  const mixed: ReadinessSegmentItem[] = [
+    { key: 'a', label: 'Passport', type: 'passport', ready: true },
+    { key: 'b', label: 'Photo', type: 'photo', ready: false },
+    { key: 'c', label: 'Bank Statement', type: 'bank_statement', ready: true },
+  ];
+  it('fills the segment of each ready item, in the items order', () => {
+    const host = render(<ReadinessSegmentRing done={2} total={3} items={mixed} />);
+    const on = [...host.querySelectorAll('.readiness-seg')].map((c) =>
+      c.classList.contains('readiness-seg-on'),
+    );
+    expect(on).toEqual([true, false, true]);
+  });
+  it('uses the counts alone, and hides a legend that disagrees with them', () => {
+    const host = render(<ReadinessSegmentRing done={2} total={5} items={mixed} />);
+    const on = [...host.querySelectorAll('.readiness-seg')].map((c) =>
+      c.classList.contains('readiness-seg-on'),
+    );
+    expect(on).toEqual([true, true, false, false, false]);
+    expect(host.querySelector('.readiness-legend')).toBeNull();
+  });
+  it('hides a legend whose ready count differs from the done count', () => {
+    const host = render(<ReadinessSegmentRing done={1} total={3} items={mixed} />);
+    expect(host.querySelector('.readiness-legend')).toBeNull();
+    expect(host.querySelectorAll('.readiness-seg-on')).toHaveLength(1);
+  });
+});
+
+describe('CaseReadinessRing segment variant (opt-in)', () => {
+  const readiness = { requiredCount: 3, satisfiedRequired: 1 };
+  it('keeps its default markup', () => {
+    const host = render(<CaseReadinessRing readiness={readiness} />);
+    expect(host.querySelector('.readiness-seg')).toBeNull();
+    expect(host.querySelector('.progress-ring-fill')).not.toBeNull();
+  });
+  it('draws segments when asked', () => {
+    const host = render(<CaseReadinessRing readiness={readiness} variant="segments" />);
+    expect(host.querySelectorAll('.readiness-seg')).toHaveLength(3);
+    expect(host.querySelectorAll('.readiness-seg-on')).toHaveLength(1);
+  });
+  it('still teaches when there is no checklist', () => {
+    const host = render(<CaseReadinessRing readiness={null} variant="segments" pickHref="/x" />);
+    expect(host.querySelector('a')?.getAttribute('href')).toBe('/x');
   });
 });
 
@@ -132,6 +185,24 @@ describe('NextStepPanel before and after ring (opt-in)', () => {
     expect(labels).toEqual(['2 of 4 items ready', '3 of 4 items ready']);
     expect(host.textContent).toContain(NOW_LABEL);
     expect(host.textContent).toContain(AFTER_STEP_LABEL);
+  });
+
+  it('keeps the words visible beside each ring and gives the glow the document tone', () => {
+    const host = render(
+      <NextStepPanel
+        {...base}
+        beforeAfter={{ done: 2, total: 4, documentType: 'bank_statement' }}
+      />,
+    );
+    expect(block).not.toMatch(/\.lift-next-ring[^{]*progress-ring-text[^{]*\{[^}]*display:\s*none/);
+    const words = [...host.querySelectorAll('.lift-next-ring .progress-ring-words')].map(
+      (w) => w.textContent,
+    );
+    expect(words).toEqual(['2 of 4 items ready', '3 of 4 items ready']);
+    const glow = host.querySelector('.pic-glow');
+    const tone = host.querySelector('.pic-glow .pic')?.getAttribute('data-tone');
+    expect(tone).toBeTruthy();
+    expect(glow?.getAttribute('data-tone')).toBe(tone);
   });
 
   it('is the one animated hero and uses only the shared motion class', () => {

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { documentPicture } from '../../lib/document-picture';
 import { DocumentPicture } from '../pictures/document-picture';
 import { ProgressRing } from '../progress-ring';
 import { AboutDisclosure } from './about-disclosure';
@@ -56,9 +57,14 @@ function BeforeAfterHero({ done, total, documentType, afterDone }: NextStepBefor
   if (now >= all) return null;
   const after =
     afterDone !== undefined && Number.isFinite(afterDone) ? Math.floor(afterDone) : now + 1;
+  // The glow reads its colour from the tone on its own element, so it matches the document's.
+  const tone = documentPicture(documentType).mark.tone;
   return (
     <div className="lift-next-hero pic-depth">
-      <span className="lift-next-hero-picture pic-glow">
+      <span
+        className="lift-next-hero-picture pic-glow"
+        {...(tone === 'neutral' ? {} : { 'data-tone': tone })}
+      >
         <DocumentPicture type={documentType} size={72} className="pic-float" />
       </span>
       <div className="lift-next-rings">

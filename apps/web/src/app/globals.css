@@ -21673,8 +21673,13 @@ body:lang(bn),
   align-items: center;
   gap: var(--space-1);
 }
-.lift-next-ring .progress-ring-text {
-  display: none;
+.lift-next-ring .progress-ring {
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: center;
+}
+.lift-next-ring .progress-ring-words {
+  font-size: var(--text-caption);
 }
 .lift-next-ring-caption {
   font-size: var(--text-caption);

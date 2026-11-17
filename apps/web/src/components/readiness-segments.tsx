@@ -59,18 +59,38 @@ export function segmentRingCounts(done: number, total: number): { done: number; 
   return { done: Math.max(0, Math.min(ready, whole)), total: whole };
 }
 
-function Segments({ done, total }: { readonly done: number; readonly total: number }) {
+/** Which segments are filled: each ready item when the legend agrees with the counts, else the first `done`. */
+function filledMask(
+  counts: { done: number; total: number },
+  items: ReadonlyArray<ReadinessSegmentItem> | undefined,
+): { mask: boolean[]; legend: ReadonlyArray<ReadinessSegmentItem> | undefined } {
+  if (
+    items &&
+    items.length === counts.total &&
+    items.filter((item) => item.ready).length === counts.done
+  ) {
+    return { mask: items.map((item) => item.ready), legend: items };
+  }
+  // A legend that disagrees with the counts is not shown: the counts are the truth.
+  return {
+    mask: Array.from({ length: counts.total }, (_, i) => i < counts.done),
+    legend: undefined,
+  };
+}
+
+function Segments({ mask }: { readonly mask: ReadonlyArray<boolean> }) {
+  const total = mask.length;
   const slot = 100 / total;
   const gap = total === 1 ? 0 : Math.min(2.5, slot * 0.25);
   const length = slot - gap;
   return (
     <>
-      {Array.from({ length: total }, (_, index) => (
+      {mask.map((filled, index) => (
         <circle
           // Segments are positional and never reorder.
           // biome-ignore lint/suspicious/noArrayIndexKey: fixed positions on a ring
           key={index}
-          className={`readiness-seg ${index < done ? 'readiness-seg-on' : 'readiness-seg-off'}`}
+          className={`readiness-seg ${filled ? 'readiness-seg-on' : 'readiness-seg-off'}`}
           cx="50"
           cy="50"
           r="42"
@@ -145,10 +165,11 @@ export function ReadinessSegmentRing({
       <div className="readiness-segring">
         <ProgressRing done={counts.done} total={counts.total} size={size} />
         {tip ? <RingTip /> : null}
-        <Legend items={items} />
+        <Legend items={filledMask(counts, items).legend} />
       </div>
     );
   }
+  const { mask, legend } = filledMask(counts, items);
   const words = progressRingWords(counts.done, counts.total);
   const full = counts.done >= counts.total;
   return (
@@ -156,7 +177,7 @@ export function ReadinessSegmentRing({
       <span className={`progress-ring progress-ring-${size}${full ? ' progress-ring-full' : ''}`}>
         <span className="progress-ring-graphic">
           <svg viewBox="0 0 100 100" role="img" aria-label={words}>
-            <Segments done={counts.done} total={counts.total} />
+            <Segments mask={mask} />
           </svg>
         </span>
         <span className="progress-ring-text">
@@ -166,7 +187,7 @@ export function ReadinessSegmentRing({
         </span>
       </span>
       {tip ? <RingTip /> : null}
-      <Legend items={items} />
+      <Legend items={legend} />
     </div>
   );
 }
