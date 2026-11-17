@@ -108,16 +108,36 @@ export default async function PasskeysPage({
                           maxLength={60}
                           required
                         />
-                        <button type="submit" className="btn btn-secondary">
+                        <button
+                          type="submit"
+                          className="btn btn-secondary"
+                          aria-label={`Save Name: ${passkey.label}`}
+                        >
                           Save Name
                         </button>
                       </form>
-                      <form action={removePasskeyAction} className="u-mt-050">
-                        <input type="hidden" name="passkeyId" value={passkey.id} />
-                        <button type="submit" className="btn btn-secondary">
+                      <details className="u-mt-050">
+                        <summary
+                          className="btn btn-secondary"
+                          aria-label={`Remove Passkey: ${passkey.label}`}
+                        >
                           Remove Passkey
-                        </button>
-                      </form>
+                        </summary>
+                        <form action={removePasskeyAction} className="field-list u-mt-050">
+                          <input type="hidden" name="passkeyId" value={passkey.id} />
+                          <p className="card-body">
+                            Remove {passkey.label}? It will stop working on this account. You can
+                            add it again later.
+                          </p>
+                          <button
+                            type="submit"
+                            className="btn btn-primary"
+                            aria-label={`Yes, Remove Passkey: ${passkey.label}`}
+                          >
+                            Yes, Remove It
+                          </button>
+                        </form>
+                      </details>
                     </li>
                   ))}
                 </ul>

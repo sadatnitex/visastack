@@ -31,6 +31,7 @@ export function AddPasskey() {
   }
 
   async function add(): Promise<void> {
+    if (busy) return;
     setBusy(true);
     setMessage('');
     setReauthUrl(null);
@@ -80,7 +81,6 @@ export function AddPasskey() {
         className="btn btn-primary"
         onClick={() => void add()}
         aria-disabled={busy}
-        disabled={busy}
       >
         {busy ? 'Waiting for Your Device' : 'Add a Passkey'}
       </button>

@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -80,11 +83,21 @@ describe('step-up with a passkey', () => {
 });
 
 describe('the absolute session limit ignores passkeys', () => {
-  it('a passkey used a second ago does not keep an eight-day-old traveller sign-in alive', async () => {
-    neonSessionAgeSeconds.mockResolvedValue(8 * 24 * 60 * 60);
-    passkeyConfirmationAgeSeconds.mockResolvedValue(1);
+  it('neither the session limit nor sign-in resolution reads a passkey', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    for (const file of ['session-age.ts', 'session.ts']) {
+      const source = readFileSync(join(here, file), 'utf8');
+      expect(source, file).not.toMatch(/passkey/i);
+    }
+  });
+
+  it('keeps the 7-day traveller limit exactly at 7 days, whatever a passkey says', async () => {
+    passkeyConfirmationAgeSeconds.mockResolvedValue(0);
     const { enforceSessionAgeLimit } = await import('./session-age');
+    neonSessionAgeSeconds.mockResolvedValue(7 * 24 * 60 * 60 + 1);
     expect((await enforceSessionAgeLimit(false, '/app')).satisfied).toBe(false);
-    expect(passkeyConfirmationAgeSeconds).not.toHaveBeenCalled();
+    neonSessionAgeSeconds.mockResolvedValue(7 * 24 * 60 * 60);
+    passkeyConfirmationAgeSeconds.mockResolvedValue(Number.POSITIVE_INFINITY);
+    expect((await enforceSessionAgeLimit(false, '/app')).satisfied).toBe(true);
   }, 15_000);
 });

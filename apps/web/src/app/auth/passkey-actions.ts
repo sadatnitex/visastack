@@ -51,7 +51,7 @@ const STAFF: Failure = {
 const MAX_RESPONSE_CHARS = 16_000;
 
 async function deps() {
-  const [passkeys, web, recency, session, staffFactor, base, neonAuth, sessionAge] =
+  const [passkeys, web, recency, session, staffFactor, base, neonAuth, sessionAge, services] =
     await Promise.all([
       import('@visastack/services/passkeys'),
       import('../../lib/passkeys'),
@@ -61,8 +61,9 @@ async function deps() {
       import('../../lib/base-url'),
       import('../../lib/neon-auth'),
       import('../../lib/session-age'),
+      import('@visastack/services'),
     ]);
-  return { passkeys, web, recency, session, staffFactor, base, neonAuth, sessionAge };
+  return { passkeys, web, recency, session, staffFactor, base, neonAuth, sessionAge, services };
 }
 
 type Deps = Awaited<ReturnType<typeof deps>>;
@@ -84,7 +85,7 @@ async function rememberChallenge(
     d.neonAuth.readNeonAuthSettings().cookieSecret,
   );
   (await cookies()).set(
-    d.web.passkeyChallengeCookieName(secure),
+    d.web.passkeyChallengeCookieName(binding.purpose, secure),
     value,
     d.web.passkeyChallengeCookieOptions(secure),
   );
@@ -98,7 +99,7 @@ async function takeChallenge(
   const { cookies } = await import('next/headers');
   const store = await cookies();
   const secure = secureCookies(d);
-  const name = d.web.passkeyChallengeCookieName(secure);
+  const name = d.web.passkeyChallengeCookieName(binding.purpose, secure);
   const value = store.get(name)?.value;
   store.set(name, '', { ...d.web.passkeyChallengeCookieOptions(secure), maxAge: 0 });
   return d.web.readPasskeyChallenge(value, binding, d.neonAuth.readNeonAuthSettings().cookieSecret);
@@ -119,6 +120,29 @@ function browserAnswer<T>(value: unknown): T | null {
     return null;
   }
   return value as T;
+}
+
+/**
+ * Passkey confirmations, per account, in their own bucket (`PASSKEY_CONFIRM`). If the counter
+ * cannot be read the attempt is allowed: an answer is a signature from the person's own device,
+ * which cannot be guessed, and every other check (challenge, signature, counter) still runs. The
+ * password re-check keeps its own limits untouched.
+ */
+async function withinPasskeyLimit(
+  d: Deps,
+  db: Parameters<Deps['passkeys']['listPasskeys']>[0],
+  accountId: string,
+): Promise<boolean> {
+  try {
+    const decision = await d.services.checkRateLimit(
+      db,
+      { subjectId: accountId, action: 'passkey.confirm' },
+      d.services.RATE_LIMITS.PASSKEY_CONFIRM,
+    );
+    return decision.allowed;
+  } catch {
+    return true;
+  }
 }
 
 function reauthFailure(d: Deps): Failure {
@@ -171,18 +195,13 @@ export async function finishPasskeyConfirmAction(
   if (!sessionRef) redirect('/auth/sign-in');
   return d.session.withSession(async ({ db, accountId, email }) => {
     const challenge = await takeChallenge(d, { purpose: 'confirm', accountId, sessionRef });
-    const { withinAuthLimits } = await import('../../lib/auth-throttle');
-    const allowed = await withinAuthLimits({
-      email,
-      byEmail: 'AUTH_SIGN_IN_EMAIL',
-      byAddress: 'AUTH_SIGN_IN_IP',
-      onFailure: 'allow',
-    });
-    if (!allowed) return SLOW;
+    if (!(await withinPasskeyLimit(d, db, accountId))) return SLOW;
     if (await d.sessionAge.isStaffContext(db, { accountId, email })) return STAFF;
     if (!challenge) return EXPIRED;
     const response = browserAnswer<AuthenticationResponseJSON>(answer);
     if (!response) return { ok: false, message: 'That passkey could not be checked. Try again.' };
+    // An answer to another challenge (an older tab, another purpose) is "try again", not a failure.
+    if (d.web.challengeOfAnswer(response) !== challenge.challenge) return EXPIRED;
     const confirmed = await d.passkeys.finishPasskeyConfirmation(db, {
       accountId,
       rp: d.web.passkeyRelyingParty(),
@@ -245,6 +264,7 @@ export async function finishPasskeyAddAction(
     if (!challenge) return EXPIRED;
     const response = browserAnswer<RegistrationResponseJSON>(answer);
     if (!response) return { ok: false, message: 'That passkey could not be saved. Try again.' };
+    if (d.web.challengeOfAnswer(response) !== challenge.challenge) return EXPIRED;
     const saved = await d.passkeys.finishPasskeyRegistration(db, {
       accountId,
       rp: d.web.passkeyRelyingParty(),
@@ -263,9 +283,12 @@ export async function finishPasskeyAddAction(
   return result;
 }
 
+const PASSKEY_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A well-formed passkey id, or '' (which then answers exactly like a passkey that is not there). */
 function passkeyId(formData: FormData): string {
   const value = formData.get('passkeyId');
-  return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value) ? value : '';
+  return typeof value === 'string' && PASSKEY_ID.test(value) ? value : '';
 }
 
 export async function renamePasskeyAction(formData: FormData): Promise<void> {
@@ -275,7 +298,11 @@ export async function renamePasskeyAction(formData: FormData): Promise<void> {
   const label = formData.get('label');
   let outcome = 'renamed';
   await d.session.withSession(async ({ db, accountId }) => {
-    if (!id || typeof label !== 'string') {
+    if (!id) {
+      outcome = 'missing';
+      return;
+    }
+    if (typeof label !== 'string') {
       outcome = 'invalid';
       return;
     }
@@ -297,7 +324,7 @@ export async function removePasskeyAction(formData: FormData): Promise<void> {
       return;
     }
     if (!id) {
-      outcome = 'invalid';
+      outcome = 'missing';
       return;
     }
     const removed = await d.passkeys.removePasskey(db, { accountId, id });

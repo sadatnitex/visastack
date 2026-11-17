@@ -26,21 +26,24 @@ A. **A passkey confirms it is you inside an existing sign-in.** It never signs a
 - Staff (any platform role or organization membership) are not changed: password plus authenticator code, as before.
 - The absolute session limits (7 days for travellers, 12 hours for staff) ignore passkeys entirely.
 - Adding or removing a passkey needs the password typed in the last five minutes.
-- WebAuthn with user verification required. The challenge is kept in a signed, two-minute, httpOnly cookie bound to purpose, account and sign-in, and cleared when read. The database refuses the same challenge twice and a signature counter that goes backwards.
+- WebAuthn with user verification required. The challenge is kept in a signed, two-minute, httpOnly cookie, one per purpose, bound to account and sign-in, and cleared when read. An answer to another challenge is "try again", never a failed passkey. The database refuses the same challenge twice, any challenge given out before the passkey's last use, and a signature counter that goes backwards.
+- Confirmations have their own per-account limit (`PASSKEY_CONFIRM`), apart from the password limits. If the limit cannot be read the attempt goes on: an answer is a signature from the person's own device, which cannot be guessed, and every other check still runs.
 - Off unless `PASSKEYS=on`. One new table, `passkey_credentials` (migration 0137, re-runnable). Until the owner runs it, every read reports "not available" and step-up asks for the password as before.
 
 B. **Sign in with a link by email**, using the magic link sign-in Neon Auth already offers.
 - Off unless `SIGN_IN_LINKS=on`.
 - Every valid address takes the same steps and gets the same answer, so the form never shows who has an account. The email limit is checked first and refuses when it cannot be read.
 - The link returns to `/auth/link-return`. A new person goes through the same agreement and invitation checks as a new Google sign-in.
-- An email link counts as a fresh sign-in for traveller step-up, like a password. Email can already reset a password, so this gives no new power. Staff still need the authenticator code.
+- Only the browser that asked can finish: asking sets a signed, 15-minute, httpOnly "link pending" cookie for every valid address, and the landing ends any link sign-in in a browser without one. A link someone else asked for (for their own account) therefore cannot sign this browser in, whatever Neon Auth does with its own check cookie, which cannot be inspected from here.
+- A link never makes a staff sign-in: the landing ends it and asks for the password. The confirm-it-is-you page offers the link to travellers only.
+- An email link counts as a fresh sign-in for traveller step-up, like a password. Email can already reset a password, so this gives no new power. Staff never get a link sign-in.
 
 ## Consequences
 
 - Travellers get faster sensitive steps on phones and laptops. Nothing changes for anyone until the owner switches each part on.
 - Passkeys belong to the production host (`vs.obsidianglobal.studio`). They do not work on the `vercel.app` fallback address.
 - An email link must be opened in the same browser that asked for it: Neon Auth's sign-in hand-over needs a cookie set in that browser. Anywhere else, the sign-in page explains this.
-- Owner actions: "migrate 0137"; set `PASSKEYS=on` and `SIGN_IN_LINKS=on` in Vercel Production; optionally set Neon magic link "disable sign up" to on (our checks already cover new identities); send the request below to Neon.
+- Owner actions, in this order: "migrate 0137"; set `PASSKEYS=on` in Vercel Production; keep Neon's magic link sign-in on only together with `SIGN_IN_LINKS=on` (Neon's own public address could otherwise send links without our limits); optionally set Neon magic link "disable sign up" to on (our checks already cover new identities); send the request below to Neon.
 
 ## Rollback
 

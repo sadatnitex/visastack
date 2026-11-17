@@ -27,6 +27,8 @@ const ERRORS: Record<string, string> = {
   link_invalid: 'Enter a valid email address to get a sign-in link.',
   link: 'That sign-in link did not sign you in here. Open it on the same device and browser where you asked for it, or ask for a new one.',
   link_expired: 'That sign-in link has expired or was already used. Ask for a new one below.',
+  link_slow: 'Too many sign-in links were asked for. Please wait a little while and try again.',
+  link_staff: 'Staff accounts sign in with the email address and password.',
 };
 
 /** The codes about the email form itself; the others describe Google and must not mark the form invalid. */
@@ -99,7 +101,7 @@ export default async function SignInPage({
               name="email"
               type="email"
               label="Or Get a Sign-In Link by Email"
-              errorId={e === 'link_invalid' ? 'signin-error' : undefined}
+              errorId={e === 'link_invalid' || e === 'link_slow' ? 'signin-error' : undefined}
               autoComplete="email"
               required
               maxLength={254}

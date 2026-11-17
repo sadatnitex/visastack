@@ -27,6 +27,15 @@ const signInEmail = vi.fn();
 const getSession = vi.fn();
 vi.mock('../../lib/neon-auth', () => ({
   getNeonAuth: () => ({ signIn: { magicLink, email: signInEmail }, getSession }),
+  readNeonAuthSettings: () => ({
+    baseUrl: 'https://auth.example.test',
+    cookieSecret: 'test-only-cookie-key-with-at-least-thirty-two-characters',
+  }),
+}));
+const emailIsStaff = vi.fn();
+vi.mock('../../lib/sign-in-link-guard', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/sign-in-link-guard')>()),
+  emailIsStaff: (email: string) => emailIsStaff(email),
 }));
 const withinAuthLimits = vi.fn(async (_input?: unknown) => true);
 vi.mock('../../lib/auth-throttle', () => ({
@@ -70,6 +79,7 @@ beforeEach(() => {
   });
   withinAuthLimits.mockReset().mockResolvedValue(true);
   reportServerError.mockReset();
+  emailIsStaff.mockReset().mockResolvedValue(false);
   signupAccountExists.mockReset();
   redirect.mockClear();
 });
@@ -104,7 +114,10 @@ describe('signInLinkAction', () => {
     expect(known).toBe('/auth/sign-in?n=link_sent');
     expect(unknown).toBe(known);
     expect(setCookies).toEqual(knownCookies);
-    expect(knownCookies).toEqual(['__Secure-neon-auth.session_challenge']);
+    expect(knownCookies).toEqual([
+      '__Host-vs-link-pending',
+      '__Secure-neon-auth.session_challenge',
+    ]);
     expect({ ...unknownLimit, email: '' }).toEqual({ ...knownLimit, email: '' });
     expect(magicLink).toHaveBeenCalledTimes(2);
     expect(signupAccountExists).not.toHaveBeenCalled();
@@ -121,7 +134,7 @@ describe('signInLinkAction', () => {
 
   it('checks the email limit first, refuses when it cannot be read, and then sends nothing', async () => {
     withinAuthLimits.mockResolvedValueOnce(false);
-    expect(await outcome({ email: 'person@example.com' })).toBe('/auth/sign-in?e=slow');
+    expect(await outcome({ email: 'person@example.com' })).toBe('/auth/sign-in?e=link_slow');
     expect(magicLink).not.toHaveBeenCalled();
     expect(withinAuthLimits).toHaveBeenCalledWith({
       email: 'person@example.com',
@@ -181,10 +194,31 @@ describe('reauthLinkAction', () => {
     getSession.mockResolvedValue({ data: { user: { email: 'me@example.com' } } });
     withinAuthLimits.mockResolvedValueOnce(false);
     expect(await reauthOutcome('/app/privacy')).toBe(
-      '/auth/reauth?returnTo=%2Fapp%2Fprivacy&e=slow',
+      '/auth/reauth?returnTo=%2Fapp%2Fprivacy&e=link_slow',
     );
     vi.stubEnv('SIGN_IN_LINKS', '');
     expect(await reauthOutcome('/app/privacy')).toBe('/auth/reauth?returnTo=%2Fapp%2Fprivacy');
+    expect(magicLink).not.toHaveBeenCalled();
+  });
+
+  it('never sends a link to staff, who confirm with the password', async () => {
+    getSession.mockResolvedValue({ data: { user: { email: 'staff@example.com' } } });
+    emailIsStaff.mockResolvedValueOnce(true);
+    expect(await reauthOutcome('/app/privacy')).toBe(
+      '/auth/reauth?returnTo=%2Fapp%2Fprivacy&e=link_staff',
+    );
+    emailIsStaff.mockResolvedValueOnce(null);
+    expect(await reauthOutcome('/app/privacy')).toBe(
+      '/auth/reauth?returnTo=%2Fapp%2Fprivacy&e=link_unavailable',
+    );
+    expect(magicLink).not.toHaveBeenCalled();
+  });
+
+  it('answers on the page when the sign-in cannot be read', async () => {
+    getSession.mockRejectedValueOnce(new Error('Neon Auth down'));
+    expect(await reauthOutcome('/app/privacy')).toBe(
+      '/auth/reauth?returnTo=%2Fapp%2Fprivacy&e=link_unavailable',
+    );
     expect(magicLink).not.toHaveBeenCalled();
   });
 });

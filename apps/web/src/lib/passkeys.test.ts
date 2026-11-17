@@ -4,6 +4,7 @@ vi.mock('server-only', () => ({}));
 
 import {
   PASSKEY_CHALLENGE_LIFETIME_MS,
+  challengeOfAnswer,
   encodePasskeyChallenge,
   passkeyChallengeCookieName,
   passkeyChallengeCookieOptions,
@@ -78,7 +79,9 @@ describe('the passkey challenge cookie', () => {
   });
 
   it('lives two minutes in an httpOnly, strict, host-only cookie on https', () => {
-    expect(passkeyChallengeCookieName(true)).toBe('__Host-vs-passkey');
+    expect(passkeyChallengeCookieName('confirm', true)).toBe('__Host-vs-passkey-confirm');
+    expect(passkeyChallengeCookieName('add', true)).toBe('__Host-vs-passkey-add');
+    expect(passkeyChallengeCookieName('add', false)).toBe('vs-passkey-add');
     expect(passkeyChallengeCookieOptions(true)).toEqual({
       httpOnly: true,
       secure: true,
@@ -86,5 +89,17 @@ describe('the passkey challenge cookie', () => {
       path: '/',
       maxAge: 120,
     });
+  });
+});
+
+describe('challengeOfAnswer', () => {
+  it('reads the challenge a browser answer signed, and nothing from anything else', () => {
+    const clientDataJSON = Buffer.from(
+      JSON.stringify({ type: 'webauthn.get', challenge: 'chal-9' }),
+    ).toString('base64url');
+    expect(challengeOfAnswer({ response: { clientDataJSON } })).toBe('chal-9');
+    expect(challengeOfAnswer({ response: { clientDataJSON: 'not-json' } })).toBeNull();
+    expect(challengeOfAnswer({ response: {} })).toBeNull();
+    expect(challengeOfAnswer(null)).toBeNull();
   });
 });

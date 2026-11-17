@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { safeReturnPath } from '../../../lib/neon-recency';
-import { passkeyOfferedAtReauth } from '../../../lib/passkey-offer';
-import { signInLinksEnabled } from '../../../lib/sign-in-links';
+import { reauthChoices } from '../../../lib/passkey-offer';
 import {
   googleSignInEnabled,
   sessionSignInMethods,
@@ -21,6 +20,9 @@ const ERRORS: Record<string, string> = {
   invalid: 'Enter your password (8 to 128 characters).',
   failed: 'That password was not right. Try again.',
   slow: 'Too many attempts. Please wait a little while and try again.',
+  link_slow: 'Too many sign-in links were asked for. Please wait a little while and try again.',
+  link_staff: 'Staff accounts confirm with the password. Type it below.',
+  link_unavailable: 'We could not send a sign-in link just now. Type your password below.',
 };
 
 const NOTICES: Record<string, string> = {
@@ -53,6 +55,8 @@ export default async function ReauthPage({
   const error = e ? ERRORS[e] : undefined;
   const notice = n ? NOTICES[n] : undefined;
   const safeReturnTo = safeReturnPath(returnTo);
+  const choices = await reauthChoices(safeReturnTo);
+  const passkeyChoice = choices.passkey ? <PasskeyConfirm returnTo={safeReturnTo} /> : null;
   if (await signsInWithGoogleOnly()) {
     return (
       <AuthShell title={t.node('auth.authReauthPage.confirmItIsYou')}>
@@ -60,6 +64,7 @@ export default async function ReauthPage({
           You signed in with Google, so there is no password to type. Sign in with Google again to
           continue.
         </p>
+        {passkeyChoice}
         <GoogleButton next={safeReturnTo} notice={false} />
       </AuthShell>
     );
@@ -68,9 +73,7 @@ export default async function ReauthPage({
     <AuthShell title={t.node('auth.authReauthPage.confirmItIsYou')}>
       <p className="card-body">{t.node('auth.authReauthPage.forYourSafetyPleaseTypeYour')}</p>
       {notice ? <Notice>{notice}</Notice> : null}
-      {(await passkeyOfferedAtReauth(safeReturnTo)) ? (
-        <PasskeyConfirm returnTo={safeReturnTo} />
-      ) : null}
+      {passkeyChoice}
       <ErrorLine id="reauth-error" message={error} />
       <div className="card u-mb-100">
         <form action={reauthAction} className="field-list">
@@ -84,14 +87,14 @@ export default async function ReauthPage({
             required
             minLength={8}
             maxLength={128}
-            errorId={error ? 'reauth-error' : undefined}
+            errorId={error && !e?.startsWith('link_') ? 'reauth-error' : undefined}
           />
           <button type="submit" className="btn btn-primary">
             {t.node('auth.authReauthPage.continue')}
           </button>
         </form>
       </div>
-      {signInLinksEnabled() ? (
+      {choices.link ? (
         <form action={reauthLinkAction} className="card-body">
           <input type="hidden" name="returnTo" value={safeReturnTo} />
           <button type="submit" className="btn btn-secondary">

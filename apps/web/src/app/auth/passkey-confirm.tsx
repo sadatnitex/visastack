@@ -1,6 +1,7 @@
 'use client';
 
 import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { finishPasskeyConfirmAction, startPasskeyConfirmAction } from './passkey-actions';
 
@@ -21,6 +22,7 @@ export function PasskeyConfirm({ returnTo }: { returnTo: string }) {
   if (!supported) return null;
 
   async function confirm(): Promise<void> {
+    if (busy) return;
     setBusy(true);
     setMessage('');
     try {
@@ -57,14 +59,16 @@ export function PasskeyConfirm({ returnTo }: { returnTo: string }) {
           className="btn btn-primary"
           onClick={() => void confirm()}
           aria-disabled={busy}
-          disabled={busy}
         >
           {busy ? 'Checking' : 'Use Face ID, Fingerprint or Screen Lock'}
         </button>
         <output className="field-msg" aria-live="polite">
           {message}
         </output>
-        <p className="card-body">Or type your password below.</p>
+        <p className="card-body">
+          Or type your password below.{' '}
+          <Link href="/app/account/passkeys">Manage Your Passkeys</Link>
+        </p>
       </div>
     </div>
   );

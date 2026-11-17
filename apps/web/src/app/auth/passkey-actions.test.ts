@@ -51,6 +51,11 @@ const withinAuthLimits = vi.fn(async (_input?: unknown) => true);
 vi.mock('../../lib/auth-throttle', () => ({
   withinAuthLimits: (input: unknown) => withinAuthLimits(input),
 }));
+const checkRateLimit = vi.fn();
+vi.mock('@visastack/services', () => ({
+  RATE_LIMITS: { PASSKEY_CONFIRM: { limit: 20, windowMs: 3_600_000 } },
+  checkRateLimit: (...args: unknown[]) => checkRateLimit(...args),
+}));
 
 const service = {
   startPasskeyConfirmation: vi.fn(),
@@ -66,11 +71,18 @@ import {
   finishPasskeyAddAction,
   finishPasskeyConfirmAction,
   removePasskeyAction,
+  renamePasskeyAction,
   startPasskeyAddAction,
   startPasskeyConfirmAction,
 } from './passkey-actions';
 
-const ANSWER = { id: 'cred-1', rawId: 'cred-1', type: 'public-key', response: {} };
+/** A browser answer that says it signed `challenge`. */
+function answerFor(challenge: string) {
+  const clientDataJSON = Buffer.from(JSON.stringify({ challenge })).toString('base64url');
+  return { id: 'cred-1', rawId: 'cred-1', type: 'public-key', response: { clientDataJSON } };
+}
+const ANSWER = answerFor('chal-1');
+const ADD_ANSWER = answerFor('chal-2');
 
 beforeEach(() => {
   vi.stubEnv('PASSKEYS', 'on');
@@ -79,6 +91,7 @@ beforeEach(() => {
   state.staff = false;
   passwordIsRecent.mockReset().mockResolvedValue(true);
   withinAuthLimits.mockReset().mockResolvedValue(true);
+  checkRateLimit.mockReset().mockResolvedValue({ allowed: true });
   for (const fn of Object.values(service)) fn.mockReset();
   for (const fn of Object.values(neonSignIn)) fn.mockReset();
   service.startPasskeyConfirmation.mockResolvedValue({ ok: true, value: { challenge: 'chal-1' } });
@@ -138,17 +151,40 @@ describe('confirming with a passkey', () => {
     expect(service.finishPasskeyConfirmation).toHaveBeenCalledTimes(1);
   });
 
-  it('is rate limited exactly like the password re-check', async () => {
+  it('has its own per-account limit, apart from the password sign-in limits', async () => {
     await startPasskeyConfirmAction();
-    withinAuthLimits.mockResolvedValueOnce(false);
+    checkRateLimit.mockResolvedValueOnce({ allowed: false });
     expect(await finishPasskeyConfirmAction(ANSWER, '/app')).toMatchObject({ ok: false });
-    expect(withinAuthLimits).toHaveBeenCalledWith({
-      email: 'p@example.test',
-      byEmail: 'AUTH_SIGN_IN_EMAIL',
-      byAddress: 'AUTH_SIGN_IN_IP',
-      onFailure: 'allow',
+    expect(checkRateLimit).toHaveBeenCalledWith(
+      { fake: true },
+      { subjectId: 'acct-1', action: 'passkey.confirm' },
+      { limit: 20, windowMs: 3_600_000 },
+    );
+    expect(service.finishPasskeyConfirmation).not.toHaveBeenCalled();
+    expect(withinAuthLimits).not.toHaveBeenCalled();
+  });
+
+  it('goes on when the limit cannot be read: a passkey answer cannot be guessed', async () => {
+    await startPasskeyConfirmAction();
+    checkRateLimit.mockRejectedValueOnce(new Error('store down'));
+    expect((await finishPasskeyConfirmAction(ANSWER, '/app')).ok).toBe(true);
+  });
+
+  it('treats an answer to another challenge as "try again", never as a failed passkey', async () => {
+    await startPasskeyConfirmAction();
+    expect(await finishPasskeyConfirmAction(answerFor('some-older-challenge'), '/app')).toEqual({
+      ok: false,
+      message: 'That took a little too long. Please try again.',
     });
     expect(service.finishPasskeyConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('keeps adding and confirming apart, so two tabs at once both work', async () => {
+    await startPasskeyAddAction();
+    await startPasskeyConfirmAction();
+    expect(jar.size).toBe(2);
+    expect((await finishPasskeyConfirmAction(ANSWER, '/app')).ok).toBe(true);
+    expect((await finishPasskeyAddAction(ADD_ANSWER, 'Phone')).ok).toBe(true);
   });
 
   it('refuses staff, malformed answers, no sign-in, and everything while switched off', async () => {
@@ -195,7 +231,7 @@ describe('adding and removing a passkey', () => {
     await startPasskeyConfirmAction();
     expect(await finishPasskeyAddAction(ANSWER, 'Phone')).toMatchObject({ ok: false });
     await startPasskeyAddAction();
-    expect(await finishPasskeyAddAction(ANSWER, 'Phone')).toEqual({
+    expect(await finishPasskeyAddAction(ADD_ANSWER, 'Phone')).toEqual({
       ok: true,
       next: '/app/account/passkeys',
     });
@@ -205,11 +241,22 @@ describe('adding and removing a passkey', () => {
     );
   });
 
-  it('removes only a well-formed id for the signed-in account', async () => {
-    expect(await redirectOf(removePasskeyAction(formWith('not-an-id')))).toBe(
-      '/app/account/passkeys?n=invalid',
-    );
+  it('removes only a well-formed id for the signed-in account; a malformed one is just missing', async () => {
+    for (const bad of [
+      'not-an-id',
+      '11111111-1111-4111-8111-11111111111',
+      '------------------------------------',
+      '11111111111141118111111111111111111a',
+    ]) {
+      expect(await redirectOf(removePasskeyAction(formWith(bad)))).toBe(
+        '/app/account/passkeys?n=missing',
+      );
+      expect(await redirectOf(renamePasskeyAction(formWith(bad, 'Tablet')))).toBe(
+        '/app/account/passkeys?n=missing',
+      );
+    }
     expect(service.removePasskey).not.toHaveBeenCalled();
+    expect(service.renamePasskey).not.toHaveBeenCalled();
     const id = '11111111-1111-4111-8111-111111111111';
     expect(await redirectOf(removePasskeyAction(formWith(id)))).toBe(
       '/app/account/passkeys?n=removed',
@@ -218,8 +265,9 @@ describe('adding and removing a passkey', () => {
   });
 });
 
-function formWith(id: string): FormData {
+function formWith(id: string, label?: string): FormData {
   const data = new FormData();
   data.set('passkeyId', id);
+  if (label !== undefined) data.set('label', label);
   return data;
 }

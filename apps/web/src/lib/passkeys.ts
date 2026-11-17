@@ -38,8 +38,28 @@ export type PasskeyPurpose = 'add' | 'confirm';
 
 export const PASSKEY_CHALLENGE_LIFETIME_MS = 2 * 60 * 1000;
 
-export function passkeyChallengeCookieName(secure: boolean): string {
-  return secure ? '__Host-vs-passkey' : 'vs-passkey';
+/** One cookie per purpose, so adding a passkey in one tab and confirming in another never clash. */
+export function passkeyChallengeCookieName(purpose: PasskeyPurpose, secure: boolean): string {
+  return secure ? `__Host-vs-passkey-${purpose}` : `vs-passkey-${purpose}`;
+}
+
+/**
+ * The challenge a browser answer says it signed (from its client data), or null. Compared with
+ * the challenge this browser was given before any check runs, so a stale or crossed answer is
+ * simply "try again" and never counts as a failed passkey.
+ */
+export function challengeOfAnswer(answer: unknown): string | null {
+  try {
+    const encoded = (answer as { response?: { clientDataJSON?: unknown } } | null)?.response
+      ?.clientDataJSON;
+    if (typeof encoded !== 'string' || encoded.length > 4096) return null;
+    const data = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as {
+      challenge?: unknown;
+    };
+    return typeof data.challenge === 'string' ? data.challenge : null;
+  } catch {
+    return null;
+  }
 }
 
 export function passkeyChallengeCookieOptions(secure: boolean): {

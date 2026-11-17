@@ -49,4 +49,8 @@ it('explains each sign-in link outcome in plain words', async () => {
     'signin-error',
   );
   expect(invalid.querySelector('#email')?.getAttribute('aria-describedby')).toBeNull();
+  const slow = await page({ e: 'link_slow' });
+  expect(slow.querySelector('#link-email')?.getAttribute('aria-describedby')).toBe('signin-error');
+  expect(slow.querySelector('#email')?.getAttribute('aria-describedby')).toBeNull();
+  expect(slow.body.textContent).toContain('Too many sign-in links');
 });

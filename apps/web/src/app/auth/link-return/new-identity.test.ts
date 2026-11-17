@@ -17,8 +17,15 @@ const redirect = vi.fn((to: string) => {
 });
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 vi.mock('server-only', () => ({}));
+const jar = new Map<string, string>();
 vi.mock('next/headers', () => ({
-  cookies: async () => ({ get: () => undefined, set: vi.fn(), getAll: () => [] }),
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name) } : undefined),
+    set: (name: string, value: string) => {
+      jar.set(name, value);
+    },
+    getAll: () => [],
+  }),
   headers: async () => new Headers(),
 }));
 
@@ -31,8 +38,13 @@ vi.mock('../../../lib/neon-request-session', () => ({
   requestSessionReader: () => ({ getSession: async () => ({ data: { user: NEW_PERSON } }) }),
 }));
 // A link sign-in has no password account at Neon Auth.
+const SECRET = 'test-only-cookie-key-with-at-least-thirty-two-characters';
 vi.mock('../../../lib/neon-auth', () => ({
-  getNeonAuth: () => ({ listAccounts: async () => ({ data: [{ providerId: 'magic-link' }] }) }),
+  getNeonAuth: () => ({
+    listAccounts: async () => ({ data: [{ providerId: 'magic-link' }] }),
+    signOut: vi.fn(),
+  }),
+  readNeonAuthSettings: () => ({ baseUrl: 'https://auth.example.test', cookieSecret: SECRET }),
 }));
 const database = vi.hoisted(() => ({ db: undefined as unknown }));
 vi.mock('../../../lib/public-db', () => ({
@@ -48,6 +60,7 @@ async function count(db: Db, table: string): Promise<number> {
 }
 
 beforeEach(async () => {
+  jar.clear();
   database.db = drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
   vi.stubEnv('DEPLOYMENT_MODE', 'controlled_pilot');
   vi.stubEnv('PUBLIC_BETA_OPEN', '');
@@ -59,14 +72,16 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe('a link sign-in for an address with no account', () => {
   it('goes to the agreement and invitation step, never straight to the product', async () => {
-    const { default: LinkReturnPage } = await import('./page');
-    let landed = '';
-    try {
-      await LinkReturnPage({ searchParams: Promise.resolve({ next: '/app/cases' }) });
-    } catch (error) {
-      landed = (error as Error).message.replace('REDIRECT:', '');
-    }
-    expect(landed).toBe('/auth/notice-check?next=%2Fapp%2Fcases');
+    const { encodeLinkPending, linkPendingCookieName } = await import(
+      '../../../lib/sign-in-link-guard'
+    );
+    jar.set(linkPendingCookieName(true), encodeLinkPending(SECRET));
+    const { GET } = await import('./route');
+    const response = await GET(
+      new Request('https://app.example.test/auth/link-return?next=%2Fapp%2Fcases'),
+    );
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(`${location.pathname}${location.search}`).toBe('/auth/notice-check?next=%2Fapp%2Fcases');
   }, 30_000);
 
   it('is refused there without an invitation, and nothing is created in our tables', async () => {
