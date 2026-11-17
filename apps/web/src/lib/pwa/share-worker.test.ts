@@ -457,6 +457,73 @@ describe('reading the inbox', () => {
   });
 });
 
+describe('a share being written', () => {
+  it('a list or any other request arriving mid-write never removes it', async () => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const request = share([photo('slow.jpg')]);
+    const form = await (request.formData as () => Promise<FormData>)();
+    request.formData = vi.fn(async () => {
+      await gate;
+      return form;
+    });
+    const posting = sw.dispatchFetch(request);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await sw.dispatchFetch(get('/app', 'navigate'), ELSEWHERE);
+    const listing = list();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    release();
+    expect((await posting)?.headers.get('location')).toBe(`${ORIGIN}${INCOMING_PATH}`);
+    const { body } = await listing;
+    expect(body.files.map((f: { name: string }) => f.name)).toEqual(['slow.jpg']);
+  });
+});
+
+describe('what a cut-off write leaves behind', () => {
+  const META = `${ORIGIN}/share-target/meta`;
+  const FILE = `${ORIGIN}/share-target/file/0`;
+
+  function leftOver(meta: object | null, fileAt: number) {
+    const cache = new StringCache();
+    if (meta) cache.entries.set(META, Response.json(meta));
+    cache.entries.set(
+      FILE,
+      new Response('x', { headers: { 'X-VisaStack-Shared-At': String(fileAt) } }),
+    );
+    sw.stores.set(SHARE_INBOX_CACHE, cache);
+  }
+
+  async function anyRequest() {
+    await sw.dispatchFetch(get('/app', 'navigate'), ELSEWHERE);
+  }
+
+  it('removes a write that stopped after its mark, once a minute has passed', async () => {
+    leftOver({ at: sw.clock.now, writing: true }, sw.clock.now);
+    await anyRequest();
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
+    sw.clock.now += 61 * 1000;
+    await anyRequest();
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it('removes files with no record once they are older than 15 minutes', async () => {
+    leftOver(null, sw.clock.now);
+    await anyRequest();
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
+    sw.clock.now += SHARE_MAX_AGE_MS + 1;
+    await anyRequest();
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it('a share still being written cannot be read yet', async () => {
+    leftOver({ at: sw.clock.now, writing: true }, sw.clock.now);
+    expect((await list()).body.files).toEqual([]);
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
+  });
+});
+
 describe('while sharing is switched off', () => {
   it('a share post is left to the server and nothing is kept', async () => {
     const off = load(buildServiceWorkerScript('build-1', { share: false }));

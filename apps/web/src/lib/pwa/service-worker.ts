@@ -272,27 +272,44 @@ async function clearInbox() {
   await caches.delete(SHARE_INBOX_CACHE);
 }
 
-// The inbox's record, or null when nothing is waiting. An expired or unreadable inbox is emptied.
-async function readInbox() {
-  if (!(await hasInbox())) return null;
+// A share being written carries this mark; a write cut off for longer than this is left over.
+const SHARE_WRITE_GRACE_MS = 60 * 1000;
+const SHARE_AT_HEADER = 'X-VisaStack-Shared-At';
+
+// What the inbox holds: nothing, a share still being written, one ready to read, or something left
+// over (past its time, or a write that never finished) that can go.
+async function inboxState() {
+  if (!(await hasInbox())) return { kind: 'none' };
   const cache = await caches.open(SHARE_INBOX_CACHE);
+  const now = Date.now();
   const stored = await cache.match(SHARE_META);
-  let meta = null;
-  try {
-    meta = stored ? await stored.json() : null;
-  } catch {
-    meta = null;
+  const meta = stored ? await stored.json().catch(() => null) : null;
+  if (!meta || typeof meta.at !== 'number') {
+    // No record: only files from a write cut off before its mark. Kept while any is young.
+    const entries = await Promise.all((await cache.keys()).map((key) => cache.match(key)));
+    const young = entries.some((entry) => {
+      const at = Number(entry && entry.headers.get(SHARE_AT_HEADER));
+      return at > 0 && now >= at && now - at <= SHARE_MAX_AGE_MS;
+    });
+    return { kind: young ? 'writing' : 'stale' };
   }
-  if (!meta || typeof meta.at !== 'number' || Date.now() - meta.at > SHARE_MAX_AGE_MS || Date.now() < meta.at) {
-    await clearInbox();
-    return null;
-  }
-  return { cache, meta };
+  if (now < meta.at) return { kind: 'stale' };
+  if (meta.writing) return { kind: now - meta.at > SHARE_WRITE_GRACE_MS ? 'stale' : 'writing' };
+  if (now - meta.at > SHARE_MAX_AGE_MS) return { kind: 'stale' };
+  return { kind: 'ready', cache, meta };
+}
+
+// The inbox's record, or null when nothing is ready. Anything left over is emptied; a share still
+// being written is left alone.
+async function readInbox() {
+  const state = await inboxState();
+  if (state.kind === 'stale') await clearInbox();
+  return state.kind === 'ready' ? { cache: state.cache, meta: state.meta } : null;
 }
 
 // Empties the inbox once its time is up, whatever request woke the worker, so files never outlive
 // SHARE_MAX_AGE_MS just because nobody opened the incoming page again (for example after signing
-// out). Only a complete record past its time is removed, never a share still being written.
+// out), and removes what a cut-off write left behind. A share still being written is never touched.
 async function sweepInbox() {
   try {
     if (!(await hasInbox())) return;
@@ -300,11 +317,7 @@ async function sweepInbox() {
       await clearInbox();
       return;
     }
-    const stored = await (await caches.open(SHARE_INBOX_CACHE)).match(SHARE_META);
-    if (!stored) return;
-    const meta = await stored.json().catch(() => null);
-    if (meta && typeof meta.at === 'number' && Date.now() - meta.at <= SHARE_MAX_AGE_MS && Date.now() >= meta.at) return;
-    if (meta && typeof meta.at === 'number') await clearInbox();
+    if ((await inboxState()).kind === 'stale') await clearInbox();
   } catch {
     // A failed sweep is retried on the next request; the inbox is still read with its time checked.
   }
@@ -348,29 +361,39 @@ async function mayReplaceWaiting(request) {
   return !inbox || inbox.meta.owner !== null;
 }
 
-async function receiveShare(event) {
+// Written one at a time with every read, claim and clear of the inbox, behind a "writing" mark, so
+// nothing can read or remove a share half way through.
+function receiveShare(event) {
+  return oneAtATime(() => writeShare(event));
+}
+
+async function writeShare(event) {
   const accepted = fromThisDeviceOrSite(event.request) && (await mayReplaceWaiting(event.request));
   let kept = 0;
   let offered = 0;
   if (accepted) {
     try {
-      const form = await event.request.formData();
-      const shared = form.getAll(SHARE_FILES_FIELD).filter((value) => value && typeof value === 'object');
       // A new share replaces anything an account already opened, or anything past its time.
       await clearInbox();
       const cache = await caches.open(SHARE_INBOX_CACHE);
+      const at = Date.now();
+      await cache.put(SHARE_META, noStore(JSON.stringify({ at, writing: true }), 200, 'application/json'));
+      const form = await event.request.formData();
+      const shared = form.getAll(SHARE_FILES_FIELD).filter((value) => value && typeof value === 'object');
       const files = [];
       for (const file of shared) {
         const type = String(file.type || '').toLowerCase();
         if (files.length >= SHARE_MAX_FILES) continue;
         if (!SHARE_ACCEPT.includes(type) || !(file.size > 0) || file.size > SHARE_MAX_FILE_BYTES) continue;
         const n = files.length;
-        await cache.put(self.location.origin + SHARE_FILE_PREFIX + n, noStore(file, 200, type));
+        const stored = noStore(file, 200, type);
+        stored.headers.set(SHARE_AT_HEADER, String(at));
+        await cache.put(self.location.origin + SHARE_FILE_PREFIX + n, stored);
         files.push({ n, name: String(file.name || 'Shared file').slice(0, 200), type, size: file.size });
       }
       kept = files.length;
       offered = shared.length;
-      const meta = { at: Date.now(), owner: null, files, dropped: shared.length - files.length };
+      const meta = { at, owner: null, files, dropped: shared.length - files.length };
       await cache.put(SHARE_META, noStore(JSON.stringify(meta), 200, 'application/json'));
       if (kept === 0) await clearInbox();
     } catch {
@@ -470,9 +493,8 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name.startsWith(CACHE_PREFIX) && name !== STATIC_CACHE)
           .map((name) => caches.delete(name)),
       );
-      // Reading the inbox empties it when its time is up; with sharing switched off it simply goes.
-      if (SHARE_ON) await readInbox();
-      else await clearInbox();
+      // The sweep empties an inbox past its time; with sharing switched off it simply goes.
+      await sweepInbox();
       if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
       await self.clients.claim();
     })(),

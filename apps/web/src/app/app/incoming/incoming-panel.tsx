@@ -132,6 +132,10 @@ export function IncomingPanel({
   const [stopped, setStopped] = useState(false);
   // Whether the phone copies were removed once every file had an answer (null: not known yet).
   const [removed, setRemoved] = useState<boolean | null>(null);
+  // Whether Cancel's clear was confirmed by the phone.
+  const [cancelCleared, setCancelCleared] = useState(false);
+  // True once any file was handed to the upload, so Cancel never claims nothing was sent.
+  const [sendStarted, setSendStarted] = useState(false);
   const forId = useId();
   const titleId = useId();
 
@@ -195,6 +199,7 @@ export function IncomingPanel({
       );
       const candidates = read.filter((c): c is ImportCandidate => c !== null);
       setUnreadable(read.length - candidates.length);
+      if (candidates.length > 0) setSendStarted(true);
       await queue.add(candidates);
       setHandedOver(true);
     } catch {
@@ -206,7 +211,7 @@ export function IncomingPanel({
   }, [ownerKey, phase, inbox, queue]);
 
   const cancel = useCallback(async () => {
-    await clearSharedInbox(inbox.token);
+    setCancelCleared(await clearSharedInbox(inbox.token));
     setInbox(parseInbox(null));
     setPhase('cancelled');
   }, [inbox.token]);
@@ -225,8 +230,10 @@ export function IncomingPanel({
         <div className="card-body">
           {phase === 'cancelled' ? (
             <>
-              <h2 id={titleId}>Shared Files Removed</h2>
-              <p>Nothing was sent. The originals are still in the app you shared them from.</p>
+              <h2 id={titleId}>{cancelCleared ? 'Shared Files Removed' : 'Cancelled'}</h2>
+              <p>
+                {`${sendStarted ? 'Some files may already be in Documents.' : 'Nothing was sent.'}${cancelCleared ? '' : ' The shared copies on this phone are removed on their own within 15 minutes.'} The originals are still in the app you shared them from.`}
+              </p>
             </>
           ) : notice === 'none' ? (
             <>
@@ -271,6 +278,12 @@ export function IncomingPanel({
   return (
     <article className="card incoming-card" aria-labelledby={titleId}>
       <div className="card-body">
+        {notice === 'missed' ? (
+          <output className="incoming-note">
+            <strong>That Share Did Not Come Through.</strong> The files below are from an earlier
+            share.
+          </output>
+        ) : null}
         <h2 id={titleId}>Shared Just Now</h2>
         <p>
           {waiting

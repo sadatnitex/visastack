@@ -241,6 +241,42 @@ describe('WP-PIC11 shared files waiting on the phone', () => {
     expect(container.textContent).toContain('Finished: 2 added');
   });
 
+  it('when a later share did not come through, says so above the earlier files still waiting', async () => {
+    await show({ notice: 'missed' });
+    expect(container.textContent).toContain('That Share Did Not Come Through.');
+    expect(container.textContent).toContain('The files below are from an earlier share.');
+    expect(container.querySelector('h2')?.textContent).toBe('Shared Just Now');
+    expect(button('Add These Files').disabled).toBe(false);
+  });
+
+  it('Cancel says the files were removed only when the phone confirms it', async () => {
+    clearStatus = 409;
+    await show();
+    await act(async () => {
+      button('Cancel').click();
+    });
+    await settle();
+    expect(container.querySelector('h2')?.textContent).toBe('Cancelled');
+    expect(container.textContent).not.toContain('Shared Files Removed');
+    expect(container.textContent).toContain('removed on their own within 15 minutes');
+    expect(container.textContent).toContain('Nothing was sent.');
+  });
+
+  it('Cancel after adding stopped part way never says nothing was sent', async () => {
+    vi.spyOn(ImportQueue.prototype, 'add').mockRejectedValueOnce(new Error('stopped'));
+    await show();
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    await act(async () => {
+      button('Cancel').click();
+    });
+    await settle();
+    expect(container.textContent).toContain('Some files may already be in Documents.');
+    expect(container.textContent).not.toContain('Nothing was sent');
+  });
+
   it('Cancel removes them from the phone and sends nothing', async () => {
     await show();
     await act(async () => {
