@@ -68,7 +68,7 @@ describe('the printed pack cover', () => {
     const out = html({ name: 'Nusrat\u0007 Jahan', destination: 'United\u0001 Kingdom' });
     expect(out).toContain('Nusrat Jahan');
     expect(out).toContain('United Kingdom');
-    expect(out).not.toMatch(/[\u0000-\u0008]/);
+    expect([...out].some((ch) => ch.charCodeAt(0) < 9)).toBe(false);
   });
 
   it('uses a singular for one item', () => {
