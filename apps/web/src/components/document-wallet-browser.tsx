@@ -8,6 +8,7 @@ import { formatTimestampDate } from '../lib/format-date';
 import { documentMark } from '../lib/item-icons';
 import { agree, plural } from '../lib/plural';
 import { useMediaQuery } from '../lib/use-popover';
+import { DocumentWalletGhostCard, DocumentWalletStack } from './document-wallet-stack';
 import { useT } from './i18n-provider';
 import { Icon } from './icons';
 import { ListFilterBar } from './list-pattern';
@@ -104,10 +105,13 @@ export function DocumentWalletBrowser({
   applicantId,
   documents,
   initialSelection,
+  nationality,
 }: {
   readonly applicantId: string;
   readonly documents: readonly WalletBrowserDocument[];
   readonly initialSelection?: string;
+  /** The traveller's saved nationality, for the passport card of the stack view; neutral cover when absent. */
+  readonly nationality?: string | null;
 }) {
   const t = useT(componentsCatalog);
   const [selectedId, setSelectedId] = useState(initialSelection ?? documents[0]?.id ?? '');
@@ -145,6 +149,8 @@ export function DocumentWalletBrowser({
   const [category, setCategory] = useState('all');
   const [filter, setFilter] = useState<Filter>('all');
   const [page, setPage] = useState(0);
+  // The list is the default; the stack of picture cards is opt in (WP-PIC5).
+  const [view, setView] = useState<'list' | 'stack'>('list');
   const pageSize = useMediaQuery(DEPTH_PHONE_QUERY)
     ? WALLET_PAGE_SIZE.phone
     : WALLET_PAGE_SIZE.desktop;
@@ -168,6 +174,15 @@ export function DocumentWalletBrowser({
   const activePage = Math.min(page, pageCount - 1);
   const visible = matches.slice(activePage * pageSize, (activePage + 1) * pageSize);
   const selected = documents.find((doc) => doc.id === selectedId);
+  /** What a row or a card does when tapped: choose the document and open it. */
+  const openDocument = (id: string, from: HTMLElement) => {
+    setSelectedId(id);
+    opener.current = from;
+    setSheetOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.set('document', id);
+    window.history.replaceState(window.history.state, '', url);
+  };
   const counts = {
     all: documents.length,
     ready: documents.filter((doc) => doc.ready).length,
@@ -285,7 +300,40 @@ export function DocumentWalletBrowser({
             {plural(matches.length, 'document')} {agree(matches.length, 'matches', 'match')}. Page{' '}
             {activePage + 1} of {pageCount}.
           </output>
-          {visible.length ? (
+          {
+            <fieldset className="wallet-view-switch" data-view={view}>
+              <legend className="sr-only">Show Documents As</legend>
+              {(['list', 'stack'] as const).map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  aria-pressed={view === choice}
+                  onClick={() => setView(choice)}
+                >
+                  {choice === 'list' ? 'List' : 'Stack'}
+                </button>
+              ))}
+            </fieldset>
+          }
+          {visible.length && view === 'stack' ? (
+            <DocumentWalletStack
+              nationality={nationality}
+              onOpen={openDocument}
+              items={visible.map((doc) => ({
+                id: doc.id,
+                name: doc.name,
+                docType: doc.docType ?? null,
+                kindLine: rowKindLine(doc),
+                state: rowState(doc),
+                date: doc.updatedAt ? formatTimestampDate(doc.updatedAt) : null,
+                selected: selectedId === doc.id,
+                ...(selectedId === doc.id
+                  ? { jump: t.node('components.documentWalletBrowser.viewSelectedDetails') }
+                  : {}),
+                ...(doc.manage ? { manage: doc.manage } : {}),
+              }))}
+            />
+          ) : visible.length ? (
             <ul className="wallet-metadata-list">
               {visible.map((doc) => {
                 const state = rowState(doc);
@@ -295,14 +343,7 @@ export function DocumentWalletBrowser({
                       type="button"
                       className="wallet-document-select"
                       aria-pressed={selectedId === doc.id}
-                      onClick={(event) => {
-                        setSelectedId(doc.id);
-                        opener.current = event.currentTarget;
-                        setSheetOpen(true);
-                        const url = new URL(window.location.href);
-                        url.searchParams.set('document', doc.id);
-                        window.history.replaceState(window.history.state, '', url);
-                      }}
+                      onClick={(event) => openDocument(doc.id, event.currentTarget)}
                     >
                       <MarkTile
                         mark={documentMark(doc.docType ?? null)}
@@ -337,27 +378,30 @@ export function DocumentWalletBrowser({
               })}
             </ul>
           ) : (
-            <EmptyState
-              art="documents"
-              title={
-                documents.length
-                  ? t('components.documentWalletBrowser.noDocumentsMatch')
-                  : t('components.documentWalletBrowser.noDocumentsYet')
-              }
-              {...(documents.length
-                ? {}
-                : {
-                    why: 'Then use it on every case.',
-                    action: {
-                      href: `/app/applicant/${applicantId}/documents/add`,
-                      label: 'Add a Document',
-                    },
-                  })}
-            >
-              {documents.length
-                ? t.node('components.documentWalletBrowser.clearTheSearchOrChooseAnother')
-                : t.node('components.documentWalletBrowser.addEachPaperOnce')}
-            </EmptyState>
+            <>
+              {documents.length === 0 && view === 'stack' ? <DocumentWalletGhostCard /> : null}
+              <EmptyState
+                art="documents"
+                title={
+                  documents.length
+                    ? t('components.documentWalletBrowser.noDocumentsMatch')
+                    : t('components.documentWalletBrowser.noDocumentsYet')
+                }
+                {...(documents.length
+                  ? {}
+                  : {
+                      why: 'Then use it on every case.',
+                      action: {
+                        href: `/app/applicant/${applicantId}/documents/add`,
+                        label: 'Add a Document',
+                      },
+                    })}
+              >
+                {documents.length
+                  ? t.node('components.documentWalletBrowser.clearTheSearchOrChooseAnother')
+                  : t.node('components.documentWalletBrowser.addEachPaperOnce')}
+              </EmptyState>
+            </>
           )}
           {pageCount > 1 ? (
             <div
