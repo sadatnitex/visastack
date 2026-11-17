@@ -220,15 +220,14 @@ describe('the early scenes mark (WP-PUB1, ADR 0029)', () => {
     state.nonce = null;
   });
   it("runs before the first paint with this request's nonce", async () => {
-    const { SCENES_BOOT_SCRIPT } = await import('../components/public-site/scene-engine');
     state.nonce = 'bm9uY2Utb25lLXR3by10aHJlZQ==';
     const html = await renderServer(RootLayout({ children: <p>Page</p> }));
     const head = html.slice(html.indexOf('<head>'), html.indexOf('</head>'));
-    expect(head).toContain(`<script nonce="${state.nonce}">${SCENES_BOOT_SCRIPT}</script>`);
-    expect(SCENES_BOOT_SCRIPT).not.toMatch(/[<>]/);
+    // A same-site file, nonce'd, and synchronous (no async or defer) so it runs before paint.
+    expect(head).toContain(`<script src="/scenes-boot.js" nonce="${state.nonce}"></script>`);
   });
   it('is left out when the request carries no nonce, so it is never blocked by the policy', async () => {
     const html = await renderServer(RootLayout({ children: <p>Page</p> }));
-    expect(html).not.toContain('data-scenes');
+    expect(html).not.toContain('scenes-boot.js');
   });
 });

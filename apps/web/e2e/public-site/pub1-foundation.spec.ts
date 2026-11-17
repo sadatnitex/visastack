@@ -109,10 +109,27 @@ test.describe('the early scenes mark', () => {
     page.route('**/_next/static/chunks/**', (route) => route.abort());
 
   test('is set before React starts on a big screen with motion welcome', async ({ page }) => {
+    const refused: string[] = [];
+    page.on('console', (message) => {
+      if (/Content Security Policy|Refused to (load|execute)/i.test(message.text()))
+        refused.push(message.text().slice(0, 120));
+    });
     await page.setViewportSize({ width: 1280, height: 900 });
     await blockReact(page);
     await page.goto('/');
+    // The page's own policy (nonce, strict-dynamic) lets the nonce'd same-site file run.
     await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
+    await expect(page.locator('head script[src="/scenes-boot.js"][nonce]')).toHaveCount(1);
+    expect(refused.filter((line) => line.includes('scenes-boot'))).toEqual([]);
+  });
+
+  test('is a small same-site file, served as JavaScript', async ({ request }) => {
+    const response = await request.get('/scenes-boot.js');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toMatch(/javascript/);
+    // Next serves files from public/ with revalidation (public, max-age=0), so a change ships at once.
+    expect(response.headers()['cache-control']).toMatch(/public/);
+    expect((await response.body()).byteLength).toBeLessThan(1024);
   });
 
   for (const [name, setup] of [

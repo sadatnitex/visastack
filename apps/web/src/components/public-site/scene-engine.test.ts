@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SCENES_ATTRIBUTE,
-  SCENES_BOOT_SCRIPT,
+  SCENES_BOOT_SRC,
   SCENE_SCREEN_QUERY,
   progressFor,
   startScenes,
@@ -271,11 +273,17 @@ describe('startScenes reads before it writes', () => {
   });
 });
 
-/** Runs the exact script the layout puts in the page, as the browser would (global scope). */
+/** The exact file the layout loads in the page head (public/scenes-boot.js). */
+const BOOT_FILE = readFileSync(
+  join(__dirname, '..', '..', '..', 'public', 'scenes-boot.js'),
+  'utf8',
+);
+
+/** Runs that file as the browser would (global scope). */
 function runBoot() {
-  // biome-ignore lint/security/noGlobalEval: the boot script is a fixed string from the engine
+  // biome-ignore lint/security/noGlobalEval: runs the fixed same-site file the page loads
   const run: (code: string) => unknown = globalThis.eval;
-  run(SCENES_BOOT_SCRIPT);
+  run(BOOT_FILE);
 }
 
 describe('the early mark before the first paint', () => {
@@ -311,6 +319,14 @@ describe('the early mark before the first paint', () => {
     media.screen = true;
     document.documentElement.setAttribute('data-save-data', '');
     expect(boot().live).toBe(null);
+  });
+  it("is the one source, using the runtime's screen test and the engine's attribute", () => {
+    expect(SCENES_BOOT_SRC).toBe('/scenes-boot.js');
+    expect(BOOT_FILE).toContain(`'${SCENE_SCREEN_QUERY}'`);
+    expect(BOOT_FILE).toContain(`'${SCENES_ATTRIBUTE}', 'live'`);
+    // Small, and nothing the supply-chain scan forbids.
+    expect(Buffer.byteLength(BOOT_FILE)).toBeLessThan(1024);
+    expect(BOOT_FILE).not.toMatch(/innerHTML|document\.write|\beval\(|new Function/);
   });
   it('never throws, even without matchMedia', () => {
     vi.stubGlobal('matchMedia', undefined);

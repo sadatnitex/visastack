@@ -14,6 +14,8 @@
 
 - Fix after review: the early scenes script reads its nonce through ScenesBoot (scenes-boot.tsx), which, like the request path reader, gives none when there is no request, so the signed-in shell renders in unit tests again; the whole web test suite was run on the fixed head.
 
+- Second fix after review: the early scenes mark is now a small same-site file (apps/web/public/scenes-boot.js) loaded with the page's nonce, instead of a script written into the page, so the supply-chain scan stays clean; the page's own security policy lets it run (browser-checked), and it is served fresh after every change.
+
 ## New words for the localization lane (Guardian, 17 Nov 2026)
 
 Shown in English, marked lang="en" on a Bangla page, until the catalogue has them:

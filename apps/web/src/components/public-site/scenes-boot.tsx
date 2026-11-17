@@ -2,7 +2,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { NONCE_REQUEST_HEADER } from '../../lib/csp';
-import { SCENES_BOOT_SCRIPT } from './scene-engine';
+import { SCENES_BOOT_SRC } from './scene-engine';
 
 /**
  * This request's script nonce (lib/csp.ts). With no request to read (a unit test, a static
@@ -19,15 +19,12 @@ export async function requestNonce(): Promise<string | null> {
 }
 
 /**
- * WP-PUB1 (ADR 0029): marks scroll scenes live before the first paint, so a scene has its scroll
- * length from the start and nothing jumps. A fixed string, nonce'd. Without a nonce it is left out
- * (the policy would block it); without JavaScript it never runs and every scene stays a finished
- * section. The root layout reads the nonce with requestNonce() and renders this in its head; the
- * script only sets data-scenes on html, which React does not render, so hydration is untouched.
+ * WP-PUB1 (ADR 0029): loads the early scenes mark (public/scenes-boot.js) in the head, nonce'd and
+ * synchronous, so it runs before the first paint. Without a nonce it is left out (the policy would
+ * block it); without JavaScript it never runs and every scene stays a finished section. The file
+ * only sets data-scenes on html, which React does not render, so hydration is untouched.
  */
 export function ScenesBoot({ nonce }: { readonly nonce: string | null }) {
-  return nonce ? (
-    // biome-ignore lint/security/noDangerouslySetInnerHtml: a fixed string from the engine, no input
-    <script nonce={nonce} dangerouslySetInnerHTML={{ __html: SCENES_BOOT_SCRIPT }} />
-  ) : null;
+  // Synchronous on purpose (no async or defer): it must run before the first paint.
+  return nonce ? <script src={SCENES_BOOT_SRC} nonce={nonce} /> : null;
 }

@@ -68,12 +68,14 @@ export const SCENE_MIN_HEIGHT = 600;
 export const SCENE_SCREEN_QUERY = `(min-width: ${SCENE_MIN_WIDTH}px) and (min-height: ${SCENE_MIN_HEIGHT}px)`;
 
 /**
- * Runs in the page head before the first paint (nonce'd by the root layout), so a scene has its
- * scroll length from the start and nothing jumps when the page comes to life. Same tests as the
- * runtime: motion welcome, no data saver, a screen big enough. Without JavaScript it never runs
- * and every scene stays an ordinary finished section. The runtime takes over from here.
+ * The early scenes mark: a tiny same-site file the root layout loads in the page head, nonce'd and
+ * synchronous, so it runs before the first paint and a scene has its scroll length from the start
+ * (nothing jumps when the page comes to life). It runs the same tests as the runtime: motion
+ * welcome, no data saver, a screen matching SCENE_SCREEN_QUERY. Without JavaScript it never runs
+ * and every scene stays an ordinary finished section. The file itself (public/scenes-boot.js) is
+ * the one source; a test runs it and checks it uses this query and attribute.
  */
-export const SCENES_BOOT_SCRIPT = `(function(){try{var d=document.documentElement,c=navigator.connection,m=function(q){return matchMedia(q).matches};if(!m('(prefers-reduced-motion: reduce)')&&m('${SCENE_SCREEN_QUERY}')&&!d.hasAttribute('data-save-data')&&!(c&&c.saveData))d.setAttribute('${SCENES_ATTRIBUTE}','live')}catch(e){}})()`;
+export const SCENES_BOOT_SRC = '/scenes-boot.js';
 
 interface Tracked {
   readonly element: HTMLElement;
