@@ -3,6 +3,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { selfPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import { executeAccountDeletion, requestAccountDeletion } from './deletion';
@@ -128,8 +129,7 @@ describe('web push subscriptions', () => {
 
   it('seals the address and keys; only a hash is in the clear', async () => {
     expect(
-      await saveWebPushSubscription(db, port, {
-        accountId: alice,
+      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
         subscription: sub(1),
         sessionRef: 's1',
       }),
@@ -152,20 +152,36 @@ describe('web push subscriptions', () => {
     expect(JSON.stringify(audits[0])).not.toContain('s1');
   });
 
-  it('lets only the owner remove or reach a subscription', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+  it('refuses a scope the session did not make', async () => {
+    const forged = { kind: 'self', accountId: alice } as unknown as Parameters<
+      typeof countWebPushSubscriptions
+    >[1];
+    expect(
+      await saveWebPushSubscription(db, port, forged, { subscription: sub(1), sessionRef: 's1' }),
+    ).toBe('unavailable');
+    expect(await db.select().from(schema.webPushSubscriptions)).toHaveLength(0);
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: 's1',
     });
-    expect(await removeWebPushSubscription(db, { accountId: bob, endpoint: sub(1).endpoint })).toBe(
-      0,
-    );
+    expect(await removeWebPushSubscription(db, forged, { endpoint: sub(1).endpoint })).toBe(0);
+    expect(await countWebPushSubscriptions(db, forged)).toBe(0);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(1);
+  });
+
+  it('lets only the owner remove or reach a subscription', async () => {
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
+      subscription: sub(1),
+      sessionRef: 's1',
+    });
     expect(
-      await removeWebPushSubscriptionsForSession(db, { accountId: bob, sessionRef: 's1' }),
+      await removeWebPushSubscription(db, selfPrincipal(bob), { endpoint: sub(1).endpoint }),
     ).toBe(0);
-    expect(await countWebPushSubscriptions(db, bob)).toBe(0);
-    expect(await countWebPushSubscriptions(db, alice)).toBe(1);
+    expect(
+      await removeWebPushSubscriptionsForSession(db, selfPrincipal(bob), { sessionRef: 's1' }),
+    ).toBe(0);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(bob))).toBe(0);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(1);
     const push = new FakePush();
     expect(
       await sendWebPushToAccount(db, push, port, { accountId: bob, deepLinkPath: '/app' }),
@@ -176,30 +192,28 @@ describe('web push subscriptions', () => {
     });
     expect(push.calls).toHaveLength(0);
     expect(
-      await removeWebPushSubscription(db, { accountId: alice, endpoint: sub(1).endpoint }),
+      await removeWebPushSubscription(db, selfPrincipal(alice), { endpoint: sub(1).endpoint }),
     ).toBe(1);
-    expect(await countWebPushSubscriptions(db, alice)).toBe(0);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
   });
 
   it('gives one browser to one account at a time', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: 's1',
     });
-    await saveWebPushSubscription(db, port, {
-      accountId: bob,
+    await saveWebPushSubscription(db, port, selfPrincipal(bob), {
       subscription: sub(1),
       sessionRef: 's2',
     });
-    expect(await countWebPushSubscriptions(db, alice)).toBe(0);
-    expect(await countWebPushSubscriptions(db, bob)).toBe(1);
-    expect(await hasWebPushSubscription(db, { accountId: alice, endpoint: sub(1).endpoint })).toBe(
-      false,
-    );
-    expect(await hasWebPushSubscription(db, { accountId: bob, endpoint: sub(1).endpoint })).toBe(
-      true,
-    );
+    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(bob))).toBe(1);
+    expect(
+      await hasWebPushSubscription(db, selfPrincipal(alice), { endpoint: sub(1).endpoint }),
+    ).toBe(false);
+    expect(
+      await hasWebPushSubscription(db, selfPrincipal(bob), { endpoint: sub(1).endpoint }),
+    ).toBe(true);
     const off = await db
       .select()
       .from(schema.auditEvents)
@@ -210,13 +224,12 @@ describe('web push subscriptions', () => {
 
   it('keeps at most five browsers, forgetting the oldest', async () => {
     for (let n = 1; n <= WEB_PUSH_MAX_DEVICES + 2; n += 1) {
-      await saveWebPushSubscription(db, port, {
-        accountId: alice,
+      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
         subscription: sub(n),
         sessionRef: null,
       });
     }
-    expect(await countWebPushSubscriptions(db, alice)).toBe(WEB_PUSH_MAX_DEVICES);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(WEB_PUSH_MAX_DEVICES);
     const push = new FakePush();
     await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
     expect(push.calls.map((c) => c.endpoint).sort()).toEqual(
@@ -225,18 +238,16 @@ describe('web push subscriptions', () => {
   });
 
   it('forgets only the browsers of the sign-in that ends', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: 'phone',
     });
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(2),
       sessionRef: 'laptop',
     });
     expect(
-      await removeWebPushSubscriptionsForSession(db, { accountId: alice, sessionRef: 'phone' }),
+      await removeWebPushSubscriptionsForSession(db, selfPrincipal(alice), { sessionRef: 'phone' }),
     ).toBe(1);
     const push = new FakePush();
     await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
@@ -244,8 +255,7 @@ describe('web push subscriptions', () => {
   });
 
   it('sends the fixed message, opened from the sealed values', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -266,8 +276,7 @@ describe('web push subscriptions', () => {
   });
 
   it('removes a browser the push service calls gone (404 or 410)', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -280,12 +289,11 @@ describe('web push subscriptions', () => {
       removed: 1,
       failed: 0,
     });
-    expect(await countWebPushSubscriptions(db, alice)).toBe(0);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
   });
 
   it('counts other failures and forgets a browser after three in a row', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -309,8 +317,7 @@ describe('web push subscriptions', () => {
 
   it('sends to every browser at once and counts each result', async () => {
     for (const n of [1, 2, 3]) {
-      await saveWebPushSubscription(db, port, {
-        accountId: alice,
+      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
         subscription: sub(n),
         sessionRef: null,
       });
@@ -337,8 +344,7 @@ describe('web push subscriptions', () => {
   });
 
   it('a success clears earlier failures', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -351,8 +357,7 @@ describe('web push subscriptions', () => {
   });
 
   it('goes with the account when the account is deleted', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -404,8 +409,7 @@ describe('the notification worker', () => {
   }
 
   it('alerts the recipient after the notice is sent, with no personal data', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -430,8 +434,7 @@ describe('the notification worker', () => {
   });
 
   it('sends nothing without the push option (switch off)', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -444,8 +447,7 @@ describe('the notification worker', () => {
   });
 
   it('a push that throws never changes or fails the notice', async () => {
-    await saveWebPushSubscription(db, port, {
-      accountId: alice,
+    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
       subscription: sub(1),
       sessionRef: null,
     });
@@ -467,15 +469,14 @@ describe('the notification worker', () => {
     await db.execute(sql`drop table web_push_subscriptions`);
     expect(await webPushTableReady(db)).toBe(false);
     expect(
-      await saveWebPushSubscription(db, port, {
-        accountId: alice,
+      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
         subscription: sub(1),
         sessionRef: null,
       }),
     ).toBe('unavailable');
-    expect(await countWebPushSubscriptions(db, alice)).toBe(0);
+    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
     expect(
-      await removeWebPushSubscription(db, { accountId: alice, endpoint: sub(1).endpoint }),
+      await removeWebPushSubscription(db, selfPrincipal(alice), { endpoint: sub(1).endpoint }),
     ).toBe(0);
     await enqueueInApp('11111111-1111-4111-8111-111111111114');
     const push = new FakePush();

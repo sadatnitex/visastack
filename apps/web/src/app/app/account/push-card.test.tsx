@@ -21,19 +21,29 @@ vi.mock('../../../lib/web-push', () => ({
 }));
 vi.mock('../../../lib/neon-recency', () => ({ neonSessionRef: async () => state.sessionRef }));
 vi.mock('@visastack/services/web-push', () => ({
-  saveWebPushSubscription: async (_db: unknown, _port: unknown, input: unknown) => {
-    state.saved.push(input);
+  saveWebPushSubscription: async (
+    _db: unknown,
+    _port: unknown,
+    self: { accountId: string },
+    input: object,
+  ) => {
+    state.saved.push({ accountId: self.accountId, ...input });
     return state.saveResult;
   },
   hasWebPushSubscription: async () => true,
-  removeWebPushSubscription: async (_db: unknown, input: unknown) => {
-    state.removed.push(input);
+  removeWebPushSubscription: async (_db: unknown, self: { accountId: string }, input: object) => {
+    state.removed.push({ accountId: self.accountId, ...input });
     return 1;
   },
 }));
 vi.mock('../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
-    fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com', self: { kind: 'self' } }),
+    fn({
+      db: {},
+      accountId: 'acct-1',
+      email: 'traveller@example.com',
+      self: { kind: 'self', accountId: 'acct-1' },
+    }),
 }));
 vi.mock('../../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));

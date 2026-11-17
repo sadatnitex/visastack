@@ -26,13 +26,17 @@ vi.mock('./neon-recency', () => ({ neonSessionRef: async () => state.sessionRef 
 vi.mock('./session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => {
     state.calls.push('session');
-    return fn({ db: {}, accountId: 'acct-1' });
+    return fn({ db: {}, accountId: 'acct-1', self: { kind: 'self', accountId: 'acct-1' } });
   },
 }));
 vi.mock('@visastack/services/web-push', () => ({
-  removeWebPushSubscriptionsForSession: async (_db: unknown, input: unknown) => {
+  removeWebPushSubscriptionsForSession: async (
+    _db: unknown,
+    self: { accountId: string },
+    input: object,
+  ) => {
     if (state.removeThrows) throw new Error('relation "web_push_subscriptions" does not exist');
-    state.removed.push(input);
+    state.removed.push({ accountId: self.accountId, ...input });
     return 1;
   },
 }));

@@ -29,8 +29,8 @@ async function forgetThisSignInsAlerts(): Promise<void> {
       ]);
     const sessionRef = await neonSessionRef();
     if (!sessionRef) return;
-    await withSession(({ db, accountId }) =>
-      removeWebPushSubscriptionsForSession(db, { accountId, sessionRef }),
+    await withSession(({ db, self }) =>
+      removeWebPushSubscriptionsForSession(db, self, { sessionRef }),
     );
   } catch {
     // A redirect from the session check (already signed out) or a missing table: sign out anyway.

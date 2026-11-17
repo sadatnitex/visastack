@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { type SelfScope, selfScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, schema } from './db';
 import { isMissingRelationError } from './missing-relation';
@@ -17,7 +18,8 @@ import { protectValue, revealValue } from './protected-fields';
  * - A subscription's push address and keys are sealed with the protected-field envelope, bound
  *   to the account and the row. Only a hash of the address is kept in the clear, so a row can be
  *   found again (Turn Off, a push service saying "gone") without opening it.
- * - Every read and write is for one account only; there is no way to name another account's row.
+ * - Every read and write a person makes takes their own SelfScope (minted only by the session), so
+ *   there is no way to name another account's row. Only the worker sends by account id.
  * - The table may not exist yet (its migration runs only on the owner's word): every function
  *   treats that as "nothing stored" and never throws because of it.
  * - Audit rows carry counts only, never an address, a key or a session reference.
@@ -126,14 +128,16 @@ export type SaveWebPushResult = 'saved' | 'unavailable';
 export async function saveWebPushSubscription(
   db: Db,
   port: KeyManagementPort,
+  self: SelfScope,
   input: {
-    readonly accountId: string;
     readonly subscription: WebPushSubscriptionValue;
     readonly sessionRef: string | null;
   },
 ): Promise<SaveWebPushResult> {
+  if (selfScopeProblem(self)) return 'unavailable';
   if (!(await webPushTableReady(db))) return 'unavailable';
-  const { accountId, subscription } = input;
+  const { accountId } = self;
+  const { subscription } = input;
   const hash = endpointHash(subscription.endpoint);
   const id = randomUUID();
   let endpointSealed: Awaited<ReturnType<typeof protectValue>>;
@@ -241,11 +245,13 @@ async function deleteWhere(
 /** Turn Off on one browser: forgets that browser, only if it belongs to this account. */
 export async function removeWebPushSubscription(
   db: Db,
-  input: { readonly accountId: string; readonly endpoint: string },
+  self: SelfScope,
+  input: { readonly endpoint: string },
 ): Promise<number> {
+  if (selfScopeProblem(self)) return 0;
   return deleteWhere(
     db,
-    input.accountId,
+    self.accountId,
     eq(schema.webPushSubscriptions.endpointHash, endpointHash(input.endpoint)),
   );
 }
@@ -253,11 +259,13 @@ export async function removeWebPushSubscription(
 /** Sign-out: forgets the browsers this sign-in turned alerts on for. */
 export async function removeWebPushSubscriptionsForSession(
   db: Db,
-  input: { readonly accountId: string; readonly sessionRef: string },
+  self: SelfScope,
+  input: { readonly sessionRef: string },
 ): Promise<number> {
+  if (selfScopeProblem(self)) return 0;
   return deleteWhere(
     db,
-    input.accountId,
+    self.accountId,
     eq(schema.webPushSubscriptions.sessionRef, input.sessionRef),
   );
 }
@@ -265,15 +273,17 @@ export async function removeWebPushSubscriptionsForSession(
 /** Whether this browser has alerts on for this account (the Account card's own check). */
 export async function hasWebPushSubscription(
   db: Db,
-  input: { readonly accountId: string; readonly endpoint: string },
+  self: SelfScope,
+  input: { readonly endpoint: string },
 ): Promise<boolean> {
+  if (selfScopeProblem(self)) return false;
   if (!(await webPushTableReady(db))) return false;
   const rows = await db
     .select({ id: schema.webPushSubscriptions.id })
     .from(schema.webPushSubscriptions)
     .where(
       and(
-        eq(schema.webPushSubscriptions.accountId, input.accountId),
+        eq(schema.webPushSubscriptions.accountId, self.accountId),
         eq(schema.webPushSubscriptions.endpointHash, endpointHash(input.endpoint)),
       ),
     )
@@ -282,12 +292,13 @@ export async function hasWebPushSubscription(
 }
 
 /** How many browsers this account has alerts on (for its own Account page only). */
-export async function countWebPushSubscriptions(db: Db, accountId: string): Promise<number> {
+export async function countWebPushSubscriptions(db: Db, self: SelfScope): Promise<number> {
+  if (selfScopeProblem(self)) return 0;
   if (!(await webPushTableReady(db))) return 0;
   const rows = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.webPushSubscriptions)
-    .where(eq(schema.webPushSubscriptions.accountId, accountId));
+    .where(eq(schema.webPushSubscriptions.accountId, self.accountId));
   return rows[0]?.n ?? 0;
 }
 

@@ -23,7 +23,7 @@ const REFUSED: PushActionResult = { ok: false };
 
 export async function turnOnPushAction(subscription: unknown): Promise<PushActionResult> {
   const parsed = parsePushSubscription(subscription);
-  return withSession(async ({ db, accountId }) => {
+  return withSession(async ({ db, self }) => {
     const ready = await webPushReady(db);
     const port = webPushKeyPort();
     if (!ready || !port || !parsed) return REFUSED;
@@ -31,8 +31,7 @@ export async function turnOnPushAction(subscription: unknown): Promise<PushActio
     const sessionRef = await neonSessionRef().catch(() => null);
     if (!sessionRef) return REFUSED;
     try {
-      const saved = await saveWebPushSubscription(db, port, {
-        accountId,
+      const saved = await saveWebPushSubscription(db, port, self, {
         subscription: parsed,
         sessionRef,
       });
@@ -44,11 +43,11 @@ export async function turnOnPushAction(subscription: unknown): Promise<PushActio
 }
 
 export async function turnOffPushAction(endpoint: unknown): Promise<PushActionResult> {
-  return withSession(async ({ db, accountId }) => {
+  return withSession(async ({ db, self }) => {
     const ready = await webPushReady(db);
     if (!ready || typeof endpoint !== 'string' || endpoint.length > 2048) return REFUSED;
     try {
-      await removeWebPushSubscription(db, { accountId, endpoint });
+      await removeWebPushSubscription(db, self, { endpoint });
       return { ok: true };
     } catch {
       return REFUSED;
@@ -58,11 +57,11 @@ export async function turnOffPushAction(endpoint: unknown): Promise<PushActionRe
 
 /** Whether this browser's alerts are on for the signed-in account, as the server knows it. */
 export async function pushStatusAction(endpoint: unknown): Promise<PushActionResult> {
-  return withSession(async ({ db, accountId }) => {
+  return withSession(async ({ db, self }) => {
     const ready = await webPushReady(db);
     if (!ready || typeof endpoint !== 'string' || endpoint.length > 2048) return REFUSED;
     try {
-      return (await hasWebPushSubscription(db, { accountId, endpoint })) ? { ok: true } : REFUSED;
+      return (await hasWebPushSubscription(db, self, { endpoint })) ? { ok: true } : REFUSED;
     } catch {
       return REFUSED;
     }
