@@ -36,19 +36,18 @@ export default async function AcceptTermsPage({
   const { mustAcknowledgeNotices } = await import('../../../lib/notice-gate');
   const { checkPilotAccess } = await import('../../../lib/pilot-access');
   const { withPublicDb } = await import('../../../lib/public-db');
-  let needed = true;
-  let allowed = true;
+  // When the check cannot be made the form is shown (a tick is only ever asked once more).
+  let state: { needed: boolean; allowed: boolean };
   try {
-    ({ needed, allowed } = await withPublicDb(async (db) => ({
+    state = await withPublicDb(async (db) => ({
       needed: await mustAcknowledgeNotices(db, { id: user.id, email: user.email }),
       allowed: (await checkPilotAccess(db, { email: user.email })).allowed,
-    })));
+    }));
   } catch {
-    needed = true;
-    allowed = true;
+    state = { needed: true, allowed: true };
   }
-  if (!needed) redirect(destination);
-  if (!allowed) redirect('/pilot-access-denied');
+  if (!state.needed) redirect(destination);
+  if (!state.allowed) redirect('/pilot-access-denied');
 
   const error = e ? ERRORS[e] : undefined;
   return (

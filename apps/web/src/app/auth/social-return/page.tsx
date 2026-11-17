@@ -33,7 +33,7 @@ export default async function SocialReturnPage({
   // A new person must agree to the terms first; asking here (not only inside `withSession`) keeps
   // the destination they were headed for. Anything that cannot be read goes straight on, and
   // `withSession` asks again, so nobody gets an account without agreeing.
-  let mustAgree = false;
+  let mustAgree: boolean;
   try {
     const { mustAcknowledgeNotices } = await import('../../../lib/notice-gate');
     const { withPublicDb } = await import('../../../lib/public-db');
