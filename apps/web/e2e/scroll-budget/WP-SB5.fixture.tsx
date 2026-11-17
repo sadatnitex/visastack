@@ -54,7 +54,7 @@ function Cases({ total, shown }: { total: number; shown: number }) {
             <li key={n} className="agency-case-list-row">
               <a
                 href={`/app/agency/o1/cases?case=${caseId(n)}#mission-${caseId(n)}`}
-                className="agency-case-list-link"
+                className="agency-case-list-link agency-case-list-pictured"
               >
                 <span className="agency-case-list-title">
                   Traveller Number {n} · Visitor Visa Application {n}
@@ -62,6 +62,18 @@ function Cases({ total, shown }: { total: number; shown: number }) {
                 <span className="agency-case-list-meta muted">
                   {STAGES[n % STAGES.length]} · {DESTINATIONS[n % DESTINATIONS.length]} · deadline
                   20 Dec 2026 · <span translate="no">C-7K2Q{String(n).padStart(2, '0')}</span>
+                </span>
+                {/* WP-PIC18: the worst-case strip on every row: two-digit counts both sides. */}
+                <span className="agency-case-list-strip">
+                  <DeskPictureStrip
+                    as="span"
+                    countLabel="Ready"
+                    picture={{
+                      destination: null,
+                      readiness: { done: 10 + (n % 9), total: 99 },
+                      documentsMissing: 80 + n,
+                    }}
+                  />
                 </span>
                 <span className="agency-case-list-action">Open Case</span>
               </a>

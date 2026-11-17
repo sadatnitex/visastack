@@ -179,3 +179,24 @@ describe('the agency Dashboard with desk pictures', () => {
     expect(html).not.toContain('desk-docs');
   });
 });
+
+describe('the strip on the agency Cases list (WP-PIC18)', () => {
+  it('draws as a span with the ring counted as Ready, and the desk default stays a div', () => {
+    const picture: DeskPicture = {
+      destination: null,
+      readiness: { done: 3, total: 5 },
+      documentsMissing: 2,
+    };
+    const listed = renderToStaticMarkup(
+      <DeskPictureStrip picture={picture} as="span" countLabel="Ready" />,
+    );
+    expect(listed.startsWith('<span class="desk-strip">')).toBe(true);
+    expect(listed).not.toMatch(/<div\b/);
+    expect(listed).toContain('aria-label="3 of 5 Ready"');
+    expect(listed).toContain('2 Documents Missing');
+    expect(listed).not.toMatch(DECISION_WORDS);
+    const desk = renderToStaticMarkup(<DeskPictureStrip picture={picture} />);
+    expect(desk.startsWith('<div class="desk-strip">')).toBe(true);
+    expect(desk).toContain('aria-label="3 of 5 items ready"');
+  });
+});

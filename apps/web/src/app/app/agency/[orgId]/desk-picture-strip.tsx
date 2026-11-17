@@ -16,22 +16,40 @@ import type { DeskPicture } from './do-next';
  * Wording is completeness only: "in place" and "missing" count what is on file, never what was
  * reviewed, approved or accepted.
  */
-export function DeskPictureStrip({ picture }: { readonly picture: DeskPicture | undefined }) {
+export function DeskPictureStrip({
+  picture,
+  as: Root = 'div',
+  countLabel,
+}: {
+  readonly picture: DeskPicture | undefined;
+  /**
+   * WP-PIC18: `span` where the strip sits inside a link (the agency Cases list row), so the link
+   * holds phrasing content only. The desk keeps its `div`.
+   */
+  readonly as?: 'div' | 'span';
+  /** WP-PIC18: what the ring counts, in Title Case ("3 of 5 Ready"); left out, the desk words. */
+  readonly countLabel?: string;
+}) {
   if (!picture) return null;
   return (
-    <div className="desk-strip">
+    <Root className="desk-strip">
       {picture.destination ? (
         <span className="desk-strip-place">
           <DestinationLabel destination={picture.destination} />
         </span>
       ) : null}
       {picture.readiness ? (
-        <ProgressRing size="sm" done={picture.readiness.done} total={picture.readiness.total} />
+        <ProgressRing
+          size="sm"
+          done={picture.readiness.done}
+          total={picture.readiness.total}
+          countLabel={countLabel}
+        />
       ) : null}
       {picture.documentsMissing !== null ? (
         <DocumentsMissing count={picture.documentsMissing} />
       ) : null}
-    </div>
+    </Root>
   );
 }
 

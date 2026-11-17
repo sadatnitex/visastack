@@ -1,4 +1,9 @@
-import { isUuid, listAccessEndsForOrg, summarizeCaseTriage } from '@visastack/services';
+import {
+  isUuid,
+  listAccessEndsForOrg,
+  listCaseReadinessForOrg,
+  summarizeCaseTriage,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DepthScope } from '../../../../../components/depth';
@@ -36,6 +41,8 @@ import {
   loadOpenCase,
   loadOrgAccess,
 } from '../console-data';
+import { DeskPictureStrip } from '../desk-picture-strip';
+import { deskPictureOf } from '../do-next';
 import { MissionCollaboration } from '../mission-collaboration';
 import { RequestEvidenceForm } from '../request-evidence-form';
 import { STAGE_LABELS } from '../stage-labels';
@@ -137,6 +144,18 @@ export default async function AgencyCasesPage({
       orgId,
       list.cases.map((c) => c.missionId),
     );
+    // WP-PIC18: each listed case's readiness, worked out exactly as the case page works it out, in
+    // one read for the whole page. Asked only for the listed cases, and not at all for an empty
+    // list; a case this member may not read, in manual mode or with no checklist gets nothing.
+    const readiness =
+      list.cases.length > 0
+        ? await listCaseReadinessForOrg(
+            db,
+            accountId,
+            orgId,
+            list.cases.map((c) => c.missionId),
+          )
+        : new Map<string, never>();
     return {
       admin: access.admin,
       members,
@@ -145,6 +164,7 @@ export default async function AgencyCasesPage({
       requests,
       travellerRequests,
       accessEnds,
+      readiness,
       viewerAccountId: accountId,
     };
   });
@@ -207,11 +227,18 @@ export default async function AgencyCasesPage({
             >
               {data.list.cases.map((row) => {
                 const isOpen = open?.missionId === row.missionId;
+                // The same picture as the desk's Do Next rows (`deskPictureOf`), without the place:
+                // the flag already shows in the meta line.
+                const picture = deskPictureOf({
+                  readiness: data.readiness.get(row.missionId) ?? null,
+                });
                 return (
                   <li key={row.missionId} className="agency-case-list-row">
                     <Link
                       href={caseHref(pathname, query, row.missionId)}
-                      className={`agency-case-list-link${isOpen ? ' agency-case-list-open' : ''}`}
+                      className={`agency-case-list-link${isOpen ? ' agency-case-list-open' : ''}${
+                        picture ? ' agency-case-list-pictured' : ''
+                      }`}
                       aria-current={isOpen ? 'true' : undefined}
                     >
                       <span className="agency-case-list-title">
@@ -237,6 +264,11 @@ export default async function AgencyCasesPage({
                           </>
                         ) : null}
                       </span>
+                      {picture ? (
+                        <span className="agency-case-list-strip">
+                          <DeskPictureStrip picture={picture} as="span" countLabel="Ready" />
+                        </span>
+                      ) : null}
                       <span className="agency-case-list-action">
                         {isOpen
                           ? t.node('appAgency.appAgencyOrgidCasesPage.openNow')
