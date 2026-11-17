@@ -8353,3 +8353,31 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - When a traveller prints a case output (Trip Essentials, Agency Brief, Case Handover), the first printed page is a clean black and white cover: traveller name, destination name with its flag in grey, case reference and the date prepared; the Agency Brief and Case Handover also show a count such as "12 of 14 items ready" and "Items Not Shown" when items were left out on purpose. It shows what is gathered, never whether a visa will be approved. Print only: nothing new on screen, no new data read.
 - NOT verified: a real printer; Bengali (a Bengali-locale print shows these English labels beside a Bengali date); the Trip Essentials no-counts test uses a case without a checklist, so it cannot fail on the old code.
+
+## 17 Nov 2026: WP-PIC16 browser toolbox part A
+
+- On supporting browsers: the screen stays awake while the camera guide is open, page changes use a soft view transition (none when the person asks for reduced motion), a short vibration confirms a finished upload, and a Read This Aloud button reads the case status line (Stop Reading ends it). Each falls back to today's behaviour where the browser lacks it. Passkeys were not part of this package.
+- NOT verified: real phones (wake lock, vibration); the speech voices each phone offers; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC17 waiting uploads resume when the connection returns (off by default)
+
+- With BACKGROUND_UPLOAD_SYNC=on, uploads that were waiting because the connection dropped start again by themselves when it returns. The worker only wakes the page: it never holds files. Before an automatic resume the page checks it is still the same account, and each file always goes to the person it was chosen for, with the switch on or off.
+- Owner action to turn on: BACKGROUND_UPLOAD_SYNC=on in Vercel Production, then redeploy, after one real Android phone test.
+- A page closed while offline still loses its waiting files, as today; its saved list shows them as Not Confirmed on return. Keeping files on the device for sending after the page is closed was declined for now (follow-up).
+- NOT verified: real Background Sync on Chromium and Android; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC15 share progress card (off by default)
+
+- With PROGRESS_CARD=on, the case owner can make a picture card of their progress to share: counts and the destination country only, never names, documents or numbers from documents. Only the owner can make it, each card made adds one audit row (no card is given if the row cannot be written), and Share or Download first checks the answer really is a picture. There is no limit on how many cards can be made (accepted for now).
+- Owner action to turn on: PROGRESS_CARD=on in Vercel Production, then redeploy, after a real phone test.
+- NOT verified: real phone share sheets (iPhone Safari, Android Chrome); saving inside in-app browsers such as Instagram, Facebook or Gmail; a Firefox download in a real browser; the card on a live deployment; time to make the first card after a cold start; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC14 agency desk Do Next rows drawn as pictures
+
+- On the agency desk, each Do Next row now shows the destination flag, the readiness ring with its counts and "No Documents Missing" or "N Documents Missing". Presentation only: it uses what the desk already loads, with no new data read.
+- NOT verified: the whole signed-in desk on a real device; the Browse view was already over its two-screen budget before this change (follow-up); for older requirement rows the strip counts non-optional items while the ring counts blocking items (follow-up); tests for a non-admin unassigned agency member and an expired grant on the desk are missing (follow-up); Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC3b case segment ring on the case page
+
+- The case page's Evidence Progress card shows the segment ring again beside the written count ("n of m required on file"), one segment per required item, counted exactly as the readiness service counts: items that do not apply are skipped and only items that can block are required. The ring is a picture only (screen readers hear the written count once). Its legend sits closed inside How This Is Counted as "What the Ring Shows", so a long checklist adds no height. Measured on a production build: phone first checklist row 1492 of 1500 px.
+- NOT verified: a real phone and screen reader; the legend cannot mark an item that is on file but conflicting or out of date (the service gives no per-item flag, follow-up); Bengali for "What the Ring Shows".

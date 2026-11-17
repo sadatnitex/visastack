@@ -9,7 +9,9 @@ import { ClearShareInboxOnSubmit } from '../../lib/pwa/clear-share-inbox-on-subm
 import { withSession } from '../../lib/session';
 import { getSidebarState } from '../../lib/sidebar-state';
 import { signOutCurrentUser } from '../../lib/sign-out';
+import { webPushConfigured } from '../../lib/web-push';
 import { loadWorkspaceChrome } from '../../lib/workspace-chrome';
+import { RenewPushOnLoad, TurnOffPushOnSubmit } from './account/push-card';
 import { WorkspaceShell } from './workspace-shell';
 
 /**
@@ -58,12 +60,13 @@ export async function WorkspaceFrame({
       initialCaseSubject={caseSubject}
       signOut={
         <form
-          action={async () => {
+          action={async (form: FormData) => {
             'use server';
-            await signOutCurrentUser();
+            await signOutCurrentUser('/', form);
           }}
         >
           <ClearShareInboxOnSubmit />
+          <TurnOffPushOnSubmit />
           <button type="submit" className="btn btn-secondary nav-cta">
             <Icon name="logout" size={18} />
             {t.node('appHome.appWorkspaceFrame.signOut')}
@@ -71,6 +74,8 @@ export async function WorkspaceFrame({
         </form>
       }
     >
+      {/* WP-PIC18: keeps this browser's alerts going while it is used signed in. */}
+      {webPushConfigured() ? <RenewPushOnLoad /> : null}
       <ShareOriginsProvider origin={resolveBaseUrl()}>{children}</ShareOriginsProvider>
     </WorkspaceShell>
   );

@@ -19,7 +19,7 @@ WORKDIR /repo
 # pnpm at the exact version in package.json "packageManager".
 RUN corepack enable
 # Dependencies first, so a code-only change reuses this layer.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc .pnpmfile.cjs ./
 RUN corepack install && pnpm fetch --frozen-lockfile
 COPY . .
 RUN pnpm install --frozen-lockfile --offline

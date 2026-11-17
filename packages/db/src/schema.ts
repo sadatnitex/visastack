@@ -7454,3 +7454,77 @@ export const documentAutoPlacements = pgTable(
     check('document_auto_placements_status_known', sql`${table.status} in ('APPLIED', 'CHANGED')`),
   ],
 );
+
+// --- Web Push subscriptions (WP-PIC18, migration 0136) ---
+// One row per browser that chose to get alerts. The push address and the browser's keys are
+// sealed with the protected-field envelope (AAD binds them to this account and this row); only a
+// hash of the address is stored in the clear, to find a row again without opening it. Removed on
+// Turn Off, on signing out of that browser (session_ref or the browser's own address), when the
+// push service says the address is gone, when not renewed for 7 days, and with the account (cascade). Until the migration runs, the code finds the table
+// missing and the feature stays hidden.
+export const webPushSubscriptions = pgTable(
+  'web_push_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    endpointHash: text('endpoint_hash').notNull(),
+    endpointCiphertext: bytea('endpoint_ciphertext').notNull(),
+    endpointNonce: bytea('endpoint_nonce').notNull(),
+    keysCiphertext: bytea('keys_ciphertext').notNull(),
+    keysNonce: bytea('keys_nonce').notNull(),
+    keyVersion: text('key_version').notNull(),
+    sessionRef: text('session_ref'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    failureCount: integer('failure_count').notNull().default(0),
+    // Moved forward whenever the same browser is seen signed in to this account; a row not
+    // renewed within the traveller sign-in limit (7 days) gets no alert and is removed.
+    renewedAt: timestamp('renewed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('web_push_subscriptions_endpoint_unique').on(table.endpointHash),
+    index('web_push_subscriptions_account_idx').on(table.accountId),
+    check('web_push_subscriptions_failures_nonnegative', sql`${table.failureCount} >= 0`),
+  ],
+);
+
+// --- Passkeys (Q8, ADR 0028) ------------------------------------------------
+// A passkey never signs anyone in: it only confirms a sensitive action for the sign-in already
+// held. One row per passkey; the signature counter guards against a copied key.
+export const passkeyCredentials = pgTable(
+  'passkey_credentials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id').notNull(),
+    publicKey: bytea('public_key').notNull(),
+    signCount: bigint('sign_count', { mode: 'number' }).notNull().default(0),
+    transports: text('transports').array().notNull().default(sql`'{}'::text[]`),
+    aaguid: text('aaguid'),
+    deviceType: text('device_type').notNull(),
+    backedUp: boolean('backed_up').notNull().default(false),
+    label: text('label').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    lastUsedSessionRef: text('last_used_session_ref'),
+    lastChallengeHash: text('last_challenge_hash'),
+  },
+  (table) => [
+    unique('passkey_credentials_credential_id_unique').on(table.credentialId),
+    index('passkey_credentials_account_idx').on(table.accountId),
+    check(
+      'passkey_credentials_device_type',
+      sql`${table.deviceType} in ('singleDevice', 'multiDevice')`,
+    ),
+    check('passkey_credentials_label_length', sql`char_length(${table.label}) between 1 and 60`),
+    check('passkey_credentials_sign_count', sql`${table.signCount} >= 0`),
+    check(
+      'passkey_credentials_credential_id_length',
+      sql`char_length(${table.credentialId}) between 1 and 1366`,
+    ),
+  ],
+);

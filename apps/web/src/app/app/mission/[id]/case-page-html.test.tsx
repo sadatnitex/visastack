@@ -211,15 +211,18 @@ function setUp(count = ITEMS, purpose: string | null = null) {
     key: r.key,
     optional: r.optional,
     state: r.state,
-    necessity: 'MANDATORY',
+    necessity: r.optional ? 'OPTIONAL' : 'MANDATORY',
     provenance: 'OFFICIAL',
   }));
+  // The counts follow the service: an item that does not apply is not counted, and only an item
+  // that can block is required, so an optional item that is on file is not a required item on file.
+  const counted = results.filter((r) => r.state !== 'NOT_APPLICABLE' && !r.optional);
   mocks.computeReadiness.mockResolvedValue(
     ok({
       overallState: 'NEEDS_ACTION',
       requirementResults: results,
-      requiredCount: results.filter((r) => !r.optional).length,
-      satisfiedRequired: results.filter((r) => r.state === 'SATISFIED').length,
+      requiredCount: counted.length,
+      satisfiedRequired: counted.filter((r) => r.state === 'SATISFIED').length,
     }),
   );
   mocks.listRequirements.mockResolvedValue(

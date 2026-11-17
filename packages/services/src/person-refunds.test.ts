@@ -221,7 +221,11 @@ describe("a traveller's full refund, recorded by the platform owner (ADR 0025 T6
       sql`select payload from notifications where event_type = 'PERSON_REFUND_RECORDED' and recipient_account_id = ${alice}::uuid`,
     );
     expect(notices).toHaveLength(2);
-    expect(notices[0]?.payload.summary).not.toMatch(/499|BDT|৳/);
+    // The invoice reference is made from the account id and can contain any digits (it read
+    // "TP-...499..." once on CI), so only the words around it are checked for an amount.
+    const words = notices[0]?.payload.summary.replace(/\bTP-[A-Za-z0-9-]+/g, 'TP-REF');
+    expect(words).toContain('TP-REF');
+    expect(words).not.toMatch(/499|BDT|৳/);
 
     // Sent again with the same key: once.
     const again = await recordPersonRefund(db, staff, input);

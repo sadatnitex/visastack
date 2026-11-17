@@ -12,12 +12,15 @@ import { depthWord } from '../../../lib/ccd/depth-words';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../../../lib/language-choice';
+import { passkeysEnabled } from '../../../lib/passkeys';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { ClearShareInboxOnSubmit } from '../../../lib/pwa/clear-share-inbox-on-submit';
 import { withSession } from '../../../lib/session';
 import { signOutCurrentUser } from '../../../lib/sign-out';
+import { webPushReady } from '../../../lib/web-push';
 import { readWhatsAppConfig } from '../../../lib/whatsapp';
 import { setLocaleAction } from '../../actions';
+import { PushCard, TurnOffPushOnSubmit } from './push-card';
 
 export const metadata: Metadata = { title: 'Account' };
 
@@ -28,11 +31,12 @@ export default async function AccountPage() {
   const t = getServerT(appAccountCatalog);
   const depth = await readDepth('account');
   const data = await withSession(async ({ db, accountId, email }) => {
-    const [isAdmin, memberships, photo, whatsapp] = await Promise.all([
+    const [isAdmin, memberships, photo, whatsapp, push] = await Promise.all([
       holdsPlatformRole(db, { accountId, email }),
       listMembershipsForAccount(db, accountId),
       loadOwnPhoto(db, accountId),
       getWhatsAppConnection(db, accountId),
+      webPushReady(db),
     ]);
     return {
       email,
@@ -40,6 +44,7 @@ export default async function AccountPage() {
       hasAgencyAccess: memberships.length > 0,
       photo,
       whatsappConnected: whatsapp.connected,
+      push,
     };
   });
 
@@ -85,17 +90,21 @@ export default async function AccountPage() {
               {t.node('appAccount.appAccountPage.signOutOfThisDevice')}
             </p>
             <form
-              action={async () => {
+              action={async (form: FormData) => {
                 'use server';
-                await signOutCurrentUser();
+                await signOutCurrentUser('/', form);
               }}
             >
               <ClearShareInboxOnSubmit />
+              <TurnOffPushOnSubmit />
               <button type="submit" className="btn btn-secondary">
                 {t.node('appAccount.appAccountPage.signOut')}
               </button>
             </form>
           </article>
+
+          {/* WP-PIC18: only while Web Push is on and ready; the card hides itself where the browser cannot alert. */}
+          {data.push ? <PushCard publicKey={data.push.publicKey} /> : null}
 
           {data.photo ? (
             <div className="depth-item" {...atLevel('browse')}>
@@ -141,6 +150,11 @@ export default async function AccountPage() {
             <Link href="/app/privacy" className="btn btn-secondary">
               {t.node('appAccount.appAccountPage.openPrivacy')}
             </Link>
+            {passkeysEnabled() ? (
+              <p className="card-body">
+                <Link href="/app/account/passkeys">Manage Your Passkeys</Link>
+              </p>
+            ) : null}
           </article>
 
           {showWhatsApp ? (

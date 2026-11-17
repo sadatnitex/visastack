@@ -1,8 +1,6 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { createMigratedPglite, migrationsFolder } from '@visastack/db/testing';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
@@ -31,37 +29,10 @@ const RP: PasskeyRelyingParty = {
   rpName: 'VisaStack',
 };
 
-/**
- * The passkey table, applied from its re-runnable SQL. Until the owner's migration is in the
- * journal it waits in packages/db/pending; afterwards it is found in the migrations folder.
- */
-function passkeyMigration(): string {
-  const marker = 'CREATE TABLE IF NOT EXISTS "passkey_credentials"';
-  const folders = [migrationsFolder, join(migrationsFolder, '..', 'pending')];
-  for (const folder of folders) {
-    let names: string[] = [];
-    try {
-      names = readdirSync(folder).filter((name) => name.endsWith('.sql'));
-    } catch {
-      continue;
-    }
-    for (const name of names) {
-      const text = readFileSync(join(folder, name), 'utf8');
-      if (text.includes(marker)) return text;
-    }
-  }
-  throw new Error('the passkey migration is missing');
-}
-
 async function freshDb(options: { withTable?: boolean } = {}): Promise<Db> {
+  // Migration 0137 makes the table; dropping it shows the site before the owner applies it.
   const client = await createMigratedPglite();
-  if (options.withTable !== false) {
-    const statements = passkeyMigration()
-      .split('--> statement-breakpoint')
-      .map((part) => part.trim())
-      .filter(Boolean);
-    for (const statement of statements) await client.exec(statement);
-  }
+  if (options.withTable === false) await client.exec('drop table passkey_credentials');
   return drizzle(client, { schema }) as unknown as Db;
 }
 

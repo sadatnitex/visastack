@@ -91,7 +91,8 @@ describe('signing out', () => {
     for (const file of ['../../app/app/workspace-frame.tsx', '../../app/app/account/page.tsx']) {
       const source = readFileSync(new URL(file, import.meta.url), 'utf8');
       expect(source).toMatch(
-        /<form\s+action=\{async \(\) => \{\s*'use server';\s*await signOutCurrentUser\(\);\s*\}\}\s*>\s*<ClearShareInboxOnSubmit \/>/,
+        // WP-PIC18: the form now passes its fields on (this browser's push address).
+        /<form\s+action=\{async \((?:form: FormData)?\) => \{\s*'use server';\s*await signOutCurrentUser\((?:'\/', form)?\);\s*\}\}\s*>\s*<ClearShareInboxOnSubmit \/>/,
       );
     }
   });

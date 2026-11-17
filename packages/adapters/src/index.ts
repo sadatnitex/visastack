@@ -156,3 +156,12 @@ export {
   looksLikeHeic,
 } from './heic-converter';
 export { type BillingDocumentIssuer, renderBillingDocumentPdf } from './billing-document-pdf';
+
+export {
+  type PushSendOutcome,
+  type PushSubscriptionInput,
+  type VapidIdentity,
+  WebPushSender,
+  createVapidIdentity,
+  parsePushSubscription,
+} from './web-push';

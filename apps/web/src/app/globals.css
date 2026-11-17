@@ -21768,6 +21768,74 @@ body:lang(bn),
   }
 }
 /* end WP-PIC1 */
+/* WP-PIC14 agency desk rows (17 Nov 2026, picture-first upgrade, unit Q2): a compact picture strip on each agency Do Next row (destination flag, a small readiness ring in counts only, required documents never provided, on case rows only). One line that wraps, no extra padding, not a control: the row keeps its one action. Flat: tokens only, no shadow, gradient, blur or translucency. Counts are said in words, never by colour alone. */
+.desk-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.desk-strip-place {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.desk-strip .progress-ring {
+  gap: var(--space-1);
+}
+.desk-strip .progress-ring-sm .progress-ring-graphic {
+  width: 1.25rem;
+}
+.desk-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.desk-docs-glyph {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+.desk-docs-open {
+  font-weight: 600;
+}
+/* end WP-PIC14 */
+
+/* WP-PIC18 agency Cases list rows (17 Nov 2026, picture-first upgrade, unit Q9): the same picture strip as the desk's Do Next rows (a small readiness ring in counts only and the required documents never provided), without the place, since the flag already shows in the meta line. Inside the row link, not a control. Wide screens: inline at the end of the meta line. Phones: the action moves up beside the title and the strip takes the row the action gave up, so a row grows no taller. Flat: tokens only, no shadow, gradient, blur or translucency. */
+.agency-case-list-pictured {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "title title action"
+    "meta strip action";
+}
+.agency-case-list-strip {
+  grid-area: strip;
+  min-width: 0;
+}
+.agency-case-list-strip .desk-strip {
+  flex-wrap: nowrap;
+}
+@media (max-width: 40rem) {
+  .agency-case-list-pictured {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title action"
+      "meta meta"
+      "strip strip";
+  }
+  .agency-case-list-pictured .agency-case-list-action {
+    align-self: start;
+  }
+  .agency-case-list-strip .desk-strip {
+    flex-wrap: wrap;
+  }
+}
+/* end WP-PIC18 */
 
 /* WP-PIC6 Country Card (17 Nov 2026, picture-first upgrade, unit U6): the flag, the name, the entry type as a picture beside its plain word, and where the fact came from, above the country summary. Flat: no shadow, gradient, blur or translucency; tokens only; every control keeps a 44 px target. */
 .country-card {
@@ -22151,6 +22219,44 @@ body:lang(bn),
   color: var(--text-secondary);
 }
 /* end WP-PIC4 */
+/* WP-PIC4b case segment ring (17 Nov 2026, unit Q3): on the case page the "X of Y" count sits beside a small segment ring, one segment per required item, replacing the bar in the same row so the page grows no taller. The legend of document pictures is a closed Browse fold inside How This Is Counted, so it adds no row. Presentation only. Flat: no shadow, gradient, blur or translucency; tokens only. */
+.lift-progress-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+.lift-progress-row > .lift-progress-figure {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lift-progress-ring {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.lift-progress-ring .readiness-segring {
+  display: contents;
+}
+.lift-progress-ring .readiness-segring-plain {
+  display: contents;
+}
+.lift-progress-ring .progress-ring-text {
+  display: none;
+}
+/* The legend is a closed fold inside "How This Is Counted": one 44px target, and no row of its own on the page. */
+.readiness-legend-fold > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+.readiness-legend-fold .readiness-legend {
+  min-width: 0;
+}
+/* end WP-PIC4b */
 /* WP-PIC12 share sheet pictures (17 Nov 2026, picture-first upgrade, unit P2e): under the grant review brief, what leaves is drawn as pictures (chosen documents as one document picture with the total count, profile parts with the person icon) and what specifically stays private as a muted row with the lock and its words. Presentation only. Flat: no shadow, gradient, blur or translucency; tokens only; state is said in words, never by colour alone. */
 .share-pics {
   display: grid;
@@ -22212,6 +22318,21 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC15 progress card: the Share Progress Card control on the Cases page (owner decision D5). */
+.progress-card-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.progress-card-share .btn {
+  min-height: 44px;
+}
+.progress-card-share-status {
+  flex-basis: 100%;
+}
+/* end WP-PIC15 */
 /* WP-PIC10 deadline timeline: today, appointment, passport end and trip start on one wrapping line.
    Flat: shared tokens, no shadow, gradient or animation. Pictures are decorative; words carry the state. */
 .deadline-timeline {

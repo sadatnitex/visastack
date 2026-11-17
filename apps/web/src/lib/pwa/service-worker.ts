@@ -5,6 +5,7 @@ import {
   PUBLIC_STATIC_PREFIXES,
   STATIC_PREFIXES,
 } from './constants';
+import { buildPushWorkerSection, isWebPushSwitchOn } from './push-worker';
 import {
   INCOMING_PATH,
   SHARE_ACCEPT,
@@ -22,6 +23,7 @@ import {
   SHARE_TOKEN_HEADER,
   isShareTargetSwitchOn,
 } from './share-target';
+import { UPLOAD_RESUME_MESSAGE, UPLOAD_SYNC_TAG, isBackgroundUploadSyncOn } from './upload-sync';
 
 export { CACHE_PREFIX, PUBLIC_STATIC_PATHS, PUBLIC_STATIC_PREFIXES, STATIC_PREFIXES };
 
@@ -128,9 +130,19 @@ export const OFFLINE_CSP = [
  */
 export function buildServiceWorkerScript(
   version: string,
-  options: { readonly share?: boolean } = {},
+  options: {
+    readonly share?: boolean;
+    readonly uploadSync?: boolean;
+    readonly push?: boolean;
+  } = {},
 ): string {
   const SHARE_ON = options.share ?? isShareTargetOn((name) => process.env[name]);
+  // WP-PIC17: the sync wake is written into the worker only while its switch is on, so with the
+  // switch off the worker is exactly the one served before.
+  const UPLOAD_SYNC_ON =
+    options.uploadSync ?? isBackgroundUploadSyncEnabled((name) => process.env[name]);
+  // WP-PIC18: the alert handlers likewise, only while Web Push is switched on.
+  const PUSH_ON = options.push ?? isWebPushSwitchOn((name) => process.env[name]);
   const constants = {
     VERSION: normaliseVersion(version),
     CACHE_PREFIX,
@@ -156,6 +168,7 @@ export function buildServiceWorkerScript(
     SHARE_MAX_AGE_MS,
     INCOMING_PATH,
     SHARE_ON,
+    ...(UPLOAD_SYNC_ON ? { UPLOAD_SYNC_TAG, UPLOAD_RESUME_MESSAGE } : {}),
   };
   const declarations = Object.entries(constants)
     .map(([name, value]) => `const ${name} = ${JSON.stringify(value)};`)
@@ -530,8 +543,27 @@ self.addEventListener('fetch', (event) => {
   if (kind === 'static') event.respondWith(fromStaticCache(event));
   else if (kind === 'navigate') event.respondWith(fromNetwork(event));
 });
-`;
+${UPLOAD_SYNC_ON ? UPLOAD_SYNC_LISTENER : ''}${PUSH_ON ? buildPushWorkerSection() : ''}`;
 }
+
+/**
+ * WP-PIC17: the browser fires this one-off sync once the connection returns. The worker stores
+ * nothing and sends nothing: it only tells this site's open pages to carry on with the files they
+ * still hold, through the normal upload. A closed page has nothing to resume.
+ */
+const UPLOAD_SYNC_LISTENER = `
+// Background sync for waiting uploads: wake this site's open pages, nothing else.
+self.addEventListener('sync', (event) => {
+  if (event.tag !== UPLOAD_SYNC_TAG) return;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((pages) => {
+      for (const page of pages) {
+        if (fromOwnPage(page)) page.postMessage({ type: UPLOAD_RESUME_MESSAGE });
+      }
+    }),
+  );
+});
+`;
 
 /**
  * Served instead while the service worker is switched off (`PWA_SERVICE_WORKER=off`). A device
@@ -575,4 +607,13 @@ export function isServiceWorkerEnabled(read: (name: string) => string | undefine
  */
 export function isShareTargetOn(read: (name: string) => string | undefined): boolean {
   return isServiceWorkerEnabled(read) && isShareTargetSwitchOn(read);
+}
+
+/**
+ * Whether waiting uploads resume by background sync (WP-PIC17): the owner's switch
+ * (`BACKGROUND_UPLOAD_SYNC=on`) and the service worker that wakes the page must both be on. The
+ * worker script and the pages that add files ask this one question, so they always agree.
+ */
+export function isBackgroundUploadSyncEnabled(read: (name: string) => string | undefined): boolean {
+  return isServiceWorkerEnabled(read) && isBackgroundUploadSyncOn(read);
 }

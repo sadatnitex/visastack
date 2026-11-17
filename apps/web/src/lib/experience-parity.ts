@@ -30,7 +30,7 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   '/app/account': link('app/app/account-menu.tsx', "'/app/account'"),
   '/app/account/plan': link('components/upgrade-line.tsx', "'/app/account/plan'"),
   '/app/account/plan/billing': link('app/app/account/plan/page.tsx', '`${PLAN_PATH}/billing`'),
-  '/app/account/passkeys': link('app/auth/passkey-confirm.tsx', '/app/account/passkeys'),
+  '/app/account/passkeys': link('app/app/account/page.tsx', '/app/account/passkeys'),
   '/app/account/whatsapp': link('app/app/account/page.tsx', '/app/account/whatsapp'),
   '/app/applicants': nav,
   '/app/countries': nav,

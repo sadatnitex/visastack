@@ -1,8 +1,6 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { createMigratedPglite, migrationsFolder } from '@visastack/db/testing';
+import { createMigratedPglite } from '@visastack/db/testing';
 import { type Db, provisionAccount } from '@visastack/services';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -29,31 +27,10 @@ vi.mock('./neon-recency', async (importOriginal) => ({
   neonSessionRef: async () => session.ref,
 }));
 
-function passkeySql(): string[] {
-  const marker = 'CREATE TABLE IF NOT EXISTS "passkey_credentials"';
-  for (const folder of [migrationsFolder, join(migrationsFolder, '..', 'pending')]) {
-    let names: string[] = [];
-    try {
-      names = readdirSync(folder).filter((name) => name.endsWith('.sql'));
-    } catch {
-      continue;
-    }
-    for (const name of names) {
-      const text = readFileSync(join(folder, name), 'utf8');
-      if (text.includes(marker)) {
-        return text
-          .split('--> statement-breakpoint')
-          .map((part) => part.trim())
-          .filter(Boolean);
-      }
-    }
-  }
-  throw new Error('the passkey migration is missing');
-}
-
 async function setUp(options: { table?: boolean } = {}): Promise<Db> {
   const client = await createMigratedPglite();
-  if (options.table !== false) for (const statement of passkeySql()) await client.exec(statement);
+  // Migration 0137 makes the table; dropping it shows the site before the owner applies it.
+  if (options.table === false) await client.exec('drop table passkey_credentials');
   const db = drizzle(client, { schema }) as unknown as Db;
   const account = await provisionAccount(db, { email: 'traveller@example.com' });
   if (!isOk(account)) throw new Error('provision failed');

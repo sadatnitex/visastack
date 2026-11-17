@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { progressRingWords } from '../lib/readiness-words';
+import { atLevel } from './depth';
 import { ExplainTip } from './explain-tip';
 import { Icon } from './icons';
 import { DocumentPicture } from './pictures/document-picture';
@@ -23,6 +24,7 @@ export const RING_TIP_LABEL = 'What This Ring Counts';
 export const RING_TIP_TEXT = 'The ring counts what is ready, not whether a visa will be approved.';
 export const ITEM_READY_WORD = 'Ready';
 export const ITEM_NEEDED_WORD = 'Still Needed';
+export const LEGEND_FOLD_LABEL = 'What the Ring Shows';
 export { AFTER_STEP_LABEL, NOW_LABEL } from './ui-lift/next-step-panel';
 /** Past this many items the segments turn into slivers, so the plain ring is drawn instead. */
 export const MAX_SEGMENTS = 24;
@@ -49,6 +51,10 @@ export interface ReadinessSegmentRingProps {
   readonly emptyAction?: { readonly href: string; readonly label: string };
   /** Show the explain tip beside the ring (default on). */
   readonly tip?: boolean;
+  /** Draw the legend under the ring (default on). Off when the caller places `ReadinessLegendFold` elsewhere. */
+  readonly legend?: boolean;
+  /** The count is already written beside the ring, so the ring is a picture only (hidden from screen readers). */
+  readonly decorative?: boolean;
 }
 
 /** The counts the segments show: whole numbers, never more done than total. */
@@ -113,8 +119,7 @@ function RingTip(): ReactNode {
   );
 }
 
-function Legend({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined }) {
-  if (!items || items.length === 0) return null;
+function LegendList({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem> }) {
   return (
     <ul className="readiness-legend">
       {items.map((item) => (
@@ -127,6 +132,42 @@ function Legend({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem>
         </li>
       ))}
     </ul>
+  );
+}
+
+function Legend({
+  items,
+  show,
+}: {
+  readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined;
+  readonly show: boolean;
+}) {
+  if (!show || !items || items.length === 0) return null;
+  return <LegendList items={items} />;
+}
+
+/**
+ * The legend a caller places itself: a closed fold ("What the Ring Shows", one 44 px target) shown
+ * from Browse, holding one picture row per item. It draws nothing when the items do not agree with
+ * the counts (the counts are the truth), so it is safe to render unconditionally.
+ */
+export function ReadinessLegendFold({
+  done,
+  total,
+  items,
+}: {
+  readonly done: number;
+  readonly total: number;
+  readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined;
+}): ReactNode {
+  const counts = segmentRingCounts(done, total);
+  const legend = counts.total > 0 ? filledMask(counts, items).legend : undefined;
+  if (!legend || legend.length === 0) return null;
+  return (
+    <details className="readiness-legend-fold" {...atLevel('browse')}>
+      <summary>{LEGEND_FOLD_LABEL}</summary>
+      <LegendList items={legend} />
+    </details>
   );
 }
 
@@ -143,6 +184,8 @@ export function ReadinessSegmentRing({
   emptyLabel = NO_CHECKLIST_LABEL,
   emptyAction,
   tip = true,
+  legend: showLegend = true,
+  decorative = false,
 }: ReadinessSegmentRingProps): ReactNode {
   const counts = segmentRingCounts(done, total);
   if (counts.total === 0) {
@@ -163,9 +206,15 @@ export function ReadinessSegmentRing({
   if (counts.total > MAX_SEGMENTS) {
     return (
       <div className="readiness-segring">
-        <ProgressRing done={counts.done} total={counts.total} size={size} />
+        {decorative ? (
+          <span aria-hidden="true" className="readiness-segring-plain">
+            <ProgressRing done={counts.done} total={counts.total} size={size} />
+          </span>
+        ) : (
+          <ProgressRing done={counts.done} total={counts.total} size={size} />
+        )}
         {tip ? <RingTip /> : null}
-        <Legend items={filledMask(counts, items).legend} />
+        <Legend items={filledMask(counts, items).legend} show={showLegend} />
       </div>
     );
   }
@@ -176,9 +225,15 @@ export function ReadinessSegmentRing({
     <div className="readiness-segring">
       <span className={`progress-ring progress-ring-${size}${full ? ' progress-ring-full' : ''}`}>
         <span className="progress-ring-graphic">
-          <svg viewBox="0 0 100 100" role="img" aria-label={words}>
-            <Segments mask={mask} />
-          </svg>
+          {decorative ? (
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <Segments mask={mask} />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 100 100" role="img" aria-label={words}>
+              <Segments mask={mask} />
+            </svg>
+          )}
         </span>
         <span className="progress-ring-text">
           <span className="progress-ring-words" aria-hidden="true">
@@ -187,7 +242,7 @@ export function ReadinessSegmentRing({
         </span>
       </span>
       {tip ? <RingTip /> : null}
-      <Legend items={legend} />
+      <Legend items={legend} show={showLegend} />
     </div>
   );
 }

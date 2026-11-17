@@ -39,6 +39,7 @@ vi.mock('../console-data', async (importOriginal) => {
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listAccessEndsForOrg: async () => new Map<string, Date | null>(),
+  listCaseReadinessForOrg: async () => new Map(),
 }));
 vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../mission-collaboration', async () => {
