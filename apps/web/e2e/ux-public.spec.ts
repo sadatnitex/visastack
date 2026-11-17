@@ -934,7 +934,7 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(
       page
         .getByRole('navigation', { name: 'Site', exact: true })
-        .getByRole('link', { name: 'Product', exact: true }),
+        .getByRole('link', { name: 'Home', exact: true }),
     ).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();
