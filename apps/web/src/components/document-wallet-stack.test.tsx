@@ -243,6 +243,8 @@ describe('the stack styles', () => {
     const end = css.indexOf('/* end WP-PIC5 */');
     expect(end).toBeGreaterThan(start);
     expect(css.indexOf('/* end WP-PIC5 */', end + 1)).toBe(-1);
+    // No other package's block starts inside it.
+    expect(css.slice(start + 1, end)).not.toContain('/* WP-');
     expect(css.indexOf('/* WP-PIC5', start + 1)).toBe(-1);
   });
 

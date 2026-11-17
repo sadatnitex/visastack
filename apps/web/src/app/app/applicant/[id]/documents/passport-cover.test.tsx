@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   listApplicantProfile: vi.fn(),
   requireAccess: vi.fn(),
   owner: 'acct-1',
+  docType: 'passport' as string | null,
   browserProps: [] as Array<{ readonly nationality?: unknown }>,
 }));
 
@@ -37,7 +38,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
         latestVersionNumber: 1,
         pendingNameVersion: null,
         documentDate: null,
-        docType: 'passport',
+        docType: mocks.docType,
         subject: null,
         updatedAt: new Date('2026-10-20T00:00:00Z'),
       },
@@ -120,6 +121,7 @@ interface Entry {
   readonly value: string | null;
   readonly isCurrent: boolean;
   readonly isProtected?: boolean;
+  readonly repeatingRecordKey?: string | null;
 }
 
 function historyPage(items: readonly Entry[], nextCursor: string | null = null) {
@@ -163,6 +165,7 @@ describe('the passport cover on the Documents page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.owner = 'acct-1';
+    mocks.docType = 'passport';
     mocks.requireAccess.mockResolvedValue({ ok: true, value: PROOF });
     mocks.listApplicantProfile.mockImplementation(async (_db: unknown, subject: unknown) =>
       typeof subject === 'string' ? [] : historyPage([]),
@@ -252,6 +255,33 @@ describe('the passport cover on the Documents page', () => {
     expect(await coverProp()).toBe('neutral');
     mocks.listApplicantProfile.mockImplementation(async (_db: unknown, subject: unknown) =>
       typeof subject === 'string' ? [] : historyPage([]),
+    );
+    expect(await coverProp()).toBe('neutral');
+  });
+
+  it('reads no nationality when there is no passport to draw', async () => {
+    mocks.docType = 'BANK_STATEMENT';
+    mocks.listApplicantProfile.mockImplementation(async (_db: unknown, subject: unknown) =>
+      typeof subject === 'string'
+        ? []
+        : historyPage([{ fieldKey: 'nationality', value: 'Bangladeshi', isCurrent: true }]),
+    );
+    expect(await coverProp()).toBe('neutral');
+    expect(historyCalls()).toHaveLength(0);
+  });
+
+  it('ignores a nationality saved on a repeating record (someone else)', async () => {
+    mocks.listApplicantProfile.mockImplementation(async (_db: unknown, subject: unknown) =>
+      typeof subject === 'string'
+        ? []
+        : historyPage([
+            {
+              fieldKey: 'nationality',
+              value: 'Bangladeshi',
+              isCurrent: true,
+              repeatingRecordKey: 'r1',
+            },
+          ]),
     );
     expect(await coverProp()).toBe('neutral');
   });

@@ -76,6 +76,7 @@ import { confirmedValues, findingViewModel } from '../../../../../lib/document-f
 import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { getT, primeLocale } from '../../../../../lib/i18n-server';
+import { documentCatalogueKey } from '../../../../../lib/item-icons';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
@@ -208,7 +209,8 @@ async function travellerCoverKind(
     });
     if (!read.ok) return 'neutral';
     const current = read.value.items.find(
-      (entry) => entry.fieldKey === 'nationality' && entry.isCurrent,
+      (entry) =>
+        entry.fieldKey === 'nationality' && entry.repeatingRecordKey === null && entry.isCurrent,
     );
     if (current) return current.isProtected ? 'neutral' : passportCoverFor(current.value);
     if (!read.value.nextCursor) return 'neutral';
@@ -381,7 +383,9 @@ export default async function ApplicantDocumentsPage({
       readingAccess.ok
         ? listAutoPlacements(readingAccess.value).catch(() => [])
         : Promise.resolve([]),
-      readingAccess.ok
+      // Read only when there is a passport card to draw.
+      readingAccess.ok &&
+      documentRows.some((doc) => documentCatalogueKey(doc.docType) === 'PASSPORT')
         ? travellerCoverKind(db, readingAccess.value).catch((): PassportCoverKind => 'neutral')
         : Promise.resolve<PassportCoverKind>('neutral'),
     ]);
