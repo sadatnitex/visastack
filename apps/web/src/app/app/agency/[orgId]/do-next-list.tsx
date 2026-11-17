@@ -4,6 +4,7 @@ import { AboutDisclosure } from '../../../../components/ui-lift/about-disclosure
 import { appAgencyCatalog } from '../../../../i18n/app-agency';
 import { getServerT } from '../../../../lib/i18n-server';
 import { agree } from '../../../../lib/plural';
+import { DeskPictureStrip } from './desk-picture-strip';
 import { CHASE_AFTER_DAYS, type DoNextItem, type DoNextTier } from './do-next';
 import { FollowUpCopy } from './follow-up-copy';
 
@@ -83,6 +84,7 @@ export function DoNextList({
                   ? t.node('appAgency.appAgencyOrgidDoNextList.notTiedToOneCase')
                   : ''}
               </p>
+              <DeskPictureStrip picture={item.picture} />
               <dl className="do-next-facts">
                 <div>
                   <dt>{t.node('appAgency.appAgencyOrgidDoNextList.owner')}</dt>

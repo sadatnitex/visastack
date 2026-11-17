@@ -22039,6 +22039,46 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC14 agency desk rows (17 Nov 2026, picture-first upgrade, unit Q2): a compact picture strip on each agency Do Next row (destination flag, a small readiness ring in counts only, required documents missing) and the documents count beside the case table ring. One line that wraps, no extra padding, not a control: the row keeps its one action. Flat: tokens only, no shadow, gradient, blur or translucency. Counts are said in words, never by colour alone. */
+.desk-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.desk-strip-place {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.desk-strip .progress-ring {
+  gap: var(--space-1);
+}
+.desk-strip .progress-ring-sm .progress-ring-graphic {
+  width: 1.5rem;
+}
+.desk-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.progress-ring-row .desk-docs {
+  margin-left: var(--space-3);
+}
+.desk-docs-glyph {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+.desk-docs-open {
+  font-weight: 600;
+}
+/* end WP-PIC14 */
 /* WP-PIC5 Documents as a stack of picture cards (17 Nov 2026, picture-first upgrade, unit U5). An opt-in view beside the list: each document is a card with its picture, name and state word, cards overlapping a little with a small sideways offset. Flat: no shadow or gradient here, the soft depth comes only from .pic-depth in the picture stylesheet. Cards are at least 44 px tall; the stack works from 320 px. Nothing moves, so there is no motion to switch off. */
 .wallet-view-switch {
   min-inline-size: 0;

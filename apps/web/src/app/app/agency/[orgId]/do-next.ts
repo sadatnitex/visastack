@@ -71,6 +71,69 @@ export interface DoNextItem {
   readonly reason: string;
   /** The one thing to do. */
   readonly action: DoNextAction;
+  /**
+   * WP-PIC14: the row's picture strip (flag, readiness ring, documents count), only for an item
+   * tied to a case already in view. Absent otherwise, so a case this person cannot see and a case
+   * with nothing to draw look the same.
+   */
+  readonly picture?: DeskPicture;
+}
+
+/**
+ * WP-PIC14: the readiness a case row already carries (from `computeReadiness`, read only for cases
+ * this person may see). Completeness only, never approval.
+ */
+export interface DeskReadiness {
+  readonly requiredCount: number;
+  readonly satisfiedRequired: number;
+  /** What is still missing; read for its kind and whether it is optional, nothing else. */
+  readonly missing?: readonly { readonly kind: string; readonly optional: boolean }[];
+}
+
+/**
+ * WP-PIC14: what a desk row draws. Every part comes from the case row this person already has: the
+ * destination it already shows, and the readiness counts it already shows as a ring and as
+ * "N missing". Nothing here is read for the picture.
+ */
+export interface DeskPicture {
+  /** The case destination as written; the flag is drawn only where a country is recognised. */
+  readonly destination: string | null;
+  /** Required items in place, out of the required items. Null where there is nothing to count. */
+  readonly readiness: { readonly done: number; readonly total: number } | null;
+  /** Required documents not in place yet. Null where readiness is not known. */
+  readonly documentsMissing: number | null;
+}
+
+/**
+ * The picture for one case row, or undefined when there is nothing to draw. Readiness counts only
+ * where a checklist with required items was worked out; the documents count only where the missing
+ * list was read with it. Never a decision: in place is not reviewed.
+ */
+export function deskPictureOf(c: {
+  readonly destination?: string | null;
+  readonly readiness?: DeskReadiness | null;
+}): DeskPicture | undefined {
+  const destination = c.destination?.trim() ? c.destination.trim() : null;
+  const r = c.readiness;
+  const counted = r && r.requiredCount > 0 ? r : null;
+  const readiness = counted
+    ? {
+        done: Math.max(0, Math.min(counted.satisfiedRequired, counted.requiredCount)),
+        total: counted.requiredCount,
+      }
+    : null;
+  const documentsMissing =
+    counted && Array.isArray(counted.missing)
+      ? counted.missing.filter((m) => m.kind === 'DOCUMENT' && !m.optional).length
+      : null;
+  if (destination === null && readiness === null && documentsMissing === null) return undefined;
+  return { destination, readiness, documentsMissing };
+}
+
+/** Spread into an item: `{ picture }` when the case has one, nothing otherwise. */
+function pictureFor(c: DoNextCase | undefined): { readonly picture?: DeskPicture } {
+  const picture = c ? deskPictureOf(c) : undefined;
+  return picture ? { picture } : {};
 }
 
 export interface DoNextCase {
@@ -87,6 +150,10 @@ export interface DoNextCase {
     readonly memberEmail: string;
   }[];
   readonly tasks: readonly (DueTask & { readonly assigneeAccountId?: string | null })[];
+  /** WP-PIC14: the destination the case row already shows. */
+  readonly destination?: string | null;
+  /** WP-PIC14: the readiness the case row already shows; null where it was not worked out. */
+  readonly readiness?: DeskReadiness | null;
 }
 
 export interface DoNextRequest {
@@ -270,6 +337,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
             owner,
             reason: `Sent ${waited} days ago with no due date. No reply yet.`,
             action: followUp('OPEN'),
+            ...pictureFor(caseRow),
           },
         });
       } else if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
@@ -295,6 +363,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
                 ? `The file sent could not be used and it was due ${due}.`
                 : `Was due ${due} and has not arrived.`,
             action: followUp(sentBack || unusable ? 'NEEDS_REPLACEMENT' : 'OPEN'),
+            ...pictureFor(caseRow),
           },
         });
       } else if (group === 'RECEIVED') {
@@ -319,6 +388,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
               label: 'Review Item',
               href: `${input.base}/clients#request-${request.id}`,
             },
+            ...pictureFor(caseRow),
           },
         });
       }
@@ -349,6 +419,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
               ? `1 task is past due. It was due ${formatDateOnly(oldest.dueDate)}.`
               : `${count} tasks are past due. The oldest was due ${formatDateOnly(oldest.dueDate)}.`,
           action: { kind: 'link', label: 'Open Case', href },
+          ...pictureFor(c),
         },
       });
     } else if (input.admin && c.assignments.length === 0) {
@@ -364,6 +435,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
           owner: 'Nobody assigned',
           reason: 'Nobody is looking after this case yet.',
           action: { kind: 'link', label: 'Assign Someone', href },
+          ...pictureFor(c),
         },
       });
     }
