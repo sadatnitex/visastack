@@ -21909,16 +21909,33 @@ body:lang(bn),
 .lift-status-stages:has(> .journey-track) {
   padding-block: 0;
 }
-/* The explain popup of the current stage can open below the card, so the card stops clipping it; its own children round their corners instead. */
-.lift-status:has(.journey-track) {
+/* The explain popup of the current stage can open below the card, so the card stops clipping it; its top block rounds its own corners instead. These rules apply only where the stages row is actually drawn: the same depth levels that show it (Everything when the traveller is the only reviewer, Browse otherwise; every level with scripts off). At Glance the row is hidden, the card keeps clipping and keeps its normal gaps. */
+:is(
+    .depth-scope:is(:has(.depth-nojs), [data-depth="browse"], [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="browse"] > .journey-track),
+    .depth-scope:is(:has(.depth-nojs), [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="everything"] > .journey-track)
+  ) {
   overflow: visible;
   margin-bottom: var(--space-1);
 }
-.lift-status:has(.journey-track) + .case-journey-reminder {
+:is(
+    .depth-scope:is(:has(.depth-nojs), [data-depth="browse"], [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="browse"] > .journey-track),
+    .depth-scope:is(:has(.depth-nojs), [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="everything"] > .journey-track)
+  )
+  + .case-journey-reminder {
   margin-bottom: 0;
 }
-.lift-status:has(.journey-track) > .lift-status-main {
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+:is(
+    .depth-scope:is(:has(.depth-nojs), [data-depth="browse"], [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="browse"] > .journey-track),
+    .depth-scope:is(:has(.depth-nojs), [data-depth="everything"])
+      .lift-status:has(> .lift-status-stages[data-level="everything"] > .journey-track)
+  )
+  > .lift-status-main {
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
   overflow: clip;
 }
 /* end WP-PIC8 */

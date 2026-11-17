@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CaseStageTrackerView } from './case-stage-tracker-view';
@@ -128,5 +130,29 @@ describe('CaseStageTrackerView with the journey track', () => {
     const html = renderToStaticMarkup(<CaseStageTrackerView {...base} state="CANCELLED" journey />);
     expect(html).not.toContain('journey-track');
     expect(html).toContain('lift-steps');
+  });
+});
+
+describe('the card rules of the WP-PIC8 block', () => {
+  const css = readFileSync(resolve(__dirname, '..', 'app', 'globals.css'), 'utf8');
+  const block = css.slice(css.indexOf('/* WP-PIC8 '), css.indexOf('/* end WP-PIC8 */'));
+  const cardRules = block.match(/[^{}]*\.lift-status:has\([^{}]*\{[^}]*\}/g) ?? [];
+
+  it('has rules that change the card', () => {
+    expect(cardRules.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('applies them only where the stages row is drawn, never to the bare card', () => {
+    // A card rule keyed on the track alone would also fire at Glance, where the row is hidden:
+    // the card would stop clipping and the next-step colour would poke past its rounded corners.
+    for (const rule of cardRules) {
+      expect(rule, rule).toContain('.lift-status-stages[data-level=');
+      expect(rule, rule).toContain('.depth-scope');
+    }
+    expect(block).not.toMatch(/\.lift-status:has\(\.journey-track\)/);
+  });
+
+  it('never shows the row at Glance: no card rule names that depth', () => {
+    for (const rule of cardRules) expect(rule).not.toContain('data-depth="glance"');
   });
 });
