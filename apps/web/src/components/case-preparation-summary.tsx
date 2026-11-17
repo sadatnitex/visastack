@@ -8,7 +8,11 @@ import { documentKindLabel } from '../lib/item-names';
 import { fieldLabel } from '../lib/master-profile';
 import { CaseStageTrackerView } from './case-stage-tracker-view';
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE } from './progress-ring';
-import { type ReadinessSegmentItem, ReadinessSegmentRing } from './readiness-segments';
+import {
+  ReadinessLegendFold,
+  type ReadinessSegmentItem,
+  ReadinessSegmentRing,
+} from './readiness-segments';
 
 /**
  * The case's stages with the current one marked. `nextStates` are the stages the page offers as
@@ -163,14 +167,14 @@ export async function CasePreparationSummary({
               </span>
               <span className="lift-progress-unit">{shortUnit}</span>
             </p>
-            {/* The ring always shows; its legend sits in a closed fold from Browse, so it adds one row at most. The count beside it carries the words. */}
+            {/* The ring always shows and the count beside it carries the words; its legend sits inside "How This Is Counted", so a long checklist adds no row of its own. */}
             <div className="lift-progress-ring">
               <ReadinessSegmentRing
                 done={satisfiedRequired}
                 total={requiredCount}
                 size="sm"
                 items={segmentItemsFromResults(readiness.requirementResults)}
-                foldedLegend
+                legend={false}
                 decorative
               />
             </div>
@@ -189,6 +193,11 @@ export async function CasePreparationSummary({
         <summary>{t.node('componentsMore.casePreparationSummary.howThisIsCounted')}</summary>
         <div className="lift-help-body">
           {explain}
+          <ReadinessLegendFold
+            done={satisfiedRequired}
+            total={requiredCount}
+            items={segmentItemsFromResults(readiness.requirementResults)}
+          />
           <dl className="lift-counts">
             {(
               [

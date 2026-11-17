@@ -10,6 +10,7 @@ import {
   NOW_LABEL,
   RING_TIP_LABEL,
   RING_TIP_TEXT,
+  ReadinessLegendFold,
   type ReadinessSegmentItem,
   ReadinessSegmentRing,
   segmentRingCounts,
@@ -41,19 +42,24 @@ describe('ReadinessSegmentRing', () => {
     expect(host.querySelector('svg')?.getAttribute('aria-label')).toBe('2 of 4 items ready');
   });
 
-  it('keeps the labelled ring and the plain legend for every other user, and folds only when asked', () => {
+  it('keeps the labelled ring and the plain legend for every other user; the fold is placed by the caller', () => {
     const plain = render(<ReadinessSegmentRing done={2} total={4} items={items} />);
     expect(plain.querySelector('svg')?.getAttribute('aria-hidden')).toBeNull();
     expect(plain.querySelector('.readiness-legend')?.getAttribute('data-level')).toBeNull();
     expect(plain.querySelector('details')).toBeNull();
-    const folded = render(
-      <ReadinessSegmentRing done={2} total={4} items={items} foldedLegend decorative />,
+    const quiet = render(
+      <ReadinessSegmentRing done={2} total={4} items={items} legend={false} decorative />,
     );
-    expect(folded.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(quiet.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(quiet.querySelector('.readiness-legend')).toBeNull();
+    const folded = render(<ReadinessLegendFold done={2} total={4} items={items} />);
     const fold = folded.querySelector('details.readiness-legend-fold');
     expect(fold?.getAttribute('data-level')).toBe('browse');
     expect(fold?.hasAttribute('open')).toBe(false);
     expect(fold?.querySelector('summary')?.textContent).toBe('What the Ring Shows');
+    expect(fold?.querySelectorAll('.readiness-legend-row')).toHaveLength(4);
+    // A legend that disagrees with the counts draws nothing.
+    expect(render(<ReadinessLegendFold done={1} total={4} items={items} />).innerHTML).toBe('');
   });
 
   it('never draws more filled segments than there are items, and clamps a negative count', () => {

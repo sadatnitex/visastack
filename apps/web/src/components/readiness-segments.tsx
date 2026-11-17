@@ -51,8 +51,8 @@ export interface ReadinessSegmentRingProps {
   readonly emptyAction?: { readonly href: string; readonly label: string };
   /** Show the explain tip beside the ring (default on). */
   readonly tip?: boolean;
-  /** Put the legend in a closed fold ("What the Ring Shows") that appears from Browse. Off by default. */
-  readonly foldedLegend?: boolean;
+  /** Draw the legend under the ring (default on). Off when the caller places `ReadinessLegendFold` elsewhere. */
+  readonly legend?: boolean;
   /** The count is already written beside the ring, so the ring is a picture only (hidden from screen readers). */
   readonly decorative?: boolean;
 }
@@ -119,15 +119,8 @@ function RingTip(): ReactNode {
   );
 }
 
-function Legend({
-  items,
-  folded,
-}: {
-  readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined;
-  readonly folded: boolean;
-}) {
-  if (!items || items.length === 0) return null;
-  const list = (
+function LegendList({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem> }) {
+  return (
     <ul className="readiness-legend">
       {items.map((item) => (
         <li key={item.key} className="readiness-legend-row" data-ready={item.ready ? 'yes' : 'no'}>
@@ -140,12 +133,40 @@ function Legend({
       ))}
     </ul>
   );
-  if (!folded) return list;
-  // Closed until the person opens it, so a long checklist never lengthens the page by itself.
+}
+
+function Legend({
+  items,
+  show,
+}: {
+  readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined;
+  readonly show: boolean;
+}) {
+  if (!show || !items || items.length === 0) return null;
+  return <LegendList items={items} />;
+}
+
+/**
+ * The legend a caller places itself: a closed fold ("What the Ring Shows", one 44 px target) shown
+ * from Browse, holding one picture row per item. It draws nothing when the items do not agree with
+ * the counts (the counts are the truth), so it is safe to render unconditionally.
+ */
+export function ReadinessLegendFold({
+  done,
+  total,
+  items,
+}: {
+  readonly done: number;
+  readonly total: number;
+  readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined;
+}): ReactNode {
+  const counts = segmentRingCounts(done, total);
+  const legend = counts.total > 0 ? filledMask(counts, items).legend : undefined;
+  if (!legend || legend.length === 0) return null;
   return (
     <details className="readiness-legend-fold" {...atLevel('browse')}>
       <summary>{LEGEND_FOLD_LABEL}</summary>
-      {list}
+      <LegendList items={legend} />
     </details>
   );
 }
@@ -163,7 +184,7 @@ export function ReadinessSegmentRing({
   emptyLabel = NO_CHECKLIST_LABEL,
   emptyAction,
   tip = true,
-  foldedLegend = false,
+  legend: showLegend = true,
   decorative = false,
 }: ReadinessSegmentRingProps): ReactNode {
   const counts = segmentRingCounts(done, total);
@@ -193,7 +214,7 @@ export function ReadinessSegmentRing({
           <ProgressRing done={counts.done} total={counts.total} size={size} />
         )}
         {tip ? <RingTip /> : null}
-        <Legend items={filledMask(counts, items).legend} folded={foldedLegend} />
+        <Legend items={filledMask(counts, items).legend} show={showLegend} />
       </div>
     );
   }
@@ -221,7 +242,7 @@ export function ReadinessSegmentRing({
         </span>
       </span>
       {tip ? <RingTip /> : null}
-      <Legend items={legend} folded={foldedLegend} />
+      <Legend items={legend} show={showLegend} />
     </div>
   );
 }
