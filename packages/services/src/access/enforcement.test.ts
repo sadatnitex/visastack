@@ -102,6 +102,8 @@ const PERSON_TRUSTED: Readonly<Record<string, string>> = {
  * 1 Nov 2026).
  */
 const APPLICANT_TRUSTED: Readonly<Record<string, string>> = {
+  'signin-notices#acknowledgeSignInNotices':
+    "writes one audit record of a signed-in person's own agreement to the terms and privacy notice (the Neon Auth identity id and the two notice versions, no applicant, no account yet) and bumps that identity's own attempt counter; it reads nothing of anyone's records and grants nothing. Its only caller is acceptNoticesAction (apps/web/src/app/auth/actions.ts), which takes the identity from the server session, never from the browser, and only after the pilot-access check and a check that the person still has to agree. Its test: signin-notices.test.ts.",
   'organizations#withdrawOrganizationApplication':
     "only takes access away: only for an agency still pending verification, only when the actor is that agency's own active owner, and it never reads or grants anyone's records (it ends the agency's memberships, their AI connections and case assignments, and under owner decision 'Founding A' the agency's own plan: its subscription ends and its waiting downgrade and that downgrade's queued notice are cancelled). Its membership and plan helpers are private to organizations.ts, so this cannot spread. Tests: lifecycle/agency/withdraw-application.test.ts",
 };
@@ -933,27 +935,26 @@ function readBaseline(): string[] {
 }
 
 describe('access gate enforcement ratchet', () => {
-  it('trusts the withdrawal alone: caught without its entry, and nothing else is spared', () => {
+  it('trusts exactly the named functions: each is caught without its entry, and nothing else is spared', () => {
     const { program } = programOnce();
     const checker = program.getTypeChecker();
     const tables = ownedTables(sourceFileAt(program, schemaFile));
     const gates = gateDeclarations(program, checker);
     const withdrawal = 'organizations#withdrawOrganizationApplication';
+    const named = Object.keys(APPLICANT_TRUSTED);
     const untrusted = ratchet(program, checker, tables, gates);
-    // Without its entry the withdrawal is caught, so the entry is what lets it through.
-    expect(untrusted.violations.has(withdrawal)).toBe(true);
-    const trusted = ratchet(program, checker, tables, gates, {
-      trusted: new Set(Object.keys(APPLICANT_TRUSTED)),
-    });
-    expect(trusted.violations.has(withdrawal)).toBe(false);
+    // Without its entry each named function is caught, so the entry is what lets it through.
+    for (const name of named) expect(untrusted.violations.has(name), name).toBe(true);
+    const trusted = ratchet(program, checker, tables, gates, { trusted: new Set(named) });
+    for (const name of named) expect(trusted.violations.has(name), name).toBe(false);
     // Another ungated function touching the same tables is still caught: the trust is by name.
     expect(trusted.violations.has('organizations#setMembershipActive')).toBe(true);
     // The shared membership helper stays private, so no new caller can reach the tables through it.
     expect(trusted.exportedFunctionIds.has('organizations#endMembershipInTx')).toBe(false);
-    // Trusting one name spares exactly that name.
-    expect([...untrusted.violations].filter((id) => !trusted.violations.has(id))).toEqual([
-      withdrawal,
-    ]);
+    // Trusting names spares exactly those names.
+    expect([...untrusted.violations].filter((id) => !trusted.violations.has(id)).sort()).toEqual(
+      [...named].sort(),
+    );
     // A trusted name with no function behind it spares nothing and is reported by the check above.
     const ghost = ratchet(program, checker, tables, gates, {
       trusted: new Set(['organizations#noSuchFunction']),

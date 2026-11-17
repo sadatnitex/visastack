@@ -12,7 +12,7 @@ import {
   resolveAppOrigin,
   resolveCspMode,
 } from './csp';
-import { PATHNAME_REQUEST_HEADER } from './request-headers';
+import { PATHNAME_REQUEST_HEADER, SEARCH_REQUEST_HEADER } from './request-headers';
 
 type MiddlewareResult = Awaited<ReturnType<NextMiddleware>>;
 
@@ -55,6 +55,7 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
       // `set` overwrites anything the client sent under this name.
       const plainHeaders = new Headers(request.headers);
       plainHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
+      plainHeaders.set(SEARCH_REQUEST_HEADER, request.nextUrl.search);
       if (!runAuth) return NextResponse.next({ request: { headers: plainHeaders } });
       return deps.auth(
         new NextRequest(request.url, { method: request.method, headers: plainHeaders }),
@@ -79,6 +80,7 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     requestHeaders.set(headerName, policy);
     requestHeaders.delete(mode === 'report-only' ? CSP_HEADER_ENFORCE : CSP_HEADER_REPORT_ONLY);
     requestHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
+    requestHeaders.set(SEARCH_REQUEST_HEADER, request.nextUrl.search);
 
     let response: MiddlewareResult = undefined;
     if (runAuth) {

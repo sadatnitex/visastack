@@ -27,14 +27,22 @@ export function googleSignInEnabled(): boolean {
 const GOOGLE_SIGN_IN_HOST = 'accounts.google.com';
 
 /**
- * The address Neon Auth gave for Google's sign-in page, or null when it is anything else: not a
- * secure address, or not Google's. The browser is only ever sent to this.
+ * The address Neon Auth gave for starting Google sign-in, or null when it is anything else. Neon
+ * Auth answers with one of two things: Google's own sign-in page, or its own start address (under
+ * its sign-in address, `<base>/sign-in/social/init?token=...`), which then forwards the browser to
+ * Google. Both must be secure addresses with no embedded login; the second must be on exactly the
+ * host and path of the configured Neon Auth address. The browser is only ever sent to one of these.
  */
-export function googleAuthorizationUrl(target: unknown): string | null {
+export function googleAuthorizationUrl(target: unknown, authBaseUrl?: string): string | null {
   if (typeof target !== 'string') return null;
   try {
     const url = new URL(target);
-    return url.protocol === 'https:' && url.hostname === GOOGLE_SIGN_IN_HOST
+    if (url.protocol !== 'https:' || url.username || url.password) return null;
+    if (url.hostname === GOOGLE_SIGN_IN_HOST) return url.toString();
+    if (!authBaseUrl) return null;
+    const base = new URL(authBaseUrl);
+    const startPath = `${base.pathname.replace(/\/+$/, '')}/sign-in/social/init`;
+    return base.protocol === 'https:' && url.origin === base.origin && url.pathname === startPath
       ? url.toString()
       : null;
   } catch {
@@ -100,6 +108,16 @@ export function onlyGoogleAccounts(accounts: unknown): boolean {
     return row.providerId ?? row.provider;
   });
   return methods.includes('google') && !methods.includes('credential');
+}
+
+/** True when one of the person's sign-in methods is a password (Neon Auth calls it `credential`). */
+export function accountsHavePassword(accounts: unknown): boolean {
+  if (!Array.isArray(accounts)) return false;
+  return accounts.some((entry) => {
+    if (typeof entry !== 'object' || entry === null) return false;
+    const row = entry as { providerId?: unknown; provider?: unknown };
+    return (row.providerId ?? row.provider) === 'credential';
+  });
 }
 
 /** Rejects after `ms` so a stalled call becomes the fixed message, not a platform error page. */

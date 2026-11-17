@@ -4,8 +4,10 @@ import type { IssueDateReading } from '@visastack/core/catalogue';
 import type { ReadingSource } from '@visastack/services';
 import Link from 'next/link';
 import { useActionState, useCallback, useId, useState } from 'react';
+import { ExplainTip } from '../../../../components/explain-tip';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
+import { Icon } from '../../../../components/icons';
 import { StatusBadge } from '../../../../components/ui';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../i18n/change-impact';
@@ -104,12 +106,21 @@ export function OcrResultView({
     >
       {usedFallback ? (
         <p style={{ marginBottom: '0.4rem' }}>
+          {/* Hidden from screen readers: the Explain button beside it carries the same name and hint. */}
           <span
             className="badge badge-neutral"
+            aria-hidden="true"
             title={t('appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr')}
           >
             {t.node('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
           </span>
+          {/* WP-PIC1: the same hint, reachable by tap, keyboard focus and screen reader. */}
+          <ExplainTip
+            label={t.node('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
+            text={t.node('appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr')}
+          >
+            <Icon name="ask" size={18} />
+          </ExplainTip>
         </p>
       ) : null}
       {reviewIssues.length > 0 ? (

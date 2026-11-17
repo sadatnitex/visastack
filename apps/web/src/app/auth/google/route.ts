@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withinAddressLimit } from '../../../lib/auth-throttle';
 import { signInNextSuffix } from '../../../lib/confirmed-landing';
+import { readEnv } from '../../../lib/env';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { reportServerError } from '../../../lib/server-error';
 import {
@@ -46,8 +47,15 @@ const SESSION_LOOKUP_TIMEOUT_MS = 3000;
 export async function GET(request: Request): Promise<NextResponse> {
   const origin = requestOrigin(request);
   const next = safeReturnPath(new URL(request.url).searchParams.get('next'));
-  const back = (code: 'social' | 'social_off' | 'social_start' | 'slow') =>
-    NextResponse.redirect(new URL(`/auth/sign-in?e=${code}${signInNextSuffix(next)}`, origin));
+  // `why` is a fixed short word (or a Neon Auth status number) added to the address of a failed
+  // start, so a failure can be told apart without server logs. It never carries provider text.
+  const back = (code: 'social' | 'social_off' | 'social_start' | 'slow', why?: string) =>
+    NextResponse.redirect(
+      new URL(
+        `/auth/sign-in?e=${code}${why ? `&why=${why}` : ''}${signInNextSuffix(next)}`,
+        origin,
+      ),
+    );
 
   if (!googleSignInEnabled()) return back('social_off');
   if (!startedFromThisSite(request.headers, origin)) return back('social_start');
@@ -78,7 +86,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       }),
       NEON_AUTH_TIMEOUT_MS,
     );
-    const target = error ? null : googleAuthorizationUrl(data?.url);
+    const target = error ? null : googleAuthorizationUrl(data?.url, readEnv('NEON_AUTH_BASE_URL'));
     if (!target) {
       const detail = error as { status?: unknown; code?: unknown } | null;
       reportServerError('googleSignInStart', new Error('Neon Auth gave no Google address'), {
@@ -86,12 +94,15 @@ export async function GET(request: Request): Promise<NextResponse> {
         status: String(detail?.status ?? ''),
         code: String(detail?.code ?? ''),
       });
-      return back('social');
+      return back('social', error ? `neon_${Number(detail?.status) || 0}` : 'address');
     }
     return NextResponse.redirect(target);
   } catch (error) {
     reportServerError('googleSignInStart', error, { step: 'start' });
-    return back('social');
+    return back(
+      'social',
+      error instanceof Error && error.message === 'timed out' ? 'timeout' : 'failed',
+    );
   }
 }
 
