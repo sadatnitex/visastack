@@ -8281,3 +8281,9 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Found when the owner switched Google on: clicking "Continue with Google" showed "We could not sign you in with Google". Neon Auth answers the server-made start with its own address (`<base>/sign-in/social/init?token=...`), which then forwards the browser to Google, not with Google's address directly. The start route accepted only accounts.google.com, so it refused the reply. Neon Auth settings were correct (own Google client, both site addresses trusted); a direct call to the start for both hosts returned that address.
 - Fix: the route also accepts an address on exactly the configured Neon Auth host and path (`/sign-in/social/init`), secure and with no embedded login, and nothing else. Two deliberate breaks (path check removed, host check removed) each turned a test red.
 - NOT verified: the full round trip through Google on the live site; this is the live check in docs/operations/google-sign-in.md.
+
+### 17 Nov 2026: Google sign-in start still refused on the live site after the start-address fix
+
+- After the fix for Neon Auth's own start address (#595) was deployed, the live start still sent the visitor back to the sign-in form with the Google message. The same SDK call made from outside the site returned the expected start address, so the cause is specific to the deployed server.
+- A failed start now adds a fixed reason to the address (`why=neon_<status number>`, `address`, `timeout` or `failed`; never provider text) so the failure can be told apart without server logs, which the build sessions cannot read.
+- NOT verified: the cause itself; to be read from the reason on the live site.

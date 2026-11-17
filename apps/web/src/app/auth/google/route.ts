@@ -47,8 +47,15 @@ const SESSION_LOOKUP_TIMEOUT_MS = 3000;
 export async function GET(request: Request): Promise<NextResponse> {
   const origin = requestOrigin(request);
   const next = safeReturnPath(new URL(request.url).searchParams.get('next'));
-  const back = (code: 'social' | 'social_off' | 'social_start' | 'slow') =>
-    NextResponse.redirect(new URL(`/auth/sign-in?e=${code}${signInNextSuffix(next)}`, origin));
+  // `why` is a fixed short word (or a Neon Auth status number) added to the address of a failed
+  // start, so a failure can be told apart without server logs. It never carries provider text.
+  const back = (code: 'social' | 'social_off' | 'social_start' | 'slow', why?: string) =>
+    NextResponse.redirect(
+      new URL(
+        `/auth/sign-in?e=${code}${why ? `&why=${why}` : ''}${signInNextSuffix(next)}`,
+        origin,
+      ),
+    );
 
   if (!googleSignInEnabled()) return back('social_off');
   if (!startedFromThisSite(request.headers, origin)) return back('social_start');
@@ -87,12 +94,12 @@ export async function GET(request: Request): Promise<NextResponse> {
         status: String(detail?.status ?? ''),
         code: String(detail?.code ?? ''),
       });
-      return back('social');
+      return back('social', error ? `neon_${Number(detail?.status) || 0}` : 'address');
     }
     return NextResponse.redirect(target);
   } catch (error) {
     reportServerError('googleSignInStart', error, { step: 'start' });
-    return back('social');
+    return back('social', error instanceof Error && error.message === 'timed out' ? 'timeout' : 'failed');
   }
 }
 
