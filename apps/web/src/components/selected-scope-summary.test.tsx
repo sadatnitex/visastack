@@ -181,3 +181,21 @@ describe('describeGrantScope follows the access rules', () => {
     expect(row(live, 'Ends on')?.warning).toBe(true);
   });
 });
+
+describe('SelectedScopeSummary pictures (WP-PIC12)', () => {
+  it('draws what leaves and what stays below the rows for live and not-yet access', async () => {
+    for (const tense of [undefined, 'live', 'notYet'] as const) {
+      const html = await render({ ...NARROW, ...(tense ? { tense } : {}) });
+      expect(html).toContain('data-share-pictures');
+      expect(textOf(html)).toContain('Everything you did not select stays private.');
+      expect(row(html, tense === 'notYet' ? 'Could see' : 'Can see')?.text).toBe(
+        'Identity, Education',
+      );
+    }
+  });
+
+  it('draws no pictures for a one-time copy or ended access', async () => {
+    expect(await render({ ...NARROW, snapshot: true })).not.toContain('data-share-pictures');
+    expect(await render({ ...NARROW, tense: 'ended' })).not.toContain('data-share-pictures');
+  });
+});

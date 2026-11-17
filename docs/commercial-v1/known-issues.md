@@ -8302,3 +8302,33 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - On the photo check after a passport photo is taken (own, spouse or host passport), a passport-shaped outline with corner marks and the line "Fit the passport inside the lines" shows where the passport should sit. It ignores taps and is hidden from screen readers; Use This and Retake work as before; the camera setting (camera=()) is unchanged; nothing says the photo will be accepted.
 - NOT verified: a real phone camera; a passport held sideways; Bengali for the new line (marked as English, listed for the localization lane).
+
+## 17 Nov 2026: WP-PIC9 waiting uploads list
+
+- The import screen now lists files still waiting to send, each as a document picture with Waiting, Sending or Could Not Send, a Try Again button on the existing retry, and an Offline badge when the browser reports offline. A file the queue is holding for a retry shows Waiting, never Sending; nothing is called Uploaded or Received early; the read-out stays quiet during an import except when going offline.
+- NOT verified: a real phone on a weak or offline network; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC8 case journey track (built, not yet shown)
+
+- A journey track for the case page: each stage drawn as a small picture, the current stage marked Now (aria-current, screen reader text), earlier stages marked Before and later ones Later. It never ticks a stage as done, because a case keeps no stage history and real moves can skip stages, and it makes no Submitted claim. Opt-in prop, off by default; the default step bar is unchanged.
+- NOT shown to users yet: switching it on for the case page changes a page-outline test and is a follow-up. NOT verified: a phone at 320 px; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC4 readiness segment ring and Next Step before and after ring
+
+- Opt-in variants, off by default, not yet on any page: a segment ring with one segment per required item (each segment filled only when its own item is ready, with a legend of document pictures saying Ready or Still Needed), the same option on the case readiness ring, and a Next Step card showing the ring now and after this step with the counts in words and the next document as a softly glowing picture. An explain button says the ring counts what is ready, not whether a visa will be approved.
+- NOT verified: real pages (the variants are not wired yet); a manual screen reader pass; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC5 Documents as a stack of picture cards
+
+- A traveller's Documents page gains a Stack or List switch (List stays the default and unchanged): Stack shows each document as a picture card with its name, state word and date, opening exactly what the row opens. With no documents, the stack view shows one card labelled Example, never counted as a document.
+- NOT verified: a real device and screen reader at 320 px; the real Bangladesh cover in the stack (the page does not load nationality yet, so the neutral cover shows; follow-up); Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC12 share summary drawn as pictures
+
+- Before a traveller shares with an agency, the existing summary also draws what leaves (profile sections as icons, chosen documents as one document picture with the total count) and what stays private as a muted row, with an explain button: "Only what you see here is shared. You can stop sharing at any time; copies already downloaded stay with them." Presentation only: no change to what is shared, consent, revocation or audit. Every listed item is counted, including ones whose details could not be loaded (review fix).
+- NOT verified: a real device and screen reader; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC8b case journey track shown on the case page
+
+- The case page now shows the journey track (built in WP-PIC8) above the step bar: one picture per stage, the current stage marked Now with an explain button (44 px target, 28 px circle, no overhang). While the track shows, the step bar's segment strip is hidden and its "Stage n of m" line is read to screen readers only; the step bar keeps the only current-stage marker and its "Now:" line. Explain popups now use plain generated ids. The case card lets the explain popup open past its edge while the track shows. Measured on a production build: phone first checklist row 1491 of 1500 px, phone full case page within its 3700 px limit.
+- NOT verified: a real phone and screen reader; dark mode on a real device; Bengali for the new words.

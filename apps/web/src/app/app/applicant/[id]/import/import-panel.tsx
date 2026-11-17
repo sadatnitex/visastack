@@ -6,6 +6,7 @@ import { usePageLanguage, useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
+import { WaitingUploads } from '../../../../../components/waiting-uploads';
 import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { newUploadId } from '../../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../../lib/format-size';
@@ -788,6 +789,7 @@ export function ImportPanel({
       </h3>
       <p className="upload-summary import-counts">{importCountsText(counts, snapshot.paused)}</p>
       <output className="sr-only import-announce">{announcement}</output>
+      <WaitingUploads source={queue} onRetry={(id) => queue.retry(id)} />
       {truncated ? (
         <p className="field-hint">
           {t.node(
