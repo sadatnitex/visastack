@@ -18,7 +18,7 @@ import { tileParts } from './deadline-clock';
  * besides today is known, `buildTimeline` returns null and the page keeps the plain list.
  */
 
-export type TimelineKind = 'today' | 'appointment' | 'trip' | 'passport';
+export type TimelineKind = 'today' | 'appointment' | 'trip' | 'trip_end' | 'passport';
 
 export interface TimelineItem {
   readonly kind: TimelineKind;
@@ -56,11 +56,17 @@ const LABELS: Record<TimelineKind, string> = {
   today: 'Today',
   appointment: 'Next Appointment',
   trip: 'Trip Starts',
+  trip_end: 'Trip Ends',
   passport: 'Passport Ends',
 };
-const TRIP_ENDS_LABEL = 'Trip Ends';
 /** The order of dates that fall on the same day. */
-const KIND_ORDER: readonly TimelineKind[] = ['today', 'appointment', 'trip', 'passport'];
+const KIND_ORDER: readonly TimelineKind[] = [
+  'today',
+  'appointment',
+  'trip',
+  'trip_end',
+  'passport',
+];
 
 /** `YYYY-MM-DD` of a stored date (stored at UTC midnight), or of today where the person is. */
 function isoOf(date: Date): string {
@@ -100,14 +106,18 @@ export function buildTimeline(input: TimelineInput): Timeline | null {
           phrase: daysUntil === 0 ? '' : relativeDeadlineWords(daysUntil),
         };
   const days = (date: Date) => daysUntilDueDay(date, now, timezone);
-  const tripDate = travelStart ?? travelEnd;
+  // A stored date that does not parse is no date: the timeline is optional, so it never throws.
+  const real = (date: Date | null): Date | null =>
+    date !== null && !Number.isNaN(date.getTime()) ? date : null;
+  const start = real(travelStart);
+  const end = real(travelEnd);
+  const passport = real(passportExpiry);
 
   const dated = [
     appointment ? item('appointment', appointment.date, appointment.daysUntil) : null,
-    tripDate
-      ? item('trip', isoOf(tripDate), days(tripDate), travelStart ? LABELS.trip : TRIP_ENDS_LABEL)
-      : null,
-    passportExpiry ? item('passport', isoOf(passportExpiry), days(passportExpiry)) : null,
+    start ? item('trip', isoOf(start), days(start)) : null,
+    end ? item('trip_end', isoOf(end), days(end)) : null,
+    passport ? item('passport', isoOf(passport), days(passport)) : null,
   ].filter((entry): entry is TimelineItem => entry !== null);
   if (dated.length === 0) return null;
 
@@ -118,13 +128,13 @@ export function buildTimeline(input: TimelineInput): Timeline | null {
 
   // The gap is the trip date checks' own finding, in their own words.
   let warning: Timeline['warning'] = null;
-  if (passportExpiry && tripDate) {
+  if (passport && (start || end)) {
     const found = evaluateTripChecks({
       now,
-      travelStart,
-      travelEnd,
+      travelStart: start,
+      travelEnd: end,
       targetDeadline: null,
-      passportExpiry,
+      passportExpiry: passport,
       insurancePolicies: [],
     }).find(
       (check) =>
@@ -181,6 +191,7 @@ function Picture({ kind }: { readonly kind: TimelineKind | 'gap' }): ReactNode {
         </Svg>
       );
     case 'trip':
+    case 'trip_end':
       return (
         <Svg>
           <path d="M3 16l22-9-8 18-3-8-11-1z" />
@@ -204,9 +215,9 @@ export interface DeadlineTimelineProps {
 export function DeadlineTimeline({ timeline }: DeadlineTimelineProps): ReactNode {
   if (timeline === null) return null;
   // The gap sits right after the later of the two dates it is about.
-  const anchor = Math.max(
-    timeline.items.findIndex((entry) => entry.kind === 'passport'),
-    timeline.items.findIndex((entry) => entry.kind === 'trip'),
+  const anchor = timeline.items.reduce(
+    (last, entry, index) => (entry.kind === 'today' || entry.kind === 'appointment' ? last : index),
+    -1,
   );
   return (
     <ol className="deadline-timeline" aria-label="Your Dates on One Line">

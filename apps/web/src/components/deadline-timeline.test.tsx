@@ -109,6 +109,29 @@ describe('buildTimeline', () => {
     expect(buildTimeline({ ...base, travelStart: day(100) })?.warning).toBeNull();
   });
 
+  it('draws the trip end too, and names it, when the case has one', () => {
+    const timeline = buildTimeline({ ...base, travelStart: day(10), travelEnd: day(20) });
+    expect(kinds(timeline)).toEqual(['today', 'trip', 'trip_end']);
+    expect(timeline?.items[2]?.label).toBe('Trip Ends');
+    expect(buildTimeline({ ...base, travelEnd: day(20) })?.items[1]?.label).toBe('Trip Ends');
+  });
+
+  it('measures the warning from the trip end when there is one, in the existing words', () => {
+    const timeline = buildTimeline({
+      ...base,
+      passportExpiry: day(150),
+      travelStart: day(10),
+      travelEnd: day(100),
+    });
+    expect(timeline?.warning?.title).toBe(
+      'Your passport has less than six months left after your trip ends',
+    );
+  });
+
+  it('skips a date that does not parse instead of failing', () => {
+    expect(buildTimeline({ ...base, passportExpiry: new Date('nope') })).toBeNull();
+  });
+
   it('ignores a date that is not a real day', () => {
     const timeline = buildTimeline({
       ...base,
@@ -152,7 +175,7 @@ describe('DeadlineTimeline', () => {
   it('draws nothing when there is no timeline, and never says refused or approved', () => {
     expect(renderToStaticMarkup(<DeadlineTimeline timeline={null} />)).toBe('');
     const html = renderToStaticMarkup(<DeadlineTimeline timeline={timeline} />);
-    expect(html).not.toMatch(/refus|reject|approv|guarantee|—/i);
+    expect(html).not.toMatch(/refus|reject|approv|guarantee|\u2014/i);
   });
 });
 
@@ -218,6 +241,56 @@ describe('the timeline on the Expiry page', () => {
     const text = textOf(await renderServer(Page(params)));
     expect(text).not.toContain('Trip Starts');
     expect(text).toContain('Deadline Clock');
+  });
+
+  it('uses the nearest trip that has not started, and the latest one when all have passed', async () => {
+    const { default: Page } = await import('../app/app/applicant/[id]/expiry/page');
+    const open = (id: string, offset: number) => ({
+      id,
+      title: id,
+      state: 'INTAKE',
+      travelStartDate: day(offset),
+      travelEndDate: null,
+    });
+    service.listMissions.mockResolvedValue({
+      ok: true,
+      value: [open('far', 200), open('old', -30), open('near', 40)],
+    });
+    expect(await renderServer(Page(params))).toContain(`dateTime="${iso(40)}"`);
+    service.listMissions.mockResolvedValue({
+      ok: true,
+      value: [open('old', -30), open('older', -90)],
+    });
+    expect(await renderServer(Page(params))).toContain(`dateTime="${iso(-30)}"`);
+  });
+
+  it('shows the next appointment, never one that has passed', async () => {
+    const { default: Page } = await import('../app/app/applicant/[id]/expiry/page');
+    const appt = (key: string, offset: number) => ({
+      key,
+      kind: 'appointment',
+      applicantId: 'person',
+      applicantName: 'Synthetic Traveller',
+      date: iso(offset),
+      daysUntil: offset,
+      urgency: 'later',
+      docType: null,
+      subject: null,
+      label: null,
+      doubt: null,
+      caseId: null,
+      href: '/app/applicant/person/expiry',
+    });
+    service.listDeadlineClock.mockResolvedValue({
+      ok: true,
+      value: { applicantId: 'person', entries: [appt('a1', -2), appt('a2', 12)] },
+    });
+    const html = await renderServer(Page(params));
+    // The clock below lists the passed one too; only the timeline is under test.
+    const line = html.slice(html.indexOf('deadline-timeline'), html.indexOf('deadline-clock'));
+    expect(line).toContain('Next Appointment');
+    expect(line).toContain('in 12 days');
+    expect(line).not.toContain('2 days ago');
   });
 
   it('ignores the trip of a case that is already handed in', async () => {

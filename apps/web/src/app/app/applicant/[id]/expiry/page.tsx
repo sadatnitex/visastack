@@ -1,8 +1,10 @@
 import { tripChecksApply } from '@visastack/core';
 import {
+  type DeadlineEntry,
   type ExpiryUrgency,
   type StalenessStatus,
   classifyExpiry,
+  daysUntilDueDay,
   getApplicant,
   getEvidenceCandidates,
   getReminderThresholds,
@@ -148,7 +150,7 @@ function ListEnd({
  */
 function timelineFor(
   data: {
-    readonly deadlines: readonly { kind: string; date: string; daysUntil: number }[] | null;
+    readonly deadlines: readonly DeadlineEntry[] | null;
     readonly intrinsic: readonly {
       doc: { docType: string | null; expiresAt: Date | string | null };
     }[];
@@ -164,23 +166,26 @@ function timelineFor(
 ) {
   const timezone = recognisedTimeZone(data.timezone ?? '') ?? 'UTC';
   const appointment = data.deadlines?.find((e) => e.kind === 'appointment' && e.daysUntil >= 0);
+  const valid = (date: Date) => !Number.isNaN(date.getTime());
   // A renewal replaces the old passport, so the latest expiry on file is the one in use.
   const passportExpiry = data.intrinsic
     .filter((row) => row.doc.docType === 'PASSPORT' && row.doc.expiresAt)
     .map((row) => new Date(row.doc.expiresAt as Date | string))
+    .filter(valid)
     .sort((a, b) => b.getTime() - a.getTime())[0];
+  const tripDay = (m: { travelStartDate: Date | null; travelEndDate: Date | null }) =>
+    m.travelStartDate ?? m.travelEndDate;
   const trips = data.missions
-    .filter((m) => tripChecksApply(m.state) && (m.travelStartDate || m.travelEndDate))
-    .sort(
-      (a, b) =>
-        (a.travelStartDate ?? a.travelEndDate ?? new Date(0)).getTime() -
-        (b.travelStartDate ?? b.travelEndDate ?? new Date(0)).getTime(),
-    );
-  const dayStart = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00.000Z`);
+    .filter((m) => tripChecksApply(m.state))
+    .filter((m) => {
+      const day = tripDay(m);
+      return day !== null && valid(day);
+    })
+    .sort((a, b) => (tripDay(a)?.getTime() ?? 0) - (tripDay(b)?.getTime() ?? 0));
+  // The nearest trip that has not ended its first day where the person is, else the latest past one.
   const trip =
-    trips.find(
-      (m) => (m.travelStartDate ?? m.travelEndDate ?? new Date(0)).getTime() >= dayStart,
-    ) ?? trips[trips.length - 1];
+    trips.find((m) => daysUntilDueDay(tripDay(m) as Date, now, timezone) >= 0) ??
+    trips[trips.length - 1];
   return buildTimeline({
     now,
     timezone,
