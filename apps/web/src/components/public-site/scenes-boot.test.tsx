@@ -15,12 +15,12 @@ describe('the early scenes mark outside a request', () => {
     state.fail = null;
     state.nonce = 'abc';
     expect(await requestNonce()).toBe('abc');
-    expect(await ScenesBoot()).not.toBeNull();
+    expect(ScenesBoot({ nonce: await requestNonce() })).not.toBeNull();
   });
   it('renders nothing with no request to read (unit tests, static renders)', async () => {
     state.fail = new Error('`headers` was called outside a request scope.');
     expect(await requestNonce()).toBe(null);
-    expect(await ScenesBoot()).toBeNull();
+    expect(ScenesBoot({ nonce: await requestNonce() })).toBeNull();
   });
   it("lets Next's own signals travel on", async () => {
     state.fail = new Error('NEXT_REDIRECT;replace;/x');
@@ -30,7 +30,7 @@ describe('the early scenes mark outside a request', () => {
   });
   it('renders nothing without a nonce', async () => {
     state.nonce = null;
-    expect(await ScenesBoot()).toBeNull();
+    expect(ScenesBoot({ nonce: await requestNonce() })).toBeNull();
     state.nonce = 'abc';
   });
 });

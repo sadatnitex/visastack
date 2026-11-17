@@ -22,10 +22,10 @@ export async function requestNonce(): Promise<string | null> {
  * WP-PUB1 (ADR 0029): marks scroll scenes live before the first paint, so a scene has its scroll
  * length from the start and nothing jumps. A fixed string, nonce'd. Without a nonce it is left out
  * (the policy would block it); without JavaScript it never runs and every scene stays a finished
- * section. Render it inside the root layout's head.
+ * section. The root layout reads the nonce with requestNonce() and renders this in its head; the
+ * script only sets data-scenes on html, which React does not render, so hydration is untouched.
  */
-export async function ScenesBoot() {
-  const nonce = await requestNonce();
+export function ScenesBoot({ nonce }: { readonly nonce: string | null }) {
   return nonce ? (
     // biome-ignore lint/security/noDangerouslySetInnerHtml: a fixed string from the engine, no input
     <script nonce={nonce} dangerouslySetInnerHTML={{ __html: SCENES_BOOT_SCRIPT }} />

@@ -10,7 +10,7 @@ import { requestSavesData } from '../components/pictures/save-data-request';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { publicNavLinks } from '../components/public-site/public-nav';
 import { publicText } from '../components/public-site/public-text';
-import { ScenesBoot } from '../components/public-site/scenes-boot';
+import { ScenesBoot, requestNonce } from '../components/public-site/scenes-boot';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
@@ -97,20 +97,14 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // Data saver from the request (Save-Data: on) keeps picture motion still from the first paint.
   const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};
   const fonts = `${inter.variable} ${bengali.variable}`;
+  // This request's script nonce, for the early scenes mark in the head (none outside a request).
+  const scenesNonce = await requestNonce();
 
   return (
-    // The scenes mark (data-scenes) may be set by the early script before React hydrates; React
-    // is told not to treat that one attribute as a mismatch.
-    <html
-      lang={htmlLang}
-      data-locale={locale}
-      className={fonts}
-      {...saveDataMark}
-      suppressHydrationWarning
-    >
+    <html lang={htmlLang} data-locale={locale} className={fonts} {...saveDataMark}>
       <head>
         {/* WP-PUB1 (ADR 0029): the early scenes mark, nonce'd; see scenes-boot.tsx. */}
-        <ScenesBoot />
+        <ScenesBoot nonce={scenesNonce} />
       </head>
       <body>
         <I18nProvider locale={locale} pageLang={htmlLang}>
