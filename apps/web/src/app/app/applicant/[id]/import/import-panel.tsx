@@ -35,11 +35,7 @@ import {
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
 import { shrunkNotice } from '../../../../../lib/photo-shrink';
-import {
-  browserSyncWindow,
-  connectUploadResume,
-  uploadConnectionFor,
-} from '../../../../../lib/pwa/upload-sync';
+import { useUploadConnection, useUploadResume } from '../../../../../lib/pwa/upload-sync-hooks';
 import { batchHref, canFollowBatch } from '../../../../../lib/upload-batch';
 import { uploadLimitsText } from '../../../../../lib/upload-rules';
 import { UPLOAD_UNKNOWN_OUTCOME } from '../document-uploader';
@@ -454,7 +450,7 @@ export function ImportPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const announced = useRef<AnnounceState>(ANNOUNCE_START);
   const stopped = useRef(false);
-  const [connection] = useState(() => uploadConnectionFor(backgroundSync, browserSyncWindow()));
+  const connection = useUploadConnection(backgroundSync);
   const [queue] = useState(
     () =>
       new ImportQueue({
@@ -504,11 +500,7 @@ export function ImportPanel({
       }),
   );
   // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
-  useEffect(() => {
-    const win = browserSyncWindow();
-    if (!connection || !win) return;
-    return connectUploadResume(win, queue);
-  }, [connection, queue]);
+  useUploadResume(connection, queue);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const [announcement, setAnnouncement] = useState('');
   const [truncated, setTruncated] = useState(false);
@@ -816,7 +808,7 @@ export function ImportPanel({
       </h3>
       <p className="upload-summary import-counts">{importCountsText(counts, snapshot.paused)}</p>
       <output className="sr-only import-announce">{announcement}</output>
-      {queue.waitingForConnection ? (
+      {snapshot.waitingForConnection ? (
         <p className="field-hint" data-testid="import-offline">
           {OFFLINE_LINE}
         </p>

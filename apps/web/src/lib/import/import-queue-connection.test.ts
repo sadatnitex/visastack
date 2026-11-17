@@ -253,3 +253,54 @@ describe('a file waiting out a busy answer when the connection goes', () => {
     expect(queue.list()[0]?.state).toBe('added');
   });
 });
+
+describe('the waiting-for-connection line is never stale', () => {
+  it('goes when Stop lists the waiting files as not added', async () => {
+    const { send } = network(() => ADDED);
+    const { connection } = device(false);
+    const queue = queueWith(send, { connection });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    expect(queue.getSnapshot().waitingForConnection).toBe(true);
+    queue.stop();
+    expect(queue.list()[0]?.state).toBe('skipped');
+    expect(queue.getSnapshot().waitingForConnection).toBe(false);
+  });
+
+  it('is not shown while paused (Resume, not the connection, sends them), and comes back on Resume', async () => {
+    const { sent, send } = network(() => ADDED);
+    const { state, connection } = device(false);
+    const queue = queueWith(send, { connection });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    queue.pause();
+    expect(queue.getSnapshot().waitingForConnection).toBe(false);
+    queue.resume();
+    expect(queue.getSnapshot().waitingForConnection).toBe(true);
+    state.online = true;
+    queue.resumeAfterConnection();
+    await queue.whenIdle();
+    expect(sent).toHaveLength(1);
+    expect(queue.getSnapshot().waitingForConnection).toBe(false);
+  });
+
+  it('a file put back while paused is reported to the saved list, as after a busy answer', async () => {
+    const { state, connection } = device(true);
+    const settled: string[] = [];
+    let queue: ImportQueue | null = null;
+    const { send } = network(() => {
+      queue?.pause();
+      state.online = false;
+      return UNKNOWN;
+    });
+    queue = queueWith(send, {
+      connection,
+      retryUnknown: true,
+      onSettled: (item) => settled.push(item.state),
+    });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    expect(queue.list()[0]?.state).toBe('paused');
+    expect(settled).toEqual(['paused']);
+  });
+});

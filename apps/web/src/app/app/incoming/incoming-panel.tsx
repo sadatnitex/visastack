@@ -25,11 +25,7 @@ import {
   parseInbox,
   sharedFileUrl,
 } from '../../../lib/pwa/share-target';
-import {
-  browserSyncWindow,
-  connectUploadResume,
-  uploadConnectionFor,
-} from '../../../lib/pwa/upload-sync';
+import { useUploadConnection, useUploadResume } from '../../../lib/pwa/upload-sync-hooks';
 import { OFFLINE_LINE, importLine } from '../applicant/[id]/import/import-panel';
 
 type Phase = 'loading' | 'empty' | 'ready' | 'sending' | 'cancelled';
@@ -159,7 +155,7 @@ export function IncomingPanel({
     };
   }, [ownerKey]);
 
-  const [connection] = useState(() => uploadConnectionFor(backgroundSync, browserSyncWindow()));
+  const connection = useUploadConnection(backgroundSync);
   const queue = useMemo(
     () =>
       new ImportQueue({
@@ -177,11 +173,8 @@ export function IncomingPanel({
       }),
     [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown, connection],
   );
-  useEffect(() => {
-    const win = browserSyncWindow();
-    if (!connection || !win) return;
-    return connectUploadResume(win, queue);
-  }, [connection, queue]);
+  // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
+  useUploadResume(connection, queue);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const items = snapshot.order.flatMap((id) => {
     const item = snapshot.byId.get(id);
@@ -365,7 +358,7 @@ export function IncomingPanel({
           </>
         ) : (
           <>
-            {queue.waitingForConnection ? (
+            {snapshot.waitingForConnection ? (
               <p className="field-hint" data-testid="incoming-offline">
                 {OFFLINE_LINE}
               </p>

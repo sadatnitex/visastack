@@ -228,6 +228,11 @@ export interface ImportSnapshot {
   readonly order: readonly number[];
   readonly byId: ReadonlyMap<number, ImportItem>;
   readonly paused: boolean;
+  /**
+   * WP-PIC17: files are waiting for the connection and will go on their own when it returns (never
+   * while paused: then the person's Resume is what sends them).
+   */
+  readonly waitingForConnection?: boolean;
   /** Changes on every redraw. */
   readonly version: number;
 }
@@ -347,6 +352,8 @@ const blank = {
 /** A file the queue still holds to send: the bytes (a smaller copy once a photo was shrunk). */
 interface HeldFile {
   readonly file: Blob;
+  /** Who the file was chosen for (`scopeFor` when it joined the queue). */
+  readonly scope: string;
   readonly contentType: string;
   /** A photo over the limit that is still to be made smaller. */
   readonly shrink: boolean;
@@ -361,8 +368,6 @@ export class ImportQueue {
   private readonly progressIntervalMs: number;
   private readonly newUploadId: () => string;
   private readonly files = new Map<number, HeldFile>();
-  /** Who each file was chosen for, fixed when it joined the queue. */
-  private readonly scopes = new Map<number, string>();
   private readonly listeners = new Set<() => void>();
   private readonly idleWaiters: (() => void)[] = [];
   /** Lines by id; each line object is replaced, never changed, so a row can tell it is unchanged. */
@@ -429,7 +434,7 @@ export class ImportQueue {
 
   /** True while files wait for the connection to return (only with the `connection` option). */
   get waitingForConnection(): boolean {
-    return this.connectionLost;
+    return this.snapshot.waitingForConnection === true;
   }
 
   /**
@@ -521,8 +526,12 @@ export class ImportQueue {
         added.push({ ...base, state: 'unsupported', message: check.reason });
         return;
       }
-      this.files.set(id, { file, contentType: check.contentType, shrink: check.shrink === true });
-      this.scopes.set(id, scope);
+      this.files.set(id, {
+        file,
+        contentType: check.contentType,
+        shrink: check.shrink === true,
+        scope,
+      });
       const before = earlier[index];
       if (before === 'added' || before === 'duplicate') {
         added.push({ ...base, state: before, earlier: true });
@@ -585,6 +594,7 @@ export class ImportQueue {
   stop(): void {
     this.generation++;
     this.paused = false;
+    this.connectionLost = false;
     const stopped: ImportItem[] = [];
     for (const item of this.byId.values()) {
       if (item.state !== 'queued' && item.state !== 'paused' && item.state !== 'held') continue;
@@ -644,7 +654,6 @@ export class ImportQueue {
       if (item && FINAL_STATES.has(item.state)) {
         this.byId.delete(id);
         this.files.delete(id);
-        this.scopes.delete(id);
       }
     }
     this.order = this.order.filter((id) => this.byId.has(id));
@@ -787,7 +796,7 @@ export class ImportQueue {
             contentType: held.contentType,
             uploadId: sending?.uploadId ?? this.newUploadId(),
             fileName: sending?.name ?? '',
-            scope: this.scopes.get(id) ?? '',
+            scope: held.scope,
             onProgress: (fraction) => this.progress(id, fraction),
           });
         } catch {
@@ -886,7 +895,12 @@ export class ImportQueue {
       shrunk = { ok: false, reason: 'unreadable' };
     }
     if (!shrunk.ok) return shrunk.reason;
-    this.files.set(id, { file: shrunk.file, contentType: shrunk.file.type, shrink: false });
+    this.files.set(id, {
+      file: shrunk.file,
+      contentType: shrunk.file.type,
+      shrink: false,
+      scope: held.scope,
+    });
     this.update(id, { preparing: false, shrunkTo: shrunk.toBytes });
     return null;
   }
@@ -907,6 +921,8 @@ export class ImportQueue {
       progress: 0,
       waitingToRetry: false,
     });
+    // As after a busy answer: a paused file has an ending for now, so the saved list hears of it.
+    if (this.paused) this.options.onSettled?.(this.byId.get(id) as ImportItem);
   }
 
   /** The hourly limit: this file and every file still waiting are held, nothing more is sent. */
@@ -954,7 +970,18 @@ export class ImportQueue {
   }
 
   private makeSnapshot(): ImportSnapshot {
-    return { order: this.order, byId: this.byId, paused: this.paused, version: this.version };
+    return {
+      order: this.order,
+      byId: this.byId,
+      paused: this.paused,
+      waitingForConnection: this.connectionLost && !this.paused && this.hasQueued(),
+      version: this.version,
+    };
+  }
+
+  private hasQueued(): boolean {
+    for (const item of this.byId.values()) if (item.state === 'queued') return true;
+    return false;
   }
 
   private emit(): void {
