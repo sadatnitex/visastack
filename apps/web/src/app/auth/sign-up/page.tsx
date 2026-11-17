@@ -7,6 +7,7 @@ import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { createSignupForm } from '../../../lib/signup-form';
 import { signUpAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
+import { GoogleButton } from '../google-button';
 
 export const metadata: Metadata = { title: 'Create an Account' };
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,7 @@ export default async function SignUpPage({
           or <Link href="/auth/forgot-password">reset your password</Link>.
         </p>
       )}
+      <GoogleButton next={next} notice />
       <div className="card u-mb-100">
         <form action={signUpAction} className="field-list">
           <input type="hidden" name="next" value={safeReturnPath(next)} />

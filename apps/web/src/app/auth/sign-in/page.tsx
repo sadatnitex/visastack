@@ -10,6 +10,7 @@ import {
 } from '../../../lib/pending-confirmation';
 import { signInAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
+import { GoogleButton } from '../google-button';
 
 export const metadata: Metadata = { title: 'Sign In' };
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,8 @@ const ERRORS: Record<string, string> = {
   invalid: 'Enter a valid email address and a password of at least 8 characters.',
   failed: 'We could not sign you in with those details. Check them and try again.',
   slow: 'Too many attempts. Please wait a little while and try again.',
+  social: 'We could not sign you in with Google. Try again, or use your email and password.',
+  social_off: 'Google sign-in is not available yet. Use your email and password.',
 };
 
 const NOTICES: Record<string, string> = {
@@ -45,6 +48,7 @@ export default async function SignInPage({
     <AuthShell title={t.node('auth.authSignInPage.signIn')}>
       {notice ? <Notice>{notice}</Notice> : null}
       <ErrorLine id="signin-error" message={error} />
+      <GoogleButton next={next} notice />
       <div className="card u-mb-100">
         <form action={signInAction} className="field-list">
           <input type="hidden" name="next" value={safeReturnPath(next)} />
