@@ -44,19 +44,49 @@ export interface NextStepPanelProps {
 export interface NextStepBeforeAfter {
   readonly done: number;
   readonly total: number;
+  /** The step's document type. Without one (a profile step) no picture is drawn: rings only, still. */
   readonly documentType?: string | null | undefined;
   /** The ready count after the step, when the page knows it. Default: one more than `done`. */
   readonly afterDone?: number | undefined;
+  /** What the rings count, in Title Case ("Essentials Added"). Default: "items ready". */
+  readonly countLabel?: string | undefined;
 }
 
-/** The hero: this step's document picture, then the ring now and the ring after the step. */
-function BeforeAfterHero({ done, total, documentType, afterDone }: NextStepBeforeAfter) {
+/**
+ * The hero: this step's document picture, then the ring now and the ring after the step. Exported
+ * so the traveller page's Next Step card can show the same hero (WP-PIC13).
+ */
+export function BeforeAfterHero({
+  done,
+  total,
+  documentType,
+  afterDone,
+  countLabel,
+}: NextStepBeforeAfter) {
   if (!Number.isFinite(total) || !Number.isFinite(done) || total < 1) return null;
   const all = Math.floor(total);
   const now = Math.max(0, Math.floor(done));
   if (now >= all) return null;
   const after =
     afterDone !== undefined && Number.isFinite(afterDone) ? Math.floor(afterDone) : now + 1;
+  const words = countLabel ? { countLabel } : {};
+  const rings = (
+    <div className="lift-next-rings">
+      <span className="lift-next-ring">
+        <ProgressRing done={now} total={all} size="sm" {...words} />
+        <span className="lift-next-ring-caption">{NOW_LABEL}</span>
+      </span>
+      <span className="lift-next-ring-arrow" aria-hidden="true">
+        {'\u2192'}
+      </span>
+      <span className="lift-next-ring">
+        <ProgressRing done={Math.max(now, after)} total={all} size="sm" {...words} />
+        <span className="lift-next-ring-caption">{AFTER_STEP_LABEL}</span>
+      </span>
+    </div>
+  );
+  // No document behind the step (a profile step): the rings alone, with nothing that moves.
+  if (!documentType) return <div className="lift-next-hero">{rings}</div>;
   // The glow reads its colour from the tone on its own element, so it matches the document's.
   const tone = documentPicture(documentType).mark.tone;
   return (
@@ -67,19 +97,7 @@ function BeforeAfterHero({ done, total, documentType, afterDone }: NextStepBefor
       >
         <DocumentPicture type={documentType} size={72} className="pic-float" />
       </span>
-      <div className="lift-next-rings">
-        <span className="lift-next-ring">
-          <ProgressRing done={now} total={all} size="sm" />
-          <span className="lift-next-ring-caption">{NOW_LABEL}</span>
-        </span>
-        <span className="lift-next-ring-arrow" aria-hidden="true">
-          {'\u2192'}
-        </span>
-        <span className="lift-next-ring">
-          <ProgressRing done={Math.max(now, after)} total={all} size="sm" />
-          <span className="lift-next-ring-caption">{AFTER_STEP_LABEL}</span>
-        </span>
-      </div>
+      {rings}
     </div>
   );
 }

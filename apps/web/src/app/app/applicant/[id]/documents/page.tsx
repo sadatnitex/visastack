@@ -2,6 +2,7 @@ import { isOtherDocumentType } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, createTranslator } from '@visastack/i18n';
 import {
+  type AuthorizedApplicant,
   CONVERTED_FROM_HEIC_SOURCE,
   DEFAULT_DOCUMENT_PROTECTION,
   type DocumentAction,
@@ -48,6 +49,10 @@ import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { DepthScope } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
+import {
+  type PassportCoverKind,
+  passportCoverFor,
+} from '../../../../../components/pictures/nationality';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { SafeCopyEditor } from '../../../../../components/safe-copy-editor';
 import {
@@ -70,6 +75,7 @@ import { confirmedValues, findingViewModel } from '../../../../../lib/document-f
 import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { getT, primeLocale } from '../../../../../lib/i18n-server';
+import { documentCatalogueKey } from '../../../../../lib/item-icons';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
@@ -181,6 +187,36 @@ const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: s
   EXPIRED: { label: 'Expired', tone: 'badge-danger' },
   SUPERSEDED: { label: 'Replaced', tone: 'badge-neutral' },
 };
+
+/** How many pages of profile history to look through for the current nationality (100 each). */
+const COVER_HISTORY_PAGES = 5;
+
+/**
+ * WP-PIC13: the passport cover for this traveller, from the nationality saved on their profile.
+ * Read through the owner's gate proof (the history read refuses anyone but the owner and never
+ * unlocks a protected detail), newest first, until the version in use now is found. Anything
+ * missing or unreadable gives the neutral cover; the value itself never leaves this function.
+ */
+async function travellerCoverKind(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<PassportCoverKind> {
+  let before: string | undefined;
+  for (let page = 0; page < COVER_HISTORY_PAGES; page += 1) {
+    // The history read runs on the proof's own connection, the one the gate checked.
+    const read = await listApplicantProfile(proof.tx, proof, {
+      history: { pack: 'universal', limit: 100, ...(before ? { before } : {}) },
+    });
+    if (!read.ok) return 'neutral';
+    const current = read.value.items.find(
+      (entry) =>
+        entry.fieldKey === 'nationality' && entry.repeatingRecordKey === null && entry.isCurrent,
+    );
+    if (current) return current.isProtected ? 'neutral' : passportCoverFor(current.value);
+    if (!read.value.nextCursor) return 'neutral';
+    before = read.value.nextCursor;
+  }
+  return 'neutral';
+}
 
 export default async function ApplicantDocumentsPage({
   params,
@@ -334,7 +370,9 @@ export default async function ApplicantDocumentsPage({
     // added them), and whether the family batch is available yet. Extras like the list above.
     const noHeldFiles = { files: [], people: [] };
     // UMPE G4: what was placed automatically lately, each with its Change. An extra like the rest.
-    const [understanding, heldFiles, automatic] = await Promise.all([
+    // WP-PIC13: which passport cover the Documents stack shows, from the saved nationality read
+    // through the owner's gate proof. Only the cover kind leaves this server function.
+    const [understanding, heldFiles, automatic, coverKind] = await Promise.all([
       readingAccess.ok
         ? listDocumentExceptions(readingAccess.value).catch(() => noDecisions)
         : Promise.resolve(noDecisions),
@@ -344,6 +382,11 @@ export default async function ApplicantDocumentsPage({
       readingAccess.ok
         ? listAutoPlacements(readingAccess.value).catch(() => [])
         : Promise.resolve([]),
+      // Read only when there is a passport card to draw.
+      readingAccess.ok &&
+      documentRows.some((doc) => documentCatalogueKey(doc.docType) === 'PASSPORT')
+        ? travellerCoverKind(readingAccess.value).catch((): PassportCoverKind => 'neutral')
+        : Promise.resolve<PassportCoverKind>('neutral'),
     ]);
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
@@ -430,6 +473,7 @@ export default async function ApplicantDocumentsPage({
       understanding,
       heldFiles,
       automatic,
+      coverKind,
       protection,
       referenceCodes,
       lifecycle,
@@ -664,6 +708,9 @@ export default async function ApplicantDocumentsPage({
           key={`${selection ?? id}:${tab}`}
           applicantId={id}
           {...(selection ? { initialSelection: selection } : {})}
+          // Only the cover kind ('bangladesh' or 'neutral') reaches the browser, never the saved
+          // nationality itself.
+          coverKind={data.coverKind}
           documents={listedDocuments.map((doc) => {
             const badge = safetyBadge(doc, data.scanEvidence);
             const processingKey = doc.processingStatus
