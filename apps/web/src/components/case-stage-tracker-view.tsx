@@ -3,6 +3,7 @@ import {
   LEGACY_ONLY_MISSION_STATES,
   type MissionState,
 } from '@visastack/core';
+import { JourneyTrack } from './journey-track';
 import { StepBar } from './ui-lift';
 
 /**
@@ -17,6 +18,7 @@ export function CaseStageTrackerView({
   nextStates,
   cancelInMore = false,
   ariaLabel,
+  journey = false,
 }: {
   readonly state: MissionState;
   readonly labels: Readonly<Record<string, string>>;
@@ -24,6 +26,8 @@ export function CaseStageTrackerView({
   readonly cancelInMore?: boolean;
   /** Already translated by the caller, so this view stays a plain component that also mounts in the browser. */
   readonly ariaLabel: string;
+  /** Draws the picture track above the step bar. Off by default, so existing pages are unchanged. */
+  readonly journey?: boolean;
 }) {
   const cancelLine = cancelInMore ? ' To stop the case, use More at the top of the page.' : '';
   const legacy = (LEGACY_ONLY_MISSION_STATES as readonly string[]).includes(state);
@@ -45,7 +49,7 @@ export function CaseStageTrackerView({
   const path: readonly MissionState[] = stages.filter((stage) => stage !== 'CANCELLED');
   const apart = stages.filter((stage) => stage === 'CANCELLED');
   const at = path.indexOf(state);
-  return (
+  const bar = (
     <StepBar
       ariaLabel={ariaLabel}
       steps={path.map(named)}
@@ -55,7 +59,9 @@ export function CaseStageTrackerView({
         summary: 'About Stages',
         children: (
           <p>
-            Only the current state is marked. This is not a completed-stage history.{' '}
+            {journey
+              ? 'Stages before the current one are ticked by their order on the path.'
+              : 'Only the current state is marked. This is not a completed-stage history.'}{' '}
             {nextStates.length
               ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and traveller confirmation are checked by the existing actions.${cancelLine}`
               : cancelInMore
@@ -65,5 +71,17 @@ export function CaseStageTrackerView({
         ),
       }}
     />
+  );
+  if (!journey || at < 0) return bar;
+  return (
+    <>
+      <JourneyTrack
+        state={state}
+        labels={labels}
+        stages={path}
+        ariaLabel={`${ariaLabel}: journey`}
+      />
+      {bar}
+    </>
   );
 }
