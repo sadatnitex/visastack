@@ -1,3 +1,5 @@
+import { resolveDocumentType } from '@visastack/core/catalogue';
+
 /**
  * The passport outline drawn over the photo check (picture-first upgrade, unit U7). A thin outline
  * in the passport cover's shape (the same 64 x 91 proportion as the cover pictures) with four
@@ -12,9 +14,15 @@
 /** The one-line hint under the photo. */
 export const CAPTURE_GUIDE_HINT = 'Fit the passport inside the lines';
 
-/** True when the chosen kind of document is the passport (catalogue ids are upper case). */
+/**
+ * True when the chosen kind of document is a passport: the catalogue entry it resolves to (the
+ * same lookup the add page uses, so aliases such as PARTNER_PASSPORT resolve) is the passport,
+ * the spouse's passport or the host's passport. Unknown or empty kinds are not passports.
+ */
 export function isPassportKind(kind: string | undefined): boolean {
-  return kind?.toLowerCase() === 'passport';
+  if (!kind) return false;
+  const entry = resolveDocumentType(kind);
+  return entry !== undefined && /(^|_)PASSPORT$/.test(entry.key);
 }
 
 const CORNERS = [

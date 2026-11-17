@@ -49,7 +49,17 @@ describe('isPassportKind', () => {
   it('is true only for the passport kind', () => {
     expect(isPassportKind('passport')).toBe(true);
     expect(isPassportKind('PASSPORT')).toBe(true);
+    for (const kind of [
+      'SPOUSE_PASSPORT',
+      'PARTNER_PASSPORT',
+      'HOST_PASSPORT',
+      'SPONSOR_PASSPORT',
+    ]) {
+      expect(isPassportKind(kind), kind).toBe(true);
+    }
     expect(isPassportKind('nid')).toBe(false);
+    expect(isPassportKind('NATIONAL_ID')).toBe(false);
+    expect(isPassportKind('NOT_A_REAL_KIND')).toBe(false);
     expect(isPassportKind('')).toBe(false);
     expect(isPassportKind(undefined)).toBe(false);
   });
@@ -77,6 +87,7 @@ describe('CapturePreview with a passport', () => {
     expect(host.querySelector('.capture-outline')).toBeNull();
     expect(host.textContent).toContain('Fit the passport inside the lines');
     expect(host.querySelector('.capture-guide-hint')?.getAttribute('aria-hidden')).toBeNull();
+    expect(host.querySelector('.capture-guide-hint')?.getAttribute('lang')).toBe('en');
   });
   it('keeps Use This and Retake exactly as before', async () => {
     const { onUse, onRetake } = await show('passport');

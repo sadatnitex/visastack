@@ -114,7 +114,9 @@ export function CapturePreview({
         ) : null}
       </div>
       {passport && shown === 'ready' ? (
-        <p className="capture-guide-hint">{CAPTURE_GUIDE_HINT}</p>
+        <p className="capture-guide-hint" lang="en">
+          {CAPTURE_GUIDE_HINT}
+        </p>
       ) : null}
       <p className="capture-note">{t.node('components.capturePreview.weCheckTheFileAgainAfter')}</p>
       <div className="capture-actions">
