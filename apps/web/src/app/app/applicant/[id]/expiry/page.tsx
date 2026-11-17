@@ -1,18 +1,23 @@
+import { tripChecksApply } from '@visastack/core';
 import {
+  type DeadlineEntry,
   type ExpiryUrgency,
   type StalenessStatus,
   classifyExpiry,
+  daysUntilDueDay,
   getApplicant,
   getEvidenceCandidates,
   getReminderThresholds,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
   listMissions,
+  recognisedTimeZone,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DeadlineClock } from '../../../../../components/deadline-clock';
+import { DeadlineTimeline, buildTimeline } from '../../../../../components/deadline-timeline';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { ShowMore } from '../../../../../components/show-more';
@@ -138,6 +143,60 @@ function ListEnd({
   );
 }
 
+/**
+ * The timeline's dates, all from what this page already read: the next appointment from the
+ * deadline clock, the passport end from the documents, and the trip start of the nearest open
+ * case (a handed-in, closed or cancelled case has no trip left to act on).
+ */
+function timelineFor(
+  data: {
+    readonly deadlines: readonly DeadlineEntry[] | null;
+    readonly intrinsic: readonly {
+      doc: { docType: string | null; expiresAt: Date | string | null };
+    }[];
+    readonly missions: readonly {
+      state: string;
+      travelStartDate: Date | null;
+      travelEndDate: Date | null;
+    }[];
+    readonly timezone?: string | null | undefined;
+  },
+  now: Date,
+  locale: Parameters<typeof formatDateOnly>[1],
+) {
+  const timezone = recognisedTimeZone(data.timezone ?? '') ?? 'UTC';
+  const appointment = data.deadlines?.find((e) => e.kind === 'appointment' && e.daysUntil >= 0);
+  const valid = (date: Date) => !Number.isNaN(date.getTime());
+  // A renewal replaces the old passport, so the latest expiry on file is the one in use.
+  const passportExpiry = data.intrinsic
+    .filter((row) => row.doc.docType === 'PASSPORT' && row.doc.expiresAt)
+    .map((row) => new Date(row.doc.expiresAt as Date | string))
+    .filter(valid)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const tripDay = (m: { travelStartDate: Date | null; travelEndDate: Date | null }) =>
+    m.travelStartDate ?? m.travelEndDate;
+  const trips = data.missions
+    .filter((m) => tripChecksApply(m.state))
+    .filter((m) => {
+      const day = tripDay(m);
+      return day instanceof Date && valid(day);
+    })
+    .sort((a, b) => (tripDay(a)?.getTime() ?? 0) - (tripDay(b)?.getTime() ?? 0));
+  // The nearest trip that has not ended its first day where the person is, else the latest past one.
+  const trip =
+    trips.find((m) => daysUntilDueDay(tripDay(m) as Date, now, timezone) >= 0) ??
+    trips[trips.length - 1];
+  return buildTimeline({
+    now,
+    timezone,
+    appointment: appointment ? { date: appointment.date, daysUntil: appointment.daysUntil } : null,
+    passportExpiry: passportExpiry ?? null,
+    travelStart: trip?.travelStartDate ?? null,
+    travelEnd: trip?.travelEndDate ?? null,
+    locale,
+  });
+}
+
 export default async function ExpiryCentrePage({
   params,
   searchParams,
@@ -197,13 +256,22 @@ export default async function ExpiryCentrePage({
         );
     });
 
-    return { intrinsic, verifications, freshnessRows, deadlines: await deadlinesRead };
+    return {
+      intrinsic,
+      verifications,
+      freshnessRows,
+      deadlines: await deadlinesRead,
+      // The same reads again for the timeline: nothing new is asked of the database.
+      missions: missionRows,
+      timezone: applicant.timezone,
+    };
   });
 
   if (!data) notFound();
   const shownDocs = showing('docs', data.intrinsic.length);
   const shownRules = showing('rules', data.freshnessRows.length);
   const shownChecks = showing('checks', data.verifications.length);
+  const timeline = timelineFor(data, now, locale);
   const depth = await readDepth('expiry');
   const depthWords = depthCopyFor('expiry');
 
@@ -227,6 +295,7 @@ export default async function ExpiryCentrePage({
       <DepthScope family="expiry" depth={depth}>
         <DepthSwitch family="expiry" initial={depth} copy={depthWords} />
         <div className="u-mb-150">
+          <DeadlineTimeline timeline={timeline} />
           <DeadlineClock
             heading={t('appApplicant.appApplicantIdExpiryPage.deadlineClock')}
             headingId="expiry-deadline-clock-heading"
