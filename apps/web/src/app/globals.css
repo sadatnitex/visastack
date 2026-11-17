@@ -21616,12 +21616,12 @@ body:lang(bn),
 .explain-tip-popup[hidden] {
   display: none;
 }
-/* The hover bridge: an invisible strip over the gap, so a pointer crossing from the trigger to the popup never leaves them. */
-.explain-tip-popup::before {
+/* The hover bridge: while open, an invisible strip over the gap under the trigger, so a pointer crossing onto the popup never leaves the holder. It belongs to the holder, not the popup: the popup scrolls, and a scrolling box clips what it draws outside itself. */
+.explain-tip[data-open]::after {
   content: "";
   position: absolute;
+  top: 100%;
   right: 0;
-  bottom: 100%;
   left: 0;
   height: 9px;
 }
@@ -21629,9 +21629,9 @@ body:lang(bn),
   top: auto;
   bottom: calc(100% + 8px);
 }
-.explain-tip[data-placement="above"] .explain-tip-popup::before {
-  top: 100%;
-  bottom: auto;
+.explain-tip[data-open][data-placement="above"]::after {
+  top: auto;
+  bottom: 100%;
 }
 .explain-tip[data-align="start"] .explain-tip-popup {
   right: auto;

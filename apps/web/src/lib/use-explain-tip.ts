@@ -79,7 +79,6 @@ export interface ExplainTipState {
     readonly onPointerLeave: (event: PointerEvent<HTMLElement>) => void;
     readonly onBlur: (event: FocusEvent<HTMLElement>) => void;
     readonly onPointerDown: () => void;
-    readonly onPointerUp: () => void;
   };
   /** Handlers for the trigger button. */
   readonly triggerProps: {
@@ -114,6 +113,10 @@ export function useExplainTip({
   // How it was opened. A popup a press opened stays until a second press, Escape or a press
   // outside: the pointer leaving does not close it (a pen lifting, a mouse moving on after a click).
   const how = useRef<'hover' | 'focus' | 'press' | null>(null);
+  // Ends the current press. Both press marks are cleared wherever the press ends, on the page
+  // or not at all (the browser cancels it for a scroll), so a drag that starts here and lifts
+  // elsewhere never leaves the popup held open or the next keyboard focus unable to open it.
+  const endPress = useRef<(() => void) | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -137,6 +140,21 @@ export function useExplainTip({
     [clearTimer, close],
   );
 
+  const startPress = useCallback(() => {
+    pressInside.current = true;
+    if (endPress.current) return;
+    const end = () => {
+      pressing.current = false;
+      pressInside.current = false;
+      document.removeEventListener('pointerup', end, { capture: true });
+      document.removeEventListener('pointercancel', end, { capture: true });
+      endPress.current = null;
+    };
+    document.addEventListener('pointerup', end, { capture: true });
+    document.addEventListener('pointercancel', end, { capture: true });
+    endPress.current = end;
+  }, []);
+
   // Forget this popup as "the open one" once it closes or leaves the page.
   useEffect(() => {
     if (!open && closeOpenTip === close) closeOpenTip = null;
@@ -144,6 +162,7 @@ export function useExplainTip({
   useEffect(
     () => () => {
       clearTimer();
+      endPress.current?.();
       if (closeOpenTip === close) closeOpenTip = null;
     },
     [clearTimer, close],
@@ -304,12 +323,7 @@ export function useExplainTip({
       onPointerEnter,
       onPointerLeave,
       onBlur,
-      onPointerDown: () => {
-        pressInside.current = true;
-      },
-      onPointerUp: () => {
-        pressInside.current = false;
-      },
+      onPointerDown: startPress,
     },
     triggerProps,
     close,

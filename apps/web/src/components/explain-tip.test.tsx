@@ -321,6 +321,44 @@ describe('ExplainTip: what a real browser does in between', () => {
     await unmount();
   });
 
+  it('a press that starts on the trigger and is released outside does not hold the popup open', async () => {
+    const { host, unmount } = await mount(
+      <>
+        <ExplainTip label={LABEL} text={TEXT}>
+          {picture}
+        </ExplainTip>
+        <button type="button">Next</button>
+      </>,
+    );
+    const { trigger, popup } = tip(host);
+    const next = host.querySelector<HTMLButtonElement>('button:not(.explain-tip-trigger)');
+    await act(async () => trigger.focus());
+    expect(popup.hidden).toBe(false);
+    // The pointer goes down on the trigger, drags off and lifts over the page: no click follows.
+    await act(async () => pointer('pointerdown', 'mouse', trigger));
+    await act(async () => pointer('pointerup', 'mouse', document.body));
+    // Tab moves on: the popup closes with it.
+    await act(async () => next?.focus());
+    expect(popup.hidden).toBe(true);
+    await unmount();
+  });
+
+  it('a press the browser cancels does not stop the next keyboard focus from opening it', async () => {
+    const { host, unmount } = await mount(
+      <ExplainTip label={LABEL} text={TEXT}>
+        {picture}
+      </ExplainTip>,
+    );
+    const { trigger, popup } = tip(host);
+    // Safari gives a pressed button no focus; the press is then cancelled (a scroll took over).
+    await act(async () => pointer('pointerdown', 'touch', trigger));
+    await act(async () => pointer('pointercancel', 'touch', document.body));
+    expect(popup.hidden).toBe(true);
+    await act(async () => trigger.focus());
+    expect(popup.hidden).toBe(false);
+    await unmount();
+  });
+
   it('Escape on the trigger closes only the popup, not a menu or dialog around it', async () => {
     const outer = vi.fn();
     document.addEventListener('keydown', outer);
@@ -407,6 +445,21 @@ describe('ExplainTip: stylesheet (WP-PIC1 block)', () => {
     ]) {
       expect(rules, name).toMatch(new RegExp(`\\.${name}[ ,:\\[{]`));
     }
+  });
+
+  it('keeps the hover bridge on the holder, outside the popup that scrolls and would clip it', () => {
+    // The popup scrolls (overflow-y: auto), which clips anything it draws outside its own box, so
+    // the strip over the gap belongs to the holder, which has no overflow of its own.
+    expect(rules).not.toMatch(/\.explain-tip-popup::?(before|after)/);
+    expect(rules).toMatch(
+      /\.explain-tip\[data-open\]::after \{[^}]*content: "";[^}]*position: absolute;[^}]*top: 100%;[^}]*height: 9px;/,
+    );
+    expect(rules).toMatch(
+      /\.explain-tip\[data-open\]\[data-placement="above"\]::after \{[^}]*top: auto;[^}]*bottom: 100%;/,
+    );
+    const holder = rules.match(/(^|\n)\.explain-tip \{[^}]*\}/)?.[0] ?? '';
+    expect(holder).toContain('position: relative;');
+    expect(holder).not.toMatch(/overflow|contain:|clip/);
   });
 
   it('stays flat and on the shared tokens', () => {
