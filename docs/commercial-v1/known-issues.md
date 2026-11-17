@@ -8292,3 +8292,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - New picture layer (apps/web/src/components/pictures): server-rendered pictures for document types with today's icon as fallback, and a passport cover chosen from the traveller's recorded nationality: the real Bangladesh cover (apps/web/public/pictures/passport-bd.png, sha256 53aff64a5f0138b13e62ac04ced8a098f7a9d5a84a35fe1d2b9594549751636d, owner decision D1) for Bangladeshi travellers, a neutral cover for everyone else or when the file fails. Depth and motion only in pictures-depth.css (ADR 0027), off under reduced motion and data saver (html[data-save-data], set from the Save-Data header and navigator.connection.saveData).
 - Security and correctness reviews passed after one fix round on the motion guard. NOT verified: the pictures are not yet on any page; a legal check of the state seal and Bengali text on the cover is advised before the public release.
+
+## 17 Nov 2026: WP-PIC6 Country card
+
+- Each country page opens with a Country card: the flag, the name, the entry type as a picture and a word (Not Yet Researched never looks like No Visa Needed), an explain button, and the source with its checked date. The ExplainTip stylesheet test now ends the WP-PIC1 block at its own end line instead of requiring it to be last (guard correction decided by the Guardian; start and end markers each exactly once).
+- NOT verified: a phone visual check; Bengali for any new words.
