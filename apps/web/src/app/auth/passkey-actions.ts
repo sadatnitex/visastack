@@ -94,7 +94,7 @@ async function rememberChallenge(
 async function takeChallenge(
   d: Deps,
   binding: { purpose: 'add' | 'confirm'; accountId: string; sessionRef: string },
-): Promise<string | null> {
+): Promise<{ readonly challenge: string; readonly issuedAt: Date } | null> {
   const { cookies } = await import('next/headers');
   const store = await cookies();
   const secure = secureCookies(d);
@@ -124,8 +124,7 @@ function browserAnswer<T>(value: unknown): T | null {
 function reauthFailure(d: Deps): Failure {
   return {
     ok: false,
-    message:
-      'For your safety, type your password first, then come back to add or remove a passkey.',
+    message: 'For your safety, confirm it is you first, then come back to add or remove a passkey.',
     reauthUrl: d.recency.neonReauthUrl(d.web.PASSKEYS_PATH),
   };
 }
@@ -187,7 +186,8 @@ export async function finishPasskeyConfirmAction(
     const confirmed = await d.passkeys.finishPasskeyConfirmation(db, {
       accountId,
       rp: d.web.passkeyRelyingParty(),
-      expectedChallenge: challenge,
+      expectedChallenge: challenge.challenge,
+      challengeIssuedAt: challenge.issuedAt,
       response,
       sessionRef,
     });
@@ -248,7 +248,7 @@ export async function finishPasskeyAddAction(
     const saved = await d.passkeys.finishPasskeyRegistration(db, {
       accountId,
       rp: d.web.passkeyRelyingParty(),
-      expectedChallenge: challenge,
+      expectedChallenge: challenge.challenge,
       response,
       label: typeof label === 'string' ? label : null,
     });

@@ -136,28 +136,60 @@ export async function signInLinkAction(formData: FormData): Promise<void> {
     redirect(target ? `/auth/sign-in?${target.slice(1)}` : '/auth/sign-in');
   const email = field(formData, 'email').trim();
   if (!validEmail(email)) redirect(`/auth/sign-in?e=link_invalid${target}`);
+  if (!(await sendSignInLink(email, next))) redirect(`/auth/sign-in?e=slow${target}`);
+  redirect(`/auth/sign-in?n=link_sent${target}`);
+}
+
+/**
+ * "Email me a sign-in link instead" on the confirm-it-is-you page, for the signed-in person's own
+ * address (read from the server session, never the form). Opening the link makes a fresh sign-in,
+ * which is what that page asks for, so someone who signs in only with links is never stuck there.
+ */
+export async function reauthLinkAction(formData: FormData): Promise<void> {
+  const returnTo = safeReturnPath(field(formData, 'returnTo'));
+  const back = `/auth/reauth?returnTo=${encodeURIComponent(returnTo)}`;
+  const { signInLinksEnabled } = await import('../../lib/sign-in-links');
+  if (!signInLinksEnabled()) redirect(back);
+  const { getNeonAuth } = await import('../../lib/neon-auth');
+  const { data } = await getNeonAuth().getSession();
+  const email = data?.user?.email;
+  if (!email) redirect('/auth/sign-in');
+  if (!(await sendSignInLink(email, returnTo))) redirect(`${back}&e=slow`);
+  redirect(`${back}&n=link_sent`);
+}
+
+/**
+ * Ask Neon Auth to email a sign-in link that returns to `next` on this site. False only when the
+ * email limit says no (or cannot be read). Every valid address takes the same steps; a Neon Auth
+ * failure is logged with its status only and still reported as sent, so the answer never depends
+ * on the address.
+ */
+async function sendSignInLink(email: string, next: string): Promise<boolean> {
   const allowed = await withinAuthLimits({
     email,
     byEmail: 'AUTH_EMAIL_SEND_EMAIL',
     byAddress: 'AUTH_EMAIL_SEND_IP',
     onFailure: 'deny',
   });
-  if (!allowed) redirect(`/auth/sign-in?e=slow${target}`);
+  if (!allowed) return false;
   const origin = resolveBaseUrl();
   const { reportServerError } = await import('../../lib/server-error');
   try {
     const { getNeonAuth } = await import('../../lib/neon-auth');
     const { withTimeout } = await import('../../lib/social-sign-in');
+    const { magicLinkSignIn } = await import('../../lib/sign-in-links');
+    const send = magicLinkSignIn(getNeonAuth());
+    if (!send) throw new Error('Neon Auth offers no sign-in link here');
     const { error } = await withTimeout(
-      getNeonAuth().signIn.magicLink({
+      send({
         email,
         callbackURL: `${origin}/auth/link-return?next=${encodeURIComponent(next)}`,
-        errorCallbackURL: `${origin}/auth/sign-in?e=link_expired${target}`,
+        errorCallbackURL: `${origin}/auth/sign-in?e=link_expired${signInTarget(next)}`,
       }),
       SIGN_IN_LINK_TIMEOUT_MS,
     );
     if (error) {
-      const detail = error as { status?: unknown; code?: unknown };
+      const detail = error;
       reportServerError('signInLink', new Error('Neon Auth did not send a sign-in link'), {
         status: String(detail.status ?? ''),
         code: String(detail.code ?? ''),
@@ -166,7 +198,7 @@ export async function signInLinkAction(formData: FormData): Promise<void> {
   } catch (error) {
     reportServerError('signInLink', error);
   }
-  redirect(`/auth/sign-in?n=link_sent${target}`);
+  return true;
 }
 
 export async function signUpAction(formData: FormData): Promise<void> {

@@ -37,7 +37,7 @@ const NOTICES: Record<string, string> = {
   confirmed: 'Your email address is confirmed. You can sign in now.',
   reset: 'Your password has been changed. Sign in with the new one.',
   link_sent:
-    'We sent a sign-in link to that address. Open it on this device within 5 minutes. If it does not arrive, check your spam folder.',
+    'We sent a sign-in link to that address. Open it soon, on this device. If it does not arrive, check your spam folder.',
 };
 
 export default async function SignInPage({

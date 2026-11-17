@@ -96,6 +96,12 @@ export function encodePasskeyChallenge(
   return `${encoded}.${signature(encoded, secret).toString('base64url')}`;
 }
 
+export interface PasskeyChallenge {
+  readonly challenge: string;
+  /** When it was given out (its expiry less its lifetime). */
+  readonly issuedAt: Date;
+}
+
 /**
  * The challenge in a cookie value, only if the signature holds, it has not expired, and it was
  * made for exactly this purpose, account and sign-in. Anything else is null.
@@ -105,7 +111,7 @@ export function readPasskeyChallenge(
   binding: ChallengeBinding,
   secret: string,
   now: number = Date.now(),
-): string | null {
+): PasskeyChallenge | null {
   if (!value || value.length > 2048) return null;
   const parts = value.split('.');
   if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
@@ -122,7 +128,7 @@ export function readPasskeyChallenge(
     if (typeof payload.e !== 'number' || payload.e < now) return null;
     if (payload.p !== binding.purpose) return null;
     if (payload.a !== binding.accountId || payload.s !== binding.sessionRef) return null;
-    return payload.c;
+    return { challenge: payload.c, issuedAt: new Date(payload.e - PASSKEY_CHALLENGE_LIFETIME_MS) };
   } catch {
     return null;
   }

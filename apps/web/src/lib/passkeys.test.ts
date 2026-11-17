@@ -44,7 +44,10 @@ describe('passkeyRelyingParty', () => {
 describe('the passkey challenge cookie', () => {
   it('round-trips for exactly the same purpose, account and sign-in', () => {
     const value = encodePasskeyChallenge('chal-1', BINDING, SECRET, NOW);
-    expect(readPasskeyChallenge(value, BINDING, SECRET, NOW + 1000)).toBe('chal-1');
+    expect(readPasskeyChallenge(value, BINDING, SECRET, NOW + 1000)).toEqual({
+      challenge: 'chal-1',
+      issuedAt: new Date(NOW),
+    });
   });
 
   it('is refused for another purpose, account or sign-in (signed out and back in)', () => {

@@ -14,8 +14,9 @@ vi.mock('server-only', () => ({}));
 
 const magicLink = vi.fn();
 const signInEmail = vi.fn();
+const getSession = vi.fn();
 vi.mock('../../lib/neon-auth', () => ({
-  getNeonAuth: () => ({ signIn: { magicLink, email: signInEmail } }),
+  getNeonAuth: () => ({ signIn: { magicLink, email: signInEmail }, getSession }),
 }));
 const withinAuthLimits = vi.fn(async (_input?: unknown) => true);
 vi.mock('../../lib/auth-throttle', () => ({
@@ -31,7 +32,7 @@ vi.mock('../../lib/server-error', () => ({
   reportServerError: (...args: unknown[]) => reportServerError(...args),
 }));
 
-import { signInLinkAction } from './actions';
+import { reauthLinkAction, signInLinkAction } from './actions';
 
 function form(values: Record<string, string>): FormData {
   const data = new FormData();
@@ -118,5 +119,42 @@ describe('signInLinkAction', () => {
     );
     expect(magicLink).not.toHaveBeenCalled();
     expect(withinAuthLimits).not.toHaveBeenCalled();
+  });
+});
+
+describe('reauthLinkAction', () => {
+  async function reauthOutcome(returnTo: string): Promise<string> {
+    try {
+      await reauthLinkAction(form({ returnTo, email: 'someone-else@example.com' }));
+    } catch (error) {
+      return (error as Error).message.replace('REDIRECT:', '');
+    }
+    throw new Error('expected a redirect');
+  }
+
+  it("sends the link to the signed-in person's own address, never one from the form", async () => {
+    getSession.mockResolvedValue({ data: { user: { email: 'me@example.com' } } });
+    expect(await reauthOutcome('/app/privacy')).toBe(
+      '/auth/reauth?returnTo=%2Fapp%2Fprivacy&n=link_sent',
+    );
+    expect(magicLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'me@example.com',
+        callbackURL: 'https://app.example.test/auth/link-return?next=%2Fapp%2Fprivacy',
+      }),
+    );
+  });
+
+  it('needs a sign-in, respects the email limit, and does nothing while switched off', async () => {
+    getSession.mockResolvedValue({ data: null });
+    expect(await reauthOutcome('/app/privacy')).toBe('/auth/sign-in');
+    getSession.mockResolvedValue({ data: { user: { email: 'me@example.com' } } });
+    withinAuthLimits.mockResolvedValueOnce(false);
+    expect(await reauthOutcome('/app/privacy')).toBe(
+      '/auth/reauth?returnTo=%2Fapp%2Fprivacy&e=slow',
+    );
+    vi.stubEnv('SIGN_IN_LINKS', '');
+    expect(await reauthOutcome('/app/privacy')).toBe('/auth/reauth?returnTo=%2Fapp%2Fprivacy');
+    expect(magicLink).not.toHaveBeenCalled();
   });
 });

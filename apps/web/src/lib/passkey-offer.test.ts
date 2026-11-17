@@ -19,6 +19,7 @@ vi.mock('@visastack/services/passkeys', () => ({
 }));
 const isStaffContext = vi.fn();
 vi.mock('./session-age', () => ({
+  TRAVELLER_MAX_SESSION_AGE_SECONDS: 7 * 24 * 60 * 60,
   isStaffContext: (...args: unknown[]) => isStaffContext(...args),
 }));
 const withSession = vi.fn();
@@ -41,27 +42,33 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe('passkeyOfferedAtReauth', () => {
   it('offers a passkey to a signed-in traveller who has one', async () => {
-    expect(await passkeyOfferedAtReauth()).toBe(true);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(true);
     expect(withSession).not.toHaveBeenCalled();
   });
 
   it('offers nothing when it could not help', async () => {
     vi.stubEnv('PASSKEYS', '');
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
     vi.stubEnv('PASSKEYS', 'on');
     hasPasskey.mockResolvedValueOnce(false);
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
     hasPasskey.mockResolvedValueOnce(null);
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
     isStaffContext.mockResolvedValueOnce(true);
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
     neonSessionAgeSeconds.mockResolvedValueOnce(8 * 24 * 60 * 60);
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
     getSession.mockResolvedValueOnce({ data: null });
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
     getAccountByEmail.mockResolvedValueOnce(undefined);
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
     getSession.mockRejectedValueOnce(new Error('down'));
-    expect(await passkeyOfferedAtReauth()).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/privacy')).toBe(false);
+  });
+
+  it('never offers a passkey on the way back to the passkeys page, which needs a fresh sign-in', async () => {
+    expect(await passkeyOfferedAtReauth('/app/account/passkeys')).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/account/passkeys?n=added')).toBe(false);
+    expect(await passkeyOfferedAtReauth('/app/account/passkeys-other')).toBe(true);
   });
 });

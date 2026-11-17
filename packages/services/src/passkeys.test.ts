@@ -95,12 +95,14 @@ async function confirmWith(
   key: SoftPasskey,
   sessionRef = 'session-a',
 ): Promise<Awaited<ReturnType<typeof finishPasskeyConfirmation>>> {
+  const challengeIssuedAt = new Date();
   const options = await startPasskeyConfirmation(db, { accountId, rp: RP });
   if (!isOk(options)) throw new Error('confirmation options failed');
   return finishPasskeyConfirmation(db, {
     accountId,
     rp: RP,
     expectedChallenge: options.value.challenge,
+    challengeIssuedAt,
     response: key.confirm(options.value.challenge),
     sessionRef,
   });
@@ -154,6 +156,7 @@ describe('passkeys', () => {
     await addPasskey(db, owner, ownerKey);
     await addPasskey(db, other, otherKey);
 
+    const issuedAt = new Date();
     const options = await startPasskeyConfirmation(db, { accountId: owner, rp: RP });
     if (!isOk(options)) throw new Error('options failed');
     const challenge = options.value.challenge;
@@ -161,6 +164,7 @@ describe('passkeys', () => {
       accountId: owner,
       rp: RP,
       expectedChallenge: challenge,
+      challengeIssuedAt: issuedAt,
       response: otherKey.confirm(challenge),
       sessionRef: 's',
     });
@@ -169,6 +173,7 @@ describe('passkeys', () => {
       accountId: owner,
       rp: RP,
       expectedChallenge: challenge,
+      challengeIssuedAt: issuedAt,
       response: ownerKey.confirm('c29tZS1vdGhlci1jaGFsbGVuZ2U'),
       sessionRef: 's',
     });
@@ -177,6 +182,7 @@ describe('passkeys', () => {
       accountId: owner,
       rp: RP,
       expectedChallenge: challenge,
+      challengeIssuedAt: issuedAt,
       response: ownerKey.confirm(challenge, 'https://evil.example.test'),
       sessionRef: 's',
     });
@@ -189,6 +195,7 @@ describe('passkeys', () => {
     const accountId = await account(db);
     const key = new SoftPasskey({ ...RP, counter: 5 });
     await addPasskey(db, accountId, key);
+    const issuedAt = new Date();
     const options = await startPasskeyConfirmation(db, { accountId, rp: RP });
     if (!isOk(options)) throw new Error('options failed');
     const challenge = options.value.challenge;
@@ -196,6 +203,7 @@ describe('passkeys', () => {
       accountId,
       rp: RP,
       expectedChallenge: challenge,
+      challengeIssuedAt: issuedAt,
       response: key.confirm(challenge),
       sessionRef: 's',
     });
@@ -204,6 +212,7 @@ describe('passkeys', () => {
       accountId,
       rp: RP,
       expectedChallenge: challenge,
+      challengeIssuedAt: issuedAt,
       response: key.confirm(challenge),
       sessionRef: 's2',
     });
@@ -214,6 +223,28 @@ describe('passkeys', () => {
     const backwards = await confirmWith(db, accountId, key, 's3');
     expect(isErr(backwards)).toBe(true);
     expect(await passkeyConfirmedAt(db, { accountId, sessionRef: 's3' })).toBeNull();
+  });
+
+  it('refuses an older answer kept back after a newer one was used, even with no counter', async () => {
+    const db = await freshDb();
+    const accountId = await account(db);
+    const key = new SoftPasskey(RP);
+    await addPasskey(db, accountId, key);
+    const olderIssuedAt = new Date(Date.now() - 60_000);
+    const older = await startPasskeyConfirmation(db, { accountId, rp: RP });
+    if (!isOk(older)) throw new Error('options failed');
+    const keptBack = key.confirm(older.value.challenge);
+    expect(isOk(await confirmWith(db, accountId, key, 's-new'))).toBe(true);
+    const replayed = await finishPasskeyConfirmation(db, {
+      accountId,
+      rp: RP,
+      expectedChallenge: older.value.challenge,
+      challengeIssuedAt: olderIssuedAt,
+      response: keptBack,
+      sessionRef: 's-attacker',
+    });
+    expect(isErr(replayed)).toBe(true);
+    expect(await passkeyConfirmedAt(db, { accountId, sessionRef: 's-attacker' })).toBeNull();
   });
 
   it('refuses a passkey made without a fingerprint, face or PIN check', async () => {

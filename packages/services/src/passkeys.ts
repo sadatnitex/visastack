@@ -34,8 +34,6 @@ import { isMissingRelationError } from './missing-relation';
  */
 
 export const PASSKEY_LIMIT = 10;
-/** How long a passkey confirmation counts as recent, the same window as a typed password. */
-export const PASSKEY_PROOF_FRESH_MS = 5 * 60 * 1000;
 export const PASSKEY_LABEL_MAX = 60;
 const CEREMONY_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -197,10 +195,27 @@ export async function listPasskeys(db: Db, accountId: string): Promise<PasskeyLi
   }
 }
 
+async function countPasskeys(db: Db, accountId: string): Promise<number> {
+  const rows = rowsOf<{ n: unknown }>(
+    await db.execute(
+      sql`select count(*)::int as n from passkey_credentials where account_id = ${accountId}`,
+    ),
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
 /** Whether the account has at least one passkey; null when that cannot be read (no table yet). */
 export async function hasPasskey(db: Db, accountId: string): Promise<boolean | null> {
-  const list = await listPasskeys(db, accountId);
-  return list.state === 'ok' ? list.passkeys.length > 0 : null;
+  try {
+    const rows = rowsOf<{ present: unknown }>(
+      await db.execute(sql`
+        select exists(select 1 from passkey_credentials where account_id = ${accountId}) as present`),
+    );
+    return rows[0]?.present === true;
+  } catch (error) {
+    if (isMissingRelationError(error)) return null;
+    throw error;
+  }
 }
 
 /** Options for adding a passkey. The caller keeps `options.challenge` and checks a fresh step-up first. */
@@ -267,20 +282,26 @@ export async function finishPasskeyRegistration(
   const label = normalisePasskeyLabel(input.label);
   let inserted: { id: string }[];
   try {
-    inserted = rowsOf<{ id: string }>(
-      await db.execute(sql`
-        insert into passkey_credentials
-          (account_id, credential_id, public_key, sign_count, transports, aaguid, device_type,
-           backed_up, label)
-        select ${input.accountId}, ${info.credential.id},
-          ${Buffer.from(info.credential.publicKey)}, ${info.credential.counter},
-          ${transportsLiteral(info.credential.transports)}::text[], ${info.aaguid},
-          ${info.credentialDeviceType}, ${info.credentialBackedUp}, ${label}
-        where (select count(*) from passkey_credentials where account_id = ${input.accountId})
-          < ${PASSKEY_LIMIT}
-        on conflict (credential_id) do nothing
-        returning id`),
-    );
+    // One account's saves run one at a time, so two tabs cannot both pass the limit check.
+    inserted = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`visastack:passkeys:${input.accountId}`}))`,
+      );
+      return rowsOf<{ id: string }>(
+        await tx.execute(sql`
+          insert into passkey_credentials
+            (account_id, credential_id, public_key, sign_count, transports, aaguid, device_type,
+             backed_up, label)
+          select ${input.accountId}, ${info.credential.id},
+            ${Buffer.from(info.credential.publicKey)}, ${info.credential.counter},
+            ${transportsLiteral(info.credential.transports)}::text[], ${info.aaguid},
+            ${info.credentialDeviceType}, ${info.credentialBackedUp}, ${label}
+          where (select count(*) from passkey_credentials where account_id = ${input.accountId})
+            < ${PASSKEY_LIMIT}
+          on conflict (credential_id) do nothing
+          returning id`),
+      );
+    });
   } catch (error) {
     if (isMissingRelationError(error)) return err(UNAVAILABLE);
     throw error;
@@ -294,7 +315,7 @@ export async function finishPasskeyRegistration(
       ),
     );
   }
-  const count = (await credentialsFor(db, input.accountId)).length;
+  const count = await countPasskeys(db, input.accountId);
   await audit(db, input.accountId, 'PASSKEY_ADDED', 'ALLOWED', { count });
   return ok({ id: row.id });
 }
@@ -329,7 +350,9 @@ export async function startPasskeyConfirmation(
 /**
  * Check a passkey answer for THIS account and THIS sign-in, then record the use. Only the
  * account's own passkeys are considered; the challenge must be the one this browser was given;
- * the same challenge is refused a second time; a counter that goes backwards is refused.
+ * the same challenge is refused a second time, and so is any challenge given out before the
+ * passkey's last use (an older answer kept back cannot be played later, even by a passkey whose
+ * counter never moves); a counter that goes backwards is refused.
  */
 export async function finishPasskeyConfirmation(
   db: Db,
@@ -337,6 +360,8 @@ export async function finishPasskeyConfirmation(
     readonly accountId: string;
     readonly rp: PasskeyRelyingParty;
     readonly expectedChallenge: string;
+    /** When the challenge was given out; a challenge older than the credential's last use is refused. */
+    readonly challengeIssuedAt: Date;
     readonly response: AuthenticationResponseJSON;
     readonly sessionRef: string;
     readonly now?: Date;
@@ -392,6 +417,7 @@ export async function finishPasskeyConfirmation(
       where id = ${row.id}
         and account_id = ${input.accountId}
         and last_challenge_hash is distinct from ${challengeHash}
+        and (last_used_at is null or last_used_at <= ${input.challengeIssuedAt.toISOString()}::timestamptz)
         and ((sign_count = 0 and ${newCounter} = 0) or ${newCounter} > sign_count)
       returning id`),
   );
@@ -462,7 +488,7 @@ export async function removePasskey(
     throw error;
   }
   if (!removed[0]) return err(serviceError('not_found', 'That passkey is no longer on your list.'));
-  const count = (await credentialsFor(db, input.accountId)).length;
+  const count = await countPasskeys(db, input.accountId);
   await audit(db, input.accountId, 'PASSKEY_REMOVED', 'ALLOWED', { count });
   return ok(true);
 }
