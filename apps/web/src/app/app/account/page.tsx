@@ -16,8 +16,10 @@ import { loadOwnPhoto } from '../../../lib/profile-photos';
 import { ClearShareInboxOnSubmit } from '../../../lib/pwa/clear-share-inbox-on-submit';
 import { withSession } from '../../../lib/session';
 import { signOutCurrentUser } from '../../../lib/sign-out';
+import { webPushReady } from '../../../lib/web-push';
 import { readWhatsAppConfig } from '../../../lib/whatsapp';
 import { setLocaleAction } from '../../actions';
+import { PushCard, TurnOffPushOnSubmit } from './push-card';
 
 export const metadata: Metadata = { title: 'Account' };
 
@@ -28,11 +30,12 @@ export default async function AccountPage() {
   const t = getServerT(appAccountCatalog);
   const depth = await readDepth('account');
   const data = await withSession(async ({ db, accountId, email }) => {
-    const [isAdmin, memberships, photo, whatsapp] = await Promise.all([
+    const [isAdmin, memberships, photo, whatsapp, push] = await Promise.all([
       holdsPlatformRole(db, { accountId, email }),
       listMembershipsForAccount(db, accountId),
       loadOwnPhoto(db, accountId),
       getWhatsAppConnection(db, accountId),
+      webPushReady(db),
     ]);
     return {
       email,
@@ -40,6 +43,7 @@ export default async function AccountPage() {
       hasAgencyAccess: memberships.length > 0,
       photo,
       whatsappConnected: whatsapp.connected,
+      push,
     };
   });
 
@@ -91,11 +95,15 @@ export default async function AccountPage() {
               }}
             >
               <ClearShareInboxOnSubmit />
+              {data.push ? <TurnOffPushOnSubmit /> : null}
               <button type="submit" className="btn btn-secondary">
                 {t.node('appAccount.appAccountPage.signOut')}
               </button>
             </form>
           </article>
+
+          {/* WP-PIC18: only while Web Push is on and ready; the card hides itself where the browser cannot alert. */}
+          {data.push ? <PushCard publicKey={data.push.publicKey} /> : null}
 
           {data.photo ? (
             <div className="depth-item" {...atLevel('browse')}>
