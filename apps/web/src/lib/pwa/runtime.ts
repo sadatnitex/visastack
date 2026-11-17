@@ -10,6 +10,7 @@
  */
 
 import { CACHE_PREFIX } from './constants';
+import { SHARE_INBOX_CACHE } from './share-target';
 
 export const SERVICE_WORKER_URL = '/sw.js';
 
@@ -72,7 +73,7 @@ export function applyUpdate(
 
 /**
  * Removes every VisaStack worker and its stored files on this device (used while the worker is
- * switched off). The files are deleted here too, because unregistering first means the retirement
+ * switched off), including any shared files still waiting in the worker's inbox (WP-PIC11). The files are deleted here too, because unregistering first means the retirement
  * worker may never get to run.
  */
 export async function unregisterAll(
@@ -84,7 +85,9 @@ export async function unregisterAll(
   if (!storage) return;
   const names = await storage.keys();
   await Promise.all(
-    names.filter((name) => name.startsWith(CACHE_PREFIX)).map((name) => storage.delete(name)),
+    names
+      .filter((name) => name.startsWith(CACHE_PREFIX) || name === SHARE_INBOX_CACHE)
+      .map((name) => storage.delete(name)),
   );
 }
 

@@ -23,19 +23,26 @@ export function StatusBadge({
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
-/** The one thing to do next, with the reason, so the person never has to guess. */
+/**
+ * The one thing to do next, with the reason, so the person never has to guess. Opt-in
+ * `beforeAfter` (WP-PIC13): the ring now and the ring after this step (`BeforeAfterHero` from
+ * ui-lift, drawn by the page so this module stays free of the picture layer); without it the card
+ * is exactly as before.
+ */
 export function NextStepCard({
   title,
   why,
   href,
   action,
   tone,
+  beforeAfter,
 }: {
   readonly title: string;
   readonly why?: string;
   readonly href: string;
   readonly action: string;
   readonly tone?: 'warning' | 'ok';
+  readonly beforeAfter?: ReactNode;
 }) {
   return (
     <section
@@ -49,6 +56,7 @@ export function NextStepCard({
         <h2 className="next-step-title" id="next-step-title">
           {title}
         </h2>
+        {beforeAfter ?? null}
         {why ? (
           <AboutDisclosure summary="Why This Step" className="next-step-fold">
             <p className="next-step-why">{why}</p>

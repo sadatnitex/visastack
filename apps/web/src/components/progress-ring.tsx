@@ -39,6 +39,11 @@ export interface ProgressRingProps {
   readonly emptyLabel?: string;
   /** A way to get a checklist, shown with the teaching line when the ring is empty. Leave it out inside a link. */
   readonly emptyAction?: { readonly href: string; readonly label: string };
+  /**
+   * What is counted, in Title Case, for a ring that does not count checklist items (the profile
+   * essentials say "3 of 9 Essentials Added"). Left out, the words stay "N of M items ready".
+   */
+  readonly countLabel?: string | undefined;
 }
 
 function RingArc({ percent }: { readonly percent: number }) {
@@ -69,10 +74,16 @@ export function ProgressRing({
   emptyLine = NO_CHECKLIST_LINE,
   emptyLabel = NO_CHECKLIST_LABEL,
   emptyAction,
+  countLabel,
 }: ProgressRingProps): ReactNode {
   const empty = total <= 0;
   const percent = empty ? 0 : progressRingPercent(done, total);
-  const words = empty ? emptyLabel : progressRingWords(Math.min(done, total), total);
+  const shown = Math.min(done, total);
+  const words = empty
+    ? emptyLabel
+    : countLabel
+      ? `${shown} of ${total} ${countLabel}`
+      : progressRingWords(shown, total);
   const full = !empty && done >= total;
   const className = [
     'progress-ring',
