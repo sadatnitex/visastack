@@ -12,18 +12,20 @@ const state = vi.hoisted(() => ({
   saved: [] as unknown[],
   removed: [] as unknown[],
   saveResult: 'saved' as 'saved' | 'unavailable',
+  sessionRef: 'session-ref-1' as string | null,
 }));
 
 vi.mock('../../../lib/web-push', () => ({
   webPushReady: async () => state.ready,
   webPushKeyPort: () => (state.ready ? { currentKeyVersion: () => 'v1' } : null),
 }));
-vi.mock('../../../lib/neon-recency', () => ({ neonSessionRef: async () => 'session-ref-1' }));
+vi.mock('../../../lib/neon-recency', () => ({ neonSessionRef: async () => state.sessionRef }));
 vi.mock('@visastack/services/web-push', () => ({
   saveWebPushSubscription: async (_db: unknown, _port: unknown, input: unknown) => {
     state.saved.push(input);
     return state.saveResult;
   },
+  hasWebPushSubscription: async () => true,
   removeWebPushSubscription: async (_db: unknown, input: unknown) => {
     state.removed.push(input);
     return 1;
@@ -54,7 +56,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 }));
 
 const { default: AccountPage } = await import('./page');
-const { turnOnPushAction, turnOffPushAction } = await import('./push-actions');
+const { pushStatusAction, turnOnPushAction, turnOffPushAction } = await import('./push-actions');
 
 const GOOD = {
   endpoint: 'https://fcm.googleapis.com/fcm/send/device-1',
@@ -70,6 +72,7 @@ beforeEach(() => {
   state.saved = [];
   state.removed = [];
   state.saveResult = 'saved';
+  state.sessionRef = 'session-ref-1';
 });
 
 describe('Account page alerts card', () => {
@@ -94,6 +97,7 @@ describe('Turn On and Turn Off', () => {
     const on = await turnOnPushAction(GOOD);
     const off = await turnOffPushAction(GOOD.endpoint);
     const junk = await turnOnPushAction({ nonsense: true });
+    expect(await pushStatusAction(GOOD.endpoint)).toEqual({ ok: false });
     expect(on).toEqual({ ok: false });
     expect(off).toEqual({ ok: false });
     expect(junk).toEqual(on);
@@ -121,6 +125,13 @@ describe('Turn On and Turn Off', () => {
     ]) {
       expect(await turnOnPushAction(bad)).toEqual({ ok: false });
     }
+    expect(state.saved).toEqual([]);
+  });
+
+  it('refuse to store a browser that signing out could not forget', async () => {
+    state.ready = { publicKey: 'PUBLIC-KEY' };
+    state.sessionRef = null;
+    expect(await turnOnPushAction(GOOD)).toEqual({ ok: false });
     expect(state.saved).toEqual([]);
   });
 

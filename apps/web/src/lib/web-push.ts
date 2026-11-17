@@ -1,5 +1,6 @@
 import 'server-only';
-import { WebPushSender, createVapidIdentity } from '@visastack/adapters';
+import { createHash } from 'node:crypto';
+import { type VapidIdentity, WebPushSender, createVapidIdentity } from '@visastack/adapters';
 import { switchOn } from '@visastack/core';
 import type { Db, KeyManagementPort } from '@visastack/services';
 import { type PushPort, webPushTableReady } from '@visastack/services/web-push';
@@ -36,13 +37,22 @@ export function webPushKeyPort(): KeyManagementPort | null {
   }
 }
 
-function identity() {
+let cached: { readonly key: string; readonly identity: VapidIdentity | null } | undefined;
+
+/** The server's push identity, built once per set of key values (re-read if they change). */
+function identity(): VapidIdentity | null {
   if (!webPushSwitchOn()) return null;
-  return createVapidIdentity({
+  const input = {
     publicKey: readEnv('WEB_PUSH_VAPID_PUBLIC_KEY'),
     privateKey: readEnv('WEB_PUSH_VAPID_PRIVATE_KEY'),
     subject: readEnv('WEB_PUSH_SUBJECT'),
-  });
+  };
+  // The cache key is a hash, so the private key is never kept as text beside the built key.
+  const key = createHash('sha256')
+    .update(`${input.publicKey ?? ''}\n${input.privateKey ?? ''}\n${input.subject ?? ''}`)
+    .digest('hex');
+  if (cached?.key !== key) cached = { key, identity: createVapidIdentity(input) };
+  return cached.identity;
 }
 
 /** The sender for the notification worker, or undefined while Web Push is off. */

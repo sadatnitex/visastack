@@ -73,6 +73,15 @@ function load() {
 }
 
 describe('push worker', () => {
+  it('shows the same words and fallback page as the server sends', async () => {
+    const server = await import('@visastack/services/web-push');
+    const worker = await import('./push-worker');
+    expect(worker.PUSH_TITLE).toBe(server.WEB_PUSH_TITLE);
+    expect(worker.PUSH_BODY).toBe(server.WEB_PUSH_BODY);
+    expect(worker.PUSH_FALLBACK_PATH).toBe(server.WEB_PUSH_FALLBACK_PATH);
+    expect(worker.PUSH_TAG).toBe(server.WEB_PUSH_TOPIC);
+  });
+
   it('is carried only while WEB_PUSH is true', () => {
     expect(isWebPushSwitchOn(() => undefined)).toBe(false);
     expect(isWebPushSwitchOn(() => 'on')).toBe(false);

@@ -1,7 +1,11 @@
 'use server';
 
 import { parsePushSubscription } from '@visastack/adapters';
-import { removeWebPushSubscription, saveWebPushSubscription } from '@visastack/services/web-push';
+import {
+  hasWebPushSubscription,
+  removeWebPushSubscription,
+  saveWebPushSubscription,
+} from '@visastack/services/web-push';
 import { neonSessionRef } from '../../../lib/neon-recency';
 import { withSession } from '../../../lib/session';
 import { webPushKeyPort, webPushReady } from '../../../lib/web-push';
@@ -23,7 +27,9 @@ export async function turnOnPushAction(subscription: unknown): Promise<PushActio
     const ready = await webPushReady(db);
     const port = webPushKeyPort();
     if (!ready || !port || !parsed) return REFUSED;
+    // Without this sign-in's reference, signing out could not forget the browser: refuse.
     const sessionRef = await neonSessionRef().catch(() => null);
+    if (!sessionRef) return REFUSED;
     try {
       const saved = await saveWebPushSubscription(db, port, {
         accountId,
@@ -44,6 +50,19 @@ export async function turnOffPushAction(endpoint: unknown): Promise<PushActionRe
     try {
       await removeWebPushSubscription(db, { accountId, endpoint });
       return { ok: true };
+    } catch {
+      return REFUSED;
+    }
+  });
+}
+
+/** Whether this browser's alerts are on for the signed-in account, as the server knows it. */
+export async function pushStatusAction(endpoint: unknown): Promise<PushActionResult> {
+  return withSession(async ({ db, accountId }) => {
+    const ready = await webPushReady(db);
+    if (!ready || typeof endpoint !== 'string' || endpoint.length > 2048) return REFUSED;
+    try {
+      return (await hasWebPushSubscription(db, { accountId, endpoint })) ? { ok: true } : REFUSED;
     } catch {
       return REFUSED;
     }

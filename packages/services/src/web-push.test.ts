@@ -19,6 +19,7 @@ import {
   composeWebPushMessage,
   countWebPushSubscriptions,
   endpointHash,
+  hasWebPushSubscription,
   removeWebPushSubscription,
   removeWebPushSubscriptionsForSession,
   safePushPath,
@@ -193,6 +194,18 @@ describe('web push subscriptions', () => {
     });
     expect(await countWebPushSubscriptions(db, alice)).toBe(0);
     expect(await countWebPushSubscriptions(db, bob)).toBe(1);
+    expect(await hasWebPushSubscription(db, { accountId: alice, endpoint: sub(1).endpoint })).toBe(
+      false,
+    );
+    expect(await hasWebPushSubscription(db, { accountId: bob, endpoint: sub(1).endpoint })).toBe(
+      true,
+    );
+    const off = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'WEB_PUSH_TURNED_OFF'));
+    expect(off.map((row) => row.actorAccountId)).toEqual([alice]);
+    expect(JSON.stringify(off)).not.toContain('device-1');
   });
 
   it('keeps at most five browsers, forgetting the oldest', async () => {
@@ -292,6 +305,35 @@ describe('web push subscriptions', () => {
     });
     [row] = await db.select().from(schema.webPushSubscriptions);
     expect(row).toBeUndefined();
+  });
+
+  it('sends to every browser at once and counts each result', async () => {
+    for (const n of [1, 2, 3]) {
+      await saveWebPushSubscription(db, port, {
+        accountId: alice,
+        subscription: sub(n),
+        sessionRef: null,
+      });
+    }
+    let inFlight = 0;
+    let most = 0;
+    const slow: PushPort = {
+      async send(subscription) {
+        inFlight += 1;
+        most = Math.max(most, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        inFlight -= 1;
+        return subscription.endpoint.endsWith('device-2') ? { kind: 'gone' } : { kind: 'sent' };
+      },
+    };
+    expect(
+      await sendWebPushToAccount(db, slow, port, { accountId: alice, deepLinkPath: '/app' }),
+    ).toEqual({
+      sent: 2,
+      removed: 1,
+      failed: 0,
+    });
+    expect(most).toBe(3);
   });
 
   it('a success clears earlier failures', async () => {

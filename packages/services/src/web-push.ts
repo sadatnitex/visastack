@@ -159,9 +159,22 @@ export async function saveWebPushSubscription(
   await db.transaction(async (tx) => {
     // Serialize saves for this account so the device limit holds under parallel requests.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`web_push:${accountId}`}))`);
-    await tx
+    const replaced = await tx
       .delete(schema.webPushSubscriptions)
-      .where(eq(schema.webPushSubscriptions.endpointHash, hash));
+      .where(eq(schema.webPushSubscriptions.endpointHash, hash))
+      .returning({ accountId: schema.webPushSubscriptions.accountId });
+    for (const previous of replaced) {
+      if (previous.accountId === accountId) continue;
+      // The browser now belongs to the account that turned alerts on in it; the earlier
+      // account's loss of it is recorded under that earlier account, with a count only.
+      await appendAuditEvent(tx, {
+        eventType: 'WEB_PUSH_TURNED_OFF',
+        actorAccountId: previous.accountId,
+        method: 'SYSTEM',
+        resourceType: 'web_push_subscription',
+        metadata: { devices: 1, cause: 'browser_used_by_another_account' },
+      });
+    }
     const existing = await tx
       .select({ id: schema.webPushSubscriptions.id })
       .from(schema.webPushSubscriptions)
@@ -249,6 +262,25 @@ export async function removeWebPushSubscriptionsForSession(
   );
 }
 
+/** Whether this browser has alerts on for this account (the Account card's own check). */
+export async function hasWebPushSubscription(
+  db: Db,
+  input: { readonly accountId: string; readonly endpoint: string },
+): Promise<boolean> {
+  if (!(await webPushTableReady(db))) return false;
+  const rows = await db
+    .select({ id: schema.webPushSubscriptions.id })
+    .from(schema.webPushSubscriptions)
+    .where(
+      and(
+        eq(schema.webPushSubscriptions.accountId, input.accountId),
+        eq(schema.webPushSubscriptions.endpointHash, endpointHash(input.endpoint)),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 /** How many browsers this account has alerts on (for its own Account page only). */
 export async function countWebPushSubscriptions(db: Db, accountId: string): Promise<number> {
   if (!(await webPushTableReady(db))) return 0;
@@ -293,62 +325,80 @@ export async function sendWebPushToAccount(
   const message = new TextEncoder().encode(
     JSON.stringify(composeWebPushMessage(input.deepLinkPath)),
   );
-  let sent = 0;
-  let removed = 0;
-  let failed = 0;
-  for (const row of rows) {
-    let outcome: WebPushSendOutcome;
-    try {
-      const endpoint = await revealValue(db, encryption, {
-        ciphertext: row.endpointCiphertext,
-        nonce: row.endpointNonce,
+  // Every browser at once, so one slow push service delays a notice by one send at most.
+  const results = await Promise.all(
+    rows.map((row) => sendToOne(db, push, encryption, row, message, now)),
+  );
+  return {
+    sent: results.filter((r) => r === 'sent').length,
+    removed: results.filter((r) => r === 'removed').length,
+    failed: results.filter((r) => r === 'failed').length,
+  };
+}
+
+async function sendToOne(
+  db: Db,
+  push: PushPort,
+  encryption: KeyManagementPort,
+  row: typeof schema.webPushSubscriptions.$inferSelect,
+  message: Uint8Array,
+  now: Date,
+): Promise<'sent' | 'removed' | 'failed'> {
+  let outcome: WebPushSendOutcome;
+  try {
+    const endpoint = await revealValue(db, encryption, {
+      ciphertext: row.endpointCiphertext,
+      nonce: row.endpointNonce,
+      keyVersion: row.keyVersion,
+      aad: endpointAad(row.accountId, row.id),
+    });
+    const keys = JSON.parse(
+      await revealValue(db, encryption, {
+        ciphertext: row.keysCiphertext,
+        nonce: row.keysNonce,
         keyVersion: row.keyVersion,
-        aad: endpointAad(row.accountId, row.id),
-      });
-      const keys = JSON.parse(
-        await revealValue(db, encryption, {
-          ciphertext: row.keysCiphertext,
-          nonce: row.keysNonce,
-          keyVersion: row.keyVersion,
-          aad: keysAad(row.accountId, row.id),
-        }),
-      ) as { p256dh?: unknown; auth?: unknown };
-      if (typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string') {
-        outcome = { kind: 'gone' };
-      } else {
-        outcome = await push.send(
-          { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } },
-          message,
-          { ttlSeconds: WEB_PUSH_TTL_SECONDS, topic: WEB_PUSH_TOPIC },
-        );
-      }
-    } catch {
-      outcome = { kind: 'failed', status: null };
-    }
-    try {
-      const mine = and(
-        eq(schema.webPushSubscriptions.id, row.id),
-        eq(schema.webPushSubscriptions.accountId, row.accountId),
-      );
-      if (outcome.kind === 'sent') {
-        sent += 1;
-        await db
-          .update(schema.webPushSubscriptions)
-          .set({ lastSuccessAt: now, failureCount: 0 })
-          .where(mine);
-      } else if (outcome.kind === 'gone' || row.failureCount + 1 >= WEB_PUSH_MAX_FAILURES) {
-        removed += 1;
-        await db.delete(schema.webPushSubscriptions).where(mine);
-      } else {
-        failed += 1;
-        await db
-          .update(schema.webPushSubscriptions)
-          .set({ failureCount: sql`${schema.webPushSubscriptions.failureCount} + 1` })
-          .where(mine);
-      }
-    } catch {
-      // The row could not be updated (the table went away, a lost connection): next time.
-    }
+        aad: keysAad(row.accountId, row.id),
+      }),
+    ) as { p256dh?: unknown; auth?: unknown };
+    outcome =
+      typeof keys.p256dh === 'string' && typeof keys.auth === 'string'
+        ? await push.send({ endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } }, message, {
+            ttlSeconds: WEB_PUSH_TTL_SECONDS,
+            topic: WEB_PUSH_TOPIC,
+          })
+        : { kind: 'gone' };
+  } catch {
+    outcome = { kind: 'failed', status: null };
   }
-  return { sent, removed, failed };
+  const mine = and(
+    eq(schema.webPushSubscriptions.id, row.id),
+    eq(schema.webPushSubscriptions.accountId, row.accountId),
+  );
+  try {
+    if (outcome.kind === 'sent') {
+      await db
+        .update(schema.webPushSubscriptions)
+        .set({ lastSuccessAt: now, failureCount: 0 })
+        .where(mine);
+      return 'sent';
+    }
+    if (outcome.kind === 'gone') {
+      await db.delete(schema.webPushSubscriptions).where(mine);
+      return 'removed';
+    }
+    // Counted in the database, so two workers sending at once still count every failure.
+    const [counted] = await db
+      .update(schema.webPushSubscriptions)
+      .set({ failureCount: sql`${schema.webPushSubscriptions.failureCount} + 1` })
+      .where(mine)
+      .returning({ failureCount: schema.webPushSubscriptions.failureCount });
+    if (counted && counted.failureCount >= WEB_PUSH_MAX_FAILURES) {
+      await db.delete(schema.webPushSubscriptions).where(mine);
+      return 'removed';
+    }
+    return 'failed';
+  } catch {
+    // The row could not be updated (the table went away, a lost connection): next time.
+    return outcome.kind === 'sent' ? 'sent' : 'failed';
+  }
 }

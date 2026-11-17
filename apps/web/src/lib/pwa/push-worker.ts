@@ -1,9 +1,12 @@
+import { switchOn } from '@visastack/core';
+
 /**
  * The service worker's part of phone and desktop alerts (WP-PIC18), as source text the worker
  * builder adds only while Web Push is switched on. While it is off the worker is byte for byte
  * what it was before.
  *
- * - The words shown are fixed here, never taken from the message: even a message that somehow
+ * - The words shown are fixed here (the same as the server's, a test keeps them equal), never
+ *   taken from the message: even a message that somehow
  *   carried a name could not show it.
  * - The only thing read from the message is the page to open, and only a path on this site is
  *   kept; anything else opens the notices page.
@@ -19,7 +22,7 @@ export const PUSH_TAG = 'visastack-notice';
 
 /** Whether the worker carries the alert handlers: the same switch the server reads. */
 export function isWebPushSwitchOn(read: (name: string) => string | undefined): boolean {
-  return read('WEB_PUSH')?.trim() === 'true';
+  return switchOn(read('WEB_PUSH'));
 }
 
 export function buildPushWorkerSection(): string {

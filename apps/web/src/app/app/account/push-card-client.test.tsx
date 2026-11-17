@@ -11,10 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const actions = vi.hoisted(() => ({
   on: vi.fn(async (_subscription: unknown) => ({ ok: true }) as { ok: boolean }),
   off: vi.fn(async (_endpoint: unknown) => ({ ok: true })),
+  status: vi.fn(async (_endpoint: unknown) => ({ ok: true }) as { ok: boolean }),
 }));
 vi.mock('./push-actions', () => ({
   turnOnPushAction: actions.on,
   turnOffPushAction: actions.off,
+  pushStatusAction: actions.status,
 }));
 
 const { PushCard, TurnOffPushOnSubmit } = await import('./push-card');
@@ -81,6 +83,7 @@ beforeEach(() => {
   root = createRoot(container);
   actions.on.mockClear();
   actions.off.mockClear();
+  actions.status.mockClear();
 });
 
 afterEach(() => {
@@ -168,6 +171,35 @@ describe('PushCard', () => {
     expect(existing.unsubscribe).toHaveBeenCalled();
     expect(actions.off).toHaveBeenCalledWith(existing.endpoint);
     expect(button()?.textContent).toBe('Turn On Notifications');
+  });
+});
+
+describe('PushCard and the server', () => {
+  it('shows Off when the browser holds a subscription the server does not know', async () => {
+    const existing = fakeSubscription();
+    install({ existing, permission: 'granted' });
+    actions.status.mockResolvedValueOnce({ ok: false });
+    await render(<PushCard publicKey="k" />);
+    expect(actions.status).toHaveBeenCalledWith(existing.endpoint);
+    expect(button()?.textContent).toBe('Turn On Notifications');
+  });
+
+  it('replaces an old browser subscription with a fresh one on Turn On', async () => {
+    const existing = fakeSubscription('https://fcm.googleapis.com/fcm/send/old');
+    const browser = install({ existing, permission: 'granted' });
+    actions.status.mockResolvedValueOnce({ ok: false });
+    await render(
+      <PushCard publicKey="BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4" />,
+    );
+    await act(async () => {
+      button()?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(existing.unsubscribe).toHaveBeenCalled();
+    expect(browser.subscribe).toHaveBeenCalledTimes(1);
+    expect(button()?.textContent).toBe('Turn Off');
   });
 });
 

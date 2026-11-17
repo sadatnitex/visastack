@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { turnOffPushAction, turnOnPushAction } from './push-actions';
+import { pushStatusAction, turnOffPushAction, turnOnPushAction } from './push-actions';
 
 /**
  * Phone and desktop alerts on the Account page (WP-PIC18). Shown only while Web Push is on (the
@@ -57,7 +57,12 @@ export function PushCard({ publicKey }: { readonly publicKey: string }) {
       if (!registration) return mounted.current && setState('unsupported');
       if (Notification.permission === 'denied') return mounted.current && setState('blocked');
       const existing = await registration.pushManager.getSubscription().catch(() => null);
-      if (mounted.current) setState(existing ? 'on' : 'off');
+      // "On" only when the server also has this browser for this account: after a sign-out or
+      // another account's use, the browser may still hold a subscription nobody sends to.
+      const known = existing
+        ? await pushStatusAction(existing.endpoint).catch(() => ({ ok: false }))
+        : { ok: false };
+      if (mounted.current) setState(known.ok ? 'on' : 'off');
     })();
     return () => {
       mounted.current = false;
@@ -79,12 +84,13 @@ export function PushCard({ publicKey }: { readonly publicKey: string }) {
         setState('failed');
         return;
       }
-      const subscription =
-        (await registration.pushManager.getSubscription()) ??
-        (await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: base64UrlToBytes(publicKey),
-        }));
+      // A fresh subscription every time: an old one may belong to an earlier account or key.
+      const stale = await registration.pushManager.getSubscription();
+      if (stale) await stale.unsubscribe().catch(() => undefined);
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToBytes(publicKey),
+      });
       const result = await turnOnPushAction(subscription.toJSON());
       if (!result.ok) {
         await subscription.unsubscribe().catch(() => undefined);
