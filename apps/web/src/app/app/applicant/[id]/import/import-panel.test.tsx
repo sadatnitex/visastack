@@ -20,6 +20,9 @@ vi.mock('../documents/manage/delete/actions', () => ({
   restoreDeletedAction: actions.restore,
 }));
 
+const sameAccount = vi.hoisted(() => vi.fn(async (_key: string) => true));
+vi.mock('./upload-account-action', () => ({ isSameUploadAccountAction: sameAccount }));
+
 const { ImportPanel, LINES_SHOWN_FIRST, BUSY_LINE, HELD_LINE, OFFLINE_LINE } = await import(
   './import-panel'
 );
@@ -835,7 +838,13 @@ describe('background sync for waiting files (WP-PIC17)', () => {
     browserWithSync(online);
     await act(async () => {
       root.render(
-        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" backgroundSync />,
+        <ImportPanel
+          applicantId="a-1"
+          limitBytes={1000}
+          limitLabel="1 KB"
+          backgroundSync
+          accountKey="key-a"
+        />,
       );
     });
     await choose([photo('one.jpg'), photo('two.jpg')]);
@@ -865,5 +874,48 @@ describe('background sync for waiting files (WP-PIC17)', () => {
     expect(FakeRequest.sent).toHaveLength(1);
     expect(offlineLine()).toBeUndefined();
     expect(register).not.toHaveBeenCalled();
+  });
+});
+
+describe('background sync after an account change (WP-PIC17)', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(window.navigator, 'serviceWorker');
+    sameAccount.mockReset();
+    sameAccount.mockImplementation(async () => true);
+  });
+
+  it('another account signed in elsewhere: the resume sends nothing', async () => {
+    const online = { value: false };
+    vi.stubGlobal('SyncManager', function SyncManager() {});
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online.value);
+    Object.defineProperty(window.navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistration: async () => ({ sync: { register: async () => undefined } }),
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+    });
+    sameAccount.mockImplementation(async () => false);
+    await act(async () => {
+      root.render(
+        <ImportPanel
+          applicantId="a-1"
+          limitBytes={1000}
+          limitLabel="1 KB"
+          backgroundSync
+          accountKey="key-a"
+        />,
+      );
+    });
+    await choose([photo('one.jpg')]);
+    online.value = true;
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+    });
+    await flush();
+    expect(sameAccount).toHaveBeenCalledWith('key-a');
+    expect(FakeRequest.sent).toHaveLength(0);
+    expect(host.querySelector('[data-testid="import-offline"]')).toBeNull();
   });
 });

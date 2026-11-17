@@ -39,6 +39,8 @@ export interface SyncWindow {
   };
   readonly location: { readonly origin: string };
   readonly SyncManager?: unknown;
+  /** The browser's ServiceWorker class: a wake must come from one. */
+  readonly ServiceWorker?: unknown;
   addEventListener(type: 'online', listener: () => void): void;
   removeEventListener(type: 'online', listener: () => void): void;
 }
@@ -86,12 +88,21 @@ export async function requestUploadResume(win: SyncWindow): Promise<boolean> {
   }
 }
 
-/** Only the worker of this site, saying exactly the resume message, counts. */
-export function isUploadResumeMessage(event: MessageEvent, origin: string): boolean {
+/**
+ * Only a service worker of this site, saying exactly the resume message, counts: the origin must be
+ * this site's and the sender a ServiceWorker (not a window or a frame posting into the page).
+ */
+export function isUploadResumeMessage(
+  event: MessageEvent,
+  origin: string,
+  workerClass: unknown,
+): boolean {
   const data: unknown = event.data;
   if (typeof data !== 'object' || data === null) return false;
   if ((data as { readonly type?: unknown }).type !== UPLOAD_RESUME_MESSAGE) return false;
-  return event.origin === origin;
+  if (event.origin !== origin) return false;
+  if (typeof workerClass !== 'function' || event.source === null) return false;
+  return event.source instanceof (workerClass as new () => object);
 }
 
 /**
@@ -102,7 +113,7 @@ export function listenForUploadResume(win: SyncWindow, onResume: () => void): ()
   const container = win.navigator.serviceWorker;
   const origin = win.location.origin;
   const onMessage = (event: MessageEvent) => {
-    if (isUploadResumeMessage(event, origin)) onResume();
+    if (isUploadResumeMessage(event, origin, win.ServiceWorker)) onResume();
   };
   const onOnline = () => onResume();
   container?.addEventListener('message', onMessage);
@@ -117,7 +128,7 @@ export function listenForUploadResume(win: SyncWindow, onResume: () => void): ()
 export interface ResumableQueue {
   readonly subscribe: (listener: () => void) => () => void;
   readonly waitingForConnection: boolean;
-  resumeAfterConnection(): void;
+  resumeAfterConnection(): void | Promise<void>;
 }
 
 /**
@@ -132,7 +143,9 @@ export function connectUploadResume(win: SyncWindow, queue: ResumableQueue): () 
     if (now && !waiting) void requestUploadResume(win);
     waiting = now;
   });
-  const stopListening = listenForUploadResume(win, () => queue.resumeAfterConnection());
+  const stopListening = listenForUploadResume(win, () => {
+    void queue.resumeAfterConnection();
+  });
   return () => {
     unsubscribe();
     stopListening();

@@ -30,6 +30,7 @@ import { withSession } from '../../../../../../lib/session';
 import { pdfUploadsAccepted, uploadLimitBytes } from '../../../../../../lib/upload-preflight';
 import { DocumentUploader } from '../../document-uploader';
 import { ImportPanel } from '../../import/import-panel';
+import { uploadAccountKey } from '../../import/upload-account';
 import { UsageMeter } from '../../usage-meter';
 import { ReadingSwitch } from './reading-switch';
 
@@ -150,6 +151,7 @@ export default async function AddDocumentsPage({
       quota,
       personLimitBytes: limits.personBytes,
       receiptsReady,
+      uploadAccount: uploadAccountKey(accountId),
       virusScanning,
       familyBatch,
       people,
@@ -220,6 +222,7 @@ export default async function AddDocumentsPage({
               readingOn={data.reading.reads}
               showNext={false}
               backgroundSync={isBackgroundUploadSyncEnabled((name) => process.env[name])}
+              accountKey={data.uploadAccount}
             />
             <details className="add-more" open={initialKind ? true : undefined}>
               <summary className="add-more-summary">

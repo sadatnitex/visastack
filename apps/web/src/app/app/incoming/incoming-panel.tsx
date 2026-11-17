@@ -26,7 +26,11 @@ import {
   sharedFileUrl,
 } from '../../../lib/pwa/share-target';
 import { useUploadConnection, useUploadResume } from '../../../lib/pwa/upload-sync-hooks';
-import { OFFLINE_LINE, importLine } from '../applicant/[id]/import/import-panel';
+import {
+  OFFLINE_LINE,
+  confirmUploadAccount,
+  importLine,
+} from '../applicant/[id]/import/import-panel';
 
 type Phase = 'loading' | 'empty' | 'ready' | 'sending' | 'cancelled';
 
@@ -110,6 +114,7 @@ export function IncomingPanel({
   pdfAccepted,
   retryUnknown,
   backgroundSync = false,
+  accountKey = null,
 }: {
   /** Ties the waiting files to this account on this phone; null reads nothing. */
   readonly ownerKey: string | null;
@@ -125,6 +130,8 @@ export function IncomingPanel({
   readonly retryUnknown: boolean;
   /** WP-PIC17: waiting files resume when a dropped connection returns. Default off. */
   readonly backgroundSync?: boolean;
+  /** WP-PIC17: who chose these files; waiting files go again only under this sign-in. */
+  readonly accountKey?: string | null;
 }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [inbox, setInbox] = useState<SharedInbox>(parseInbox(null));
@@ -169,9 +176,11 @@ export function IncomingPanel({
           uploadIdFromHash(await sha256Hex(`${personId}\u0000${fingerprintOf(file)}`)) ??
           newUploadId(),
         newUploadId,
-        ...(connection ? { connection } : {}),
+        ...(connection
+          ? { connection, confirmResume: () => confirmUploadAccount(accountKey) }
+          : {}),
       }),
-    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown, connection],
+    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown, connection, accountKey],
   );
   // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
   useUploadResume(connection, queue);

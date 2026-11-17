@@ -47,6 +47,7 @@ import {
   refusalNode,
   said,
 } from '../documents/manage/removal-words';
+import { isSameUploadAccountAction } from './upload-account-action';
 
 /** Lines drawn before Show All, so a long import stays quick to read and to scroll past. */
 export const LINES_SHOWN_FIRST = 50;
@@ -58,6 +59,11 @@ const AUTO_CONTINUE_MS = 1800;
 
 /** The choice that sends files to the family route, where each waits for Which Person?. */
 const NOT_SURE = '__not_sure';
+
+/** WP-PIC17: the session still belongs to the account that chose the files (no key: no). */
+export function confirmUploadAccount(accountKey: string | null): Promise<boolean> {
+  return accountKey ? isSameUploadAccountAction(accountKey) : Promise.resolve(false);
+}
 
 /** The person a send is for: the chosen one, or this page's own when "not sure" is chosen. */
 function personFor(target: string, own: string): string {
@@ -363,6 +369,7 @@ export function ImportPanel({
   readingOn = false,
   showNext = true,
   backgroundSync = false,
+  accountKey = null,
 }: {
   readonly applicantId: string;
   /** The largest file accepted, in bytes (the same limit the single upload uses). */
@@ -402,6 +409,11 @@ export function ImportPanel({
    * can wake the page, files wait for a dropped connection and go when it returns. Default off.
    */
   readonly backgroundSync?: boolean;
+  /**
+   * WP-PIC17: who chose these files (a key made on the server). Waiting files go out again only
+   * while the session on this device still belongs to it; otherwise they are dropped.
+   */
+  readonly accountKey?: string | null;
 }) {
   const t = useT(appApplicantCatalog);
   const router = useRouter();
@@ -467,12 +479,9 @@ export function ImportPanel({
         },
         // The same traveller and file (name, size, date) always send the same upload id, so
         // choosing the folder again after a reload can never store a file twice.
-        uploadIdFor: async (file) =>
-          uploadIdFromHash(
-            await sha256Hex(
-              `${family.current ? 'family' : personFor(targetRef.current, applicantId)}\u0000${fingerprintOf(file)}`,
-            ),
-          ) ?? newUploadId(),
+        uploadIdFor: async (file, scope) =>
+          uploadIdFromHash(await sha256Hex(`${scope}\u0000${fingerprintOf(file)}`)) ??
+          newUploadId(),
         // The choice made when each file was added: one person's documents, or Which Person?. A
         // file that waited (paused, offline, Try Again) still goes to the one it was chosen for.
         send: (request) => {
@@ -496,7 +505,9 @@ export function ImportPanel({
           });
         },
         retryUnknown,
-        ...(connection ? { connection } : {}),
+        ...(connection
+          ? { connection, confirmResume: () => confirmUploadAccount(accountKey) }
+          : {}),
       }),
   );
   // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.

@@ -19,6 +19,14 @@ import {
 
 const ORIGIN = 'https://vs.obsidianglobal.studio';
 
+/** Stand-in for the browser's ServiceWorker class, and one of this site's workers. */
+class FakeServiceWorker {}
+const WORKER = new FakeServiceWorker();
+
+/** A message event as the browser delivers it (jsdom's constructor refuses a fake source). */
+const message = (data: unknown, origin = ORIGIN, source: unknown = WORKER): MessageEvent =>
+  ({ data, origin, source }) as unknown as MessageEvent;
+
 function fakeWindow(
   options: { sync?: boolean; registration?: boolean; online?: boolean; noWorker?: boolean } = {},
 ) {
@@ -44,13 +52,13 @@ function fakeWindow(
     },
     location: { origin: ORIGIN },
     ...(options.sync === false ? {} : { SyncManager: function SyncManager() {} }),
+    ServiceWorker: FakeServiceWorker,
     addEventListener: (_type: 'online', listener: () => void) => onlineListeners.add(listener),
     removeEventListener: (_type: 'online', listener: () => void) =>
       onlineListeners.delete(listener),
   };
-  const post = (data: unknown, origin = ORIGIN) => {
-    for (const listener of messageListeners)
-      listener(new MessageEvent('message', { data, origin }));
+  const post = (data: unknown, origin = ORIGIN, source: unknown = WORKER) => {
+    for (const listener of messageListeners) listener(message(data, origin, source));
   };
   const goOnline = () => {
     for (const listener of onlineListeners) listener();
@@ -127,26 +135,25 @@ describe('asking for a wake', () => {
 });
 
 describe('the wake message', () => {
-  it('counts only the exact message from this site', () => {
-    const ok = new MessageEvent('message', {
-      data: { type: UPLOAD_RESUME_MESSAGE },
-      origin: ORIGIN,
-    });
-    expect(isUploadResumeMessage(ok, ORIGIN)).toBe(true);
-    const elsewhere = new MessageEvent('message', {
-      data: { type: UPLOAD_RESUME_MESSAGE },
-      origin: 'https://evil.example',
-    });
-    expect(isUploadResumeMessage(elsewhere, ORIGIN)).toBe(false);
+  it('counts only the exact message, from this site, sent by a service worker', () => {
+    const resume = { type: UPLOAD_RESUME_MESSAGE };
+    expect(isUploadResumeMessage(message(resume), ORIGIN, FakeServiceWorker)).toBe(true);
     expect(
-      isUploadResumeMessage(new MessageEvent('message', { data: 'x', origin: ORIGIN }), ORIGIN),
+      isUploadResumeMessage(message(resume, 'https://evil.example'), ORIGIN, FakeServiceWorker),
     ).toBe(false);
+    expect(isUploadResumeMessage(message('x'), ORIGIN, FakeServiceWorker)).toBe(false);
     expect(
-      isUploadResumeMessage(
-        new MessageEvent('message', { data: { type: 'SKIP_WAITING' }, origin: ORIGIN }),
-        ORIGIN,
-      ),
+      isUploadResumeMessage(message({ type: 'SKIP_WAITING' }), ORIGIN, FakeServiceWorker),
     ).toBe(false);
+    // Posted by a window or frame of the same site, or with no sender: not a wake.
+    expect(isUploadResumeMessage(message(resume, ORIGIN, {}), ORIGIN, FakeServiceWorker)).toBe(
+      false,
+    );
+    expect(isUploadResumeMessage(message(resume, ORIGIN, null), ORIGIN, FakeServiceWorker)).toBe(
+      false,
+    );
+    // A browser without the ServiceWorker class never counts a wake.
+    expect(isUploadResumeMessage(message(resume), ORIGIN, undefined)).toBe(false);
   });
 
   it('resumes on the worker message and on online, and stops listening when undone', () => {
@@ -154,6 +161,7 @@ describe('the wake message', () => {
     const onResume = vi.fn();
     const stop = listenForUploadResume(win, onResume);
     post({ type: UPLOAD_RESUME_MESSAGE }, 'https://evil.example');
+    post({ type: UPLOAD_RESUME_MESSAGE }, ORIGIN, {});
     expect(onResume).not.toHaveBeenCalled();
     post({ type: UPLOAD_RESUME_MESSAGE });
     goOnline();
