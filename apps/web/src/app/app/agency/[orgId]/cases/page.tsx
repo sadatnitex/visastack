@@ -138,24 +138,16 @@ export default async function AgencyCasesPage({
     const travellerRequests = read.filter((r) => r.missionId === null);
     // When access to each listed case ends. Asked only for the cases this member can already see
     // on this page, so it adds no case and no detail. The traveller alone can extend it.
-    const accessEnds = await listAccessEndsForOrg(
-      db,
-      accountId,
-      orgId,
-      list.cases.map((c) => c.missionId),
-    );
-    // WP-PIC18: each listed case's readiness, worked out exactly as the case page works it out, in
-    // one read for the whole page. Asked only for the listed cases, and not at all for an empty
-    // list; a case this member may not read, in manual mode or with no checklist gets nothing.
-    const readiness =
-      list.cases.length > 0
-        ? await listCaseReadinessForOrg(
-            db,
-            accountId,
-            orgId,
-            list.cases.map((c) => c.missionId),
-          )
-        : new Map<string, never>();
+    // WP-PIC18: with it, each listed case's readiness, worked out exactly as the case page works it
+    // out, in one read for the whole page; not asked at all for an empty list. A case this member
+    // may not read, in manual mode or with no checklist gets nothing.
+    const listedIds = list.cases.map((c) => c.missionId);
+    const [accessEnds, readiness] = await Promise.all([
+      listAccessEndsForOrg(db, accountId, orgId, listedIds),
+      listedIds.length > 0
+        ? listCaseReadinessForOrg(db, accountId, orgId, listedIds)
+        : Promise.resolve(new Map<string, never>()),
+    ]);
     return {
       admin: access.admin,
       members,

@@ -9,7 +9,7 @@ import {
   ok,
   requirementNecessity,
 } from '@visastack/core';
-import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
 import { mayReadOrgCase, orgGrantPermits } from './agency';
@@ -1219,30 +1219,6 @@ async function finishedCaseCopies(
 ): Promise<Map<string, { snapshotId: string; readiness: SavedReadiness }>> {
   const copies = new Map<string, { snapshotId: string; readiness: SavedReadiness }>();
   if (missions.length === 0) return copies;
-  const parts = {
-    snapshotId: schema.missionSnapshots.id,
-    missionId: schema.missionSnapshots.missionId,
-    readiness: sql<unknown>`${schema.missionSnapshots.content} -> 'readiness'`,
-    copiedPackVersionId: sql<unknown>`${schema.missionSnapshots.content} #> '{packVersion,id}'`,
-    hasMapping: sql<boolean>`jsonb_typeof(${schema.missionSnapshots.content} -> 'requirementMapping') = 'array' and jsonb_typeof(${schema.missionSnapshots.content} -> 'documents') = 'array'`,
-  };
-  const keep = (
-    mission: Mission,
-    copy: {
-      snapshotId: string;
-      readiness: unknown;
-      copiedPackVersionId: unknown;
-      hasMapping: boolean;
-    } | null,
-  ) => {
-    if (!copy || copy.hasMapping !== true) return;
-    const readiness = readStoredReadiness(
-      copy.readiness,
-      copy.copiedPackVersionId,
-      mission.packVersionId,
-    );
-    if (readiness) copies.set(mission.id, { snapshotId: copy.snapshotId, readiness });
-  };
   const ids = missions.map((m) => m.id);
   // The newest submission of each case (the same order as one case's `limit 1`).
   const submissions = await db
@@ -1253,65 +1229,76 @@ async function finishedCaseCopies(
     .from(schema.missionSubmissions)
     .where(inArray(schema.missionSubmissions.missionId, ids))
     .orderBy(desc(schema.missionSubmissions.createdAt));
-  const submittedCopy = new Map<string, string>();
+  const chosen = new Map<string, string>();
   for (const row of submissions) {
-    if (!submittedCopy.has(row.missionId)) submittedCopy.set(row.missionId, row.snapshotId);
+    if (!chosen.has(row.missionId)) chosen.set(row.missionId, row.snapshotId);
   }
-  const submittedSnapshotIds = [...new Set(submittedCopy.values())];
-  const submitted =
-    submittedSnapshotIds.length > 0
-      ? await db
-          .select(parts)
-          .from(schema.missionSnapshots)
-          .where(
-            and(
-              inArray(schema.missionSnapshots.id, submittedSnapshotIds),
-              inArray(schema.missionSnapshots.missionId, ids),
-            ),
-          )
-      : [];
-  const closedWithoutSubmission = missions.filter(
-    (m) => !submittedCopy.has(m.id) && m.closedAt !== null,
-  );
-  // The newest copy of each closed case saved up to its close. The close time is cut to the
-  // millisecond, exactly as one case's read compares it (a JavaScript date carries no finer time).
-  const closed =
+  // A closed case with no submission: its newest copy saved up to the close, compared with the
+  // close time on the case row given (as one case's read compares it), and only while nothing
+  // material changed since. Only the small columns are read to choose.
+  const closedWithoutSubmission = missions.filter((m) => !chosen.has(m.id) && m.closedAt !== null);
+  const candidates =
     closedWithoutSubmission.length > 0
       ? await db
-          .selectDistinctOn([schema.missionSnapshots.missionId], {
-            ...parts,
+          .select({
+            id: schema.missionSnapshots.id,
+            missionId: schema.missionSnapshots.missionId,
+            version: schema.missionSnapshots.version,
+            createdAt: schema.missionSnapshots.createdAt,
             revision: schema.missionSnapshots.materialRevisionAtCapture,
           })
           .from(schema.missionSnapshots)
-          .innerJoin(schema.missions, eq(schema.missions.id, schema.missionSnapshots.missionId))
           .where(
-            and(
-              inArray(
-                schema.missionSnapshots.missionId,
-                closedWithoutSubmission.map((m) => m.id),
-              ),
-              lte(
-                schema.missionSnapshots.createdAt,
-                sql`date_trunc('milliseconds', ${schema.missions.closedAt})`,
-              ),
+            inArray(
+              schema.missionSnapshots.missionId,
+              closedWithoutSubmission.map((m) => m.id),
             ),
           )
-          .orderBy(schema.missionSnapshots.missionId, desc(schema.missionSnapshots.version))
       : [];
-  for (const mission of missions) {
-    const snapshotId = submittedCopy.get(mission.id);
-    if (snapshotId !== undefined) {
-      keep(
-        mission,
-        submitted.find((row) => row.snapshotId === snapshotId && row.missionId === mission.id) ??
-          null,
-      );
-      continue;
+  const candidatesByMission = new Map<string, (typeof candidates)[number][]>();
+  for (const row of candidates) {
+    const list = candidatesByMission.get(row.missionId) ?? [];
+    list.push(row);
+    candidatesByMission.set(row.missionId, list);
+  }
+  for (const mission of closedWithoutSubmission) {
+    const closedAt = mission.closedAt;
+    if (!closedAt) continue;
+    let latest: (typeof candidates)[number] | undefined;
+    for (const row of candidatesByMission.get(mission.id) ?? []) {
+      if (row.createdAt.getTime() > closedAt.getTime()) continue;
+      if (!latest || row.version > latest.version) latest = row;
     }
-    if (!mission.closedAt) continue;
-    const latest = closed.find((row) => row.missionId === mission.id);
-    if (!latest || latest.revision !== mission.materialRevision) continue;
-    keep(mission, latest);
+    if (latest && latest.revision === mission.materialRevision) chosen.set(mission.id, latest.id);
+  }
+  if (chosen.size === 0) return copies;
+  const stored = await db
+    .select({
+      snapshotId: schema.missionSnapshots.id,
+      missionId: schema.missionSnapshots.missionId,
+      readiness: sql<unknown>`${schema.missionSnapshots.content} -> 'readiness'`,
+      copiedPackVersionId: sql<unknown>`${schema.missionSnapshots.content} #> '{packVersion,id}'`,
+      hasMapping: sql<boolean>`jsonb_typeof(${schema.missionSnapshots.content} -> 'requirementMapping') = 'array' and jsonb_typeof(${schema.missionSnapshots.content} -> 'documents') = 'array'`,
+    })
+    .from(schema.missionSnapshots)
+    .where(
+      and(
+        inArray(schema.missionSnapshots.id, [...new Set(chosen.values())]),
+        inArray(schema.missionSnapshots.missionId, ids),
+      ),
+    );
+  const storedById = new Map(stored.map((row) => [row.snapshotId, row]));
+  for (const mission of missions) {
+    const snapshotId = chosen.get(mission.id);
+    const copy = snapshotId === undefined ? undefined : storedById.get(snapshotId);
+    // A submission counts only with a copy of its own case.
+    if (!copy || copy.missionId !== mission.id || copy.hasMapping !== true) continue;
+    const readiness = readStoredReadiness(
+      copy.readiness,
+      copy.copiedPackVersionId,
+      mission.packVersionId,
+    );
+    if (readiness) copies.set(mission.id, { snapshotId: copy.snapshotId, readiness });
   }
   return copies;
 }
@@ -1338,29 +1325,33 @@ async function computeLiveReadinessMany(
   }
   if (counted.length === 0) return results;
 
-  const rulesByVersion = await loadPackRulesByVersion(
-    db,
-    counted.map((m) => m.packVersionId),
-  );
-  const factsByApplicant = await loadFactInstancesByApplicant(
-    db,
-    counted.map((m) => m.applicantId),
-  );
-  const poolsByApplicant = await loadDocumentPoolsByApplicant(
-    db,
-    counted.map((m) => m.applicantId),
-  );
-  const selectionsByMission = await loadSelectionsByMission(
-    db,
-    counted.map((m) => m.id),
-  );
+  // Four independent reads; each reads every case, person or checklist of the page in one go.
+  const [rulesByVersion, factsByApplicant, poolsByApplicant, selectionsByMission] =
+    await Promise.all([
+      loadPackRulesByVersion(
+        db,
+        counted.map((m) => m.packVersionId),
+      ),
+      loadFactInstancesByApplicant(
+        db,
+        counted.map((m) => m.applicantId),
+      ),
+      loadDocumentPoolsByApplicant(
+        db,
+        counted.map((m) => m.applicantId),
+      ),
+      loadSelectionsByMission(
+        db,
+        counted.map((m) => m.id),
+      ),
+    ]);
   for (const mission of counted) {
     results.set(
       mission.id,
       ok(
         evaluateLiveReadiness({
           mission,
-          rules: rulesByVersion.get(mission.packVersionId) ?? MISSING_PACK_RULES,
+          rules: rulesByVersion.get(mission.packVersionId) ?? missingPackRules(),
           factsByKey: factsByApplicant.get(mission.applicantId) ?? new Map(),
           documentPool: poolsByApplicant.get(mission.applicantId) ?? EMPTY_DOCUMENT_POOL,
           selections: selectionsByMission.get(mission.id) ?? EMPTY_SELECTIONS,
@@ -1482,12 +1473,17 @@ async function loadPackRules(
   packVersionId: string,
 ): Promise<{ requirements: PackRequirement[]; failClosed: boolean }> {
   return (
-    (await loadPackRulesByVersion(db, [packVersionId])).get(packVersionId) ?? MISSING_PACK_RULES
+    (await loadPackRulesByVersion(db, [packVersionId])).get(packVersionId) ?? missingPackRules()
   );
 }
 
-/** A pack version that is not there: no requirements, and an unknown format fails closed. */
-const MISSING_PACK_RULES = { requirements: [] as PackRequirement[], failClosed: true };
+/**
+ * A pack version that is not there: no requirements, and an unknown format fails closed. A new
+ * object each time, so no caller can change what another caller gets.
+ */
+function missingPackRules(): { requirements: PackRequirement[]; failClosed: boolean } {
+  return { requirements: [], failClosed: true };
+}
 
 /**
  * `loadPackRules` for several pack versions at once (WP-PIC18): one requirements query and one
