@@ -21573,6 +21573,27 @@ body:lang(bn),
 }
 /* end WP-PIC0 */
 
+/* WP-PIC3 SVG flags (17 Nov 2026, picture-first upgrade, unit U3). The real flag is a same-origin static picture laid over the emoji or letters badge, which stay underneath as the fallback. Round like before; flat: no shadow, gradient, blur or translucency; tokens only. */
+.country-flag {
+  position: relative;
+}
+.country-flag-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+/* Once the picture has loaded, hide the emoji or letters under it so a flag with a see-through edge shows nothing but itself. A failed load never sets this, so the fallback stays. */
+.country-flag[data-picture="loaded"] {
+  font-size: 0;
+  border-color: var(--edge-card);
+  background: var(--bg-subtle);
+}
+/* end WP-PIC3 */
+
 /* WP-PIC1 Explain popup (17 Nov 2026): a picture that explains itself. Pointing at it, focusing it or tapping it shows its name and one plain sentence beside it (components/explain-tip.tsx, lib/use-explain-tip.ts). It replaces the plain title= hint, which touch screens and keyboards never show. Flat: a solid raised surface and a control-strength border, no shadow. The popup fades and rises on the press speed only, and not at all under reduced motion. The script measures where it fits (lib/popover-placement.ts) and sets data-placement, data-align and --explain-tip-shift on the holder; without them it opens below, lined up with the trigger's right edge. */
 .explain-tip {
   position: relative;
@@ -21672,24 +21693,3 @@ body:lang(bn),
   }
 }
 /* end WP-PIC1 */
-
-/* WP-PIC3 SVG flags (17 Nov 2026, picture-first upgrade, unit U3). The real flag is a same-origin static picture laid over the emoji or letters badge, which stay underneath as the fallback. Round like before; flat: no shadow, gradient, blur or translucency; tokens only. */
-.country-flag {
-  position: relative;
-}
-.country-flag-img {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-}
-/* Once the picture has loaded, hide the emoji or letters under it so a flag with a see-through edge shows nothing but itself. A failed load never sets this, so the fallback stays. */
-.country-flag[data-picture="loaded"] {
-  font-size: 0;
-  border-color: var(--edge-card);
-  background: var(--bg-subtle);
-}
-/* end WP-PIC3 */
