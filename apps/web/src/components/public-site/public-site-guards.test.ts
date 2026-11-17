@@ -282,3 +282,12 @@ describe('the one depth stylesheet (ADR 0029)', () => {
     ).toEqual(['dark appearance']);
   });
 });
+
+describe('flag places', () => {
+  it('give every flag a place and every ring size a count, up to the ring maximum', () => {
+    for (let i = 0; i < 12; i++)
+      expect(SITE).toContain(`.pub-flag-ring-list li:nth-child(${i + 1}) {\n  --i: ${i};\n}`);
+    for (let n = 1; n <= 12; n++)
+      expect(SITE).toContain(`.pub-flag-ring-list[data-count="${n}"] {\n  --n: ${n};\n}`);
+  });
+});

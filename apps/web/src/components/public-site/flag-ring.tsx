@@ -1,19 +1,22 @@
 import 'server-only';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { countryNameOf } from '../../lib/country-start';
 import { AVAILABLE_FLAG_CODES } from '../flags/available-flags';
 import './public-site.css';
 
 const AVAILABLE = new Set(AVAILABLE_FLAG_CODES);
 
-/** The codes that have a flag file, lower case, in order, each once. */
+/** The most flags one ring holds; their places on the circle are set in public-site.css. */
+export const FLAG_RING_MAX = 12;
+
+/** The codes that have a flag file, lower case, in order, each once, at most FLAG_RING_MAX. */
 export function flagRingCodes(codes: readonly string[]): string[] {
   const seen = new Set<string>();
   for (const raw of codes) {
     const code = raw.trim().toLowerCase();
     if (AVAILABLE.has(code)) seen.add(code);
   }
-  return [...seen];
+  return [...seen].slice(0, FLAG_RING_MAX);
 }
 
 export interface FlagRingProps {
@@ -36,13 +39,9 @@ export function FlagRing({ codes, label, children, pageLang = 'en' }: FlagRingPr
   const shown = flagRingCodes(codes);
   return (
     <div className="pub-flag-ring">
-      <ul className="pub-flag-ring-list" aria-label={label}>
-        {shown.map((code, index) => (
-          <li
-            key={code}
-            data-flag={code}
-            style={{ '--i': index, '--n': Math.max(1, shown.length) } as CSSProperties}
-          >
+      <ul className="pub-flag-ring-list" aria-label={label} data-count={shown.length}>
+        {shown.map((code) => (
+          <li key={code} data-flag={code}>
             <img
               src={`/flags/${code}.svg`}
               alt={countryNameOf(code.toUpperCase()) ?? code.toUpperCase()}

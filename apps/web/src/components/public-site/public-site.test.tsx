@@ -5,7 +5,7 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FlagRing, flagRingCodes } from './flag-ring';
+import { FLAG_RING_MAX, FlagRing, flagRingCodes } from './flag-ring';
 import { PublicButton } from './public-button';
 import { LIVE_ROUTES, PUBLIC_NAV, publicNavLinks } from './public-nav';
 import { PassportTilt, PublicPicture, isSelfHosted } from './public-picture';
@@ -148,6 +148,24 @@ describe('ReadinessRing', () => {
 describe('FlagRing', () => {
   it('keeps only codes with a flag file, once each', () => {
     expect(flagRingCodes(['GB', 'gb', ' sg ', 'zz', 'javascript:'])).toEqual(['gb', 'sg']);
+    const many = [
+      'gb',
+      'sg',
+      'us',
+      'ca',
+      'au',
+      'nz',
+      'de',
+      'fr',
+      'it',
+      'es',
+      'nl',
+      'be',
+      'jp',
+      'kr',
+    ];
+    expect(flagRingCodes(many)).toEqual(many.slice(0, FLAG_RING_MAX));
+    expect(FLAG_RING_MAX).toBe(12);
   });
   it('draws lazy, self-hosted flags named by the public destination catalogue', () => {
     const out = html(<FlagRing codes={['GB', 'ZZ']} label="Countries We Hold" />);
@@ -157,6 +175,8 @@ describe('FlagRing', () => {
     expect(out).toContain('decoding="async"');
     expect(out).toContain('alt="United Kingdom"');
     expect(out).not.toContain('/flags/zz.svg');
+    expect(out).toContain('data-count="1"');
+    expect(out).not.toContain('style=');
   });
 });
 

@@ -16,7 +16,7 @@ All files live in `apps/web/src/components/public-site/`. Import each file direc
 | `<StatusChip status>` | `story.tsx` | `received`, `reviewed`, `suggested`, `confirmed`, `saved`, `shared`, `accessEnded`. The only way to show these words: Received is not Reviewed, Suggested is not Confirmed, Saved is not Shared. |
 | `<HeadlineWords>` | `story.tsx` | Headline words in tints of the brand blue. |
 | `<ReadinessRing done total size? countLabel?>` | `readiness-ring.tsx` | The product's progress ring, always with "Completeness only. Not an approval." |
-| `<FlagRing codes label pageLang?>` | `flag-ring.tsx` | Server only (`import 'server-only'`). Flags from `public/flags`, lazy, named from the public destination catalogue. Each item carries `--i` and `--n`; switch the lit flag with `[data-step]`. |
+| `<FlagRing codes label pageLang?>` | `flag-ring.tsx` | Server only (`import 'server-only'`). Flags from `public/flags`, lazy, named from the public destination catalogue. At most 12 flags (`FLAG_RING_MAX`); each flag's place (`--i`) and the ring's count (`--n`) come from public-site.css, never inline styles (the UI ratchet forbids them). Switch the lit flag with `[data-step]` and `li:nth-child()`. |
 | `<PublicPicture src alt width height eager?>` | `public-picture.tsx` | Self-hosted only (throws otherwise), sized, lazy unless `eager`. |
 | `<PassportTilt nationality? width? label?>` | `public-picture.tsx` | The real Bangladesh cover (`/pictures/passport-bd.png`) resting raised; tilts with `--p` while its scene moves. |
 | `publicText(text, pageLang)` | `public-text.tsx` | English words with no catalogue entry yet; marked `lang="en"` on a Bangla page. |
