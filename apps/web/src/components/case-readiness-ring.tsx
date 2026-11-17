@@ -1,4 +1,5 @@
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE, ProgressBar, ProgressRing } from './progress-ring';
+import { type ReadinessSegmentItem, ReadinessSegmentRing } from './readiness-segments';
 
 /** The counts the ring needs; `computeReadiness` (and the agency view of it) carries both. */
 export interface ReadinessCounts {
@@ -17,12 +18,39 @@ export function CaseReadinessRing({
   pickHref,
   size = 'md',
   emptyLine,
+  variant = 'ring',
+  items,
 }: {
   readonly readiness: ReadinessCounts | null;
   readonly pickHref?: string;
   readonly size?: 'sm' | 'md' | 'lg';
   readonly emptyLine?: string;
+  /** `segments` is the opt-in picture variant (one segment per item); the default is today's ring. */
+  readonly variant?: 'ring' | 'segments';
+  /** The legend for the segment variant: one entry per required item. */
+  readonly items?: ReadonlyArray<ReadinessSegmentItem>;
 }) {
+  if (variant === 'segments') {
+    const counts =
+      readiness && readiness.requiredCount > 0
+        ? { done: readiness.satisfiedRequired, total: readiness.requiredCount }
+        : { done: 0, total: 0 };
+    return (
+      <ReadinessSegmentRing
+        done={counts.done}
+        total={counts.total}
+        size={size}
+        {...(items ? { items } : {})}
+        {...(readiness && counts.total === 0
+          ? { emptyLabel: NO_REQUIRED_LABEL, emptyLine: NO_REQUIRED_LINE }
+          : {})}
+        {...(!readiness && emptyLine ? { emptyLine } : {})}
+        {...(!readiness && pickHref
+          ? { emptyAction: { href: pickHref, label: 'Pick a Checklist' } }
+          : {})}
+      />
+    );
+  }
   if (readiness && readiness.requiredCount > 0) {
     return (
       <ProgressRing
