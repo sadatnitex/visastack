@@ -286,6 +286,29 @@ async function readInbox() {
   return { cache, meta };
 }
 
+// Empties the inbox once its time is up, whatever request woke the worker, so files never outlive
+// SHARE_MAX_AGE_MS just because nobody opened the incoming page again (for example after signing
+// out). Only a complete record past its time is removed, never a share still being written.
+async function sweepInbox() {
+  try {
+    if (!(await hasInbox())) return;
+    if (!SHARE_ON) {
+      await clearInbox();
+      return;
+    }
+    const stored = await (await caches.open(SHARE_INBOX_CACHE)).match(SHARE_META);
+    if (!stored) return;
+    const meta = await stored.json().catch(() => null);
+    if (meta && typeof meta.at === 'number' && Date.now() - meta.at <= SHARE_MAX_AGE_MS && Date.now() >= meta.at) return;
+    if (meta && typeof meta.at === 'number') await clearInbox();
+  } catch {
+    // A failed sweep is retried on the next request; the inbox is still read with its time checked.
+  }
+}
+
+// Each time the browser starts this worker.
+sweepInbox();
+
 function noStore(body, status, type) {
   return new Response(body, {
     status,
@@ -313,15 +336,23 @@ function fromThisDeviceOrSite(request) {
   return true;
 }
 
+// A share with no Origin cannot prove it came from the phone rather than a planted form, so it may
+// not push aside a share still waiting for its owner to open it; one from a VisaStack page may.
+async function mayReplaceWaiting(request) {
+  if (request.headers.get('origin') === self.location.origin) return true;
+  const inbox = await readInbox();
+  return !inbox || inbox.meta.owner !== null;
+}
+
 async function receiveShare(event) {
-  const accepted = fromThisDeviceOrSite(event.request);
+  const accepted = fromThisDeviceOrSite(event.request) && (await mayReplaceWaiting(event.request));
   let kept = 0;
   let offered = 0;
   if (accepted) {
     try {
       const form = await event.request.formData();
       const shared = form.getAll(SHARE_FILES_FIELD).filter((value) => value && typeof value === 'object');
-      // A new share replaces anything still waiting from an earlier one.
+      // A new share replaces anything an account already opened, or anything past its time.
       await clearInbox();
       const cache = await caches.open(SHARE_INBOX_CACHE);
       const files = [];
@@ -431,6 +462,8 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const share = shareKind(event.request);
+  // Any request is a chance to drop an inbox past its time. A share post decides for itself.
+  if (share !== 'receive') event.waitUntil(sweepInbox());
   if (share) {
     event.respondWith(answerShare(event, share));
     return;

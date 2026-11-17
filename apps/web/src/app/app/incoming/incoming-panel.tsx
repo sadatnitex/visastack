@@ -34,7 +34,8 @@ export async function readSharedInbox(ownerKey: string | null): Promise<SharedIn
     return parseInbox(null);
   }
   try {
-    // The key goes in a header, never in the address, so no server log can ever hold it.
+    // The key (a prop of this page, not a secret) goes in a header, never in the address, so no
+    // server log holds it.
     const response = await fetch(SHARE_LIST_PATH, {
       cache: 'no-store',
       credentials: 'same-origin',

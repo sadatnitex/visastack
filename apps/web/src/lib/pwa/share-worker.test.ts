@@ -243,8 +243,34 @@ describe('receiving a share', () => {
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
   });
 
-  it('replaces whatever an earlier share left waiting', async () => {
+  it('replaces a share an account already opened', async () => {
     await sw.dispatchFetch(share([photo('old.jpg')]));
+    await list();
+    await sw.dispatchFetch(share([photo('new.jpg')]));
+    const { body } = await list();
+    expect(body.files.map((f: { name: string }) => f.name)).toEqual(['new.jpg']);
+  });
+
+  it('a share with no Origin never pushes aside one still waiting to be opened', async () => {
+    await sw.dispatchFetch(share([photo('mine.jpg')]));
+    const planted = share([photo('planted.jpg')]);
+    const response = await sw.dispatchFetch(planted);
+    expect(response?.headers.get('location')).toBe(`${ORIGIN}${INCOMING_PATH}?missed=1`);
+    expect(planted.formData).not.toHaveBeenCalled();
+    const { body } = await list();
+    expect(body.files.map((f: { name: string }) => f.name)).toEqual(['mine.jpg']);
+  });
+
+  it('a share from a VisaStack page may replace one still waiting', async () => {
+    await sw.dispatchFetch(share([photo('old.jpg')]));
+    await sw.dispatchFetch(share([photo('new.jpg')], ORIGIN));
+    const { body } = await list();
+    expect(body.files.map((f: { name: string }) => f.name)).toEqual(['new.jpg']);
+  });
+
+  it('a share with no Origin replaces a waiting one once its time is up', async () => {
+    await sw.dispatchFetch(share([photo('old.jpg')]));
+    sw.clock.now += SHARE_MAX_AGE_MS + 1;
     await sw.dispatchFetch(share([photo('new.jpg')]));
     const { body } = await list();
     expect(body.files.map((f: { name: string }) => f.name)).toEqual(['new.jpg']);
@@ -342,6 +368,25 @@ describe('reading the inbox', () => {
     sw.clock.now += SHARE_MAX_AGE_MS + 1;
     expect((await list(KEY)).body.files).toEqual([]);
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it.each([
+    ['opening any VisaStack page', () => get('/app', 'navigate')],
+    ['loading a picture or script', () => get('/_next/static/chunks/app.js', 'no-cors')],
+    ['a request from another page', () => get('/api/health/ready')],
+  ])(
+    'forgets expired files on %s, with no list call (after sign-out too)',
+    async (_label, make) => {
+      sw.clock.now += SHARE_MAX_AGE_MS + 1;
+      await sw.dispatchFetch(make(), ELSEWHERE);
+      expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+    },
+  );
+
+  it('keeps files still within their time on other requests', async () => {
+    sw.clock.now += SHARE_MAX_AGE_MS - 1;
+    await sw.dispatchFetch(get('/app', 'navigate'), ELSEWHERE);
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
   });
 
   it('forgets expired files when the worker starts again', async () => {

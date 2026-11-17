@@ -35,7 +35,8 @@ export const SHARE_CLEAR_PATH = `${SHARE_TARGET_PATH}/clear`;
 
 /**
  * The header the incoming page sends its account key in. The key never goes in an address, so it
- * cannot reach a server log even if no worker is there to answer.
+ * cannot reach a server log even if no worker is there to answer. It is not a secret (the page gets
+ * it as a prop): it only keeps one account's shared files apart from another's on the same device.
  */
 export const SHARE_KEY_HEADER = 'x-visastack-share-key';
 

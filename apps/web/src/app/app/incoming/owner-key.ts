@@ -9,9 +9,10 @@ const LABEL = 'visastack-share-inbox-owner';
  * service worker keeps the first key that opens `/app/incoming` and empties the inbox when a
  * different one asks, so on a shared phone the next person to sign in never sees the files.
  *
- * Made on the server from the account id (a random UUID that is never shown to anyone else) and
- * sent to the worker only in a request header. It separates accounts on one device; it is not a
- * secret against someone who already knows the account id, which is enough here: the files never
+ * Made on the server from the account id (a random UUID that is never shown to anyone else), handed
+ * to the signed-in page as a prop (so it is in that page's own payload), and sent to the worker in a
+ * request header, never in an address. It is account separation on one device, not a secret: anyone
+ * who knows the account id can work it out. That is enough here: the files never
  * leave the device, expire after 15 minutes, and are sent only after the person confirms. It reads
  * no secret on purpose (only the files listed in `scripts/no-auth-bypass.test.mjs` may).
  */
