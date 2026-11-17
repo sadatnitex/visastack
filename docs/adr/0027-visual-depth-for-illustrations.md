@@ -36,7 +36,7 @@ ADR 0023 (Calm Core With Depths) uses "depth" for information levels: Glance, Br
 ### Allowed inside the picture stylesheet
 
 - Soft shadows under a picture or a hero card.
-- A glow behind hero pictures. Gradients and blur are allowed for this, and only inside the picture stylesheet.
+- A glow behind hero pictures. Gradients, blur and translucent fills are allowed for this, and only inside the picture stylesheet. Frosted glass panels (`backdrop-filter`) over page content are not part of this decision.
 - Gentle motion that uses `transform` and `opacity` only (no animated layout, size, colour or shadow), so it stays smooth on low-end phones.
 - At most ONE animated hero per screen.
 - Motion uses the shared speeds (`--motion-press`, `--motion-state`, `--motion-arrive`, `--motion-ease`) plus ONE new slow speed, `--motion-slow: 600ms`, defined once in `globals.css` (block `WP-PIC0`). It may be used only inside `@media (prefers-reduced-motion: no-preference)`; a guard test enforces that.
@@ -44,7 +44,7 @@ ADR 0023 (Calm Core With Depths) uses "depth" for information levels: Glance, Br
 ### Motion is off when a person asks for less
 
 - Under `prefers-reduced-motion: reduce` all motion is off. The existing global rule already turns every animation and transition off, and the slow speed is only ever used inside a `no-preference` block.
-- When data saver is on, motion is off too. The picture layer sets `data-save-data` on the `html` element when the browser reports data saver (`navigator.connection.saveData`, or the `Save-Data` request hint), and the picture stylesheet gates every animation on `html:not([data-save-data])`. Pictures still show, standing still.
+- When data saver is on, motion is off too. The picture layer sets `data-save-data` on the `html` element when the browser reports data saver: on the server from the `Save-Data` request header, or in the browser from `navigator.connection.saveData` inside existing client code. Either way it needs no new inline script and no security policy change. The picture stylesheet gates every animation on `html:not([data-save-data])`. Pictures still show, standing still. The picture layer and its stylesheet do not exist yet; the unit that adds them adds this gate and its test.
 
 ### Still forbidden
 
@@ -59,8 +59,12 @@ ADR 0023 (Calm Core With Depths) uses "depth" for information levels: Glance, Br
 
 ## Guards
 
+In force from this ADR:
+
 - `scripts/check-flat-design.mjs` and `scripts/check-flat-design.test.mjs`: the exception list holds exactly two paths; shadows, glow and blur pass only in those paths; lookalike paths, other picture stylesheets and `globals.css` still fail; dark appearance fails in both exempt files; inline effects in picture components still fail.
-- `apps/web/src/lib/a11y-guards.test.ts`: `--motion-slow` is defined exactly once (at most 700ms), and every use of it sits inside `@media (prefers-reduced-motion: no-preference)`.
+- `apps/web/src/lib/a11y-guards.test.ts`: `--motion-slow` is defined exactly once (at most 700ms); every use of it sits inside `@media (prefers-reduced-motion: no-preference)` (a comma list counts only when every query asks for it); it is never handed on through another custom property; component code never names it.
+
+To be added by the unit that creates `pictures-depth.css` (not enforced yet): motion animates `transform` and `opacity` only, uses shared speeds only, is gated on `html:not([data-save-data])`, and at most one hero per screen moves.
 
 ## Alternatives considered
 
