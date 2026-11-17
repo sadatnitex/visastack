@@ -236,9 +236,13 @@ describe('the stack styles', () => {
   const start = css.indexOf('/* WP-PIC5');
   const block = css.slice(start, css.indexOf('/* end WP-PIC5 */'));
 
-  it('sits in one block at the very end of the stylesheet', () => {
+  it('sits in one marked block of the stylesheet, from its start marker to its own end line', () => {
     expect(start).toBeGreaterThan(0);
-    expect(css.trimEnd().endsWith('/* end WP-PIC5 */')).toBe(true);
+    // Guardian-decided guard correction (17 Nov 2026): later blocks are appended after this one, so
+    // the block ends at its own end line rather than at the end of the file.
+    const end = css.indexOf('/* end WP-PIC5 */');
+    expect(end).toBeGreaterThan(start);
+    expect(css.indexOf('/* end WP-PIC5 */', end + 1)).toBe(-1);
     expect(css.indexOf('/* WP-PIC5', start + 1)).toBe(-1);
   });
 
