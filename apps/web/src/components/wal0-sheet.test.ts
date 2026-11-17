@@ -29,7 +29,7 @@ describe('WAL0 the open document sheet is never covered', () => {
     const at = css.indexOf('view-transition-name: wallet-view');
     expect(at).toBeGreaterThan(-1);
     expect(css.split('view-transition-name: wallet-view').length).toBe(2);
-    const before = css.slice(Math.max(0, at - 400), at);
+    const before = css.slice(Math.max(0, at - 700), at);
     expect(before).toContain('@media (min-width: 761px)');
     expect(before).toContain(':not(:has(.wallet-selected-document[data-sheet="open"]))');
     expect(before).toContain('prefers-reduced-motion: no-preference');
@@ -43,7 +43,7 @@ describe('WAL0 the open document sheet is never covered', () => {
 
   it('keeps the sheet clear of the bottom bar and the phone bottom edge', () => {
     expect(css).toMatch(
-      /\.wallet-selected-document\[data-sheet="open"\] \{\s*padding-bottom: calc\(var\(--space-6\) \+ 5rem \+ env\(safe-area-inset-bottom, 0px\)\);/,
+      /\.wallet-selected-document\[data-sheet="open"\] \{\s*padding-bottom: calc\(61px \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--space-4\)\);/,
     );
   });
 

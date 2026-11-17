@@ -22577,7 +22577,7 @@ button.wallet-stack-card {
   }
 
   .wallet-selected-document[data-sheet="open"] {
-    padding-bottom: calc(var(--space-6) + 5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(61px + env(safe-area-inset-bottom, 0px) + var(--space-4));
   }
 }
 /* end WP-WAL0 */

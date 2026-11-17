@@ -2,6 +2,11 @@ import { DocumentWalletBrowser } from '../../src/components/document-wallet-brow
 import { DepthScope } from '../../src/components/depth-scope';
 import { SafeCopyEditor } from '../../src/components/safe-copy-editor';
 import { ReadingStatus } from '../../src/app/app/applicant/[id]/reading-status';
+import { CaseMoreMenu } from '../../src/app/app/mission/[id]/case-more-menu';
+import { TasksPanel } from '../../src/app/app/mission/[id]/collaboration-panels';
+import { DepthSwitch } from '../../src/components/depth-switch';
+import { PageHeader } from '../../src/components/ui';
+import { depthCopyFor } from '../../src/lib/ccd/depth-copy';
 import { WorkspaceShell } from '../../src/app/app/workspace-shell';
 import { readingStatusCopy } from '../../src/lib/document-reading';
 import type { DepthChoice } from '../../src/lib/ccd/depth';
@@ -126,20 +131,59 @@ const LINKS: readonly (readonly [string, string, 'glance' | 'browse' | 'everythi
   ['#outcome', 'Submission and Outcome', 'everything'],
 ];
 
+/** A pasted web address with no spaces: the worst case for a task title. */
+const LONG_URL = `https://example.com/${'a-very-long-unbroken-path-segment/'.repeat(3)}file-0123456789`.slice(0, 120);
+
 function Strip({ depth }: { readonly depth: DepthChoice }) {
   return (
     <Shell>
-    <section className="section container lift-case">
-      <DepthScope family="case" depth={depth}>
-        <nav className="jump-nav" aria-label="Sections of this case" data-level="browse">
-          {LINKS.map(([href, label, level]) => (
-            <a key={href} href={href} data-level={level}>
-              {label}
-            </a>
-          ))}
-        </nav>
-      </DepthScope>
-    </section>
+      <section className="section container lift-case">
+        <DepthScope family="case" depth={depth}>
+          <PageHeader
+            back={{ href: '/cases', label: 'Example Traveller · Cases' }}
+            eyebrow="Case"
+            title="Example Study Visa"
+            actions={
+              <>
+                <div className="case-header-wide">
+                  <a className="btn btn-secondary" href="#evidence">
+                    Add Evidence
+                  </a>
+                </div>
+                <CaseMoreMenu
+                  missionId="40000000-0000-4000-8000-000000000001"
+                  applicantId={APPLICANT}
+                  canCancel
+                  headerActions={{ addEvidenceHref: '#evidence', newCaseHref: '/new', snapshot: true }}
+                />
+              </>
+            }
+          />
+          <DepthSwitch family="case" initial={depth} copy={depthCopyFor('case')} notesBehindInfo />
+          <nav className="jump-nav" aria-label="Sections of this case" data-level="browse">
+            {LINKS.map(([href, label, level]) => (
+              <a key={href} href={href} data-level={level}>
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div id="work" data-level="browse">
+            <TasksPanel
+              missionId="40000000-0000-4000-8000-000000000001"
+              tasks={[
+                {
+                  id: '50000000-0000-4000-8000-000000000001',
+                  description: LONG_URL,
+                  status: 'OPEN',
+                  priority: 'NORMAL',
+                  dueDate: null,
+                  dueTimezone: null,
+                },
+              ]}
+            />
+          </div>
+        </DepthScope>
+      </section>
     </Shell>
   );
 }

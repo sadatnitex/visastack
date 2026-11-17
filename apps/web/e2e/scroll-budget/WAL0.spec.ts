@@ -88,16 +88,21 @@ for (const motion of MOTION) {
   }
 }
 
-for (const size of SIZES) {
-  for (const depth of ['browse', 'everything'] as const) {
-    test(`WAL0 pill strip ${size.name} ${depth} needs no sideways scroll`, async ({ page }) => {
-      await page.setViewportSize({ width: size.width, height: size.height });
-      await renderFixture(page, FIXTURE, { view: 'strip', depth });
+const STRIP_WIDTHS = [320, 360, 390, 400, 641, 650, 768, 1280] as const;
+
+for (const width of STRIP_WIDTHS) {
+  for (const depth of ['glance', 'browse', 'everything'] as const) {
+    test(`WAL0 case page ${width} ${depth}: strip, page and More menu stay inside the screen`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await renderFixture(page, FIXTURE, { view: 'strip', depth }, { standInServerActions: true });
       const m = await page.evaluate(() => {
         const nav = document.querySelector('nav.jump-nav') as HTMLElement;
         const links = [...nav.querySelectorAll<HTMLElement>('a')].filter(
           (a) => a.getBoundingClientRect().height > 0,
         );
+        const segs = document.querySelector('fieldset.depth-segs') as HTMLElement | null;
         return {
           scroll: nav.scrollWidth,
           client: nav.clientWidth,
@@ -105,12 +110,24 @@ for (const size of SIZES) {
           inner: innerWidth,
           minHeight: Math.min(...links.map((a) => a.getBoundingClientRect().height)),
           rows: new Set(links.map((a) => Math.round(a.getBoundingClientRect().top))).size,
+          segsOver: segs ? segs.scrollWidth - segs.clientWidth : 0,
         };
       });
-      process.stdout.write(`[wal0] strip ${size.name} ${depth} ${JSON.stringify(m)}\n`);
+      process.stdout.write(`[wal0] case ${width} ${depth} ${JSON.stringify(m)}\n`);
       expect(m.scroll).toBeLessThanOrEqual(m.client + 1);
       expect(m.page).toBeLessThanOrEqual(m.inner);
       expect(m.minHeight).toBeGreaterThanOrEqual(44);
+      expect(m.segsOver).toBeLessThanOrEqual(1);
+
+      // The More menu opens fully inside the screen.
+      await page.locator('.case-more-menu > summary').click();
+      const box = await page.locator('.case-more-panel').boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(-0.5);
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width + 0.5);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
     });
   }
 }
