@@ -65,7 +65,12 @@ export function countDocumentKinds(names: readonly string[]): readonly DocumentK
 type Leaving =
   | { readonly key: string; readonly type: 'profile'; readonly word: string }
   | { readonly key: string; readonly type: 'documents'; readonly word: string }
-  | { readonly key: string; readonly type: 'kind'; readonly kind: DocumentIcon; readonly count: number }
+  | {
+      readonly key: string;
+      readonly type: 'kind';
+      readonly kind: DocumentIcon;
+      readonly count: number;
+    }
   | { readonly key: string; readonly type: 'note'; readonly word: string };
 
 /** What the strip draws: what leaves, and what specifically stays private. */
