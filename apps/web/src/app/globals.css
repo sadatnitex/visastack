@@ -22212,6 +22212,21 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC15 progress card: the Share Progress Card control on the Cases page (owner decision D5). */
+.progress-card-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.progress-card-share .btn {
+  min-height: 44px;
+}
+.progress-card-share-status {
+  flex-basis: 100%;
+}
+/* end WP-PIC15 */
 /* WP-PIC10 deadline timeline: today, appointment, passport end and trip start on one wrapping line.
    Flat: shared tokens, no shadow, gradient or animation. Pictures are decorative; words carry the state. */
 .deadline-timeline {
