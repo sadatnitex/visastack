@@ -107,7 +107,7 @@ it("follows Neon Auth's own start address, and refuses look-alikes of it", async
     'https://evil.example/neondb/auth/sign-in/social/init',
   ]) {
     social.mockResolvedValueOnce({ data: { url: bad }, error: null });
-    expect(location(await GET(click())), bad).toBe(`${ORIGIN}/auth/sign-in?e=social`);
+    expect(location(await GET(click())), bad).toBe(`${ORIGIN}/auth/sign-in?e=social&why=address`);
   }
 });
 
@@ -175,7 +175,7 @@ it('shows a fixed message and logs a safe line when Neon fails, returns no addre
     reportServerError.mockClear();
     social.mockResolvedValueOnce(result);
     const response = await GET(click());
-    expect(location(response)).toBe(`${ORIGIN}/auth/sign-in?e=social`);
+    expect(location(response)).toContain(`${ORIGIN}/auth/sign-in?e=social&why=`);
     expect(reportServerError).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(reportServerError.mock.calls[0])).not.toContain('secret provider text');
   }
@@ -195,7 +195,7 @@ it('shows a fixed message and logs a safe line when Neon fails, returns no addre
 it('shows the fixed message and logs when the call throws', async () => {
   enable();
   social.mockRejectedValueOnce(new Error('network'));
-  expect(location(await GET(click()))).toBe(`${ORIGIN}/auth/sign-in?e=social`);
+  expect(location(await GET(click()))).toContain(`${ORIGIN}/auth/sign-in?e=social&why=`);
   expect(reportServerError).toHaveBeenCalledTimes(1);
 });
 
@@ -207,7 +207,7 @@ it('gives up on a stalled Neon Auth with the fixed message instead of hanging', 
   social.mockReturnValue(new Promise(() => {}));
   const pending = GET(click());
   await vi.advanceTimersByTimeAsync(8000);
-  expect(location(await pending)).toBe(`${ORIGIN}/auth/sign-in?e=social`);
+  expect(location(await pending)).toBe(`${ORIGIN}/auth/sign-in?e=social&why=timeout`);
   expect(reportServerError).toHaveBeenCalledTimes(1);
 });
 
@@ -272,4 +272,17 @@ it('uses the address the visitor used when the server sits behind a proxy', asyn
     }),
   );
   expect(location(off)).toBe('https://www.example.test/auth/sign-in?e=social_start');
+});
+
+it('names the failure with a fixed word or the Neon Auth status number, never provider text', async () => {
+  enable();
+  social.mockResolvedValueOnce({
+    data: null,
+    error: { message: 'secret provider text', status: 403, code: 'FORBIDDEN' },
+  });
+  expect(location(await GET(click()))).toBe(`${ORIGIN}/auth/sign-in?e=social&why=neon_403`);
+  social.mockResolvedValueOnce({ data: { url: 'https://evil.example/x' }, error: null });
+  expect(location(await GET(click()))).toBe(`${ORIGIN}/auth/sign-in?e=social&why=address`);
+  social.mockRejectedValueOnce(new Error('secret provider text'));
+  expect(location(await GET(click()))).toBe(`${ORIGIN}/auth/sign-in?e=social&why=failed`);
 });

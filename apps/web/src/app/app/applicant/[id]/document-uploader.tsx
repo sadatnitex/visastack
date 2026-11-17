@@ -440,6 +440,7 @@ export function DocumentUploader({
       {photo ? (
         <CapturePreview
           file={photo}
+          documentKind={kind}
           onUse={(taken) => {
             setPhoto(null);
             addFiles([taken]);
