@@ -204,12 +204,15 @@ export function ReadinessSegmentRing({
     <div className="readiness-segring">
       <span className={`progress-ring progress-ring-${size}${full ? ' progress-ring-full' : ''}`}>
         <span className="progress-ring-graphic">
-          <svg
-            viewBox="0 0 100 100"
-            {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': words })}
-          >
-            <Segments mask={mask} />
-          </svg>
+          {decorative ? (
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <Segments mask={mask} />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 100 100" role="img" aria-label={words}>
+              <Segments mask={mask} />
+            </svg>
+          )}
         </span>
         <span className="progress-ring-text">
           <span className="progress-ring-words" aria-hidden="true">

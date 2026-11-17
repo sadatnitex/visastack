@@ -22129,6 +22129,9 @@ body:lang(bn),
 .lift-progress-ring .readiness-segring {
   display: contents;
 }
+.lift-progress-ring .readiness-segring-plain {
+  display: contents;
+}
 .lift-progress-ring .progress-ring-text {
   display: none;
 }
