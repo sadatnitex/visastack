@@ -8,6 +8,7 @@
  * `describeGrantScope`), never more and never less.
  */
 import type { ReactNode } from 'react';
+import { SharePictureStrip } from './share-sheet-pictures';
 
 export type ProfileScope =
   | { readonly kind: 'whole' }
@@ -177,6 +178,11 @@ export function SelectedScopeSummary(props: SelectedScopeSummaryProps) {
           </Row>
         )}
       </dl>
+      {/* WP-PIC12: the same scope drawn as pictures, for live and not-yet access only: a one-time
+          copy and ended access have nothing about to leave. */}
+      {props.snapshot || tense === 'ended' ? null : (
+        <SharePictureStrip profile={profile} documents={documents} />
+      )}
       {tense === 'ended' ? null : (
         <p className="scope-summary-private">Everything you did not select stays private.</p>
       )}
