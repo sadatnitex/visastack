@@ -47,6 +47,7 @@ import { collectionLinkStillOpen } from './umpe-collection-request-service';
 import { personHoldsTablePresent } from './umpe-document-tables';
 import { guestCodeStillDeliverable } from './umpe-guest-collection';
 import { INACTIVE_CASE_STATES } from './umpe-package-tables';
+import { type PushPort, sendWebPushToAccount } from './web-push';
 
 /**
  * The Notification Outbox (NTF-02 + Part 5 §3): a transactional outbox.
@@ -915,6 +916,7 @@ async function dispatchOne(
   baseUrl: string,
   now: Date,
   encryption: KeyManagementPort | undefined,
+  push?: PushPort,
 ): Promise<'sent' | 'failed' | 'retrying' | 'deferred'> {
   if (!notification.leaseOwner) return 'deferred';
   const ownedQueue = and(
@@ -1032,6 +1034,18 @@ async function dispatchOne(
       .set({ status: 'SENT', attempts, sentAt: now, leaseOwner: null, leaseExpiresAt: null })
       .where(ownedQueue)
       .returning({ id: schema.notifications.id });
+    // WP-PIC18: once the notice is sent (and only then), the same person's chosen browsers get
+    // the fixed alert. It runs after the row is final and can never change or fail it.
+    if (updated.length && push && encryption && notification.recipientAccountId) {
+      try {
+        await sendWebPushToAccount(db, push, encryption, {
+          accountId: notification.recipientAccountId,
+          deepLinkPath: payload.deepLinkPath,
+        });
+      } catch {
+        // Counted nowhere and logged nowhere: an alert is a courtesy, the notice itself is sent.
+      }
+    }
     return updated.length ? 'sent' : 'deferred';
   }
 
@@ -1203,6 +1217,8 @@ export async function runNotificationWorker(
     readonly now?: Date;
     readonly timeBudgetMs?: number;
     readonly encryption?: KeyManagementPort;
+    /** WP-PIC18: phone and desktop alerts, given only while Web Push is switched on. */
+    readonly push?: PushPort;
     /**
      * Send only the messages about this one record (an invitation just created), so a person
      * waiting on the screen gets their own email at once instead of whatever is oldest.
@@ -1259,6 +1275,7 @@ export async function runNotificationWorker(
       baseUrl,
       now,
       options.encryption,
+      options.push,
     );
     if (outcome === 'sent') sent++;
     else if (outcome === 'retrying') retrying++;
