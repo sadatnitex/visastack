@@ -35,6 +35,7 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   '/app/countries': nav,
   '/app/countries/[iso2]': link('app/app/countries/(list)/page.tsx', '/app/countries/[code]'),
   '/app/help': link('app/app/account-menu.tsx', "'/app/help'"),
+  '/app/incoming': link('app/share-target/route.ts', "'/app/incoming?missed=1'"),
   '/app/notifications': nav,
   '/app/privacy': link('app/app/account-menu.tsx', "'/app/privacy'"),
   '/app/shared': nav,
