@@ -15,7 +15,7 @@ const STAGE_ICONS: Readonly<Record<MissionState, IconName>> = {
   UNDER_REVIEW: 'eye',
   READY_TO_EXPORT: 'upload',
   LOCKED: 'lock',
-  CLOSED: 'lock',
+  CLOSED: 'folder',
   CANCELLED: 'circle',
 };
 
@@ -34,6 +34,8 @@ const STAGE_SENTENCES: Readonly<Record<MissionState, string>> = {
   CLOSED: 'The case is finished and no more work is needed.',
   CANCELLED: 'The case was stopped.',
 };
+
+const KIND_WORDS = { done: 'Done', later: 'Later', unrecorded: 'Not recorded' } as const;
 
 /** The one sentence that says what happens in a stage. */
 export function journeyStageSentence(stage: MissionState): string {
@@ -64,13 +66,24 @@ export function JourneyTrack({
     <section className="journey-track" aria-label={ariaLabel}>
       <ol className="journey-track-list">
         {stages.map((stage, index) => {
-          const kind = index < at ? 'done' : index === at ? 'current' : 'later';
+          // A stage is ticked only when the case moved on through it. Submitted is never ticked from
+          // position: a case can be closed without a submission report, so only a case that is in
+          // Submitted now shows it, and a closed case shows it as not recorded.
+          const past = index < at;
+          const kind =
+            index === at
+              ? 'current'
+              : past && stage === 'SUBMITTED'
+                ? 'unrecorded'
+                : past
+                  ? 'done'
+                  : 'later';
           const label = labels[stage] ?? stage;
           const picture = <Icon name={STAGE_ICONS[stage]} size={22} />;
           return (
             <li key={stage} className={`journey-stage journey-stage-${kind}`}>
               {kind === 'current' ? (
-                <ExplainTip label={label} text={STAGE_SENTENCES[stage]}>
+                <ExplainTip label={label} text={journeyStageSentence(stage)}>
                   {picture}
                 </ExplainTip>
               ) : (
@@ -84,14 +97,12 @@ export function JourneyTrack({
                 </span>
               ) : null}
               {kind === 'current' ? (
-                <span className="journey-stage-word">
-                  <span className="sr-only">Now: </span>
-                  {label}
-                  <span aria-hidden="true"> - Now</span>
+                <span className="journey-stage-word" aria-hidden="true">
+                  {label} - Now
                 </span>
               ) : (
                 <span className="sr-only">
-                  {label}: {kind === 'done' ? 'Done' : 'Later'}
+                  {label}: {KIND_WORDS[kind]}
                 </span>
               )}
             </li>

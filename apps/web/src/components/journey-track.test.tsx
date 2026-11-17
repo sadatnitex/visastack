@@ -78,7 +78,9 @@ describe('JourneyTrack', () => {
         <JourneyTrack state="CLOSED" labels={labels} stages={path} ariaLabel="J" />,
       ),
     );
-    expect(closed[5]).toContain('journey-stage-done');
+    expect(closed[5]).not.toContain('journey-stage-done');
+    expect(closed[5]).toContain('Not recorded');
+    expect(closed[4]).toContain('journey-stage-done');
   });
   it('ticks nothing when the case is not on the path', () => {
     const html = renderToStaticMarkup(

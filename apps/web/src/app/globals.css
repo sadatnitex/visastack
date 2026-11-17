@@ -21594,6 +21594,74 @@ body:lang(bn),
 }
 /* end WP-PIC3 */
 
+/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along a line (components/journey-track.tsx), above the existing step bar. Finished stages carry a tick, the current stage shows its word, later stages stay plain, so state is never colour alone. Flat: borders and solid surfaces, no shadow. The track wraps onto more rows on a narrow screen so the explain popup is never clipped. */
+.journey-track {
+  max-width: 100%;
+  margin-block-end: var(--space-3);
+  padding-block: var(--space-2);
+}
+.journey-track-list {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+.journey-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 44px;
+}
+.journey-stage-picture,
+.journey-stage .explain-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--edge-control);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: inherit;
+}
+.journey-stage .explain-tip {
+  margin-block: 0;
+}
+.journey-stage-later .journey-stage-picture,
+.journey-stage-unrecorded .journey-stage-picture {
+  border-style: dashed;
+  opacity: 0.7;
+}
+.journey-stage-current .explain-tip-trigger {
+  border-width: 2px;
+  border-color: currentColor;
+}
+.journey-stage-tick {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--edge-control);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+}
+.journey-stage-word {
+  max-width: 9rem;
+  font-size: var(--text-small);
+  font-weight: 600;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+/* end WP-PIC8 */
 /* WP-PIC1 Explain popup (17 Nov 2026): a picture that explains itself. Pointing at it, focusing it or tapping it shows its name and one plain sentence beside it (components/explain-tip.tsx, lib/use-explain-tip.ts). It replaces the plain title= hint, which touch screens and keyboards never show. Flat: a solid raised surface and a control-strength border, no shadow. The popup fades and rises on the press speed only, and not at all under reduced motion. The script measures where it fits (lib/popover-placement.ts) and sets data-placement, data-align and --explain-tip-shift on the holder; without them it opens below, lined up with the trigger's right edge. */
 .explain-tip {
   position: relative;
@@ -21693,80 +21761,3 @@ body:lang(bn),
   }
 }
 /* end WP-PIC1 */
-/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along a line (components/journey-track.tsx), above the existing step bar. Finished stages carry a tick, the current stage shows its word, later stages stay plain, so state is never colour alone. Flat: borders and solid surfaces, no shadow. The track scrolls inside its own box on a narrow screen. */
-.journey-track {
-  max-width: 100%;
-  margin-block-end: var(--space-3);
-  padding-block: var(--space-2);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-}
-.journey-track-list {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  width: max-content;
-}
-.journey-stage {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 44px;
-}
-.journey-stage:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 22px;
-  inset-inline-start: calc(50% + 26px);
-  width: calc(100% - 52px + var(--space-2));
-  border-top: 1px solid var(--edge-control);
-}
-.journey-stage-picture,
-.journey-stage .explain-tip-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--edge-control);
-  border-radius: 50%;
-  background: var(--bg-elevated);
-  color: inherit;
-}
-.journey-stage .explain-tip {
-  margin-block: 0;
-}
-.journey-stage-later .journey-stage-picture {
-  border-style: dashed;
-  opacity: 0.7;
-}
-.journey-stage-current .explain-tip-trigger {
-  border-width: 2px;
-  border-color: currentColor;
-}
-.journey-stage-tick {
-  position: absolute;
-  top: 0;
-  inset-inline-end: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--edge-control);
-  border-radius: 50%;
-  background: var(--bg-elevated);
-}
-.journey-stage-word {
-  max-width: 9rem;
-  font-size: var(--text-sm, 0.875rem);
-  font-weight: 600;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-/* end WP-PIC8 */
