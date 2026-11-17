@@ -48,6 +48,11 @@ const nextConfig = {
   ...standaloneOutput,
   reactStrictMode: true,
   env: { VISASTACK_BUILD_VERSION: buildVersion },
+  // WP-PIC15: the progress card draws the destination's flag from public/flags on the server, and
+  // a Vercel function does not carry the public folder unless it is named here (this route only).
+  outputFileTracingIncludes: {
+    '/api/progress-card/[missionId]': ['./public/flags/*.svg'],
+  },
   poweredByHeader: false,
   transpilePackages: ['@visastack/core', '@visastack/db'],
   // The pooled Neon driver talks to Postgres over a WebSocket via `ws`. If
