@@ -1,7 +1,7 @@
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { eq, sql } from 'drizzle-orm';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { setConsent } from './consent';
@@ -68,8 +68,15 @@ describe('readCaseProgressCounts', () => {
       destination: 'Japan',
       finished: false,
     });
-    const finished = await readCaseProgressCounts(await view(cases.accountId, cases.finishedId));
-    expect(finished.ok && finished.value.finished).toBe(true);
+    // A submitted case still waits for a decision: it is not finished.
+    const submitted = await readCaseProgressCounts(await view(cases.accountId, cases.finishedId));
+    expect(submitted.ok && submitted.value.finished).toBe(false);
+    await db
+      .update(schema.missions)
+      .set({ state: 'CLOSED' })
+      .where(eq(schema.missions.id, cases.finishedId));
+    const closed = await readCaseProgressCounts(await view(cases.accountId, cases.finishedId));
+    expect(closed.ok && closed.value.finished).toBe(true);
   });
 
   it('writes one audit row per card with the case and the owner, and no counts or text', async () => {
@@ -80,8 +87,23 @@ describe('readCaseProgressCounts', () => {
     expect(row?.actorAccountId).toBe(cases.accountId);
     expect(row?.applicantId).toBe(cases.applicantId);
     expect(row?.missionId).toBe(cases.openId);
+    expect(row?.actorRole).toBe('applicant_owner');
     expect(row?.metadata ?? null).toBeNull();
     expect(JSON.stringify(row)).not.toMatch(/Japan|Open case|passport/i);
+  });
+
+  it('gives no card when its audit row cannot be written', async () => {
+    const proof = await view(cases.accountId, cases.openId);
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await db.execute(sql`ALTER TABLE audit_events RENAME COLUMN metadata TO metadata_gone`);
+    try {
+      const result = await readCaseProgressCounts(proof);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe('not_found');
+    } finally {
+      await db.execute(sql`ALTER TABLE audit_events RENAME COLUMN metadata_gone TO metadata`);
+      quiet.mockRestore();
+    }
   });
 
   it('refuses an agency member with a live grant over the whole record, like a missing case', async () => {

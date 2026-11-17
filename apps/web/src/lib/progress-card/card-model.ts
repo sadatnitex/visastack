@@ -62,15 +62,3 @@ export function progressCardModel(input: ProgressCardInput): ProgressCardModel {
     note: PROGRESS_CARD_NOTE,
   };
 }
-
-/** Every word the card draws, in order, for tests and for the picture's text alternative. */
-export function progressCardWords(model: ProgressCardModel): readonly string[] {
-  return [
-    model.kicker,
-    ...(model.place ? [model.place.name] : []),
-    model.countLine,
-    `${model.percent}%`,
-    model.brand,
-    model.note,
-  ];
-}

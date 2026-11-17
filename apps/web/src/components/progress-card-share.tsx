@@ -15,6 +15,8 @@ import { useEffect, useState } from 'react';
 export const SHARE_PROGRESS_CARD = 'Share Progress Card';
 export const DOWNLOAD_PROGRESS_CARD = 'Download Progress Card';
 export const PROGRESS_CARD_BUSY = 'Making Your Card';
+/** A second tap shares the card already made, when the phone wants a fresh tap to open its sheet. */
+export const SHARE_PROGRESS_CARD_NOW = 'Share Your Card Now';
 export const PROGRESS_CARD_FAILED = 'The card could not be made just now. Try again in a moment.';
 const FILE_NAME = 'progress-card.png';
 
@@ -35,10 +37,25 @@ export function canShareImageFiles(nav: Navigator | undefined): boolean {
   }
 }
 
+/** The card as a file, or null when the answer is not a PNG (signed out, switched off, not found). */
+async function fetchCard(href: string): Promise<File | null> {
+  const response = await fetch(href, {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    // A sign-in redirect would end on an HTML page: never share that as a picture.
+    redirect: 'error',
+  });
+  if (!response.ok || response.headers.get('content-type') !== 'image/png') return null;
+  return new File([await response.blob()], FILE_NAME, { type: 'image/png' });
+}
+
 export function ProgressCardShare({ missionId }: { readonly missionId: string }) {
   const [mode, setMode] = useState<Mode>('unknown');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // A card made but not yet shared: some phones (Safari) only open the share sheet straight after
+  // a tap, and making the card takes a moment, so the next tap shares it at once.
+  const [ready, setReady] = useState<File | null>(null);
   const href = progressCardHref(missionId);
 
   useEffect(() => {
@@ -51,19 +68,35 @@ export function ProgressCardShare({ missionId }: { readonly missionId: string })
 
   async function share() {
     if (busy) return;
-    setBusy(true);
     setFailed(false);
+    let file = ready;
+    if (!file) {
+      setBusy(true);
+      try {
+        file = await fetchCard(href);
+      } catch {
+        file = null;
+      } finally {
+        setBusy(false);
+      }
+      if (!file) {
+        setFailed(true);
+        return;
+      }
+    }
     try {
-      const response = await fetch(href, { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok) throw new Error(`card ${response.status}`);
-      const blob = await response.blob();
-      const file = new File([blob], FILE_NAME, { type: 'image/png' });
       await navigator.share({ files: [file], title: 'Progress Card' });
+      setReady(null);
     } catch (error) {
+      const name = error instanceof DOMException ? error.name : '';
       // Closing the share sheet is a choice, not a failure.
-      if (!(error instanceof DOMException && error.name === 'AbortError')) setFailed(true);
-    } finally {
-      setBusy(false);
+      if (name === 'AbortError') setReady(null);
+      // The phone wants a fresh tap: keep the card so the next tap shares it straight away.
+      else if (name === 'NotAllowedError') setReady(file);
+      else {
+        setReady(null);
+        setFailed(true);
+      }
     }
   }
 
@@ -77,7 +110,7 @@ export function ProgressCardShare({ missionId }: { readonly missionId: string })
           aria-disabled={busy || undefined}
           onClick={share}
         >
-          {busy ? PROGRESS_CARD_BUSY : SHARE_PROGRESS_CARD}
+          {busy ? PROGRESS_CARD_BUSY : ready ? SHARE_PROGRESS_CARD_NOW : SHARE_PROGRESS_CARD}
         </button>
       ) : (
         <a className="btn btn-primary" href={href} download={FILE_NAME}>

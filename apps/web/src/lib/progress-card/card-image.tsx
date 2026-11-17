@@ -49,6 +49,7 @@ const RING_STROKE = 44;
 /**
  * The card as an element for the server's picture maker (next/og). Inline styles only, flex
  * layout only: that is all the picture maker reads. Flat, like the product: no shadow, no gradient.
+ * One weight of the picture maker's own font (no font file is shipped), so size alone sets the order.
  */
 export function progressCardElement(model: ProgressCardModel, flag: string | null): ReactElement {
   const radius = (RING_SIZE - RING_STROKE) / 2;
@@ -84,7 +85,7 @@ export function progressCardElement(model: ProgressCardModel, flag: string | nul
                 style={{ borderRadius: 44, marginRight: 28, border: `2px solid ${TRACK}` }}
               />
             ) : null}
-            <div style={{ fontSize: 72, fontWeight: 700, display: 'flex' }}>{model.place.name}</div>
+            <div style={{ fontSize: 72, display: 'flex' }}>{model.place.name}</div>
           </div>
         ) : null}
       </div>
@@ -128,18 +129,17 @@ export function progressCardElement(model: ProgressCardModel, flag: string | nul
             />
           ) : null}
         </svg>
-        <div style={{ fontSize: 132, fontWeight: 700, display: 'flex' }}>{`${model.percent}%`}</div>
+        <div style={{ fontSize: 132, display: 'flex' }}>{`${model.percent}%`}</div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ fontSize: 64, fontWeight: 700, display: 'flex' }}>{model.countLine}</div>
+        <div style={{ fontSize: 64, display: 'flex' }}>{model.countLine}</div>
         <div style={{ fontSize: 34, color: MUTED, marginTop: 24, display: 'flex' }}>
           {model.note}
         </div>
         <div
           style={{
             fontSize: 44,
-            fontWeight: 700,
             color: BRAND,
             marginTop: 56,
             display: 'flex',

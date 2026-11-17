@@ -22108,8 +22108,8 @@ body:lang(bn),
 .progress-card-share .btn {
   min-height: 44px;
 }
-.progress-card-share-status:empty {
-  display: none;
+.progress-card-share-status {
+  flex-basis: 100%;
 }
 /* end WP-PIC15 */
 /* WP-PIC5 Documents as a stack of picture cards (17 Nov 2026, picture-first upgrade, unit U5). An opt-in view beside the list: each document is a card with its picture, name and state word, cards overlapping a little with a small sideways offset. Flat: no shadow or gradient here, the soft depth comes only from .pic-depth in the picture stylesheet. Cards are at least 44 px tall; the stack works from 320 px. Nothing moves, so there is no motion to switch off. */

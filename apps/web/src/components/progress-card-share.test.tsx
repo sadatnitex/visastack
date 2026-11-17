@@ -7,6 +7,7 @@ import {
   PROGRESS_CARD_FAILED,
   ProgressCardShare,
   SHARE_PROGRESS_CARD,
+  SHARE_PROGRESS_CARD_NOW,
   canShareImageFiles,
   progressCardHref,
 } from './progress-card-share';
@@ -15,6 +16,8 @@ import {
 
 const CASE = '11111111-2222-4333-8444-555555555555';
 let host: HTMLDivElement;
+const png = () =>
+  new Response(new Uint8Array([0x89, 0x50]), { headers: { 'content-type': 'image/png' } });
 
 async function mount() {
   host = document.createElement('div');
@@ -67,6 +70,7 @@ describe('Share Progress Card', () => {
     expect(fetchMock).toHaveBeenCalledWith(`/api/progress-card/${CASE}`, {
       credentials: 'same-origin',
       cache: 'no-store',
+      redirect: 'error',
     });
     const shared = share.mock.calls[0]?.[0] as { files: File[] };
     expect(shared.files[0]?.name).toBe('progress-card.png');
@@ -77,13 +81,46 @@ describe('Share Progress Card', () => {
   it('says so plainly when the card could not be made, and stays quiet when the sheet is closed', async () => {
     const share = vi.fn().mockRejectedValue(new DOMException('closed', 'AbortError'));
     setShare(share, () => true);
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new Uint8Array([1]))));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(png()));
     await mount();
     await act(async () => host.querySelector('button')?.click());
     expect(host.querySelector('output')?.textContent).toBe('');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not found', { status: 404 })));
     await act(async () => host.querySelector('button')?.click());
     expect(host.querySelector('output')?.textContent).toBe(PROGRESS_CARD_FAILED);
+  });
+
+  it('never shares a page that is not a picture, such as a sign-in page', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    setShare(share, () => true);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(new Response('<html>', { headers: { 'content-type': 'text/html' } })),
+    );
+    await mount();
+    await act(async () => host.querySelector('button')?.click());
+    expect(share).not.toHaveBeenCalled();
+    expect(host.querySelector('output')?.textContent).toBe(PROGRESS_CARD_FAILED);
+  });
+
+  it('keeps the card for one more tap when the phone wants a fresh tap to open its sheet', async () => {
+    const share = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException('needs a tap', 'NotAllowedError'))
+      .mockResolvedValueOnce(undefined);
+    setShare(share, () => true);
+    const fetchMock = vi.fn().mockResolvedValue(png());
+    vi.stubGlobal('fetch', fetchMock);
+    await mount();
+    await act(async () => host.querySelector('button')?.click());
+    expect(host.querySelector('button')?.textContent).toBe(SHARE_PROGRESS_CARD_NOW);
+    expect(host.querySelector('output')?.textContent).toBe('');
+    await act(async () => host.querySelector('button')?.click());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(share).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('button')?.textContent).toBe(SHARE_PROGRESS_CARD);
   });
 
   it('treats a browser that cannot say, or throws, as one that cannot share', () => {

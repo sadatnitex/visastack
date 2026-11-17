@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { progressCardModel, progressCardWords } from './card-model';
+import { type ProgressCardModel, progressCardModel } from './card-model';
+
+/** Every word the card draws, in the order it draws them (card-image.tsx). */
+function progressCardWords(model: ProgressCardModel): readonly string[] {
+  return [
+    model.kicker,
+    ...(model.place ? [model.place.name] : []),
+    `${model.percent}%`,
+    model.countLine,
+    model.note,
+    model.brand,
+  ];
+}
 
 const EM_DASH = String.fromCodePoint(0x2014);
 
@@ -17,10 +29,10 @@ describe('the progress card words', () => {
     expect(progressCardWords(model)).toEqual([
       'Case Progress',
       'Japan',
-      '8 of 12 items ready',
       '67%',
-      'VisaStack',
+      '8 of 12 items ready',
       'Counts what is gathered, not a visa decision.',
+      'VisaStack',
     ]);
   });
 
