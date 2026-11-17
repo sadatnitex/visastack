@@ -8322,3 +8322,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - A traveller's Documents page gains a Stack or List switch (List stays the default and unchanged): Stack shows each document as a picture card with its name, state word and date, opening exactly what the row opens. With no documents, the stack view shows one card labelled Example, never counted as a document.
 - NOT verified: a real device and screen reader at 320 px; the real Bangladesh cover in the stack (the page does not load nationality yet, so the neutral cover shows; follow-up); Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC12 share summary drawn as pictures
+
+- Before a traveller shares with an agency, the existing summary also draws what leaves (profile sections as icons, chosen documents as one document picture with the total count) and what stays private as a muted row, with an explain button: "Only what you see here is shared. You can stop sharing at any time; copies already downloaded stay with them." Presentation only: no change to what is shared, consent, revocation or audit. Every listed item is counted, including ones whose details could not be loaded (review fix).
+- NOT verified: a real device and screen reader; Bengali for the new words.
