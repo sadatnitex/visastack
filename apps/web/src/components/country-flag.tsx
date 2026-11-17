@@ -1,6 +1,7 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import { flagSrc } from '../lib/flag-policy';
 import { Icon } from './icons';
 
 /**
@@ -13,6 +14,12 @@ import { Icon } from './icons';
  * `useSyncExternalStore`, whose first browser pass equals the server's, so the page never fails to
  * match its own markup. A code that is not two letters draws a plain globe; with no name it is
  * decoration and is hidden from a screen reader.
+ *
+ * Where the flag policy (`lib/flag-policy.ts`) has a picture for the code, the real flag is drawn
+ * from a static same-origin file on top of that emoji or letters badge, which stay underneath as
+ * the fallback: a hidden code, a missing file, a failed load or being offline simply leaves them
+ * showing. The picture is added only after the page has woken up in the browser (never in the
+ * server's markup), so the server markup and the first browser pass stay exactly as they were.
  */
 
 export type CountryFlagSize = 'sm' | 'md' | 'lg';
@@ -70,6 +77,13 @@ export function useLacksFlagEmoji(): boolean {
   return useSyncExternalStore(noSubscription, readLacksEmoji, serverSnapshot);
 }
 
+const hydratedSnapshot = () => true;
+
+/** False on the server and on the first browser pass; true afterwards. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(noSubscription, hydratedSnapshot, serverSnapshot);
+}
+
 export function CountryFlag({
   iso2,
   name,
@@ -86,6 +100,27 @@ export function CountryFlag({
   readonly decorative?: boolean;
 }) {
   const lacksEmoji = useLacksFlagEmoji();
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const hydrated = useHydrated();
+  const resolvedSrc = hydrated ? flagSrc(iso2) : null;
+  const src = resolvedSrc !== null && resolvedSrc !== failedSrc ? resolvedSrc : null;
+  const picture = src ? (
+    <img
+      className="country-flag-img"
+      src={src}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      onLoad={() => setLoadedSrc(src)}
+      onError={() => setFailedSrc(src)}
+    />
+  ) : null;
+  // Once the picture has loaded the emoji or letters underneath are hidden, so flags with a
+  // see-through edge (not a full rectangle) do not show them; on a failed load they stay.
+  const loaded = src !== null && loadedSrc === src ? ({ 'data-picture': 'loaded' } as const) : {};
   const emoji = flagEmoji(iso2);
   const letters = flagLetters(iso2);
   const label = (name ?? '').trim();
@@ -107,15 +142,18 @@ export function CountryFlag({
         className="country-flag country-flag-letters"
         data-size={size}
         data-flag-kind="letters"
+        {...loaded}
         {...a11y}
       >
         {letters}
+        {picture}
       </span>
     );
   }
   return (
-    <span className="country-flag" data-size={size} data-flag-kind="emoji" {...a11y}>
+    <span className="country-flag" data-size={size} data-flag-kind="emoji" {...loaded} {...a11y}>
       {emoji}
+      {picture}
     </span>
   );
 }

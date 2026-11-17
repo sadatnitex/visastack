@@ -1,0 +1,1 @@
+Flag artwork: flag-icons 7.6.0 (https://github.com/lipis/flag-icons, npm package flag-icons@7.6.0), square (1x1) set, MIT licence, copyright (c) 2013 Panayiotis Lipiridis. The licence text is in the file LICENSE beside this one. Files are copied unchanged, one per ISO 3166-1 alpha-2 code in packages/core/src/destinations/country-codes.json.
