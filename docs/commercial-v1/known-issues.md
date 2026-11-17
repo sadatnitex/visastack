@@ -8281,3 +8281,24 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Found when the owner switched Google on: clicking "Continue with Google" showed "We could not sign you in with Google". Neon Auth answers the server-made start with its own address (`<base>/sign-in/social/init?token=...`), which then forwards the browser to Google, not with Google's address directly. The start route accepted only accounts.google.com, so it refused the reply. Neon Auth settings were correct (own Google client, both site addresses trusted); a direct call to the start for both hosts returned that address.
 - Fix: the route also accepts an address on exactly the configured Neon Auth host and path (`/sign-in/social/init`), secure and with no embedded login, and nothing else. Two deliberate breaks (path check removed, host check removed) each turned a test red.
 - NOT verified: the full round trip through Google on the live site; this is the live check in docs/operations/google-sign-in.md.
+
+### 17 Nov 2026: Google sign-in start still refused on the live site after the start-address fix
+
+- After the fix for Neon Auth's own start address (#595) was deployed, the live start still sent the visitor back to the sign-in form with the Google message. The same SDK call made from outside the site returned the expected start address, so the cause is specific to the deployed server.
+- A failed start now adds a fixed reason to the address (`why=neon_<status number>`, `address`, `timeout` or `failed`; never provider text) so the failure can be told apart without server logs, which the build sessions cannot read.
+- NOT verified: the cause itself; to be read from the reason on the live site.
+
+## 17 Nov 2026: WP-PIC2 picture layer and passport cover
+
+- New picture layer (apps/web/src/components/pictures): server-rendered pictures for document types with today's icon as fallback, and a passport cover chosen from the traveller's recorded nationality: the real Bangladesh cover (apps/web/public/pictures/passport-bd.png, sha256 53aff64a5f0138b13e62ac04ced8a098f7a9d5a84a35fe1d2b9594549751636d, owner decision D1) for Bangladeshi travellers, a neutral cover for everyone else or when the file fails. Depth and motion only in pictures-depth.css (ADR 0027), off under reduced motion and data saver (html[data-save-data], set from the Save-Data header and navigator.connection.saveData).
+- Security and correctness reviews passed after one fix round on the motion guard. NOT verified: the pictures are not yet on any page; a legal check of the state seal and Bengali text on the cover is advised before the public release.
+
+## 17 Nov 2026: WP-PIC6 Country card
+
+- Each country page opens with a Country card: the flag, the name, the entry type as a picture and a word (Not Yet Researched never looks like No Visa Needed), an explain button, and the source with its checked date. The ExplainTip stylesheet test now ends the WP-PIC1 block at its own end line instead of requiring it to be last (guard correction decided by the Guardian; start and end markers each exactly once).
+- NOT verified: a phone visual check; Bengali for any new words.
+
+## 17 Nov 2026: WP-PIC7 passport outline as the photo frame guide
+
+- On the photo check after a passport photo is taken (own, spouse or host passport), a passport-shaped outline with corner marks and the line "Fit the passport inside the lines" shows where the passport should sit. It ignores taps and is hidden from screen readers; Use This and Retake work as before; the camera setting (camera=()) is unchanged; nothing says the photo will be accepted.
+- NOT verified: a real phone camera; a passport held sideways; Bengali for the new line (marked as English, listed for the localization lane).

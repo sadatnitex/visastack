@@ -21751,3 +21751,79 @@ body:lang(bn),
   }
 }
 /* end WP-PIC1 */
+
+/* WP-PIC6 Country Card (17 Nov 2026, picture-first upgrade, unit U6): the flag, the name, the entry type as a picture beside its plain word, and where the fact came from, above the country summary. Flat: no shadow, gradient, blur or translucency; tokens only; every control keeps a 44 px target. */
+.country-card {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-elevated);
+}
+.country-card-head,
+.country-card-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+.country-card-name {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.country-card-word {
+  font-size: var(--text-lead);
+}
+.country-card-stay {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.country-card[data-entry="NOT_FOUND"] {
+  border-style: dashed;
+}
+.source-note-missing {
+  font-weight: 600;
+}
+/* end WP-PIC6 */
+
+/* WP-PIC7 Scan frame guide (17 Nov 2026, picture-first upgrade, unit U7). When the document is a passport, a thin outline in the passport cover's shape (64 by 91) with four corner marks is drawn over the photo check, and a one-line hint sits under it. Each line is a dark stroke under a white one so it shows on any photo. Flat: no shadow, gradient, blur or translucency; the existing capture colours only. The guide only draws: it ignores taps and never covers the buttons. */
+.capture-guide {
+  position: absolute;
+  inset: 6%;
+  width: 88%;
+  height: 88%;
+  pointer-events: none;
+  fill: none;
+  stroke-linecap: round;
+}
+.capture-guide-line,
+.capture-guide-corner {
+  fill: none;
+  stroke: #ffffff;
+  vector-effect: non-scaling-stroke;
+}
+.capture-guide [data-layer="under"] {
+  stroke: #152b37;
+}
+.capture-guide [data-layer="under"] .capture-guide-line {
+  stroke-width: 3px;
+}
+.capture-guide [data-layer="under"] .capture-guide-corner {
+  stroke-width: 7px;
+}
+.capture-guide [data-layer="over"] .capture-guide-line {
+  stroke-width: 1px;
+}
+.capture-guide [data-layer="over"] .capture-guide-corner {
+  stroke-width: 4px;
+}
+.capture-guide-hint {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+/* end WP-PIC7 */
