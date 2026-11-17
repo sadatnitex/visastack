@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   CONFIRMED_PATH,
+  SOCIAL_RETURN_PATH,
   confirmedCallbackNext,
   confirmedFailedDestination,
   confirmedLandingDecision,
@@ -101,6 +102,27 @@ describe('a repeated or odd address parameter', () => {
       expect(confirmedLandingDecision({ signedIn: true, next })).toBe('/app?confirmed=1');
       expect(confirmedLandingDecision({ signedIn: false, next })).toBe('/auth/sign-in?n=confirmed');
     }
+  });
+});
+
+describe('where the sign-in check sends a visitor returning from Google with no session', () => {
+  it('shows the Google message with the validated destination, never the confirmed line', () => {
+    expect(neonLoginUrlFor(SOCIAL_RETURN_PATH, '')).toBe('/auth/sign-in?e=social');
+    expect(neonLoginUrlFor(SOCIAL_RETURN_PATH, `?next=${encodeURIComponent(INVITE)}`)).toBe(
+      `/auth/sign-in?e=social&next=${encodeURIComponent(INVITE)}`,
+    );
+    expect(neonLoginUrlFor(SOCIAL_RETURN_PATH, '?next=https%3A%2F%2Fevil.example')).toBe(
+      '/auth/sign-in?e=social',
+    );
+  });
+
+  it('does not copy the one-time code Neon Auth adds to the address', () => {
+    const url = neonLoginUrlFor(
+      SOCIAL_RETURN_PATH,
+      '?next=%2Fapp&neon_auth_session_verifier=secretcode',
+    );
+    expect(url).toBe('/auth/sign-in?e=social');
+    expect(url).not.toContain('secretcode');
   });
 });
 

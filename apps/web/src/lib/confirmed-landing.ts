@@ -21,6 +21,13 @@ import { safeReturnPath } from './safe-return-path';
 
 export const CONFIRMED_PATH = '/auth/confirmed';
 
+/**
+ * Where a person lands after Google sign-in. A page of its own, not the email confirmation
+ * landing above, so a Google return never says anything about email confirmation. The sign-in
+ * check runs on it first (see `identity-selection.ts`), then the page goes on to `next`.
+ */
+export const SOCIAL_RETURN_PATH = '/auth/social-return';
+
 /** The plain-language line shown once after confirming. */
 export const CONFIRMED_LINE = 'Your email is confirmed.';
 
@@ -74,6 +81,12 @@ export function confirmedLandingDecision(input: {
  * for every other protected page it is the ordinary `?next=` form.
  */
 export function neonLoginUrlFor(pathname: string, search: string): string {
+  if (pathname === SOCIAL_RETURN_PATH) {
+    // No session after Google: the plain Google message, never the confirmed line, and only the
+    // validated destination (the one-time code Neon Auth adds to the address is not copied on).
+    const next = safeReturnPath(new URLSearchParams(search).get('next'));
+    return `/auth/sign-in?e=social${signInNextSuffix(next)}`;
+  }
   if (pathname === CONFIRMED_PATH) {
     const params = new URLSearchParams(search);
     const next = safeReturnPath(params.get('next'));

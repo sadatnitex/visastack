@@ -12,6 +12,7 @@ describe('isNeonProtectedPath', () => {
       '/oauth/authorize',
       '/auth/reauth',
       '/auth/confirmed',
+      '/auth/social-return',
       '/collect/account',
       '/collect/account/answers',
     ]) {
@@ -32,6 +33,8 @@ describe('isNeonProtectedPath', () => {
       '/auth/verify-email',
       '/auth/reauthorize',
       '/auth/confirmedx',
+      '/auth/social-returnx',
+      '/auth/google',
       '/application',
       '/applications/1',
       '/apple',
