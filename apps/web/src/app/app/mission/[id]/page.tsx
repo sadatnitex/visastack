@@ -128,6 +128,7 @@ import { evidenceDocumentIds, evidenceLifecycleLabels } from './evidence-lifecyc
 import { composeSelectionCandidateKey } from './evidence-selection-key';
 import { SnapshotButton } from './mission-buttons';
 import { PackagePanel } from './package-panel';
+import { ReadAloudButton } from './read-aloud-button';
 
 export const metadata: Metadata = { title: 'Case' };
 
@@ -905,7 +906,7 @@ export default async function MissionPage({
           title={mission.title}
           meta={
             <>
-              <span>
+              <span id="case-status-line">
                 {mission.destination ? (
                   <>
                     <DestinationLabel destination={mission.destination} />
@@ -925,6 +926,7 @@ export default async function MissionPage({
                 ) : null}
                 {caseStatus(mission.state).word}
               </span>
+              <ReadAloudButton sourceId="case-status-line" />
               <ReferenceCode code={data.referenceCode} label="Case Reference" />
               {data.liveAcknowledgedAt ? (
                 <StatusBadge tone="success">

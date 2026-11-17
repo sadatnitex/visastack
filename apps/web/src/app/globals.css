@@ -21769,6 +21769,33 @@ body:lang(bn),
   font-weight: 600;
 }
 /* end WP-PIC7 */
+/* WP-PIC16 browser toolbox (17 Nov 2026, picture-first upgrade, unit Q5). Read This Aloud is a quiet icon button inline on the case status line; it is not drawn where the browser cannot speak. The 44 pixel touch box uses negative block margins so the line keeps its height (the first-row budget of WP-SB2 is tight). Flat: no shadow, gradient or translucency. */
+.read-aloud-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  margin-block: -12px;
+  margin-inline-start: 4px;
+  padding: 0;
+  vertical-align: middle;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+/* A List or Stack switch fades the document area only, never the whole page. Motion is allowed here only when the person has not asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  .document-wallet-layout {
+    view-transition-name: wallet-view;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+/* end WP-PIC16 */
 
 /* WP-PIC9 waiting uploads: the files still on their way, as pictures with one state word. */
 .waiting-uploads {

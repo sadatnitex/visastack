@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { componentsCatalog } from '../i18n/components';
+import { tapSuccess } from '../lib/browser-toolbox/vibrate';
+import { holdScreenAwake } from '../lib/browser-toolbox/wake-lock';
 import { CAPTURE_GUIDE_HINT, CaptureFrameGuide, isPassportKind } from './capture-frame-guide';
 import { useT } from './i18n-provider';
 import { decodePhoto } from './profile-photo/photo-canvas';
@@ -86,6 +88,22 @@ export function CapturePreview({
 
   const unreadable = shown === 'unreadable';
   const passport = isPassportKind(documentKind);
+
+  // The screen stays awake while the passport outline is open; nothing changes where the browser
+  // cannot do this.
+  const outlineShown = passport && shown === 'ready';
+  useEffect(() => {
+    if (!outlineShown) return;
+    return holdScreenAwake();
+  }, [outlineShown]);
+
+  // One short tap per photo when it was read and is ready to check, never for an unreadable one.
+  const tapped = useRef<File | null>(null);
+  useEffect(() => {
+    if (shown !== 'ready' || tapped.current === file) return;
+    tapped.current = file;
+    tapSuccess();
+  }, [shown, file]);
 
   return (
     <section className="capture-preview" aria-labelledby={headingId} aria-describedby={hintId}>
