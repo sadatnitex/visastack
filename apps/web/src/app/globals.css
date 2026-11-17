@@ -21642,6 +21642,10 @@ body:lang(bn),
   flex: 1;
   font-weight: 600;
 }
+.waiting-uploads-more {
+  align-self: flex-start;
+  min-height: 44px;
+}
 .waiting-uploads-retry {
   min-height: 44px;
   min-width: 44px;

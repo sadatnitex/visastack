@@ -137,7 +137,12 @@ describe('WaitingUploads', () => {
   });
 
   it('shows a picture and a state word for each waiting file, never "Uploaded"', () => {
-    const s = store([item(1, 'queued'), item(2, 'uploading'), item(3, 'refused'), item(4, 'added')]);
+    const s = store([
+      item(1, 'queued'),
+      item(2, 'uploading'),
+      item(3, 'refused'),
+      item(4, 'added'),
+    ]);
     const { container } = render(<WaitingUploads source={s} onRetry={vi.fn()} />);
     expect(container.querySelectorAll('.waiting-uploads-row')).toHaveLength(3);
     expect(container.querySelectorAll('.mark-tile')).toHaveLength(3);
@@ -181,27 +186,46 @@ describe('WaitingUploads', () => {
     expect(screen.queryByTestId('waiting-offline')).toBeNull();
   });
 
-  it('announces count changes politely in an output element, not on every progress tick', () => {
-    const s = store([item(1, 'queued')]);
+  it('announces only what needs the person, in one output element, never each file finishing', () => {
+    const s = store([item(1, 'queued'), item(2, 'queued')]);
     render(<WaitingUploads source={s} onRetry={vi.fn()} />);
     const out = screen.getByTestId('waiting-announce');
     expect(out.tagName).toBe('OUTPUT');
-    expect(out.textContent).toBe('1 Waiting.');
-    act(() => s.set([item(1, 'uploading', { progress: 10 })]));
-    expect(out.textContent).toBe('1 Sending.');
-    act(() => s.set([item(1, 'uploading', { progress: 60 })]));
-    expect(out.textContent).toBe('1 Sending.');
-    act(() => s.set([item(1, 'added')]));
     expect(out.textContent).toBe('');
+    act(() => s.set([item(1, 'uploading', { progress: 10 }), item(2, 'queued')]));
+    expect(out.textContent).toBe('');
+    act(() => s.set([item(1, 'refused'), item(2, 'uploading')]));
+    expect(out.textContent).toBe('1 Could Not Send.');
+    act(() => s.set([item(1, 'added'), item(2, 'added')]));
+    expect(out.textContent).toBe('');
+  });
+
+  it('calls a file held by the hourly limit Paused, not Waiting, and a photo being shrunk Waiting', () => {
+    const s = store([item(1, 'held'), item(2, 'uploading', { preparing: true })]);
+    render(<WaitingUploads source={s} onRetry={vi.fn()} />);
+    expect(screen.getByText('Paused')).toBeTruthy();
+    expect(screen.getByText('Waiting')).toBeTruthy();
+    expect(screen.queryByText('Sending')).toBeNull();
+  });
+
+  it('draws six rows first and the rest on Show All', () => {
+    const s = store(Array.from({ length: 20 }, (_, i) => item(i + 1, 'queued')));
+    const { container } = render(<WaitingUploads source={s} onRetry={vi.fn()} />);
+    expect(container.querySelectorAll('.waiting-uploads-row')).toHaveLength(6);
+    const more = container.querySelector<HTMLButtonElement>('.waiting-uploads-more');
+    expect(more?.textContent).toBe('Show All 20');
+    fireEvent.click(more as Element);
+    expect(container.querySelectorAll('.waiting-uploads-row')).toHaveLength(20);
   });
 });
 
 describe('waitingSummary', () => {
-  it('counts by word and adds Offline', () => {
-    expect(waitingSummary([{ state: 'queued' }, { state: 'paused' }, { state: 'refused' }], true)).toBe(
-      '2 Waiting, 1 Could Not Send. Offline.',
-    );
-    expect(waitingSummary([{ state: 'added' }], false)).toBe('');
+  it('counts only problems and adds Offline', () => {
+    expect(
+      waitingSummary([{ state: 'queued' }, { state: 'held' }, { state: 'refused' }], true),
+    ).toBe('1 Paused, 1 Could Not Send. Offline.');
+    expect(waitingSummary([{ state: 'queued' }, { state: 'uploading' }], false)).toBe('');
+    expect(waitingSummary([{ state: 'queued' }], true)).toBe('Offline.');
   });
 });
 

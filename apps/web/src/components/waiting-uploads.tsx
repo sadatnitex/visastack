@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { type ImportItem, type ImportSnapshot, canTryAgain } from '../lib/import/import-queue';
 import { documentMark } from '../lib/item-icons';
 import { Icon, type IconName } from './icons';
@@ -14,10 +14,17 @@ import { MarkTile } from './mark-tile';
  * server's answer). Nothing is drawn when no file is waiting.
  */
 
+/** Rows drawn before Show All, so hundreds of files never mean hundreds of rows. */
+const ROWS_SHOWN_FIRST = 6;
+
 export type WaitingKind = 'waiting' | 'sending' | 'trouble';
 
 /** A file that has not reached the server, as a state; null for every file that is settled. */
-export function waitingKindOf(item: Pick<ImportItem, 'state'>): WaitingKind | null {
+export function waitingKindOf(
+  item: Pick<ImportItem, 'state'> & { readonly preparing?: boolean },
+): WaitingKind | null {
+  // A photo still being made smaller has not been sent yet.
+  if (item.state === 'uploading' && item.preparing) return 'waiting';
   switch (item.state) {
     case 'queued':
     case 'paused':
@@ -48,22 +55,35 @@ const STATE_ICON: Readonly<Record<WaitingKind, IconName>> = {
 /** The one word for a file that has no answer yet: it may or may not have arrived. */
 const NOT_CONFIRMED = 'Not Confirmed';
 
+/** Held by the hourly limit: it will not go on its own, so it is not "Waiting". */
+const PAUSED = 'Paused';
+
 function wordFor(item: Pick<ImportItem, 'state'>, kind: WaitingKind): string {
-  return item.state === 'unknown' ? NOT_CONFIRMED : WORD[kind];
+  if (item.state === 'unknown') return NOT_CONFIRMED;
+  if (item.state === 'held') return PAUSED;
+  return WORD[kind];
 }
 
-/** The line the polite read-out says: the counts, and nothing for an empty list. */
-export function waitingSummary(items: readonly Pick<ImportItem, 'state'>[], offline: boolean) {
+/**
+ * The polite read-out: only what needs the person (files that could not be sent or are not
+ * confirmed, files paused, and offline). Waiting and Sending change with every file the queue
+ * finishes, and the import page already reads out its own progress, so they are not repeated.
+ */
+export function waitingSummary(
+  items: readonly (Pick<ImportItem, 'state'> & { readonly preparing?: boolean })[],
+  offline: boolean,
+): string {
   const counts: Record<string, number> = {};
   for (const item of items) {
     const kind = waitingKindOf(item);
     if (!kind) continue;
     const word = wordFor(item, kind);
+    if (word === WORD.waiting || word === WORD.sending) continue;
     counts[word] = (counts[word] ?? 0) + 1;
   }
   const parts = Object.entries(counts).map(([word, n]) => `${n} ${word}`);
-  if (parts.length === 0) return '';
-  return `${parts.join(', ')}.${offline ? ' Offline.' : ''}`;
+  const lines = [parts.join(', '), offline ? 'Offline' : ''].filter(Boolean);
+  return lines.length > 0 ? `${lines.join('. ')}.` : '';
 }
 
 const subscribeOnline = (notify: () => void): (() => void) => {
@@ -103,17 +123,12 @@ export function WaitingUploads({
     const kind = item ? waitingKindOf(item) : null;
     if (item && kind) rows.push({ item, kind });
   }
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? rows : rows.slice(0, ROWS_SHOWN_FIRST);
   const summary = waitingSummary(
     rows.map((row) => row.item),
     offline,
   );
-
-  // The read-out changes only when the counts do (the same text sets no new state), never on
-  // each progress tick.
-  const [announce, setAnnounce] = useState('');
-  useEffect(() => {
-    setAnnounce(summary);
-  }, [summary]);
 
   // The read-out is one element that stays mounted (and invisible) even when the list is empty,
   // so the first change is announced.
@@ -128,7 +143,7 @@ export function WaitingUploads({
             </p>
           ) : null}
           <ul className="waiting-uploads-list">
-            {rows.map(({ item, kind }) => (
+            {shown.map(({ item, kind }) => (
               <li
                 key={item.id}
                 className="waiting-uploads-row"
@@ -154,10 +169,20 @@ export function WaitingUploads({
               </li>
             ))}
           </ul>
+          {rows.length > ROWS_SHOWN_FIRST ? (
+            <button
+              type="button"
+              className="btn btn-secondary waiting-uploads-more"
+              aria-expanded={showAll}
+              onClick={() => setShowAll((current) => !current)}
+            >
+              {showAll ? 'Show Fewer' : `Show All ${rows.length}`}
+            </button>
+          ) : null}
         </section>
       ) : null}
       <output className="sr-only" data-testid="waiting-announce">
-        {announce}
+        {summary}
       </output>
     </>
   );
