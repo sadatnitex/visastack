@@ -893,6 +893,41 @@ export default async function MissionPage({
       })
     : [];
 
+  // Each link shows at the level its section shows at, so none points at a hidden block.
+  const jumpLinks = (
+    <>
+      {showTripChecks ? (
+        <a href="#trip-checks" {...atLevel('browse')}>
+          Dates
+        </a>
+      ) : null}
+      <a href="#readiness">Readiness</a>
+      {data.casePackage ? (
+        <a href="#trip-package" {...atLevel('browse')}>
+          Trip Package
+        </a>
+      ) : null}
+      <a href="#evidence" {...atLevel('everything')}>
+        Evidence
+      </a>
+      <a href="#work" {...atLevel('browse')}>
+        Tasks and Letters
+      </a>
+      <a href="#snapshots" {...atLevel('everything')}>
+        Snapshots
+      </a>
+      <a href="#contributors" {...atLevel('browse')}>
+        Contributors
+      </a>
+      <a href="#notes" {...atLevel(notesLevel)}>
+        Notes
+      </a>
+      <a href="#outcome" {...atLevel('everything')}>
+        Submission and Outcome
+      </a>
+    </>
+  );
+
   return (
     <section className="section container lift-case">
       {/* The scope wraps the header too, so the header's own buttons can sit at a depth. */}
@@ -1034,35 +1069,14 @@ export default async function MissionPage({
 
         {/* Each link shows at the level its section shows at, so none points at a hidden block. */}
         <nav className="jump-nav" aria-label="Sections of this case" {...atLevel('browse')}>
-          {showTripChecks ? (
-            <a href="#trip-checks" {...atLevel('browse')}>
-              Dates
-            </a>
-          ) : null}
-          <a href="#readiness">Readiness</a>
-          {data.casePackage ? (
-            <a href="#trip-package" {...atLevel('browse')}>
-              Trip Package
-            </a>
-          ) : null}
-          <a href="#evidence" {...atLevel('everything')}>
-            Evidence
-          </a>
-          <a href="#work" {...atLevel('browse')}>
-            Tasks and Letters
-          </a>
-          <a href="#snapshots" {...atLevel('everything')}>
-            Snapshots
-          </a>
-          <a href="#contributors" {...atLevel('browse')}>
-            Contributors
-          </a>
-          <a href="#notes" {...atLevel(notesLevel)}>
-            Notes
-          </a>
-          <a href="#outcome" {...atLevel('everything')}>
-            Submission and Outcome
-          </a>
+          {/* Below 761 px the links sit behind one 44 px "Jump To Section" row (a native fold, no
+              script); from 761 px they are the wrapping pills. Same links, same order, both sets
+              hold each link's own level. */}
+          <details className="jump-select">
+            <summary>Jump To Section</summary>
+            <div className="jump-select-list">{jumpLinks}</div>
+          </details>
+          <div className="jump-links">{jumpLinks}</div>
         </nav>
 
         {/* One column on a phone, in reading order: the checklist, what the case is about, then

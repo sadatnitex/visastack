@@ -53,12 +53,30 @@ describe('WAL0 the open document sheet is never covered', () => {
   });
 });
 
-describe('WAL0 the case pill strip wraps and never scrolls sideways', () => {
+describe('WAL0 the case section links never scroll sideways', () => {
   it('has no rule that makes the strip a single scrolling row', () => {
     const rules = rulesFor('.jump-nav').join('\n');
     expect(rules).not.toMatch(/flex-wrap:\s*nowrap/);
     expect(rules).not.toMatch(/overflow-x:\s*auto/);
     expect(rules).toMatch(/flex-wrap:\s*wrap/);
+  });
+
+  it('folds the links behind one Jump To Section row below 761 px, and draws the pills from 761 px', () => {
+    expect(css).toMatch(/\.jump-select \{\s*display: none;/);
+    expect(css).toMatch(
+      /@media \(max-width: 760px\) \{\s*\.lift-case \.jump-nav \.jump-links \{\s*display: none;/,
+    );
+    expect(css).toMatch(/\.lift-case \.jump-nav \.jump-select-list a \{[^}]*min-height: 44px;/);
+    expect(css).not.toMatch(/\.jump-select-list \{[^}]*position: absolute/);
+  });
+
+  it('draws the fold from the same links as the pills, in one native details element', () => {
+    const casePage = readFileSync(resolve(__dirname, '../app/app/mission/[id]/page.tsx'), 'utf8');
+    expect(casePage).toMatch(
+      /<details className="jump-select">\s*<summary>Jump To Section<\/summary>/,
+    );
+    expect(casePage).toMatch(/<div className="jump-select-list">\{jumpLinks\}<\/div>/);
+    expect(casePage).toMatch(/<div className="jump-links">\{jumpLinks\}<\/div>/);
   });
 });
 

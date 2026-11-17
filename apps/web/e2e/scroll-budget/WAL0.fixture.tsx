@@ -45,9 +45,7 @@ function Details() {
           returnTo={`/app/applicant/${APPLICANT}/documents?document=${DOC}`}
           initialState="NOT_PREPARED"
         />
-        {copy ? (
-          <ReadingStatus copy={copy} stage="could_not_read" applicantId={APPLICANT} />
-        ) : null}
+        {copy ? <ReadingStatus copy={copy} stage="could_not_read" applicantId={APPLICANT} /> : null}
         <form>
           <button className="btn btn-secondary" type="submit">
             Check the File Again
@@ -161,37 +159,53 @@ function Strip({ depth }: { readonly depth: DepthChoice }) {
                   missionId="40000000-0000-4000-8000-000000000001"
                   applicantId={APPLICANT}
                   canCancel
-                  headerActions={{ addEvidenceHref: '#evidence', newCaseHref: '/new', snapshot: true }}
+                  headerActions={{
+                    addEvidenceHref: '#evidence',
+                    newCaseHref: '/new',
+                    snapshot: true,
+                  }}
                 />
               </>
             }
           />
           <DepthSwitch family="case" initial={depth} copy={depthCopyFor('case')} notesBehindInfo />
           <nav className="jump-nav" aria-label="Sections of this case" data-level="browse">
-            {LINKS.map(([href, label, level]) => (
-              <a key={href} href={href} data-level={level}>
-                {label}
-              </a>
-            ))}
+            <details className="jump-select">
+              <summary>Jump To Section</summary>
+              <div className="jump-select-list">
+                {LINKS.map(([href, label, level]) => (
+                  <a key={href} href={href} data-level={level}>
+                    {label}
+                  </a>
+                ))}
+              </div>
+            </details>
+            <div className="jump-links">
+              {LINKS.map(([href, label, level]) => (
+                <a key={href} href={href} data-level={level}>
+                  {label}
+                </a>
+              ))}
+            </div>
           </nav>
           <div className="lift-case-grid case-working-area">
-           <div data-level="browse">
-            <div className="grid" id="work">
-            <TasksPanel
-              missionId="40000000-0000-4000-8000-000000000001"
-              tasks={[
-                {
-                  id: '50000000-0000-4000-8000-000000000001',
-                  description: LONG_URL,
-                  status: 'OPEN',
-                  priority: 'NORMAL',
-                  dueDate: null,
-                  dueTimezone: null,
-                },
-              ]}
-            />
+            <div data-level="browse">
+              <div className="grid" id="work">
+                <TasksPanel
+                  missionId="40000000-0000-4000-8000-000000000001"
+                  tasks={[
+                    {
+                      id: '50000000-0000-4000-8000-000000000001',
+                      description: LONG_URL,
+                      status: 'OPEN',
+                      priority: 'NORMAL',
+                      dueDate: null,
+                      dueTimezone: null,
+                    },
+                  ]}
+                />
+              </div>
             </div>
-           </div>
           </div>
         </DepthScope>
       </section>
@@ -199,6 +213,10 @@ function Strip({ depth }: { readonly depth: DepthChoice }) {
   );
 }
 
-export default function Wal0Fixture({ view, depth = 'browse', addButton = true }: Wal0FixtureProps) {
+export default function Wal0Fixture({
+  view,
+  depth = 'browse',
+  addButton = true,
+}: Wal0FixtureProps) {
   return view === 'strip' ? <Strip depth={depth} /> : <Sheet addButton={addButton} />;
 }

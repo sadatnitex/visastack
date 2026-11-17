@@ -23,7 +23,9 @@ async function coveredControls(page: Page): Promise<string[]> {
     if (!sheet) return ['no sheet'];
     const covered: string[] = [];
     const scroller = sheet as HTMLElement;
-    const controls = [...sheet.querySelectorAll<HTMLElement>('button, a[href], input, select, summary')];
+    const controls = [
+      ...sheet.querySelectorAll<HTMLElement>('button, a[href], input, select, summary'),
+    ];
     const last = controls.filter((c) => c.getBoundingClientRect().height > 0).at(-1);
     for (const el of controls) {
       const style = getComputedStyle(el);
@@ -52,7 +54,9 @@ async function coveredControls(page: Page): Promise<string[]> {
         const hit = document.elementFromPoint(x, y);
         if (!hit || !(el === hit || el.contains(hit))) {
           const label = (el.textContent || el.getAttribute('aria-label') || el.tagName).trim();
-          covered.push(`${label.slice(0, 40)} at ${Math.round(x)},${Math.round(y)} hit ${hit?.className || hit?.tagName}`);
+          covered.push(
+            `${label.slice(0, 40)} at ${Math.round(x)},${Math.round(y)} hit ${hit?.className || hit?.tagName}`,
+          );
           break;
         }
       }
@@ -95,36 +99,74 @@ for (const motion of MOTION) {
   }
 }
 
-const STRIP_WIDTHS = [320, 360, 390, 400, 641, 650, 768, 1280] as const;
+const STRIP_WIDTHS = [320, 360, 390, 400, 641, 650, 700, 760, 761, 768, 1280] as const;
 
 for (const width of STRIP_WIDTHS) {
   for (const depth of ['glance', 'browse', 'everything'] as const) {
-    test(`WAL0 case page ${width} ${depth}: strip, page and More menu stay inside the screen`, async ({
+    test(`WAL0 case page ${width} ${depth}: section links, page and More menu stay inside the screen`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 800 });
       await renderFixture(page, FIXTURE, { view: 'strip', depth }, { standInServerActions: true });
+      const phone = width <= 760;
       const m = await page.evaluate(() => {
         const nav = document.querySelector('nav.jump-nav') as HTMLElement;
-        const links = [...nav.querySelectorAll<HTMLElement>('a')].filter(
-          (a) => a.getBoundingClientRect().height > 0,
-        );
         const segs = document.querySelector('fieldset.depth-segs') as HTMLElement | null;
+        const drawn = (el: Element) => el.getBoundingClientRect().height > 0;
+        const wrapped = [...nav.querySelectorAll<HTMLElement>('.jump-links a')].filter(drawn);
+        const summary = nav.querySelector('summary');
         return {
-          scroll: nav.scrollWidth,
-          client: nav.clientWidth,
+          navHeight: nav.getBoundingClientRect().height,
+          navScroll: nav.scrollWidth - nav.clientWidth,
           page: document.documentElement.scrollWidth,
           inner: innerWidth,
-          minHeight: Math.min(...links.map((a) => a.getBoundingClientRect().height)),
-          rows: new Set(links.map((a) => Math.round(a.getBoundingClientRect().top))).size,
+          wrappedCount: wrapped.length,
+          wrappedMin: Math.min(...wrapped.map((a) => a.getBoundingClientRect().height)),
+          rows: new Set(wrapped.map((a) => Math.round(a.getBoundingClientRect().top))).size,
+          summaryDrawn: summary ? drawn(summary) : false,
+          summaryHeight: summary ? summary.getBoundingClientRect().height : 0,
           segsOver: segs ? segs.scrollWidth - segs.clientWidth : 0,
         };
       });
       process.stdout.write(`[wal0] case ${width} ${depth} ${JSON.stringify(m)}\n`);
-      expect(m.scroll).toBeLessThanOrEqual(m.client + 1);
+      expect(m.navScroll).toBeLessThanOrEqual(1);
       expect(m.page).toBeLessThanOrEqual(m.inner);
-      expect(m.minHeight).toBeGreaterThanOrEqual(44);
       expect(m.segsOver).toBeLessThanOrEqual(1);
+      if (depth !== 'glance') {
+        if (phone) {
+          // One closed 44 px row, no pills drawn; opened, every link is a full-width 44 px row.
+          expect(m.summaryDrawn).toBe(true);
+          expect(m.summaryHeight).toBeGreaterThanOrEqual(44);
+          expect(m.navHeight).toBeLessThanOrEqual(60);
+          expect(m.wrappedCount).toBe(0);
+          await page.locator('.jump-select > summary').click();
+          const rows = await page.evaluate(() =>
+            [...document.querySelectorAll<HTMLElement>('.jump-select-list a')]
+              .filter((a) => a.getBoundingClientRect().height > 0)
+              .map((a) => {
+                const r = a.getBoundingClientRect();
+                return {
+                  h: r.height,
+                  w: r.width,
+                  pos: getComputedStyle(a.parentElement as Element).position,
+                };
+              }),
+          );
+          expect(rows.length).toBeGreaterThan(1);
+          for (const row of rows) {
+            expect(row.h).toBeGreaterThanOrEqual(44);
+            expect(row.pos).not.toBe('absolute');
+          }
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth),
+          ).toBeLessThanOrEqual(width);
+        } else {
+          // Wide: the pills wrap, nothing scrolls, the disclosure is not drawn.
+          expect(m.summaryDrawn).toBe(false);
+          expect(m.wrappedCount).toBeGreaterThan(1);
+          expect(m.wrappedMin).toBeGreaterThanOrEqual(44);
+        }
+      }
 
       // The More menu opens fully inside the screen.
       await page.locator('.case-more-menu > summary').click();
