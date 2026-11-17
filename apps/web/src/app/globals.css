@@ -22584,7 +22584,7 @@ button.wallet-stack-card {
 
 }
 
-/* The More menu opens as a panel under its button, inside the screen: from 641 to 760 px the button can sit on the left or the right depending on how the header buttons wrap, so a right-anchored panel ran off the left edge. At 640 px and below an earlier rule already puts the panel in the flow. */
+/* The More menu opens as a panel on the row under its button, inside the screen: from 641 to 760 px the button can sit on the left or the right depending on how the header buttons wrap, so a panel anchored to the button's right edge ran off the left edge. At 640 px and below an earlier rule already puts the panel in the flow. */
 @media (min-width: 641px) and (max-width: 760px) {
   .case-more {
     position: static;
@@ -22609,6 +22609,10 @@ button.wallet-stack-card {
 /* WP-WAL0 Jump To Section: below 761 px the case page's section links are one closed 44 px native fold (no script) that opens into full-width 44 px links in the page flow, so nothing scrolls sideways and nothing is covered. From 761 px the same links are the wrapping pills and the fold is not drawn. */
 .jump-select {
   display: none;
+}
+/* The wrapper adds no box of its own on a wide screen: the pills stay direct items of the strip and keep its gap. */
+.jump-links {
+  display: contents;
 }
 @media (max-width: 760px) {
   .lift-case .jump-nav .jump-links {

@@ -15,7 +15,7 @@ Unit WAL0, Class B. Branch claude/wal0-sheet-and-strip. Example data only.
 | e2e/scroll-budget/WAL0.fixture.tsx, WAL0.spec.ts | New. Real document browser, Safe Copy, reading status, workspace shell with bottom bar and the Add button markup; real page header, More menu, depth switch, tasks panel with a 120-character unbroken title; section links markup. |
 | src/components/wal0-sheet.test.ts | New unit guards. |
 
-Approved guard corrections (Guardian 7, owner D4): case-lift-b.test.ts (strip test now asserts wrapping, no overflow-x auto), WP-SB2.spec.ts (:284 rewritten for the new phone behaviour), case-structure.test.tsx (one added line "summary: Jump To Section" in each of the three expected outlines).
+Approved guard corrections (Guardian 7, owner D4): case-lift-b.test.ts (strip test now asserts wrapping, no overflow-x auto), WP-SB2.spec.ts (:284 rewritten for the new phone behaviour), case-structure.test.tsx (one added line "summary: Jump To Section" in each of the three expected outlines), and WP-SB2.spec.ts LIFT.desktopPage.everything 3300 to 3330 (WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways, measured 3321).
 
 New words for the localization list: "Jump To Section".
 
@@ -39,6 +39,7 @@ Green, on the fixed build: WAL0.spec.ts 40 of 40 at the sheet sizes and every ca
 
 - The real signed-in case and documents pages in a real browser with real data (the specs render the real components in a fixture; the case page strip markup in the fixture is a copy of the page's, kept in step by a source guard in wal0-sheet.test.ts).
 - Safari and Firefox on a phone (only Chromium was run).
-- WP-SB2 desktop Everything page height 3321 vs 3300 (the second row of pills at 1280): awaiting the Guardian's word.
+- The Jump To Section fold stays open after a link is tapped (a native fold has no close behaviour without script); a follow-up if it proves annoying.
+- The section links exist twice in the page (the fold and the pills, one hidden by the stylesheet).
 - Prepare Safe Copy overlap was not reproduced, so no fix was made for it.
 - The current-section mark on the pills: the page has none today, so none was kept.

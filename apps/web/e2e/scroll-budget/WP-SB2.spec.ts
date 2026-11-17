@@ -133,7 +133,8 @@ const LIFT = {
    * 3700, 3350, 1900 and 3300.
    */
   phonePage: { everything: 3700, browse: 3350, glance: 1900 },
-  desktopPage: { everything: 3300 },
+  // WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways (measured 3321).
+  desktopPage: { everything: 3330 },
   /** Where the first checklist row may start (px from the top of the page). */
   firstRow: { phone: 1500, desktop: 1100 },
 } as const;
