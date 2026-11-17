@@ -20,7 +20,9 @@ export async function SourceNote({ source }: { readonly source: DestinationSourc
           </a>
           {source.publisher && source.title ? ` (${source.publisher})` : ''}
         </span>
-      ) : null}
+      ) : (
+        <span className="source-note-missing">Source Not Recorded</span>
+      )}
       <span className="muted">{checkedOnLabel(source)}</span>
       {notes.map((note) => (
         <span className="badge badge-warning" key={note}>
