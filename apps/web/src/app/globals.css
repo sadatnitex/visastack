@@ -21594,6 +21594,98 @@ body:lang(bn),
 }
 /* end WP-PIC3 */
 
+/* WP-PIC4 Readiness segment ring and Next Step before and after ring (opt-in variants). Flat only: depth and motion come from the picture layer classes on the elements. */
+.readiness-segring {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 100%;
+}
+.readiness-seg {
+  stroke-linecap: butt;
+}
+.readiness-seg-on {
+  stroke: var(--accent);
+  stroke-width: 9;
+}
+.readiness-seg-off {
+  stroke: var(--edge-control);
+  stroke-width: 4;
+}
+.progress-ring-full .readiness-seg-on {
+  stroke: var(--success);
+}
+.readiness-legend {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.readiness-legend-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+}
+.readiness-legend-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.readiness-legend-state {
+  font-size: var(--text-caption);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.readiness-legend-row[data-ready="yes"] .readiness-legend-state {
+  color: var(--success);
+}
+.lift-next-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  align-self: stretch;
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.lift-next-hero-picture {
+  display: inline-flex;
+  flex: none;
+  padding: var(--space-2);
+}
+.lift-next-rings {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.lift-next-ring {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+.lift-next-ring .progress-ring-text {
+  display: none;
+}
+.lift-next-ring-caption {
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+.lift-next-ring-arrow {
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+/* end WP-PIC4 */
+
 /* WP-PIC1 Explain popup (17 Nov 2026): a picture that explains itself. Pointing at it, focusing it or tapping it shows its name and one plain sentence beside it (components/explain-tip.tsx, lib/use-explain-tip.ts). It replaces the plain title= hint, which touch screens and keyboards never show. Flat: a solid raised surface and a control-strength border, no shadow. The popup fades and rises on the press speed only, and not at all under reduced motion. The script measures where it fits (lib/popover-placement.ts) and sets data-placement, data-align and --explain-tip-shift on the holder; without them it opens below, lined up with the trigger's right edge. */
 .explain-tip {
   position: relative;
