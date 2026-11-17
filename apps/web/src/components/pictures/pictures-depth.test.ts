@@ -48,7 +48,7 @@ function ancestors(node: ChildNode): Container[] {
   let parent = node.parent;
   while (parent && parent.type !== 'root') {
     chain.push(parent as Container);
-    parent = parent.parent;
+    parent = parent.parent as Container | undefined;
   }
   return chain;
 }

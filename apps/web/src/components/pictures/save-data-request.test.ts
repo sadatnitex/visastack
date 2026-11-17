@@ -42,8 +42,10 @@ describe('Save-Data request header', () => {
 
   it('is read by the root layout, which marks the page and mounts the browser flag once', () => {
     const layout = readFileSync(join(__dirname, '..', '..', 'app', 'layout.tsx'), 'utf8');
-    expect(layout).toContain('await requestSavesData()');
-    expect(layout).toMatch(/\{\.\.\.\(saveData \? \{ 'data-save-data': '' \} : \{\}\)\}/);
+    expect(layout).toContain(
+      "const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};",
+    );
+    expect(layout).toMatch(/<html lang=\{htmlLang\}[^>]*\{\.\.\.saveDataMark\}>/);
     expect(layout.match(/<SaveDataFlag \/>/g) ?? []).toHaveLength(1);
   });
 });

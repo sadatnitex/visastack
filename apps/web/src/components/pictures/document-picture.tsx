@@ -67,11 +67,21 @@ export function DocumentPicture({
         data-picture="icon"
         data-mark={choice.mark.icon}
         {...tone}
-        // The icon tile takes the same box as a picture, so rows line up whatever the type.
-        style={{ width, height }}
         {...pictureNaming(label)}
       >
-        <Icon name={choice.mark.icon} size={Math.max(16, Math.round(width / 2))} />
+        {/* Today's icon on a pale tile in the same 64 x 80 box as a picture, so rows line up. */}
+        <svg
+          width={width}
+          height={height}
+          viewBox={`0 0 ${DOCUMENT_CANVAS.width} ${DOCUMENT_CANVAS.height}`}
+          aria-hidden="true"
+          focusable="false"
+        >
+          <rect className="pic-ground" x={4} y={10} width={56} height={60} rx={10} />
+          <g transform="translate(16 24)">
+            <Icon name={choice.mark.icon} size={32} />
+          </g>
+        </svg>
       </span>
     );
   }

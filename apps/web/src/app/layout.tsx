@@ -92,15 +92,11 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const noticeSeen = signedIn || (await hasSeenVersionNotice());
   const hasNotice = versionNoticeCopy(deploymentMode) !== null;
   // Data saver from the request (Save-Data: on) keeps picture motion still from the first paint.
-  const saveData = await requestSavesData();
+  const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};
+  const fonts = `${inter.variable} ${bengali.variable}`;
 
   return (
-    <html
-      lang={htmlLang}
-      data-locale={locale}
-      className={`${inter.variable} ${bengali.variable}`}
-      {...(saveData ? { 'data-save-data': '' } : {})}
-    >
+    <html lang={htmlLang} data-locale={locale} className={fonts} {...saveDataMark}>
       <body>
         <I18nProvider locale={locale} pageLang={htmlLang}>
           <a className="skip-link" href="#main">

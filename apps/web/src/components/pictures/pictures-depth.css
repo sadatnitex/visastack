@@ -73,14 +73,9 @@
   stroke-dasharray: 3 3;
 }
 
-/* Today's icon, shown where a type has no illustration: a pale tone tile around the line icon. */
+/* Today's icon, shown where a type has no illustration: the line icon on a pale tone tile, drawn
+   in the same box as a picture. */
 .pic-fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--pic-tone-bg);
   color: var(--pic-tone);
   --icon-accent: var(--pic-tone);
 }
