@@ -20,7 +20,9 @@ vi.mock('../documents/manage/delete/actions', () => ({
   restoreDeletedAction: actions.restore,
 }));
 
-const { ImportPanel, LINES_SHOWN_FIRST, BUSY_LINE, HELD_LINE } = await import('./import-panel');
+const { ImportPanel, LINES_SHOWN_FIRST, BUSY_LINE, HELD_LINE, OFFLINE_LINE } = await import(
+  './import-panel'
+);
 const { UPLOAD_UNKNOWN_OUTCOME } = await import('../document-uploader');
 
 class FakeRequest {
@@ -802,5 +804,66 @@ describe('after an import, and files for several people (UMPE G1)', () => {
   it('offers no choice of people when the family batch is not available', async () => {
     await mount();
     expect(host.querySelector('fieldset.umpe-g1-import-for')).toBeNull();
+  });
+});
+
+describe('background sync for waiting files (WP-PIC17)', () => {
+  const register = vi.fn(async (_tag: string) => undefined);
+
+  function browserWithSync(online: { value: boolean }) {
+    vi.stubGlobal('SyncManager', function SyncManager() {});
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online.value);
+    Object.defineProperty(window.navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistration: async () => ({ sync: { register } }),
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window.navigator, 'serviceWorker');
+    register.mockClear();
+  });
+
+  const offlineLine = () => host.querySelector('[data-testid="import-offline"]')?.textContent;
+
+  it('switched on and offline: sends nothing, says the files wait, and sends them when back online', async () => {
+    const online = { value: false };
+    browserWithSync(online);
+    await act(async () => {
+      root.render(
+        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" backgroundSync />,
+      );
+    });
+    await choose([photo('one.jpg'), photo('two.jpg')]);
+    expect(FakeRequest.sent).toHaveLength(0);
+    expect(offlineLine()).toBe(OFFLINE_LINE);
+    expect(said('one.jpg')).not.toMatch(/Added/);
+    expect(register).toHaveBeenCalledWith('visastack-upload-resume');
+
+    online.value = true;
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+    });
+    await flush();
+    expect(FakeRequest.sent.map((request) => (request.body as File).name)).toEqual([
+      'one.jpg',
+      'two.jpg',
+    ]);
+    expect(FakeRequest.sent.every((request) => request.url.includes('a-1'))).toBe(true);
+    expect(offlineLine()).toBeUndefined();
+  });
+
+  it('switched off: sends as before, even offline, and shows no new line', async () => {
+    const online = { value: false };
+    browserWithSync(online);
+    await mount();
+    await choose([photo('one.jpg')]);
+    expect(FakeRequest.sent).toHaveLength(1);
+    expect(offlineLine()).toBeUndefined();
+    expect(register).not.toHaveBeenCalled();
   });
 });

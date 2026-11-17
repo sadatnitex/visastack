@@ -23,6 +23,7 @@ import { appApplicantCatalog } from '../../../../../../i18n/app-applicant';
 import { resolvePlatformCapabilities } from '../../../../../../lib/capabilities';
 import { getServerT, primeLocale } from '../../../../../../lib/i18n-server';
 import { evidenceDocumentGroups } from '../../../../../../lib/master-profile';
+import { isBackgroundUploadSyncEnabled } from '../../../../../../lib/pwa/service-worker';
 import { describeReading } from '../../../../../../lib/reading-state';
 import { addCheckStep } from '../../../../../../lib/scan-state';
 import { withSession } from '../../../../../../lib/session';
@@ -218,6 +219,7 @@ export default async function AddDocumentsPage({
               people={data.people}
               readingOn={data.reading.reads}
               showNext={false}
+              backgroundSync={isBackgroundUploadSyncEnabled((name) => process.env[name])}
             />
             <details className="add-more" open={initialKind ? true : undefined}>
               <summary className="add-more-summary">

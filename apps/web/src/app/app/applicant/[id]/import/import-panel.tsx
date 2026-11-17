@@ -35,6 +35,11 @@ import {
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
 import { shrunkNotice } from '../../../../../lib/photo-shrink';
+import {
+  browserSyncWindow,
+  connectUploadResume,
+  uploadConnectionFor,
+} from '../../../../../lib/pwa/upload-sync';
 import { batchHref, canFollowBatch } from '../../../../../lib/upload-batch';
 import { uploadLimitsText } from '../../../../../lib/upload-rules';
 import { UPLOAD_UNKNOWN_OUTCOME } from '../document-uploader';
@@ -62,6 +67,10 @@ const NOT_SURE = '__not_sure';
 function personFor(target: string, own: string): string {
   return target === NOT_SURE ? own : target;
 }
+
+/** WP-PIC17: files wait for the connection; nothing is claimed as sent. */
+export const OFFLINE_LINE =
+  'No connection. Your files are waiting and will send on their own when you are back online.';
 
 export const BUSY_LINE = 'We were too busy to take this file just now. Try again in a few minutes.';
 export const EARLIER_ADDED_LINE = 'Already added in an earlier import, so it was not sent again.';
@@ -357,6 +366,7 @@ export function ImportPanel({
   people = [],
   readingOn = false,
   showNext = true,
+  backgroundSync = false,
 }: {
   readonly applicantId: string;
   /** The largest file accepted, in bytes (the same limit the single upload uses). */
@@ -391,6 +401,11 @@ export function ImportPanel({
    * line never says files are "sorted on their own". Default false: a page that does not say reading is on never claims it.
    */
   readonly readingOn?: boolean;
+  /**
+   * WP-PIC17: the owner's background sync switch (and the service worker) are on. Where the browser
+   * can wake the page, files wait for a dropped connection and go when it returns. Default off.
+   */
+  readonly backgroundSync?: boolean;
 }) {
   const t = useT(appApplicantCatalog);
   const router = useRouter();
@@ -439,6 +454,7 @@ export function ImportPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const announced = useRef<AnnounceState>(ANNOUNCE_START);
   const stopped = useRef(false);
+  const [connection] = useState(() => uploadConnectionFor(backgroundSync, browserSyncWindow()));
   const [queue] = useState(
     () =>
       new ImportQueue({
@@ -461,13 +477,17 @@ export function ImportPanel({
               `${family.current ? 'family' : personFor(targetRef.current, applicantId)}\u0000${fingerprintOf(file)}`,
             ),
           ) ?? newUploadId(),
-        // The choice in force when each file is sent: one person's documents, or Which Person?.
+        // The choice made when each file was added: one person's documents, or Which Person?. A
+        // file that waited (paused, offline, Try Again) still goes to the one it was chosen for.
         send: (request) => {
-          if (family.current) {
+          const chosen =
+            request.scope ||
+            (family.current ? 'family' : personFor(targetRef.current, applicantId));
+          if (chosen === 'family') {
             sentToFamily.current = true;
             return sendThroughHoldRoute(request);
           }
-          const forPerson = personFor(targetRef.current, applicantId);
+          const forPerson = chosen;
           if (forPerson !== applicantId) {
             const name = peopleRef.current.find((person) => person.id === forPerson)?.name;
             if (name) sentFor.current = new Map(sentFor.current).set(forPerson, name);
@@ -480,8 +500,15 @@ export function ImportPanel({
           });
         },
         retryUnknown,
+        ...(connection ? { connection } : {}),
       }),
   );
+  // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
+  useEffect(() => {
+    const win = browserSyncWindow();
+    if (!connection || !win) return;
+    return connectUploadResume(win, queue);
+  }, [connection, queue]);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const [announcement, setAnnouncement] = useState('');
   const [truncated, setTruncated] = useState(false);
@@ -789,6 +816,11 @@ export function ImportPanel({
       </h3>
       <p className="upload-summary import-counts">{importCountsText(counts, snapshot.paused)}</p>
       <output className="sr-only import-announce">{announcement}</output>
+      {queue.waitingForConnection ? (
+        <p className="field-hint" data-testid="import-offline">
+          {OFFLINE_LINE}
+        </p>
+      ) : null}
       <WaitingUploads source={queue} onRetry={(id) => queue.retry(id)} />
       {truncated ? (
         <p className="field-hint">

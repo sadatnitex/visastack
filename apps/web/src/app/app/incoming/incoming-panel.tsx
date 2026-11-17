@@ -25,7 +25,12 @@ import {
   parseInbox,
   sharedFileUrl,
 } from '../../../lib/pwa/share-target';
-import { importLine } from '../applicant/[id]/import/import-panel';
+import {
+  browserSyncWindow,
+  connectUploadResume,
+  uploadConnectionFor,
+} from '../../../lib/pwa/upload-sync';
+import { OFFLINE_LINE, importLine } from '../applicant/[id]/import/import-panel';
 
 type Phase = 'loading' | 'empty' | 'ready' | 'sending' | 'cancelled';
 
@@ -108,6 +113,7 @@ export function IncomingPanel({
   limitLabel,
   pdfAccepted,
   retryUnknown,
+  backgroundSync = false,
 }: {
   /** Ties the waiting files to this account on this phone; null reads nothing. */
   readonly ownerKey: string | null;
@@ -121,6 +127,8 @@ export function IncomingPanel({
   readonly limitLabel: string;
   readonly pdfAccepted: boolean;
   readonly retryUnknown: boolean;
+  /** WP-PIC17: waiting files resume when a dropped connection returns. Default off. */
+  readonly backgroundSync?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [inbox, setInbox] = useState<SharedInbox>(parseInbox(null));
@@ -151,6 +159,7 @@ export function IncomingPanel({
     };
   }, [ownerKey]);
 
+  const [connection] = useState(() => uploadConnectionFor(backgroundSync, browserSyncWindow()));
   const queue = useMemo(
     () =>
       new ImportQueue({
@@ -164,9 +173,15 @@ export function IncomingPanel({
           uploadIdFromHash(await sha256Hex(`${personId}\u0000${fingerprintOf(file)}`)) ??
           newUploadId(),
         newUploadId,
+        ...(connection ? { connection } : {}),
       }),
-    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown],
+    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown, connection],
   );
+  useEffect(() => {
+    const win = browserSyncWindow();
+    if (!connection || !win) return;
+    return connectUploadResume(win, queue);
+  }, [connection, queue]);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const items = snapshot.order.flatMap((id) => {
     const item = snapshot.byId.get(id);
@@ -350,6 +365,11 @@ export function IncomingPanel({
           </>
         ) : (
           <>
+            {queue.waitingForConnection ? (
+              <p className="field-hint" data-testid="incoming-offline">
+                {OFFLINE_LINE}
+              </p>
+            ) : null}
             <ul className="incoming-lines" aria-live="polite">
               {items.map((item) => {
                 const line = importLine(item);
