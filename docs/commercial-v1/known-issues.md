@@ -8332,3 +8332,24 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - The case page now shows the journey track (built in WP-PIC8) above the step bar: one picture per stage, the current stage marked Now with an explain button (44 px target, 28 px circle, no overhang). While the track shows, the step bar's segment strip is hidden and its "Stage n of m" line is read to screen readers only; the step bar keeps the only current-stage marker and its "Now:" line. Explain popups now use plain generated ids. The case card lets the explain popup open past its edge while the track shows. Measured on a production build: phone first checklist row 1491 of 1500 px, phone full case page within its 3700 px limit.
 - NOT verified: a real phone and screen reader; dark mode on a real device; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC10 deadline timeline
+
+- The traveller's Dates page shows one line of dates as pictures: Today, the next appointment, the latest passport end date and the nearest open case's trip start and end. Past days are judged in the traveller's own time zone, and the passport warning ("Worth a Look") appears only when the trip date checks find the six-month gap, judged on the traveller's local day. Presentation only: no new data read.
+- NOT verified: a real phone at 320 px and a screen reader; the next appointment only shows when it is among the dates the page already loads; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC4b and WP-PIC5b ring and real passport cover shown on traveller screens
+
+- The traveller's Next Step card on Add Your Essentials now shows the readiness ring now and after the step ("3 of 9 Essentials Added"), counts only; other steps show no ring. The Documents stack shows the real Bangladesh passport cover when the traveller's current saved nationality is Bangladeshi, read through the owner-only gated profile read with the page's existing access proof; anything else, a refused read or an error shows the neutral cover, and only the cover choice reaches the browser. The CSS guard for the WP-PIC5 block now checks its own start and end markers instead of requiring it to end the stylesheet.
+- NOT verified: live pages; a real phone and screen reader; Bengali for the new words; very long profile histories may show the neutral cover (fails safe).
+
+## 17 Nov 2026: WP-PIC11 receive files shared from another app (off by default)
+
+- With WEB_SHARE_TARGET=on and the service worker on, the installed app offers VisaStack as a share destination for photos and PDFs. Shared files stay on the phone in the worker's own inbox (at most 10, 25 MB each, 15 minutes), never with a page; the person signs in, sees them on Shared Files (/app/incoming), chooses who they are for and presses Add These Files, and only then each file goes through the normal upload route and checks. Sign-out, Cancel, hand-off, another account, the time limit, switching off and the retirement worker empty the inbox; a share from another site is refused. The manifest reads the switch at build time, so switching on needs a redeploy.
+- Owner action to turn on: WEB_SHARE_TARGET=on in Vercel Production, then redeploy, after one real Android phone test.
+- NOT verified: a real Android phone and installed app (share sheet, the Origin a real share launch sends, HEIC tiles); iPhone has no support; the host's body limit for the server fallback; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC13 printed case pack cover (black and white)
+
+- When a traveller prints a case output (Trip Essentials, Agency Brief, Case Handover), the first printed page is a clean black and white cover: traveller name, destination name with its flag in grey, case reference and the date prepared; the Agency Brief and Case Handover also show a count such as "12 of 14 items ready" and "Items Not Shown" when items were left out on purpose. It shows what is gathered, never whether a visa will be approved. Print only: nothing new on screen, no new data read.
+- NOT verified: a real printer; Bengali (a Bengali-locale print shows these English labels beside a Bengali date); the Trip Essentials no-counts test uses a case without a checklist, so it cannot fail on the old code.
