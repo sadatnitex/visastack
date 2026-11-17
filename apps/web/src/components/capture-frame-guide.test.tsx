@@ -107,3 +107,20 @@ describe('CapturePreview with a passport', () => {
     expect(host.querySelector('.capture-outline')).not.toBeNull();
   });
 });
+
+describe('CaptureFrameGuide wake lock', () => {
+  it('keeps the screen awake while the outline is open and lets go when it closes', async () => {
+    const release = vi.fn(async () => undefined);
+    const request = vi.fn(async () => ({ release }));
+    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } });
+    const el = document.createElement('div');
+    document.body.append(el);
+    const r = createRoot(el);
+    await act(async () => r.render(<CaptureFrameGuide />));
+    expect(request).toHaveBeenCalledWith('screen');
+    await act(async () => r.unmount());
+    expect(release).toHaveBeenCalledTimes(1);
+    el.remove();
+    Reflect.deleteProperty(navigator, 'wakeLock');
+  });
+});

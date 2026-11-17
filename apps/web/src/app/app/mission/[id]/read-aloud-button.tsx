@@ -27,8 +27,6 @@ export function ReadAloudButton({ sourceId }: { readonly sourceId: string }) {
     };
   }, []);
 
-  if (!supported) return null;
-
   const press = () => {
     if (stop.current) {
       stop.current();
@@ -40,39 +38,49 @@ export function ReadAloudButton({ sourceId }: { readonly sourceId: string }) {
     const text = raw.replace(/\s*\u00b7\s*/g, ', ');
     let over = false;
     setSpeaking(true);
-    const halt = readAloud(text, () => {
-      over = true;
-      stop.current = null;
-      setSpeaking(false);
-    });
+    const halt = readAloud(
+      text,
+      () => {
+        over = true;
+        stop.current = null;
+        setSpeaking(false);
+      },
+      source,
+    );
     if (!over) stop.current = halt;
   };
 
   const label = speaking ? 'Stop Reading' : 'Read This Aloud';
+  // The slot is always drawn, so the status line is the same height and width before and after the
+  // page wakes up, and the button never moves what is next to it.
   return (
-    <button
-      type="button"
-      className="read-aloud-button"
-      aria-label={label}
-      title={label}
-      onClick={press}
-    >
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-        {speaking ? (
-          <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-        ) : (
-          <>
-            <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
-            <path
-              d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </>
-        )}
-      </svg>
-    </button>
+    <span className="read-aloud-slot">
+      {supported ? (
+        <button
+          type="button"
+          className="read-aloud-button"
+          aria-label={label}
+          title={label}
+          onClick={press}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+            {speaking ? (
+              <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+            ) : (
+              <>
+                <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                <path
+                  d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </>
+            )}
+          </svg>
+        </button>
+      ) : null}
+    </span>
   );
 }

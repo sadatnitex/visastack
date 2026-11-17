@@ -6,6 +6,7 @@
 interface SynthesisLike {
   speak: (utterance: unknown) => void;
   cancel: () => void;
+  speaking?: boolean;
 }
 
 function synthesis(): SynthesisLike | null {
@@ -19,16 +20,22 @@ export function readAloudSupported(): boolean {
   return synthesis() !== null;
 }
 
-export function pageLanguage(): string {
+/** The language of the element being read (its own or an ancestor's), else the page's, else English. */
+export function pageLanguage(source?: Element | null): string {
   if (typeof document === 'undefined') return 'en';
-  return document.documentElement.lang || 'en';
+  const own = source?.closest('[lang]')?.getAttribute('lang');
+  return own || document.documentElement.lang || 'en';
 }
+
+/** Longest a spoken line is waited for: about 12 characters a second, with generous slack. */
+const SAFETY_MIN_MS = 4000;
+const SAFETY_PER_CHAR_MS = 150;
 
 /** Held until the voice finishes: a browser may drop a spoken line that nothing refers to. */
 const speaking = new Set<unknown>();
 
 /** Starts reading `text`; `onEnd` runs when it ends, fails or is stopped. Returns a stop function. */
-export function readAloud(text: string, onEnd: () => void): () => void {
+export function readAloud(text: string, onEnd: () => void, source?: Element | null): () => void {
   const api = synthesis();
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!api || clean === '') {
@@ -47,21 +54,42 @@ export function readAloud(text: string, onEnd: () => void): () => void {
     }
   ).SpeechSynthesisUtterance;
   let ended = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let poll: ReturnType<typeof setInterval> | undefined;
   const finish = () => {
     if (ended) return;
     ended = true;
+    clearTimeout(timer);
+    clearInterval(poll);
     speaking.clear();
     onEnd();
   };
   try {
     api.cancel();
     const utterance = new Utterance(clean);
-    utterance.lang = pageLanguage();
-    speaking.clear();
-    speaking.add(utterance);
+    utterance.lang = pageLanguage(source);
     utterance.onend = finish;
     utterance.onerror = finish;
-    api.speak(utterance);
+    // Some Chromium builds drop a line spoken in the same tick as cancel(), and then neither
+    // onend nor onerror ever fires: speak on the next tick, and reset on a safety timer.
+    timer = setTimeout(() => {
+      if (ended) return;
+      speaking.clear();
+      speaking.add(utterance);
+      try {
+        api.speak(utterance);
+      } catch {
+        finish();
+        return;
+      }
+      // Once the voice has started, the browser's own state says when it has stopped.
+      let started = false;
+      poll = setInterval(() => {
+        if (api.speaking === true) started = true;
+        else if (started) finish();
+      }, 500);
+      timer = setTimeout(finish, Math.max(SAFETY_MIN_MS, clean.length * SAFETY_PER_CHAR_MS));
+    }, 0);
   } catch {
     finish();
     return () => undefined;

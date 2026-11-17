@@ -54,6 +54,14 @@ describe('ReadAloudButton', () => {
     await show();
     expect(control()).toBeNull();
   });
+  it('always draws its 44 pixel slot, so the status line never shifts when the button appears', async () => {
+    await show();
+    expect(host.querySelector('.read-aloud-slot')).not.toBeNull();
+    withSpeech();
+    await show();
+    expect(host.querySelectorAll('.read-aloud-slot')).toHaveLength(1);
+    expect(control()?.closest('.read-aloud-slot')).not.toBeNull();
+  });
   it('reads the visible line, says Stop Reading while speaking, and stops on a second press', async () => {
     withSpeech();
     await show();

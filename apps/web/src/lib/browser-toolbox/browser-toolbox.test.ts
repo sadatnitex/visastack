@@ -168,6 +168,7 @@ describe('readAloud', () => {
   }
   afterEach(() => {
     Reflect.deleteProperty(window, 'speechSynthesis');
+    vi.useRealTimers();
   });
   it('is unsupported without speech synthesis', () => {
     expect(readAloudSupported()).toBe(false);
@@ -175,11 +176,17 @@ describe('readAloud', () => {
     readAloud('Hello', done);
     expect(done).toHaveBeenCalledTimes(1);
   });
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
   it('reads the given text once, in the page language, and reports the end', () => {
     const { api, spoken } = stubSpeech();
     document.documentElement.lang = 'bn';
     const done = vi.fn();
     readAloud('  Dubai   \n Tourist  ', done);
+    // Speaking waits one tick after cancel(): some browsers drop a line spoken in the same tick.
+    expect(api.speak).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(spoken).toHaveLength(1);
     expect(spoken[0]?.text).toBe('Dubai Tourist');
     expect(spoken[0]?.lang).toBe('bn');
@@ -188,13 +195,56 @@ describe('readAloud', () => {
     expect(done).toHaveBeenCalledTimes(1);
     document.documentElement.lang = '';
   });
+  it('uses the language of the element being read, then the page', () => {
+    const { spoken } = stubSpeech();
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = '<div lang="bn"><p id="src">x</p></div><p id="plain">y</p>';
+    readAloud('a', vi.fn(), document.getElementById('src'));
+    vi.advanceTimersByTime(1);
+    readAloud('b', vi.fn(), document.getElementById('plain'));
+    vi.advanceTimersByTime(1);
+    expect(spoken.map((u) => u.lang)).toEqual(['bn', 'en']);
+    document.body.innerHTML = '';
+    document.documentElement.lang = '';
+  });
   it('stops on request and reports the end exactly once', () => {
     const { api, spoken } = stubSpeech();
     const done = vi.fn();
     const stop = readAloud('Hello', done);
+    vi.advanceTimersByTime(1);
     stop();
     spoken[0]?.onerror?.();
     expect(api.cancel).toHaveBeenCalled();
+    expect(done).toHaveBeenCalledTimes(1);
+  });
+  it('stopping before the line starts never speaks it', () => {
+    const { api } = stubSpeech();
+    const done = vi.fn();
+    readAloud('Hello', done)();
+    vi.advanceTimersByTime(10);
+    expect(api.speak).not.toHaveBeenCalled();
+    expect(done).toHaveBeenCalledTimes(1);
+  });
+  it('resets when the browser drops the line and neither end nor error fires', () => {
+    stubSpeech();
+    const done = vi.fn();
+    readAloud('Hello', done);
+    vi.advanceTimersByTime(1);
+    expect(done).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(4000);
+    expect(done).toHaveBeenCalledTimes(1);
+  });
+  it('resets when the voice stops without telling us', () => {
+    const { api } = stubSpeech();
+    const state = api as { speaking?: boolean };
+    const done = vi.fn();
+    readAloud('Hello '.repeat(200), done);
+    vi.advanceTimersByTime(1);
+    state.speaking = true;
+    vi.advanceTimersByTime(500);
+    expect(done).not.toHaveBeenCalled();
+    state.speaking = false;
+    vi.advanceTimersByTime(500);
     expect(done).toHaveBeenCalledTimes(1);
   });
   it('reads nothing when there is no visible text', () => {
