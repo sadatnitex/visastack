@@ -101,6 +101,7 @@ export function CountryFlag({
 }) {
   const lacksEmoji = useLacksFlagEmoji();
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const hydrated = useHydrated();
   const resolvedSrc = hydrated ? flagSrc(iso2) : null;
   const src = resolvedSrc !== null && resolvedSrc !== failedSrc ? resolvedSrc : null;
@@ -113,9 +114,13 @@ export function CountryFlag({
       loading="lazy"
       decoding="async"
       draggable={false}
+      onLoad={() => setLoadedSrc(src)}
       onError={() => setFailedSrc(src)}
     />
   ) : null;
+  // Once the picture has loaded the emoji or letters underneath are hidden, so flags with a
+  // see-through edge (not a full rectangle) do not show them; on a failed load they stay.
+  const loaded = src !== null && loadedSrc === src ? ({ 'data-picture': 'loaded' } as const) : {};
   const emoji = flagEmoji(iso2);
   const letters = flagLetters(iso2);
   const label = (name ?? '').trim();
@@ -137,6 +142,7 @@ export function CountryFlag({
         className="country-flag country-flag-letters"
         data-size={size}
         data-flag-kind="letters"
+        {...loaded}
         {...a11y}
       >
         {letters}
@@ -145,7 +151,7 @@ export function CountryFlag({
     );
   }
   return (
-    <span className="country-flag" data-size={size} data-flag-kind="emoji" {...a11y}>
+    <span className="country-flag" data-size={size} data-flag-kind="emoji" {...loaded} {...a11y}>
       {emoji}
       {picture}
     </span>

@@ -198,6 +198,33 @@ describe('CountryFlag with a picture', () => {
   });
 });
 
+describe('the underlay beneath the picture', () => {
+  it('is hidden from view once the picture has loaded, and shown again if it fails', () => {
+    root = createRoot(container);
+    act(() => root?.render(<CountryFlag iso2="NP" name="Nepal" />));
+    const flag = () => container.querySelector('.country-flag');
+    expect(flag()?.getAttribute('data-picture')).toBeNull();
+    act(() => {
+      container.querySelector('img')?.dispatchEvent(new Event('load'));
+    });
+    expect(flag()?.getAttribute('data-picture')).toBe('loaded');
+    const css = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');
+    const block = css.slice(css.lastIndexOf('/* WP-PIC3'));
+    const rule = block.slice(block.indexOf('[data-picture="loaded"]'));
+    expect(rule.slice(0, rule.indexOf('}'))).toContain('font-size: 0');
+  });
+
+  it('stays visible when the picture fails to load', () => {
+    root = createRoot(container);
+    act(() => root?.render(<CountryFlag iso2="NP" name="Nepal" />));
+    act(() => {
+      container.querySelector('img')?.dispatchEvent(new Event('error'));
+    });
+    expect(container.querySelector('.country-flag')?.getAttribute('data-picture')).toBeNull();
+    expect(container.querySelector('.country-flag')?.textContent).not.toBe('');
+  });
+});
+
 describe('the picture layer', () => {
   it('has no background of its own, so a picture that fails before the page wakes up still shows the emoji beneath', () => {
     const css = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');

@@ -21573,4 +21573,10 @@ body:lang(bn),
   border-radius: 50%;
   object-fit: cover;
 }
+/* Once the picture has loaded, hide the emoji or letters under it so a flag with a see-through edge shows nothing but itself. A failed load never sets this, so the fallback stays. */
+.country-flag[data-picture="loaded"] {
+  font-size: 0;
+  border-color: var(--edge-card);
+  background: var(--bg-subtle);
+}
 /* end WP-PIC3 */
