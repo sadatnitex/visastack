@@ -25,7 +25,7 @@ export function pageLanguage(): string {
 }
 
 /** Held until the voice finishes: a browser may drop a spoken line that nothing refers to. */
-let speaking: unknown = null;
+const speaking = new Set<unknown>();
 
 /** Starts reading `text`; `onEnd` runs when it ends, fails or is stopped. Returns a stop function. */
 export function readAloud(text: string, onEnd: () => void): () => void {
@@ -50,14 +50,15 @@ export function readAloud(text: string, onEnd: () => void): () => void {
   const finish = () => {
     if (ended) return;
     ended = true;
-    speaking = null;
+    speaking.clear();
     onEnd();
   };
   try {
     api.cancel();
     const utterance = new Utterance(clean);
     utterance.lang = pageLanguage();
-    speaking = utterance;
+    speaking.clear();
+    speaking.add(utterance);
     utterance.onend = finish;
     utterance.onerror = finish;
     api.speak(utterance);

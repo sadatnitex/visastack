@@ -13,6 +13,8 @@ interface WakeLockLike {
   request: (type: 'screen') => Promise<SentinelLike>;
 }
 
+const pageHidden = (): boolean => document.visibilityState === 'hidden';
+
 function wakeLockApi(): WakeLockLike | null {
   if (typeof navigator === 'undefined') return null;
   const api = (navigator as { wakeLock?: WakeLockLike }).wakeLock;
@@ -32,11 +34,11 @@ export function holdScreenAwake(): () => void {
   let asking = false;
 
   const ask = async () => {
-    if (!open || asking || sentinel || document.visibilityState === 'hidden') return;
+    if (!open || asking || sentinel || pageHidden()) return;
     asking = true;
     try {
       const got = await api.request('screen');
-      if (!open || document.visibilityState === 'hidden') {
+      if (!open || pageHidden()) {
         await got.release().catch(() => undefined);
       } else {
         sentinel = got;
@@ -58,7 +60,7 @@ export function holdScreenAwake(): () => void {
   };
 
   const onVisibility = () => {
-    if (document.visibilityState === 'hidden') drop();
+    if (pageHidden()) drop();
     else void ask();
   };
 
