@@ -127,7 +127,28 @@ function load(script: string) {
     await pending;
   }
 
-  return { stores, network, clock, clients, self, dispatchFetch, dispatchLifecycle };
+  async function dispatchMessage(data: unknown, source: { url: string } | null) {
+    let pending: Promise<unknown> = Promise.resolve();
+    listeners.get('message')?.({
+      data,
+      source,
+      waitUntil: (value: Promise<unknown>) => {
+        pending = value;
+      },
+    });
+    await pending;
+  }
+
+  return {
+    stores,
+    network,
+    clock,
+    clients,
+    self,
+    dispatchFetch,
+    dispatchLifecycle,
+    dispatchMessage,
+  };
 }
 
 function share(files: File[], origin: string | null = null): FakeRequest {
@@ -144,8 +165,10 @@ function share(files: File[], origin: string | null = null): FakeRequest {
   };
 }
 
-function clear(mode: string): FakeRequest {
-  return { url: `${ORIGIN}/share-target/clear`, method: 'POST', mode, headers: new Headers() };
+function clear(mode: string, token = ''): FakeRequest {
+  const headers = new Headers();
+  if (token) headers.set('x-visastack-share-token', token);
+  return { url: `${ORIGIN}/share-target/clear`, method: 'POST', mode, headers };
 }
 
 function get(path: string, mode = 'cors'): FakeRequest {
@@ -349,18 +372,51 @@ describe('reading the inbox', () => {
     expect((await sw.dispatchFetch(leaky, PAGE))?.status).toBe(404);
   });
 
-  it('empties the inbox when the page asks (after hand-off or Cancel)', async () => {
-    const response = await sw.dispatchFetch(clear('cors'), PAGE);
+  it('empties the inbox when the page asks for its own share (after hand-off or Cancel)', async () => {
+    const { body } = await list();
+    const response = await sw.dispatchFetch(clear('cors', body.token), PAGE);
     expect(response?.status).toBe(200);
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
   });
 
+  it('a page left open from an earlier share never empties a newer one', async () => {
+    const first = (await list()).body.token;
+    await sw.dispatchFetch(share([photo('newer.jpg')], ORIGIN));
+    const second = (await list()).body;
+    expect(second.token).not.toBe(first);
+    expect((await sw.dispatchFetch(clear('cors', first), PAGE))?.status).toBe(409);
+    expect((await sw.dispatchFetch(clear('cors'), PAGE))?.status).toBe(409);
+    expect((await list()).body.files.map((f: { name: string }) => f.name)).toEqual(['newer.jpg']);
+  });
+
   it('lets no other page, and no form from anywhere, empty the inbox', async () => {
-    expect((await sw.dispatchFetch(clear('cors'), ELSEWHERE))?.status).toBe(404);
-    expect((await sw.dispatchFetch(clear('cors'), ''))?.status).toBe(404);
+    const { token } = (await list()).body;
+    expect((await sw.dispatchFetch(clear('cors', token), ELSEWHERE))?.status).toBe(404);
+    expect((await sw.dispatchFetch(clear('cors', token), ''))?.status).toBe(404);
     // A form posted as a page is not answered by the worker at all: the browser sends it to the
     // server, which has no such route.
-    expect(await sw.dispatchFetch(clear('navigate'), PAGE)).toBeUndefined();
+    expect(await sw.dispatchFetch(clear('navigate', token), PAGE)).toBeUndefined();
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
+  });
+
+  it('two tabs opening the inbox at once share one token, so pictures work in both', async () => {
+    const [a, b] = await Promise.all([list(), list()]);
+    expect(a.body.token).toMatch(/^[0-9a-f]{32}$/);
+    expect(b.body.token).toBe(a.body.token);
+    const picture = await sw.dispatchFetch(get(`/share-target/file/0?t=${a.body.token}`), PAGE);
+    expect(picture?.status).toBe(200);
+  });
+
+  it('signing out on a VisaStack page empties the inbox, whatever share it holds', async () => {
+    await sw.dispatchMessage({ type: 'CLEAR_SHARE_INBOX' }, { url: `${ORIGIN}/app` });
+    expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(false);
+  });
+
+  it.each([
+    ['another site', { url: 'https://evil.example/' }],
+    ['no page at all', null],
+  ])('ignores a sign-out clear from %s', async (_label, source) => {
+    await sw.dispatchMessage({ type: 'CLEAR_SHARE_INBOX' }, source);
     expect(sw.stores.has(SHARE_INBOX_CACHE)).toBe(true);
   });
 

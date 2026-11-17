@@ -13,6 +13,7 @@ import { readDepth } from '../../../lib/ccd/depth.server';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../../../lib/language-choice';
 import { loadOwnPhoto } from '../../../lib/profile-photos';
+import { ClearShareInboxOnSubmit } from '../../../lib/pwa/clear-share-inbox-on-submit';
 import { withSession } from '../../../lib/session';
 import { signOutCurrentUser } from '../../../lib/sign-out';
 import { readWhatsAppConfig } from '../../../lib/whatsapp';
@@ -83,7 +84,7 @@ export default async function AccountPage() {
             <p className="card-body u-mb-125">
               {t.node('appAccount.appAccountPage.signOutOfThisDevice')}
             </p>
-            <form
+            <ClearShareInboxOnSubmit
               action={async () => {
                 'use server';
                 await signOutCurrentUser();
@@ -92,7 +93,7 @@ export default async function AccountPage() {
               <button type="submit" className="btn btn-secondary">
                 {t.node('appAccount.appAccountPage.signOut')}
               </button>
-            </form>
+            </ClearShareInboxOnSubmit>
           </article>
 
           {data.photo ? (

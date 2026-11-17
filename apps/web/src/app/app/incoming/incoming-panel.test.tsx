@@ -41,6 +41,7 @@ vi.mock('../../../lib/import/import-queue', async (importOriginal) => ({
 }));
 
 const { IncomingPanel } = await import('./incoming-panel');
+const { ImportQueue } = await import('../../../lib/import/import-queue');
 
 const KEY = 'owner-key-a';
 const PEOPLE = [
@@ -59,6 +60,9 @@ const INBOX = {
 const TOKEN = INBOX.token;
 
 let calls: { url: string; method: string; key: string | null }[] = [];
+// The share token each clear named.
+let clearTokens: (string | null)[] = [];
+let clearStatus = 200;
 let container: HTMLDivElement;
 let root: Root;
 
@@ -72,6 +76,8 @@ function serviceWorker(controller: boolean) {
 beforeEach(() => {
   sent.length = 0;
   calls = [];
+  clearTokens = [];
+  clearStatus = 200;
   serviceWorker(true);
   vi.stubGlobal(
     'fetch',
@@ -86,7 +92,10 @@ beforeEach(() => {
         return new Response(new Uint8Array([255, 216, 255, 0]));
       if (url.startsWith('/share-target/file/1'))
         return new Response(new TextEncoder().encode('%PDF'));
-      if (url === '/share-target/clear') return Response.json({});
+      if (url === '/share-target/clear') {
+        clearTokens.push(new Headers(init?.headers).get('x-visastack-share-token'));
+        return Response.json({}, { status: clearStatus });
+      }
       return new Response('unexpected', { status: 500 });
     }),
   );
@@ -99,6 +108,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 async function show(props: Partial<Parameters<typeof IncomingPanel>[0]> = {}) {
@@ -173,6 +183,62 @@ describe('WP-PIC11 shared files waiting on the phone', () => {
     expect(calls.every((c) => !c.url.includes(KEY))).toBe(true);
     const links = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(links).toContain('/app/applicant/p2/documents');
+  });
+
+  it('names this share when clearing after hand-off, so an older tab never empties a newer one', async () => {
+    await show();
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    expect(clearTokens).toEqual([TOKEN]);
+  });
+
+  it('names this share when Cancel clears it', async () => {
+    await show();
+    await act(async () => {
+      button('Cancel').click();
+    });
+    await settle();
+    expect(clearTokens).toEqual([TOKEN]);
+  });
+
+  it('says the phone copies are removed only once the phone confirms it', async () => {
+    await show();
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    expect(container.textContent).toContain('The shared copies kept on this phone are removed');
+  });
+
+  it('says nothing about removal when the phone could not remove them', async () => {
+    clearStatus = 409;
+    await show();
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    expect(container.textContent).toContain('Finished: 2 added');
+    expect(container.textContent).not.toMatch(/removed/);
+  });
+
+  it('when adding stops part way, offers Try Again and Cancel with a plain line', async () => {
+    vi.spyOn(ImportQueue.prototype, 'add').mockRejectedValueOnce(new Error('stopped'));
+    await show();
+    await act(async () => {
+      button('Add These Files').click();
+    });
+    await settle();
+    expect(container.textContent).toContain('Adding stopped before it finished');
+    expect(container.textContent).not.toContain('Please keep this page open');
+    expect(button('Cancel').disabled).toBe(false);
+    await act(async () => {
+      button('Try Again').click();
+    });
+    await settle();
+    expect(sent.map((s) => s.fileName)).toEqual(['passport.jpg', 'bank.pdf']);
+    expect(container.textContent).toContain('Finished: 2 added');
   });
 
   it('Cancel removes them from the phone and sends nothing', async () => {

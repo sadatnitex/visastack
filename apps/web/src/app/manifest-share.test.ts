@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as manifestModule from './manifest';
 import manifest from './manifest';
 
 /**
@@ -55,6 +56,10 @@ describe('the share entry in the app manifest', () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('WEB_SHARE_TARGET', 'on');
     expect(manifest()).not.toHaveProperty('share_target');
+  });
+
+  it('stays a static file for everyone, not a function run on every request', () => {
+    expect(manifestModule).not.toHaveProperty('dynamic');
   });
 
   it('leaves the rest of the manifest as it was', () => {

@@ -5,6 +5,7 @@ import { appHomeCatalog } from '../../i18n/app-home';
 import { resolveBaseUrl } from '../../lib/base-url';
 import { caseSubjectFor } from '../../lib/case-subject';
 import { getT } from '../../lib/i18n-server';
+import { ClearShareInboxOnSubmit } from '../../lib/pwa/clear-share-inbox-on-submit';
 import { withSession } from '../../lib/session';
 import { getSidebarState } from '../../lib/sidebar-state';
 import { signOutCurrentUser } from '../../lib/sign-out';
@@ -56,7 +57,7 @@ export async function WorkspaceFrame({
       toolbarState={account.toolbar}
       initialCaseSubject={caseSubject}
       signOut={
-        <form
+        <ClearShareInboxOnSubmit
           action={async () => {
             'use server';
             await signOutCurrentUser();
@@ -66,7 +67,7 @@ export async function WorkspaceFrame({
             <Icon name="logout" size={18} />
             {t.node('appHome.appWorkspaceFrame.signOut')}
           </button>
-        </form>
+        </ClearShareInboxOnSubmit>
       }
     >
       <ShareOriginsProvider origin={resolveBaseUrl()}>{children}</ShareOriginsProvider>

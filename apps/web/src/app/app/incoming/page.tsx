@@ -7,7 +7,6 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../components/ui';
 import { primeLocale } from '../../../lib/i18n-server';
 import { isShareTargetOn } from '../../../lib/pwa/service-worker';
@@ -24,8 +23,9 @@ export const dynamic = 'force-dynamic';
  * Where a photo or PDF shared from another app lands (WP-PIC11). The files are still only on this
  * phone, held by the service worker; this page shows them as pictures, asks who they are for, and
  * sends them only when the person presses Add These Files, through the same upload as Add
- * Documents. It exists only while the owner's share switch and the service worker are both on;
- * a phone that still offers the old share after the switch went off lands on one plain line.
+ * Documents. It works only while the owner's share switch and the service worker are both on.
+ * Otherwise every visit gets one plain line and nothing is read: a phone whose old worker still
+ * takes a share after the switch went off lands here too.
  */
 export default async function IncomingPage({
   searchParams,
@@ -36,22 +36,24 @@ export default async function IncomingPage({
   }>;
 }) {
   await primeLocale();
-  const query = await searchParams;
-  const missed = query.missed === '1';
   if (!isShareTargetOn((name) => process.env[name])) {
-    if (!missed) notFound();
     return (
       <section className="section container">
         <PageHeader title="Shared Files" back={{ href: '/app', label: 'Home' }} />
         <article className="card">
-          <p className="card-body">
-            Sharing to VisaStack from other apps is not available right now, so nothing was kept.
-            Add your files from your documents instead.
-          </p>
+          <div className="card-body">
+            <h2>That Share Did Not Come Through</h2>
+            <p>
+              Sharing to VisaStack from other apps is not available right now, so nothing was kept.
+              Add your files from your documents instead.
+            </p>
+          </div>
         </article>
       </section>
     );
   }
+  const query = await searchParams;
+  const missed = query.missed === '1';
   const notice = missed ? 'missed' : query.none === '1' ? 'none' : null;
 
   const data = await withSession(async ({ db, accountId }) => {

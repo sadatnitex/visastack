@@ -8,6 +8,7 @@ import {
 import {
   INCOMING_PATH,
   SHARE_ACCEPT,
+  SHARE_CLEAR_MESSAGE,
   SHARE_CLEAR_PATH,
   SHARE_FILES_FIELD,
   SHARE_FILE_PREFIX,
@@ -18,6 +19,7 @@ import {
   SHARE_MAX_FILES,
   SHARE_MAX_FILE_BYTES,
   SHARE_TARGET_PATH,
+  SHARE_TOKEN_HEADER,
   isShareTargetSwitchOn,
 } from './share-target';
 
@@ -146,6 +148,8 @@ export function buildServiceWorkerScript(
     SHARE_FILES_FIELD,
     SHARE_INBOX_CACHE,
     SHARE_KEY_HEADER,
+    SHARE_TOKEN_HEADER,
+    SHARE_CLEAR_MESSAGE,
     SHARE_ACCEPT,
     SHARE_MAX_FILES,
     SHARE_MAX_FILE_BYTES,
@@ -389,14 +393,34 @@ async function fromIncomingPage(event) {
   return !!client && new URL(client.url).pathname === INCOMING_PATH;
 }
 
+// Reading, claiming and clearing the inbox run one at a time, so two tabs opening it together
+// cannot both claim it and leave one holding a token that no longer works.
+let inboxTurn = Promise.resolve();
+function oneAtATime(work) {
+  const result = inboxTurn.then(work);
+  inboxTurn = result.catch(() => undefined);
+  return result;
+}
+
+// A clear names the share it is for: a page left open from an earlier share never empties a newer
+// one. It answers ok only when it removed that share.
+async function clearShare(event) {
+  const token = event.request.headers.get(SHARE_TOKEN_HEADER) || '';
+  const inbox = await readInbox();
+  if (!inbox || !token || inbox.meta.token !== token) return noStore('{"cleared":false}', 409, 'application/json');
+  await clearInbox();
+  return noStore('{"cleared":true}', 200, 'application/json');
+}
+
 async function answerShare(event, kind) {
   if (kind === 'receive') return receiveShare(event);
-  if (kind === 'clear') {
-    if (!(await fromIncomingPage(event))) return notFound();
-    await clearInbox();
-    return noStore('{}', 200, 'application/json');
-  }
   if (!(await fromIncomingPage(event))) return notFound();
+  if (kind === 'clear') return oneAtATime(() => clearShare(event));
+  if (kind === 'list') return oneAtATime(() => readShare(event, kind));
+  return readShare(event, kind);
+}
+
+async function readShare(event, kind) {
   const empty = () => noStore(JSON.stringify({ files: [], dropped: 0, at: 0, token: '' }), 200, 'application/json');
   const inbox = await readInbox();
   if (kind === 'list') {
@@ -458,7 +482,19 @@ self.addEventListener('activate', (event) => {
 // A waiting update starts only when the person chooses Reload Now, never in the middle of their work.
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  // Signing out empties the shared inbox, whatever share it holds. Only a VisaStack page may ask.
+  if (event.data && event.data.type === SHARE_CLEAR_MESSAGE && fromOwnPage(event.source)) {
+    event.waitUntil(oneAtATime(clearInbox));
+  }
 });
+
+function fromOwnPage(source) {
+  try {
+    return !!source && typeof source.url === 'string' && new URL(source.url).origin === self.location.origin;
+  } catch {
+    return false;
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   const share = shareKind(event.request);

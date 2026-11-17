@@ -56,16 +56,20 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('WP-PIC11 the shared files page', () => {
-  it('does not exist while the share switch is off', async () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('WEB_SHARE_TARGET', undefined);
-    await expect(page()).rejects.toThrow('NEXT_NOT_FOUND');
-  });
-
-  it('does not exist while the service worker is off', async () => {
+  it.each([
+    ['the share switch is off', () => vi.stubEnv('WEB_SHARE_TARGET', undefined)],
+    ['the service worker is off', () => vi.stubEnv('PWA_SERVICE_WORKER', 'off')],
+  ])('while %s, any visit gets one plain line and nothing is read', async (_label, off) => {
     switchOn();
-    vi.stubEnv('PWA_SERVICE_WORKER', 'off');
-    await expect(page()).rejects.toThrow('NEXT_NOT_FOUND');
+    off();
+    for (const query of [{}, { missed: '1' }, { none: '1' }]) {
+      const html = await page(query);
+      expect(textOf(html)).toContain('That Share Did Not Come Through');
+      expect(textOf(html)).toContain('not available right now, so nothing was kept');
+    }
+    expect(panel.props).toHaveLength(0);
+    expect(service.listApplicants).not.toHaveBeenCalled();
+    expect(service.hasConsent).not.toHaveBeenCalled();
   });
 
   it("hands the panel this account's key, its people and the normal upload limits", async () => {

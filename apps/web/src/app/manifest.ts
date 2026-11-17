@@ -3,10 +3,6 @@ import { deepLinkPath } from '../lib/deep-links';
 import { isShareTargetOn } from '../lib/pwa/service-worker';
 import { shareTargetEntry } from '../lib/pwa/share-target';
 
-// Read per request so the owner's share switch (`WEB_SHARE_TARGET`) takes effect without a rebuild,
-// the same way `/sw.js` reads `PWA_SERVICE_WORKER`.
-export const dynamic = 'force-dynamic';
-
 // Install and home-screen details. The icons come from the VisaStack brand pack (the maskable one
 // keeps the mark inside the centre safe zone). Every icon is a full-bleed, opaque blue square:
 // a launcher that does not use the maskable pair draws a transparent corner on a white disc, which
@@ -21,6 +17,8 @@ export const dynamic = 'force-dynamic';
 // `share_target` (WP-PIC11) appears only when the owner has set `WEB_SHARE_TARGET=on` AND the service
 // worker is on: the worker is what keeps a shared file on the device until the person signs in and
 // confirms (`lib/pwa/share-target.ts`). Without it the phone never offers VisaStack as a share target.
+// The manifest stays a static file read when the site is built, so changing the switch takes effect
+// on the next deployment (the worker and `/app/incoming` read it on every request).
 export default function manifest(): MetadataRoute.Manifest {
   const share = isShareTargetOn((name) => process.env[name]);
   return {

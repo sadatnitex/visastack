@@ -40,6 +40,15 @@ export const SHARE_CLEAR_PATH = `${SHARE_TARGET_PATH}/clear`;
  */
 export const SHARE_KEY_HEADER = 'x-visastack-share-key';
 
+/**
+ * The header a clear sends the share's own token in, so a page left open from an earlier share can
+ * never empty a newer one. Kept out of the address for the same reason as the key.
+ */
+export const SHARE_TOKEN_HEADER = 'x-visastack-share-token';
+
+/** The message a signing-out page posts to the worker: empty the inbox, whatever share it holds. */
+export const SHARE_CLEAR_MESSAGE = 'CLEAR_SHARE_INBOX';
+
 /** Most files one share keeps; the rest are counted and the page says so. */
 export const SHARE_MAX_FILES = 10;
 

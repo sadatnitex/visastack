@@ -19,6 +19,7 @@ import {
   SHARE_LIST_PATH,
   SHARE_MAX_FILES,
   SHARE_PICTURE_TYPES,
+  SHARE_TOKEN_HEADER,
   type SharedFile,
   type SharedInbox,
   parseInbox,
@@ -48,17 +49,25 @@ export async function readSharedInbox(ownerKey: string | null): Promise<SharedIn
   }
 }
 
-/** Empties the inbox on this phone. A failure leaves it to the 15-minute limit. */
-export async function clearSharedInbox(): Promise<void> {
-  if (typeof navigator === 'undefined' || !navigator.serviceWorker?.controller) return;
+/**
+ * Empties this share from the phone, named by its token so a page left open from an earlier share
+ * never empties a newer one. True only when the worker removed it; anything else is left to the
+ * 15-minute limit.
+ */
+export async function clearSharedInbox(token: string): Promise<boolean> {
+  if (!token || typeof navigator === 'undefined' || !navigator.serviceWorker?.controller) {
+    return false;
+  }
   try {
-    await fetch(SHARE_CLEAR_PATH, {
+    const response = await fetch(SHARE_CLEAR_PATH, {
       method: 'POST',
       cache: 'no-store',
       credentials: 'same-origin',
+      headers: { [SHARE_TOKEN_HEADER]: token },
     });
+    return response.ok;
   } catch {
-    // Left to the time limit.
+    return false;
   }
 }
 
@@ -119,6 +128,10 @@ export function IncomingPanel({
   const [unreadable, setUnreadable] = useState(0);
   // True once every waiting file has been read back and handed to the queue.
   const [handedOver, setHandedOver] = useState(false);
+  // Adding stopped before every file reached the queue: the person may try again or cancel.
+  const [stopped, setStopped] = useState(false);
+  // Whether the phone copies were removed once every file had an answer (null: not known yet).
+  const [removed, setRemoved] = useState<boolean | null>(null);
   const forId = useId();
   const titleId = useId();
 
@@ -159,28 +172,44 @@ export function IncomingPanel({
   const finished =
     phase === 'sending' && handedOver && items.every((item) => FINAL_STATES.has(item.state));
 
-  // Every file has an answer: the copies on this phone are no longer needed.
+  // Every file has an answer: the copies on this phone are no longer needed. The page says they
+  // were removed only once the worker confirms it.
   useEffect(() => {
-    if (finished) void clearSharedInbox();
-  }, [finished]);
+    if (!finished) return;
+    let gone = false;
+    clearSharedInbox(inbox.token).then((ok) => {
+      if (!gone) setRemoved(ok);
+    });
+    return () => {
+      gone = true;
+    };
+  }, [finished, inbox.token]);
 
   const addThem = useCallback(async () => {
     if (!ownerKey || phase !== 'ready') return;
     setPhase('sending');
-    const read = await Promise.all(
-      inbox.files.map((file) => candidateFor(file, inbox.token, inbox.at + file.n)),
-    );
-    const candidates = read.filter((c): c is ImportCandidate => c !== null);
-    setUnreadable(read.length - candidates.length);
-    await queue.add(candidates);
-    setHandedOver(true);
+    setStopped(false);
+    try {
+      const read = await Promise.all(
+        inbox.files.map((file) => candidateFor(file, inbox.token, inbox.at + file.n)),
+      );
+      const candidates = read.filter((c): c is ImportCandidate => c !== null);
+      setUnreadable(read.length - candidates.length);
+      await queue.add(candidates);
+      setHandedOver(true);
+    } catch {
+      // Back to the choice, with Try Again and Cancel. The same files send the same upload ids, so
+      // trying again never stores a second copy of one that already arrived.
+      setStopped(true);
+      setPhase('ready');
+    }
   }, [ownerKey, phase, inbox, queue]);
 
   const cancel = useCallback(async () => {
-    await clearSharedInbox();
+    await clearSharedInbox(inbox.token);
     setInbox(parseInbox(null));
     setPhase('cancelled');
-  }, []);
+  }, [inbox.token]);
 
   if (phase === 'loading') {
     return (
@@ -248,6 +277,12 @@ export function IncomingPanel({
             ? `${fileWord(inbox.files.length)} from another app. They are still only on this phone: nothing is sent until you choose Add These Files. Only add files you shared yourself just now.`
             : `Adding ${fileWord(inbox.files.length)} for ${chosen?.name ?? 'this person'}. Please keep this page open.`}
         </p>
+        {stopped ? (
+          <p className="incoming-note" role="alert">
+            Adding stopped before it finished. Try again, or cancel to remove these files from this
+            phone.
+          </p>
+        ) : null}
         {inbox.dropped > 0 ? (
           <p className="incoming-note">
             {`${fileWord(inbox.dropped)} not kept. VisaStack takes up to ${SHARE_MAX_FILES} photos or PDFs at a time.`}
@@ -291,7 +326,7 @@ export function IncomingPanel({
             )}
             <p className="incoming-actions">
               <button type="button" className="btn btn-primary" onClick={() => void addThem()}>
-                Add These Files
+                {stopped ? 'Try Again' : 'Add These Files'}
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => void cancel()}>
                 Cancel
@@ -317,7 +352,7 @@ export function IncomingPanel({
             {finished ? (
               <>
                 <output className="incoming-note">
-                  {`Finished: ${counts.added} added${counts.total > counts.added ? `, ${counts.total - counts.added} need a look` : ''}. The shared copies kept on this phone are removed; your originals are untouched.`}
+                  {`Finished: ${counts.added} added${counts.total > counts.added ? `, ${counts.total - counts.added} need a look` : ''}.${removed ? ' The shared copies kept on this phone are removed; your originals are untouched.' : ''}`}
                 </output>
                 <p className="incoming-actions">
                   {counts.held > 0 ? (
