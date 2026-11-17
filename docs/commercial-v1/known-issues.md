@@ -8255,3 +8255,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - Owner decision D2 (17 Nov 2026): illustrations and hero cards may use soft shadows, glow and gentle motion, only in apps/web/src/components/pictures/pictures-depth.css. The flat-design guard now holds an exception list of two exact paths; automatic dark appearance and inline effects stay forbidden everywhere. New speed --motion-slow (600ms), defined once, usable only inside prefers-reduced-motion: no-preference. The lift guard in ui-lift.test.tsx accepts WP-PIC blocks (deliberate extension, unknown families still fail).
 - NOT verified: the picture stylesheet, its data saver gate and its motion guards arrive with WP-PIC2; nothing is visible to users yet.
+
+## 17 Nov 2026: WP-PIC1 Explain popup
+
+- New shared ExplainTip (components/explain-tip.tsx, lib/use-explain-tip.ts) on the existing popover helpers: opens on hover, focus and tap, closes on Escape, outside press and blur, one open at a time, 44 px trigger, text linked by aria-describedby. First use: next to the Fallback Provider Used badge on the AI review screen (the badge keeps its title= because an existing locale test reads it). A ratchet test holds plain title= attributes at 6 or fewer.
+- Independent review fixed: hover bridge moved to the non-clipping holder; press marks reset on document pointerup and pointercancel; neutral ask icon instead of a tick. NOT verified: a real-browser hover and touch check on a phone.
