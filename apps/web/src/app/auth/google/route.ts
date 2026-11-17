@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withinAddressLimit } from '../../../lib/auth-throttle';
-import { SOCIAL_RETURN_PATH, signInNextSuffix } from '../../../lib/confirmed-landing';
+import { signInNextSuffix } from '../../../lib/confirmed-landing';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { reportServerError } from '../../../lib/server-error';
 import {
@@ -56,7 +56,9 @@ export async function GET(request: Request): Promise<NextResponse> {
     const { data, error } = await withTimeout(
       getNeonAuth().signIn.social({
         provider: 'google',
-        callbackURL: `${origin}${SOCIAL_RETURN_PATH}?next=${encodeURIComponent(next)}`,
+        // The path is written out (and pinned to `SOCIAL_RETURN_PATH` by a test) so the route
+        // navigation check can see that the return page is reached.
+        callbackURL: `${origin}/auth/social-return?next=${encodeURIComponent(next)}`,
         errorCallbackURL: `${origin}/auth/sign-in?e=social${signInNextSuffix(next)}`,
         disableRedirect: true,
       }),

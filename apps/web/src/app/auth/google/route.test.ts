@@ -12,6 +12,7 @@ vi.mock('../../../lib/server-error', () => ({
   reportServerError: (...args: unknown[]) => reportServerError(...args),
 }));
 
+import { SOCIAL_RETURN_PATH } from '../../../lib/confirmed-landing';
 import { GET, HEAD } from './route';
 
 const ORIGIN = 'https://app.example.test';
@@ -81,6 +82,13 @@ it('asks Neon Auth for Google with return addresses on the same host, then redir
     byAddress: 'AUTH_SIGN_IN_IP',
     onFailure: 'allow',
   });
+});
+
+it('returns to the page the sign-in check and the return page are built around', async () => {
+  enable();
+  social.mockResolvedValue({ data: { url: GOOGLE }, error: null });
+  await GET(click());
+  expect(new URL(social.mock.calls[0]?.[0].callbackURL).pathname).toBe(SOCIAL_RETURN_PATH);
 });
 
 it('works on the fallback host the same way, so its sign-in cookies match its return address', async () => {
