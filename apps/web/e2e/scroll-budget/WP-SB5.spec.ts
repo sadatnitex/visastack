@@ -13,6 +13,9 @@ import { VIEWPORTS, expectFixedPanel, expectWithinBudget, renderFixture } from '
 
 const FIXTURE = 'WP-SB5';
 
+/** WP-PIC14: the Do Next card is measured against the dashboard budget. */
+const DO_NEXT_SCREENS = 2;
+
 async function noSeriousAxe(page: import('@playwright/test').Page): Promise<void> {
   const results = await new AxeBuilder({ page })
     .include('main')
@@ -125,6 +128,39 @@ test.describe('WP-SB5 scroll budget', () => {
     await expect(
       expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'enforce' }),
     ).rejects.toThrow(/page height at phone/);
+  });
+
+  // WP-PIC14: every Do Next row gains a picture strip (flag, readiness ring, documents missing).
+  // Worst case: more items than the row cap, every row a case row with long names and a long
+  // destination, all rows shown (no depth scope, as at Everything). The card must stay within the
+  // dashboard budget with at least 8 px to spare on both sizes, with the strip wrapped on a phone.
+  test('do next rows with picture strips keep the dashboard budget with 8 px to spare', async ({
+    page,
+  }) => {
+    await renderFixture(page, FIXTURE, { view: 'do-next', total: 20, shown: 8 });
+    await expect(page.locator('.do-next-item')).toHaveCount(8);
+    await expect(page.locator('.do-next-item .desk-strip')).toHaveCount(8);
+    for (const viewport of ['phone', 'desktop'] as const) {
+      const measure = await expectWithinBudget(page, {
+        screens: DO_NEXT_SCREENS,
+        viewport,
+        mode: 'enforce',
+      });
+      const spare = DO_NEXT_SCREENS * VIEWPORTS[viewport].height - measure.height;
+      expect(spare, `do next spare height at ${viewport}`).toBeGreaterThanOrEqual(8);
+      if (viewport === 'phone') {
+        // The worst case is really measured: the longest strip wraps onto a second line.
+        const tallest = await page
+          .locator('.do-next-item .desk-strip')
+          .evaluateAll((strips) => Math.max(...strips.map((s) => s.getBoundingClientRect().height)));
+        const line = await page
+          .locator('.do-next-item .desk-docs')
+          .first()
+          .evaluate((el) => el.getBoundingClientRect().height);
+        expect(tallest, 'a strip wraps at phone width').toBeGreaterThan(line * 1.5);
+      }
+    }
+    await noSeriousAxe(page);
   });
 
   test('the cases budget fails when the list cap is lost', async ({ page }) => {

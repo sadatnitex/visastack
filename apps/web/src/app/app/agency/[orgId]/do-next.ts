@@ -112,17 +112,23 @@ export interface DeskPicture {
 /**
  * Required documents the traveller has never provided: a document on file that is out of date or
  * in conflict is not "missing", and a group that an answer could settle instead is not counted as
- * a document. Null when the missing list was not read with the readiness.
+ * a document. Null when the missing list was not read with the readiness, and null for a zero
+ * while anything required is still outstanding for another reason (out of date, in conflict, an
+ * answer), so the row never says "No Documents Missing" beside a case table that says some are.
  */
 function requiredDocumentsNotProvided(readiness: DeskReadiness): number | null {
   const missing = readiness.missing;
   if (!missing) return null;
-  return missing.filter(
+  const required = missing.filter((m) => !m.optional);
+  const notProvided = required.filter(
     (m) =>
-      !m.optional &&
       m.reason === 'not_provided' &&
       (m.alternatives ? m.alternatives.every((a) => a.kind === 'DOCUMENT') : m.kind === 'DOCUMENT'),
   ).length;
+  if (notProvided > 0) return notProvided;
+  const outstanding =
+    required.length > 0 || readiness.satisfiedRequired < readiness.requiredCount;
+  return outstanding ? null : 0;
 }
 
 /**

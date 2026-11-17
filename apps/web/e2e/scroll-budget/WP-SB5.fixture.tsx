@@ -1,10 +1,13 @@
 import { FormGroup } from '../../src/app/app/agency/[orgId]/clients/form-group';
+import { DeskPictureStrip } from '../../src/app/app/agency/[orgId]/desk-picture-strip';
+import { FollowUpCopy } from '../../src/app/app/agency/[orgId]/follow-up-copy';
 import { ActivityLog, type ActivityLogEntry } from '../../src/components/activity-log';
 import { CaseReadinessRing } from '../../src/components/case-readiness-ring';
 import { ReferenceCode } from '../../src/components/reference-code';
 import { ShowMore } from '../../src/components/show-more';
 import { StatusBadge } from '../../src/components/ui';
 import { SectionCard } from '../../src/components/ui-lift';
+import { AboutDisclosure } from '../../src/components/ui-lift/about-disclosure';
 
 /**
  * WP-SB5 scroll budget fixture: the capped parts of the agency Cases, Activity, Clients and
@@ -13,13 +16,17 @@ import { SectionCard } from '../../src/components/ui-lift';
  * real pages apply these caps and read only the open case; this measures their height.
  */
 export interface Sb5FixtureProps {
-  readonly view: 'cases' | 'activity' | 'clients' | 'dashboard';
+  readonly view: 'cases' | 'activity' | 'clients' | 'dashboard' | 'do-next';
   /** Rows the page holds in all. */
   readonly total: number;
   /** Rows the page shows at once (the cap). */
   readonly shown: number;
   /** Clients only: the pending invitations group starts open (WP-SB11). */
   readonly invitationsOpen?: boolean;
+  /** Do Next only (WP-PIC14): draw each row's picture strip; false measures the rows without it. */
+  readonly strips?: boolean;
+  /** Do Next only (WP-PIC14): the depth the card is seen at; Glance shows the first row only. */
+  readonly depth?: 'glance' | 'browse';
 }
 
 const STAGES = ['Intake', 'In Review', 'Draft', 'Submission Ready'];
@@ -370,7 +377,130 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
   );
 }
 
-export default function Sb5Fixture({ view, total, shown, invitationsOpen }: Sb5FixtureProps) {
+/** WP-PIC14: the longest destination names the strip has to wrap, worst case for its height. */
+const LONG_DESTINATIONS = [
+  'Saint Vincent and the Grenadines',
+  'United Kingdom of Great Britain and Northern Ireland',
+  'Bosnia and Herzegovina',
+  'Schengen Area',
+];
+
+/**
+ * WP-PIC14: the dashboard Do Next card with the same classes and the same row cap (8) as
+ * `DoNextList` (which this bundle cannot import: its ranking module reads server code), drawing the
+ * real picture strip and the real follow-up control. Worst case for height: more items than the
+ * cap, all rows shown (no depth scope, as at Everything), long names, a two-line reason and a full
+ * strip with a long destination on every row. With `strips: false` the rows draw no strip.
+ */
+const DO_NEXT_CAP = 8;
+const TIERS = ['Past Due', 'Due Soon', 'Ready to Review', 'Needs Assignment'];
+
+function DoNext({
+  total,
+  strips,
+  depth,
+}: { total: number; strips: boolean; depth: 'glance' | 'browse' }) {
+  return (
+    <div className="depth-scope" data-depth={depth}>
+      <DoNextCard total={total} strips={strips} />
+    </div>
+  );
+}
+
+function DoNextCard({ total, strips }: { total: number; strips: boolean }) {
+  return (
+    <section className="card do-next" aria-labelledby="do-next-heading">
+      <h2 className="card-title" id="do-next-heading">
+        Do Next
+      </h2>
+      <span className="badge badge-neutral do-next-filtered">Filtered View</span>
+      <AboutDisclosure summary="How This Is Sorted">
+        <p className="card-body do-next-intro">Past-due items first, then requests.</p>
+      </AboutDisclosure>
+      <ol className="do-next-list">
+        {rows(Math.min(total, DO_NEXT_CAP)).map((n) => (
+          // As on the page: the first row is the one thing to do now; the rest wait at Browse.
+          <li
+            key={n}
+            className={`do-next-item do-next-tier-${(n % 4) + 1}`}
+            {...(n === 0 ? {} : { 'data-level': 'browse' })}
+          >
+            <div className="do-next-item-head">
+              <span className="do-next-tier">{TIERS[n % TIERS.length]}</span>
+              <h3 className="do-next-title">
+                Visitor Visa Application for the Family Trip Number {n}
+              </h3>
+            </div>
+            <p className="do-next-context" data-value>
+              Traveller With a Long Family Name Number {n} · Visitor Visa Application Number {n}{' '}
+              for the Summer
+            </p>
+            {strips ? (
+              <DeskPictureStrip
+                picture={{
+                  destination: LONG_DESTINATIONS[n % LONG_DESTINATIONS.length] ?? null,
+                  readiness: { done: 9, total: 12 },
+                  documentsMissing: 3,
+                }}
+              />
+            ) : null}
+            <dl className="do-next-facts">
+              <div>
+                <dt>Owner</dt>
+                <dd data-value>case-manager-with-a-long-address@agency.test</dd>
+              </div>
+              <div>
+                <dt>Why</dt>
+                <dd>
+                  3 tasks are past due. The oldest was due 20 Nov 2026, and the traveller has not
+                  replied ({n}).
+                </dd>
+              </div>
+            </dl>
+            <div className="do-next-action">
+              {n % 2 === 0 ? (
+                <a
+                  href={`/app/agency/o1/cases#mission-${caseId(n)}`}
+                  className="btn btn-secondary do-next-link"
+                >
+                  Open Case
+                </a>
+              ) : (
+                <FollowUpCopy
+                  text={`Hello, a reminder about the bank statement for case ${n}. Thank you.`}
+                  agencyNoteLeftOut={false}
+                  summary="Review Follow-Up Message"
+                />
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="muted do-next-more" data-only="glance">
+        {total - 1} more need you. Choose Browse to see them.
+      </p>
+      <p className="muted do-next-more">
+        4 more requests in this view have had no reply.{' '}
+        <a href="/app/agency/o1/clients?status=open">See All Open Requests</a>
+      </p>
+      <p className="muted do-next-more" data-level="browse">
+        Showing {Math.min(total, DO_NEXT_CAP)} of {total}. The rest are on the case list.
+      </p>
+    </section>
+  );
+}
+
+export default function Sb5Fixture({
+  view,
+  total,
+  shown,
+  invitationsOpen,
+  strips,
+  depth,
+}: Sb5FixtureProps) {
+  if (view === 'do-next') {
+    return <DoNext total={total} strips={strips ?? true} depth={depth ?? 'browse'} />;
+  }
   if (view === 'cases') return <Cases total={total} shown={shown} />;
   if (view === 'activity') return <Activity total={total} shown={shown} />;
   if (view === 'clients') {

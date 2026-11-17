@@ -107,6 +107,47 @@ describe('deskPictureOf', () => {
       }),
     ).toEqual({ destination: 'France', readiness: { done: 3, total: 3 }, documentsMissing: null });
   });
+
+  it('says no documents are missing only when nothing required is outstanding for any reason', () => {
+    // A stale passport and a conflicting statement: no document was never provided, but the case
+    // table says 2 missing, so the row draws no documents count rather than "No Documents Missing".
+    const stale = deskPictureOf({
+      destination: 'Japan',
+      readiness: {
+        requiredCount: 4,
+        satisfiedRequired: 2,
+        missing: [
+          { kind: 'DOCUMENT', optional: false, reason: 'expired' },
+          { kind: 'DOCUMENT', optional: false, reason: 'conflict' },
+        ],
+      },
+    });
+    expect(stale).toEqual({
+      destination: 'Japan',
+      readiness: { done: 2, total: 4 },
+      documentsMissing: null,
+    });
+    // An answer still owed counts as outstanding too.
+    expect(
+      deskPictureOf({
+        readiness: {
+          requiredCount: 2,
+          satisfiedRequired: 1,
+          missing: [{ kind: 'FIELD', optional: false, reason: 'not_provided' }],
+        },
+      })?.documentsMissing,
+    ).toBeNull();
+    // Only optional items left: everything required is in place, so the zero is said.
+    expect(
+      deskPictureOf({
+        readiness: {
+          requiredCount: 2,
+          satisfiedRequired: 2,
+          missing: [{ kind: 'DOCUMENT', optional: true, reason: 'not_provided' }],
+        },
+      })?.documentsMissing,
+    ).toBe(0);
+  });
 });
 
 describe('Do Next items and their pictures', () => {
