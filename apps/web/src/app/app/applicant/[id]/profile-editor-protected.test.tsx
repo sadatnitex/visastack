@@ -21,7 +21,7 @@ vi.mock('./section-actions', () => ({
   setExemptionAction: vi.fn(),
   setSectionOpenAction: vi.fn(),
 }));
-const { ProfileEditor, protectedStandIn } = await import('./profile-editor');
+const { ProfileEditor } = await import('./profile-editor');
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Value = {
@@ -168,20 +168,19 @@ describe('protected details in the profile editor', () => {
     expect(box('passport_number').value).toBe('X1234567-STORED');
   });
 
-  it('recognises exactly the stand-ins the services package does', () => {
-    const samples = [
-      '[protected]',
-      ' [PROTECTED] ',
-      '[ protected ]',
-      '[protected: could not decrypt]',
-      '[Protected: Could Not Decrypt]',
-      'protected',
-      '[protected species]',
-      'X1234567',
-      '',
-    ];
-    for (const sample of samples) {
-      expect(Boolean(protectedStandIn(sample))).toBe(isProtectedPlaceholder(sample));
-    }
+  it.each([
+    '[protected]',
+    ' [PROTECTED] ',
+    '[ protected ]',
+    '[protected: could not decrypt]',
+    '[Protected: Could Not Decrypt]',
+    'protected',
+    '[protected species]',
+    'X1234567',
+  ])('treats %j exactly as the services package does', (sample) => {
+    render({ passport_number: { factId: 'f-pp', value: sample, status: 'DECLARED' } });
+    const standIn = isProtectedPlaceholder(sample);
+    expect(box('passport_number').value).toBe(standIn ? '' : sample);
+    expect(hintFor('passport_number') !== null).toBe(standIn);
   });
 });

@@ -207,7 +207,7 @@ export type ProtectedLock = 'no_key' | 'unreadable' | 'lost';
  * isProtectedPlaceholder in the services package (a test keeps the two in step); the client bundle
  * cannot import the services package itself.
  */
-export function protectedStandIn(value: string | null | undefined): ProtectedLock | undefined {
+function protectedStandIn(value: string | null | undefined): ProtectedLock | undefined {
   if (!value) return undefined;
   const folded = value.replace(/\s+/g, '').toLowerCase();
   if (folded === '[protected]') return 'no_key';
