@@ -33,7 +33,7 @@ Brand tokens only, from `apps/web/src/app/globals.css`: the canvas is `--chapter
 ### Motion
 
 - A dependency-free scroll engine (`scene-engine.ts`, at most 2 KB gzipped, measured at 1.1 KB) writes `--p` (0 to 1) and `data-step` on each `[data-scene]`. One passive scroll listener throttled to animation frames, one IntersectionObserver, a fresh measure on resize and on return from the back-forward cache.
-- The server always renders each scene's finished step. The engine runs, and sets `html[data-scenes="live"]`, only when motion is welcome: not under `prefers-reduced-motion: reduce`, not with data saver, not below 760 px wide (phones keep still pictures). Without JavaScript, every scene is an ordinary section showing its finished state.
+- The server always renders each scene's finished step. The engine runs, and sets `html[data-scenes="live"]`, only when motion is welcome: not under `prefers-reduced-motion: reduce`, not with data saver, not below 760 px wide (phones keep still pictures), not below 600 px high (a pinned stage is one screen high, so a short or zoomed screen would cut its words off). Without JavaScript, every scene is an ordinary section showing its finished state.
 - Scenes are pinned (sticky stage, 1 to 4 screen heights) only while `html[data-scenes="live"]` is set; pinning lives in the flat `public-site.css` since it is layout, not decoration.
 - In `public-scenes.css`, movement uses `transform` and `opacity` only, driven by `--p` (no timed transitions or keyframe animations), inside `@media (prefers-reduced-motion: no-preference)` and under `html[data-scenes="live"]:not([data-save-data])`. A guard test enforces each rule and is shown failing on a bad example.
 

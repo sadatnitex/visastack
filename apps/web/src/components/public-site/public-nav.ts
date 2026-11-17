@@ -16,6 +16,8 @@ export interface PublicNavEntry {
   readonly route: string;
   /** Where the entry points while the page's own address does not exist yet. */
   readonly fallback: string;
+  /** The fallback for a signed-in person, when the visitor's fallback is not shown to them. */
+  readonly memberFallback?: string;
   /** The words in English (Title Case). */
   readonly label: string;
   /** The catalogue key with the same words, when one exists, so Bangla visitors read them. */
@@ -31,7 +33,13 @@ export const PUBLIC_NAV: readonly PublicNavEntry[] = Object.freeze([
     key: 'home.page.howItWorks',
   },
   { route: '/trust', fallback: '/trust', label: 'Privacy and Trust' },
-  { route: '/countries', fallback: '/#start', label: 'Countries' },
+  // The home page's country picker is for visitors; a signed-in person has the full list in the app.
+  {
+    route: '/countries',
+    fallback: '/#start',
+    memberFallback: '/app/countries',
+    label: 'Countries',
+  },
   {
     route: '/for-agencies',
     fallback: '/#for-agencies',
@@ -52,10 +60,13 @@ export interface PublicNavLink {
   readonly key?: PublicNavKey;
 }
 
-/** The header links as they should be drawn now. */
-export function publicNavLinks(live: ReadonlySet<string> = LIVE_ROUTES): PublicNavLink[] {
-  return PUBLIC_NAV.map(({ route, fallback, label, key }) => ({
-    href: live.has(route) ? route : fallback,
+/** The header links as they should be drawn now, for a visitor or a signed-in person. */
+export function publicNavLinks(
+  live: ReadonlySet<string> = LIVE_ROUTES,
+  { signedIn = false }: { readonly signedIn?: boolean } = {},
+): PublicNavLink[] {
+  return PUBLIC_NAV.map(({ route, fallback, memberFallback, label, key }) => ({
+    href: live.has(route) ? route : signedIn && memberFallback ? memberFallback : fallback,
     label,
     ...(key ? { key } : {}),
   }));

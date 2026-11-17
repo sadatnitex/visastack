@@ -1,6 +1,8 @@
 /* WP-PUB1 public site: tone tokens. Every colour is a globals.css token; nothing here is a new hue.
    Components read only the --pub-* names below, so a chapter's tone decides every colour inside it.
+   Outside any chapter the light tone applies, so a part is never left without colour.
    The contrast test (public-site-guards.test.ts) reads these two blocks and the chip blocks. */
+:root,
 .pub-chapter-light {
   --pub-canvas: var(--bg);
   --pub-ink: var(--text);

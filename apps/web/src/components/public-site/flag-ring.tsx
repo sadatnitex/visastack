@@ -1,3 +1,4 @@
+import 'server-only';
 import type { CSSProperties, ReactNode } from 'react';
 import { countryNameOf } from '../../lib/country-start';
 import { AVAILABLE_FLAG_CODES } from '../flags/available-flags';
@@ -22,13 +23,16 @@ export interface FlagRingProps {
   readonly label: string;
   /** Drawn in the middle of the ring (for example a readiness ring). */
   readonly children?: ReactNode;
+  /** The page's language: country names are English, so they are marked so on a Bangla page. */
+  readonly pageLang?: string;
 }
 
 /**
  * Flags placed on a circle, each a small self-hosted picture loaded lazily (img-src 'self').
- * Server only: names come from the public destination catalogue, so the browser never loads it.
+ * Server only (enforced): names come from the public destination catalogue, so the browser never
+ * loads it.
  */
-export function FlagRing({ codes, label, children }: FlagRingProps) {
+export function FlagRing({ codes, label, children, pageLang = 'en' }: FlagRingProps) {
   const shown = flagRingCodes(codes);
   return (
     <div className="pub-flag-ring">
@@ -46,6 +50,7 @@ export function FlagRing({ codes, label, children }: FlagRingProps) {
               height={27}
               loading="lazy"
               decoding="async"
+              lang={pageLang === 'en' ? undefined : 'en'}
             />
           </li>
         ))}

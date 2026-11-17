@@ -114,20 +114,37 @@ export function engineBytes(source = readFileSync(ENGINE_FILE, 'utf8')) {
   return gzipBytes(outputText);
 }
 
+/** Link relations that make the browser fetch something. */
+const LOADING_RELS = new Set([
+  'stylesheet',
+  'preload',
+  'modulepreload',
+  'icon',
+  'apple-touch-icon',
+  'manifest',
+  'prefetch',
+  'preconnect',
+  'dns-prefetch',
+]);
+
 /** Every address a page asks the browser to load: scripts, styles, pictures, fonts, frames. */
 export function loadedAddresses(html) {
   const found = [];
   const tag = /<(script|link|img|source|iframe|video|audio|embed|object)\b([^>]*)>/gi;
   for (const [, name, attrs] of html.matchAll(tag)) {
     const lower = name.toLowerCase();
+    const rel = /(?:^|\s)rel="([^"]*)"/i.exec(attrs)?.[1] ?? '';
     if (
       lower === 'link' &&
-      !/\brel="(?:stylesheet|preload|modulepreload|icon|apple-touch-icon|manifest|prefetch)"/i.test(
-        attrs,
-      )
+      !rel
+        .toLowerCase()
+        .split(/\s+/)
+        .some((token) => LOADING_RELS.has(token))
     )
       continue;
-    for (const [, key, value] of attrs.matchAll(/\b(src|href|srcset|data|poster)="([^"]*)"/gi)) {
+    for (const [, key, value] of attrs.matchAll(
+      /(?:^|\s)(src|href|srcset|data|poster)="([^"]*)"/gi,
+    )) {
       const list =
         key.toLowerCase() === 'srcset'
           ? value.split(',').map((part) => part.trim().split(/\s+/)[0])
@@ -164,8 +181,8 @@ export function pictureAddresses(html) {
   ];
 }
 
-async function fetchBytes(url) {
-  const response = await fetch(url);
+async function fetchBytes(url, read) {
+  const response = await read(url);
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   return Buffer.from(await response.arrayBuffer()).length;
 }
@@ -185,8 +202,13 @@ export async function checkPages(base, routes = PUBLIC_ROUTES, read = fetch) {
       problems.push(`${route}: loads from another origin: ${address.slice(0, 80)}`);
     let images = 0;
     for (const address of pictureAddresses(html)) {
-      const local = join(ROOT, 'apps/web/public', new URL(address, base).pathname);
-      images += existsSync(local) ? statSync(local).size : await fetchBytes(new URL(address, base));
+      const url = new URL(address, base);
+      // A plain file from the site's own folder is weighed on disk; anything else as served.
+      const local = join(ROOT, 'apps/web/public', decodeURIComponent(url.pathname));
+      images +=
+        url.search === '' && existsSync(local) && statSync(local).isFile()
+          ? statSync(local).size
+          : await fetchBytes(url, read);
     }
     report[route] = images;
     if (images > LIMITS.imageBytesPerPage)

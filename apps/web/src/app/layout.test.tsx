@@ -156,6 +156,10 @@ describe('the public site frame (WP-PUB1)', () => {
         PUBLIC_NAV.map((entry) => entry.label.replace(/\s+/g, '')).join(''),
       );
       expect(nav).toContain(signedIn ? 'href="/app">Workspace</a>' : 'href="/app">Sign In</a>');
+      // The home page's country picker is only drawn for visitors.
+      expect(nav).toContain(
+        signedIn ? 'href="/app/countries">Countries</a>' : 'href="/#start">Countries</a>',
+      );
     }
   });
 

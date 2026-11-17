@@ -81,12 +81,15 @@ test('anything from another origin is caught, own files are not', () => {
     '<script src="https://cdn.example.com/x.js"></script>',
     '<link rel="stylesheet" href="//fonts.example.com/f.css">',
     '<img src="data:image/png;base64,AAAA">',
+    '<img data-src="https://cdn.example.com/lazy.png" src="/b.png">',
+    '<link rel="shortcut icon" href="https://cdn.example.com/i.ico">',
   ].join('');
   assert.deepEqual(foreignAddresses(html, base), [
     'https://cdn.example.com/b.png',
     'https://cdn.example.com/x.js',
     '//fonts.example.com/f.css',
     'data:image/png;base64,AAAA',
+    'https://cdn.example.com/i.ico',
   ]);
   assert.deepEqual(
     pictureAddresses('<img src="/a.png"><img src="/a.png"><source srcset="/b.webp">'),
@@ -122,14 +125,32 @@ test('pages are read for pictures and origins, and a heavy page fails', async ()
     text: async () => many['/'],
   }));
   assert.deepEqual(once.problems, []);
+  // Asked with a query, a picture is weighed as the server sends it, through the same reader.
+  let served = 0;
+  const reader = async (url) => {
+    const { pathname, search } = new URL(url);
+    if (pathname === '/')
+      return {
+        status: 200,
+        ok: true,
+        text: async () => '<img src="/_next/image?url=%2Fa.png&w=64">',
+      };
+    served += search ? 1 : 0;
+    return { status: 200, ok: true, arrayBuffer: async () => new ArrayBuffer(2048) };
+  };
+  const optimised = await checkPages('http://localhost:3100', ['/'], reader);
+  assert.deepEqual(optimised, { problems: [], report: { '/': 2048 } });
+  assert.equal(served, 1);
   const heavy = Array.from(
     { length: 6 },
     (_, i) => `<img src="/pictures/passport-bd.png?v=${i}">`,
   ).join('');
+  // Six different pictures of 30 KB each: 180 KB, over the 150 KB a page may ask for.
   const big = await checkPages('http://localhost:3100', ['/'], async () => ({
     status: 200,
     ok: true,
     text: async () => heavy,
+    arrayBuffer: async () => new ArrayBuffer(30 * 1024),
   }));
   assert.match(big.problems[0] ?? '', /pictures weigh/);
 });

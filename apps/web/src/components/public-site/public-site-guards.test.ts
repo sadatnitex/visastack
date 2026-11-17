@@ -32,11 +32,11 @@ function rootTokens(css: string): Map<string, string> {
   return tokens;
 }
 
-/** The custom properties a rule with exactly this selector sets. */
+/** The custom properties set by the rules that list exactly this selector. */
 function blockOf(css: string, selector: string): Map<string, string> {
   const found = new Map<string, string>();
   postcss.parse(css).walkRules((rule) => {
-    if (rule.selector !== selector) return;
+    if (!rule.selectors.includes(selector)) return;
     rule.walkDecls((decl) => {
       if (decl.prop.startsWith('--')) found.set(decl.prop, decl.value.trim());
     });
@@ -153,6 +153,14 @@ describe('contrast on the public site', () => {
     expect(contrast('#7f8faa', '#f7f9fe')).toBeLessThan(4.5);
     expect(() => resolve('var(--missing)', TOKENS)).toThrow();
     expect(() => resolve('rgb(0 0 0)', TOKENS)).toThrow();
+  });
+});
+
+describe('parts outside a chapter', () => {
+  it('fall back to the light tone, so nothing is left without colour', () => {
+    expect(blockOf(SITE, ':root')).toEqual(TONES.light);
+    expect(TONES.light.size).toBe(12);
+    expect(TONES.dark.size).toBe(12);
   });
 });
 

@@ -13,7 +13,7 @@ import { publicText } from './public-text';
 import { READINESS_NOTE, ReadinessRing } from './readiness-ring';
 import { Chapter, Scene, tonesAlternate } from './scene';
 import { SCENES_ATTRIBUTE } from './scene-engine';
-import { SCENE_MIN_WIDTH, ScenesRuntime } from './scenes-runtime';
+import { SCENE_MIN_HEIGHT, SCENE_MIN_WIDTH, ScenesRuntime } from './scenes-runtime';
 import { ExampleTag, HeadlineWords, STATUS_WORDS, StatusChip, StoryCard } from './story';
 
 const APP = join(__dirname, '..', '..', 'app');
@@ -215,6 +215,18 @@ describe('public nav list', () => {
       if (anchor) expect(home, link.href).toContain(`id="${anchor}"`);
     }
   });
+  it('sends a signed-in person to the full country list, since the home picker is for visitors', () => {
+    const countries = (signedIn: boolean) =>
+      publicNavLinks(undefined, { signedIn }).find((link) => link.label === 'Countries')?.href;
+    expect(countries(false)).toBe('/#start');
+    expect(countries(true)).toBe('/app/countries');
+    expect(existsSync(join(APP, 'app', 'countries', '(list)', 'page.tsx'))).toBe(true);
+    expect(
+      publicNavLinks(new Set(['/countries']), { signedIn: true }).find(
+        (link) => link.label === 'Countries',
+      )?.href,
+    ).toBe('/countries');
+  });
   it('follows a page once its unit marks it live', () => {
     const all = new Set(PUBLIC_NAV.map((entry) => entry.route));
     expect(publicNavLinks(all).map((link) => link.href)).toEqual([
@@ -297,7 +309,8 @@ describe('ScenesRuntime', () => {
     await act(async () => await Promise.resolve());
     expect(live()).toBe(null);
   });
-  it('treats screens narrower than 760 px as phones', () => {
+  it('treats screens narrower than 760 px or lower than 600 px as phones', () => {
     expect(SCENE_MIN_WIDTH).toBe(760);
+    expect(SCENE_MIN_HEIGHT).toBe(600);
   });
 });

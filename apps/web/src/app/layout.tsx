@@ -120,7 +120,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
               <div className="site-nav-pages">
                 {/* The five public pages, in one list (WP-PUB1). Words with a translation come from
                   the catalogue; the others are marked English on a Bangla page. */}
-                {publicNavLinks().map((link) => (
+                {publicNavLinks(undefined, { signedIn }).map((link) => (
                   <Link key={link.label} href={link.href}>
                     {link.key ? t.node(link.key) : publicText(link.label, htmlLang)}
                   </Link>
