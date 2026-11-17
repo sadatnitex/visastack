@@ -26,6 +26,7 @@ import {
   pagingHref,
 } from '../../../../../lib/paging';
 import { buildRequestPicker, requestPickerIndex } from '../../../../../lib/request-picker';
+import { reportServerError } from '../../../../../lib/server-error';
 import { withSession } from '../../../../../lib/session';
 import { caseAnchorId } from '../case-anchor';
 import { caseNeedsYou, caseReviewLink } from '../case-needs';
@@ -144,8 +145,13 @@ export default async function AgencyCasesPage({
     const listedIds = list.cases.map((c) => c.missionId);
     const [accessEnds, readiness] = await Promise.all([
       listAccessEndsForOrg(db, accountId, orgId, listedIds),
+      // The pictures are a help, never a gate: if they cannot be read the list still shows,
+      // without them, and the failure is logged (sanitised: no query values).
       listedIds.length > 0
-        ? listCaseReadinessForOrg(db, accountId, orgId, listedIds)
+        ? listCaseReadinessForOrg(db, accountId, orgId, listedIds).catch((error: unknown) => {
+            reportServerError('agency-cases.readiness', error);
+            return new Map<string, never>();
+          })
         : Promise.resolve(new Map<string, never>()),
     ]);
     return {

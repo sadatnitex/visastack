@@ -295,6 +295,19 @@ describe('agency Cases', () => {
     expect(rowOf(M1)).toContain('agency-case-list-action');
   });
 
+  it('still lists every case, without pictures, when the readiness read fails (WP-PIC18)', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.listCaseReadinessForOrg.mockRejectedValue(new Error('readiness table missing'));
+    const html = await renderServer(Page(props));
+    const text = textOf(html);
+    expect(text).toContain(`Rahim Uddin · Case ${M1}`);
+    expect(text).toContain(`Nusrat Jahan · Case ${M2}`);
+    expect(html).not.toContain('agency-case-list-strip');
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(String(logged.mock.calls[0]?.[0])).toContain('agency-cases.readiness');
+    logged.mockRestore();
+  });
+
   it('draws no strip for a case with no readiness entry (manual mode, no checklist, not readable)', async () => {
     mocks.listCaseReadinessForOrg.mockResolvedValue(
       new Map([[M1, { requiredCount: 2, satisfiedRequired: 1, missing: [] }]]),

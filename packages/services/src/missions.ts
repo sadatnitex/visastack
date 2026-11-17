@@ -1529,6 +1529,15 @@ async function manifestFormatsOf(
   return new Map(rows.map((row) => [row.id, manifestFormatOf(row)]));
 }
 
+/**
+ * The mapping with every group member read in the light of its group, and the readiness units.
+ * When a group is met, each other applicable member is no longer needed: it is marked
+ * `coveredByAlternative`, reads as not required (`optional` true) and a missing one is a gap shown
+ * as Attention, never a critical gap. When the group is met cleanly (some member Satisfied), a
+ * member whose own evidence conflicts or is stale is covered too; when it is met only through such
+ * a member, that member keeps its problem and stays required, because it is what must be fixed.
+ * Every consumer of the mapping (readiness, snapshots, the case page) therefore agrees.
+ */
 function withAlternatives(raw: readonly RequirementMappingEntry[]): {
   mapping: RequirementMappingEntry[];
   units: ReadinessUnit[];

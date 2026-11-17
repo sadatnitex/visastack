@@ -23,7 +23,7 @@ import {
   createMission,
 } from './missions';
 import { listCaseReadinessForOrg } from './org-case-readiness';
-import { addMembership } from './organizations';
+import { addMembership, setMembershipActive } from './organizations';
 import {
   type RequirementInput,
   addPackVersion,
@@ -33,7 +33,7 @@ import {
   publishPackVersion,
 } from './packs';
 import { editFact, registerFieldDefinition } from './profile';
-import { type TrustWorld, trustWorld } from './trust-rules/trust-rules.test-support';
+import { type TrustWorld, addAdmin, trustWorld } from './trust-rules/trust-rules.test-support';
 
 /**
  * WP-PIC18: the readiness of each case on the agency's Cases list. Only the cases the acting member
@@ -224,6 +224,27 @@ describe('listCaseReadinessForOrg: who may read', () => {
     expect((await ask()).size).toBe(0);
   });
 
+  it('a grant never accepted and a turned-off membership reach nothing', async () => {
+    const w = await smallWorld();
+    const org = w.north.organizationId;
+    const admin = await addAdmin(w.db, w.north, 'pic18-admin@example.test');
+    expect((await listCaseReadinessForOrg(w.db, admin.accountId, org, [w.caseA])).size).toBe(1);
+    const off = await setMembershipActive(w.db, {
+      actorAccountId: w.north.accountId,
+      organizationId: org,
+      membershipId: admin.membershipId,
+      active: false,
+    });
+    expect(isOk(off)).toBe(true);
+    expect((await listCaseReadinessForOrg(w.db, admin.accountId, org, [w.caseA])).size).toBe(0);
+
+    await w.db
+      .update(schema.grants)
+      .set({ acceptedAt: null })
+      .where(eq(schema.grants.id, w.northGrantId));
+    expect((await listCaseReadinessForOrg(w.db, w.north.accountId, org, [w.caseA])).size).toBe(0);
+  });
+
   it("another organization's case, a made-up case, a made-up organization and a stranger get nothing", async () => {
     const w = await smallWorld();
     const karimCase = await caseOn(w.db, w.karim, w.packA, 'Karim case');
@@ -277,8 +298,15 @@ describe('listCaseReadinessForOrg: one fixed set of queries', () => {
     for (let i = 0; i < 15; i++) {
       const t = await traveller(w.db, `pic18-load-${i}@example.test`);
       await share(w.db, t, w.north);
-      await answer(w.db, t, 'passport.number', `P${i}`);
-      await cleanDocument(w.db, t, i % 2 === 0 ? 'passport' : 'insurance');
+      // Every traveller holds a different mix of answers and documents, so a reading that mixed
+      // one traveller's records into another's case would change its counts.
+      if (i % 3 !== 0) await answer(w.db, t, 'passport.number', `P${i}`);
+      if (i % 3 === 1) await answer(w.db, t, 'employer.name', `Employer ${i}`);
+      if (i % 2 === 1) await cleanDocument(w.db, t, 'insurance', `insurance-${i}.pdf`);
+      if (i % 4 === 0) await cleanDocument(w.db, t, 'passport', `passport-${i}.pdf`);
+      if (i % 5 === 0) {
+        await cleanDocument(w.db, t, 'bank_statement', `statement-${i}.pdf`, 'd'.repeat(64));
+      }
       ids.push(await caseOn(w.db, t, i % 2 === 0 ? packA : packB, `Load ${i}`));
     }
     const queries: string[] = [];
@@ -295,14 +323,24 @@ describe('listCaseReadinessForOrg: one fixed set of queries', () => {
         w.north.organizationId,
         asked,
       );
-      return { size: answer.size, count: queries.length };
+      return { answer, size: answer.size, count: queries.length };
     };
     await run(ids); // Warms the per-handle "is this table here" answers.
-    const one = await run(ids.slice(0, 1));
+    // A case whose traveller has answers and a document, so the one-case read runs every query.
+    const one = await run(ids.slice(1, 2));
     const fifteen = await run(ids);
     expect(one.size).toBe(1);
     expect(fifteen.size).toBe(15);
     expect(fifteen.count).toBe(one.count);
+    // Each of the fifteen is exactly that case's own page reading.
+    const distinct = new Set<string>();
+    for (const id of ids) {
+      const reading = await caseReadingOf(w.db, id);
+      expect(fifteen.answer.get(id), id).toEqual(reading);
+      distinct.add(JSON.stringify(reading));
+    }
+    // The fixture really differs between travellers on the same checklist.
+    expect(distinct.size).toBeGreaterThan(4);
   });
 });
 
