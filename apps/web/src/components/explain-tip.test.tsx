@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appApplicantCatalog } from '../i18n/app-applicant';
 import { EXPLAIN_CLOSE_DELAY, EXPLAIN_OPEN_DELAY } from '../lib/use-explain-tip';
 import { ExplainTip } from './explain-tip';
-import { Icon } from './icons';
 import { I18nProvider } from './i18n-provider';
+import { Icon } from './icons';
 
 vi.mock('../app/app/applicant/[id]/actions', () => ({
   acceptClearDetailsAction: vi.fn(),
