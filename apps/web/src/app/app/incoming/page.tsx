@@ -9,9 +9,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../components/ui';
 import { primeLocale } from '../../../lib/i18n-server';
-import { isShareTargetOn } from '../../../lib/pwa/service-worker';
+import { isBackgroundUploadSyncEnabled, isShareTargetOn } from '../../../lib/pwa/service-worker';
 import { withSession } from '../../../lib/session';
 import { pdfUploadsAccepted, uploadLimitBytes } from '../../../lib/upload-preflight';
+import { uploadAccountKey } from '../applicant/[id]/import/upload-account';
 import { IncomingPanel } from './incoming-panel';
 import { shareOwnerKey } from './owner-key';
 
@@ -68,6 +69,7 @@ export default async function IncomingPage({
       coreGranted,
       receiptsReady,
       ownerKey: shareOwnerKey(accountId),
+      uploadAccount: uploadAccountKey(accountId),
     };
   });
 
@@ -104,6 +106,8 @@ export default async function IncomingPage({
           limitLabel={mbLabel(limitBytes)}
           pdfAccepted={pdfUploadsAccepted()}
           retryUnknown={data.receiptsReady}
+          backgroundSync={isBackgroundUploadSyncEnabled((name) => process.env[name])}
+          accountKey={data.uploadAccount}
         />
       )}
     </section>

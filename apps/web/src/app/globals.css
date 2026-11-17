@@ -21768,6 +21768,43 @@ body:lang(bn),
   }
 }
 /* end WP-PIC1 */
+/* WP-PIC14 agency desk rows (17 Nov 2026, picture-first upgrade, unit Q2): a compact picture strip on each agency Do Next row (destination flag, a small readiness ring in counts only, required documents never provided, on case rows only). One line that wraps, no extra padding, not a control: the row keeps its one action. Flat: tokens only, no shadow, gradient, blur or translucency. Counts are said in words, never by colour alone. */
+.desk-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.desk-strip-place {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.desk-strip .progress-ring {
+  gap: var(--space-1);
+}
+.desk-strip .progress-ring-sm .progress-ring-graphic {
+  width: 1.25rem;
+}
+.desk-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.desk-docs-glyph {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+.desk-docs-open {
+  font-weight: 600;
+}
+/* end WP-PIC14 */
 
 /* WP-PIC6 Country Card (17 Nov 2026, picture-first upgrade, unit U6): the flag, the name, the entry type as a picture beside its plain word, and where the fact came from, above the country summary. Flat: no shadow, gradient, blur or translucency; tokens only; every control keeps a 44 px target. */
 .country-card {
@@ -21844,6 +21881,46 @@ body:lang(bn),
   font-weight: 600;
 }
 /* end WP-PIC7 */
+/* WP-PIC16 browser toolbox (17 Nov 2026, picture-first upgrade, unit Q5). Read This Aloud is a quiet icon button inline on the case status line. Its 44 pixel slot is always drawn (also where the browser cannot speak), so the line never shifts when the page wakes up and nothing overlaps the next row's tap targets. Flat: no shadow, gradient or translucency. */
+.read-aloud-slot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+}
+/* The 44 pixel slot already holds the room above and below the status text, so the case header gives back that space (the phone first-row budget of WP-SB2 stays met). */
+.lift-case .page-meta {
+  margin-top: 0;
+}
+.lift-case .page-header {
+  margin-bottom: var(--space-3);
+}
+.read-aloud-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+/* A List or Stack switch fades the document area only, never the whole page. Motion is allowed here only when the person has not asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  .document-wallet-layout {
+    view-transition-name: wallet-view;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+/* end WP-PIC16 */
 
 /* WP-PIC9 waiting uploads: the files still on their way, as pictures with one state word. */
 .waiting-uploads {
@@ -22172,6 +22249,21 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC15 progress card: the Share Progress Card control on the Cases page (owner decision D5). */
+.progress-card-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.progress-card-share .btn {
+  min-height: 44px;
+}
+.progress-card-share-status {
+  flex-basis: 100%;
+}
+/* end WP-PIC15 */
 /* WP-PIC10 deadline timeline: today, appointment, passport end and trip start on one wrapping line.
    Flat: shared tokens, no shadow, gradient or animation. Pictures are decorative; words carry the state. */
 .deadline-timeline {

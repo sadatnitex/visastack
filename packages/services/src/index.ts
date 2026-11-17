@@ -662,6 +662,11 @@ export {
   updateTask,
 } from './missions';
 export { NO_SAVED_COPY } from './finished-case-readiness';
+export {
+  type CaseProgressCounts,
+  PROGRESS_CARD_MADE,
+  readCaseProgressCounts,
+} from './progress-card';
 export { isInactiveCaseState } from './umpe-package-tables';
 
 export {

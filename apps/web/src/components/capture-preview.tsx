@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { componentsCatalog } from '../i18n/components';
+import { tapSuccess } from '../lib/browser-toolbox/vibrate';
 import { CAPTURE_GUIDE_HINT, CaptureFrameGuide, isPassportKind } from './capture-frame-guide';
 import { useT } from './i18n-provider';
 import { decodePhoto } from './profile-photo/photo-canvas';
@@ -73,6 +74,8 @@ export function CapturePreview({
         release = null;
         setShape(height > width ? 'page' : 'card');
         setShown('ready');
+        // One short tap per photo that was read, never for an unreadable one or a stale file.
+        tapSuccess();
       },
       () => {
         if (current) setShown('unreadable');

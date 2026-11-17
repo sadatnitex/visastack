@@ -35,6 +35,7 @@ import {
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
 import { shrunkNotice } from '../../../../../lib/photo-shrink';
+import { useUploadResume, useUploadSync } from '../../../../../lib/pwa/upload-sync-hooks';
 import { batchHref, canFollowBatch } from '../../../../../lib/upload-batch';
 import { uploadLimitsText } from '../../../../../lib/upload-rules';
 import { UPLOAD_UNKNOWN_OUTCOME } from '../document-uploader';
@@ -46,6 +47,7 @@ import {
   refusalNode,
   said,
 } from '../documents/manage/removal-words';
+import { isSameUploadAccountAction } from './upload-account-action';
 
 /** Lines drawn before Show All, so a long import stays quick to read and to scroll past. */
 export const LINES_SHOWN_FIRST = 50;
@@ -58,10 +60,19 @@ const AUTO_CONTINUE_MS = 1800;
 /** The choice that sends files to the family route, where each waits for Which Person?. */
 const NOT_SURE = '__not_sure';
 
+/** WP-PIC17: the session still belongs to the account that chose the files (no key: no). */
+export function confirmUploadAccount(accountKey: string | null): Promise<boolean | null> {
+  return accountKey ? isSameUploadAccountAction(accountKey) : Promise.resolve(false);
+}
+
 /** The person a send is for: the chosen one, or this page's own when "not sure" is chosen. */
 function personFor(target: string, own: string): string {
   return target === NOT_SURE ? own : target;
 }
+
+/** WP-PIC17: files wait for the connection; nothing is claimed as sent. */
+export const OFFLINE_LINE =
+  'No connection. Your files are waiting and will send on their own when you are back online.';
 
 export const BUSY_LINE = 'We were too busy to take this file just now. Try again in a few minutes.';
 export const EARLIER_ADDED_LINE = 'Already added in an earlier import, so it was not sent again.';
@@ -76,6 +87,8 @@ const SKIP_LINES = {
   stopped: 'The import was stopped before this file was sent.',
   unreadable: 'This file could not be read from the folder. Try adding it on its own.',
   repeat: 'Already in this import, so it was not sent twice.',
+  'signed-out':
+    'Not sent: this device is now signed out or signed in as someone else. Sign in again and choose the file again.',
 } as const;
 
 /** The full counts, in words that stay on the page (not read out on every change). */
@@ -180,7 +193,9 @@ export function importLine(item: ImportItem): { readonly flag: string; readonly 
         flag: 'Not confirmed. ',
         text: item.earlier
           ? `${UPLOAD_UNKNOWN_OUTCOME} ${EARLIER_UNKNOWN_LINE}`
-          : UPLOAD_UNKNOWN_OUTCOME,
+          : item.skipReason === 'signed-out'
+            ? `${UPLOAD_UNKNOWN_OUTCOME} ${SKIP_LINES['signed-out']}`
+            : UPLOAD_UNKNOWN_OUTCOME,
       };
     case 'unsupported':
       return { flag: 'Not added. ', text: item.message };
@@ -357,6 +372,8 @@ export function ImportPanel({
   people = [],
   readingOn = false,
   showNext = true,
+  backgroundSync = false,
+  accountKey = null,
 }: {
   readonly applicantId: string;
   /** The largest file accepted, in bytes (the same limit the single upload uses). */
@@ -391,6 +408,16 @@ export function ImportPanel({
    * line never says files are "sorted on their own". Default false: a page that does not say reading is on never claims it.
    */
   readonly readingOn?: boolean;
+  /**
+   * WP-PIC17: the owner's background sync switch (and the service worker) are on. Where the browser
+   * can wake the page, files wait for a dropped connection and go when it returns. Default off.
+   */
+  readonly backgroundSync?: boolean;
+  /**
+   * WP-PIC17: who chose these files (a key made on the server). Waiting files go out again only
+   * while the session on this device still belongs to it; otherwise they are dropped.
+   */
+  readonly accountKey?: string | null;
 }) {
   const t = useT(appApplicantCatalog);
   const router = useRouter();
@@ -439,6 +466,7 @@ export function ImportPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const announced = useRef<AnnounceState>(ANNOUNCE_START);
   const stopped = useRef(false);
+  const sync = useUploadSync(backgroundSync, () => confirmUploadAccount(accountKey));
   const [queue] = useState(
     () =>
       new ImportQueue({
@@ -455,19 +483,20 @@ export function ImportPanel({
         },
         // The same traveller and file (name, size, date) always send the same upload id, so
         // choosing the folder again after a reload can never store a file twice.
-        uploadIdFor: async (file) =>
-          uploadIdFromHash(
-            await sha256Hex(
-              `${family.current ? 'family' : personFor(targetRef.current, applicantId)}\u0000${fingerprintOf(file)}`,
-            ),
-          ) ?? newUploadId(),
-        // The choice in force when each file is sent: one person's documents, or Which Person?.
+        uploadIdFor: async (file, scope) =>
+          uploadIdFromHash(await sha256Hex(`${scope}\u0000${fingerprintOf(file)}`)) ??
+          newUploadId(),
+        // The choice made when each file was added: one person's documents, or Which Person?. A
+        // file that waited (paused, offline, Try Again) still goes to the one it was chosen for.
         send: (request) => {
-          if (family.current) {
+          const chosen =
+            request.scope ||
+            (family.current ? 'family' : personFor(targetRef.current, applicantId));
+          if (chosen === 'family') {
             sentToFamily.current = true;
             return sendThroughHoldRoute(request);
           }
-          const forPerson = personFor(targetRef.current, applicantId);
+          const forPerson = chosen;
           if (forPerson !== applicantId) {
             const name = peopleRef.current.find((person) => person.id === forPerson)?.name;
             if (name) sentFor.current = new Map(sentFor.current).set(forPerson, name);
@@ -480,8 +509,11 @@ export function ImportPanel({
           });
         },
         retryUnknown,
+        ...sync.options,
       }),
   );
+  // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
+  useUploadResume(sync.connection, queue);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const [announcement, setAnnouncement] = useState('');
   const [truncated, setTruncated] = useState(false);
@@ -789,6 +821,11 @@ export function ImportPanel({
       </h3>
       <p className="upload-summary import-counts">{importCountsText(counts, snapshot.paused)}</p>
       <output className="sr-only import-announce">{announcement}</output>
+      {snapshot.waitingForConnection ? (
+        <p className="field-hint" data-testid="import-offline">
+          {OFFLINE_LINE}
+        </p>
+      ) : null}
       <WaitingUploads source={queue} onRetry={(id) => queue.retry(id)} />
       {truncated ? (
         <p className="field-hint">

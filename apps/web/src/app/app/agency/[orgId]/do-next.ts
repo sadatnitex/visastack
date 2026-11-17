@@ -20,7 +20,11 @@
  * "Nobody assigned" as its owner.
  */
 
-import { type TriageDocumentState, evidenceRequestTriageGroup } from '@visastack/services';
+import {
+  type MissingRequirement,
+  type TriageDocumentState,
+  evidenceRequestTriageGroup,
+} from '@visastack/services';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel, titleCase } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
@@ -71,6 +75,97 @@ export interface DoNextItem {
   readonly reason: string;
   /** The one thing to do. */
   readonly action: DoNextAction;
+  /**
+   * WP-PIC14: the row's picture strip (flag, readiness ring, documents count), only for an item
+   * tied to a case already in view. Absent otherwise, so a case this person cannot see and a case
+   * with nothing to draw look the same.
+   */
+  readonly picture?: DeskPicture;
+}
+
+/**
+ * WP-PIC14: the readiness a case row already carries (from `computeReadiness`, read only for cases
+ * this person may see). Completeness only, never approval.
+ */
+export interface DeskReadiness {
+  readonly requiredCount: number;
+  readonly satisfiedRequired: number;
+  /** What is still missing; read only for its kind, whether it is optional and why it is missing. */
+  readonly missing?: readonly {
+    readonly kind: MissingRequirement['kind'];
+    readonly optional: boolean;
+    readonly reason?: MissingRequirement['reason'];
+    readonly alternatives?: readonly { readonly kind: MissingRequirement['kind'] }[];
+  }[];
+}
+
+/**
+ * WP-PIC14: what a desk row draws. Every part comes from the case row this person already has: the
+ * destination it already shows, and the readiness it already shows as a ring and as "N missing".
+ * Nothing here is read for the picture.
+ */
+export interface DeskPicture {
+  /** The case destination as written; the flag is drawn only where a country is recognised. */
+  readonly destination: string | null;
+  /** Required items in place, out of the required items. Null where there is nothing to count. */
+  readonly readiness: { readonly done: number; readonly total: number } | null;
+  /** Required documents never provided. Null where it is not known, or not shown on this row. */
+  readonly documentsMissing: number | null;
+}
+
+/**
+ * Required documents the traveller has never provided: a document on file that is out of date or
+ * in conflict is not "missing", and a group that an answer could settle instead is not counted as
+ * a document. Null when the missing list was not read with the readiness, and null for a zero
+ * while anything required is still outstanding for another reason (out of date, in conflict, an
+ * answer), so the row never says "No Documents Missing" beside a case table that says some are.
+ * A non-zero count is documents never provided only; the case table counts every missing item.
+ */
+function requiredDocumentsNotProvided(readiness: DeskReadiness): number | null {
+  const missing = readiness.missing;
+  if (!missing) return null;
+  const required = missing.filter((m) => !m.optional);
+  const notProvided = required.filter(
+    (m) =>
+      m.reason === 'not_provided' &&
+      (m.alternatives ? m.alternatives.every((a) => a.kind === 'DOCUMENT') : m.kind === 'DOCUMENT'),
+  ).length;
+  if (notProvided > 0) return notProvided;
+  const outstanding = required.length > 0 || readiness.satisfiedRequired < readiness.requiredCount;
+  return outstanding ? null : 0;
+}
+
+/**
+ * The picture for one case row, or undefined when there is nothing to draw. Readiness counts only
+ * where a checklist with required items was worked out; the documents count only where the missing
+ * list was read with it and the row asks for it. Never a decision: in place is not reviewed.
+ */
+export function deskPictureOf(
+  c: { readonly destination?: string | null; readonly readiness?: DeskReadiness | null },
+  options: { readonly documents?: boolean } = {},
+): DeskPicture | undefined {
+  const destination = c.destination?.trim() ? c.destination.trim() : null;
+  const counted = c.readiness && c.readiness.requiredCount > 0 ? c.readiness : null;
+  const readiness = counted
+    ? { done: counted.satisfiedRequired, total: counted.requiredCount }
+    : null;
+  const documentsMissing =
+    counted && options.documents !== false ? requiredDocumentsNotProvided(counted) : null;
+  if (destination === null && readiness === null && documentsMissing === null) return undefined;
+  return { destination, readiness, documentsMissing };
+}
+
+/**
+ * Spread into an item: `{ picture }` when the case has one, nothing otherwise. A request row leaves
+ * the documents count out: the checklist count could read "No Documents Missing" beside a request
+ * for a document that has not arrived.
+ */
+function pictureFor(
+  c: DoNextCase | undefined,
+  kind: 'case' | 'request',
+): { readonly picture?: DeskPicture } {
+  const picture = c ? deskPictureOf(c, { documents: kind === 'case' }) : undefined;
+  return picture ? { picture } : {};
 }
 
 export interface DoNextCase {
@@ -87,6 +182,10 @@ export interface DoNextCase {
     readonly memberEmail: string;
   }[];
   readonly tasks: readonly (DueTask & { readonly assigneeAccountId?: string | null })[];
+  /** WP-PIC14: the destination the case row already shows. */
+  readonly destination?: string | null;
+  /** WP-PIC14: the readiness the case row already shows; null where it was not worked out. */
+  readonly readiness?: DeskReadiness | null;
 }
 
 export interface DoNextRequest {
@@ -270,6 +369,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
             owner,
             reason: `Sent ${waited} days ago with no due date. No reply yet.`,
             action: followUp('OPEN'),
+            ...pictureFor(caseRow, 'request'),
           },
         });
       } else if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
@@ -295,6 +395,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
                 ? `The file sent could not be used and it was due ${due}.`
                 : `Was due ${due} and has not arrived.`,
             action: followUp(sentBack || unusable ? 'NEEDS_REPLACEMENT' : 'OPEN'),
+            ...pictureFor(caseRow, 'request'),
           },
         });
       } else if (group === 'RECEIVED') {
@@ -319,6 +420,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
               label: 'Review Item',
               href: `${input.base}/clients#request-${request.id}`,
             },
+            ...pictureFor(caseRow, 'request'),
           },
         });
       }
@@ -349,6 +451,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
               ? `1 task is past due. It was due ${formatDateOnly(oldest.dueDate)}.`
               : `${count} tasks are past due. The oldest was due ${formatDateOnly(oldest.dueDate)}.`,
           action: { kind: 'link', label: 'Open Case', href },
+          ...pictureFor(c, 'case'),
         },
       });
     } else if (input.admin && c.assignments.length === 0) {
@@ -364,6 +467,7 @@ export function buildDoNextList(input: DoNextInput): DoNextRanking {
           owner: 'Nobody assigned',
           reason: 'Nobody is looking after this case yet.',
           action: { kind: 'link', label: 'Assign Someone', href },
+          ...pictureFor(c, 'case'),
         },
       });
     }
