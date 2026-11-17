@@ -136,7 +136,8 @@ const LIFT = {
   // WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways (measured 3321).
   desktopPage: { everything: 3330 },
   /** Where the first checklist row may start (px from the top of the page). */
-  firstRow: { phone: 1500, desktop: 1100 },
+  // WAL0/D4: second pill row at 1280, Everything (measured 1116).
+  firstRow: { phone: 1500, desktop: 1120 },
 } as const;
 
 type Level = 'glance' | 'browse' | 'everything';
