@@ -21559,3 +21559,99 @@ body:lang(bn),
   color: var(--text-secondary);
 }
 /* end WP-CI */
+
+/* WP-PIC1 Explain popup (17 Nov 2026): a picture that explains itself. Pointing at it, focusing it or tapping it shows its name and one plain sentence beside it (components/explain-tip.tsx, lib/use-explain-tip.ts). It replaces the plain title= hint, which touch screens and keyboards never show. Flat: a solid raised surface and a control-strength border, no shadow. The popup fades and rises on the press speed only, and not at all under reduced motion. The script measures where it fits (lib/popover-placement.ts) and sets data-placement, data-align and --explain-tip-shift on the holder; without them it opens below, lined up with the trigger's right edge. */
+.explain-tip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+.explain-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: help;
+}
+.explain-tip-picture {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.explain-tip-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 62;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: max-content;
+  max-width: min(18rem, calc(100vw - 2rem));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--edge-control);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-small);
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: start;
+  white-space: normal;
+  transform: translateX(var(--explain-tip-shift, 0px));
+  animation: explain-tip-in var(--motion-press) var(--motion-ease);
+}
+.explain-tip-popup[hidden] {
+  display: none;
+}
+/* The hover bridge: an invisible strip over the gap, so a pointer crossing from the trigger to the popup never leaves them. */
+.explain-tip-popup::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 9px;
+}
+.explain-tip[data-placement="above"] .explain-tip-popup {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+.explain-tip[data-placement="above"] .explain-tip-popup::before {
+  top: 100%;
+  bottom: auto;
+}
+.explain-tip[data-align="start"] .explain-tip-popup {
+  right: auto;
+  left: 0;
+}
+.explain-tip-title {
+  font-weight: 650;
+}
+.explain-tip-text {
+  color: var(--text-secondary);
+}
+@keyframes explain-tip-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--explain-tip-shift, 0px), 2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(var(--explain-tip-shift, 0px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .explain-tip-popup {
+    animation: none;
+  }
+}
+/* end WP-PIC1 */
