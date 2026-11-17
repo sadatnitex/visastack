@@ -9,7 +9,7 @@ const base = {
   destination: 'United Kingdom',
   referenceCode: 'C-7K2Q9M',
   preparedOn: '17 November 2026',
-  readiness: { required: 14, satisfied: 12 },
+  readiness: { required: 14, satisfied: 12, withheld: 0 },
 } as const;
 
 const html = (over: Partial<Parameters<typeof PrintCover>[0]> = {}) =>
@@ -49,7 +49,7 @@ describe('the printed pack cover', () => {
     const out = html({ readiness: null });
     expect(out).not.toContain('ready');
     expect(out).not.toContain('0 of');
-    expect(html({ readiness: { required: 0, satisfied: 0 } })).not.toContain('0 of');
+    expect(html({ readiness: { required: 0, satisfied: 0, withheld: 0 } })).not.toContain('0 of');
   });
 
   it('leaves out a missing reference code and a missing place', () => {
@@ -58,8 +58,16 @@ describe('the printed pack cover', () => {
     expect(out).not.toContain('print-cover-place');
   });
 
+  it('says how many items were left out on purpose, so the count is not misread', () => {
+    const out = html({ readiness: { required: 4, satisfied: 1, withheld: 3 } });
+    expect(out).toContain('1 of 4 items ready');
+    expect(out).toContain('Items Not Shown');
+  });
+
   it('uses a singular for one item', () => {
-    expect(html({ readiness: { required: 1, satisfied: 1 } })).toContain('1 of 1 item ready');
+    expect(html({ readiness: { required: 1, satisfied: 1, withheld: 0 } })).toContain(
+      '1 of 1 item ready',
+    );
   });
 });
 

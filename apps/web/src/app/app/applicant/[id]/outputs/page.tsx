@@ -252,7 +252,7 @@ export default async function OutputsPage({
 
   return (
     <>
-      {header}
+      <div className="output-noprint">{header}</div>
       <div className="notice u-mb-150 output-noprint">
         <p className="u-m-0">
           {t.node('applicantOutputs.appApplicantIdOutputsPage.aSummaryIsAOneTime')}
@@ -626,6 +626,7 @@ export default async function OutputsPage({
               ? {
                   required: printedCase.readiness.requiredCount,
                   satisfied: printedCase.readiness.satisfiedCount,
+                  withheld: printedCase.readiness.withheld,
                 }
               : null
           }

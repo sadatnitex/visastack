@@ -18,7 +18,12 @@ export interface PrintCoverProps {
   /** The date the page shows as the day it was prepared, already formatted. */
   readonly preparedOn: string;
   /** Null when the case has no checklist: then no counts line is printed, never a zero. */
-  readonly readiness: { readonly required: number; readonly satisfied: number } | null;
+  readonly readiness: {
+    readonly required: number;
+    readonly satisfied: number;
+    /** Items on parts the person did not choose: counted, never named (the page shows it too). */
+    readonly withheld: number;
+  } | null;
 }
 
 export const PRINT_COVER_NOTE = 'This shows what is gathered, not whether a visa will be approved.';
@@ -68,6 +73,12 @@ export function PrintCover({
           <div>
             <dt>Gathered</dt>
             <dd>{counts}</dd>
+          </div>
+        ) : null}
+        {counts && readiness && readiness.withheld > 0 ? (
+          <div>
+            <dt>Items Not Shown</dt>
+            <dd>{readiness.withheld}</dd>
           </div>
         ) : null}
       </dl>

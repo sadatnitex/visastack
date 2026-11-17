@@ -121,6 +121,8 @@ describe('the printed cover on the briefs and summaries page', () => {
       expect(text).toContain('This shows what is gathered, not whether a visa will be approved.');
       expect(html).toContain('src="/flags/gb.svg"');
       expect(text).toContain('Print This Page');
+      // The page title and back link do not print above the cover.
+      expect(html).toMatch(/<div class="output-noprint"><header class="page-header">/);
       // The cover comes first, before the preview heading, so it is the first printed page.
       expect(html.indexOf('data-print-cover')).toBeLessThan(html.indexOf('output-preview-heading'));
     },

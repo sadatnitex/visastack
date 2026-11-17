@@ -22049,7 +22049,8 @@ body:lang(bn),
     flex-direction: column;
     justify-content: center;
     gap: 1.25rem;
-    min-height: 90vh;
+    box-sizing: border-box;
+    min-height: 75vh;
     padding: 2rem 1rem;
     color: #000;
     background: #fff;
