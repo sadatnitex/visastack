@@ -93,6 +93,24 @@ it('asks Neon Auth for Google with return addresses on the same host, then redir
   });
 });
 
+it("follows Neon Auth's own start address, and refuses look-alikes of it", async () => {
+  enable();
+  const start = 'https://auth.example.test/neondb/auth/sign-in/social/init?token=abc';
+  social.mockResolvedValueOnce({ data: { url: start, redirect: false }, error: null });
+  expect(location(await GET(click()))).toBe(start);
+  for (const bad of [
+    'https://auth.example.test/neondb/auth/other?token=abc',
+    'https://auth.example.test/neondb/auth/sign-in/social/init-x',
+    'https://auth.example.test.evil.example/neondb/auth/sign-in/social/init',
+    'http://auth.example.test/neondb/auth/sign-in/social/init',
+    'https://u:p@auth.example.test/neondb/auth/sign-in/social/init',
+    'https://evil.example/neondb/auth/sign-in/social/init',
+  ]) {
+    social.mockResolvedValueOnce({ data: { url: bad }, error: null });
+    expect(location(await GET(click())), bad).toBe(`${ORIGIN}/auth/sign-in?e=social`);
+  }
+});
+
 it('returns to the page the sign-in check and the return page are built around', async () => {
   enable();
   social.mockResolvedValue({ data: { url: GOOGLE }, error: null });
