@@ -10,7 +10,7 @@ import { tileParts } from './deadline-clock';
  * The deadline timeline: today, the next appointment, the passport end and the trip start on one
  * line that wraps on a phone, each a small picture with its date and a short word. A gap that
  * matters (the passport ending within six months of the trip) gets a plain marker with the
- * wording the trip date checks already use, never a verdict.
+ * wording the trip date checks already use, never a verdict (only the six month look is marked).
  *
  * Every date comes from data the page already loads. A day is past only once it has ended in the
  * traveller's time zone (the same helper the deadline clock uses). It is server markup only: no
@@ -86,6 +86,15 @@ function todayIso(now: Date, timezone: string): string {
   }
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The start of the traveller's own day, as a date at UTC midnight (how dates are stored). */
+function travellerDay(now: Date, timezone: string): Date {
+  // Days from today to the epoch day is minus today's day number in that zone: no second copy of
+  // the zone arithmetic.
+  return new Date(-daysUntilDueDay(new Date(0), now, timezone) * DAY_MS);
+}
+
 export function buildTimeline(input: TimelineInput): Timeline | null {
   const { now, timezone, appointment, passportExpiry, travelStart, travelEnd, locale } = input;
   const item = (
@@ -129,17 +138,15 @@ export function buildTimeline(input: TimelineInput): Timeline | null {
   // The gap is the trip date checks' own finding, in their own words.
   let warning: Timeline['warning'] = null;
   if (passport && (start || end)) {
+    // The checks count days in UTC, so hand them the traveller's own day (not the UTC one).
     const found = evaluateTripChecks({
-      now,
+      now: travellerDay(now, timezone),
       travelStart: start,
       travelEnd: end,
       targetDeadline: null,
       passportExpiry: passport,
       insurancePolicies: [],
-    }).find(
-      (check) =>
-        check.key === 'passport_validity' && (check.level === 'check' || check.level === 'problem'),
-    );
+    }).find((check) => check.key === 'passport_validity' && check.level === 'check');
     if (found) warning = { title: found.title };
   }
   return { items, warning };
@@ -220,7 +227,8 @@ export function DeadlineTimeline({ timeline }: DeadlineTimelineProps): ReactNode
     -1,
   );
   return (
-    <ol className="deadline-timeline" aria-label="Your Dates on One Line">
+    // biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: the list has list-style none, which makes Safari drop the list semantics unless the role is stated.
+    <ol className="deadline-timeline" role="list" aria-label="Your Dates on One Line">
       {timeline.items.flatMap((entry, index) => {
         const marker = (
           <li

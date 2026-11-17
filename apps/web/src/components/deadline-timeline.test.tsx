@@ -128,6 +128,28 @@ describe('buildTimeline', () => {
     );
   });
 
+  it('checks the passport against the traveller day, not the UTC day', () => {
+    // 20:00 on 1 Jan in Los Angeles is already 2 Jan in UTC. The passport still has its last day.
+    const evening = new Date(Date.UTC(2031, 0, 2, 4, 0));
+    const timeline = buildTimeline({
+      ...base,
+      now: evening,
+      timezone: 'America/Los_Angeles',
+      passportExpiry: new Date(Date.UTC(2031, 0, 1)),
+      travelStart: new Date(Date.UTC(2031, 0, 1)),
+    });
+    expect(timeline?.warning).toEqual({
+      title: 'Your passport has less than six months left after your trip starts',
+    });
+  });
+
+  it('marks only the six month look, never a verdict like expired or before the trip', () => {
+    const expired = buildTimeline({ ...base, passportExpiry: day(-5), travelStart: day(10) });
+    expect(expired?.warning).toBeNull();
+    const before = buildTimeline({ ...base, passportExpiry: day(20), travelStart: day(60) });
+    expect(before?.warning).toBeNull();
+  });
+
   it('skips a date that does not parse instead of failing', () => {
     expect(buildTimeline({ ...base, passportExpiry: new Date('nope') })).toBeNull();
   });
@@ -170,6 +192,12 @@ describe('DeadlineTimeline', () => {
   it('says a passed date in words, not only by position', () => {
     const past = buildTimeline({ ...base, travelStart: day(-3) });
     expect(renderToStaticMarkup(<DeadlineTimeline timeline={past} />)).toContain('3 days ago');
+  });
+
+  it('keeps list semantics for Safari, where list-style none drops them', () => {
+    expect(renderToStaticMarkup(<DeadlineTimeline timeline={timeline} />)).toContain(
+      '<ol class="deadline-timeline" role="list"',
+    );
   });
 
   it('draws nothing when there is no timeline, and never says refused or approved', () => {
