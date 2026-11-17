@@ -1,0 +1,131 @@
+/* WP-PIC2 Picture layer: paint, depth and gentle motion for illustrations and hero cards (ADR 0027, owner decision D2, 17 Nov 2026).
+
+   This is the ONLY stylesheet where pictures may look raised. It is on the flat-design exception
+   list by its exact path; any other stylesheet keeps the flat rule. Imported by the picture
+   components in this folder, so it loads only on pages that show a picture.
+
+   Paint (no colour is written in a drawing):
+     .pic-paper   the sheet, page white with a hairline edge
+     .pic-ground  the tone's pale ground
+     .pic-ink     solid tone
+     .pic-line    tone outline, 2 units
+     .pic-on-ink  a line drawn on top of solid tone, in page white
+     .pic-dash    a dashed tear line
+   The tone comes from a data-tone attribute on the picture (the six Harbor tones).
+
+   Depth, for a picture or the hero card that holds one:
+     .pic-depth   a soft resting shadow under the picture
+     .pic-glow    a soft glow BEHIND a hero picture; put it on the element that wraps the picture
+
+   Motion, for hero pictures only:
+     .pic-float   floats in and settles once when the screen opens (the one moving hero)
+     .pic-lift    rises a little on pointer hover or keyboard focus inside it
+
+   Usage rules:
+   1. At most ONE animated hero per screen: one element with .pic-float on a page. A guard test
+      fails when a single source file names .pic-float more than once.
+   2. Motion animates transform and opacity only, never size, layout, colour or shadow.
+   3. Durations are only the shared speeds: --motion-press, --motion-state, --motion-arrive and
+      --motion-slow.
+   4. Every animation and transition sits inside @media (prefers-reduced-motion: no-preference)
+      and behind html:not([data-save-data]), so motion stops for people who ask for less motion
+      and when the browser reports data saver (set by SaveDataFlag in this folder). Pictures
+      still show, standing still.
+   5. No automatic dark appearance here or anywhere.
+   Guards: pictures-depth.test.ts in this folder. */
+
+.pic {
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+  vertical-align: middle;
+  --pic-tone: var(--tone, var(--accent));
+  --pic-tone-bg: var(--tone-bg, var(--brand-bg));
+}
+.pic svg {
+  display: block;
+  overflow: visible;
+}
+.pic .pic-paper {
+  fill: var(--bg-elevated);
+  stroke: var(--hairline);
+  stroke-width: 1;
+}
+.pic .pic-ground {
+  fill: var(--pic-tone-bg);
+}
+.pic .pic-ink {
+  fill: var(--pic-tone);
+}
+.pic .pic-line {
+  fill: none;
+  stroke: var(--pic-tone);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pic .pic-on-ink {
+  stroke: var(--bg-elevated);
+}
+.pic .pic-dash {
+  stroke-dasharray: 3 3;
+}
+
+/* Today's icon, shown where a type has no illustration: a pale tone tile around the line icon. */
+.pic-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--pic-tone-bg);
+  color: var(--pic-tone);
+  --icon-accent: var(--pic-tone);
+}
+
+img.pic-cover {
+  border-radius: 4px 14px 14px 4px;
+}
+
+/* Depth */
+.pic-depth {
+  filter: drop-shadow(0 8px 14px rgb(19 36 61 / 0.16)) drop-shadow(0 1px 2px rgb(19 36 61 / 0.14));
+}
+.pic-glow {
+  position: relative;
+  isolation: isolate;
+}
+.pic-glow::before {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--tone-bg, var(--brand-bg)), rgb(247 249 254 / 0));
+  pointer-events: none;
+}
+
+/* Motion: only for people who allow it, and never with data saver on. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pic-float-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  html:not([data-save-data]) .pic-float {
+    animation: pic-float-in var(--motion-slow) var(--motion-ease) both;
+  }
+  html:not([data-save-data]) .pic-lift {
+    transition: transform var(--motion-state) var(--motion-ease);
+  }
+  html:not([data-save-data]) .pic-lift:hover,
+  html:not([data-save-data]) .pic-lift:focus-within {
+    transform: translateY(-3px);
+  }
+}
+/* end WP-PIC2 */
