@@ -8,6 +8,8 @@ import { I18nProvider } from '../components/i18n-provider';
 import { SaveDataFlag } from '../components/pictures/save-data-flag';
 import { requestSavesData } from '../components/pictures/save-data-request';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
+import { publicNavLinks } from '../components/public-site/public-nav';
+import { publicText } from '../components/public-site/public-text';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
@@ -116,10 +118,13 @@ export default async function RootLayout({ children }: { readonly children: Reac
             </Link>
             <SiteNavigation>
               <div className="site-nav-pages">
-                <Link href="/#product">{t.node('home.layout.product')}</Link>
-                <Link href="/#for-agencies">{t.node('home.page.forAgencies')}</Link>
-                <Link href="/trust">{t.node('home.layout.privacyAndControl')}</Link>
-                <Link href="/#how-it-works">{t.node('home.page.howItWorks')}</Link>
+                {/* The five public pages, in one list (WP-PUB1). Words with a translation come from
+                  the catalogue; the others are marked English on a Bangla page. */}
+                {publicNavLinks().map((link) => (
+                  <Link key={link.label} href={link.href}>
+                    {link.key ? t.node(link.key) : publicText(link.label, htmlLang)}
+                  </Link>
+                ))}
               </div>
               <div className="site-nav-actions">
                 {/* Shown while language choice is on (see LANGUAGE_CHOICE_ENABLED). */}

@@ -1,0 +1,295 @@
+/* WP-PUB1 public site: tone tokens. Every colour is a globals.css token; nothing here is a new hue.
+   Components read only the --pub-* names below, so a chapter's tone decides every colour inside it.
+   The contrast test (public-site-guards.test.ts) reads these two blocks and the chip blocks. */
+.pub-chapter-light {
+  --pub-canvas: var(--bg);
+  --pub-ink: var(--text);
+  --pub-ink-soft: var(--text-secondary);
+  --pub-accent: var(--accent);
+  --pub-words-from: var(--accent);
+  --pub-words-to: var(--accent-hover);
+  --pub-edge: var(--edge-card);
+  --pub-edge-strong: var(--accent);
+  --pub-card: var(--bg-elevated);
+  --pub-button: var(--accent);
+  --pub-button-ink: var(--bg-elevated);
+  --pub-focus: var(--accent);
+}
+
+.pub-chapter-dark {
+  --pub-canvas: var(--chapter-bg);
+  --pub-ink: var(--bg-elevated);
+  --pub-ink-soft: var(--chapter-text);
+  --pub-accent: var(--brand-tint-5);
+  --pub-words-from: var(--brand-tint-3);
+  --pub-words-to: var(--brand-tint-5);
+  --pub-edge: var(--chapter-stroke);
+  --pub-edge-strong: var(--brand-tint-5);
+  --pub-card: var(--chapter-bg);
+  --pub-button: var(--accent);
+  --pub-button-ink: var(--bg-elevated);
+  --pub-focus: var(--brand-tint-5);
+}
+
+/* WP-PUB1 public site: chapters. Dark and light chapters alternate; each is a designed section,
+   not a theme, so the page stays the same under either device appearance. */
+.pub-chapter {
+  background-color: var(--pub-canvas);
+  color: var(--pub-ink-soft);
+  padding-block: var(--space-8);
+}
+
+.pub-chapter :where(h1, h2, h3, strong) {
+  color: var(--pub-ink);
+}
+
+.pub-chapter :where(a, button):focus-visible {
+  outline: 3px solid var(--pub-focus);
+  outline-offset: 2px;
+}
+
+.pub-words {
+  color: var(--pub-words-from);
+}
+
+/* WP-PUB1 public site: scenes. Without JavaScript, with reduced motion or with data saver a scene is
+   a normal section showing its finished step. Only while the engine runs (html[data-scenes="live"])
+   is a scene stretched to its scroll length and its stage pinned to the screen. */
+.pub-scene {
+  position: relative;
+}
+
+.pub-scene-stage {
+  position: relative;
+  overflow-x: clip;
+}
+
+html[data-scenes="live"] .pub-scene[data-len="1"] {
+  height: 100svh;
+}
+
+html[data-scenes="live"] .pub-scene[data-len="2"] {
+  height: 200svh;
+}
+
+html[data-scenes="live"] .pub-scene[data-len="3"] {
+  height: 300svh;
+}
+
+html[data-scenes="live"] .pub-scene[data-len="4"] {
+  height: 400svh;
+}
+
+html[data-scenes="live"] .pub-scene-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: clip;
+}
+
+/* WP-PUB1 public site: buttons. Every target is at least 44 px high. */
+.pub-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pub-button-primary {
+  background-color: var(--pub-button);
+  border-color: var(--pub-edge-strong);
+  color: var(--pub-button-ink);
+}
+
+.pub-button-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.pub-button-secondary {
+  background-color: transparent;
+  border-color: var(--pub-edge-strong);
+  color: var(--pub-ink);
+}
+
+.pub-button-secondary:hover {
+  border-color: var(--pub-accent);
+}
+
+/* WP-PUB1 public site: story cards. Flat: solid surface, edge by tone. */
+.pub-card {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge);
+  border-radius: var(--radius-lg);
+  background-color: var(--pub-card);
+  color: var(--pub-ink-soft);
+}
+
+.pub-card-title {
+  margin: 0;
+  font-size: var(--text-lead);
+  color: var(--pub-ink);
+}
+
+.pub-card-body {
+  margin: 0;
+}
+
+/* WP-PUB1 public site: Example tag. Every illustrative figure, name, date or list carries it. */
+.pub-example {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  width: max-content;
+  padding: 1px var(--space-2);
+  border-radius: 6px;
+  background-color: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* WP-PUB1 public site: status chips. One word per state, each its own colour and edge. */
+.pub-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px var(--space-3);
+  border: 1px solid var(--chip-edge);
+  border-radius: var(--radius-pill);
+  background-color: var(--chip-bg);
+  color: var(--chip-fg);
+  font-size: var(--text-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pub-chip-received {
+  --chip-fg: var(--text-secondary);
+  --chip-bg: var(--bg-subtle);
+  --chip-edge: var(--edge-control);
+}
+
+.pub-chip-reviewed {
+  --chip-fg: var(--accent);
+  --chip-bg: var(--brand-bg);
+  --chip-edge: var(--accent);
+}
+
+.pub-chip-suggested {
+  --chip-fg: var(--warning);
+  --chip-bg: var(--warning-bg);
+  --chip-edge: var(--warning);
+}
+
+.pub-chip-confirmed {
+  --chip-fg: var(--success);
+  --chip-bg: var(--success-bg);
+  --chip-edge: var(--success);
+}
+
+.pub-chip-saved {
+  --chip-fg: var(--text);
+  --chip-bg: var(--brand-tint-2);
+  --chip-edge: var(--edge-control);
+}
+
+.pub-chip-shared {
+  --chip-fg: var(--bg-elevated);
+  --chip-bg: var(--accent);
+  --chip-edge: var(--brand-tint-5);
+}
+
+.pub-chip-access-ended {
+  --chip-fg: var(--text-tertiary);
+  --chip-bg: var(--bg-subtle);
+  --chip-edge: var(--edge-control);
+  border-style: dashed;
+}
+
+/* WP-PUB1 public site: readiness ring. The ring always carries its plain caption. */
+.pub-readiness {
+  display: inline-grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.pub-readiness .progress-ring-words {
+  color: var(--pub-ink);
+}
+
+.pub-readiness-note {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--pub-ink-soft);
+}
+
+/* WP-PUB1 public site: flag ring. Flags sit on a circle around the centre; --i and --n place them. */
+.pub-flag-ring {
+  --ring-size: min(280px, calc(100vw - 4rem));
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--ring-size);
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.pub-flag-ring-list {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-flag-ring-list li {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 27px;
+  margin: -13.5px 0 0 -18px;
+  transform: rotate(calc(360deg * var(--i) / var(--n)))
+    translateY(calc(var(--ring-size) / -2 + 18px)) rotate(calc(-360deg * var(--i) / var(--n)));
+}
+
+.pub-flag-ring-list img {
+  display: block;
+  width: 36px;
+  height: 27px;
+  border: 1px solid var(--pub-edge);
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.pub-flag-ring-centre {
+  position: relative;
+}
+
+/* WP-PUB1 public site: pictures. Self-hosted, sized, never wider than their column. */
+.pub-picture {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.pub-passport-tilt {
+  display: grid;
+  place-items: center;
+}

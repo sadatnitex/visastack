@@ -1,0 +1,61 @@
+/* WP-PUB1 public scenes: the ONE depth stylesheet of the public site (ADR 0029, amends ADR 0027).
+   Rules for everything in this file, enforced by public-scenes.test.ts:
+   - every selector is scoped to [data-pub-depth], so depth never leaks onto the flat product;
+   - colours come only from globals.css tokens, mixed with black or transparent for darker tints
+     and glows of the same brand hues (no new hue, no hex or rgb literal);
+   - movement uses transform and opacity only, driven by the engine's --p, and only inside
+     @media (prefers-reduced-motion: no-preference) while html[data-scenes="live"] and
+     html:not([data-save-data]): with less motion, data saver or no JavaScript every picture rests
+     finished and still;
+   - no automatic dark appearance. */
+
+/* WP-PUB1 public scenes: dark chapter canvas, a deep navy from the product ink with one brand glow. */
+.pub-chapter-dark[data-pub-depth] {
+  background-image: radial-gradient(
+    120% 90% at 50% 0,
+    color-mix(in srgb, var(--accent) 38%, var(--chapter-bg)) 0,
+    var(--chapter-bg) 50%,
+    color-mix(in srgb, var(--chapter-bg) 62%, black) 100%
+  );
+}
+
+/* WP-PUB1 public scenes: headline words in tints of the brand blue (from and to come from the tone). */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .pub-words[data-pub-depth] {
+    background-image: linear-gradient(92deg, var(--pub-words-from), var(--pub-words-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* WP-PUB1 public scenes: a soft brand glow behind a hero picture. */
+[data-pub-depth] .pub-glow {
+  position: absolute;
+  inset: 10% 15%;
+  pointer-events: none;
+  background-image: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 45%, transparent),
+    transparent
+  );
+  filter: blur(12px);
+}
+
+/* WP-PUB1 public scenes: the passport resting on the page, then tilting into place as the scene runs. */
+.pub-passport-tilt[data-pub-depth] img,
+.pub-passport-tilt[data-pub-depth] svg {
+  filter: drop-shadow(0 24px 24px color-mix(in srgb, var(--chapter-bg) 55%, transparent));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-scenes="live"]:not([data-save-data]) .pub-passport-tilt[data-pub-depth] {
+    transform: perspective(900px) rotateX(calc((1 - var(--p, 1)) * 10deg))
+      rotateY(calc((1 - var(--p, 1)) * -16deg));
+  }
+}
+
+/* WP-PUB1 public scenes: a raised card, for pictures that sit on a chapter. */
+.pub-card[data-pub-depth] {
+  box-shadow: 0 30px 50px -34px color-mix(in srgb, var(--text) 60%, transparent);
+}
