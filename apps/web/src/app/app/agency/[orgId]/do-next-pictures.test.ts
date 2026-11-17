@@ -19,10 +19,27 @@ const readiness = {
   requiredCount: 4,
   satisfiedRequired: 1,
   missing: [
-    { kind: 'DOCUMENT', optional: false },
-    { kind: 'DOCUMENT', optional: false },
-    { kind: 'DOCUMENT', optional: true },
-    { kind: 'FIELD', optional: false },
+    { kind: 'DOCUMENT', optional: false, reason: 'not_provided' },
+    { kind: 'DOCUMENT', optional: false, reason: 'not_provided' },
+    { kind: 'DOCUMENT', optional: true, reason: 'not_provided' },
+    { kind: 'FIELD', optional: false, reason: 'not_provided' },
+    // On file but out of date, or in conflict: not "missing".
+    { kind: 'DOCUMENT', optional: false, reason: 'stale_evidence' },
+    { kind: 'DOCUMENT', optional: false, reason: 'unresolved_conflict' },
+    // A group an answer could settle: not counted as a document, whichever member is named first.
+    {
+      kind: 'DOCUMENT',
+      optional: false,
+      reason: 'not_provided',
+      alternatives: [{ kind: 'DOCUMENT' }, { kind: 'FIELD' }],
+    },
+    // A group of documents only: one missing document.
+    {
+      kind: 'DOCUMENT',
+      optional: false,
+      reason: 'not_provided',
+      alternatives: [{ kind: 'DOCUMENT' }, { kind: 'DOCUMENT' }],
+    },
   ],
 };
 
@@ -69,7 +86,7 @@ describe('deskPictureOf', () => {
     expect(deskPictureOf({ destination: ' Japan ', readiness })).toEqual({
       destination: 'Japan',
       readiness: { done: 1, total: 4 },
-      documentsMissing: 2,
+      documentsMissing: 3,
     });
   });
 
@@ -102,13 +119,18 @@ describe('Do Next items and their pictures', () => {
     );
     const review = items.find((i) => i.key === 'request:r1');
     const assign = items.find((i) => i.key === 'case:m1');
-    const expected = {
+    expect(assign?.picture).toEqual({
       destination: 'Japan',
       readiness: { done: 1, total: 4 },
-      documentsMissing: 2,
-    };
-    expect(review?.picture).toEqual(expected);
-    expect(assign?.picture).toEqual(expected);
+      documentsMissing: 3,
+    });
+    // A request row leaves the checklist's documents count out, so it can never read
+    // "No Documents Missing" beside a request for a document that has not arrived.
+    expect(review?.picture).toEqual({
+      destination: 'Japan',
+      readiness: { done: 1, total: 4 },
+      documentsMissing: null,
+    });
   });
 
   it('gives no picture to a request with no case, and none for a case with nothing to draw', () => {

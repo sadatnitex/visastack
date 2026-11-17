@@ -22039,7 +22039,7 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
-/* WP-PIC14 agency desk rows (17 Nov 2026, picture-first upgrade, unit Q2): a compact picture strip on each agency Do Next row (destination flag, a small readiness ring in counts only, required documents missing) and the documents count beside the case table ring. One line that wraps, no extra padding, not a control: the row keeps its one action. Flat: tokens only, no shadow, gradient, blur or translucency. Counts are said in words, never by colour alone. */
+/* WP-PIC14 agency desk rows (17 Nov 2026, picture-first upgrade, unit Q2): a compact picture strip on each agency Do Next row (destination flag, a small readiness ring in counts only, required documents never provided, on case rows only). One line that wraps, no extra padding, not a control: the row keeps its one action. Flat: tokens only, no shadow, gradient, blur or translucency. Counts are said in words, never by colour alone. */
 .desk-strip {
   display: flex;
   flex-wrap: wrap;
@@ -22066,9 +22066,6 @@ body:lang(bn),
   gap: var(--space-1);
   font-size: var(--text-small);
   color: var(--text-secondary);
-}
-.progress-ring-row .desk-docs {
-  margin-left: var(--space-3);
 }
 .desk-docs-glyph {
   flex: none;

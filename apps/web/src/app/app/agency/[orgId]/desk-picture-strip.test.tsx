@@ -158,14 +158,16 @@ describe('the agency Dashboard with desk pictures', () => {
     );
   }
 
-  it('draws the strip on the Do Next row and the documents count beside the case ring', async () => {
+  it('draws the strip on the Do Next row, and leaves the case table as it was', async () => {
     const html = await dashboard([caseRow('m1', {})]);
     const doNext = html.slice(html.indexOf('id="do-next-heading"'));
     const doNextList = doNext.slice(0, doNext.indexOf('</section>'));
     expect(doNextList).toContain('desk-strip');
     expect(textOf(doNextList)).toContain('2 Documents Missing');
     const table = html.slice(html.indexOf('id="agency-case-table-rows"'));
-    expect(textOf(table.slice(0, table.indexOf('</tbody>')))).toContain('2 Documents Missing');
+    // The table already shows the flag, the ring and "N missing"; a second missing count there
+    // would read as a different number for the same case.
+    expect(table.slice(0, table.indexOf('</tbody>'))).not.toContain('desk-');
   });
 
   it('draws no documents count for a manual case or one whose readiness is unknown', async () => {

@@ -1,11 +1,12 @@
 import { DestinationLabel } from '../../../../components/destination-label';
 import { ProgressRing } from '../../../../components/progress-ring';
+import { plural } from '../../../../lib/plural';
 import type { DeskPicture } from './do-next';
 
 /**
  * WP-PIC14 (picture-first upgrade, unit Q2): the compact picture strip on an agency desk row, so a
  * member scans the desk at a glance: the destination flag, a small readiness ring in counts only,
- * and how many required documents are not in place yet.
+ * and, on a case row, how many required documents were never provided.
  *
  * Presentation only. Everything comes from the row's own case data (see `deskPictureOf`), which is
  * already limited to what the traveller shared with this agency; no part is read for the picture.
@@ -37,7 +38,7 @@ export function DeskPictureStrip({ picture }: { readonly picture: DeskPicture | 
 /** "No Documents Missing", "1 Document Missing", "3 Documents Missing": a count of what is on file. */
 export function documentsMissingWords(count: number): string {
   if (count <= 0) return 'No Documents Missing';
-  return `${count} ${count === 1 ? 'Document' : 'Documents'} Missing`;
+  return `${plural(count, 'Document')} Missing`;
 }
 
 /** The documents count with a small document drawing; the words carry the meaning, the drawing is decoration. */

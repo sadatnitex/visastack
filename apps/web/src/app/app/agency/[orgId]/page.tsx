@@ -33,8 +33,7 @@ import {
   loadUnassignedQueue,
 } from './console-data';
 import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
-import { DocumentsMissing } from './desk-picture-strip';
-import { buildDoNextList, deskPictureOf } from './do-next';
+import { buildDoNextList } from './do-next';
 import { DoNextList } from './do-next-list';
 import { STAGE_LABELS } from './stage-labels';
 
@@ -571,10 +570,6 @@ export default async function AgencyDashboardPage({
                     const { mission } = row;
                     const required = mission.readiness?.requiredCount ?? 0;
                     const satisfied = mission.readiness?.satisfiedRequired ?? 0;
-                    // WP-PIC14: the documents count from the readiness this row already shows.
-                    const documentsMissing = mission.manualMode
-                      ? null
-                      : (deskPictureOf(mission)?.documentsMissing ?? null);
                     return (
                       <tr
                         key={mission.missionId}
@@ -626,9 +621,6 @@ export default async function AgencyDashboardPage({
                                     : 'No checklist is attached to this case yet.'
                                 }
                               />
-                              {documentsMissing !== null ? (
-                                <DocumentsMissing count={documentsMissing} />
-                              ) : null}
                             </span>
                           )}
                         </td>
