@@ -1,6 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import { PUSH_BODY, PUSH_TITLE, buildPushWorkerSection, isWebPushSwitchOn } from './push-worker';
+import { buildServiceWorkerScript } from './service-worker';
 
 const ORIGIN = 'https://vs.obsidianglobal.studio';
 
@@ -71,6 +72,29 @@ function load() {
 
   return { push, click, shown, opened, focused, addWindow };
 }
+
+describe('service worker wiring', () => {
+  it('leaves the worker byte for byte as before while Web Push is off', () => {
+    const off = buildServiceWorkerScript('v1', { share: false, uploadSync: false, push: false });
+    const on = buildServiceWorkerScript('v1', { share: false, uploadSync: false, push: true });
+    expect(off).not.toContain("addEventListener('push'");
+    expect(off).not.toContain('notificationclick');
+    expect(on.startsWith(off)).toBe(true);
+    expect(on.slice(off.length)).toBe(buildPushWorkerSection());
+  });
+
+  it('reads the WEB_PUSH switch when not told', () => {
+    vi.stubEnv('WEB_PUSH', undefined);
+    expect(buildServiceWorkerScript('v1', { share: false, uploadSync: false })).not.toContain(
+      'notificationclick',
+    );
+    vi.stubEnv('WEB_PUSH', 'true');
+    expect(buildServiceWorkerScript('v1', { share: false, uploadSync: false })).toContain(
+      'notificationclick',
+    );
+    vi.unstubAllEnvs();
+  });
+});
 
 describe('push worker', () => {
   it('shows the same words and fallback page as the server sends', async () => {

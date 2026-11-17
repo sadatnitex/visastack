@@ -60,7 +60,6 @@ Set `WEB_PUSH` to anything but `true` (or remove it) and redeploy. The card disa
 
 ## Not yet in place
 
-- The one line that adds the alert handlers to the service worker waits until the background sync work (Q6) has merged, because that work is changing the same file. Until it lands, a browser that turns alerts on gets the browser's own generic notice instead of the VisaStack alert. Web Push stays off until it lands.
 - Only the known push services are accepted (Google `fcm.googleapis.com` and `android.googleapis.com`, Mozilla, Apple `*.push.apple.com`, Microsoft `*.notify.windows.com`). A browser using any other push service sees "That did not work" on Turn On.
 - A sign-in that ends by expiring (not by signing out) keeps its browsers until the push service reports them gone or the person turns alerts off.
 
@@ -71,5 +70,5 @@ Set `WEB_PUSH` to anything but `true` (or remove it) and redeploy. The card disa
 - Hook after an in-app notice is sent: `dispatchOne` in `packages/services/src/notifications.ts`
 - Switch and keys: `apps/web/src/lib/web-push.ts`
 - Account card and actions: `apps/web/src/app/app/account/push-card.tsx`, `push-actions.ts`
-- Service worker handlers: `apps/web/src/lib/pwa/push-worker.ts`
+- Service worker handlers: `apps/web/src/lib/pwa/push-worker.ts`, added to the worker by `buildServiceWorkerScript` in `service-worker.ts` only while `WEB_PUSH` is `true`
 - Sign-out: `apps/web/src/lib/sign-out.ts`
