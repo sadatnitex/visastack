@@ -116,15 +116,25 @@ describe('CountryFlag with a picture', () => {
   });
 
   it('never writes a data: or blob: address into the markup', () => {
-    const html = renderToString(
-      <div>
-        <CountryFlag iso2="BD" name="Bangladesh" />
-        <CountryFlag iso2="jp" name="Japan" size="lg" />
-        <CountryFlag iso2="??" name="Somewhere" />
-      </div>,
+    root = createRoot(container);
+    act(() =>
+      root?.render(
+        <div>
+          <CountryFlag iso2="BD" name="Bangladesh" />
+          <CountryFlag iso2="jp" name="Japan" size="lg" />
+          <CountryFlag iso2="??" name="Somewhere" />
+        </div>,
+      ),
     );
-    expect(html).toContain('src="/flags/bd.svg"');
-    expect(html).not.toMatch(/(data|blob):/);
+    expect(container.querySelectorAll('img')).toHaveLength(2);
+    expect(container.innerHTML).toContain('src="/flags/bd.svg"');
+    expect(container.innerHTML).not.toMatch(/(data|blob):/);
+  });
+
+  it('leaves the server markup exactly as it was: the emoji, no picture', () => {
+    const html = renderToString(<CountryFlag iso2="BD" name="Bangladesh" />);
+    expect(html).not.toContain('<img');
+    expect(html).toContain(String.fromCodePoint(0x1f1e7, 0x1f1e9));
   });
 
   it('draws the plain globe for a bad code, with no picture', () => {
@@ -161,7 +171,7 @@ describe('CountryFlag with a picture', () => {
     expect(flag?.querySelector('img')?.getAttribute('src')).toBe('/flags/jp.svg');
   });
 
-  it('matches the server markup when it starts in the browser (no mismatch)', () => {
+  it('matches the server markup when it starts in the browser (no mismatch), then adds the picture', () => {
     const html = renderToString(<CountryFlag iso2="BD" name="Bangladesh" />);
     container.innerHTML = html;
     const problems: unknown[] = [];

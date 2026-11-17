@@ -18,7 +18,8 @@ import { Icon } from './icons';
  * Where the flag policy (`lib/flag-policy.ts`) has a picture for the code, the real flag is drawn
  * from a static same-origin file on top of that emoji or letters badge, which stay underneath as
  * the fallback: a hidden code, a missing file, a failed load or being offline simply leaves them
- * showing. The picture is in the server's markup too, so the first browser pass still matches it.
+ * showing. The picture is added only after the page has woken up in the browser (never in the
+ * server's markup), so the server markup and the first browser pass stay exactly as they were.
  */
 
 export type CountryFlagSize = 'sm' | 'md' | 'lg';
@@ -76,6 +77,13 @@ export function useLacksFlagEmoji(): boolean {
   return useSyncExternalStore(noSubscription, readLacksEmoji, serverSnapshot);
 }
 
+const hydratedSnapshot = () => true;
+
+/** False on the server and on the first browser pass; true afterwards. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(noSubscription, hydratedSnapshot, serverSnapshot);
+}
+
 export function CountryFlag({
   iso2,
   name,
@@ -93,7 +101,8 @@ export function CountryFlag({
 }) {
   const lacksEmoji = useLacksFlagEmoji();
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const resolvedSrc = flagSrc(iso2);
+  const hydrated = useHydrated();
+  const resolvedSrc = hydrated ? flagSrc(iso2) : null;
   const src = resolvedSrc !== null && resolvedSrc !== failedSrc ? resolvedSrc : null;
   const picture = src ? (
     <img
