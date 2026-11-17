@@ -1,6 +1,6 @@
 # Contrast and surfaces (WP-C2)
 
-The signed-in app passed every text contrast check, yet it read as one pale sheet: the page, the sidebar, the cards, their edges and the three text tiers all sat within about 1.3:1 of each other. WP-C2 separates them with tone and edges only. No shadows, gradients, blur or translucent fills, and no layout, copy or behaviour change.
+The signed-in app passed every text contrast check, yet it read as one pale sheet: the page, the sidebar, the cards, their edges and the three text tiers all sat within about 1.3:1 of each other. WP-C2 separates them with tone and edges only. No shadows, gradients, blur or translucent fills, and no layout, copy or behaviour change. (Superseded in part, replaced by ADR 0027 (17 Nov 2026) for apps/web/src/components/pictures/pictures-depth.css only.)
 
 Ratios are WCAG 2.x, computed from the tokens in the first `:root` block of `apps/web/src/app/globals.css`. "Measured" values come from the live signed-in site on 28 and 29 Oct 2026. Tests that hold them: `apps/web/src/lib/palette-contrast.test.ts` ("surfaces stay separable (WP-C2)") and `apps/web/src/lib/surface-css.test.ts`.
 
@@ -40,7 +40,7 @@ These keep the product calm as it grows. Any new screen is checked against them.
 1. One dark ink block per screen. The Next Step banner is the only dark fill a person sees at once.
 2. One filled accent button per region. Everything else in that region is a secondary or text button.
 3. Zero counts recede. An empty count or an empty section never carries the same weight as one with something in it.
-4. Edges by role. Card line (`--edge-card`), row divider (`--hairline-soft`), control border (`--edge-control`). No shadows anywhere.
+4. Edges by role. Card line (`--edge-card`), row divider (`--hairline-soft`), control border (`--edge-control`). No shadows anywhere. (Superseded in part, replaced by ADR 0027 (17 Nov 2026) for apps/web/src/components/pictures/pictures-depth.css only.)
 5. State is never shown by hue alone. The current page has a white pill, a brand bar and a heavier weight; status has words as well as colour.
 
 ## Handed to CCD-3 and CCD-4
@@ -73,3 +73,7 @@ Windows high contrast mode drops backgrounds, so the current page's bar is drawn
 ## Not covered by the scan
 
 The platform admin console (needs a Platform Owner run), hover, pressed and disabled states (the scan read resting state) and dark mode (not shipped).
+
+## Visual depth for illustrations, 2026-11-17
+
+The surface ladder and edges above stay as they are. Owner decision D2 of the picture-first upgrade (17 November 2026) lets illustrations and hero cards, and nothing else, use soft shadows, a glow behind hero pictures and gentle motion, all inside one stylesheet: `apps/web/src/components/pictures/pictures-depth.css`. Cards, panels, the sidebar and every other surface keep tone and edges only. See `docs/adr/0027-visual-depth-for-illustrations.md`.

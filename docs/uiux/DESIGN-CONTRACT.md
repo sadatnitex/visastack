@@ -2,7 +2,7 @@
 
 Authority: owner's UI mandate and ten-screen PDF/HTML supplied 11 October 2026 (Dhaka). Baseline main: `7f9a9fe0ef1b9aef95c38bef9e48939284ec7535`.
 
-Use solid cream, white, teal and navy surfaces; restrained borders; one shared radius and spacing scale; Inter/system type with limited serif emphasis. No decorative shadows, blur, glass, gradients, ambient layers or floating cards. Preserve progress charts, focus outlines and interaction barriers.
+Use solid cream, white, teal and navy surfaces; restrained borders; one shared radius and spacing scale; Inter/system type with limited serif emphasis. No decorative shadows, blur, glass, gradients, ambient layers or floating cards. (Superseded in part, replaced by ADR 0027 (17 Nov 2026) for apps/web/src/components/pictures/pictures-depth.css only.) Preserve progress charts, focus outlines and interaction barriers.
 
 Preserve all route contracts, role gates, service calls, consent, protected fields, scanning, sharing, immutable evidence and case transitions. UI fixtures are synthetic and cannot establish signed-in production acceptance. No database schema, migration, backend or provider changes belong to this release. Bangla remains deferred; existing locale machinery is retained.
 
@@ -23,3 +23,7 @@ Light success and danger text use darker shades from the approved palette so the
 The original HTML is the precise visual authority for the entire existing product. This correction supersedes any earlier description of an operating-system-dependent light/dark theme. The approved appearance uses paper public backgrounds, white cards and headers, pale workspace and sidebar surfaces, teal actions, rust serif emphasis and deliberately limited navy accent sections. No separate dark theme is implemented.
 
 All ten original 1600 by 1000 compositions were rendered and inspected before this correction changed styles. Their geometry is measured alongside the implementation; token names alone are not acceptance evidence. Existing permission-aware navigation and multi-applicant routes remain. Minimum 44-pixel touch targets and the mandatory controlled-pilot notice are intentional accessibility and safety adaptations. The reference's decorative floating examples become aligned, solid bordered panels in their original hierarchy.
+
+## Visual depth for illustrations, 2026-11-17
+
+Owner decision D2 of the picture-first upgrade (17 November 2026) allows visual depth for illustrations and hero cards only: soft shadows, a glow behind hero pictures and gentle motion (transforms and opacity only, at most one animated hero per screen, off under reduced motion and when data saver is on). All of it lives in one stylesheet, `apps/web/src/components/pictures/pictures-depth.css`. Automatic dark appearance stays forbidden there too, and the flat rule above is unchanged for every other surface. Full terms and guards: `docs/adr/0027-visual-depth-for-illustrations.md`.
