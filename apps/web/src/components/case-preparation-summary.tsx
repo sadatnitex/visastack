@@ -1,3 +1,4 @@
+import { necessityCanBlock, requirementNecessity } from '@visastack/core';
 import type { Readiness } from '@visastack/services';
 import type { ComponentProps, ReactNode } from 'react';
 import { componentsMoreCatalog } from '../i18n/components-more';
@@ -80,34 +81,42 @@ export function countRequirementItems(
 }
 
 /**
- * One legend entry per required item, from the results the page already holds (no new read). A
- * group of alternatives is one item (ready when one member is on file); a covered alternative and
- * an optional item are not counted. Names come from the same helpers the checklist uses.
+ * One legend entry per required item, from the results the page already holds (no new read),
+ * counted exactly as `computeLiveReadiness` counts `requiredCount`: an item that does not apply
+ * (state Not Applicable, or a group none of whose members applies) is skipped, a single item is
+ * required when its necessity can block, and a group is one item that is required when any
+ * applicable member can block. A covered alternative is not an item of its own. Names come from the
+ * same helpers the checklist uses. When the page's counts and this list ever disagree, the ring
+ * draws the counts alone (see `filledMask`).
  */
 export function segmentItemsFromResults(
   results: readonly Readiness['requirementResults'][number][],
 ): ReadinessSegmentItem[] {
   const items = new Map<string, ReadinessSegmentItem & { required: boolean }>();
   for (const r of results) {
-    if (r.coveredByAlternative) continue;
+    if (r.state === 'NOT_APPLICABLE') continue;
     const key = r.groupKey ? `group:${r.groupKey}` : r.packRequirementId;
+    const blocks = necessityCanBlock(
+      requirementNecessity({ optional: r.optional, necessity: r.necessity ?? null }),
+    );
     const seen = items.get(key);
     const ready = r.state === 'SATISFIED';
     if (seen) {
       items.set(key, {
         ...seen,
         ready: seen.ready || ready,
-        required: seen.required || !r.optional,
+        required: seen.required || blocks,
       });
       continue;
     }
+    if (r.coveredByAlternative) continue;
     items.set(key, {
       key,
       label:
         r.kind === 'FIELD' ? (fieldLabel(r.key) ?? humanizeCode(r.key)) : documentKindLabel(r.key),
       type: r.kind === 'DOCUMENT' ? r.key : null,
       ready,
-      required: !r.optional,
+      required: blocks,
     });
   }
   return [...items.values()]
@@ -154,13 +163,15 @@ export async function CasePreparationSummary({
               </span>
               <span className="lift-progress-unit">{shortUnit}</span>
             </p>
-            {/* The legend (one picture per item) shows from Browse; the ring itself always. */}
+            {/* The ring always shows; its legend sits in a closed fold from Browse, so it adds one row at most. The count beside it carries the words. */}
             <div className="lift-progress-ring">
               <ReadinessSegmentRing
                 done={satisfiedRequired}
                 total={requiredCount}
                 size="sm"
                 items={segmentItemsFromResults(readiness.requirementResults)}
+                foldedLegend
+                decorative
               />
             </div>
           </div>

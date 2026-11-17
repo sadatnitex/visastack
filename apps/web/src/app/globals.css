@@ -22048,7 +22048,8 @@ body:lang(bn),
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  flex: none;
+  min-width: 0;
+  max-width: 100%;
 }
 .lift-progress-ring .readiness-segring {
   display: contents;
@@ -22056,11 +22057,20 @@ body:lang(bn),
 .lift-progress-ring .progress-ring-text {
   display: none;
 }
-.lift-progress-row:has(.readiness-legend) {
+/* The legend is folded: a closed row of one 44px target, so a long checklist adds one row at most. */
+.lift-progress-ring .readiness-legend-fold {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.lift-progress-ring .readiness-legend-fold > summary {
+  display: flex;
   align-items: center;
+  min-height: 2.75rem;
+  cursor: pointer;
+  color: var(--text-secondary);
 }
 .lift-progress-ring .readiness-legend {
-  flex-basis: 100%;
+  min-width: 0;
 }
 /* end WP-PIC4b */
 /* WP-PIC12 share sheet pictures (17 Nov 2026, picture-first upgrade, unit P2e): under the grant review brief, what leaves is drawn as pictures (chosen documents as one document picture with the total count, profile parts with the person icon) and what specifically stays private as a muted row with the lock and its words. Presentation only. Flat: no shadow, gradient, blur or translucency; tokens only; state is said in words, never by colour alone. */

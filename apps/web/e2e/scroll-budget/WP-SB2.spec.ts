@@ -428,6 +428,61 @@ test.describe('WP-LIFT-B the real case page', () => {
     ).toBeLessThanOrEqual(LIFT.firstRow.desktop);
   });
 
+  for (const level of ['browse', 'everything'] as const) {
+    test(`the segment ring is drawn beside the count with its legend closed, and the first row keeps 8px of its budget, at ${level}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(VIEWPORTS.phone);
+      await openReal(page, level);
+      const ring = page.locator(
+        '.lift-progress-ring svg .readiness-seg, .lift-progress-ring svg circle',
+      );
+      await expect(ring.first()).toBeVisible();
+      const fold = page.locator('.lift-progress-ring details.readiness-legend-fold');
+      await expect(fold).toHaveCount(1);
+      await expect(fold).not.toHaveAttribute('open', '');
+      expect(
+        (await fold.locator(':scope > summary').boundingBox())?.height ?? 0,
+      ).toBeGreaterThanOrEqual(44);
+      const m = await measure(page);
+      process.stdout.write(
+        `[pic4b] phone ${level}: ring and closed legend, first row ${m.firstRow}, page ${m.page}\n`,
+      );
+      expect(
+        m.firstRow ?? Number.POSITIVE_INFINITY,
+        'first row with the ring drawn',
+      ).toBeLessThanOrEqual(LIFT.firstRow.phone - 8);
+      expect(m.page, `page at a phone, ${level}`).toBeLessThanOrEqual(LIFT.phonePage[level]);
+    });
+  }
+
+  test('the ring never makes the page scroll sideways at 320px, closed or open', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    for (const level of ['browse', 'everything'] as const) {
+      await openReal(page, level);
+      expect((await measure(page)).sideways, `sideways at 320px, ${level}, legend closed`).toBe(0);
+      await page.locator('.lift-progress-ring details.readiness-legend-fold > summary').click();
+      expect((await measure(page)).sideways, `sideways at 320px, ${level}, legend open`).toBe(0);
+    }
+  });
+
+  test('opened by the person at Everything on a phone, the legend is measured and said (it may pass the page budget)', async ({
+    page,
+  }) => {
+    await page.setViewportSize(VIEWPORTS.phone);
+    await openReal(page, 'everything');
+    const closed = await measure(page);
+    await page.locator('.lift-progress-ring details.readiness-legend-fold > summary').click();
+    const open = await measure(page);
+    process.stdout.write(
+      `[pic4b] phone everything: legend closed page ${closed.page}px, opened ${open.page}px (adds ${open.page - closed.page}px)\n`,
+    );
+    expect(open.page).toBeGreaterThan(closed.page);
+    expect(open.sideways).toBe(0);
+  });
+
   test('the rail and the sections pass the serious accessibility rules', async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.desktop);
     await openReal(page, 'everything');

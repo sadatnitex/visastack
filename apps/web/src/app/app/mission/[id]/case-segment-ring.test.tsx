@@ -49,7 +49,9 @@ describe('case readiness segment ring', () => {
     );
     expect(html.match(/readiness-seg-on/g)).toHaveLength(1);
     expect(html.match(/readiness-seg-off/g)).toHaveLength(2);
-    expect(html).toContain('aria-label="1 of 3 items ready"');
+    // One wording for screen readers: the visible count. The ring is hidden from them.
+    expect(html).not.toMatch(/aria-label="[^"]*items ready/);
+    expect(html).toMatch(/<svg[^>]*aria-hidden="true"/);
     // The count stays the visible numeral, and the explain fold is still there.
     expect(html).toContain('1 of 3');
     expect(html).toContain('How This Is Counted');
@@ -71,7 +73,11 @@ describe('case readiness segment ring', () => {
     expect(html).toContain('What This Ring Counts');
     expect(html).toContain('not whether a visa will be approved');
     // The legend is a Browse block, so Glance shows the ring alone (and the 30-word rule holds).
-    expect(html).toMatch(/<ul class="readiness-legend" data-level="browse">/);
+    expect(html).toMatch(
+      /<details class="readiness-legend-fold" data-level="browse"><summary>What the Ring Shows<\/summary><ul class="readiness-legend">/,
+    );
+    // Closed until the person opens it, so it never adds its rows to the page by itself.
+    expect(html).not.toMatch(/<details class="readiness-legend-fold"[^>]*\sopen/);
   });
 
   it('counts a group of alternatives as one segment and skips a covered alternative', () => {
@@ -83,6 +89,23 @@ describe('case readiness segment ring', () => {
       row('c', 'CRITICAL_GAP', { optional: true }),
     ]);
     expect(items.map((i) => i.ready)).toEqual([true, false]);
+  });
+
+  it('skips an item that does not apply and counts a group by its blocking members, as the service does', async () => {
+    const results = [
+      row('a', 'SATISFIED', { key: 'passport' }),
+      row('na', 'NOT_APPLICABLE', { key: 'photo' }),
+      row('g1', 'CRITICAL_GAP', { groupKey: 'funds', necessity: 'MANDATORY' }),
+      row('g2', 'SATISFIED', { groupKey: 'funds', optional: true, necessity: 'OPTIONAL' }),
+      row('g3', 'NOT_APPLICABLE', { groupKey: 'trip' }),
+      row('o', 'SATISFIED', { optional: true, necessity: 'OPTIONAL' }),
+    ];
+    const items = itemsFromResults(results);
+    // passport, and the funds group (blocks through g1, ready through g2); not the N/A rows, not the optional one.
+    expect(items.map((i) => i.key)).toEqual(['a', 'group:funds']);
+    expect(items.map((i) => i.ready)).toEqual([true, true]);
+    const html = await render(make(results, 2, items.length));
+    expect(html).toContain('readiness-legend-row');
   });
 
   it('keeps the plain empty state when no item is required', async () => {

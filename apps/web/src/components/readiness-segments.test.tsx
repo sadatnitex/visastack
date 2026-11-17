@@ -41,6 +41,21 @@ describe('ReadinessSegmentRing', () => {
     expect(host.querySelector('svg')?.getAttribute('aria-label')).toBe('2 of 4 items ready');
   });
 
+  it('keeps the labelled ring and the plain legend for every other user, and folds only when asked', () => {
+    const plain = render(<ReadinessSegmentRing done={2} total={4} items={items} />);
+    expect(plain.querySelector('svg')?.getAttribute('aria-hidden')).toBeNull();
+    expect(plain.querySelector('.readiness-legend')?.getAttribute('data-level')).toBeNull();
+    expect(plain.querySelector('details')).toBeNull();
+    const folded = render(
+      <ReadinessSegmentRing done={2} total={4} items={items} foldedLegend decorative />,
+    );
+    expect(folded.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    const fold = folded.querySelector('details.readiness-legend-fold');
+    expect(fold?.getAttribute('data-level')).toBe('browse');
+    expect(fold?.hasAttribute('open')).toBe(false);
+    expect(fold?.querySelector('summary')?.textContent).toBe('What the Ring Shows');
+  });
+
   it('never draws more filled segments than there are items, and clamps a negative count', () => {
     expect(segmentRingCounts(9, 4)).toEqual({ done: 4, total: 4 });
     expect(segmentRingCounts(-2, 4)).toEqual({ done: 0, total: 4 });

@@ -24,6 +24,7 @@ export const RING_TIP_LABEL = 'What This Ring Counts';
 export const RING_TIP_TEXT = 'The ring counts what is ready, not whether a visa will be approved.';
 export const ITEM_READY_WORD = 'Ready';
 export const ITEM_NEEDED_WORD = 'Still Needed';
+export const LEGEND_FOLD_LABEL = 'What the Ring Shows';
 export { AFTER_STEP_LABEL, NOW_LABEL } from './ui-lift/next-step-panel';
 /** Past this many items the segments turn into slivers, so the plain ring is drawn instead. */
 export const MAX_SEGMENTS = 24;
@@ -50,6 +51,10 @@ export interface ReadinessSegmentRingProps {
   readonly emptyAction?: { readonly href: string; readonly label: string };
   /** Show the explain tip beside the ring (default on). */
   readonly tip?: boolean;
+  /** Put the legend in a closed fold ("What the Ring Shows") that appears from Browse. Off by default. */
+  readonly foldedLegend?: boolean;
+  /** The count is already written beside the ring, so the ring is a picture only (hidden from screen readers). */
+  readonly decorative?: boolean;
 }
 
 /** The counts the segments show: whole numbers, never more done than total. */
@@ -114,10 +119,16 @@ function RingTip(): ReactNode {
   );
 }
 
-function Legend({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined }) {
+function Legend({
+  items,
+  folded,
+}: {
+  readonly items: ReadonlyArray<ReadinessSegmentItem> | undefined;
+  readonly folded: boolean;
+}) {
   if (!items || items.length === 0) return null;
-  return (
-    <ul className="readiness-legend" {...atLevel('browse')}>
+  const list = (
+    <ul className="readiness-legend">
       {items.map((item) => (
         <li key={item.key} className="readiness-legend-row" data-ready={item.ready ? 'yes' : 'no'}>
           <DocumentPicture type={item.type} size={28} />
@@ -128,6 +139,14 @@ function Legend({ items }: { readonly items: ReadonlyArray<ReadinessSegmentItem>
         </li>
       ))}
     </ul>
+  );
+  if (!folded) return list;
+  // Closed until the person opens it, so a long checklist never lengthens the page by itself.
+  return (
+    <details className="readiness-legend-fold" {...atLevel('browse')}>
+      <summary>{LEGEND_FOLD_LABEL}</summary>
+      {list}
+    </details>
   );
 }
 
@@ -144,6 +163,8 @@ export function ReadinessSegmentRing({
   emptyLabel = NO_CHECKLIST_LABEL,
   emptyAction,
   tip = true,
+  foldedLegend = false,
+  decorative = false,
 }: ReadinessSegmentRingProps): ReactNode {
   const counts = segmentRingCounts(done, total);
   if (counts.total === 0) {
@@ -164,9 +185,15 @@ export function ReadinessSegmentRing({
   if (counts.total > MAX_SEGMENTS) {
     return (
       <div className="readiness-segring">
-        <ProgressRing done={counts.done} total={counts.total} size={size} />
+        {decorative ? (
+          <span aria-hidden="true" className="readiness-segring-plain">
+            <ProgressRing done={counts.done} total={counts.total} size={size} />
+          </span>
+        ) : (
+          <ProgressRing done={counts.done} total={counts.total} size={size} />
+        )}
         {tip ? <RingTip /> : null}
-        <Legend items={filledMask(counts, items).legend} />
+        <Legend items={filledMask(counts, items).legend} folded={foldedLegend} />
       </div>
     );
   }
@@ -177,7 +204,10 @@ export function ReadinessSegmentRing({
     <div className="readiness-segring">
       <span className={`progress-ring progress-ring-${size}${full ? ' progress-ring-full' : ''}`}>
         <span className="progress-ring-graphic">
-          <svg viewBox="0 0 100 100" role="img" aria-label={words}>
+          <svg
+            viewBox="0 0 100 100"
+            {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': words })}
+          >
             <Segments mask={mask} />
           </svg>
         </span>
@@ -188,7 +218,7 @@ export function ReadinessSegmentRing({
         </span>
       </span>
       {tip ? <RingTip /> : null}
-      <Legend items={legend} />
+      <Legend items={legend} folded={foldedLegend} />
     </div>
   );
 }

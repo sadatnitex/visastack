@@ -38,7 +38,8 @@ describe('case progress represents preparation and actual workflow state', () =>
     const html = await renderServer(<CasePreparationSummary readiness={readiness} />);
     // One big number and a bar named in words; the number is the count, never a score.
     expect(html).toContain('1 of 4');
-    expect(html).toContain('aria-label="1 of 4 items ready"');
+    // The count is written once, beside the ring, so the ring itself is a picture only.
+    expect(html).not.toMatch(/aria-label="[^"]*items ready/);
     expect(html.match(/readiness-seg-on/g)).toHaveLength(1);
     for (const text of [
       'On File',
