@@ -41,7 +41,6 @@ function switchOn() {
   vi.stubEnv('NODE_ENV', 'production');
   vi.stubEnv('WEB_SHARE_TARGET', 'on');
   vi.stubEnv('PWA_SERVICE_WORKER', undefined);
-  vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'c'.repeat(64));
 }
 
 beforeEach(() => {
