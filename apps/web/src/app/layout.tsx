@@ -5,6 +5,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
 import { I18nProvider } from '../components/i18n-provider';
+import { SaveDataFlag } from '../components/pictures/save-data-flag';
+import { requestSavesData } from '../components/pictures/save-data-request';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
@@ -89,9 +91,12 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // signed-in person never sees the notice, so their cookie is not read.
   const noticeSeen = signedIn || (await hasSeenVersionNotice());
   const hasNotice = versionNoticeCopy(deploymentMode) !== null;
+  // Data saver from the request (Save-Data: on) keeps picture motion still from the first paint.
+  const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};
+  const fonts = `${inter.variable} ${bengali.variable}`;
 
   return (
-    <html lang={htmlLang} data-locale={locale} className={`${inter.variable} ${bengali.variable}`}>
+    <html lang={htmlLang} data-locale={locale} className={fonts} {...saveDataMark}>
       <body>
         <I18nProvider locale={locale} pageLang={htmlLang}>
           <a className="skip-link" href="#main">
@@ -170,6 +175,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             </div>
           </footer>
           <PwaRuntime enabled={serviceWorker} />
+          <SaveDataFlag />
         </I18nProvider>
       </body>
     </html>
