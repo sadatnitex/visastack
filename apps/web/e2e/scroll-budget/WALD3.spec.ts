@@ -19,12 +19,8 @@ async function open(
   width: number,
   longTitle = false,
 ): Promise<void> {
-  await renderFixture(
-    page,
-    'WALD3',
-    { managed, depth, longTitle },
-    { standInServerActions: true },
-  );
+  await renderFixture(page, 'WALD3', { managed, depth, longTitle }, { standInServerActions: true });
+  await page.locator('.lift-status').waitFor();
   await page.setViewportSize({ width, height: 900 });
   await page.evaluate(
     () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
@@ -56,22 +52,32 @@ async function spills(page: Page): Promise<string[]> {
 }
 
 test.describe('WALD3 journey line at Glance', () => {
+  const now = '.lift-status .lift-steps-now:visible';
   for (const managed of KINDS) {
     test(`${managed}-managed case names its stage at Glance`, async ({ page }) => {
       await open(page, managed, 'glance', 390);
-      await expect(page.locator('.lift-status .lift-steps-now')).toBeVisible();
-      await expect(page.locator('.lift-status .lift-steps-now')).toHaveText('Now: In Review');
-      await expect(page.locator('.lift-status .lift-strip-part-current')).toBeVisible();
+      await expect(page.locator(now)).toHaveCount(1);
+      await expect(page.locator(now)).toHaveText('Now: In Review');
+      await expect(page.locator('.lift-status .lift-strip-part-current:visible')).toHaveCount(1);
       // Glance keeps the compact line only: the picture track with every stage is Browse and up.
       await expect(page.locator('.lift-status .journey-track')).toBeHidden();
     });
 
     for (const depth of ['browse', 'everything'] as const) {
-      test(`${managed}-managed case shows the full track at ${depth}`, async ({ page }) => {
+      // A traveller-managed case keeps its full track at Everything (an existing rule), so at
+      // Browse it shows the compact line; an agency-managed case shows the full track from Browse.
+      const full = managed === 'agency' || depth === 'everything';
+      test(`${managed}-managed case at ${depth}: ${full ? 'full track' : 'compact line'}`, async ({
+        page,
+      }) => {
         await open(page, managed, depth, 1024);
-        await expect(page.locator('.lift-status .journey-track')).toBeVisible();
-        await expect(page.locator('.lift-status .journey-stage')).toHaveCount(7);
-        await expect(page.locator('.lift-status .lift-steps-now')).toBeVisible();
+        await expect(page.locator(now)).toHaveCount(1);
+        if (full) {
+          await expect(page.locator('.lift-status .journey-track')).toBeVisible();
+          await expect(page.locator('.lift-status .journey-stage')).toHaveCount(7);
+        } else {
+          await expect(page.locator('.lift-status .journey-track')).toBeHidden();
+        }
       });
     }
   }
@@ -98,6 +104,19 @@ test.describe('WALD3 nothing spills', () => {
   }
 });
 
+test.describe('WALD3 stage list opened', () => {
+  for (const managed of KINDS) {
+    for (const width of [320, 768, 1024, 1280] as const) {
+      test(`${managed} About Stages open at ${width}`, async ({ page }) => {
+        await open(page, managed, 'everything', width, true);
+        await page.locator('.lift-status-stages .lift-help > summary').click();
+        await expect(page.locator('.lift-status-stages .lift-step').first()).toBeVisible();
+        expect(await spills(page)).toEqual([]);
+      });
+    }
+  }
+});
+
 test.describe('WALD3 touch targets and wording', () => {
   test('buttons and links in the panel are at least 44px tall at a phone width', async ({
     page,
@@ -106,7 +125,10 @@ test.describe('WALD3 touch targets and wording', () => {
     const small = await page.evaluate(() =>
       [...document.querySelectorAll('.lift-status a.btn, .lift-status summary')]
         .filter((el) => getComputedStyle(el).display !== 'none')
-        .map((el) => ({ t: (el.textContent ?? '').trim().slice(0, 30), h: el.getBoundingClientRect().height }))
+        .map((el) => ({
+          t: (el.textContent ?? '').trim().slice(0, 30),
+          h: el.getBoundingClientRect().height,
+        }))
         .filter((x) => x.h > 0 && x.h < 43.5),
     );
     expect(small).toEqual([]);

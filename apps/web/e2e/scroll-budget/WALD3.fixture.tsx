@@ -1,8 +1,16 @@
+import { createTranslator } from '@visastack/i18n';
 import type { Readiness } from '@visastack/services';
+import {
+  type ReactElement,
+  type ReactNode,
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useState,
+} from 'react';
 import type { CaseAttentionItem } from '../../src/app/app/mission/[id]/case-model';
 import { CaseStatusPanel } from '../../src/app/app/mission/[id]/case-status-panel';
 import { DepthScope } from '../../src/components/depth';
-import { createTranslator } from '@visastack/i18n';
 import { CASE_STATE_LABELS } from '../../src/lib/case-stages';
 
 /**
@@ -42,18 +50,63 @@ const readiness: Readiness = {
   ready: false,
   overallState: 'NEEDS_ACTION',
   requirementResults: [
-    { packRequirementId: 'a', kind: 'DOCUMENT', key: 'passport', optional: false, state: 'SATISFIED' },
-    { packRequirementId: 'b', kind: 'DOCUMENT', key: 'photo', optional: false, state: 'CRITICAL_GAP' },
-    { packRequirementId: 'c', kind: 'DOCUMENT', key: 'bank_statement', optional: false, state: 'UNVERIFIED' },
+    {
+      packRequirementId: 'a',
+      kind: 'DOCUMENT',
+      key: 'passport',
+      optional: false,
+      state: 'SATISFIED',
+    },
+    {
+      packRequirementId: 'b',
+      kind: 'DOCUMENT',
+      key: 'photo',
+      optional: false,
+      state: 'CRITICAL_GAP',
+    },
+    {
+      packRequirementId: 'c',
+      kind: 'DOCUMENT',
+      key: 'bank_statement',
+      optional: false,
+      state: 'UNVERIFIED',
+    },
   ],
 };
 
-export default function Wald3Fixture({
-  managed,
-  depth,
-  longTitle = false,
-  state = 'IN_REVIEW',
-}: Wald3FixtureProps) {
+/**
+ * A browser root cannot wait for a server component, and the real panel holds two (the stage
+ * tracker and the progress summary). This walks the tree once before it is mounted: a function
+ * component that is async, or that holds no hooks, is called and replaced by what it returns; a
+ * client component (its hooks throw outside a render) stays as it is. The panel itself is the
+ * real one, not a copy.
+ */
+async function expand(node: ReactNode): Promise<ReactNode> {
+  if (Array.isArray(node)) return Promise.all(node.map(expand));
+  if (!isValidElement(node)) return node;
+  const el = node as ReactElement<{ children?: ReactNode }>;
+  if (typeof el.type === 'function') {
+    try {
+      const out = await (el.type as (props: unknown) => ReactNode | Promise<ReactNode>)(el.props);
+      return expand(out);
+    } catch {
+      // A client component: keep it and expand what it wraps.
+    }
+  }
+  const children = el.props.children;
+  if (children === undefined) return el;
+  return cloneElement(el, undefined, await expand(children));
+}
+
+export default function Wald3Fixture(props: Wald3FixtureProps) {
+  const [tree, setTree] = useState<ReactNode>(null);
+  useEffect(() => {
+    expand(<Wald3Panel {...props} />).then(setTree);
+  }, [props]);
+  return tree ?? <div data-wald3-loading="" />;
+}
+
+function Wald3Panel({ managed, depth, longTitle = false, state = 'IN_REVIEW' }: Wald3FixtureProps) {
   const t = createTranslator('en');
   return (
     <DepthScope family="case" depth={depth}>

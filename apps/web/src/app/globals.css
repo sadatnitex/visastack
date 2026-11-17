@@ -22577,3 +22577,55 @@ button.wallet-stack-card {
   }
 }
 /* end WP-PIC5 */
+
+/* WP-WALD3 The case status panel at Glance: a compact stage line (the Now line, the position and the strip) so the stage is never missing, and nothing in the panel spills its card. The full stage row keeps its own depth rules. */
+.lift-status-glance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-status-glance > .lift-steps-now,
+.lift-status-glance > .lift-steps-position {
+  margin: 0;
+}
+.lift-status-glance > .lift-steps-now {
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.lift-status-glance > .lift-steps-position {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-status-glance > .lift-steps-strip {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+/* Shown at Glance (and "auto", which means Glance). Deeper levels have the full stage row, and with scripts off every block shows, so the compact line steps aside there too. */
+.depth-scope:is(:has(.depth-nojs), [data-depth="browse"], [data-depth="everything"])
+  .lift-status-glance[data-until="glance"],
+.depth-scope:is(:has(.depth-nojs), [data-depth="everything"])
+  .lift-status-glance[data-until="browse"] {
+  display: none;
+}
+/* Words that cannot break, such as a long case title or a stage label, wrap inside their box. */
+.lift-next-title,
+.lift-next-body,
+.lift-count > dt,
+.lift-step > span,
+.lift-steps-now,
+.lift-steps-position {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lift-status-main > * {
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .lift-status-glance {
+    padding-inline: var(--space-4);
+  }
+}
+/* end WP-WALD3 */
