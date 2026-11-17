@@ -99,7 +99,10 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.redirect(target);
   } catch (error) {
     reportServerError('googleSignInStart', error, { step: 'start' });
-    return back('social', error instanceof Error && error.message === 'timed out' ? 'timeout' : 'failed');
+    return back(
+      'social',
+      error instanceof Error && error.message === 'timed out' ? 'timeout' : 'failed',
+    );
   }
 }
 
