@@ -8381,3 +8381,34 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - The case page's Evidence Progress card shows the segment ring again beside the written count ("n of m required on file"), one segment per required item, counted exactly as the readiness service counts: items that do not apply are skipped and only items that can block are required. The ring is a picture only (screen readers hear the written count once). Its legend sits closed inside How This Is Counted as "What the Ring Shows", so a long checklist adds no height. Measured on a production build: phone first checklist row 1492 of 1500 px.
 - NOT verified: a real phone and screen reader; the legend cannot mark an item that is on file but conflicting or out of date (the service gives no per-item flag, follow-up); Bengali for "What the Ring Shows".
+
+## 17 Nov 2026: WP-PIC dependency check fix (#617)
+
+- The production dependency check failed on a slow-pattern advisory in picomatch (no fixed release exists). Its only production path came through the sign-in library's optional link to our test runner. A small install hook now removes only that optional test link; every runtime part of the sign-in library is unchanged and no advisory is ignored. Nothing visible changes for anyone.
+- NOT verified: nothing open. Vercel installed with the hook on every deployment since (checked through the #618 to #621 deployments).
+
+## 17 Nov 2026: WP-PIC18 Q7 phone and desktop alerts (Web Push, off by default) (#618)
+
+- With WEB_PUSH=true, a signed-in person can turn on alerts on Account. Each in-app notice VisaStack already sends also raises one fixed alert ("Something in VisaStack needs you") with a same-site link, never a name, document or country. Only the four main push services are accepted, at most 5 browsers per account, and a browser is forgotten on Turn Off, sign-out, 7 days unseen, a gone answer from the push service, 3 failures in a row or account deletion. With the switch off the service worker is byte for byte as before.
+- Migration 0136 (web_push_subscriptions) is installed on production (run 44152200208).
+- Owner actions to turn on: make the key pair (docs/operations/web-push.md); in Vercel Production set WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY (Sensitive), WEB_PUSH_SUBJECT and WEB_PUSH=true (the value must be "true"; "on" leaves it off); redeploy.
+- Known limits (follow-up): only four push service families; two tabs pressing Turn On together can leave one extra row (heals on its own); the address hash is unkeyed; the account data export does not list alert devices.
+- NOT verified: real delivery on Chrome, Firefox, Safari and Edge; the iPhone Home Screen app path; the owner's keys; production with the switch on; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC hotfix refund notice test (#619)
+
+- Main went red after #618 because a refund notice test checked the whole notice for digits, and the notice carries an invoice reference built from a random id. The test now masks that reference before checking that no amount or currency appears. Test only; nothing visible changes, and the rule that the refund notice never shows an amount is unchanged (proved by adding an amount and watching the test fail).
+- NOT verified: nothing open; main CI green after the fix.
+
+## 17 Nov 2026: WP-PIC18 Q9 readiness ring on the agency Cases list (#620)
+
+- Each row of the agency Cases list now shows the small readiness ring ("3 of 5 Ready") and "No Documents Missing" or "N Documents Missing", the same picture as the desk. Completeness only, never approval. One batched read for the whole page with the same member check as Access Ends (admin or assigned, live grant); if that read fails the list still shows without pictures. The case page, desk and list now share one readiness calculation. No migration.
+- NOT verified: rendering at 400 px and at 641 to 800 px; how long titles wrap beside the action on phones; tests for a grant starting in the future and a removed applicant (follow-up); Bengali for "Ready", " of " and the Documents Missing words.
+
+## 17 Nov 2026: WP-PIC Q8 passkeys and sign-in links (off by default, ADR 0028) (#621)
+
+- With PASSKEYS=on, people who signed in with Google can save a passkey and use it to confirm sensitive steps for the sign-in they already hold; a passkey never signs anyone in and a confirmation never carries to a new sign-in. With SIGN_IN_LINKS=on, people can sign in with a link by email (Neon Auth magic link), guarded so only the browser that asked can finish. Staff accounts are never offered either.
+- Migration 0137 (passkey_credentials) is installed on production (run 44172736097).
+- Owner actions to turn on: PASSKEYS=on in Vercel Production; turn on the Neon magic link setting only together with SIGN_IN_LINKS=on, never one without the other; optional Neon magic link disable_sign_up=true; send the "Request to Neon" in ADR 0028; redeploy.
+- Follow-up: renamePasskey still takes a bare account id (safe today, convert to the session's own scope).
+- NOT verified: a real passkey on a real device or browser (tests use a software authenticator); a live magic link email end to end; production with either switch on; Bengali for the new words.
