@@ -23,10 +23,13 @@ export type WaitingKind = 'waiting' | 'sending' | 'trouble';
 
 /** A file that has not reached the server, as a state; null for every file that is settled. */
 export function waitingKindOf(
-  item: Pick<ImportItem, 'state'> & { readonly preparing?: boolean },
+  item: Pick<ImportItem, 'state'> & {
+    readonly preparing?: boolean;
+    readonly waitingToRetry?: boolean;
+  },
 ): WaitingKind | null {
-  // A photo still being made smaller has not been sent yet.
-  if (item.state === 'uploading' && item.preparing) return 'waiting';
+  // A photo still being made smaller, or a file waiting out a busy answer, is not being sent.
+  if (item.state === 'uploading' && (item.preparing || item.waitingToRetry)) return 'waiting';
   switch (item.state) {
     case 'queued':
     case 'paused':
@@ -66,25 +69,34 @@ function wordFor(item: Pick<ImportItem, 'state'>, kind: WaitingKind): string {
   return WORD[kind];
 }
 
+type Waitable = Pick<ImportItem, 'state'> & {
+  readonly preparing?: boolean;
+  readonly waitingToRetry?: boolean;
+};
+
 /**
  * The polite read-out: only what needs the person (files that could not be sent or are not
- * confirmed, files paused, and offline). Waiting and Sending change with every file the queue
- * finishes, and the import page already reads out its own progress, so they are not repeated.
+ * confirmed, files paused) and offline. While any file is still waiting or sending the import
+ * page reads out its own throttled progress, so problems are held until it settles; only a change
+ * of connection is said at once. Offline is said only when the list is on the page.
  */
-export function waitingSummary(
-  items: readonly (Pick<ImportItem, 'state'> & { readonly preparing?: boolean })[],
-  offline: boolean,
-): string {
+export function waitingSummary(items: readonly Waitable[], offline: boolean): string {
   const counts: Record<string, number> = {};
+  let running = false;
+  let listed = false;
   for (const item of items) {
     const kind = waitingKindOf(item);
     if (!kind) continue;
+    listed = true;
     const word = wordFor(item, kind);
-    if (word === WORD.waiting || word === WORD.sending) continue;
+    if (word === WORD.waiting || word === WORD.sending) {
+      running = true;
+      continue;
+    }
     counts[word] = (counts[word] ?? 0) + 1;
   }
-  const parts = Object.entries(counts).map(([word, n]) => `${n} ${word}`);
-  const lines = [parts.join(', '), offline ? 'Offline' : ''].filter(Boolean);
+  const parts = running ? [] : Object.entries(counts).map(([word, n]) => `${n} ${word}`);
+  const lines = [parts.join(', '), offline && listed ? 'Offline' : ''].filter(Boolean);
   return lines.length > 0 ? `${lines.join('. ')}.` : '';
 }
 

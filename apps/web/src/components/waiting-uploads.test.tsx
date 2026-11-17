@@ -195,6 +195,8 @@ describe('WaitingUploads', () => {
     act(() => s.set([item(1, 'uploading', { progress: 10 }), item(2, 'queued')]));
     expect(out.textContent).toBe('');
     act(() => s.set([item(1, 'refused'), item(2, 'uploading')]));
+    expect(out.textContent).toBe('');
+    act(() => s.set([item(1, 'refused'), item(2, 'added')]));
     expect(out.textContent).toBe('1 Could Not Send.');
     act(() => s.set([item(1, 'added'), item(2, 'added')]));
     expect(out.textContent).toBe('');
@@ -220,12 +222,39 @@ describe('WaitingUploads', () => {
 });
 
 describe('waitingSummary', () => {
-  it('counts only problems and adds Offline', () => {
-    expect(
-      waitingSummary([{ state: 'queued' }, { state: 'held' }, { state: 'refused' }], true),
-    ).toBe('1 Paused, 1 Could Not Send. Offline.');
+  it('counts only problems once nothing is waiting, and adds Offline', () => {
+    expect(waitingSummary([{ state: 'held' }, { state: 'refused' }], true)).toBe(
+      '1 Paused, 1 Could Not Send. Offline.',
+    );
     expect(waitingSummary([{ state: 'queued' }, { state: 'uploading' }], false)).toBe('');
-    expect(waitingSummary([{ state: 'queued' }], true)).toBe('Offline.');
+  });
+
+  it('holds problems while any file still waits or sends, but still says Offline', () => {
+    expect(waitingSummary([{ state: 'queued' }, { state: 'refused' }], false)).toBe('');
+    expect(waitingSummary([{ state: 'uploading' }, { state: 'refused' }], true)).toBe('Offline.');
+  });
+
+  it('says nothing, not even Offline, with no file in the list', () => {
+    expect(waitingSummary([], true)).toBe('');
+    expect(waitingSummary([{ state: 'added' }], true)).toBe('');
+  });
+});
+
+describe('a file waiting out a busy answer', () => {
+  it('is Waiting, not Sending, while nothing is being sent', () => {
+    expect(waitingKindOf({ state: 'uploading', waitingToRetry: true })).toBe('waiting');
+    expect(waitingKindOf({ state: 'uploading', waitingToRetry: false })).toBe('sending');
+    const s = store([item(1, 'uploading', { waitingToRetry: true })]);
+    render(<WaitingUploads source={s} onRetry={vi.fn()} />);
+    expect(screen.getByText('Waiting')).toBeTruthy();
+    expect(screen.queryByText('Sending')).toBeNull();
+  });
+
+  it('does not announce Offline from an empty page', () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    const s = store([item(1, 'added')]);
+    render(<WaitingUploads source={s} onRetry={vi.fn()} />);
+    expect(screen.getByTestId('waiting-announce').textContent).toBe('');
   });
 });
 
