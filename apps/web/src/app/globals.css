@@ -21732,3 +21732,40 @@ body:lang(bn),
   }
 }
 /* end WP-PIC1 */
+
+/* WP-PIC6 Country Card (17 Nov 2026, picture-first upgrade, unit U6): the flag, the name, the entry type as a picture beside its plain word, and where the fact came from, above the country summary. Flat: no shadow, gradient, blur or translucency; tokens only; every control keeps a 44 px target. */
+.country-card {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-elevated);
+}
+.country-card-head,
+.country-card-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+.country-card-name {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.country-card-word {
+  font-size: var(--text-lead);
+}
+.country-card-stay {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.country-card[data-entry="NOT_FOUND"] {
+  border-style: dashed;
+}
+.source-note-missing {
+  font-weight: 600;
+}
+/* end WP-PIC6 */
