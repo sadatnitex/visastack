@@ -5,6 +5,19 @@ import {
   PUBLIC_STATIC_PREFIXES,
   STATIC_PREFIXES,
 } from './constants';
+import {
+  INCOMING_PATH,
+  SHARE_ACCEPT,
+  SHARE_CLEAR_PATH,
+  SHARE_FILES_FIELD,
+  SHARE_FILE_PREFIX,
+  SHARE_INBOX_CACHE,
+  SHARE_LIST_PATH,
+  SHARE_MAX_AGE_MS,
+  SHARE_MAX_FILES,
+  SHARE_MAX_FILE_BYTES,
+  SHARE_TARGET_PATH,
+} from './share-target';
 
 export { CACHE_PREFIX, PUBLIC_STATIC_PATHS, PUBLIC_STATIC_PREFIXES, STATIC_PREFIXES };
 
@@ -109,6 +122,17 @@ export function buildServiceWorkerScript(version: string): string {
     PRECACHE_PATHS,
     OFFLINE_HTML,
     OFFLINE_CSP,
+    SHARE_TARGET_PATH,
+    SHARE_FILE_PREFIX,
+    SHARE_LIST_PATH,
+    SHARE_CLEAR_PATH,
+    SHARE_FILES_FIELD,
+    SHARE_INBOX_CACHE,
+    SHARE_ACCEPT,
+    SHARE_MAX_FILES,
+    SHARE_MAX_FILE_BYTES,
+    SHARE_MAX_AGE_MS,
+    INCOMING_PATH,
   };
   const declarations = Object.entries(constants)
     .map(([name, value]) => `const ${name} = ${JSON.stringify(value)};`)
@@ -195,6 +219,142 @@ async function fromNetwork(event) {
   }
 }
 
+/*
+ * Files shared from another app (WP-PIC11). The phone posts them to SHARE_TARGET_PATH; this worker
+ * answers that post itself, so the files stay on the device. They wait in SHARE_INBOX_CACHE (never
+ * a page, never a VisaStack record) until the signed-in person adds them or cancels, at most
+ * SHARE_MAX_AGE_MS. The inbox belongs to the first account that opens it on INCOMING_PATH: a
+ * different account asking empties it, and a page with no account key can read nothing.
+ */
+const SHARE_META = self.location.origin + SHARE_TARGET_PATH + '/meta';
+
+function shareKind(request) {
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return null;
+  if (request.method === 'POST' && url.pathname === SHARE_TARGET_PATH) return 'receive';
+  if (request.method === 'POST' && url.pathname === SHARE_CLEAR_PATH) return 'clear';
+  if (request.method !== 'GET' || request.mode === 'navigate') return null;
+  if (url.pathname === SHARE_LIST_PATH) return 'list';
+  if (url.pathname.startsWith(SHARE_FILE_PREFIX)) return 'file';
+  return null;
+}
+
+async function hasInbox() {
+  return (await caches.keys()).includes(SHARE_INBOX_CACHE);
+}
+
+async function clearInbox() {
+  if (await hasInbox()) await caches.delete(SHARE_INBOX_CACHE);
+}
+
+// The inbox's record, or null when nothing is waiting. An expired or unreadable inbox is emptied.
+async function readInbox() {
+  if (!(await hasInbox())) return null;
+  const cache = await caches.open(SHARE_INBOX_CACHE);
+  const stored = await cache.match(SHARE_META);
+  let meta = null;
+  try {
+    meta = stored ? await stored.json() : null;
+  } catch {
+    meta = null;
+  }
+  if (!meta || typeof meta.at !== 'number' || Date.now() - meta.at > SHARE_MAX_AGE_MS || Date.now() < meta.at) {
+    await clearInbox();
+    return null;
+  }
+  return { cache, meta };
+}
+
+function noStore(body, status, type) {
+  return new Response(body, {
+    status,
+    headers: {
+      'Content-Type': type,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+function notFound() {
+  return noStore('Not found', 404, 'text/plain; charset=utf-8');
+}
+
+// A share comes from the phone itself (no Origin) or from a VisaStack page. A post from another
+// site, or from a page hiding where it came from ("null"), is turned away with nothing kept.
+function fromThisDeviceOrSite(request) {
+  const origin = request.headers.get('origin');
+  return origin === null || origin === self.location.origin;
+}
+
+async function receiveShare(event) {
+  const accepted = fromThisDeviceOrSite(event.request);
+  let kept = 0;
+  if (accepted) {
+    try {
+      const form = await event.request.formData();
+      const shared = form.getAll(SHARE_FILES_FIELD).filter((value) => value && typeof value === 'object');
+      // A new share replaces anything still waiting from an earlier one.
+      await clearInbox();
+      const cache = await caches.open(SHARE_INBOX_CACHE);
+      const files = [];
+      for (const file of shared) {
+        const type = String(file.type || '').toLowerCase();
+        if (files.length >= SHARE_MAX_FILES) continue;
+        if (!SHARE_ACCEPT.includes(type) || !(file.size > 0) || file.size > SHARE_MAX_FILE_BYTES) continue;
+        const n = files.length;
+        await cache.put(self.location.origin + SHARE_FILE_PREFIX + n, noStore(file, 200, type));
+        files.push({ n, name: String(file.name || 'Shared file').slice(0, 200), type, size: file.size });
+      }
+      kept = files.length;
+      const meta = { at: Date.now(), owner: null, files, dropped: shared.length - files.length };
+      await cache.put(SHARE_META, noStore(JSON.stringify(meta), 200, 'application/json'));
+      if (kept === 0) await clearInbox();
+    } catch {
+      await clearInbox();
+      kept = 0;
+    }
+  }
+  const target = self.location.origin + INCOMING_PATH + (kept > 0 ? '' : '?missed=1');
+  return Response.redirect(target, 303);
+}
+
+// Only INCOMING_PATH, open in this browser, may read the inbox.
+async function fromIncomingPage(event) {
+  if (!event.clientId || !self.clients.get) return false;
+  const client = await self.clients.get(event.clientId);
+  return !!client && new URL(client.url).pathname === INCOMING_PATH;
+}
+
+async function answerShare(event, kind) {
+  if (kind === 'receive') return receiveShare(event);
+  if (kind === 'clear') {
+    await clearInbox();
+    return noStore('{}', 200, 'application/json');
+  }
+  const key = new URL(event.request.url).searchParams.get('k') || '';
+  if (!key || !(await fromIncomingPage(event))) return notFound();
+  const inbox = await readInbox();
+  if (!inbox) return kind === 'list' ? noStore(JSON.stringify({ files: [], dropped: 0, at: 0 }), 200, 'application/json') : notFound();
+  const { cache, meta } = inbox;
+  if (kind === 'list') {
+    if (meta.owner === null) {
+      meta.owner = key;
+      await cache.put(SHARE_META, noStore(JSON.stringify(meta), 200, 'application/json'));
+    } else if (meta.owner !== key) {
+      // Another account on this device: the waiting files were not shared by it, so they go.
+      await clearInbox();
+      return noStore(JSON.stringify({ files: [], dropped: 0, at: 0 }), 200, 'application/json');
+    }
+    return noStore(JSON.stringify({ files: meta.files, dropped: meta.dropped, at: meta.at }), 200, 'application/json');
+  }
+  if (meta.owner !== key) return notFound();
+  const n = new URL(event.request.url).pathname.slice(SHARE_FILE_PREFIX.length);
+  if (!/^[0-9]{1,2}$/.test(n)) return notFound();
+  const stored = await cache.match(self.location.origin + SHARE_FILE_PREFIX + n);
+  return stored || notFound();
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) =>
@@ -212,6 +372,8 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name.startsWith(CACHE_PREFIX) && name !== STATIC_CACHE)
           .map((name) => caches.delete(name)),
       );
+      // Reading the inbox empties it when its time is up.
+      await readInbox();
       if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
       await self.clients.claim();
     })(),
@@ -224,6 +386,11 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const share = shareKind(event.request);
+  if (share) {
+    event.respondWith(answerShare(event, share));
+    return;
+  }
   const kind = classify(event.request);
   if (kind === 'static') event.respondWith(fromStaticCache(event));
   else if (kind === 'navigate') event.respondWith(fromNetwork(event));
@@ -240,12 +407,15 @@ export function buildRetirementScript(): string {
   return `/* VisaStack service worker retirement: remove stored files and unregister. */
 'use strict';
 const CACHE_PREFIX = ${JSON.stringify(CACHE_PREFIX)};
+const SHARE_INBOX_CACHE = ${JSON.stringify(SHARE_INBOX_CACHE)};
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const names = await caches.keys();
       await Promise.all(names.filter((name) => name.startsWith(CACHE_PREFIX)).map((name) => caches.delete(name)));
+      // Files shared from another app and still waiting go too.
+      if (names.includes(SHARE_INBOX_CACHE)) await caches.delete(SHARE_INBOX_CACHE);
       await self.registration.unregister();
     })(),
   );
