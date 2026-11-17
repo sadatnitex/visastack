@@ -56,13 +56,7 @@ export function ReadAloudButton({ sourceId }: { readonly sourceId: string }) {
   return (
     <span className="read-aloud-slot">
       {supported ? (
-        <button
-          type="button"
-          className="read-aloud-button"
-          aria-label={label}
-          title={label}
-          onClick={press}
-        >
+        <button type="button" className="read-aloud-button" aria-label={label} onClick={press}>
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
             {speaking ? (
               <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
