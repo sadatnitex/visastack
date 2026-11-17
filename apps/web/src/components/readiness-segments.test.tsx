@@ -98,7 +98,7 @@ describe('ReadinessSegmentRing', () => {
 
   it('has no accessibility violations', async () => {
     const host = render(<ReadinessSegmentRing done={2} total={4} items={items} />);
-    expect(await axeViolations(host)).toEqual([]);
+    expect(await axeViolations(host.innerHTML)).toEqual([]);
   });
 });
 
@@ -177,7 +177,7 @@ describe('NextStepPanel before and after ring (opt-in)', () => {
       />,
     );
     expect(host.querySelector('.lift-next-ink .lift-next-hero')).not.toBeNull();
-    expect(await axeViolations(host)).toEqual([]);
+    expect(await axeViolations(host.innerHTML)).toEqual([]);
   });
 });
 
