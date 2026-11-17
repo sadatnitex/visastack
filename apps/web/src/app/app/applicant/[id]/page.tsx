@@ -22,6 +22,7 @@ import { DepthSwitch } from '../../../../components/depth-switch';
 import { NO_CHECKLIST_LINE } from '../../../../components/progress-ring';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
 import { AboutDisclosure, ActionRow, ProgressMeter } from '../../../../components/ui-lift';
+import { BeforeAfterHero } from '../../../../components/ui-lift/next-step-panel';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { openCasesNewestFirst } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
@@ -253,6 +254,16 @@ export default async function ApplicantOverviewPage({
                     title: 'Add Your Essentials',
                     why: `${essentials.answered} of ${essentials.total} essentials added: the details most visa forms ask for first. This is completeness, not verification.`,
                     action: 'Open Profile',
+                    // WP-PIC13: the ring now and after this step, from the counts above. This step
+                    // adds every essential, so after it all of them are in.
+                    beforeAfter: (
+                      <BeforeAfterHero
+                        done={essentials.answered}
+                        total={essentials.total}
+                        afterDone={essentials.total}
+                        countLabel="Essentials Added"
+                      />
+                    ),
                   }
                 : completeness < 100
                   ? {
