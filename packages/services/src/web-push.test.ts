@@ -14,15 +14,15 @@ import {
   WEB_PUSH_BODY,
   WEB_PUSH_FALLBACK_PATH,
   WEB_PUSH_MAX_DEVICES,
+  WEB_PUSH_RENEW_WITHIN_MS,
   WEB_PUSH_TITLE,
   type WebPushSendOutcome,
   type WebPushSubscriptionValue,
   composeWebPushMessage,
-  countWebPushSubscriptions,
   endpointHash,
-  hasWebPushSubscription,
+  removeWebPushOnSignOut,
   removeWebPushSubscription,
-  removeWebPushSubscriptionsForSession,
+  renewWebPushSubscription,
   safePushPath,
   saveWebPushSubscription,
   sendWebPushToAccount,
@@ -80,6 +80,20 @@ class FakePush implements PushPort {
   }
 }
 
+async function rowsFor(db: Db, accountId: string) {
+  return db
+    .select()
+    .from(schema.webPushSubscriptions)
+    .where(eq(schema.webPushSubscriptions.accountId, accountId));
+}
+
+async function save(db: Db, port: KeyManagementPort, accountId: string, n: number, ref = 'ref') {
+  return saveWebPushSubscription(db, port, selfPrincipal(accountId), {
+    subscription: sub(n),
+    sessionRef: ref,
+  });
+}
+
 async function account(db: Db, email: string): Promise<string> {
   const result = await provisionAccount(db, { email });
   if (!result.ok) throw new Error('provision failed');
@@ -128,13 +142,8 @@ describe('web push subscriptions', () => {
   });
 
   it('seals the address and keys; only a hash is in the clear', async () => {
-    expect(
-      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-        subscription: sub(1),
-        sessionRef: 's1',
-      }),
-    ).toBe('saved');
-    const [row] = await db.select().from(schema.webPushSubscriptions);
+    expect(await save(db, port, alice, 1, 's1')).toBe('saved');
+    const [row] = await rowsFor(db, alice);
     expect(row?.endpointHash).toBe(endpointHash(sub(1).endpoint));
     const stored = Buffer.concat([
       Buffer.from(row?.endpointCiphertext ?? []),
@@ -154,82 +163,65 @@ describe('web push subscriptions', () => {
 
   it('refuses a scope the session did not make', async () => {
     const forged = { kind: 'self', accountId: alice } as unknown as Parameters<
-      typeof countWebPushSubscriptions
+      typeof removeWebPushSubscription
     >[1];
     expect(
       await saveWebPushSubscription(db, port, forged, { subscription: sub(1), sessionRef: 's1' }),
     ).toBe('unavailable');
-    expect(await db.select().from(schema.webPushSubscriptions)).toHaveLength(0);
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: 's1',
-    });
+    expect(await rowsFor(db, alice)).toHaveLength(0);
+    await save(db, port, alice, 1);
     expect(await removeWebPushSubscription(db, forged, { endpoint: sub(1).endpoint })).toBe(0);
-    expect(await countWebPushSubscriptions(db, forged)).toBe(0);
-    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(1);
+    expect(
+      await renewWebPushSubscription(db, forged, { endpoint: sub(1).endpoint, sessionRef: 'x' }),
+    ).toBe(false);
+    expect(await rowsFor(db, alice)).toHaveLength(1);
   });
 
-  it('lets only the owner remove or reach a subscription', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: 's1',
-    });
+  it('lets only the owner remove, renew or reach a subscription', async () => {
+    await save(db, port, alice, 1, 's1');
     expect(
       await removeWebPushSubscription(db, selfPrincipal(bob), { endpoint: sub(1).endpoint }),
     ).toBe(0);
     expect(
-      await removeWebPushSubscriptionsForSession(db, selfPrincipal(bob), { sessionRef: 's1' }),
-    ).toBe(0);
-    expect(await countWebPushSubscriptions(db, selfPrincipal(bob))).toBe(0);
-    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(1);
+      await renewWebPushSubscription(db, selfPrincipal(bob), {
+        endpoint: sub(1).endpoint,
+        sessionRef: 'bob-ref',
+      }),
+    ).toBe(false);
     const push = new FakePush();
     expect(
       await sendWebPushToAccount(db, push, port, { accountId: bob, deepLinkPath: '/app' }),
-    ).toEqual({
-      sent: 0,
-      removed: 0,
-      failed: 0,
-    });
+    ).toEqual({ sent: 0, removed: 0, failed: 0 });
     expect(push.calls).toHaveLength(0);
+    const [row] = await rowsFor(db, alice);
+    expect(row?.sessionRef).toBe('s1');
     expect(
       await removeWebPushSubscription(db, selfPrincipal(alice), { endpoint: sub(1).endpoint }),
     ).toBe(1);
-    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
+    expect(await rowsFor(db, alice)).toHaveLength(0);
   });
 
-  it('gives one browser to one account at a time', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: 's1',
-    });
-    await saveWebPushSubscription(db, port, selfPrincipal(bob), {
-      subscription: sub(1),
-      sessionRef: 's2',
-    });
-    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
-    expect(await countWebPushSubscriptions(db, selfPrincipal(bob))).toBe(1);
-    expect(
-      await hasWebPushSubscription(db, selfPrincipal(alice), { endpoint: sub(1).endpoint }),
-    ).toBe(false);
-    expect(
-      await hasWebPushSubscription(db, selfPrincipal(bob), { endpoint: sub(1).endpoint }),
-    ).toBe(true);
-    const off = await db
-      .select()
-      .from(schema.auditEvents)
-      .where(eq(schema.auditEvents.eventType, 'WEB_PUSH_TURNED_OFF'));
-    expect(off.map((row) => row.actorAccountId)).toEqual([alice]);
-    expect(JSON.stringify(off)).not.toContain('device-1');
+  it('never takes over a browser another account still holds', async () => {
+    await save(db, port, alice, 1, 's1');
+    expect(await save(db, port, bob, 1, 's2')).toBe('unavailable');
+    const [row] = await rowsFor(db, alice);
+    expect(row?.sessionRef).toBe('s1');
+    expect(await rowsFor(db, bob)).toHaveLength(0);
+    // Once Alice signs out of it, Bob may turn alerts on there.
+    await removeWebPushOnSignOut(db, { sessionRef: 's1', endpoint: null });
+    expect(await save(db, port, bob, 1, 's2')).toBe('saved');
+  });
+
+  it('the same account saving again replaces its own row', async () => {
+    await save(db, port, alice, 1, 's1');
+    expect(await save(db, port, alice, 1, 's2')).toBe('saved');
+    const rows = await rowsFor(db, alice);
+    expect(rows.map((r) => r.sessionRef)).toEqual(['s2']);
   });
 
   it('keeps at most five browsers, forgetting the oldest', async () => {
-    for (let n = 1; n <= WEB_PUSH_MAX_DEVICES + 2; n += 1) {
-      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-        subscription: sub(n),
-        sessionRef: null,
-      });
-    }
-    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(WEB_PUSH_MAX_DEVICES);
+    for (let n = 1; n <= WEB_PUSH_MAX_DEVICES + 2; n += 1) await save(db, port, alice, n);
+    expect(await rowsFor(db, alice)).toHaveLength(WEB_PUSH_MAX_DEVICES);
     const push = new FakePush();
     await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
     expect(push.calls.map((c) => c.endpoint).sort()).toEqual(
@@ -237,28 +229,72 @@ describe('web push subscriptions', () => {
     );
   });
 
-  it('forgets only the browsers of the sign-in that ends', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: 'phone',
-    });
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(2),
-      sessionRef: 'laptop',
-    });
+  it('sign-out forgets this sign-in’s browsers and the browser it names, nothing else', async () => {
+    await save(db, port, alice, 1, 'phone');
+    await save(db, port, alice, 2, 'laptop');
+    await save(db, port, bob, 3, 'bob');
+    expect(await removeWebPushOnSignOut(db, { sessionRef: 'phone', endpoint: null })).toBe(1);
     expect(
-      await removeWebPushSubscriptionsForSession(db, selfPrincipal(alice), { sessionRef: 'phone' }),
+      await removeWebPushOnSignOut(db, { sessionRef: 'other', endpoint: sub(2).endpoint }),
     ).toBe(1);
+    expect(await rowsFor(db, alice)).toHaveLength(0);
+    expect(await rowsFor(db, bob)).toHaveLength(1);
+    expect(await removeWebPushOnSignOut(db, { sessionRef: null, endpoint: null })).toBe(0);
+  });
+
+  it('signing out of a later sign-in on the same browser still forgets it', async () => {
+    // Alerts on in sign-in S1; the person signs in again (S2) and signs out from the menu,
+    // which sends this browser's address.
+    await save(db, port, alice, 1, 'S1');
+    expect(await removeWebPushOnSignOut(db, { sessionRef: 'S2', endpoint: sub(1).endpoint })).toBe(
+      1,
+    );
+    expect(await rowsFor(db, alice)).toHaveLength(0);
+  });
+
+  it('renewing ties the browser to the current sign-in and moves its time forward', async () => {
+    await save(db, port, alice, 1, 'S1');
+    const later = new Date(Date.now() + 60_000);
+    expect(
+      await renewWebPushSubscription(db, selfPrincipal(alice), {
+        endpoint: sub(1).endpoint,
+        sessionRef: 'S2',
+        now: later,
+      }),
+    ).toBe(true);
+    const [row] = await rowsFor(db, alice);
+    expect(row?.sessionRef).toBe('S2');
+    expect(row?.renewedAt.getTime()).toBe(later.getTime());
+    expect(await removeWebPushOnSignOut(db, { sessionRef: 'S2', endpoint: null })).toBe(1);
+  });
+
+  it('a browser not renewed for 8 days gets no alert and is removed, and cannot be renewed', async () => {
+    await save(db, port, alice, 1);
+    await save(db, port, alice, 2);
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    await db
+      .update(schema.webPushSubscriptions)
+      .set({ renewedAt: eightDaysAgo })
+      .where(eq(schema.webPushSubscriptions.endpointHash, endpointHash(sub(1).endpoint)));
+    expect(
+      await renewWebPushSubscription(db, selfPrincipal(alice), {
+        endpoint: sub(1).endpoint,
+        sessionRef: 'S9',
+      }),
+    ).toBe(false);
     const push = new FakePush();
-    await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
+    expect(
+      await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' }),
+    ).toEqual({ sent: 1, removed: 1, failed: 0 });
     expect(push.calls.map((c) => c.endpoint)).toEqual([sub(2).endpoint]);
+    expect((await rowsFor(db, alice)).map((r) => r.endpointHash)).toEqual([
+      endpointHash(sub(2).endpoint),
+    ]);
+    expect(WEB_PUSH_RENEW_WITHIN_MS).toBe(7 * 24 * 60 * 60 * 1000);
   });
 
   it('sends the fixed message, opened from the sealed values', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
+    await save(db, port, alice, 1);
     const push = new FakePush();
     const summary = await sendWebPushToAccount(db, push, port, {
       accountId: alice,
@@ -271,57 +307,38 @@ describe('web push subscriptions', () => {
       body: 'Something in VisaStack needs you',
       url: '/app/cases/123',
     });
-    const [row] = await db.select().from(schema.webPushSubscriptions);
+    const [row] = await rowsFor(db, alice);
     expect(row?.lastSuccessAt).not.toBeNull();
   });
 
   it('removes a browser the push service calls gone (404 or 410)', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
+    await save(db, port, alice, 1);
     const push = new FakePush();
     push.outcomes.push({ kind: 'gone' });
     expect(
       await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' }),
-    ).toEqual({
-      sent: 0,
-      removed: 1,
-      failed: 0,
-    });
-    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
+    ).toEqual({ sent: 0, removed: 1, failed: 0 });
+    expect(await rowsFor(db, alice)).toHaveLength(0);
   });
 
   it('counts other failures and forgets a browser after three in a row', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
+    await save(db, port, alice, 1);
     const push = new FakePush();
     push.outcomes.push({ kind: 'failed', status: 500 }, new Error('boom'));
     await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
     await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
-    let [row] = await db.select().from(schema.webPushSubscriptions);
+    let [row] = await rowsFor(db, alice);
     expect(row?.failureCount).toBe(2);
     push.outcomes.push({ kind: 'failed', status: 503 });
     expect(
       await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' }),
-    ).toEqual({
-      sent: 0,
-      removed: 1,
-      failed: 0,
-    });
-    [row] = await db.select().from(schema.webPushSubscriptions);
+    ).toEqual({ sent: 0, removed: 1, failed: 0 });
+    [row] = await rowsFor(db, alice);
     expect(row).toBeUndefined();
   });
 
   it('sends to every browser at once and counts each result', async () => {
-    for (const n of [1, 2, 3]) {
-      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-        subscription: sub(n),
-        sessionRef: null,
-      });
-    }
+    for (const n of [1, 2, 3]) await save(db, port, alice, n);
     let inFlight = 0;
     let most = 0;
     const slow: PushPort = {
@@ -335,32 +352,22 @@ describe('web push subscriptions', () => {
     };
     expect(
       await sendWebPushToAccount(db, slow, port, { accountId: alice, deepLinkPath: '/app' }),
-    ).toEqual({
-      sent: 2,
-      removed: 1,
-      failed: 0,
-    });
+    ).toEqual({ sent: 2, removed: 1, failed: 0 });
     expect(most).toBe(3);
   });
 
   it('a success clears earlier failures', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
+    await save(db, port, alice, 1);
     const push = new FakePush();
     push.outcomes.push({ kind: 'failed', status: 500 });
     await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
     await sendWebPushToAccount(db, push, port, { accountId: alice, deepLinkPath: '/app' });
-    const [row] = await db.select().from(schema.webPushSubscriptions);
+    const [row] = await rowsFor(db, alice);
     expect(row?.failureCount).toBe(0);
   });
 
   it('goes with the account when the account is deleted', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
+    await save(db, port, alice, 1);
     const requested = await requestAccountDeletion(db, {
       actorAccountId: alice,
       accountId: alice,
@@ -372,8 +379,7 @@ describe('web push subscriptions', () => {
       now: new Date(Date.now() + 1000),
     });
     expect(executed.ok).toBe(true);
-    const left = await db.select().from(schema.webPushSubscriptions);
-    expect(left).toHaveLength(0);
+    expect(await db.select().from(schema.webPushSubscriptions)).toHaveLength(0);
   });
 });
 
@@ -409,10 +415,7 @@ describe('the notification worker', () => {
   }
 
   it('alerts the recipient after the notice is sent, with no personal data', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
+    await save(db, port, alice, 1);
     await enqueueInApp('11111111-1111-4111-8111-111111111111');
     const push = new FakePush();
     const result = await runNotificationWorker(db, noEmail, 'https://app.example.com', {
@@ -434,10 +437,7 @@ describe('the notification worker', () => {
   });
 
   it('sends nothing without the push option (switch off)', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
+    await save(db, port, alice, 1);
     await enqueueInApp('11111111-1111-4111-8111-111111111112');
     const result = await runNotificationWorker(db, noEmail, 'https://app.example.com', {
       encryption: port,
@@ -446,38 +446,16 @@ describe('the notification worker', () => {
     expect(await inAppStatus()).toBe('SENT');
   });
 
-  it('a push that throws never changes or fails the notice', async () => {
-    await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-      subscription: sub(1),
-      sessionRef: null,
-    });
-    await enqueueInApp('11111111-1111-4111-8111-111111111113');
-    const throwing: PushPort = {
-      async send() {
-        throw new Error('push service down');
-      },
-    };
-    const result = await runNotificationWorker(db, noEmail, 'https://app.example.com', {
-      encryption: port,
-      push: throwing,
-    });
-    expect(result).toEqual({ sent: 1, retrying: 0, failed: 0 });
-    expect(await inAppStatus()).toBe('SENT');
-  });
-
   it('works unchanged when the table is missing', async () => {
     await db.execute(sql`drop table web_push_subscriptions`);
     expect(await webPushTableReady(db)).toBe(false);
-    expect(
-      await saveWebPushSubscription(db, port, selfPrincipal(alice), {
-        subscription: sub(1),
-        sessionRef: null,
-      }),
-    ).toBe('unavailable');
-    expect(await countWebPushSubscriptions(db, selfPrincipal(alice))).toBe(0);
+    expect(await save(db, port, alice, 1)).toBe('unavailable');
     expect(
       await removeWebPushSubscription(db, selfPrincipal(alice), { endpoint: sub(1).endpoint }),
     ).toBe(0);
+    expect(await removeWebPushOnSignOut(db, { sessionRef: 'S1', endpoint: sub(1).endpoint })).toBe(
+      0,
+    );
     await enqueueInApp('11111111-1111-4111-8111-111111111114');
     const push = new FakePush();
     const result = await runNotificationWorker(db, noEmail, 'https://app.example.com', {

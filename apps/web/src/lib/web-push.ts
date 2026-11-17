@@ -62,6 +62,14 @@ export function createPushPort(): PushPort | undefined {
   return new WebPushSender({ identity: vapid });
 }
 
+/**
+ * The switch, the keys and the field-protection key, without touching the database: for places
+ * that only decide whether to load the small renewal helper.
+ */
+export function webPushConfigured(): boolean {
+  return identity() !== null && webPushKeyPort() !== null;
+}
+
 export interface WebPushReady {
   /** The public key the browser subscribes with (safe to send to the browser). */
   readonly publicKey: string;

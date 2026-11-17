@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stub, stubProps } from '../../../lib/next-mocks.test-support';
 
@@ -13,6 +14,8 @@ const state = vi.hoisted(() => ({
   removed: [] as unknown[],
   saveResult: 'saved' as 'saved' | 'unavailable',
   sessionRef: 'session-ref-1' as string | null,
+  table: true,
+  renewed: [] as unknown[],
 }));
 
 vi.mock('../../../lib/web-push', () => ({
@@ -30,7 +33,11 @@ vi.mock('@visastack/services/web-push', () => ({
     state.saved.push({ accountId: self.accountId, ...input });
     return state.saveResult;
   },
-  hasWebPushSubscription: async () => true,
+  renewWebPushSubscription: async (_db: unknown, self: { accountId: string }, input: object) => {
+    state.renewed.push({ accountId: self.accountId, ...input });
+    return true;
+  },
+  webPushTableReady: async () => state.table,
   removeWebPushSubscription: async (_db: unknown, self: { accountId: string }, input: object) => {
     state.removed.push({ accountId: self.accountId, ...input });
     return 1;
@@ -66,7 +73,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 }));
 
 const { default: AccountPage } = await import('./page');
-const { pushStatusAction, turnOnPushAction, turnOffPushAction } = await import('./push-actions');
+const { renewPushAction, turnOnPushAction, turnOffPushAction } = await import('./push-actions');
 
 const GOOD = {
   endpoint: 'https://fcm.googleapis.com/fcm/send/device-1',
@@ -83,13 +90,15 @@ beforeEach(() => {
   state.removed = [];
   state.saveResult = 'saved';
   state.sessionRef = 'session-ref-1';
+  state.table = true;
+  state.renewed = [];
 });
 
 describe('Account page alerts card', () => {
-  it('has no card and no sign-out hook while Web Push is off', async () => {
+  it('has no card while Web Push is off, but the sign-out form still forgets this browser', async () => {
     const html = await renderServer(await AccountPage());
-    expect(html).not.toContain('PushCard');
-    expect(html).not.toContain('TurnOffPushOnSubmit');
+    expect(html).not.toContain('"PushCard"');
+    expect(html).toContain('TurnOffPushOnSubmit');
   });
 
   it('offers the card with the public key while Web Push is ready', async () => {
@@ -103,16 +112,35 @@ describe('Account page alerts card', () => {
 });
 
 describe('Turn On and Turn Off', () => {
-  it('give one uniform refusal while Web Push is off, storing and removing nothing', async () => {
+  it('Turn On and renewal give one uniform refusal while Web Push is off, storing nothing', async () => {
     const on = await turnOnPushAction(GOOD);
-    const off = await turnOffPushAction(GOOD.endpoint);
     const junk = await turnOnPushAction({ nonsense: true });
-    expect(await pushStatusAction(GOOD.endpoint)).toEqual({ ok: false });
+    expect(await renewPushAction(GOOD.endpoint)).toEqual({ ok: false });
     expect(on).toEqual({ ok: false });
-    expect(off).toEqual({ ok: false });
     expect(junk).toEqual(on);
     expect(state.saved).toEqual([]);
+    expect(state.renewed).toEqual([]);
+  });
+
+  it('Turn Off still forgets the browser while the switch or keys are off', async () => {
+    expect(await turnOffPushAction(GOOD.endpoint)).toEqual({ ok: true });
+    expect(state.removed).toEqual([{ accountId: 'acct-1', endpoint: GOOD.endpoint }]);
+  });
+
+  it('Turn Off refuses only when the table is missing', async () => {
+    state.table = false;
+    expect(await turnOffPushAction(GOOD.endpoint)).toEqual({ ok: false });
     expect(state.removed).toEqual([]);
+  });
+
+  it('renewal ties the browser to this sign-in for the signed-in account', async () => {
+    state.ready = { publicKey: 'PUBLIC-KEY' };
+    expect(await renewPushAction(GOOD.endpoint)).toEqual({ ok: true });
+    expect(state.renewed).toEqual([
+      { accountId: 'acct-1', endpoint: GOOD.endpoint, sessionRef: 'session-ref-1' },
+    ]);
+    state.sessionRef = null;
+    expect(await renewPushAction(GOOD.endpoint)).toEqual({ ok: false });
   });
 
   it('store a good subscription for the signed-in account only', async () => {
@@ -152,5 +180,16 @@ describe('Turn On and Turn Off', () => {
     expect(await turnOffPushAction(GOOD.endpoint)).toEqual({ ok: true });
     expect(state.removed).toEqual([{ accountId: 'acct-1', endpoint: GOOD.endpoint }]);
     expect(await turnOffPushAction(42)).toEqual({ ok: false });
+  });
+});
+
+describe('every signed-in sign-out form', () => {
+  it('passes its fields on and carries this browser’s push address', () => {
+    for (const file of ['../workspace-frame.tsx', './page.tsx']) {
+      const source = readFileSync(new URL(file, import.meta.url), 'utf8');
+      expect(source).toMatch(
+        /action=\{async \(form: FormData\) => \{\s*'use server';\s*await signOutCurrentUser\('\/', form\);\s*\}\}\s*>\s*<ClearShareInboxOnSubmit \/>\s*<TurnOffPushOnSubmit \/>/,
+      );
+    }
   });
 });

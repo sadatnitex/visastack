@@ -7459,8 +7459,8 @@ export const documentAutoPlacements = pgTable(
 // One row per browser that chose to get alerts. The push address and the browser's keys are
 // sealed with the protected-field envelope (AAD binds them to this account and this row); only a
 // hash of the address is stored in the clear, to find a row again without opening it. Removed on
-// Turn Off, on signing out of that browser (session_ref), when the push service says the address
-// is gone, and with the account (cascade). Until the migration runs, the code finds the table
+// Turn Off, on signing out of that browser (session_ref or the browser's own address), when the
+// push service says the address is gone, when not renewed for 7 days, and with the account (cascade). Until the migration runs, the code finds the table
 // missing and the feature stays hidden.
 export const webPushSubscriptions = pgTable(
   'web_push_subscriptions',
@@ -7479,6 +7479,9 @@ export const webPushSubscriptions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
     failureCount: integer('failure_count').notNull().default(0),
+    // Moved forward whenever the same browser is seen signed in to this account; a row not
+    // renewed within the traveller sign-in limit (7 days) gets no alert and is removed.
+    renewedAt: timestamp('renewed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     unique('web_push_subscriptions_endpoint_unique').on(table.endpointHash),

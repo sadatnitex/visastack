@@ -19,10 +19,11 @@ The card is hidden in browsers that cannot show alerts. On iPhone and iPad, aler
 ## When a browser is forgotten
 
 - the person presses Turn Off on it;
-- the person signs out on it (the server forgets the browsers that sign-in turned on, and the browser unsubscribes itself);
+- the person signs out on it, from any sign-out button (the server forgets the browsers that sign-in turned on and the browser being signed out, whatever the switch says, and the browser unsubscribes itself);
+- it has not been seen signed in to its account for 7 days;
 - the account is deleted (the rows go with the account);
 - the push service says the browser is gone (404 or 410), or three sends in a row fail;
-- the same browser is turned on by another account (one browser, one account);
+- (a browser still held by one account cannot be turned on by another until the first signs out of it or turns alerts off);
 - more than five browsers on one account (the oldest is forgotten).
 
 ## How it is kept safe
@@ -56,12 +57,12 @@ Changing the key pair later makes every existing browser subscription stop worki
 
 ## Switching it off
 
-Set `WEB_PUSH` to anything but `true` (or remove it) and redeploy. The card disappears, the actions refuse, the worker sends no alerts and the service worker no longer carries the alert handlers. The table can stay; it is additive.
+Set `WEB_PUSH` to anything but `true` (or remove it) and redeploy. The card disappears, Turn On refuses, the worker sends no alerts and the service worker no longer carries the alert handlers. Sign-out and Turn Off still clean up stored browsers. The table can stay; it is additive, and nothing is lost.
 
 ## Known limits
 
 - Only the known push services are accepted (Google `fcm.googleapis.com` and `android.googleapis.com`, Mozilla, Apple `*.push.apple.com`, Microsoft `*.notify.windows.com`). A browser using any other push service sees "That did not work" on Turn On.
-- A sign-in that ends by expiring (not by signing out) keeps its browsers until the push service reports them gone or the person turns alerts off.
+- A browser not seen signed in to its account for 7 days (the traveller sign-in limit) gets no alert and is forgotten; using VisaStack on it signed in keeps it going. Two tabs pressing Turn On at the same moment can leave one extra row, which goes when the push service reports it gone.
 
 ## Code
 

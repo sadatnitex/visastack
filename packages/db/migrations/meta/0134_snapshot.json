@@ -1,5 +1,5 @@
 {
-  "id": "95fa9e7d-6c38-4654-b61d-068e7907fb54",
+  "id": "fb14a5b2-cb9e-4fb9-8e2b-1eb647e96c64",
   "prevId": "d2b69dd0-5058-40d9-8d7a-60f9cfcc73e7",
   "version": "7",
   "dialect": "postgresql",
@@ -24306,6 +24306,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "renewed_at": {
+          "name": "renewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {

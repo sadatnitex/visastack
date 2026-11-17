@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS "web_push_subscriptions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_success_at" timestamp with time zone,
 	"failure_count" integer DEFAULT 0 NOT NULL,
+	"renewed_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "web_push_subscriptions_endpoint_unique" UNIQUE("endpoint_hash"),
 	CONSTRAINT "web_push_subscriptions_failures_nonnegative" CHECK ("web_push_subscriptions"."failure_count" >= 0)
 );

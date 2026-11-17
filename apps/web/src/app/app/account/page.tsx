@@ -89,13 +89,13 @@ export default async function AccountPage() {
               {t.node('appAccount.appAccountPage.signOutOfThisDevice')}
             </p>
             <form
-              action={async () => {
+              action={async (form: FormData) => {
                 'use server';
-                await signOutCurrentUser();
+                await signOutCurrentUser('/', form);
               }}
             >
               <ClearShareInboxOnSubmit />
-              {data.push ? <TurnOffPushOnSubmit /> : null}
+              <TurnOffPushOnSubmit />
               <button type="submit" className="btn btn-secondary">
                 {t.node('appAccount.appAccountPage.signOut')}
               </button>

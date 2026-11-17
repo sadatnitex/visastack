@@ -264,10 +264,6 @@ export class WebPushSender {
     this.#timeoutMs = options.timeoutMs ?? SEND_TIMEOUT_MS;
   }
 
-  get publicKey(): string {
-    return this.#identity.publicKey;
-  }
-
   async send(
     subscription: PushSubscriptionInput,
     message: Uint8Array,

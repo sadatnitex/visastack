@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, or, sql } from 'drizzle-orm';
 import { type SelfScope, selfScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, schema } from './db';
@@ -36,6 +36,12 @@ export const WEB_PUSH_MAX_DEVICES = 5;
 export const WEB_PUSH_MAX_FAILURES = 3;
 /** How long a push service keeps an alert for a phone that is off. */
 export const WEB_PUSH_TTL_SECONDS = 24 * 60 * 60;
+/**
+ * A browser not seen signed in to its account for this long gets no alert and is forgotten: the
+ * traveller sign-in limit (7 days, TRAVELLER_MAX_SESSION_AGE_SECONDS in apps/web session-age), so
+ * a browser whose sign-in simply ran out stops getting alerts when its sign-in would have ended.
+ */
+export const WEB_PUSH_RENEW_WITHIN_MS = 7 * 24 * 60 * 60 * 1000;
 /** Alerts still waiting at the push service replace each other instead of piling up. */
 export const WEB_PUSH_TOPIC = 'visastack-notice';
 
@@ -121,9 +127,10 @@ export async function webPushTableReady(db: Db): Promise<boolean> {
 export type SaveWebPushResult = 'saved' | 'unavailable';
 
 /**
- * Stores this browser for this account. The same browser saved again (or saved earlier by
- * another account signed in on it) is replaced, so one browser belongs to one account at a time.
- * Past the device limit the oldest browser is forgotten.
+ * Stores this browser for this account, tied to this sign-in. The same browser saved again by the
+ * same account is replaced. A browser another account still holds is refused (that account must
+ * sign out of it, or turn alerts off, first). Past the device limit the oldest browser is
+ * forgotten.
  */
 export async function saveWebPushSubscription(
   db: Db,
@@ -131,7 +138,7 @@ export async function saveWebPushSubscription(
   self: SelfScope,
   input: {
     readonly subscription: WebPushSubscriptionValue;
-    readonly sessionRef: string | null;
+    readonly sessionRef: string;
   },
 ): Promise<SaveWebPushResult> {
   if (selfScopeProblem(self)) return 'unavailable';
@@ -160,25 +167,25 @@ export async function saveWebPushSubscription(
   }
   if (endpointSealed.keyVersion !== keysSealed.keyVersion) return 'unavailable';
 
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     // Serialize saves for this account so the device limit holds under parallel requests.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`web_push:${accountId}`}))`);
-    const replaced = await tx
-      .delete(schema.webPushSubscriptions)
+    const holder = await tx
+      .select({ accountId: schema.webPushSubscriptions.accountId })
+      .from(schema.webPushSubscriptions)
       .where(eq(schema.webPushSubscriptions.endpointHash, hash))
-      .returning({ accountId: schema.webPushSubscriptions.accountId });
-    for (const previous of replaced) {
-      if (previous.accountId === accountId) continue;
-      // The browser now belongs to the account that turned alerts on in it; the earlier
-      // account's loss of it is recorded under that earlier account, with a count only.
-      await appendAuditEvent(tx, {
-        eventType: 'WEB_PUSH_TURNED_OFF',
-        actorAccountId: previous.accountId,
-        method: 'SYSTEM',
-        resourceType: 'web_push_subscription',
-        metadata: { devices: 1, cause: 'browser_used_by_another_account' },
-      });
-    }
+      .limit(1);
+    // A browser still held by another account is never taken over or re-bound: the same answer
+    // as any refusal, and that account's row stays exactly as it was.
+    if (holder[0] && holder[0].accountId !== accountId) return 'unavailable' as const;
+    await tx
+      .delete(schema.webPushSubscriptions)
+      .where(
+        and(
+          eq(schema.webPushSubscriptions.endpointHash, hash),
+          eq(schema.webPushSubscriptions.accountId, accountId),
+        ),
+      );
     const existing = await tx
       .select({ id: schema.webPushSubscriptions.id })
       .from(schema.webPushSubscriptions)
@@ -206,6 +213,7 @@ export async function saveWebPushSubscription(
       keysNonce: keysSealed.nonce,
       keyVersion: endpointSealed.keyVersion,
       sessionRef: input.sessionRef,
+      renewedAt: new Date(),
     });
     await appendAuditEvent(tx, {
       eventType: 'WEB_PUSH_TURNED_ON',
@@ -214,8 +222,8 @@ export async function saveWebPushSubscription(
       resourceType: 'web_push_subscription',
       metadata: { devices: Math.min(existing.length, WEB_PUSH_MAX_DEVICES - 1) + 1 },
     });
+    return 'saved' as const;
   });
-  return 'saved';
 }
 
 async function deleteWhere(
@@ -256,50 +264,60 @@ export async function removeWebPushSubscription(
   );
 }
 
-/** Sign-out: forgets the browsers this sign-in turned alerts on for. */
-export async function removeWebPushSubscriptionsForSession(
+/**
+ * Sign-out: forgets the browsers this sign-in turned alerts on for, and the browser being signed
+ * out (by its own push address, when it sent one). Needs no account lookup: the sign-in reference
+ * is a hash of this session's id, and a push address is a secret only its browser holds, so
+ * neither can name anyone else's browser. Works whatever the switch says, so turning Web Push off
+ * never leaves a browser that cannot be cleaned up. Writes no audit row (the sign-out is the event).
+ */
+export async function removeWebPushOnSignOut(
   db: Db,
-  self: SelfScope,
-  input: { readonly sessionRef: string },
+  input: { readonly sessionRef: string | null; readonly endpoint: string | null },
 ): Promise<number> {
-  if (selfScopeProblem(self)) return 0;
-  return deleteWhere(
-    db,
-    self.accountId,
-    eq(schema.webPushSubscriptions.sessionRef, input.sessionRef),
-  );
+  const conditions = [
+    ...(input.sessionRef ? [eq(schema.webPushSubscriptions.sessionRef, input.sessionRef)] : []),
+    ...(input.endpoint && input.endpoint.length <= 2048
+      ? [eq(schema.webPushSubscriptions.endpointHash, endpointHash(input.endpoint))]
+      : []),
+  ];
+  if (conditions.length === 0) return 0;
+  if (!(await webPushTableReady(db))) return 0;
+  const removed = await db
+    .delete(schema.webPushSubscriptions)
+    .where(or(...conditions))
+    .returning({ id: schema.webPushSubscriptions.id });
+  return removed.length;
 }
 
-/** Whether this browser has alerts on for this account (the Account card's own check). */
-export async function hasWebPushSubscription(
+/**
+ * The same browser seen signed in to this account (the Account card, or any page load with alerts
+ * on): moves its renewal time forward and ties it to this sign-in, so signing out of this sign-in
+ * forgets it. False when this account has no such browser (the card then shows Off).
+ */
+export async function renewWebPushSubscription(
   db: Db,
   self: SelfScope,
-  input: { readonly endpoint: string },
+  input: { readonly endpoint: string; readonly sessionRef: string; readonly now?: Date },
 ): Promise<boolean> {
   if (selfScopeProblem(self)) return false;
   if (!(await webPushTableReady(db))) return false;
-  const rows = await db
-    .select({ id: schema.webPushSubscriptions.id })
-    .from(schema.webPushSubscriptions)
+  const now = input.now ?? new Date();
+  const renewed = await db
+    .update(schema.webPushSubscriptions)
+    .set({ renewedAt: now, sessionRef: input.sessionRef })
     .where(
       and(
         eq(schema.webPushSubscriptions.accountId, self.accountId),
         eq(schema.webPushSubscriptions.endpointHash, endpointHash(input.endpoint)),
+        gt(
+          schema.webPushSubscriptions.renewedAt,
+          new Date(now.getTime() - WEB_PUSH_RENEW_WITHIN_MS),
+        ),
       ),
     )
-    .limit(1);
-  return rows.length > 0;
-}
-
-/** How many browsers this account has alerts on (for its own Account page only). */
-export async function countWebPushSubscriptions(db: Db, self: SelfScope): Promise<number> {
-  if (selfScopeProblem(self)) return 0;
-  if (!(await webPushTableReady(db))) return 0;
-  const rows = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.webPushSubscriptions)
-    .where(eq(schema.webPushSubscriptions.accountId, self.accountId));
-  return rows[0]?.n ?? 0;
+    .returning({ id: schema.webPushSubscriptions.id });
+  return renewed.length > 0;
 }
 
 export interface WebPushSendSummary {
@@ -333,16 +351,36 @@ export async function sendWebPushToAccount(
     return NOTHING;
   }
   if (rows.length === 0) return NOTHING;
+  // A browser not seen signed in within the limit gets nothing and is forgotten.
+  const oldest = now.getTime() - WEB_PUSH_RENEW_WITHIN_MS;
+  const expired = rows.filter((row) => row.renewedAt.getTime() <= oldest);
+  if (expired.length > 0) {
+    try {
+      await db.delete(schema.webPushSubscriptions).where(
+        and(
+          eq(schema.webPushSubscriptions.accountId, input.accountId),
+          inArray(
+            schema.webPushSubscriptions.id,
+            expired.map((row) => row.id),
+          ),
+        ),
+      );
+    } catch {
+      // Removed on a later send.
+    }
+  }
+  const live = rows.filter((row) => row.renewedAt.getTime() > oldest);
+  if (live.length === 0) return { sent: 0, removed: expired.length, failed: 0 };
   const message = new TextEncoder().encode(
     JSON.stringify(composeWebPushMessage(input.deepLinkPath)),
   );
   // Every browser at once, so one slow push service delays a notice by one send at most.
   const results = await Promise.all(
-    rows.map((row) => sendToOne(db, push, encryption, row, message, now)),
+    live.map((row) => sendToOne(db, push, encryption, row, message, now)),
   );
   return {
     sent: results.filter((r) => r === 'sent').length,
-    removed: results.filter((r) => r === 'removed').length,
+    removed: results.filter((r) => r === 'removed').length + expired.length,
     failed: results.filter((r) => r === 'failed').length,
   };
 }
