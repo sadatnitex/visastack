@@ -1,0 +1,103 @@
+import { type Page, expect, test } from '@playwright/test';
+import { renderFixture } from './support';
+
+/**
+ * WAL0: on a phone nothing paints over the open document sheet, and the case page's pill strip
+ * never needs a sideways scroll. The sheet is the real document browser inside the real signed-in
+ * shell (bottom bar, Add button); the strip is the case page's own markup and classes.
+ */
+
+const FIXTURE = 'WAL0';
+const SIZES = [
+  { name: '390x844', width: 390, height: 844 },
+  { name: '400x860', width: 400, height: 860 },
+  { name: '360x640', width: 360, height: 640 },
+  { name: '1280x800', width: 1280, height: 800 },
+] as const;
+const MOTION = ['reduce', 'no-preference'] as const;
+
+/** Controls that are not hit by their own centre or corners, after scrolling each into view. */
+async function coveredControls(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const sheet = document.querySelector('aside.wallet-selected-document');
+    if (!sheet) return ['no sheet'];
+    const covered: string[] = [];
+    const controls = [...sheet.querySelectorAll<HTMLElement>('button, a[href], input, select')];
+    for (const el of controls) {
+      const style = getComputedStyle(el);
+      if (style.visibility === 'hidden' || style.display === 'none') continue;
+      el.scrollIntoView({ block: 'center' });
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const points: [number, number][] = [
+        [r.left + r.width / 2, r.top + r.height / 2],
+        [r.left + 3, r.top + 3],
+        [r.right - 3, r.top + 3],
+        [r.left + 3, r.bottom - 3],
+        [r.right - 3, r.bottom - 3],
+      ];
+      for (const [x, y] of points) {
+        if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+        const hit = document.elementFromPoint(x, y);
+        if (!hit || !(el === hit || el.contains(hit))) {
+          const label = (el.textContent || el.getAttribute('aria-label') || el.tagName).trim();
+          covered.push(`${label.slice(0, 40)} at ${Math.round(x)},${Math.round(y)} hit ${hit?.className || hit?.tagName}`);
+          break;
+        }
+      }
+    }
+    return covered;
+  });
+}
+
+for (const motion of MOTION) {
+  for (const size of SIZES) {
+    test.describe(`WAL0 sheet ${size.name} motion ${motion}`, () => {
+      test.beforeEach(async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.setViewportSize({ width: size.width, height: size.height });
+        await renderFixture(page, FIXTURE, { view: 'sheet' }, { standInServerActions: true });
+        if (size.width <= 760) {
+          await page.locator('aside.wallet-selected-document[role="dialog"]').waitFor();
+        }
+      });
+
+      test('every control in the open sheet is the topmost thing at its centre and corners', async ({
+        page,
+      }) => {
+        expect(await coveredControls(page)).toEqual([]);
+      });
+
+      test('the Add button is hidden while the document sheet is open', async ({ page }) => {
+        await expect(page.locator('.docs-add-fab')).toBeHidden();
+      });
+    });
+  }
+}
+
+for (const size of SIZES) {
+  for (const depth of ['browse', 'everything'] as const) {
+    test(`WAL0 pill strip ${size.name} ${depth} needs no sideways scroll`, async ({ page }) => {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await renderFixture(page, FIXTURE, { view: 'strip', depth });
+      const m = await page.evaluate(() => {
+        const nav = document.querySelector('nav.jump-nav') as HTMLElement;
+        const links = [...nav.querySelectorAll<HTMLElement>('a')].filter(
+          (a) => a.getBoundingClientRect().height > 0,
+        );
+        return {
+          scroll: nav.scrollWidth,
+          client: nav.clientWidth,
+          page: document.documentElement.scrollWidth,
+          inner: innerWidth,
+          minHeight: Math.min(...links.map((a) => a.getBoundingClientRect().height)),
+          rows: new Set(links.map((a) => Math.round(a.getBoundingClientRect().top))).size,
+        };
+      });
+      process.stdout.write(`[wal0] strip ${size.name} ${depth} ${JSON.stringify(m)}\n`);
+      expect(m.scroll).toBeLessThanOrEqual(m.client + 1);
+      expect(m.page).toBeLessThanOrEqual(m.inner);
+      expect(m.minHeight).toBeGreaterThanOrEqual(44);
+    });
+  }
+}
