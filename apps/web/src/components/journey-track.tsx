@@ -86,11 +86,7 @@ export function JourneyTrack({
                   {picture}
                 </span>
               )}
-              {kind === 'current' ? (
-                <span className="journey-stage-word" aria-hidden="true">
-                  {label} - Now
-                </span>
-              ) : (
+              {kind === 'current' ? null : (
                 <span className="sr-only">
                   {label}: {KIND_WORDS[kind]}
                 </span>

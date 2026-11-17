@@ -21827,57 +21827,58 @@ body:lang(bn),
   min-width: 44px;
 }
 /* end WP-PIC9 */
-/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along a line (components/journey-track.tsx), above the existing step bar. The current stage shows its word, earlier and later stages stay plain (nothing is ticked: there is no stage history), so state is never colour alone. Flat: borders and solid surfaces, no shadow. The track wraps onto more rows on a narrow screen so the explain popup is never clipped. */
+/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along one compact row (components/journey-track.tsx), above the existing step bar. The current stage is the one full-size circle with a heavy border and the explain button, and the step bar's "Now:" line below names it, so state is never colour alone; earlier and later stages are small plain circles (nothing is ticked: there is no stage history). It adds no padding or margin of its own so the case page stays inside its phone height budget. Flat: borders and solid surfaces, no shadow. A narrow screen wraps it onto a second row rather than clipping the explain popup. */
 .journey-track {
   max-width: 100%;
-  margin-block-end: var(--space-3);
-  padding-block: var(--space-2);
+  margin: 0;
+  padding: 0;
 }
 .journey-track-list {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
-  flex-wrap: wrap;
 }
 .journey-stage {
-  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--space-1);
-  min-width: 44px;
+  justify-content: center;
+  min-width: 28px;
 }
-.journey-stage-picture,
+.journey-stage-picture {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--edge-control);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: inherit;
+}
+.journey-stage-picture .icon {
+  width: 16px;
+  height: 16px;
+}
+.journey-stage .explain-tip {
+  margin-block: 0;
+}
 .journey-stage .explain-tip-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--edge-control);
+  border: 2px solid currentColor;
   border-radius: 50%;
   background: var(--bg-elevated);
   color: inherit;
 }
-.journey-stage .explain-tip {
-  margin-block: 0;
-}
 .journey-stage-later .journey-stage-picture {
   border-style: dashed;
   opacity: 0.7;
-}
-.journey-stage-current .explain-tip-trigger {
-  border-width: 2px;
-  border-color: currentColor;
-}
-.journey-stage-word {
-  max-width: 9rem;
-  font-size: var(--text-small);
-  font-weight: 600;
-  text-align: center;
-  overflow-wrap: anywhere;
 }
 /* end WP-PIC8 */

@@ -76,7 +76,7 @@ describe('JourneyTrack', () => {
     expect(li[2]).toContain('Now');
     expect(li[3]).toContain('Awaiting Traveller: Later');
     expect(li[0]).toContain('journey-stage-before');
-    expect(render('IN_REVIEW').match(/journey-stage-word/g)).toHaveLength(1);
+    expect(render('IN_REVIEW')).not.toContain('journey-stage-word');
   });
   it('makes no claim about Submitted on a closed case or before it', () => {
     for (const state of ['SUBMISSION_READY', 'CLOSED']) {
@@ -95,7 +95,6 @@ describe('JourneyTrack', () => {
     expect(current).toContain('Now: ');
     // Read before the stage's own button, so it reads "Now: Intake".
     expect(current.indexOf('Now: ')).toBeLessThan(current.indexOf('<button'));
-    expect(current).toContain('journey-stage-word');
   });
   it('keeps list semantics on the ordered list', () => {
     expect(render('INTAKE')).toContain('<ol class="journey-track-list" role="list">');
