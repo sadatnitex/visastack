@@ -24,6 +24,7 @@ async function coveredControls(page: Page): Promise<string[]> {
     const covered: string[] = [];
     const scroller = sheet as HTMLElement;
     const controls = [...sheet.querySelectorAll<HTMLElement>('button, a[href], input, select, summary')];
+    const last = controls.filter((c) => c.getBoundingClientRect().height > 0).at(-1);
     for (const el of controls) {
       const style = getComputedStyle(el);
       if (style.visibility === 'hidden' || style.display === 'none') continue;
@@ -32,7 +33,7 @@ async function coveredControls(page: Page): Promise<string[]> {
       if (fold && !el.closest('summary')) continue;
       // The last control must be reachable too: after scrolling the sheet to its end it has to
       // clear the bottom bar. Every other control is brought to the middle of the screen.
-      if (el === controls.filter((c) => c.getBoundingClientRect().height > 0).at(-1)) {
+      if (el === last) {
         scroller.scrollTop = scroller.scrollHeight;
       } else {
         el.scrollIntoView({ block: 'center' });
@@ -81,8 +82,14 @@ for (const motion of MOTION) {
         expect(await coveredControls(page)).toEqual([]);
       });
 
-      test('the Add button is hidden while the document sheet is open', async ({ page }) => {
+      test('the Add button is hidden while the document sheet is open, and back when it closes', async ({
+        page,
+      }) => {
         await expect(page.locator('.docs-add-fab')).toBeHidden();
+        if (size.width <= 760) {
+          await page.getByRole('button', { name: 'Back to Documents' }).click();
+          await expect(page.locator('.docs-add-fab')).toBeVisible();
+        }
       });
     });
   }

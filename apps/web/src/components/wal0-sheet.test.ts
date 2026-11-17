@@ -25,13 +25,12 @@ function rulesFor(selector: string): string[] {
 }
 
 describe('WAL0 the open document sheet is never covered', () => {
-  it('gives the list a view-transition name only above 760 px and never while a sheet is open', () => {
+  it('gives the list a view-transition name only above 760 px, where there is no full-screen sheet', () => {
     const at = css.indexOf('view-transition-name: wallet-view');
     expect(at).toBeGreaterThan(-1);
     expect(css.split('view-transition-name: wallet-view').length).toBe(2);
     const before = css.slice(Math.max(0, at - 700), at);
     expect(before).toContain('@media (min-width: 761px)');
-    expect(before).toContain(':not(:has(.wallet-selected-document[data-sheet="open"]))');
     expect(before).toContain('prefers-reduced-motion: no-preference');
   });
 
@@ -47,8 +46,9 @@ describe('WAL0 the open document sheet is never covered', () => {
     );
   });
 
-  it('leaves the Add button out of the page when the address names a document', () => {
-    expect(page).toMatch(/\{selection \? null : \(\s*<>\s*<div className="docs-add-fab-space"/);
+  it('keeps the Add button in the page, so it is back when the sheet is closed on the phone', () => {
+    expect(page).toMatch(/<div className="docs-add-fab-space"/);
+    expect(page).not.toMatch(/selection \? null : \(\s*<>\s*<div className="docs-add-fab-space"/);
     expect(page.split('className="docs-add-fab"').length).toBe(2);
   });
 });
@@ -70,7 +70,7 @@ describe('WAL0 the case page stays inside the screen', () => {
 
   it('opens the More panel inside the screen on a phone, whichever side its button is on', () => {
     expect(css).toMatch(
-      /@media \(max-width: 760px\) \{[^@]*?\.case-more \{\s*position: static;\s*\}\s*\.case-more-panel \{\s*top: auto;\s*right: var\(--space-4\);\s*left: var\(--space-4\);/,
+      /@media \(min-width: 641px\) and \(max-width: 760px\) \{\s*\.case-more \{\s*position: static;\s*\}\s*\.case-more-panel \{\s*top: auto;\s*right: var\(--space-4\);\s*left: var\(--space-4\);/,
     );
   });
 

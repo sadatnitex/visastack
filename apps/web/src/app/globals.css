@@ -21933,9 +21933,9 @@ body:lang(bn),
 }
 /* A List or Stack switch fades the document area only, never the whole page. Motion is allowed here only when the person has not asked for less. */
 @media (prefers-reduced-motion: no-preference) {
-  /* WP-WAL0: a view-transition name makes a stacking context. On a phone the open document sheet sits inside this box, so the Add button and the bottom bar painted over it. The fade is kept only above 760 px and never while a sheet is open. */
+  /* WP-WAL0: a view-transition name makes a stacking context. On a phone the open document sheet sits inside this box, so the Add button and the bottom bar painted over it. The fade is kept only above 760 px, where the chosen document is a side panel and never a full screen. */
   @media (min-width: 761px) {
-    .document-wallet-layout:not(:has(.wallet-selected-document[data-sheet="open"])) {
+    .document-wallet-layout {
       view-transition-name: wallet-view;
     }
   }
@@ -22582,7 +22582,10 @@ button.wallet-stack-card {
     padding-bottom: calc(61px + env(safe-area-inset-bottom, 0px) + var(--space-4));
   }
 
-  /* The More menu opens as a panel under its button, inside the screen: the button can sit on the left or the right depending on how the header buttons wrap, so a right-anchored panel ran off the left edge. */
+}
+
+/* The More menu opens as a panel under its button, inside the screen: from 641 to 760 px the button can sit on the left or the right depending on how the header buttons wrap, so a right-anchored panel ran off the left edge. At 640 px and below an earlier rule already puts the panel in the flow. */
+@media (min-width: 641px) and (max-width: 760px) {
   .case-more {
     position: static;
   }

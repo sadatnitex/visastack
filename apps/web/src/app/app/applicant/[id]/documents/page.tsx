@@ -1277,28 +1277,24 @@ export default async function ApplicantDocumentsPage({
           ) : null}
         </details>
       </DepthScope>
-      {/* On a phone, adding a file is always one tap away; larger screens have the button in the header. The spacer keeps the end of the page clear of it. While a document sheet is open it is left out, so nothing sits over the sheet. */}
-      {selection ? null : (
-        <>
-          <div className="docs-add-fab-space" aria-hidden="true" />
-          <Link className="docs-add-fab" href={addDocumentsHref} aria-label="Add Documents">
-            <svg
-              aria-hidden="true"
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            <span aria-hidden="true">Add</span>
-          </Link>
-        </>
-      )}
+      {/* On a phone, adding a file is always one tap away; larger screens have the button in the header. The spacer keeps the end of the page clear of it. While a document sheet is open the stylesheet hides both (body:has on the open sheet), so nothing sits over it and the button is back when the sheet closes. */}
+      <div className="docs-add-fab-space" aria-hidden="true" />
+      <Link className="docs-add-fab" href={addDocumentsHref} aria-label="Add Documents">
+        <svg
+          aria-hidden="true"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        <span aria-hidden="true">Add</span>
+      </Link>
     </>
   );
 }
