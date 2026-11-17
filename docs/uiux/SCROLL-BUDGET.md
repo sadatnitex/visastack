@@ -84,7 +84,7 @@ Measured by the checks themselves (`npx playwright test scroll-budget/` against 
 | WP-SB5.spec.ts | case activity keeps 50 notes in the fixed log panel with filters | desktop 1280x800: 920px = 1.15 screens (budget 3, 2400px) [enforce] |
 | WP-SB5.spec.ts | case activity keeps 50 notes in the fixed log panel with filters | phone 390x844: 1277px = 1.51 screens (budget 3, 2532px) [enforce] |
 | WP-SB5.spec.ts | cases with 200 cases lists 15 and stays within 3 screens | desktop 1280x800: 1280px = 1.6 screens (budget 3, 2400px) [enforce] |
-| WP-SB5.spec.ts | cases with 200 cases lists 15 and stays within 3 screens | phone 390x844: 2399px = 2.84 screens (budget 3, 2532px) [enforce] |
+| WP-SB5.spec.ts | cases with 200 cases lists 15 and stays within 3 screens | phone 390x844: 2399px = 2.84 screens (budget 3, 2532px) [enforce] (WP-PIC18: re-measured 17 Nov 2026 with the worst-case readiness strip on all 15 rows, no added height) |
 | WP-SB5.spec.ts | clients lists 15 invitations and 10 requests, forms closed | desktop 1280x800: 1934px = 2.42 screens (budget 3, 2400px) [enforce] (WP-SB11) |
 | WP-SB5.spec.ts | clients lists 15 invitations and 10 requests, forms closed | phone 390x844: 2058px = 2.44 screens (budget 3, 2532px) [enforce] (WP-SB11) |
 | WP-SB5.spec.ts | clients with both lists open breaks the budget | phone 390x844: 3709px = 4.39 screens (budget 3, 2532px) [enforce] (WP-SB11) |
