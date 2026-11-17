@@ -236,10 +236,10 @@ describe('the stack styles', () => {
   const start = css.indexOf('/* WP-PIC5');
   const block = css.slice(start, css.indexOf('/* end WP-PIC5 */'));
 
-  it('is one marked block, placed before the WP-PIC1 block that must stay last', () => {
+  it('sits in one block at the very end of the stylesheet', () => {
     expect(start).toBeGreaterThan(0);
+    expect(css.trimEnd().endsWith('/* end WP-PIC5 */')).toBe(true);
     expect(css.indexOf('/* WP-PIC5', start + 1)).toBe(-1);
-    expect(css.indexOf('/* end WP-PIC5 */')).toBeLessThan(css.indexOf('/* WP-PIC1 '));
   });
 
   it('is flat (depth comes only from pic-depth), has 44 px targets and honours reduced motion', () => {

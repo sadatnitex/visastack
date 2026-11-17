@@ -8317,3 +8317,8 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 
 - Opt-in variants, off by default, not yet on any page: a segment ring with one segment per required item (each segment filled only when its own item is ready, with a legend of document pictures saying Ready or Still Needed), the same option on the case readiness ring, and a Next Step card showing the ring now and after this step with the counts in words and the next document as a softly glowing picture. An explain button says the ring counts what is ready, not whether a visa will be approved.
 - NOT verified: real pages (the variants are not wired yet); a manual screen reader pass; Bengali for the new words.
+
+## 17 Nov 2026: WP-PIC5 Documents as a stack of picture cards
+
+- A traveller's Documents page gains a Stack or List switch (List stays the default and unchanged): Stack shows each document as a picture card with its name, state word and date, opening exactly what the row opens. With no documents, the stack view shows one card labelled Example, never counted as a document.
+- NOT verified: a real device and screen reader at 320 px; the real Bangladesh cover in the stack (the page does not load nationality yet, so the neutral cover shows; follow-up); Bengali for the new words.
