@@ -25,7 +25,12 @@ import {
   parseInbox,
   sharedFileUrl,
 } from '../../../lib/pwa/share-target';
-import { importLine } from '../applicant/[id]/import/import-panel';
+import { useUploadResume, useUploadSync } from '../../../lib/pwa/upload-sync-hooks';
+import {
+  OFFLINE_LINE,
+  confirmUploadAccount,
+  importLine,
+} from '../applicant/[id]/import/import-panel';
 
 type Phase = 'loading' | 'empty' | 'ready' | 'sending' | 'cancelled';
 
@@ -108,6 +113,8 @@ export function IncomingPanel({
   limitLabel,
   pdfAccepted,
   retryUnknown,
+  backgroundSync = false,
+  accountKey = null,
 }: {
   /** Ties the waiting files to this account on this phone; null reads nothing. */
   readonly ownerKey: string | null;
@@ -121,6 +128,10 @@ export function IncomingPanel({
   readonly limitLabel: string;
   readonly pdfAccepted: boolean;
   readonly retryUnknown: boolean;
+  /** WP-PIC17: waiting files resume when a dropped connection returns. Default off. */
+  readonly backgroundSync?: boolean;
+  /** WP-PIC17: who chose these files; waiting files go again only under this sign-in. */
+  readonly accountKey?: string | null;
 }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [inbox, setInbox] = useState<SharedInbox>(parseInbox(null));
@@ -151,6 +162,7 @@ export function IncomingPanel({
     };
   }, [ownerKey]);
 
+  const sync = useUploadSync(backgroundSync, () => confirmUploadAccount(accountKey));
   const queue = useMemo(
     () =>
       new ImportQueue({
@@ -164,9 +176,12 @@ export function IncomingPanel({
           uploadIdFromHash(await sha256Hex(`${personId}\u0000${fingerprintOf(file)}`)) ??
           newUploadId(),
         newUploadId,
+        ...sync.options,
       }),
-    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown],
+    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown, sync],
   );
+  // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
+  useUploadResume(sync.connection, queue);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const items = snapshot.order.flatMap((id) => {
     const item = snapshot.byId.get(id);
@@ -350,6 +365,11 @@ export function IncomingPanel({
           </>
         ) : (
           <>
+            {snapshot.waitingForConnection ? (
+              <p className="field-hint" data-testid="incoming-offline">
+                {OFFLINE_LINE}
+              </p>
+            ) : null}
             <ul className="incoming-lines" aria-live="polite">
               {items.map((item) => {
                 const line = importLine(item);

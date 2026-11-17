@@ -75,7 +75,8 @@
     "apps/web/src/app/trust/[packKey]/page.tsx": 10,
     "apps/web/src/app/trust/page.tsx": 2,
     "apps/web/src/components/form-feedback.tsx": 3,
-    "apps/web/src/components/ui.tsx": 2
+    "apps/web/src/components/ui.tsx": 2,
+    "apps/web/src/lib/progress-card/card-image.tsx": 13
   },
   "rawCodes": {},
   "emDashes": {}

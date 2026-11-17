@@ -72,7 +72,12 @@ export type SkipReason =
   /** The browser could not read it from the folder. */
   | 'unreadable'
   /** The same file (name, size and date) is already in this import. */
-  | 'repeat';
+  | 'repeat'
+  /**
+   * WP-PIC17: the files waited for the connection, and by then this device was signed out or signed
+   * in as someone else, so they were let go unsent. Never offered Try Again: the bytes are gone.
+   */
+  | 'signed-out';
 
 export interface ImportItem {
   readonly id: number;
@@ -142,6 +147,11 @@ export type ImportSend = (request: {
   readonly uploadId: string;
   /** The file's own name, kept privately by the server to suggest a readable name. */
   readonly fileName: string;
+  /**
+   * Who the file was chosen for (`scopeFor` when it joined the queue, '' without it). Every
+   * attempt, Try Again and resume carries the same one, so a file never goes to someone else.
+   */
+  readonly scope?: string;
   readonly onProgress: (fraction: number) => void;
 }) => Promise<UploadOutcome>;
 
@@ -199,7 +209,7 @@ export interface ImportQueueOptions {
    * derives it from the traveller and the file's name, size and date, so choosing the same folder
    * again after a reload sends the same id.
    */
-  readonly uploadIdFor?: (file: FileIdentity) => string | Promise<string>;
+  readonly uploadIdFor?: (file: FileIdentity, scope: string) => string | Promise<string>;
   /** A fresh random id, for Send Again (an explicit new copy). */
   readonly newUploadId?: () => string;
   /**
@@ -207,6 +217,23 @@ export interface ImportQueueOptions {
    * own with the same id. Default false: without receipts a repeat could store a second copy.
    */
   readonly retryUnknown?: boolean;
+  /**
+   * Whether the device has a connection (WP-PIC17, background sync). Given only where the page can
+   * be woken when the connection returns; without it the queue behaves exactly as before. While it
+   * says there is none, nothing new is sent and files stay Waiting. A file that fails while there
+   * is none goes back to Waiting with the same upload id, without using an attempt, but only when
+   * the server keeps upload receipts (`retryUnknown`): otherwise it may have been stored, so it
+   * stays Not Confirmed for the person to check.
+   */
+  readonly connection?: { readonly isOnline: () => boolean };
+  /**
+   * WP-PIC17: asked before files waiting for the connection go out again. True: the same person is
+   * still signed in on this device. False: signed out or another account: every waiting file is
+   * dropped (listed as not added, or Not Confirmed where it may have arrived) and nothing is sent.
+   * Null or a throw (no answer): nothing is sent; it is asked again after a short wait, and after
+   * `MAX_UNANSWERED_CHECKS` in a row with no answer the waiting files are dropped too.
+   */
+  readonly confirmResume?: () => Promise<boolean | null>;
 }
 
 export interface ImportSnapshot {
@@ -214,6 +241,11 @@ export interface ImportSnapshot {
   readonly order: readonly number[];
   readonly byId: ReadonlyMap<number, ImportItem>;
   readonly paused: boolean;
+  /**
+   * WP-PIC17: files are waiting for the connection and will go on their own when it returns (never
+   * while paused: then the person's Resume is what sends them).
+   */
+  readonly waitingForConnection?: boolean;
   /** Changes on every redraw. */
   readonly version: number;
 }
@@ -223,6 +255,13 @@ export const MAX_CONCURRENCY = 3;
 export const MAX_ATTEMPTS = 3;
 /** The longest Retry-After the queue waits through on its own; longer is the hourly limit. */
 export const AUTO_RETRY_LIMIT_SECONDS = 120;
+/**
+ * WP-PIC17: sends with no answer while the device was offline that are not counted as attempts,
+ * per file. After these, a flapping connection uses the normal attempts, so no file goes forever.
+ */
+export const MAX_OFFLINE_FREE_RETRIES = 3;
+/** WP-PIC17: account checks in a row with no answer before waiting files are dropped. */
+export const MAX_UNANSWERED_CHECKS = 3;
 const BASE_DELAY_MS = 2000;
 const MAX_DELAY_MS = AUTO_RETRY_LIMIT_SECONDS * 1000;
 const PROGRESS_INTERVAL_MS = 150;
@@ -254,6 +293,7 @@ export function uploadIdFromHash(hex: string | null): string | null {
 
 /** Whether Try Again is offered: the file is still at hand and another send may succeed. */
 export function canTryAgain(item: Pick<ImportItem, 'state' | 'skipReason'>): boolean {
+  if (item.skipReason === 'signed-out') return false;
   return (
     item.state === 'refused' ||
     item.state === 'unknown' ||
@@ -333,6 +373,8 @@ const blank = {
 /** A file the queue still holds to send: the bytes (a smaller copy once a photo was shrunk). */
 interface HeldFile {
   readonly file: Blob;
+  /** Who the file was chosen for (`scopeFor` when it joined the queue). */
+  readonly scope: string;
   readonly contentType: string;
   /** A photo over the limit that is still to be made smaller. */
   readonly shrink: boolean;
@@ -368,6 +410,16 @@ export class ImportQueue {
   private progressTimer: ReturnType<typeof setTimeout> | null = null;
   /** Adds run one after another, so a second add sees every line of the first. */
   private adding: Promise<void> = Promise.resolve();
+  /** Sending stopped because the device has no connection; cleared by `resumeAfterConnection`. */
+  private connectionLost = false;
+  /** Files put back to wait after a send with no answer: the server may hold them already. */
+  private readonly mayBeStored = new Set<number>();
+  /** Per file, sends with no answer while offline that were not counted as attempts. */
+  private readonly offlineFreeRetries = new Map<number, number>();
+  /** An account check before a resume is on its way. */
+  private checkingAccount = false;
+  /** Account checks in a row that got no answer. */
+  private unansweredChecks = 0;
 
   constructor(options: ImportQueueOptions) {
     this.options = options;
@@ -409,6 +461,83 @@ export class ImportQueue {
     return this.active;
   }
 
+  /** True while files wait for the connection to return (only with the `connection` option). */
+  get waitingForConnection(): boolean {
+    return this.snapshot.waitingForConnection === true;
+  }
+
+  /**
+   * The connection is back (a background sync wake or the browser's online event): files waiting
+   * for it go out again, in their order, with the upload id and person they were chosen with.
+   * Does nothing unless files are waiting for the connection and the device is online again.
+   */
+  async resumeAfterConnection(): Promise<void> {
+    if (!this.connectionLost || this.offline() || this.checkingAccount) return;
+    const confirm = this.options.confirmResume;
+    if (confirm) {
+      // One check (and its retries) at a time, however many wakes and finished sends ask.
+      this.checkingAccount = true;
+      try {
+        for (;;) {
+          let same: boolean | null;
+          try {
+            same = await confirm();
+          } catch {
+            same = null;
+          }
+          if (same === false) {
+            this.dropWaiting();
+            return;
+          }
+          if (same === true) break;
+          this.unansweredChecks++;
+          if (this.unansweredChecks >= MAX_UNANSWERED_CHECKS) {
+            this.dropWaiting();
+            return;
+          }
+          // No answer: the online event will not fire again while the device stays online, so
+          // the check is asked again on its own after a short, growing wait.
+          await this.wait(
+            retryDelayMs(
+              null,
+              this.unansweredChecks,
+              this.options.baseDelayMs ?? BASE_DELAY_MS,
+              this.options.maxDelayMs ?? MAX_DELAY_MS,
+            ),
+          );
+          if (!this.connectionLost || this.offline()) return;
+        }
+      } finally {
+        this.checkingAccount = false;
+      }
+      this.unansweredChecks = 0;
+      if (!this.connectionLost || this.offline()) return;
+    }
+    this.connectionLost = false;
+    this.emit();
+    this.pump();
+  }
+
+  /**
+   * Signed out or another account since the files were chosen: Stop, and the files are let go, so
+   * not even Try Again can send them under someone else's sign-in.
+   */
+  private dropWaiting(): void {
+    const waiting = new Set<number>();
+    for (const item of this.byId.values()) {
+      if (item.state === 'queued' || item.state === 'paused' || item.state === 'held') {
+        waiting.add(item.id);
+      }
+    }
+    this.stop();
+    for (const item of this.byId.values()) {
+      if (item.state === 'uploading') continue;
+      this.files.delete(item.id);
+      if (waiting.has(item.id)) this.put({ ...item, skipReason: 'signed-out' });
+    }
+    this.emit();
+  }
+
   /**
    * Adds one import: the files to send and the lines for files that will not be sent. Each file is
    * checked first: one already in this import, one an earlier visit settled, and one this browser
@@ -427,14 +556,20 @@ export class ImportQueue {
     candidates: readonly ImportCandidate[],
     skipped: readonly SkippedEntry[],
   ): Promise<void> {
+    // Who these files are for is read once, before any await: the upload ids and every later send
+    // use this one choice, even if the person picker changes while the ids are worked out.
+    const scope = this.options.scopeFor?.() ?? '';
     const uploadIds = await Promise.all(
       candidates.map(async ({ file }) => {
         try {
-          const id = await this.options.uploadIdFor?.({
-            name: file.name || 'Photo',
-            size: file.size,
-            lastModified: file.lastModified,
-          });
+          const id = await this.options.uploadIdFor?.(
+            {
+              name: file.name || 'Photo',
+              size: file.size,
+              lastModified: file.lastModified,
+            },
+            scope,
+          );
           return typeof id === 'string' && id !== '' ? id : this.newUploadId();
         } catch {
           return this.newUploadId();
@@ -456,7 +591,6 @@ export class ImportQueue {
         }
       }),
     );
-    const scope = this.options.scopeFor?.() ?? '';
     const seen = new Set<string>();
     for (const item of this.byId.values()) {
       if (item.state !== 'skipped') seen.add(item.fingerprint);
@@ -486,7 +620,12 @@ export class ImportQueue {
         added.push({ ...base, state: 'unsupported', message: check.reason });
         return;
       }
-      this.files.set(id, { file, contentType: check.contentType, shrink: check.shrink === true });
+      this.files.set(id, {
+        file,
+        contentType: check.contentType,
+        shrink: check.shrink === true,
+        scope,
+      });
       const before = earlier[index];
       if (before === 'added' || before === 'duplicate') {
         added.push({ ...base, state: before, earlier: true });
@@ -549,16 +688,17 @@ export class ImportQueue {
   stop(): void {
     this.generation++;
     this.paused = false;
+    this.connectionLost = false;
+    this.unansweredChecks = 0;
     const stopped: ImportItem[] = [];
     for (const item of this.byId.values()) {
       if (item.state !== 'queued' && item.state !== 'paused' && item.state !== 'held') continue;
-      const next: ImportItem = {
-        ...item,
-        state: 'skipped',
-        skipReason: 'stopped',
-        waitingToRetry: false,
-        progress: 0,
-      };
+      // A file put back after a send with no answer may already be stored: Not Confirmed, never
+      // "not added".
+      const next: ImportItem = this.mayBeStored.has(item.id)
+        ? { ...item, state: 'unknown', message: '', waitingToRetry: false, progress: 0 }
+        : { ...item, state: 'skipped', skipReason: 'stopped', waitingToRetry: false, progress: 0 };
+      this.mayBeStored.delete(item.id);
       this.put(next);
       stopped.push(next);
     }
@@ -608,6 +748,7 @@ export class ImportQueue {
       if (item && FINAL_STATES.has(item.state)) {
         this.byId.delete(id);
         this.files.delete(id);
+        this.offlineFreeRetries.delete(id);
       }
     }
     this.order = this.order.filter((id) => this.byId.has(id));
@@ -622,6 +763,8 @@ export class ImportQueue {
   }
 
   private requeue(item: ImportItem): void {
+    // A file with no answer may be stored already; going back in line does not change that.
+    if (item.state === 'unknown') this.mayBeStored.add(item.id);
     this.put({
       ...item,
       ...blank,
@@ -638,10 +781,39 @@ export class ImportQueue {
     return true;
   }
 
+  /** True only when the page gave a connection and it says there is none. */
+  private offline(): boolean {
+    const connection = this.options.connection;
+    if (!connection) return false;
+    try {
+      return !connection.isOnline();
+    } catch {
+      return false;
+    }
+  }
+
+  /** Marks the queue as waiting for the connection; returns true when that is news. */
+  private loseConnection(): boolean {
+    if (this.connectionLost) return false;
+    this.connectionLost = true;
+    return true;
+  }
+
   private pump(): void {
     while (!this.paused && this.active < this.concurrency) {
       const next = this.nextQueued();
       if (!next) break;
+      if (this.offline()) {
+        if (this.loseConnection()) this.emit();
+        break;
+      }
+      // Back online with files that waited for the connection: every way of sending them again
+      // (Resume, Try Again, a new file, a send finishing) goes through the one resume, which asks
+      // the account check first.
+      if (this.connectionLost) {
+        void this.resumeAfterConnection();
+        break;
+      }
       this.active++;
       this.update(next.id, { state: 'uploading', progress: 0 });
       void this.run(next.id);
@@ -667,6 +839,11 @@ export class ImportQueue {
         return;
       }
       for (;;) {
+        // The connection went while this file waited out a busy answer: it waits for it instead.
+        if (this.offline()) {
+          this.waitForConnection(id, this.byId.get(id)?.attempts ?? 0, generation);
+          return;
+        }
         const attempts = (this.byId.get(id)?.attempts ?? 0) + 1;
         this.update(id, { attempts, progress: 0, state: 'uploading', waitingToRetry: false });
         const sending = this.byId.get(id);
@@ -723,11 +900,28 @@ export class ImportQueue {
             contentType: held.contentType,
             uploadId: sending?.uploadId ?? this.newUploadId(),
             fileName: sending?.name ?? '',
+            scope: held.scope,
             onProgress: (fraction) => this.progress(id, fraction),
           });
         } catch {
           outcome = { kind: 'unknown' };
         }
+        // No answer while the device has no connection: with upload receipts the same id is safe
+        // to send again, so the file waits for the connection and this attempt is not counted.
+        const freeRetries = this.offlineFreeRetries.get(id) ?? 0;
+        if (
+          outcome.kind === 'unknown' &&
+          this.options.retryUnknown === true &&
+          this.offline() &&
+          freeRetries < MAX_OFFLINE_FREE_RETRIES
+        ) {
+          this.offlineFreeRetries.set(id, freeRetries + 1);
+          this.mayBeStored.add(id);
+          this.waitForConnection(id, attempts - 1, generation);
+          return;
+        }
+        // Any other no-answer send that will go again on its own may also be stored already.
+        if (outcome.kind === 'unknown') this.mayBeStored.add(id);
         // No answer: sent again on its own only when the server keeps upload receipts, so the
         // repeat (same id) is answered with the copy already stored, never a second one.
         const retryingUnknown =
@@ -768,12 +962,18 @@ export class ImportQueue {
         }
         // Nothing was stored, so Stop and Pause can take this file back safely.
         if (this.generation !== generation) {
-          this.settle(id, { state: 'skipped', skipReason: 'stopped', progress: 0 });
+          this.settle(
+            id,
+            this.mayBeStored.has(id)
+              ? { state: 'unknown', message: '', progress: 0 }
+              : { state: 'skipped', skipReason: 'stopped', progress: 0 },
+          );
           return;
         }
         if (this.paused) {
           this.update(id, { state: 'paused', progress: 0 });
-          this.options.onSettled?.(this.byId.get(id) as ImportItem);
+          // An earlier send with no answer may have stored it: the saved list keeps it unsettled.
+          if (!this.mayBeStored.has(id)) this.options.onSettled?.(this.byId.get(id) as ImportItem);
           return;
         }
         this.update(id, { state: 'queued', waitingToRetry: true, progress: 0 });
@@ -815,9 +1015,37 @@ export class ImportQueue {
       shrunk = { ok: false, reason: 'unreadable' };
     }
     if (!shrunk.ok) return shrunk.reason;
-    this.files.set(id, { file: shrunk.file, contentType: shrunk.file.type, shrink: false });
+    this.files.set(id, {
+      file: shrunk.file,
+      contentType: shrunk.file.type,
+      shrink: false,
+      scope: held.scope,
+    });
     this.update(id, { preparing: false, shrunkTo: shrunk.toBytes });
     return null;
+  }
+
+  /**
+   * Puts a file back in line to wait for the connection, with the attempts it had before. Stop
+   * since it started leaves it Not Confirmed (it may have been stored), never quietly waiting.
+   */
+  private waitForConnection(id: number, attempts: number, generation: number): void {
+    if (this.generation !== generation) {
+      this.settle(id, { state: 'unknown', message: '', progress: 0 });
+      return;
+    }
+    this.loseConnection();
+    this.update(id, {
+      state: this.paused ? 'paused' : 'queued',
+      attempts,
+      progress: 0,
+      waitingToRetry: false,
+    });
+    // As after a busy answer: a paused file that was certainly not stored has an ending for now, so
+    // the saved list hears of it. One that may be stored stays "sending" there (Not Confirmed).
+    if (this.paused && !this.mayBeStored.has(id)) {
+      this.options.onSettled?.(this.byId.get(id) as ImportItem);
+    }
   }
 
   /** The hourly limit: this file and every file still waiting are held, nothing more is sent. */
@@ -844,6 +1072,7 @@ export class ImportQueue {
   }
 
   private settle(id: number, change: Partial<ImportItem>): void {
+    this.mayBeStored.delete(id);
     this.update(id, { waitingToRetry: false, ...change });
     const item = this.byId.get(id);
     // A smaller copy of a photo is only kept for a retry; once the file is stored it is let go.
@@ -865,7 +1094,18 @@ export class ImportQueue {
   }
 
   private makeSnapshot(): ImportSnapshot {
-    return { order: this.order, byId: this.byId, paused: this.paused, version: this.version };
+    return {
+      order: this.order,
+      byId: this.byId,
+      paused: this.paused,
+      waitingForConnection: this.connectionLost && !this.paused && this.hasQueued(),
+      version: this.version,
+    };
+  }
+
+  private hasQueued(): boolean {
+    for (const item of this.byId.values()) if (item.state === 'queued') return true;
+    return false;
   }
 
   private emit(): void {

@@ -21844,6 +21844,46 @@ body:lang(bn),
   font-weight: 600;
 }
 /* end WP-PIC7 */
+/* WP-PIC16 browser toolbox (17 Nov 2026, picture-first upgrade, unit Q5). Read This Aloud is a quiet icon button inline on the case status line. Its 44 pixel slot is always drawn (also where the browser cannot speak), so the line never shifts when the page wakes up and nothing overlaps the next row's tap targets. Flat: no shadow, gradient or translucency. */
+.read-aloud-slot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+}
+/* The 44 pixel slot already holds the room above and below the status text, so the case header gives back that space (the phone first-row budget of WP-SB2 stays met). */
+.lift-case .page-meta {
+  margin-top: 0;
+}
+.lift-case .page-header {
+  margin-bottom: var(--space-3);
+}
+.read-aloud-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+/* A List or Stack switch fades the document area only, never the whole page. Motion is allowed here only when the person has not asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  .document-wallet-layout {
+    view-transition-name: wallet-view;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+/* end WP-PIC16 */
 
 /* WP-PIC9 waiting uploads: the files still on their way, as pictures with one state word. */
 .waiting-uploads {
@@ -22210,6 +22250,21 @@ body:lang(bn),
   }
 }
 /* end WP-PIC12 */
+/* WP-PIC15 progress card: the Share Progress Card control on the Cases page (owner decision D5). */
+.progress-card-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.progress-card-share .btn {
+  min-height: 44px;
+}
+.progress-card-share-status {
+  flex-basis: 100%;
+}
+/* end WP-PIC15 */
 /* WP-PIC10 deadline timeline: today, appointment, passport end and trip start on one wrapping line.
    Flat: shared tokens, no shadow, gradient or animation. Pictures are decorative; words carry the state. */
 .deadline-timeline {

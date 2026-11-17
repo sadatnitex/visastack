@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { appApplicantCatalog } from '../i18n/app-applicant';
+import { tapSuccess } from '../lib/browser-toolbox/vibrate';
 import { type ImportItem, type ImportSnapshot, canTryAgain } from '../lib/import/import-queue';
 import { documentMark } from '../lib/item-icons';
 import { useT } from './i18n-provider';
@@ -132,6 +133,23 @@ export function WaitingUploads({
   const t = useT(appApplicantCatalog);
   const snapshot = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const offline = useSyncExternalStore(subscribeOnline, offlineNow, () => false);
+  // One short tap when a file that was being sent has arrived; never for a refusal.
+  const sending = useRef(new Set<number>());
+  useEffect(() => {
+    // Forget files that left the queue while sending, so a later file can never be mistaken for one.
+    for (const id of sending.current) if (!snapshot.byId.has(id)) sending.current.delete(id);
+    for (const id of snapshot.order) {
+      const item = snapshot.byId.get(id);
+      if (!item) continue;
+      if (item.state === 'uploading') sending.current.add(id);
+      else if (
+        sending.current.delete(id) &&
+        (item.state === 'added' || item.state === 'duplicate')
+      ) {
+        tapSuccess();
+      }
+    }
+  }, [snapshot]);
   const rows: { item: ImportItem; kind: WaitingKind }[] = [];
   for (const id of snapshot.order) {
     const item = snapshot.byId.get(id);
