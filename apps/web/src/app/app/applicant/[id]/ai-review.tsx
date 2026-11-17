@@ -119,7 +119,7 @@ export function OcrResultView({
             label={t.node('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
             text={t.node('appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr')}
           >
-            <Icon name="stateCheck" size={18} />
+            <Icon name="ask" size={18} />
           </ExplainTip>
         </p>
       ) : null}

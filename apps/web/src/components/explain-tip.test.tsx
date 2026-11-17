@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appApplicantCatalog } from '../i18n/app-applicant';
 import { EXPLAIN_CLOSE_DELAY, EXPLAIN_OPEN_DELAY } from '../lib/use-explain-tip';
 import { ExplainTip } from './explain-tip';
+import { Icon } from './icons';
 import { I18nProvider } from './i18n-provider';
 
 vi.mock('../app/app/applicant/[id]/actions', () => ({
@@ -506,7 +507,10 @@ describe('ExplainTip pilot: the backup reader badge on a document reading', () =
       expect(
         document.getElementById(trigger.getAttribute('aria-describedby') ?? '')?.textContent,
       ).toBe(hint);
-      expect(trigger.querySelector('svg.icon')).not.toBeNull();
+      // A neutral "explain this" picture, not a tick: the notice is about a slow first reader.
+      expect(trigger.querySelector('svg.icon')?.outerHTML).toBe(
+        renderToStaticMarkup(<Icon name="ask" size={18} />),
+      );
       // The badge says the same words, so screen readers hear them once, from the button.
       expect(host.querySelector('.badge-neutral')?.getAttribute('aria-hidden')).toBe('true');
       await act(async () => trigger.click());
