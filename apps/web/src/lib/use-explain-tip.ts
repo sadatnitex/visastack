@@ -97,7 +97,7 @@ export function useExplainTip({
   openDelay = EXPLAIN_OPEN_DELAY,
   closeDelay = EXPLAIN_CLOSE_DELAY,
 }: { readonly openDelay?: number; readonly closeDelay?: number } = {}): ExplainTipState {
-  const popupId = `explain-${useId()}`;
+  const popupId = useId();
   const wrapRef = useRef<HTMLSpanElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popupRef = useRef<HTMLSpanElement | null>(null);
