@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest';
  * - durations are only the shared speeds;
  * - every animation and transition sits inside @media (prefers-reduced-motion: no-preference)
  *   and behind html:not([data-save-data]);
- * - a one-shot animation never holds its end state (it would block the hover lift);
+ * - a one-shot animation never holds its end state (it would block the hover lift) and never
+ *   repeats endlessly, in shorthands and longhands alike;
  * - no automatic dark appearance;
  * - at most one moving hero per screen (no source file names the moving class twice).
  * Each guard is shown failing on a bad example, so a broken guard cannot pass quietly.
@@ -22,9 +23,12 @@ const SHEET = readFileSync(join(HERE, 'pictures-depth.css'), 'utf8');
 const MOVING = new Set(['transform', 'opacity']);
 const SHARED_SPEED = /^var\(\s*--motion-(?:press|state|arrive|slow)\s*\)$/;
 const SHARED_EASE = /^var\(\s*--motion-ease\s*\)$/;
-const TIME = /^-?\d*\.?\d+m?s$/i;
-const MOTION_PROPS =
-  /^(?:transition|transition-property|transition-duration|transition-delay|animation|animation-name|animation-duration|animation-delay|will-change)$/;
+/** Anything that reads as a time: signs, decimals and exponents included (1e4ms, +5000ms, .5s). */
+const TIME = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?m?s$/i;
+/** Every animation and transition property, shorthand or longhand, plus will-change. */
+const MOTION_PROPS = /^(?:transition(?:-[a-z-]+)?|animation(?:-[a-z-]+)?|will-change)$/;
+/** Longhands whose values are names, not timings, so their words are not read as speeds. */
+const NAME_PROPS = /^(?:transition-property|animation-name|will-change)$/;
 
 /** Splits a value on top-level commas (not the commas inside var() or other brackets). */
 function splitTop(value: string, separator: ',' | ' '): string[] {
@@ -70,18 +74,17 @@ function behindDataSaver(selector: string): boolean {
   );
 }
 
-function durationsOk(value: string): string | null {
+/**
+ * The first timing problem in a value, or null. Every time-like token is refused (only the
+ * shared speeds may set a time), and every var() must be a shared speed or the shared ease.
+ */
+function timingProblem(value: string): string | null {
   for (const part of splitTop(value, ',')) {
     for (const token of splitTop(part, ' ')) {
-      if (TIME.test(token) && Number.parseFloat(token) !== 0) return `raw time ${token}`;
-      if (
-        /^var\(/.test(token) &&
-        /--motion-/.test(token) &&
-        !SHARED_SPEED.test(token) &&
-        !SHARED_EASE.test(token)
-      )
-        return `unknown speed ${token}`;
+      if (TIME.test(token)) return `raw time ${token}`;
       if (/^calc\(/i.test(token)) return `computed time ${token}`;
+      if (/^var\(/i.test(token) && !SHARED_SPEED.test(token) && !SHARED_EASE.test(token))
+        return `unknown speed ${token}`;
     }
   }
   return null;
@@ -116,22 +119,30 @@ function checkPictureSheet(css: string): string[] {
     if (!rule || !behindDataSaver(rule.selector)) errors.push(`not gated by data saver: ${where}`);
 
     const value = decl.value.trim();
-    if (decl.prop === 'transition' || decl.prop === 'animation') {
-      const bad = durationsOk(value);
+    const words = splitTop(value, ',').flatMap((part) => splitTop(part, ' '));
+    if (!NAME_PROPS.test(decl.prop)) {
+      const bad = timingProblem(value);
       if (bad) errors.push(`${bad}: ${where}`);
+    }
+    // A held end state (both, forwards) would pin transform and block .pic-lift; endless motion
+    // never lets a screen settle.
+    if (/^animation(?:-fill-mode)?$/.test(decl.prop)) {
+      if (words.some((word) => word === 'both' || word === 'forwards'))
+        errors.push(`animation holds its end state: ${where}`);
+    }
+    if (/^animation(?:-iteration-count)?$/.test(decl.prop)) {
+      if (words.some((word) => word.toLowerCase() === 'infinite'))
+        errors.push(`animation never ends: ${where}`);
+    }
+    if (decl.prop === 'transition' || decl.prop === 'animation') {
       for (const part of splitTop(value, ',')) {
         const tokens = splitTop(part, ' ');
         if (!tokens.some((token) => SHARED_SPEED.test(token)))
           errors.push(`no shared speed: ${where}`);
         if (decl.prop === 'transition' && !MOVING.has(tokens[0] ?? ''))
           errors.push(`transition moves ${tokens[0]}: ${where}`);
-        if (decl.prop === 'animation') {
-          // A held end state (both, forwards) would pin transform and block .pic-lift.
-          if (tokens.some((token) => token === 'both' || token === 'forwards'))
-            errors.push(`animation holds its end state: ${where}`);
-          const name = tokens.find((token) => keyframes.has(token));
-          if (!name) errors.push(`animation names no keyframes here: ${where}`);
-        }
+        if (decl.prop === 'animation' && !tokens.some((token) => keyframes.has(token)))
+          errors.push(`animation names no keyframes here: ${where}`);
       }
     }
     if (decl.prop === 'transition-property' || decl.prop === 'will-change') {
@@ -139,9 +150,11 @@ function checkPictureSheet(css: string): string[] {
         if (!MOVING.has(name)) errors.push(`${decl.prop} names ${name}`);
       }
     }
-    if (/-(?:duration|delay)$/.test(decl.prop)) {
-      const bad = durationsOk(value);
-      if (bad) errors.push(`${bad}: ${where}`);
+    if (decl.prop === 'animation-name') {
+      for (const name of splitTop(value, ','))
+        if (!keyframes.has(name)) errors.push(`animation names no keyframes here: ${where}`);
+    }
+    if (/-duration$/.test(decl.prop)) {
       if (!splitTop(value, ',').every((token) => SHARED_SPEED.test(token)))
         errors.push(`not a shared speed: ${where}`);
     }
@@ -202,13 +215,68 @@ describe('pictures-depth.css keeps the motion rules', () => {
       'animation holds its end state',
     ],
     [
+      'an exponent time in an animation',
+      '@media (prefers-reduced-motion: no-preference) { @keyframes k { to { opacity: 1; } } html:not([data-save-data]) .a { animation: k var(--motion-slow) 1e4ms; } }',
+      'raw time 1e4ms',
+    ],
+    [
+      'a signed time in a transition',
+      '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { transition: transform var(--motion-state) +5000ms; } }',
+      'raw time +5000ms',
+    ],
+    [
+      'a non-motion variable as a delay',
+      '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { transition: transform var(--motion-state) ease var(--wait); } }',
+      'unknown speed var(--wait)',
+    ],
+    [
+      'a non-motion variable in a delay longhand',
+      '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { animation-delay: var(--wait); } }',
+      'unknown speed var(--wait)',
+    ],
+    [
+      'a raw time in a delay longhand',
+      '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { transition-delay: 2s; } }',
+      'raw time 2s',
+    ],
+    [
+      'a non-motion timing function variable',
+      '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { transition-timing-function: var(--bounce); } }',
+      'unknown speed var(--bounce)',
+    ],
+    [
+      'an ungated fill-mode longhand',
+      '.a { animation-fill-mode: forwards; animation-iteration-count: infinite; }',
+      'not gated by reduced motion',
+    ],
+    [
+      'a fill-mode longhand that holds its end state',
+      '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { animation-fill-mode: both; } }',
+      'animation holds its end state',
+    ],
+    [
+      'an endless iteration longhand',
+      '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { animation-iteration-count: infinite; } }',
+      'animation never ends',
+    ],
+    [
+      'an endless animation shorthand',
+      '@media (prefers-reduced-motion: no-preference) { @keyframes k { to { opacity: 1; } } html:not([data-save-data]) .a { animation: k var(--motion-slow) ease infinite; } }',
+      'animation never ends',
+    ],
+    [
+      'a longhand outside the data saver gate',
+      '@media (prefers-reduced-motion: no-preference) { .a { animation-play-state: running; } }',
+      'not gated by data saver',
+    ],
+    [
       'a raw time',
       '@media (prefers-reduced-motion: no-preference) { html:not([data-save-data]) .a { transition: transform 300ms ease; } }',
       'raw time 300ms',
     ],
     [
       'a time in seconds',
-      '@media (prefers-reduced-motion: no-preference) { @keyframes k { to { opacity: 1; } } html:not([data-save-data]) .a { animation: k 2s ease infinite; } }',
+      '@media (prefers-reduced-motion: no-preference) { @keyframes k { to { opacity: 1; } } html:not([data-save-data]) .a { animation: k 2s ease; } }',
       'raw time 2s',
     ],
     [
