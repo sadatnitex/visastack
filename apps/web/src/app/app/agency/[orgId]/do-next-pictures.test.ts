@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type DeskReadiness,
   type DoNextCase,
   type DoNextInput,
   type DoNextRequest,
@@ -15,7 +16,7 @@ import {
 
 const NOW = new Date('2026-10-25T09:00:00.000Z');
 
-const readiness = {
+const readiness: DeskReadiness = {
   requiredCount: 4,
   satisfiedRequired: 1,
   missing: [

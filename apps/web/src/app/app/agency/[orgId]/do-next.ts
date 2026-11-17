@@ -91,9 +91,12 @@ export interface DeskReadiness {
   readonly requiredCount: number;
   readonly satisfiedRequired: number;
   /** What is still missing; read only for its kind, whether it is optional and why it is missing. */
-  readonly missing?: readonly (Pick<MissingRequirement, 'kind' | 'optional' | 'alternatives'> & {
+  readonly missing?: readonly {
+    readonly kind: MissingRequirement['kind'];
+    readonly optional: boolean;
     readonly reason?: MissingRequirement['reason'];
-  })[];
+    readonly alternatives?: readonly { readonly kind: MissingRequirement['kind'] }[];
+  }[];
 }
 
 /**
