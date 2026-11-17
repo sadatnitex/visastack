@@ -191,7 +191,32 @@ interface FieldRowProps {
   readonly sourceDocumentId?: string | null | undefined;
   /** Called with the chosen option, so a choice that accepts "Other" can open its text box at once. */
   readonly onChoice?: ((choice: string) => void) | undefined;
+  /** A protected value that is saved but could not be shown here (WALD2). */
+  readonly locked?: ProtectedLock | undefined;
 }
+
+/** Why a saved, protected value is not shown: no key here, or it could not be opened. */
+export type ProtectedLock = 'no_key' | 'unreadable';
+
+/**
+ * The stand-in a keyless read shows for a protected detail. Case and spaces do not matter. Mirrors
+ * isProtectedPlaceholder in the services package (a test keeps the two in step); the client bundle
+ * cannot import the services package itself.
+ */
+export function protectedStandIn(value: string | null | undefined): ProtectedLock | undefined {
+  if (!value) return undefined;
+  const folded = value.replace(/\s+/g, '').toLowerCase();
+  if (folded === '[protected]') return 'no_key';
+  if (folded === '[protected:couldnotdecrypt]') return 'unreadable';
+  return undefined;
+}
+
+/** Plain words under a protected detail whose value is saved but not shown. */
+const LOCKED_HINT: Readonly<Record<ProtectedLock, string>> = {
+  no_key: 'Saved and Protected. It is not shown here. Type a new value only to replace it.',
+  unreadable:
+    'Saved and Protected, but it could not be opened just now. Type a new value only to replace it.',
+};
 
 /** Same UTC day — the common case where a value is effective the moment it's saved. */
 function sameDay(a: string, b: string): boolean {
@@ -209,6 +234,7 @@ function FieldRow({
   assurance,
   sourceDocumentId,
   onChoice,
+  locked,
 }: FieldRowProps) {
   const t = useT(appApplicantCatalog);
   const impactT = useT(changeImpactCatalog);
@@ -219,6 +245,11 @@ function FieldRow({
   useFocusInvalidField(formRef, state);
   const inputId = repeatingRecordKey ? `f-${field.key}-${repeatingRecordKey}` : `f-${field.key}`;
   const sensitivityLabel = SENSITIVITY_LABELS[field.sensitivity];
+  // A stand-in is never a value: it is never put in the box, so it can never be saved back.
+  const standIn = protectedStandIn(currentValue);
+  const shownValue = standIn ? null : currentValue;
+  const lock = locked ?? standIn;
+  const hintId = `${inputId}-locked`;
 
   return (
     <form ref={formRef} action={formAction} className="field-row">
@@ -248,9 +279,11 @@ function FieldRow({
       <div className="field-control">
         {field.options ? (
           <select
+            // Remount when the stored value changes, so a save shows what was stored, not old typing.
+            key={shownValue ?? ''}
             id={inputId}
             name="value"
-            defaultValue={currentValue ?? ''}
+            defaultValue={shownValue ?? ''}
             className="input"
             onChange={(event) => onChoice?.(event.target.value)}
             {...fieldProblem(state, 'value', messageId)}
@@ -266,17 +299,24 @@ function FieldRow({
           </select>
         ) : (
           <input
+            // Remount when the stored value changes, so a save shows what was stored, not old typing.
+            key={shownValue ?? ''}
             id={inputId}
             name="value"
             type={field.type === 'date' ? 'date' : 'text'}
-            defaultValue={currentValue ?? ''}
-            placeholder={field.placeholder ?? ''}
+            defaultValue={shownValue ?? ''}
+            placeholder={lock ? 'Saved and Protected' : (field.placeholder ?? '')}
             className="input"
-            {...fieldProblem(state, 'value', messageId)}
+            {...fieldProblem(state, 'value', messageId, ...(lock ? [hintId] : []))}
           />
         )}
         <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
+      {lock ? (
+        <p id={hintId} className="muted u-fs-075-m0" data-protected-lock={lock}>
+          {LOCKED_HINT[lock]}
+        </p>
+      ) : null}
       <details className="field-backdate">
         <summary className="muted">
           {t.node('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
@@ -339,6 +379,8 @@ export interface ProfileValue {
   readonly effectiveFrom?: string | null;
   /** The document the current value was read from, when it came from one. */
   readonly sourceDocumentId?: string | null;
+  /** Saved and protected, but its value is not shown here (`value` is then null). */
+  readonly locked?: ProtectedLock | null;
 }
 
 type RepeatingValues = Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
@@ -374,6 +416,7 @@ function FieldWithOther({
         assurance={current ? assurance.get(current.factId) : undefined}
         sourceDocumentId={current?.sourceDocumentId}
         onChoice={detail ? setChoice : undefined}
+        locked={current?.locked ?? undefined}
       />
       {detail && (choice === OTHER_CHOICE || detailCurrent?.value) ? (
         <FieldRow
@@ -385,6 +428,7 @@ function FieldWithOther({
           updatedAt={detailCurrent?.updatedAt}
           effectiveFrom={detailCurrent?.effectiveFrom}
           assurance={detailCurrent ? assurance.get(detailCurrent.factId) : undefined}
+          locked={detailCurrent?.locked ?? undefined}
         />
       ) : null}
     </>
@@ -674,6 +718,7 @@ function matchesSearch(label: string, search: string): boolean {
 
 function displayValue(field: EditorFieldDef, current: ProfileValue | undefined): string {
   const value = current?.value;
+  if (current?.locked === 'unreadable') return 'Could not read this detail';
   if (!value && current?.status === 'STALE') return 'No Longer Current';
   if (!value) {
     return current?.status && field.sensitivity !== 'STANDARD'

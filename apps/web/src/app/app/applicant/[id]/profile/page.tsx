@@ -7,6 +7,7 @@ import {
   getProfileSectionState,
   getWalletView,
   hasConsent,
+  isProtectedPlaceholder,
   listApplicantAssurance,
   listApplicantProfile,
   listDocumentsDetailed,
@@ -39,7 +40,7 @@ import { createKeyManagementPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
 import { AppSuggestionsSection } from '../app-suggestions';
 import { numberText } from '../number-text';
-import { type FieldAssurance, ProfileEditor } from '../profile-editor';
+import { type FieldAssurance, ProfileEditor, type ProtectedLock } from '../profile-editor';
 
 export const metadata: Metadata = { title: 'My Profile' };
 
@@ -88,6 +89,10 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
+    // WALD2: the owner's own profile is read once with the key, after the owner check above, so a
+    // protected detail (date of birth, passport number) shows its real value in its own box. With
+    // no key here, or a value that cannot be opened, the box stays empty and says why.
+    const encryption = createKeyManagementPort();
     const [
       profile,
       coreGranted,
@@ -98,7 +103,7 @@ export default async function ApplicantProfilePage({
       fromApps,
       endedRecords,
     ] = await Promise.all([
-      listApplicantProfile(db, id),
+      listApplicantProfile(db, id, encryption),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
       getProfileSectionState(db, id),
@@ -159,20 +164,15 @@ export default async function ApplicantProfilePage({
         ? caseCountriesForFamily(cases.value, suggestFor)
         : new Set<string>();
     const pending = fromApps.pending;
-    // Compared with the profile only when there is something to compare, with protected values
-    // read on the server first (as Documents does), so an identical value is never a difference.
-    const encryption = pending.length > 0 ? createKeyManagementPort() : undefined;
+    // Compared with the same keyed read (as Documents does), so an identical value is never a
+    // difference and nothing is opened twice.
     const confirmedNow =
-      pending.length > 0
-        ? confirmedValues(
-            encryption ? await listApplicantProfile(db, id, encryption) : profile,
-            encryption !== undefined,
-          )
-        : new Map();
+      pending.length > 0 ? confirmedValues(profile, encryption !== undefined) : new Map();
     return {
       applicant,
       photoUrl,
       profile,
+      keyed: encryption !== undefined,
       appSuggestions: pending.map((reading) => findingViewModel(reading, confirmedNow)),
       // The section stays while an app may suggest more, so the last decision is still confirmed.
       appSuggestionsInUse: fromApps.inUse,
@@ -197,13 +197,22 @@ export default async function ApplicantProfilePage({
     readonly updatedAt: string | null;
     readonly effectiveFrom: string | null;
     readonly sourceDocumentId: string | null;
+    readonly locked: ProtectedLock | null;
   }
   const values: Record<string, EntryValue> = {};
   const repeatingValues: Record<string, Record<string, EntryValue>> = {};
   for (const entry of data.profile) {
+    // A protected value that was not opened is never handed to a box as text (WALD2).
+    const locked: ProtectedLock | null =
+      entry.isProtected && isProtectedPlaceholder(entry.value)
+        ? data.keyed
+          ? 'unreadable'
+          : 'no_key'
+        : null;
     const v = {
       factId: entry.factId,
-      value: entry.value,
+      value: locked ? null : entry.value,
+      locked,
       status: entry.status,
       updatedAt: entry.updatedAt,
       effectiveFrom: entry.effectiveFrom,
