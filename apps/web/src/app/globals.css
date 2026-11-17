@@ -16304,12 +16304,10 @@ details[open] > .lift-action-summary .lift-action-chevron {
 
 /* The section links under the card: one quiet row. */
 .lift-case .jump-nav {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: var(--space-1);
   margin-bottom: var(--space-4);
   padding-bottom: var(--space-1);
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 .lift-case .jump-nav a {
   padding: 0 var(--space-3);
@@ -16610,10 +16608,8 @@ details[open] > .lift-action-summary .lift-action-chevron {
     align-self: flex-start;
   }
   .lift-case .jump-nav {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 0 var(--space-4);
-    overflow-x: auto;
-    white-space: nowrap;
   }
   .lift-case .jump-nav a {
     display: inline-flex;
@@ -16952,7 +16948,7 @@ a.row.lift-snap:hover {
   padding-bottom: 0;
 }
 
-/* The section links under the status panel: one row of quiet pills that scrolls inside its own box. */
+/* The section links under the status panel: quiet pills that wrap onto more rows, so the strip never needs a sideways scroll (WP-WAL0). */
 .jump-nav {
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -16960,14 +16956,6 @@ a.row.lift-snap:hover {
   margin: 0 0 var(--space-5);
   padding: 0;
   border-bottom: none;
-}
-@media (max-width: 760px) {
-  .jump-nav {
-    flex-wrap: nowrap;
-    padding-bottom: var(--space-1);
-    overflow-x: auto;
-    scrollbar-width: thin;
-  }
 }
 .jump-nav a {
   flex: none;
@@ -21943,8 +21931,11 @@ body:lang(bn),
 }
 /* A List or Stack switch fades the document area only, never the whole page. Motion is allowed here only when the person has not asked for less. */
 @media (prefers-reduced-motion: no-preference) {
-  .document-wallet-layout {
-    view-transition-name: wallet-view;
+  /* WP-WAL0: a view-transition name makes a stacking context. On a phone the open document sheet sits inside this box, so the Add button and the bottom bar painted over it. The fade is kept only above 760 px and never while a sheet is open. */
+  @media (min-width: 761px) {
+    .document-wallet-layout:not(:has(.wallet-selected-document[data-sheet="open"])) {
+      view-transition-name: wallet-view;
+    }
   }
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -22577,3 +22568,16 @@ button.wallet-stack-card {
   }
 }
 /* end WP-PIC5 */
+
+/* WP-WAL0 Documents sheet on a phone: while a document sheet is open the Add button and its spacer are gone (the page also leaves the button out when the address names a document), and the sheet's last control clears the bottom bar and the phone's bottom edge. Tokens only. */
+@media (max-width: 760px) {
+  body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab,
+  body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab-space {
+    display: none;
+  }
+
+  .wallet-selected-document[data-sheet="open"] {
+    padding-bottom: calc(var(--space-6) + 5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+/* end WP-WAL0 */

@@ -59,7 +59,7 @@ function Details() {
   );
 }
 
-function Sheet({ addButton }: { readonly addButton: boolean }) {
+function Shell({ children }: { readonly children: React.ReactNode }) {
   return (
     <WorkspaceShell
       access={{
@@ -70,6 +70,14 @@ function Sheet({ addButton }: { readonly addButton: boolean }) {
       accountName="Example Traveller"
       signOut={<span />}
     >
+      {children}
+    </WorkspaceShell>
+  );
+}
+
+function Sheet({ addButton }: { readonly addButton: boolean }) {
+  return (
+    <Shell>
       <div className="container">
         <DocumentWalletBrowser
           applicantId={APPLICANT}
@@ -102,7 +110,7 @@ function Sheet({ addButton }: { readonly addButton: boolean }) {
           </>
         ) : null}
       </div>
-    </WorkspaceShell>
+    </Shell>
   );
 }
 
@@ -120,6 +128,7 @@ const LINKS: readonly (readonly [string, string, 'glance' | 'browse' | 'everythi
 
 function Strip({ depth }: { readonly depth: DepthChoice }) {
   return (
+    <Shell>
     <section className="section container lift-case">
       <DepthScope family="case" depth={depth}>
         <nav className="jump-nav" aria-label="Sections of this case" data-level="browse">
@@ -131,6 +140,7 @@ function Strip({ depth }: { readonly depth: DepthChoice }) {
         </nav>
       </DepthScope>
     </section>
+    </Shell>
   );
 }
 
