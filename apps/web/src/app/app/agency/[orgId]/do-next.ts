@@ -115,8 +115,9 @@ export interface DeskPicture {
  * a document. Null when the missing list was not read with the readiness.
  */
 function requiredDocumentsNotProvided(readiness: DeskReadiness): number | null {
-  if (!Array.isArray(readiness.missing)) return null;
-  return readiness.missing.filter(
+  const missing = readiness.missing;
+  if (!missing) return null;
+  return missing.filter(
     (m) =>
       !m.optional &&
       m.reason === 'not_provided' &&
