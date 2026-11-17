@@ -50,9 +50,9 @@ export default async function PasskeysPage({
         back={{ href: '/app/account', label: 'Account' }}
       />
       {notice ? (
-        <output className="field-msg u-mb-100" style={{ display: 'block' }}>
-          {notice}
-        </output>
+        <p className="u-mb-100">
+          <output className="field-msg">{notice}</output>
+        </p>
       ) : null}
       <div className="grid">
         {data.list.state === 'unavailable' ? (

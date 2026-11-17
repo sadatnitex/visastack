@@ -34,7 +34,7 @@ B. **Sign in with a link by email**, using the magic link sign-in Neon Auth alre
 - Off unless `SIGN_IN_LINKS=on`.
 - Every valid address takes the same steps and gets the same answer, so the form never shows who has an account. The email limit is checked first and refuses when it cannot be read.
 - The link returns to `/auth/link-return`. A new person goes through the same agreement and invitation checks as a new Google sign-in.
-- Only the browser that asked can finish: asking sets a signed, 15-minute, httpOnly "link pending" cookie for every valid address, and the landing ends any link sign-in in a browser without one. A link someone else asked for (for their own account) therefore cannot sign this browser in, whatever Neon Auth does with its own check cookie, which cannot be inspected from here.
+- Only the browser that asked can finish: asking sets a signed, 10-minute, single-use, httpOnly, Lax "link pending" cookie for every valid address. The sign-in filter checks it before Neon Auth hands over any sign-in on the landing, and the landing ends any link sign-in that got past without one. A link someone else asked for (for their own account) therefore cannot sign this browser in, whatever Neon Auth does with its own check cookie, which cannot be inspected from here.
 - A link never makes a staff sign-in: the landing ends it and asks for the password. The confirm-it-is-you page offers the link to travellers only.
 - An email link counts as a fresh sign-in for traveller step-up, like a password. Email can already reset a password, so this gives no new power. Staff never get a link sign-in.
 

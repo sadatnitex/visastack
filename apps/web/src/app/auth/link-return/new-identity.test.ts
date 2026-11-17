@@ -72,10 +72,8 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe('a link sign-in for an address with no account', () => {
   it('goes to the agreement and invitation step, never straight to the product', async () => {
-    const { encodeLinkPending, linkPendingCookieName } = await import(
-      '../../../lib/sign-in-link-guard'
-    );
-    jar.set(linkPendingCookieName(true), encodeLinkPending(SECRET));
+    const { encodeLinkPending, linkPendingCookieName } = await import('../../../lib/link-pending');
+    jar.set(linkPendingCookieName(true), await encodeLinkPending(SECRET));
     const { GET } = await import('./route');
     const response = await GET(
       new Request('https://app.example.test/auth/link-return?next=%2Fapp%2Fcases'),

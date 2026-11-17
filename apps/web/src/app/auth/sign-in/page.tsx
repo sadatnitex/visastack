@@ -25,7 +25,7 @@ const ERRORS: Record<string, string> = {
   social_start:
     'Google sign-in could not start from here. Use the Continue with Google button on this page, or sign in with your email and password.',
   link_invalid: 'Enter a valid email address to get a sign-in link.',
-  link: 'That sign-in link did not sign you in here. Open it on the same device and browser where you asked for it, or ask for a new one.',
+  link: 'Open the link on the device where you asked for it, or ask for a new one below.',
   link_expired: 'That sign-in link has expired or was already used. Ask for a new one below.',
   link_slow: 'Too many sign-in links were asked for. Please wait a little while and try again.',
   link_staff: 'Staff accounts sign in with the email address and password.',

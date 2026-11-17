@@ -10,8 +10,10 @@ export const dynamic = 'force-dynamic';
  * path first and hands over the sign-in Neon Auth made when the link was opened. Then, in order:
  *
  * 1. No sign-in: the sign-in form with the link message.
- * 2. This browser did not ask for a link (no valid "link pending" cookie): the new sign-in is
- *    ended at once, so a link someone else asked for can never sign this browser in.
+ * 2. This browser did not ask for a link (no valid "link pending" mark). The sign-in filter
+ *    already refuses this before any sign-in is handed over (`lib/link-return-gate.ts`); if a
+ *    sign-in got here anyway it is ended at once, so a link someone else asked for can never
+ *    sign this browser in. The mark is cleared here either way, so it is used once.
  * 3. Staff: the sign-in is ended and the person is asked to sign in with the password; a link
  *    never makes a staff sign-in.
  * 4. A new person: the agreement and invitation step (`/auth/notice-check`) first.
@@ -27,12 +29,13 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const { cookies } = await import('next/headers');
   const store = await cookies();
-  const guard = await import('../../../lib/sign-in-link-guard');
+  const mark = await import('../../../lib/link-pending');
+  const { emailIsStaff } = await import('../../../lib/sign-in-link-guard');
   const { getNeonAuth, readNeonAuthSettings } = await import('../../../lib/neon-auth');
   const secure = origin.startsWith('https://');
-  const pendingName = guard.linkPendingCookieName(secure);
+  const pendingName = mark.linkPendingCookieName(secure);
   const pending = store.get(pendingName)?.value;
-  store.set(pendingName, '', { ...guard.linkPendingCookieOptions(secure), maxAge: 0 });
+  store.set(pendingName, '', { ...mark.linkPendingCookieOptions(secure), maxAge: 0 });
 
   let user: { id: string; email: string } | undefined;
   try {
@@ -56,13 +59,13 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   let askedHere = false;
   try {
-    askedHere = guard.linkPendingValid(pending, readNeonAuthSettings().cookieSecret);
+    askedHere = await mark.linkPendingValid(pending, readNeonAuthSettings().cookieSecret);
   } catch {
     askedHere = false;
   }
   if (!askedHere) return endSignIn('link');
 
-  const staff = await guard.emailIsStaff(user.email);
+  const staff = await emailIsStaff(user.email);
   if (staff !== false) return endSignIn(staff === null ? 'link' : 'link_staff');
 
   let mustAgree: boolean;

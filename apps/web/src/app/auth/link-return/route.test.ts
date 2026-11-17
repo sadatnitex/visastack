@@ -41,7 +41,7 @@ vi.mock('../../../lib/public-db', () => ({
 }));
 vi.mock('../../../lib/server-error', () => ({ reportServerError: vi.fn() }));
 
-import { encodeLinkPending, linkPendingCookieName } from '../../../lib/sign-in-link-guard';
+import { encodeLinkPending, linkPendingCookieName } from '../../../lib/link-pending';
 import { GET } from './route';
 
 const PENDING = linkPendingCookieName(true);
@@ -54,9 +54,9 @@ async function land(next = '/app/cases'): Promise<string> {
   return `${location.pathname}${location.search}`;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jar.clear();
-  jar.set(PENDING, encodeLinkPending(SECRET));
+  jar.set(PENDING, await encodeLinkPending(SECRET));
   signOut.mockReset().mockResolvedValue({});
   getSession.mockReset().mockResolvedValue({
     data: { user: { id: 'neon-1', email: 'p@example.test' } },
@@ -78,15 +78,21 @@ describe('the sign-in link landing', () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     jar.set(PENDING, 'forged.value');
     expect(await land()).toBe('/auth/sign-in?e=link&next=%2Fapp%2Fcases');
-    jar.set(PENDING, encodeLinkPending(SECRET, Date.now() - 16 * 60 * 1000));
+    jar.set(PENDING, await encodeLinkPending(SECRET, Date.now() - 11 * 60 * 1000));
     expect(await land()).toBe('/auth/sign-in?e=link&next=%2Fapp%2Fcases');
     expect(signOut).toHaveBeenCalledTimes(3);
+  });
+
+  it('uses each mark once: the same browser cannot finish a second link sign-in with it', async () => {
+    expect(await land()).toBe('/app/cases');
+    expect(await land()).toBe('/auth/sign-in?e=link&next=%2Fapp%2Fcases');
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 
   it('never keeps a staff sign-in made by a link, or one whose role cannot be read', async () => {
     emailIsStaff.mockResolvedValueOnce(true);
     expect(await land()).toBe('/auth/sign-in?e=link_staff&next=%2Fapp%2Fcases');
-    jar.set(PENDING, encodeLinkPending(SECRET));
+    jar.set(PENDING, await encodeLinkPending(SECRET));
     emailIsStaff.mockResolvedValueOnce(null);
     expect(await land()).toBe('/auth/sign-in?e=link&next=%2Fapp%2Fcases');
     expect(signOut).toHaveBeenCalledTimes(2);
@@ -101,9 +107,9 @@ describe('the sign-in link landing', () => {
     getSession.mockResolvedValue({ data: null });
     expect(await land()).toBe('/auth/sign-in?e=link&next=%2Fapp%2Fcases');
     getSession.mockResolvedValue({ data: { user: { id: 'neon-1', email: 'p@example.test' } } });
-    jar.set(PENDING, encodeLinkPending(SECRET));
+    jar.set(PENDING, await encodeLinkPending(SECRET));
     expect(await land('//evil.example')).toBe('/app');
-    jar.set(PENDING, encodeLinkPending(SECRET));
+    jar.set(PENDING, await encodeLinkPending(SECRET));
     expect(await land('https://evil.example/x')).toBe('/app');
   });
 });

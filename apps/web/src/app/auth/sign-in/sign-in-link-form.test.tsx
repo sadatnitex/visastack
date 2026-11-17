@@ -40,7 +40,9 @@ it('offers a sign-in link by email only while SIGN_IN_LINKS is on, beside the un
 it('explains each sign-in link outcome in plain words', async () => {
   vi.stubEnv('SIGN_IN_LINKS', 'on');
   expect((await page({ n: 'link_sent' })).body.textContent).toContain('We sent a sign-in link');
-  expect((await page({ e: 'link' })).body.textContent).toContain('same device and browser');
+  expect((await page({ e: 'link' })).body.textContent).toContain(
+    'Open the link on the device where you asked for it',
+  );
   expect((await page({ e: 'link_expired' })).body.textContent).toContain(
     'expired or was already used',
   );

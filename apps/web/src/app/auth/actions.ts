@@ -175,7 +175,7 @@ export async function reauthLinkAction(formData: FormData): Promise<void> {
  * email limit says no (or cannot be read). Every valid address takes the same steps; a Neon Auth
  * failure is logged with its status only and still reported as sent, so the answer never depends
  * on the address. This browser is marked as the one that asked (`sign-in-link-guard.ts`), and only
- * a browser so marked can finish a link sign-in.
+ * a browser so marked can finish a link sign-in (`link-pending.ts`).
  */
 async function sendSignInLink(email: string, next: string): Promise<boolean> {
   const allowed = await withinAuthLimits({
@@ -186,14 +186,14 @@ async function sendSignInLink(email: string, next: string): Promise<boolean> {
   });
   if (!allowed) return false;
   const origin = resolveBaseUrl();
-  const guard = await import('../../lib/sign-in-link-guard');
+  const mark = await import('../../lib/link-pending');
   const { cookies } = await import('next/headers');
   const { readNeonAuthSettings } = await import('../../lib/neon-auth');
   const secure = origin.startsWith('https://');
   (await cookies()).set(
-    guard.linkPendingCookieName(secure),
-    guard.encodeLinkPending(readNeonAuthSettings().cookieSecret),
-    guard.linkPendingCookieOptions(secure),
+    mark.linkPendingCookieName(secure),
+    await mark.encodeLinkPending(readNeonAuthSettings().cookieSecret),
+    mark.linkPendingCookieOptions(secure),
   );
   const { reportServerError } = await import('../../lib/server-error');
   try {

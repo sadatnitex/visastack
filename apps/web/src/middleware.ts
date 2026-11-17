@@ -2,12 +2,17 @@ import type { NextRequest } from 'next/server';
 import { neonLoginUrlFor } from './lib/confirmed-landing';
 import { createCspMiddleware } from './lib/csp-middleware';
 import { isNeonProtectedPath } from './lib/identity-selection';
+import { refuseUnaskedLink } from './lib/link-return-gate';
 
 /**
  * Neon Auth sign-in check, the only sign-in system. The Neon package is loaded on first use.
  * Unsigned-in visitors to protected pages are sent to `/auth/sign-in`.
  */
 async function neonMiddleware(request: NextRequest) {
+  // The email sign-in link landing is refused here, before any sign-in is handed over, unless
+  // this browser is the one that asked for the link (Q8, `lib/link-return-gate.ts`).
+  const refused = await refuseUnaskedLink(request, (name) => process.env[name]);
+  if (refused) return refused;
   const { getNeonAuth } = await import('./lib/neon-auth');
   const loginUrl = neonLoginUrlFor(request.nextUrl.pathname, request.nextUrl.search);
   return getNeonAuth().middleware({ loginUrl })(request);
