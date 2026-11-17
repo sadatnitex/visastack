@@ -21559,3 +21559,19 @@ body:lang(bn),
   color: var(--text-secondary);
 }
 /* end WP-CI */
+
+/* WP-PIC3 SVG flags (17 Nov 2026, picture-first upgrade, unit U3). The real flag is a same-origin static picture laid over the emoji or letters badge, which stay underneath as the fallback. Round like before; flat: no shadow, gradient, blur or translucency; tokens only. */
+.country-flag {
+  position: relative;
+}
+.country-flag-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-subtle);
+}
+/* end WP-PIC3 */

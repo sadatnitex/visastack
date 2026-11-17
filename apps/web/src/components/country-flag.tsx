@@ -1,6 +1,7 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import { flagSrc } from '../lib/flag-policy';
 import { Icon } from './icons';
 
 /**
@@ -13,6 +14,11 @@ import { Icon } from './icons';
  * `useSyncExternalStore`, whose first browser pass equals the server's, so the page never fails to
  * match its own markup. A code that is not two letters draws a plain globe; with no name it is
  * decoration and is hidden from a screen reader.
+ *
+ * Where the flag policy (`lib/flag-policy.ts`) has a picture for the code, the real flag is drawn
+ * from a static same-origin file on top of that emoji or letters badge, which stay underneath as
+ * the fallback: a hidden code, a missing file, a failed load or being offline simply leaves them
+ * showing. The picture is in the server's markup too, so the first browser pass still matches it.
  */
 
 export type CountryFlagSize = 'sm' | 'md' | 'lg';
@@ -86,6 +92,21 @@ export function CountryFlag({
   readonly decorative?: boolean;
 }) {
   const lacksEmoji = useLacksFlagEmoji();
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const resolvedSrc = flagSrc(iso2);
+  const src = resolvedSrc !== null && resolvedSrc !== failedSrc ? resolvedSrc : null;
+  const picture = src ? (
+    <img
+      className="country-flag-img"
+      src={src}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      onError={() => setFailedSrc(src)}
+    />
+  ) : null;
   const emoji = flagEmoji(iso2);
   const letters = flagLetters(iso2);
   const label = (name ?? '').trim();
@@ -110,12 +131,14 @@ export function CountryFlag({
         {...a11y}
       >
         {letters}
+        {picture}
       </span>
     );
   }
   return (
     <span className="country-flag" data-size={size} data-flag-kind="emoji" {...a11y}>
       {emoji}
+      {picture}
     </span>
   );
 }
