@@ -187,3 +187,16 @@ describe('CountryFlag with a picture', () => {
     expect(await axeViolations(container.innerHTML)).toEqual([]);
   });
 });
+
+describe('the picture layer', () => {
+  it('has no background of its own, so a picture that fails before the page wakes up still shows the emoji beneath', () => {
+    const css = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');
+    const block = css.slice(css.lastIndexOf('/* WP-PIC3'));
+    const rule = block.slice(
+      block.indexOf('.country-flag-img'),
+      block.indexOf('}', block.indexOf('.country-flag-img')),
+    );
+    expect(rule).toContain('position: absolute');
+    expect(rule).not.toMatch(/background/);
+  });
+});
