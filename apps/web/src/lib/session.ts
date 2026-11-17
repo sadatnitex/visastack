@@ -13,12 +13,16 @@ import {
   selfPrincipal,
   touchAccountActivity,
 } from '@visastack/services';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { cache } from 'react';
 import { sendWaitingEmailsSoon } from './email-backstop';
 import { NeonIdentityPort } from './identity-provider';
+import { mustAcknowledgeNotices } from './notice-gate';
 import { checkPilotAccess } from './pilot-access';
+import { PATHNAME_REQUEST_HEADER, SEARCH_REQUEST_HEADER } from './request-headers';
+import { safeReturnPath } from './safe-return-path';
 import { reportServerError } from './server-error';
 import { enforceSessionAgeLimit, isStaffContext } from './session-age';
 
@@ -202,6 +206,22 @@ async function scheduleActivityWrite(
  * and the request carries on. The next request retries, because the stored timestamp (or the
  * pending warning) is still there.
  */
+/**
+ * Where the person was headed on this request (the page and its query, from the headers the request
+ * filter sets and always overwrites), so a redirect in the middle of account creation can send them
+ * on to it afterwards. The ordinary home when it cannot be read (outside a request, or no header).
+ */
+async function currentDestination(): Promise<string> {
+  try {
+    const requestHeaders = await headers();
+    const path = requestHeaders.get(PATHNAME_REQUEST_HEADER);
+    if (!path) return '/app';
+    return safeReturnPath(`${path}${requestHeaders.get(SEARCH_REQUEST_HEADER) ?? ''}`);
+  } catch {
+    return '/app';
+  }
+}
+
 async function touchActivitySafely(db: Db, accountId: string, step: string): Promise<void> {
   try {
     await touchAccountActivity(db, accountId);
@@ -238,6 +258,13 @@ async function resolveSignedInAccount(
   });
   if (!access.allowed) {
     redirect('/pilot-access-denied');
+  }
+
+  // Agreement to the terms and privacy notice, at the one moment an account would be created for a
+  // person who did not come through the sign-up form (Google). Before the invitation is claimed, so
+  // stopping here uses nothing up. See notice-gate.ts.
+  if (await mustAcknowledgeNotices(db, user)) {
+    redirect(`/auth/notice-check?next=${encodeURIComponent(await currentDestination())}`);
   }
 
   // Claim the invitation BEFORE provisioning, not after (Codex review, PR

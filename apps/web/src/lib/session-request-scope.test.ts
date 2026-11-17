@@ -19,7 +19,9 @@ const h = vi.hoisted(() => {
       state.afterQueue = [];
     },
     currentIdentity: vi.fn(),
+    requestHeaders: new Headers(),
     checkPilotAccess: vi.fn(),
+    mustAcknowledge: vi.fn(),
     claimInvitation: vi.fn(),
     provision: vi.fn(),
     attribute: vi.fn(),
@@ -75,6 +77,8 @@ vi.mock('@visastack/services', () => ({
   selfPrincipal: (accountId: string) => ({ kind: 'self', accountId }),
 }));
 vi.mock('./pilot-access', () => ({ checkPilotAccess: h.checkPilotAccess }));
+vi.mock('next/headers', () => ({ headers: async () => h.requestHeaders }));
+vi.mock('./notice-gate', () => ({ mustAcknowledgeNotices: h.mustAcknowledge }));
 vi.mock('./server-error', () => ({ reportServerError: h.report }));
 vi.mock('./session-age', () => ({
   isStaffContext: h.isStaffContext,
@@ -111,6 +115,8 @@ beforeEach(() => {
     emailVerified: true,
   });
   h.checkPilotAccess.mockResolvedValue({ allowed: true });
+  h.mustAcknowledge.mockReset().mockResolvedValue(false);
+  h.requestHeaders = new Headers();
   h.provision.mockResolvedValue(account());
   h.isStaffContext.mockResolvedValue(false);
   h.enforceSessionAgeLimit.mockResolvedValue({ satisfied: true });
@@ -361,5 +367,83 @@ describe('activityWriteNeeded', () => {
     expect(
       activityWriteNeeded({ lastActiveAt: new Date(now), inactivityNoticeSentAt: new Date() }, now),
     ).toBe('now');
+  });
+});
+
+describe('agreement to the terms before an account is created', () => {
+  it('stops a person who must agree before the invitation is claimed or any account is made', async () => {
+    const { withSession } = await import('./session');
+    h.checkPilotAccess.mockResolvedValue({
+      allowed: true,
+      invitationId: 'inv-1',
+      mustClaimInvitation: true,
+    });
+    h.mustAcknowledge.mockResolvedValue(true);
+    const results = await Promise.allSettled([
+      withSession(async () => 'never'),
+      withSession(async () => 'never'),
+    ]);
+    for (const r of results) {
+      expect(r.status).toBe('rejected');
+      expect((r as PromiseRejectedResult).reason.message).toBe(
+        'REDIRECT:/auth/notice-check?next=%2Fapp',
+      );
+    }
+    expect(h.mustAcknowledge).toHaveBeenCalledWith(expect.anything(), {
+      id: 'neon-1',
+      email: 'person@example.test',
+      emailVerified: true,
+    });
+    expect(h.claimInvitation).not.toHaveBeenCalled();
+    expect(h.provision).not.toHaveBeenCalled();
+  });
+
+  it('carries the page and the query the person was headed for, so an invitation link survives', async () => {
+    const { withSession } = await import('./session');
+    h.mustAcknowledge.mockResolvedValue(true);
+    h.requestHeaders = new Headers({
+      'x-vs-pathname': '/app/invitations/accept',
+      'x-vs-search': '?token=abc123',
+    });
+    await expect(withSession(async () => 'never')).rejects.toThrow(
+      `REDIRECT:/auth/notice-check?next=${encodeURIComponent('/app/invitations/accept?token=abc123')}`,
+    );
+  });
+
+  it('falls back to the ordinary home when the address cannot be read or is not on this site', async () => {
+    const { withSession } = await import('./session');
+    h.mustAcknowledge.mockResolvedValue(true);
+    h.requestHeaders = new Headers({ 'x-vs-pathname': '//evil.example', 'x-vs-search': '' });
+    await expect(withSession(async () => 'never')).rejects.toThrow(
+      'REDIRECT:/auth/notice-check?next=%2Fapp',
+    );
+  });
+
+  it('asks only after the pilot-access check, so an uninvited person is refused as before', async () => {
+    const { withSession } = await import('./session');
+    h.checkPilotAccess.mockResolvedValue({ allowed: false });
+    h.mustAcknowledge.mockResolvedValue(true);
+    await expect(withSession(async () => 'never')).rejects.toThrow('REDIRECT:/pilot-access-denied');
+    expect(h.mustAcknowledge).not.toHaveBeenCalled();
+  });
+
+  it('never asks about an address that is not confirmed: that person is sent to confirm it first', async () => {
+    const { withSession } = await import('./session');
+    h.currentIdentity.mockResolvedValue({
+      providerId: 'neon-1',
+      email: 'person@example.test',
+      emailVerified: false,
+    });
+    h.mustAcknowledge.mockResolvedValue(true);
+    await expect(withSession(async () => 'never')).rejects.toThrow('REDIRECT:/auth/verify-email');
+    expect(h.mustAcknowledge).not.toHaveBeenCalled();
+    expect(h.checkPilotAccess).not.toHaveBeenCalled();
+  });
+
+  it('lets a person with nothing to agree to through to their account as before', async () => {
+    const { withSession } = await import('./session');
+    h.mustAcknowledge.mockResolvedValue(false);
+    expect(await withSession(async (ctx) => ctx.accountId)).toBe('acct-1');
+    expect(h.provision).toHaveBeenCalledOnce();
   });
 });

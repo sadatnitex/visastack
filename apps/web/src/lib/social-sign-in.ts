@@ -102,6 +102,16 @@ export function onlyGoogleAccounts(accounts: unknown): boolean {
   return methods.includes('google') && !methods.includes('credential');
 }
 
+/** True when one of the person's sign-in methods is a password (Neon Auth calls it `credential`). */
+export function accountsHavePassword(accounts: unknown): boolean {
+  if (!Array.isArray(accounts)) return false;
+  return accounts.some((entry) => {
+    if (typeof entry !== 'object' || entry === null) return false;
+    const row = entry as { providerId?: unknown; provider?: unknown };
+    return (row.providerId ?? row.provider) === 'credential';
+  });
+}
+
 /** Rejects after `ms` so a stalled call becomes the fixed message, not a platform error page. */
 export function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
