@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { safeReturnPath } from '../../../lib/neon-recency';
-import { googleSignInEnabled, onlyGoogleAccounts } from '../../../lib/social-sign-in';
+import {
+  googleSignInEnabled,
+  sessionSignInMethods,
+  withTimeout,
+} from '../../../lib/social-sign-in';
 import { reauthAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 import { GoogleButton } from '../google-button';
@@ -16,6 +20,9 @@ const ERRORS: Record<string, string> = {
   slow: 'Too many attempts. Please wait a little while and try again.',
 };
 
+/** A stalled Neon Auth must not hang this page: after this long the password page is shown. */
+const ACCOUNT_LOOKUP_TIMEOUT_MS = 3000;
+
 /**
  * True for a signed-in person whose only way in is Google (no password), who could never pass the
  * password check below. Only asked when Google sign-in is on, and anything unreadable keeps the
@@ -24,9 +31,7 @@ const ERRORS: Record<string, string> = {
 async function signsInWithGoogleOnly(): Promise<boolean> {
   if (!googleSignInEnabled()) return false;
   try {
-    const { getNeonAuth } = await import('../../../lib/neon-auth');
-    const { data } = await getNeonAuth().listAccounts();
-    return onlyGoogleAccounts(data);
+    return (await withTimeout(sessionSignInMethods(), ACCOUNT_LOOKUP_TIMEOUT_MS)) === 'google-only';
   } catch {
     return false;
   }

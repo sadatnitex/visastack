@@ -40,6 +40,7 @@ beforeEach(() => {
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
   vi.stubEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/auth');
   vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'test-only-cookie-key-with-at-least-thirty-two-characters');
+  vi.stubEnv('GOOGLE_SIGN_IN_ENABLED', '');
 });
 afterEach(() => {
   vi.unstubAllEnvs();

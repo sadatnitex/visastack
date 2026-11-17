@@ -1,11 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   googleAuthorizationUrl,
   googleSignInEnabled,
   onlyGoogleAccounts,
+  requestOrigin,
+  sessionSignInMethods,
   startedFromThisSite,
   withTimeout,
 } from './social-sign-in';
+
+vi.mock('server-only', () => ({}));
+const getSession = vi.fn();
+vi.mock('./neon-request-session', () => ({ requestSessionReader: () => ({ getSession }) }));
+const listAccounts = vi.fn();
+vi.mock('./neon-auth', () => ({ getNeonAuth: () => ({ listAccounts }) }));
 
 const SECRET = 'test-only-cookie-key-with-at-least-thirty-two-characters';
 
@@ -154,5 +162,63 @@ describe('withTimeout', () => {
 
   it('passes a failure of the call through', async () => {
     await expect(withTimeout(Promise.reject(new Error('boom')), 1000)).rejects.toThrow('boom');
+  });
+});
+
+describe('requestOrigin', () => {
+  const at = (url: string, headers: Record<string, string> = {}) =>
+    requestOrigin(new Request(url, { headers }));
+
+  it('is the address the framework gave when nothing is forwarded', () => {
+    expect(at('https://app.example.test/auth/google')).toBe('https://app.example.test');
+    expect(at('http://localhost:3100/auth/google')).toBe('http://localhost:3100');
+  });
+
+  it('is the forwarded host and scheme behind a proxy, first value only, in lower case', () => {
+    expect(
+      at('https://0.0.0.0:10000/auth/google', {
+        'x-forwarded-host': 'WWW.Example.test, other.example',
+        'x-forwarded-proto': 'https, http',
+      }),
+    ).toBe('https://www.example.test');
+  });
+
+  it('ignores a forwarded value that is not a plain host and scheme', () => {
+    for (const headers of [
+      { 'x-forwarded-host': 'evil.example/path' },
+      { 'x-forwarded-host': 'evil.example@host' },
+      { 'x-forwarded-host': 'a b' },
+      { 'x-forwarded-proto': 'javascript' },
+    ]) {
+      expect(at('https://app.example.test/auth/google', headers)).toBe('https://app.example.test');
+    }
+  });
+});
+
+describe('sessionSignInMethods', () => {
+  beforeEach(() => {
+    getSession.mockReset();
+    listAccounts.mockReset();
+  });
+
+  it('says nobody is signed in without asking for accounts', async () => {
+    getSession.mockResolvedValue({ data: null });
+    expect(await sessionSignInMethods()).toBe('signed-out');
+    expect(listAccounts).not.toHaveBeenCalled();
+  });
+
+  it('tells a person with no password from everyone else', async () => {
+    getSession.mockResolvedValue({ data: { user: { id: 'u1' } } });
+    listAccounts.mockResolvedValueOnce({ data: [{ providerId: 'google' }] });
+    expect(await sessionSignInMethods()).toBe('google-only');
+    listAccounts.mockResolvedValueOnce({ data: [{ providerId: 'credential' }] });
+    expect(await sessionSignInMethods()).toBe('other');
+    listAccounts.mockResolvedValueOnce({ data: null, error: { message: 'x' } });
+    expect(await sessionSignInMethods()).toBe('other');
+  });
+
+  it('lets a failure reach the caller', async () => {
+    getSession.mockRejectedValue(new Error('network'));
+    await expect(sessionSignInMethods()).rejects.toThrow('network');
   });
 });

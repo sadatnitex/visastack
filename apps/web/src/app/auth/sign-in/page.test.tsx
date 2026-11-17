@@ -31,6 +31,7 @@ async function emailField(searchParams: Record<string, string>): Promise<string 
 
 beforeEach(() => {
   vi.stubEnv('NEON_AUTH_COOKIE_SECRET', SECRET);
+  vi.stubEnv('GOOGLE_SIGN_IN_ENABLED', '');
   jar.clear();
 });
 afterEach(() => vi.unstubAllEnvs());

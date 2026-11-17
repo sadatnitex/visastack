@@ -2,7 +2,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 const social = vi.fn();
-vi.mock('../../../lib/neon-auth', () => ({ getNeonAuth: () => ({ signIn: { social } }) }));
+const listAccounts = vi.fn();
+vi.mock('../../../lib/neon-auth', () => ({
+  getNeonAuth: () => ({ signIn: { social }, listAccounts }),
+}));
+const getSession = vi.fn();
+vi.mock('../../../lib/neon-request-session', () => ({
+  requestSessionReader: () => ({ getSession }),
+}));
 const withinAddressLimit = vi.fn();
 vi.mock('../../../lib/auth-throttle', () => ({
   withinAddressLimit: (...args: unknown[]) => withinAddressLimit(...args),
@@ -38,6 +45,8 @@ function location(response: Response): string {
 
 beforeEach(() => {
   social.mockReset();
+  listAccounts.mockReset();
+  getSession.mockReset().mockResolvedValue({ data: null });
   withinAddressLimit.mockReset().mockResolvedValue(true);
   reportServerError.mockReset();
   vi.stubEnv('GOOGLE_SIGN_IN_ENABLED', '');
@@ -174,6 +183,8 @@ it('shows the fixed message and logs when the call throws', async () => {
 
 it('gives up on a stalled Neon Auth with the fixed message instead of hanging', async () => {
   enable();
+  // Load the mocked module first so the eight-second timer starts as soon as the call is made.
+  await import('../../../lib/neon-auth');
   vi.useFakeTimers();
   social.mockReturnValue(new Promise(() => {}));
   const pending = GET(click());
@@ -187,4 +198,60 @@ it('does not start anything for a HEAD request', () => {
   expect(response.status).toBe(405);
   expect(response.headers.get('allow')).toBe('GET');
   expect(social).not.toHaveBeenCalled();
+});
+
+it('does not start Google for someone already signed in with a password, so it cannot replace the password check', async () => {
+  enable();
+  getSession.mockResolvedValue({ data: { user: { id: 'u1' } } });
+  for (const accounts of [
+    [{ providerId: 'credential' }],
+    [{ providerId: 'credential' }, { providerId: 'google' }],
+    [],
+  ]) {
+    listAccounts.mockResolvedValueOnce({ data: accounts, error: null });
+    const response = await GET(click('?next=%2Fapp%2Fdocuments'));
+    expect(location(response)).toBe(`${ORIGIN}/app/documents`);
+  }
+  expect(social).not.toHaveBeenCalled();
+  expect(withinAddressLimit).not.toHaveBeenCalled();
+});
+
+it('lets a person with no password start Google again, which is how they pass the re-check', async () => {
+  enable();
+  getSession.mockResolvedValue({ data: { user: { id: 'u1' } } });
+  listAccounts.mockResolvedValue({ data: [{ providerId: 'google' }], error: null });
+  social.mockResolvedValue({ data: { url: GOOGLE }, error: null });
+  expect(location(await GET(click()))).toBe(GOOGLE);
+});
+
+it('does not start Google when it cannot tell how a signed-in person signs in, and says why in the log', async () => {
+  enable();
+  getSession.mockRejectedValue(new Error('network'));
+  expect(location(await GET(click()))).toBe(`${ORIGIN}/app`);
+  expect(social).not.toHaveBeenCalled();
+  expect(reportServerError).toHaveBeenCalledTimes(1);
+  expect(reportServerError.mock.calls[0]?.[2]).toEqual({ step: 'session lookup' });
+});
+
+it('uses the address the visitor used when the server sits behind a proxy', async () => {
+  enable();
+  social.mockResolvedValue({ data: { url: GOOGLE }, error: null });
+  const request = new Request('https://0.0.0.0:10000/auth/google', {
+    headers: {
+      'x-forwarded-host': 'www.example.test',
+      'x-forwarded-proto': 'https',
+      referer: 'https://www.example.test/auth/sign-in',
+      'sec-fetch-site': 'same-origin',
+    },
+  });
+  expect(location(await GET(request))).toBe(GOOGLE);
+  expect(social.mock.calls[0]?.[0].callbackURL).toBe(
+    'https://www.example.test/auth/social-return?next=%2Fapp',
+  );
+  const off = await GET(
+    new Request('https://0.0.0.0:10000/auth/google', {
+      headers: { 'x-forwarded-host': 'www.example.test', 'x-forwarded-proto': 'https' },
+    }),
+  );
+  expect(location(off)).toBe('https://www.example.test/auth/sign-in?e=social_start');
 });

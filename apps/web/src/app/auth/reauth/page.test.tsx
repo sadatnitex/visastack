@@ -7,6 +7,10 @@ vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined })
 vi.mock('@neondatabase/auth/next/server', () => ({ createNeonAuth: vi.fn() }));
 const listAccounts = vi.fn();
 vi.mock('../../../lib/neon-auth', () => ({ getNeonAuth: () => ({ listAccounts }) }));
+const getSession = vi.fn();
+vi.mock('../../../lib/neon-request-session', () => ({
+  requestSessionReader: () => ({ getSession }),
+}));
 
 import ReauthPage from './page';
 
@@ -27,9 +31,13 @@ function enable(): void {
 
 beforeEach(() => {
   listAccounts.mockReset();
+  getSession.mockReset().mockResolvedValue({ data: { user: { id: 'u1' } } });
   vi.stubEnv('GOOGLE_SIGN_IN_ENABLED', '');
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+});
 
 it('keeps the password form when Google sign-in is off, without asking Neon Auth anything', async () => {
   const document = await render();
@@ -73,4 +81,13 @@ it('keeps the password form for anyone with a password, and when the answer cann
   }
   listAccounts.mockRejectedValueOnce(new Error('network'));
   expect((await render()).querySelector('input[name="password"]')).not.toBeNull();
+});
+
+it('shows the password form instead of hanging when Neon Auth stalls', async () => {
+  enable();
+  vi.useFakeTimers();
+  listAccounts.mockReturnValue(new Promise(() => {}));
+  const pending = render();
+  await vi.advanceTimersByTimeAsync(3000);
+  expect((await pending).querySelector('input[name="password"]')).not.toBeNull();
 });

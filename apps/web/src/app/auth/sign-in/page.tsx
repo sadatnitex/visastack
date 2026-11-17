@@ -21,7 +21,8 @@ const ERRORS: Record<string, string> = {
   slow: 'Too many attempts. Please wait a little while and try again.',
   social: 'We could not sign you in with Google. Try again, or use your email and password.',
   social_off: 'Google sign-in is not available yet. Use your email and password.',
-  social_start: 'Use the Continue with Google button on this page to start signing in.',
+  social_start:
+    'Google sign-in could not start from here. Use the Continue with Google button on this page, or sign in with your email and password.',
 };
 
 /** The codes about the email form itself; the others describe Google and must not mark the form invalid. */

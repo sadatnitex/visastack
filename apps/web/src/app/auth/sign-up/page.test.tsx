@@ -11,6 +11,7 @@ it('offers readable notices and an unchecked acknowledgement with a valid signed
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
   vi.stubEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/auth');
   vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'test-only-cookie-key-with-at-least-thirty-two-characters');
+  vi.stubEnv('GOOGLE_SIGN_IN_ENABLED', '');
   vi.stubEnv('PUBLIC_BETA_OPEN', 'false');
   const document = new JSDOM(
     renderToStaticMarkup(await SignUpPage({ searchParams: Promise.resolve({}) })),
@@ -30,6 +31,7 @@ it('asks only for what creating the account needs, and keeps every notice and sa
   vi.stubEnv('IDENTITY_PROVIDER', 'neon_auth');
   vi.stubEnv('NEON_AUTH_BASE_URL', 'https://auth.example.test/auth');
   vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'test-only-cookie-key-with-at-least-thirty-two-characters');
+  vi.stubEnv('GOOGLE_SIGN_IN_ENABLED', '');
   const document = new JSDOM(
     renderToStaticMarkup(await SignUpPage({ searchParams: Promise.resolve({}) })),
   ).window.document;
