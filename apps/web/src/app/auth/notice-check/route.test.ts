@@ -13,6 +13,10 @@ vi.mock('../../../lib/notice-gate', () => ({
   signsInWithPassword: () => signsInWithPassword(),
   markNoticesSettled: (...args: unknown[]) => markNoticesSettled(...args),
 }));
+const checkPilotAccess = vi.fn();
+vi.mock('../../../lib/pilot-access', () => ({
+  checkPilotAccess: (...args: unknown[]) => checkPilotAccess(...args),
+}));
 vi.mock('../../../lib/public-db', () => ({
   withPublicDb: async (work: (db: unknown) => Promise<unknown>) => work({ db: true }),
 }));
@@ -37,6 +41,7 @@ beforeEach(() => {
   mustAcknowledgeNotices.mockReset().mockResolvedValue(true);
   signsInWithPassword.mockReset().mockResolvedValue(false);
   markNoticesSettled.mockReset().mockResolvedValue(true);
+  checkPilotAccess.mockReset().mockResolvedValue({ allowed: true });
   reportServerError.mockReset();
 });
 
@@ -52,6 +57,14 @@ describe('the step before the agreement page', () => {
     mustAcknowledgeNotices.mockResolvedValue(false);
     expect(await check('?next=%2Fapp%2Fdocuments')).toBe(`${ORIGIN}/app/documents`);
     expect(signsInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it('tells someone who is not invited so before asking them to agree to anything', async () => {
+    checkPilotAccess.mockResolvedValue({ allowed: false });
+    expect(await check('?next=%2Fapp%2Fdocuments')).toBe(`${ORIGIN}/pilot-access-denied`);
+    expect(signsInWithPassword).not.toHaveBeenCalled();
+    expect(markNoticesSettled).not.toHaveBeenCalled();
+    expect(checkPilotAccess).toHaveBeenCalledWith({ db: true }, { email: 'p@example.test' });
   });
 
   it('keeps a proof and goes on for a person who came through the sign-up form', async () => {

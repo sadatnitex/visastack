@@ -20,6 +20,10 @@ const mustAcknowledgeNotices = vi.fn();
 vi.mock('../../../lib/notice-gate', () => ({
   mustAcknowledgeNotices: (...args: unknown[]) => mustAcknowledgeNotices(...args),
 }));
+const checkPilotAccess = vi.fn();
+vi.mock('../../../lib/pilot-access', () => ({
+  checkPilotAccess: (...args: unknown[]) => checkPilotAccess(...args),
+}));
 vi.mock('../../../lib/public-db', () => ({
   withPublicDb: async (work: (db: unknown) => Promise<unknown>) => work({ db: true }),
 }));
@@ -43,6 +47,7 @@ beforeEach(() => {
   redirect.mockClear();
   getSession.mockReset().mockResolvedValue({ data: { user } });
   mustAcknowledgeNotices.mockReset().mockResolvedValue(true);
+  checkPilotAccess.mockReset().mockResolvedValue({ allowed: true });
 });
 
 describe('One Last Step page', () => {
@@ -67,6 +72,11 @@ describe('One Last Step page', () => {
     mustAcknowledgeNotices.mockResolvedValue(false);
     expect(await visit({ next: '/app/documents' })).toBe('/app/documents');
     expect(await visit()).toBe('/app');
+  });
+
+  it('sends someone who is not invited to say so instead of asking them to agree', async () => {
+    checkPilotAccess.mockResolvedValue({ allowed: false });
+    expect(await visit()).toBe('/pilot-access-denied');
   });
 
   it('sends someone with no session to sign in and someone unconfirmed to confirm', async () => {

@@ -151,6 +151,14 @@ describe('markNoticesSettled', () => {
   });
 });
 
+describe('a proof the reader would refuse is never kept', () => {
+  it('keeps nothing for an identity id too long to read back', async () => {
+    expect(await markNoticesSettled('x'.repeat(400))).toBe(false);
+    expect(await acknowledgeNotices(db, 'x'.repeat(400))).toBe(false);
+    expect(set).not.toHaveBeenCalled();
+  });
+});
+
 describe('acknowledgeNotices', () => {
   it('records first and keeps a proof only after the record was written', async () => {
     expect(await acknowledgeNotices(db, user.id)).toBe(true);

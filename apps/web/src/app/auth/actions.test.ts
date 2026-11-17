@@ -640,6 +640,16 @@ describe('acceptNoticesAction (One Last Step)', () => {
     ).toBe('/app');
   });
 
+  it('treats a database error while reading as a failed save to retry, never as not invited', async () => {
+    const { acceptNoticesAction } = await import('./actions');
+    checkPilotAccess.mockRejectedValueOnce(new Error('database down'));
+    expect(await destination(() => acceptNoticesAction(form(agree)))).toBe(
+      '/auth/accept-terms?e=failed',
+    );
+    expect(acknowledgeNotices).not.toHaveBeenCalled();
+    expect(reportServerError.mock.calls[0]?.[2]).toEqual({ step: 'read state' });
+  });
+
   it('writes nothing for someone who may not get an account, or who has nothing to agree to', async () => {
     const { acceptNoticesAction } = await import('./actions');
     checkPilotAccess.mockResolvedValue({ allowed: false });

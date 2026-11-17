@@ -2,7 +2,7 @@ import { type NextFetchEvent, type NextMiddleware, NextRequest, NextResponse } f
 import { describe, expect, it } from 'vitest';
 import { createCspMiddleware } from './csp-middleware';
 import { isNeonProtectedPath } from './identity-selection';
-import { PATHNAME_REQUEST_HEADER } from './request-headers';
+import { PATHNAME_REQUEST_HEADER, SEARCH_REQUEST_HEADER } from './request-headers';
 
 /**
  * The middleware that puts the Content-Security-Policy and its per-request
@@ -77,8 +77,9 @@ describe('outside a production build', () => {
     const page = await middleware(get('/trust'), EVENT);
     expect(page?.headers.get('content-security-policy')).toBeNull();
     expect(page?.headers.get('content-security-policy-report-only')).toBeNull();
-    // Only the page address is forwarded (for the page language); no policy or nonce is.
-    expect(page?.headers.get('x-middleware-override-headers')).toBe('x-vs-pathname');
+    // Only the page address and its query string are forwarded (for the page language and for
+    // redirects that keep where a person was headed); no policy or nonce is.
+    expect(page?.headers.get('x-middleware-override-headers')).toBe('x-vs-pathname,x-vs-search');
     expect(calls).toHaveLength(0);
 
     const original = get('/app');
@@ -351,6 +352,42 @@ describe('a downloaded billing document (S30)', () => {
     ]) {
       const response = await build({ auth: handler })(get(path), EVENT);
       expect(nonceIn(response?.headers.get('content-security-policy') ?? null)).toBe(NONCE);
+    }
+  });
+});
+
+describe('the query string handed to the render, so a redirect can keep where a person was headed', () => {
+  const INVITE = '/app/invitations/accept?token=abc123';
+
+  it('is the real query string on every page request, with the policy on and off', async () => {
+    for (const enabled of [true, false]) {
+      for (const [path, search] of [
+        ['/app/invitations/accept', '?token=abc123'],
+        ['/app', ''],
+        ['/', '?a=1&b=2'],
+      ] as const) {
+        const { handler, calls } = fakeSignIn();
+        const response = await build({ auth: handler, enabled })(get(`${path}${search}`), EVENT);
+        expect(forwardedHeaders(response as Response).get(SEARCH_REQUEST_HEADER), path).toBe(
+          search,
+        );
+        for (const call of calls) expect(call.headers.get(SEARCH_REQUEST_HEADER)).toBe(search);
+      }
+    }
+  });
+
+  it('cannot be chosen by the client', async () => {
+    for (const enabled of [true, false]) {
+      const { handler, calls } = fakeSignIn();
+      const response = await build({ auth: handler, enabled })(
+        get(INVITE, { headers: { [SEARCH_REQUEST_HEADER]: '?token=someone-elses' } }),
+        EVENT,
+      );
+      expect(forwardedHeaders(response as Response).get(SEARCH_REQUEST_HEADER)).toBe(
+        '?token=abc123',
+      );
+      for (const call of calls)
+        expect(call.headers.get(SEARCH_REQUEST_HEADER)).toBe('?token=abc123');
     }
   });
 });

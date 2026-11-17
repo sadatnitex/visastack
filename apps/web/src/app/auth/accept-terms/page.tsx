@@ -34,16 +34,21 @@ export default async function AcceptTermsPage({
   if (!user.emailVerified) redirect('/auth/verify-email');
 
   const { mustAcknowledgeNotices } = await import('../../../lib/notice-gate');
+  const { checkPilotAccess } = await import('../../../lib/pilot-access');
   const { withPublicDb } = await import('../../../lib/public-db');
   let needed = true;
+  let allowed = true;
   try {
-    needed = await withPublicDb((db) =>
-      mustAcknowledgeNotices(db, { id: user.id, email: user.email }),
-    );
+    ({ needed, allowed } = await withPublicDb(async (db) => ({
+      needed: await mustAcknowledgeNotices(db, { id: user.id, email: user.email }),
+      allowed: (await checkPilotAccess(db, { email: user.email })).allowed,
+    })));
   } catch {
     needed = true;
+    allowed = true;
   }
   if (!needed) redirect(destination);
+  if (!allowed) redirect('/pilot-access-denied');
 
   const error = e ? ERRORS[e] : undefined;
   return (

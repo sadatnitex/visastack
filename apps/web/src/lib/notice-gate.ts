@@ -43,6 +43,7 @@ const proof = signedRetryCookie({
   path: '/',
   lifetimeS: PROOF_LIFETIME_S,
   maxLength: 400,
+  refuseLongerThan: 400,
 });
 
 async function hasAgreedProof(neonUserId: string): Promise<boolean> {

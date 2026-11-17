@@ -19,6 +19,7 @@ const h = vi.hoisted(() => {
       state.afterQueue = [];
     },
     currentIdentity: vi.fn(),
+    requestHeaders: new Headers(),
     checkPilotAccess: vi.fn(),
     mustAcknowledge: vi.fn(),
     claimInvitation: vi.fn(),
@@ -76,6 +77,7 @@ vi.mock('@visastack/services', () => ({
   selfPrincipal: (accountId: string) => ({ kind: 'self', accountId }),
 }));
 vi.mock('./pilot-access', () => ({ checkPilotAccess: h.checkPilotAccess }));
+vi.mock('next/headers', () => ({ headers: async () => h.requestHeaders }));
 vi.mock('./notice-gate', () => ({ mustAcknowledgeNotices: h.mustAcknowledge }));
 vi.mock('./server-error', () => ({ reportServerError: h.report }));
 vi.mock('./session-age', () => ({
@@ -114,6 +116,7 @@ beforeEach(() => {
   });
   h.checkPilotAccess.mockResolvedValue({ allowed: true });
   h.mustAcknowledge.mockReset().mockResolvedValue(false);
+  h.requestHeaders = new Headers();
   h.provision.mockResolvedValue(account());
   h.isStaffContext.mockResolvedValue(false);
   h.enforceSessionAgeLimit.mockResolvedValue({ satisfied: true });
@@ -382,7 +385,9 @@ describe('agreement to the terms before an account is created', () => {
     ]);
     for (const r of results) {
       expect(r.status).toBe('rejected');
-      expect((r as PromiseRejectedResult).reason.message).toBe('REDIRECT:/auth/notice-check');
+      expect((r as PromiseRejectedResult).reason.message).toBe(
+        'REDIRECT:/auth/notice-check?next=%2Fapp',
+      );
     }
     expect(h.mustAcknowledge).toHaveBeenCalledWith(expect.anything(), {
       id: 'neon-1',
@@ -391,6 +396,27 @@ describe('agreement to the terms before an account is created', () => {
     });
     expect(h.claimInvitation).not.toHaveBeenCalled();
     expect(h.provision).not.toHaveBeenCalled();
+  });
+
+  it('carries the page and the query the person was headed for, so an invitation link survives', async () => {
+    const { withSession } = await import('./session');
+    h.mustAcknowledge.mockResolvedValue(true);
+    h.requestHeaders = new Headers({
+      'x-vs-pathname': '/app/invitations/accept',
+      'x-vs-search': '?token=abc123',
+    });
+    await expect(withSession(async () => 'never')).rejects.toThrow(
+      `REDIRECT:/auth/notice-check?next=${encodeURIComponent('/app/invitations/accept?token=abc123')}`,
+    );
+  });
+
+  it('falls back to the ordinary home when the address cannot be read or is not on this site', async () => {
+    const { withSession } = await import('./session');
+    h.mustAcknowledge.mockResolvedValue(true);
+    h.requestHeaders = new Headers({ 'x-vs-pathname': '//evil.example', 'x-vs-search': '' });
+    await expect(withSession(async () => 'never')).rejects.toThrow(
+      'REDIRECT:/auth/notice-check?next=%2Fapp',
+    );
   });
 
   it('asks only after the pilot-access check, so an uninvited person is refused as before', async () => {

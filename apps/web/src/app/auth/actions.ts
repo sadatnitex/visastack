@@ -290,24 +290,28 @@ export async function acceptNoticesAction(formData: FormData): Promise<void> {
   const { acknowledgeNotices, mustAcknowledgeNotices } = await import('../../lib/notice-gate');
   const { checkPilotAccess } = await import('../../lib/pilot-access');
   const { withPublicDb } = await import('../../lib/public-db');
-  let recorded = false;
-  let allowed = false;
-  let needed = true;
+  const { reportServerError } = await import('../../lib/server-error');
+  // Only someone who may get an account, and who still has to agree, can write a record: an
+  // uninvited or already-settled identity cannot fill the audit log. A database error while reading
+  // this is a failed save (try again), never "not invited".
+  let state: { allowed: boolean; needed: boolean } | null = null;
   try {
-    // Only someone who may get an account, and who still has to agree, can write a record: an
-    // uninvited or already-settled identity cannot fill the audit log.
-    const state = await withPublicDb(async (db) => ({
+    state = await withPublicDb(async (db) => ({
       allowed: (await checkPilotAccess(db, { email: user.email })).allowed,
       needed: await mustAcknowledgeNotices(db, { id: user.id, email: user.email }),
     }));
-    ({ allowed, needed } = state);
-    if (allowed && needed) recorded = await withPublicDb((db) => acknowledgeNotices(db, user.id));
   } catch (error) {
-    const { reportServerError } = await import('../../lib/server-error');
+    reportServerError('acceptNotices', error, { step: 'read state' });
+  }
+  if (!state) redirect(`/auth/accept-terms?e=failed${target}`);
+  if (!state.allowed) redirect('/pilot-access-denied');
+  if (!state.needed) redirect(next);
+  let recorded = false;
+  try {
+    recorded = await withPublicDb((db) => acknowledgeNotices(db, user.id));
+  } catch (error) {
     reportServerError('acceptNotices', error, { step: 'record agreement' });
   }
-  if (!allowed) redirect('/pilot-access-denied');
-  if (!needed) redirect(next);
   if (!recorded) redirect(`/auth/accept-terms?e=failed${target}`);
   redirect(next);
 }
