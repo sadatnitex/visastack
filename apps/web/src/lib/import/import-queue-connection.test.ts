@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { UploadOutcome } from '../document-upload-client';
-import { ImportQueue, type ImportQueueOptions, type ImportSend } from './import-queue';
+import { ImportQueue, type ImportQueueOptions, type ImportSend, canTryAgain } from './import-queue';
 
 /*
  * WP-PIC17 (picture-first Q6): the import queue when the connection drops. With the `connection`
@@ -427,24 +427,154 @@ describe('the account check before a resume (Q6 hardening)', () => {
     expect(sent).toHaveLength(1);
   });
 
-  it('no answer to the check: nothing is sent; after three in a row the files are dropped', async () => {
+  it('no answer to the check: asked again on its own; after three in a row the files are dropped', async () => {
     const { sent, send } = network(() => ADDED);
     const { state, connection } = device(false);
+    const confirmResume = vi.fn(async () => null);
+    const queue = queueWith(send, { connection, confirmResume });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    state.online = true;
+    await queue.resumeAfterConnection();
+    await flush();
+    expect(confirmResume).toHaveBeenCalledTimes(3);
+    expect(sent).toHaveLength(0);
+    expect(queue.list()[0]?.state).toBe('skipped');
+    expect(queue.list()[0]?.skipReason).toBe('signed-out');
+  });
+});
+
+describe('second review round (Q6)', () => {
+  it('Resume after Pause cannot skip the account check', async () => {
+    const { sent, send } = network(() => ADDED);
+    const { state, connection } = device(false);
+    const confirmResume = vi.fn(async () => false);
+    const queue = queueWith(send, { connection, confirmResume });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    queue.pause();
+    state.online = true;
+    queue.resume();
+    await flush();
+    expect(confirmResume).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('a new file added once back online cannot skip the account check', async () => {
+    const { sent, send } = network(() => ADDED);
+    const { state, connection } = device(false);
+    const confirmResume = vi.fn(async () => false);
+    const queue = queueWith(send, { connection, confirmResume });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    state.online = true;
+    await queue.add([{ file: photo('b.jpg'), path: '' }]);
+    await flush();
+    expect(confirmResume).toHaveBeenCalled();
+    expect(sent).toHaveLength(0);
+  });
+
+  it('a send finishing after the drop cannot start the waiting files without the check', async () => {
+    const { state, connection } = device(true);
+    let release: (value: UploadOutcome) => void = () => undefined;
+    const sent: string[] = [];
+    const send: ImportSend = (request) => {
+      sent.push((request.file as File).name);
+      if (sent.length === 1) {
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      }
+      return Promise.resolve(ADDED);
+    };
+    const confirmResume = vi.fn(async () => false);
+    const queue = queueWith(send, { connection, confirmResume });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    // b is chosen while a is on its way and the connection is gone: b waits for it.
+    state.online = false;
+    await queue.add([{ file: photo('b.jpg'), path: '' }]);
+    await flush();
+    expect(queue.getSnapshot().waitingForConnection).toBe(true);
+    state.online = true;
+    release(ADDED);
+    await flush();
+    await flush();
+    expect(confirmResume).toHaveBeenCalled();
+    expect(sent).toEqual(['a.jpg']);
+  });
+
+  it('the no-answer count starts again after a drop', async () => {
+    const { sent, send } = network(() => ADDED);
+    const { state, connection } = device(false);
+    let answers: (boolean | null)[] = [null, null, null];
     const queue = queueWith(send, {
       connection,
-      confirmResume: async () => {
-        throw new Error('no answer');
-      },
+      confirmResume: async () => (answers.length > 0 ? (answers.shift() as boolean | null) : true),
     });
     await queue.add([{ file: photo('a.jpg'), path: '' }]);
     await flush();
     state.online = true;
     await queue.resumeAfterConnection();
-    await queue.resumeAfterConnection();
-    expect(queue.list()[0]?.state).toBe('queued');
-    await queue.resumeAfterConnection();
+    expect(queue.list()[0]?.skipReason).toBe('signed-out');
+    state.online = false;
+    answers = [null, true];
+    await queue.add([{ file: photo('b.jpg'), path: '' }]);
     await flush();
-    expect(sent).toHaveLength(0);
-    expect(queue.list()[0]?.state).toBe('skipped');
+    state.online = true;
+    await queue.resumeAfterConnection();
+    await queue.whenIdle();
+    expect(sent.map((s) => s.name)).toEqual(['b.jpg']);
+  });
+
+  it('Try Again on a Not Confirmed file, then Stop: still Not Confirmed', async () => {
+    let first = true;
+    const { send } = network(() => {
+      if (first) {
+        first = false;
+        return UNKNOWN;
+      }
+      return ADDED;
+    });
+    const { state, connection } = device(true);
+    const queue = queueWith(send, { connection });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await queue.whenIdle();
+    expect(queue.list()[0]?.state).toBe('unknown');
+    state.online = false;
+    queue.retry(queue.list()[0]?.id ?? 0);
+    await flush();
+    expect(queue.list()[0]?.state).toBe('queued');
+    queue.stop();
+    expect(queue.list()[0]?.state).toBe('unknown');
+  });
+
+  it('a busy answer after a no-answer send, then Stop: Not Confirmed, never not added', async () => {
+    let call = 0;
+    let queue: ImportQueue | null = null;
+    const { send } = network(() => {
+      call++;
+      if (call === 1) return UNKNOWN;
+      queue?.stop();
+      return { kind: 'busy', message: null, retryAfterSeconds: 1 };
+    });
+    queue = queueWith(send, { retryUnknown: true });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await queue.whenIdle();
+    await flush();
+    expect(queue.list()[0]?.state).toBe('unknown');
+  });
+
+  it('files dropped for another sign-in are never offered Try Again', async () => {
+    const { send } = network(() => ADDED);
+    const { state, connection } = device(false);
+    const queue = queueWith(send, { connection, confirmResume: async () => false });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await flush();
+    state.online = true;
+    await queue.resumeAfterConnection();
+    const item = queue.list()[0];
+    expect(item?.skipReason).toBe('signed-out');
+    expect(item ? canTryAgain(item) : true).toBe(false);
   });
 });

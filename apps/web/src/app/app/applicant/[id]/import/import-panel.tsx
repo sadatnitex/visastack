@@ -35,7 +35,7 @@ import {
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
 import { shrunkNotice } from '../../../../../lib/photo-shrink';
-import { useUploadConnection, useUploadResume } from '../../../../../lib/pwa/upload-sync-hooks';
+import { useUploadResume, useUploadSync } from '../../../../../lib/pwa/upload-sync-hooks';
 import { batchHref, canFollowBatch } from '../../../../../lib/upload-batch';
 import { uploadLimitsText } from '../../../../../lib/upload-rules';
 import { UPLOAD_UNKNOWN_OUTCOME } from '../document-uploader';
@@ -61,7 +61,7 @@ const AUTO_CONTINUE_MS = 1800;
 const NOT_SURE = '__not_sure';
 
 /** WP-PIC17: the session still belongs to the account that chose the files (no key: no). */
-export function confirmUploadAccount(accountKey: string | null): Promise<boolean> {
+export function confirmUploadAccount(accountKey: string | null): Promise<boolean | null> {
   return accountKey ? isSameUploadAccountAction(accountKey) : Promise.resolve(false);
 }
 
@@ -87,6 +87,8 @@ const SKIP_LINES = {
   stopped: 'The import was stopped before this file was sent.',
   unreadable: 'This file could not be read from the folder. Try adding it on its own.',
   repeat: 'Already in this import, so it was not sent twice.',
+  'signed-out':
+    'Not sent: this device is now signed out or signed in as someone else. Sign in again and choose the file again.',
 } as const;
 
 /** The full counts, in words that stay on the page (not read out on every change). */
@@ -191,7 +193,9 @@ export function importLine(item: ImportItem): { readonly flag: string; readonly 
         flag: 'Not confirmed. ',
         text: item.earlier
           ? `${UPLOAD_UNKNOWN_OUTCOME} ${EARLIER_UNKNOWN_LINE}`
-          : UPLOAD_UNKNOWN_OUTCOME,
+          : item.skipReason === 'signed-out'
+            ? `${UPLOAD_UNKNOWN_OUTCOME} ${SKIP_LINES['signed-out']}`
+            : UPLOAD_UNKNOWN_OUTCOME,
       };
     case 'unsupported':
       return { flag: 'Not added. ', text: item.message };
@@ -462,7 +466,7 @@ export function ImportPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const announced = useRef<AnnounceState>(ANNOUNCE_START);
   const stopped = useRef(false);
-  const connection = useUploadConnection(backgroundSync);
+  const sync = useUploadSync(backgroundSync, () => confirmUploadAccount(accountKey));
   const [queue] = useState(
     () =>
       new ImportQueue({
@@ -505,13 +509,11 @@ export function ImportPanel({
           });
         },
         retryUnknown,
-        ...(connection
-          ? { connection, confirmResume: () => confirmUploadAccount(accountKey) }
-          : {}),
+        ...sync.options,
       }),
   );
   // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
-  useUploadResume(connection, queue);
+  useUploadResume(sync.connection, queue);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const [announcement, setAnnouncement] = useState('');
   const [truncated, setTruncated] = useState(false);

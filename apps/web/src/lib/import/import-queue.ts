@@ -72,7 +72,12 @@ export type SkipReason =
   /** The browser could not read it from the folder. */
   | 'unreadable'
   /** The same file (name, size and date) is already in this import. */
-  | 'repeat';
+  | 'repeat'
+  /**
+   * WP-PIC17: the files waited for the connection, and by then this device was signed out or signed
+   * in as someone else, so they were let go unsent. Never offered Try Again: the bytes are gone.
+   */
+  | 'signed-out';
 
 export interface ImportItem {
   readonly id: number;
@@ -225,9 +230,10 @@ export interface ImportQueueOptions {
    * WP-PIC17: asked before files waiting for the connection go out again. True: the same person is
    * still signed in on this device. False: signed out or another account: every waiting file is
    * dropped (listed as not added, or Not Confirmed where it may have arrived) and nothing is sent.
-   * A throw (no answer): nothing is sent; after `MAX_UNANSWERED_CHECKS` in a row, dropped too.
+   * Null or a throw (no answer): nothing is sent; it is asked again after a short wait, and after
+   * `MAX_UNANSWERED_CHECKS` in a row with no answer the waiting files are dropped too.
    */
-  readonly confirmResume?: () => Promise<boolean>;
+  readonly confirmResume?: () => Promise<boolean | null>;
 }
 
 export interface ImportSnapshot {
@@ -287,6 +293,7 @@ export function uploadIdFromHash(hex: string | null): string | null {
 
 /** Whether Try Again is offered: the file is still at hand and another send may succeed. */
 export function canTryAgain(item: Pick<ImportItem, 'state' | 'skipReason'>): boolean {
+  if (item.skipReason === 'signed-out') return false;
   return (
     item.state === 'refused' ||
     item.state === 'unknown' ||
@@ -468,23 +475,40 @@ export class ImportQueue {
     if (!this.connectionLost || this.offline() || this.checkingAccount) return;
     const confirm = this.options.confirmResume;
     if (confirm) {
+      // One check (and its retries) at a time, however many wakes and finished sends ask.
       this.checkingAccount = true;
-      let same: boolean | null;
       try {
-        same = await confirm();
-      } catch {
-        same = null;
+        for (;;) {
+          let same: boolean | null;
+          try {
+            same = await confirm();
+          } catch {
+            same = null;
+          }
+          if (same === false) {
+            this.dropWaiting();
+            return;
+          }
+          if (same === true) break;
+          this.unansweredChecks++;
+          if (this.unansweredChecks >= MAX_UNANSWERED_CHECKS) {
+            this.dropWaiting();
+            return;
+          }
+          // No answer: the online event will not fire again while the device stays online, so
+          // the check is asked again on its own after a short, growing wait.
+          await this.wait(
+            retryDelayMs(
+              null,
+              this.unansweredChecks,
+              this.options.baseDelayMs ?? BASE_DELAY_MS,
+              this.options.maxDelayMs ?? MAX_DELAY_MS,
+            ),
+          );
+          if (!this.connectionLost || this.offline()) return;
+        }
       } finally {
         this.checkingAccount = false;
-      }
-      if (same === false) {
-        this.dropWaiting();
-        return;
-      }
-      if (same !== true) {
-        this.unansweredChecks++;
-        if (this.unansweredChecks >= MAX_UNANSWERED_CHECKS) this.dropWaiting();
-        return;
       }
       this.unansweredChecks = 0;
       if (!this.connectionLost || this.offline()) return;
@@ -499,9 +523,17 @@ export class ImportQueue {
    * not even Try Again can send them under someone else's sign-in.
    */
   private dropWaiting(): void {
+    const waiting = new Set<number>();
+    for (const item of this.byId.values()) {
+      if (item.state === 'queued' || item.state === 'paused' || item.state === 'held') {
+        waiting.add(item.id);
+      }
+    }
     this.stop();
     for (const item of this.byId.values()) {
-      if (item.state !== 'uploading') this.files.delete(item.id);
+      if (item.state === 'uploading') continue;
+      this.files.delete(item.id);
+      if (waiting.has(item.id)) this.put({ ...item, skipReason: 'signed-out' });
     }
     this.emit();
   }
@@ -657,6 +689,7 @@ export class ImportQueue {
     this.generation++;
     this.paused = false;
     this.connectionLost = false;
+    this.unansweredChecks = 0;
     const stopped: ImportItem[] = [];
     for (const item of this.byId.values()) {
       if (item.state !== 'queued' && item.state !== 'paused' && item.state !== 'held') continue;
@@ -730,6 +763,8 @@ export class ImportQueue {
   }
 
   private requeue(item: ImportItem): void {
+    // A file with no answer may be stored already; going back in line does not change that.
+    if (item.state === 'unknown') this.mayBeStored.add(item.id);
     this.put({
       ...item,
       ...blank,
@@ -770,6 +805,13 @@ export class ImportQueue {
       if (!next) break;
       if (this.offline()) {
         if (this.loseConnection()) this.emit();
+        break;
+      }
+      // Back online with files that waited for the connection: every way of sending them again
+      // (Resume, Try Again, a new file, a send finishing) goes through the one resume, which asks
+      // the account check first.
+      if (this.connectionLost) {
+        void this.resumeAfterConnection();
         break;
       }
       this.active++;
@@ -920,12 +962,18 @@ export class ImportQueue {
         }
         // Nothing was stored, so Stop and Pause can take this file back safely.
         if (this.generation !== generation) {
-          this.settle(id, { state: 'skipped', skipReason: 'stopped', progress: 0 });
+          this.settle(
+            id,
+            this.mayBeStored.has(id)
+              ? { state: 'unknown', message: '', progress: 0 }
+              : { state: 'skipped', skipReason: 'stopped', progress: 0 },
+          );
           return;
         }
         if (this.paused) {
           this.update(id, { state: 'paused', progress: 0 });
-          this.options.onSettled?.(this.byId.get(id) as ImportItem);
+          // An earlier send with no answer may have stored it: the saved list keeps it unsettled.
+          if (!this.mayBeStored.has(id)) this.options.onSettled?.(this.byId.get(id) as ImportItem);
           return;
         }
         this.update(id, { state: 'queued', waitingToRetry: true, progress: 0 });

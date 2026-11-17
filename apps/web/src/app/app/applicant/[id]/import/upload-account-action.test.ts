@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 /*
  * WP-PIC17: the one check before waiting files go out again after a dropped connection. It answers
- * only yes or no, and every doubt (signed out, another account, a failure) is no. Ids are made up.
+ * yes, no or no answer: signed out or another account is no, a server failure is no answer. Ids are made up.
  */
 
 vi.mock('server-only', () => ({}));
 const session = vi.hoisted(() => ({ accountId: 'acc-a' as string | null, fail: false }));
+
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: { accountId: string }) => Promise<unknown>) => {
     if (session.fail) throw new Error('database down');
@@ -32,13 +33,17 @@ describe('isSameUploadAccountAction', () => {
     expect(await isSameUploadAccountAction(keyA)).toBe(false);
   });
 
-  it('no when signed out (the sign-in redirect is never followed), or on any failure', async () => {
+  it('no when signed out (the sign-in redirect is never followed)', async () => {
     const keyA = uploadAccountKey('acc-a') as string;
     session.accountId = null;
     expect(await isSameUploadAccountAction(keyA)).toBe(false);
+  });
+
+  it('no answer (null) when the server fails, so files are not dropped for a server stumble', async () => {
+    const keyA = uploadAccountKey('acc-a') as string;
     session.accountId = 'acc-a';
     session.fail = true;
-    expect(await isSameUploadAccountAction(keyA)).toBe(false);
+    expect(await isSameUploadAccountAction(keyA)).toBeNull();
     session.fail = false;
   });
 

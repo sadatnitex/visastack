@@ -25,7 +25,7 @@ import {
   parseInbox,
   sharedFileUrl,
 } from '../../../lib/pwa/share-target';
-import { useUploadConnection, useUploadResume } from '../../../lib/pwa/upload-sync-hooks';
+import { useUploadResume, useUploadSync } from '../../../lib/pwa/upload-sync-hooks';
 import {
   OFFLINE_LINE,
   confirmUploadAccount,
@@ -162,7 +162,7 @@ export function IncomingPanel({
     };
   }, [ownerKey]);
 
-  const connection = useUploadConnection(backgroundSync);
+  const sync = useUploadSync(backgroundSync, () => confirmUploadAccount(accountKey));
   const queue = useMemo(
     () =>
       new ImportQueue({
@@ -176,14 +176,12 @@ export function IncomingPanel({
           uploadIdFromHash(await sha256Hex(`${personId}\u0000${fingerprintOf(file)}`)) ??
           newUploadId(),
         newUploadId,
-        ...(connection
-          ? { connection, confirmResume: () => confirmUploadAccount(accountKey) }
-          : {}),
+        ...sync.options,
       }),
-    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown, connection, accountKey],
+    [personId, limitBytes, limitLabel, pdfAccepted, retryUnknown, sync],
   );
   // WP-PIC17: a wake from background sync, or the browser's online event, resumes waiting files.
-  useUploadResume(connection, queue);
+  useUploadResume(sync.connection, queue);
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const items = snapshot.order.flatMap((id) => {
     const item = snapshot.byId.get(id);
