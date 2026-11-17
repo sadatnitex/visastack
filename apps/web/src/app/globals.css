@@ -21827,7 +21827,7 @@ body:lang(bn),
   min-width: 44px;
 }
 /* end WP-PIC9 */
-/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along one compact row (components/journey-track.tsx), above the existing step bar. The current stage is the one full-size circle with a heavy border and the explain button, and the step bar's "Now:" line below names it, so state is never colour alone; earlier and later stages are small plain circles (nothing is ticked: there is no stage history). The row is 44 px tall (the current stage's button is a transparent 44 px target with its 28 px circle drawn inside, so nothing overhangs the row or covers a neighbour); the track adds no padding or margin and the card around it has none above or below, so the case page stays inside its phone height budget. The card stops clipping while it holds the track, so the explain popup is never cut off at its bottom edge. Flat: borders and solid surfaces, no shadow. A narrow screen wraps it onto a second row. */
+/* WP-PIC8 Case journey track (17 Nov 2026): the case's stages drawn as small pictures along one compact row (components/journey-track.tsx), above the existing step bar. The current stage is the one full-size circle with a heavy border and the explain button, and the step bar's "Now:" line below names it, so state is never colour alone; earlier and later stages are small plain circles (nothing is ticked: there is no stage history). The row is 44 px tall (the current stage's button is a transparent 44 px target with its 28 px circle drawn inside, so nothing overhangs the row or covers a neighbour); the track adds no padding or margin and the card around it has none above or below, and the gaps around the card are tighter, so the case page stays inside its phone height budget. The card stops clipping while it holds the track, so the explain popup is never cut off at its bottom edge. Flat: borders and solid surfaces, no shadow. A narrow screen wraps it onto a second row. */
 .journey-track {
   max-width: 100%;
   margin: 0;
@@ -21912,13 +21912,13 @@ body:lang(bn),
 /* The explain popup of the current stage can open below the card, so the card stops clipping it; its own children round their corners instead. */
 .lift-status:has(.journey-track) {
   overflow: visible;
+  margin-bottom: var(--space-1);
 }
-.lift-status:has(.journey-track) > :first-child {
-  border-start-start-radius: var(--radius-lg);
-  border-start-end-radius: var(--radius-lg);
+.lift-status:has(.journey-track) + .case-journey-reminder {
+  margin-bottom: 0;
 }
-.lift-status:has(.journey-track) > :last-child {
-  border-end-start-radius: var(--radius-lg);
-  border-end-end-radius: var(--radius-lg);
+.lift-status:has(.journey-track) > .lift-status-main {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  overflow: clip;
 }
 /* end WP-PIC8 */
