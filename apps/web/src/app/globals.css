@@ -9970,6 +9970,8 @@ summary.visa-photo-title {
   gap: 0.4rem;
   flex: 1 1 14rem;
   min-width: 0;
+  /* WP-WAL0: a pasted web address has no break point; "anywhere" also lowers the item's minimum width, so it no longer stretches the whole page sideways. */
+  overflow-wrap: anywhere;
 }
 .task-row .badge {
   white-space: nowrap;
@@ -16609,7 +16611,7 @@ details[open] > .lift-action-summary .lift-action-chevron {
   }
   .lift-case .jump-nav {
     flex-wrap: wrap;
-    gap: 0 var(--space-4);
+    gap: 0 var(--space-2);
   }
   .lift-case .jump-nav a {
     display: inline-flex;
@@ -22578,6 +22580,27 @@ button.wallet-stack-card {
 
   .wallet-selected-document[data-sheet="open"] {
     padding-bottom: calc(61px + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  }
+
+  /* The More menu opens as a panel under its button, inside the screen: the button can sit on the left or the right depending on how the header buttons wrap, so a right-anchored panel ran off the left edge. */
+  .case-more {
+    position: static;
+  }
+
+  .case-more-panel {
+    top: auto;
+    right: var(--space-4);
+    left: var(--space-4);
+    width: auto;
+    max-width: 22rem;
+    margin-top: 0.35rem;
+  }
+}
+
+/* The Glance, Browse, Everything switch keeps all three buttons inside a 320 px screen. */
+@media (max-width: 22rem) {
+  .depth-seg {
+    padding-inline: var(--space-3);
   }
 }
 /* end WP-WAL0 */

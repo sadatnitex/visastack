@@ -4,6 +4,7 @@ import { SafeCopyEditor } from '../../src/components/safe-copy-editor';
 import { ReadingStatus } from '../../src/app/app/applicant/[id]/reading-status';
 import { CaseMoreMenu } from '../../src/app/app/mission/[id]/case-more-menu';
 import { TasksPanel } from '../../src/app/app/mission/[id]/collaboration-panels';
+import { SnapshotButton } from '../../src/app/app/mission/[id]/mission-buttons';
 import { DepthSwitch } from '../../src/components/depth-switch';
 import { PageHeader } from '../../src/components/ui';
 import { depthCopyFor } from '../../src/lib/ccd/depth-copy';
@@ -132,7 +133,7 @@ const LINKS: readonly (readonly [string, string, 'glance' | 'browse' | 'everythi
 ];
 
 /** A pasted web address with no spaces: the worst case for a task title. */
-const LONG_URL = `https://example.com/${'a-very-long-unbroken-path-segment/'.repeat(3)}file-0123456789`.slice(0, 120);
+const LONG_URL = `https://example.com/${'a'.repeat(100)}`;
 
 function Strip({ depth }: { readonly depth: DepthChoice }) {
   return (
@@ -149,6 +150,12 @@ function Strip({ depth }: { readonly depth: DepthChoice }) {
                   <a className="btn btn-secondary" href="#evidence">
                     Add Evidence
                   </a>
+                </div>
+                <div className="case-header-wide" data-level="browse">
+                  <a className="btn btn-secondary" href="/new">
+                    Start a New Case from This One
+                  </a>
+                  <SnapshotButton missionId="40000000-0000-4000-8000-000000000001" />
                 </div>
                 <CaseMoreMenu
                   missionId="40000000-0000-4000-8000-000000000001"
@@ -167,7 +174,9 @@ function Strip({ depth }: { readonly depth: DepthChoice }) {
               </a>
             ))}
           </nav>
-          <div id="work" data-level="browse">
+          <div className="lift-case-grid case-working-area">
+           <div data-level="browse">
+            <div className="grid" id="work">
             <TasksPanel
               missionId="40000000-0000-4000-8000-000000000001"
               tasks={[
@@ -181,6 +190,8 @@ function Strip({ depth }: { readonly depth: DepthChoice }) {
                 },
               ]}
             />
+            </div>
+           </div>
           </div>
         </DepthScope>
       </section>

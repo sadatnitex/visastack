@@ -61,3 +61,22 @@ describe('WAL0 the case pill strip wraps and never scrolls sideways', () => {
     expect(rules).toMatch(/flex-wrap:\s*wrap/);
   });
 });
+
+describe('WAL0 the case page stays inside the screen', () => {
+  it('lets a task title with no break points shrink instead of widening the page', () => {
+    const task = rulesFor('.task-row .row-key').join('\n');
+    expect(task).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+
+  it('opens the More panel inside the screen on a phone, whichever side its button is on', () => {
+    expect(css).toMatch(
+      /@media \(max-width: 760px\) \{[^@]*?\.case-more \{\s*position: static;\s*\}\s*\.case-more-panel \{\s*top: auto;\s*right: var\(--space-4\);\s*left: var\(--space-4\);/,
+    );
+  });
+
+  it('keeps the depth switch inside a 320 px screen', () => {
+    expect(css).toMatch(
+      /@media \(max-width: 22rem\) \{\s*\.depth-seg \{\s*padding-inline: var\(--space-3\);/,
+    );
+  });
+});
