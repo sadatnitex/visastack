@@ -49,6 +49,9 @@ test.describe('WP-PIC16 read aloud on the case status line', () => {
   for (const width of WIDTHS) {
     test(`the line keeps its rows, its height and an 8 px gap at ${width} px`, async ({ page }) => {
       // Without speech support: the slot alone.
+      await page.addInitScript(() => {
+        Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: undefined });
+      });
       await renderFixture(page, 'WP-PIC16-meta');
       const without = await measure(page, width);
       expect(without.hasControl).toBe(false);

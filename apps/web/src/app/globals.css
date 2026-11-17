@@ -21853,6 +21853,13 @@ body:lang(bn),
   inline-size: 44px;
   block-size: 44px;
 }
+/* The 44 pixel slot already holds the room above and below the status text, so the case header gives back that space (the phone first-row budget of WP-SB2 stays met). */
+.lift-case .page-meta {
+  margin-top: 0;
+}
+.lift-case .page-header {
+  margin-bottom: var(--space-3);
+}
 .read-aloud-button {
   display: inline-flex;
   align-items: center;
