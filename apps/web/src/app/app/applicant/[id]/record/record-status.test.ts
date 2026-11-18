@@ -10,11 +10,27 @@ const sentence = (label: string): string =>
 describe('the status picture of each Record state', () => {
   it('draws the Wallet picture that matches, by the state name the record says', () => {
     const kind = (label: string) => recordStatusPicture(label).kind;
-    expect(kind('Current Version')).toBe('DOCUMENT_SUPPORTED');
+    // A finished state never wears the green Backed by a Document picture: the Record does not
+    // know a file backs a value.
+    expect(kind('Current Version')).toBe('DECLARED');
+    expect(kind('All Details Saved')).toBe('DECLARED');
+    for (const label of ['Current Version', 'All Details Saved', 'Needs Your Check']) {
+      expect(kind(label), label).not.toBe('DOCUMENT_SUPPORTED');
+    }
     expect(kind('Needs Your Check')).toBe('EXTRACTED_PENDING');
-    expect(kind('Still Being Checked')).toBe('DECLARED');
+    expect(kind('Still Being Checked')).toBe('EXTRACTED_PENDING');
     expect(kind('Cannot Be Used')).toBe('CONFLICTED');
     expect(kind('Previous Version')).toBe('STALE');
+  });
+
+  it('says "not past its end date" only when an end date is known', () => {
+    const text = (dated: boolean) =>
+      (appApplicantCatalog.en as Record<string, string>)[
+        recordStatusPicture('Current Version', dated).sentenceKey
+      ] ?? '';
+    expect(text(false)).toBe('The file passed its safety check and nothing is waiting for you.');
+    expect(text(false)).not.toMatch(/in date|end date/);
+    expect(text(true)).toContain('is not past its end date');
   });
 
   it('has a plain sentence for every state the Record can say, and none for a made-up one', () => {

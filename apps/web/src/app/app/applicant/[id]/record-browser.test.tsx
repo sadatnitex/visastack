@@ -113,6 +113,8 @@ describe('the Record browser', () => {
     expect(filters?.querySelector('.wallet-overview-strip')).toBeNull();
     // Separate chips: no strip with a clipping edge that covers the corner buttons.
     expect(container.querySelector('.record-hub-filters')).toBeNull();
+    // The old strip rules are gone from the shared stylesheet.
+    expect(container.querySelector('.u6-filters')).not.toBeNull();
   });
 
   it('narrows by metadata and says plainly when nothing matches', () => {
@@ -172,6 +174,9 @@ describe('the Record browser', () => {
     );
     expect(values).toEqual(['1', 'Not confirmed', 'None yet', 'No one']);
     expect(passport?.querySelector('.u6-open')?.getAttribute('href')?.startsWith(base)).toBe(true);
+    expect(passport?.querySelector('.u6-open')?.getAttribute('aria-label')).toBe(
+      'Open Document: Synthetic Passport',
+    );
     // The long repeated lines are gone from the row.
     expect(container.textContent).not.toContain('Not used in a case yet');
     expect(container.textContent).not.toContain('Not shared');
@@ -303,22 +308,17 @@ describe('the Record styles fit a 320px phone and use the shared tokens', () => 
     expect(block).toContain('.record-hub-filter-set {');
     // The one-off pill tabs are gone; the section tabs are the shared .subnav.
     expect(css).not.toMatch(/\.record-sections\b/);
-    // Its own five-cell strip: one hairline between cells, the last cell spanning on a phone.
-    expect(block).toMatch(
-      /\.record-hub-filters \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);[^}]*gap: 1px;[^}]*background: var\(--hairline-soft\);/,
-    );
-    expect(block).toMatch(/\.record-hub-filters button \{[^}]*border: 0;/);
-    expect(block).toMatch(
-      /@media \(max-width: 760px\) \{[^@]*\.record-hub-filters \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^@]*\.record-hub-filters button:last-child \{\s*grid-column: 1 \/ -1;/,
-    );
-    expect(block).toMatch(/\.record-hub-item \{[^}]*border-top: 1px solid var\(--hairline-soft\);/);
+    for (const gone of [
+      'record-hub-filters',
+      'record-hub-item ',
+      'record-hub-list',
+      'record-hub-facts',
+      'record-hub-actions',
+      'record-hub-nothing-saved',
+    ]) {
+      expect(css, gone).not.toContain(`.${gone}`);
+    }
     expect(block).toMatch(/\.record-hub-group h3 \{[^}]*font-size: var\(--text-lead\);/);
-    expect(block).toMatch(
-      /\.record-hub-nothing-saved \{[^}]*border-top: 1px solid var\(--hairline-soft\);[^}]*font-size: var\(--text-small\);/,
-    );
-    expect(block).toMatch(/\.record-hub-actions \{[^}]*flex-wrap: wrap;/);
-    expect(block).toMatch(/\.record-hub-actions \.btn \{[^}]*min-height: 44px;/);
-    expect(block).toMatch(/\.record-hub-filters button \{[^}]*min-height: 44px;/);
     expect(block).toMatch(/\.record-hub-item-title \{[^}]*min-height: 44px;/);
     // Tokens only: no raw colours, and spacing on the shared scale.
     expect(block).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);

@@ -35,7 +35,9 @@ const EMPTY_VALUES = {
  */
 export function RecordRow({ item }: { readonly item: RecordItem }) {
   const t = useT(appApplicantCatalog);
-  const picture = recordStatusPicture(item.status.label);
+  // An end date is known when the opened row has one; only then may the sentence mention it.
+  const dated = item.detailRows?.some((row) => row.id === 'expires' && row.value !== null) ?? false;
+  const picture = recordStatusPicture(item.status.label, dated);
   const sentence = t(picture.sentenceKey);
   // A document names its kind under the name. Everything else lives inside the row, so the closed
   // row never repeats a detail line (a profile section's count is the first row inside).
@@ -88,7 +90,11 @@ export function RecordRow({ item }: { readonly item: RecordItem }) {
           </ul>
         )}
         {opensSamePage ? null : (
-          <Link className="u6-open" href={item.href}>
+          <Link
+            className="u6-open"
+            href={item.href}
+            aria-label={`${t(`${KEY}openDocument`)}: ${item.title}`}
+          >
             {t(`${KEY}openDocument`)}
           </Link>
         )}

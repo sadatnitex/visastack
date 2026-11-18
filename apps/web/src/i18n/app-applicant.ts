@@ -745,7 +745,9 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdRecordRow.allRecordsIntro':
       'Everything saved for {displayName}, in one place.',
     'appApplicant.appApplicantIdRecordRow.stateCurrentVersion':
-      'The file passed its safety check, is in date, and nothing is waiting for you.',
+      'The file passed its safety check and nothing is waiting for you.',
+    'appApplicant.appApplicantIdRecordRow.stateCurrentVersionDated':
+      'The file passed its safety check, is not past its end date, and nothing is waiting for you.',
     'appApplicant.appApplicantIdRecordRow.stateExpiringSoon':
       'Usable now, and its end date is close. Plan a replacement.',
     'appApplicant.appApplicantIdRecordRow.stateNeedsYourCheck':
@@ -753,7 +755,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdRecordRow.statePartlyFilledIn':
       'Some details are saved and some are still empty.',
     'appApplicant.appApplicantIdRecordRow.stateStillBeingChecked':
-      'The file is saved and its safety check is not finished yet.',
+      'The file is saved and we are still checking and reading it.',
     'appApplicant.appApplicantIdRecordRow.stateNothingSavedYet':
       'No details are saved in this section yet.',
     'appApplicant.appApplicantIdRecordRow.stateAllDetailsSaved':

@@ -155,6 +155,7 @@ export default async function ApplicantRecordPage({
       />
       <ExpandableSection
         title={t.node('appApplicant.appApplicantIdRecordRow.aboutCurrentVersion')}
+        headingLevel={2}
         className="u6-about"
       >
         <p className="muted record-hub-note">

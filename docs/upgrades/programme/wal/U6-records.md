@@ -19,7 +19,7 @@ Unit U6, Class B. Branch claude/u6-all-records. Example data only. Owner request
 
 ## Cause of the two pinned findings
 
-`.record-hub-filters` was one clipped strip (`overflow: hidden` with a rounded edge). The rounded clip cuts the hit area at the corner buttons (Everything, Profile Details, Previous Versions), so a press at their edge reaches the fieldset behind. Fix: five separate chips, each with its own border and corners and nothing clipping them. The old globals.css rules (WP-V3 part 2 block) are now unused and left in place because this unit may not edit the shared stylesheet; a later tidy can remove them together with their guard in record-browser.test.tsx.
+`.record-hub-filters` was one clipped strip (`overflow: hidden` with a rounded edge). The rounded clip cuts the hit area at the corner buttons (Everything, Profile Details, Previous Versions), so a press at their edge reaches the fieldset behind. Fix: five separate chips, each with its own border and corners and nothing clipping them. The old rules were removed in the review batch (see below).
 
 ## Red then green
 
@@ -28,15 +28,20 @@ Unit U6, Class B. Branch claude/u6-all-records. Example data only. Owner request
 
 ## Status pictures (which drawing for which state)
 
+Rule applied: the green "Backed by a Document" picture (ADR 0030) is never used on the Record, because the Record does not know that a file backs a value (a typed profile section has no file, and a Current Version only means the file passed its safety check). A finished state wears the plain thin ring (Entered); anything still open wears the dashed ring (Suggested); a problem wears the broken ring; an old copy wears the clock.
+
 | Record state | Wallet picture |
 |---|---|
-| Current Version, All Details Saved | Backed by a Document (thick ring) |
-| Needs Your Check, Expiring Soon, Partly Filled In | Suggested (dashed ring) |
-| Still Being Checked, Nothing Saved Yet | Entered (thin ring) |
+| Current Version, All Details Saved | Entered (thin ring) |
+| Still Being Checked, Needs Your Check, Expiring Soon, Partly Filled In, Nothing Saved Yet | Suggested (dashed ring) |
 | Cannot Be Used, Expired | Does Not Match (broken ring) |
 | Previous Version | No Longer Current (clock) |
 
-The picture's own words are replaced by the state's word and a sentence written for the Record (below), so no sentence says something the Record does not know.
+The Explain sentence for Current Version says only "The file passed its safety check and nothing is waiting for you."; it adds "is not past its end date" only when the row has a known end date (second key stateCurrentVersionDated). Still Being Checked says "The file is saved and we are still checking and reading it." The name beside the picture and these sentences replace the Wallet's own sentences, so no sentence says something the Record does not know.
+
+## Review batch (Opus, 18 Nov 2026), all fixed
+
+Sentence wording as above; neutral pictures; "About Current Version" is a level 2 heading; each Open Document link is named "Open Document: <item name>"; the unused rules `.record-hub-filters`, `.record-hub-item`, `.record-hub-list`, `.record-hub-facts`, `.record-hub-actions`, `.record-hub-nothing-saved` (and the unused `.record-hub-item-head`) were removed from globals.css together with the test lines that pinned them (`.record-hub-item-title` stays). The catalogue key `appApplicant.appApplicantIdRecordPage.everythingSavedForDisplaynameInOne` is now unused by this page and is left in place on purpose (PR #581 holds its Bengali); remove it in the refill.
 
 ## Owner screenshot additions (18 Nov 2026, Guardian message)
 
@@ -50,7 +55,7 @@ The picture's own words are replaced by the state's word and a sentence written 
 
 ## New words (message catalogue, one marked block "WP-U6 All Records rows" appended at the end of the English map of app-applicant.ts; one more line at the end of the Bengali map; nothing moved or renamed)
 
-Keys all start `appApplicant.appApplicantIdRecordRow.`: waitingOnYou, version, saved, expires, replacedBy, usedInCases, sharedWith, detailsSaved, detailsSavedValue, noneYet, noOne, notConfirmed, openDocument, notStarted, moreToAdd, aboutCurrentVersion, allRecordsIntro, and the eleven Explain sentences stateCurrentVersion, stateExpiringSoon, stateNeedsYourCheck, statePartlyFilledIn, stateStillBeingChecked, stateNothingSavedYet, stateAllDetailsSaved, stateCannotBeUsed, stateExpired, statePreviousVersion, stateSavedHere.
+Keys all start `appApplicant.appApplicantIdRecordRow.`: waitingOnYou, version, saved, expires, replacedBy, usedInCases, sharedWith, detailsSaved, detailsSavedValue, noneYet, noOne, notConfirmed, openDocument, notStarted, moreToAdd, aboutCurrentVersion, allRecordsIntro, and the twelve Explain sentences stateCurrentVersion, stateCurrentVersionDated, stateExpiringSoon, stateNeedsYourCheck, statePartlyFilledIn, stateStillBeingChecked, stateNothingSavedYet, stateAllDetailsSaved, stateCannotBeUsed, stateExpired, statePreviousVersion, stateSavedHere.
 
 Bengali: only `allRecordsIntro` has a Bengali value (the first sentence of the existing Bengali description, unchanged). Every other new key is English only, so a Bengali reader sees English for it until the localization refill; a missing key shows English by design. Bengali word list for the refill: Waiting on You = আপনার জন্য অপেক্ষায়; Version = সংস্করণ; Saved = সংরক্ষিত; Expires = মেয়াদ শেষ; Replaced By = যার দ্বারা প্রতিস্থাপিত; Used in Cases = যেসব কেসে ব্যবহৃত; Shared With = যাদের সাথে শেয়ার করা; Details Saved = সংরক্ষিত তথ্য; Open Document = নথি খুলুন; Not Started = শুরু হয়নি; None yet = এখনও নেই; No one = কেউ নয়; Not confirmed = নিশ্চিত নয়; About Current Version = বর্তমান সংস্করণ সম্পর্কে; {count} more to add = আরও {count}টি যোগ করার আছে. The eleven sentences are in the catalogue in English.
 
@@ -60,5 +65,4 @@ Existing hard-coded English labels reused exactly (not in the catalogue today, a
 
 - The real signed-in /record page with real data (the specs render the real list with made-up records on the real stylesheet; the signed-in guard runs in CI).
 - Safari and Firefox, real phones, screen readers.
-- The old unused rules in globals.css (see above).
 - Bengali wording of the new words.
