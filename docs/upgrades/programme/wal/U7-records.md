@@ -31,6 +31,16 @@ Shared pieces: `app/app/u7-rows.tsx` (TravellerRow, TravellerRows, PersonPicture
 | Unread notifications need two taps (the row is closed) | Kept, as the Guardian's brief asks for compact rows. Open and Mark Read are one press into the row. A follow-up if the owner wants unread rows open. |
 | Parity mark added to the shared row | By design (Guardian decision). |
 
+Independent Opus review of 9725ae49 (Guardian 12): three findings and one ruling, all done.
+
+| Finding | Done |
+|---|---|
+| Export Your Data stayed closed while a large export was waiting, running or ready (a time-limited download hidden) | The row opens by itself in those three states, like the delete row. Test: red on the old code, closed when nothing is waiting. |
+| Two different empty titles on the trips page ("No group trips yet." and "No Group Trips Yet") | One Title Case key, `appTrips.appTripsU7.noGroupTripsYetTitle`, in both empty states (English and a Bengali draft). The sentence key stays where it is still used. |
+| "Open Permissions" was English on a translated page | `appPrivacy.appPrivacyU7.openPermissions` (English and a Bengali draft). `privacy-locale.test.tsx` lists it among the known component-prop marking gaps. |
+| Ruling: equal weight for Join and Decline on the trip invitation | Join and Decline are the same size and shape, side by side (a two-column answer row, `u7-answer`), Decline never smaller, hidden or a link. `trip-invitations/accept/accept-form.tsx` is touched by one CSS-only wrapper in `page.tsx`; no action, field or wording changed. Playwright checks the two buttons at 390 and 1280 on the real forms. |
+| Sharing, client, contributor and agency accept screens have no Decline at all | Already on main, a behaviour gap (it needs a working decline action). Not changed here; on the Guardian's follow-up list. |
+
 ## Guards touched (approved in the Guardian's messages)
 
 - `src/lib/ccd/inventory.ts`: one added selector, `[data-parity-text]`. Elements that carry real visible sentence text in a row's one-line summary wear the mark and count as text entries, so the parity guard still sees every sentence. Additive only. Tests in `src/lib/ccd/inventory.test.tsx`: a marked line counts; removing it makes the guard fail; no double count.
