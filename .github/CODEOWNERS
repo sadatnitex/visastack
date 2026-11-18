@@ -11,3 +11,4 @@
 
 # The Universal Core is the domain contract — guard it closely.
 /packages/core/         @sadatnitex
+/scripts/ui-ratchet.baseline.json  @sadatnitex

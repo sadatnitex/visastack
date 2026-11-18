@@ -676,7 +676,7 @@ export default async function AppPage({
         {
           key: 'documents',
           label: 'Add Documents',
-          hint: 'My Documents: upload a passport page or any file, and sort it out later.',
+          hint: 'My Record: upload a passport page or any file, and sort it out later.',
           href: `/app/applicant/${firstApplicant.applicant.id}/documents/add`,
         },
         {
