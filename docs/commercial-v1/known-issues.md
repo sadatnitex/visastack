@@ -8513,3 +8513,9 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Limits (v1): seeded documents show no previews; `/api/blob`, readiness, the `/app/admin` readiness panel and the sign-up action use the Neon HTTP driver, which the bridge does not serve. Only the session check is stood in; the sign-in form and email flows still run only on the real Neon Auth. The job tests the pull request head commit, like the other pull request checks.
 - Next: U1b-2, the full route list and the layout guard (apps/web/e2e/support/layout-guards.ts) over every signed-in route.
 - NOT verified: the job's first GitHub run, the postgres:18 image (local runs used 16), the pinned Playwright Chromium download (local runs used the preinstalled one), production (nothing here runs there).
+
+## 18 Nov 2026: PUBFIX public site fixes (#635)
+- Fixes all seven defects of the PUB5 verification (docs/upgrades/programme/pub/PUB5-verification.md): D1 untrue How It Works line, D2 Bengali phone length (Home 4,949 px and Countries 4,883 px in Bengali, both under 4,962), D3 eyebrow line height, D4 scene top padding, D5 For Agencies labels from the Home catalogue, D6 language marks on Countries and For Agencies, D7 44 px header, footer and notice targets.
+- Guard: home-layout-overlap.spec.ts now covers Home, How It Works, Trust, Countries and For Agencies plus a JavaScript-off pass; red with the old D3 and D4 rules, green after. WP-SB8 has the Bengali cookie cases at 2 percent under 6 screens.
+- Checked on the merged head (main 2e83440): typecheck, lint, full web tests (9,723), ux-public, public-site, WP-SB8, browser-security and wallet on one production build (517 passed, 15 skipped by design, 0 failed), public budget script.
+- NOT verified: real phones, Safari and Firefox, screen readers, live production, Bengali on other pages. The PUB5 report and PUB-bn-words.csv come in with this PR (D1 row changed; #632 closes in favour of this one).
