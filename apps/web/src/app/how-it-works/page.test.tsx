@@ -1,54 +1,81 @@
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
-import { renderServer, textOf } from '../../lib/next-mocks.test-support';
+import { renderServer } from '../../lib/next-mocks.test-support';
 
 /**
  * R2: the How It Works page rebuilt to the approved reference. Four chapters in a fixed order, the
- * old case story left out, every made-up figure tagged Example, readiness never an approval.
+ * old case story left out, every made-up figure tagged Example, readiness never an approval. The
+ * page is read as a parsed document, as a visitor with no script (or reduced motion) gets it.
  */
 
 vi.mock('server-only', () => ({}));
 
 const { default: HowItWorksPage, metadata } = await import('./page');
-const render = async () => renderServer(await HowItWorksPage());
+const render = async () => new JSDOM(await renderServer(await HowItWorksPage())).window.document;
+/** The words of a node, each text piece separated by a space (jsdom has no innerText). */
+function words(node: Element | Document): string {
+  const root = 'body' in node ? node.body : node;
+  const pieces: string[] = [];
+  const walker = root.ownerDocument.createTreeWalker(root, 4);
+  for (let next = walker.nextNode(); next; next = walker.nextNode()) {
+    const piece = (next.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (piece) pieces.push(piece);
+  }
+  return pieces.join(' ');
+}
+const chapters = (doc: Document) => [...doc.querySelectorAll('section[data-tone]')];
 
 describe('the How It Works page (R2)', () => {
   it('is named How It Works and has one top heading', async () => {
     expect(metadata.title).toBe('How It Works');
-    const html = await render();
-    expect(html.match(/<h1[ >]/g)).toHaveLength(1);
+    const doc = await render();
+    expect(doc.querySelectorAll('h1')).toHaveLength(1);
+    expect(words(doc.querySelector('h1') as Element)).toContain('How It Works.');
   });
 
   it('opens with the four numbered steps in order', async () => {
-    const html = await render();
-    const first = html.split('</section>')[0] ?? '';
-    const text = textOf(first);
-    expect(text).toContain('How It Works.');
-    let at = -1;
-    for (const word of ['Add', 'Check', 'Prepare', 'Share']) {
-      const next = text.indexOf(word, at + 1);
-      expect(next, word).toBeGreaterThan(at);
-      at = next;
-    }
-    expect(first.match(/class="hk-step-chip"/g)).toHaveLength(4);
+    const doc = await render();
+    const first = chapters(doc)[0] as Element;
+    const chips = [...first.querySelectorAll('ol > li')].map((li) => words(li).trim());
+    expect(chips).toEqual(['1 Add', '2 Check', '3 Prepare', '4 Share']);
   });
 
   it('runs four chapters: dark opening, light rows, light words band, dark closing', async () => {
-    const html = await render();
-    const tones = [...html.matchAll(/<section[^>]*data-tone="(dark|light)"/g)].map((m) => m[1]);
-    expect(tones).toEqual(['dark', 'light', 'light', 'dark']);
+    const doc = await render();
+    expect(chapters(doc).map((chapter) => chapter.getAttribute('data-tone'))).toEqual([
+      'dark',
+      'light',
+      'light',
+      'dark',
+    ]);
   });
 
-  it('draws one row per step with the picture each step needs', async () => {
-    const html = await render();
-    expect(html.match(/class="hk-row"/g)).toHaveLength(4);
-    expect(html.match(/data-kit-step="1"/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
-    expect(html).toMatch(/kit-phone kit-fixed[^>]*data-kit-step="2"/);
-    expect(textOf(html)).toContain('Germany: 3 of 8 Ready');
-    expect(html).toContain('Share with Agency');
+  it('draws one row per step, each with the picture that step needs', async () => {
+    const doc = await render();
+    const rows = [...doc.querySelectorAll('.hk-row')];
+    expect(rows.map((row) => row.querySelector('h2')?.textContent)).toEqual([
+      'Add',
+      'Check',
+      'Prepare',
+      'Share',
+    ]);
+    const art = rows.map((row) => row.querySelector('figure'));
+    expect(art.map((figure) => figure?.getAttribute('aria-label'))).toEqual([
+      'Example of a document being read on a phone',
+      'Example of a document being read on a phone',
+      'Example of a country checklist',
+      'Example of sharing papers with an agency',
+    ]);
+    expect(art[0]?.getAttribute('data-kit-step')).toBe('1');
+    expect(art[1]?.getAttribute('data-kit-step')).toBe('2');
+    expect(art[0]?.querySelectorAll('.pub-chip-suggested').length).toBeGreaterThan(0);
+    expect(art[1]?.querySelectorAll('.pub-chip-confirmed').length).toBeGreaterThan(0);
+    expect(words(art[2] as Element)).toContain('Germany: 3 of 8 Ready');
+    expect(words(art[3] as Element)).toContain('Turn Off');
   });
 
   it('removes the old case story chapters', async () => {
-    const text = textOf(await render());
+    const text = words(await render());
     for (const gone of [
       'Your Case,',
       'Step by Step',
@@ -58,47 +85,54 @@ describe('the How It Works page (R2)', () => {
     ]) {
       expect(text, gone).not.toContain(gone);
     }
+    expect((await render()).querySelectorAll('[data-scene]')).toHaveLength(0);
   });
 
-  it('turns each word tile on a button that tells its state, with the meaning in the page', async () => {
-    const html = await render();
-    expect(html.match(/<button[^>]*class="hk-flip"[^>]*aria-pressed="false"/g)).toHaveLength(4);
-    const text = textOf(html);
-    for (const part of [
-      'Received',
-      'is not Reviewed',
-      'Suggested',
-      'is not Confirmed',
-      'Saved',
-      'is not Shared',
-      'Ready',
-      'is not Approved',
-      'No one has checked it yet.',
-    ]) {
-      expect(text, part).toContain(part);
-    }
+  it('shows all four word tiles complete and unpressable without script or motion', async () => {
+    const doc = await render();
+    const tiles = [...doc.querySelectorAll('.hk-flip-grid > li')];
+    expect(tiles.map((tile) => words(tile).trim())).toEqual([
+      'Received is not Reviewed A file arrived. No one has checked it yet.',
+      'Suggested is not Confirmed A detail was read from your page. Nothing is true until you say so.',
+      'Saved is not Shared A saved file stays yours until you choose to share it.',
+      'Ready is not Approved Ready counts what is complete. It never promises a visa.',
+    ]);
+    expect(doc.querySelectorAll('.hk-flip-grid button, .hk-flip-grid [aria-pressed]')).toHaveLength(
+      0,
+    );
   });
 
   it('tags every drawn figure as an Example and says readiness is not approval', async () => {
-    const html = await render();
-    expect(html.match(/class="pub-example"/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
-    expect(textOf(html)).toContain('Completeness only. Not an approval.');
+    const doc = await render();
+    const figures = [...doc.querySelectorAll('figure')];
+    expect(figures.length).toBeGreaterThanOrEqual(5);
+    for (const figure of figures) {
+      expect(
+        figure.querySelector('.pub-example'),
+        figure.getAttribute('aria-label') ?? '',
+      ).not.toBeNull();
+    }
+    expect(words(doc)).toContain('Completeness only. Not an approval.');
   });
 
-  it('keeps the sign-in and trust links and the button label', async () => {
-    const html = await render();
-    expect(html).toMatch(
-      /<a class="pub-button pub-button-primary" href="\/app">[^<]*Start with Your Own Profile/,
-    );
-    expect(html).toMatch(/href="\/trust"[^>]*>[^<]*Privacy and Trust/);
+  it('keeps the start and privacy links where they were', async () => {
+    const doc = await render();
+    const link = (label: string) =>
+      [...doc.querySelectorAll('a')].find((a) => words(a).trim() === label);
+    expect(link('Start with Your Own Profile')?.getAttribute('href')).toBe('/app');
+    expect(link('Privacy and Trust')?.getAttribute('href')).toBe('/trust');
   });
 
-  it('keeps the scroll runtime on the page', async () => {
-    const { ScenesRuntime } = await import('../../components/public-site/scenes-runtime');
-    expect(ScenesRuntime).toBeTypeOf('function');
+  it('closes with one heading named by the band', async () => {
+    const doc = await render();
+    const closing = chapters(doc)[3] as Element;
+    const heading = closing.querySelector('h2') as Element;
+    expect(closing.getAttribute('aria-labelledby')).toBe(heading.id);
+    expect(words(heading)).toContain('See It With Your Own Passport.');
+    expect(closing.querySelectorAll('h2')).toHaveLength(1);
   });
 
   it('has no em dash', async () => {
-    expect(await render()).not.toContain(String.fromCharCode(0x2014));
+    expect((await render()).documentElement.outerHTML).not.toContain(String.fromCharCode(0x2014));
   });
 });

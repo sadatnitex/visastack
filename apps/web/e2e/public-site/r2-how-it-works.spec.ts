@@ -50,19 +50,24 @@ test.describe('how it works rebuild at 1440 wide', () => {
     await expect(page.getByText('Completeness only. Not an approval.')).toBeVisible();
   });
 
-  test('turns a word tile from the keyboard and keeps its meaning readable either way', async ({
+  test('opens a word tile from the keyboard as a disclosure that names its state', async ({
     page,
   }) => {
     await page.goto('/how-it-works');
-    const tile = page.locator('button.hk-flip').first();
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
+    const tile = page.getByRole('button', { name: /^Received/ });
     await tile.scrollIntoViewIfNeeded();
-    await expect(tile).toHaveAttribute('aria-pressed', 'false');
-    await expect(tile).toContainText('No one has checked it yet.');
+    await expect(tile).toHaveAttribute('aria-expanded', 'false');
+    const meaning = page.locator(`#${await tile.getAttribute('aria-controls')}`);
+    await expect(meaning).toBeHidden();
     await tile.focus();
     await page.keyboard.press('Enter');
-    await expect(tile).toHaveAttribute('aria-pressed', 'true');
+    await expect(tile).toHaveAttribute('aria-expanded', 'true');
+    await expect(meaning).toBeVisible();
+    await expect(meaning).toHaveText('A file arrived. No one has checked it yet.');
     await page.keyboard.press('Space');
-    await expect(tile).toHaveAttribute('aria-pressed', 'false');
+    await expect(tile).toHaveAttribute('aria-expanded', 'false');
+    await expect(meaning).toBeHidden();
   });
 
   test('keeps the start and privacy links where they were', async ({ page }) => {
@@ -77,18 +82,37 @@ test.describe('how it works rebuild at 1440 wide', () => {
   });
 });
 
+/** What a visitor must be able to read when nothing moves and nothing can be pressed. */
+async function expectReadsComplete(page: import('@playwright/test').Page): Promise<void> {
+  await expect(page.locator('.hk-row')).toHaveCount(4);
+  for (const text of [
+    'Add a document by photo or file. Details are suggested for you to confirm.',
+    'Germany: 3 of 8 Ready',
+    'Turn Off',
+    'A file arrived. No one has checked it yet.',
+    'Ready counts what is complete. It never promises a visa.',
+    'See It With Your Own Passport.',
+  ]) {
+    await expect(page.getByText(text).first()).toBeVisible();
+  }
+  const faded = await page
+    .locator('.kit-rise')
+    .evaluateAll(
+      (nodes) => nodes.filter((node) => Number(getComputedStyle(node).opacity) < 1).length,
+    );
+  expect(faded).toBe(0);
+  await expect(page.locator('.hk-flip-grid button')).toHaveCount(0);
+}
+
 test.describe('how it works rebuild with less motion', () => {
-  test('reduced motion shows every row finished and still', async ({ page }) => {
+  test('reduced motion shows every row, tile and picture complete, with nothing to press', async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/how-it-works');
     await expect(page.locator('html')).not.toHaveAttribute('data-scenes', 'live');
-    const hidden = await page
-      .locator('.kit-rise')
-      .evaluateAll(
-        (nodes) => nodes.filter((node) => Number(getComputedStyle(node).opacity) < 1).length,
-      );
-    expect(hidden).toBe(0);
+    await expectReadsComplete(page);
   });
 
   test.describe('without script', () => {
@@ -96,14 +120,7 @@ test.describe('how it works rebuild with less motion', () => {
 
     test('reads complete: every row, every word tile and the closing', async ({ page }) => {
       await page.goto('/how-it-works');
-      await expect(page.locator('.hk-row')).toHaveCount(4);
-      const hidden = await page
-        .locator('.kit-rise')
-        .evaluateAll(
-          (nodes) => nodes.filter((node) => Number(getComputedStyle(node).opacity) < 1).length,
-        );
-      expect(hidden).toBe(0);
-      await expect(page.getByText('See It With Your Own Passport.')).toBeVisible();
+      await expectReadsComplete(page);
     });
   });
 });

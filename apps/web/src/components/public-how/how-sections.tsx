@@ -183,6 +183,7 @@ export function HowClosing({
   return (
     <ClosingBand
       pageLang={pageLang}
+      titleId="closing-title"
       title={
         <>
           {say(HOW_WORDS.closingLead)} <HeadlineWords>{say(HOW_WORDS.closingEnd)}</HeadlineWords>

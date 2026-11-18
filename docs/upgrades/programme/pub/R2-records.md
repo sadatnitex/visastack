@@ -36,3 +36,9 @@ The route is not on `BN_READY_ROUTES` (outside the manifest), so the page `lang`
 - No pinned scene on this page, so `pub3-how-trust.spec.ts` registers its "pins each scene" check for `/trust` only (a registration condition, not a skip).
 - The flat rule meant leaving out the reference's gradients, glows and shadows on purpose.
 - Not verified: a real device, a screen reader pass, and the page in the live Bengali route.
+
+## Review batch (kit swap, disclosure tiles, tests)
+
+- Word tiles: where the meaning is always shown (no script, reduced motion, data saver, a phone) each tile is a plain non-interactive block with the whole text. While the scroll engine runs (`html[data-scenes="live"]`) it is a disclosure: a button naming the word and "is not X" with `aria-expanded` and `aria-controls` pointing at the meaning, which is `hidden` until opened. The opened tile is the accent fill with the light ink (about 8:1, above 4.5:1).
+- Tests: page tests read a parsed document, the reduced-motion and no-script browser checks assert the real content is visible (rows, the Germany 3 of 8 count, Turn Off, the four meanings, the closing) and that nothing is faded or pressable. Proofs that the new guards fail: switching `aria-expanded` to `aria-pressed` fails the tile test; removing the words band fails three page tests.
+- Dead rules for R3 (file `apps/web/src/components/public-pub3-story.css`, left untouched by R2): classes with no use left in non-test source: `p3-at`, `p3-bar`, `p3-chips`, `p3-fill`, `p3-node`, `p3-stage`, `p3-stage-line`, `p3-stage-word`, `p3-stages`. R3 should re-check tests, e2e and scripts before deleting.

@@ -193,8 +193,20 @@
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
   color: var(--text);
-  font: inherit;
   text-align: center;
+}
+
+.hk-flip-button {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
 }
 
@@ -204,38 +216,32 @@
   letter-spacing: -0.02em;
 }
 
-.hk-flip-back {
-  display: grid;
-  gap: 2px;
+.hk-flip-not {
+  font-weight: 700;
   font-size: 0.9rem;
   color: var(--text-secondary);
 }
 
-.hk-flip-not {
-  font-weight: 700;
+.hk-flip-means {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
 }
 
-.hk-flip[aria-pressed="true"] {
+.hk-flip-static {
+  gap: 2px;
+}
+
+/* Opened: the accent fills the tile, and every word on it is the light ink (well above 4.5:1). */
+.hk-flip[data-open] {
   border-color: var(--accent);
   background-color: var(--accent);
   color: var(--bg-elevated);
 }
 
-.hk-flip[aria-pressed="true"] .hk-flip-back {
+.hk-flip[data-open] .hk-flip-not,
+.hk-flip[data-open] .hk-flip-means {
   color: var(--bg-elevated);
-}
-
-/* While the scroll engine is live the meaning is folded away until the tile is turned (it stays in
-   the page for a screen reader; without script, motion or on phones it is always shown). */
-html[data-scenes="live"] .hk-flip[aria-pressed="false"] .hk-flip-back {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-}
-
-html[data-scenes="live"] .hk-flip .hk-flip-back {
-  transition: max-height 0.3s ease, opacity 0.3s ease;
-  max-height: 8em;
 }
 
 @media (max-width: 899px) {
@@ -251,12 +257,5 @@ html[data-scenes="live"] .hk-flip .hk-flip-back {
 @media (max-width: 480px) {
   .hk-chapter:not(.hk-hero) {
     padding-block: var(--space-5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hk-flip,
-  .hk-flip * {
-    transition: none !important;
   }
 }
