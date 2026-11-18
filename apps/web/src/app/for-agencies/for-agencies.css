@@ -2,7 +2,8 @@
    Every colour reads a --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
 .r5-hero-grid {
   display: grid;
-  gap: var(--space-6);
+  /* On a phone the case list starts below the first screen (the PUB4 guard allows 30 words there). */
+  gap: 5rem;
   align-items: center;
   min-width: 0;
 }
