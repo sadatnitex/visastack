@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { test } from 'node:test';
@@ -192,7 +193,17 @@ test('the stand-in answers only the session call, and only for its two made-up p
   assert.equal(call(handler, { method: 'POST', url: '/neondb/auth/get-session' }).status, 404);
 });
 
-test('the database preload refuses a database off this machine and refuses Vercel', () => {
+/** A port nothing listens on right now, so a run never collides with another process. */
+async function freePort() {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  await new Promise((resolve) => server.close(resolve));
+  return String(port);
+}
+
+test('the database preload refuses a database off this machine and refuses Vercel', async () => {
+  const [refusedPort, bothPort, childPort] = [await freePort(), await freePort(), await freePort()];
   const preload = join(guardDir, 'db-preload.cjs');
   const require = createRequire(import.meta.url);
   const { assertLoopbackDatabase, bridgePort } = require(preload);
@@ -243,8 +254,8 @@ test('the database preload refuses a database off this machine and refuses Verce
       timeout: 30_000,
     });
   for (const env of [
-    { DATABASE_URL: 'postgres://u@remote-db.example.com/db', CI_DB_BRIDGE_PORT: '45433' },
-    { VERCEL: '1', DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45433' },
+    { DATABASE_URL: 'postgres://u@remote-db.example.com/db', CI_DB_BRIDGE_PORT: refusedPort },
+    { VERCEL: '1', DATABASE_URL: local, CI_DB_BRIDGE_PORT: refusedPort },
     { DATABASE_URL: local },
   ]) {
     const refused = run(env);
@@ -253,7 +264,7 @@ test('the database preload refuses a database off this machine and refuses Verce
   }
   // Allowed, both copies of the driver point at the bridge before the first line of the app runs.
   const both = run(
-    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45434' },
+    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: bothPort },
     `const c = require('@neondatabase/serverless').neonConfig;
      import('@neondatabase/serverless').then(({ neonConfig: m }) => {
        console.log(JSON.stringify([c.wsProxy('h'), m.wsProxy('h'), c.forceDisablePgSSL, m.forceDisablePgSSL, c.useSecureWebSocket, m.useSecureWebSocket]));
@@ -265,7 +276,7 @@ test('the database preload refuses a database off this machine and refuses Verce
   // A child that inherits NODE_OPTIONS loads the preload again but opens no second bridge (the
   // start marker was used up by the parent), so it neither fails on the busy port nor bridges.
   const child = run(
-    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45435', NODE_OPTIONS: `--require ${preload}` },
+    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: childPort, NODE_OPTIONS: `--require ${preload}` },
     `const { spawnSync } = require('node:child_process');
      const r = spawnSync(process.execPath, ['-e', 'console.log(JSON.stringify([Boolean(globalThis.__visastackCiDbBridge), process.env.CI_DB_PRELOAD_START ?? null]))'], { encoding: 'utf8', timeout: 10000 });
      console.log(JSON.stringify([Boolean(globalThis.__visastackCiDbBridge), process.env.CI_DB_PRELOAD_START ?? null, r.status, r.stdout.trim()]));
@@ -279,8 +290,8 @@ test('the database preload refuses a database off this machine and refuses Verce
     JSON.stringify([false, null]),
   ]);
   assert.deepEqual(JSON.parse(both.stdout.trim().split('\n').at(-1)), [
-    '127.0.0.1:45434',
-    '127.0.0.1:45434',
+    `127.0.0.1:${bothPort}`,
+    `127.0.0.1:${bothPort}`,
     true,
     true,
     false,
@@ -335,4 +346,96 @@ test('the installed Neon Auth SDK still asks for the session the way the stand-i
     read('apps/web/src/lib/neon-auth.ts'),
     /NEON_AUTH_BASE_URL must start with https:\/\//,
   );
+});
+
+// WAL1B-2: the route guard's lists (apps/web/ci-signed-in/routes.ts).
+async function routeLists() {
+  assert.ok(
+    process.features.typescript,
+    'This Node cannot read TypeScript files; use the version in .nvmrc (22.18 or later).',
+  );
+  return import(pathToFileURL(join(guardDir, 'routes.ts')).href);
+}
+
+/** Every page file under apps/web/src/app/app, as its route (`/app/applicant/[id]/documents`). */
+function pageRoutes() {
+  const app = join(web, 'src/app');
+  return filesUnder(join(app, 'app'))
+    .filter((path) => path.endsWith(`${'/'}page.tsx`))
+    .map((path) => `/${relative(app, dirname(path)).split('\\').join('/')}`)
+    .sort();
+}
+
+test('every signed-in page is in exactly one list: guarded or excluded with a reason', async () => {
+  const { ROUTES, EXCLUDED } = await routeLists();
+  const pages = pageRoutes();
+  assert.ok(pages.length > 80, `only ${pages.length} page files found`);
+  const guarded = ROUTES.map((route) => route.page);
+  const excluded = EXCLUDED.map((entry) => entry.page);
+  const listed = [...guarded, ...excluded];
+  assert.deepEqual(
+    pages.filter((page) => !listed.includes(page)),
+    [],
+    'page files in neither list: add each to ROUTES or EXCLUDED (with a reason)',
+  );
+  assert.deepEqual(
+    listed.filter((page) => !pages.includes(page)),
+    [],
+    'listed pages with no page file',
+  );
+  assert.deepEqual(
+    listed.filter((page, index) => listed.indexOf(page) !== index),
+    [],
+    'pages listed twice (or in both lists)',
+  );
+  for (const entry of EXCLUDED) assert.ok(entry.reason.trim().length > 20, `${entry.page}: reason`);
+});
+
+test('every guarded route opens a page on this machine with real body text', async () => {
+  const { ROUTES } = await routeLists();
+  const ids = new Set(['applicantId', 'caseId', 'organizationId', 'grantId', 'documentId']);
+  const ownName = { traveller: 'Rumana Test Traveller', agencyAdmin: 'Tanvir Test Agent' };
+  for (const route of ROUTES) {
+    assert.ok(['traveller', 'agencyAdmin'].includes(route.role), `${route.page}: role`);
+    assert.ok(route.path.startsWith('/app'), `${route.page}: path`);
+    for (const [, name] of route.path.matchAll(/\{(\w+)\}/g)) {
+      assert.ok(ids.has(name), `${route.page}: unknown id ${name}`);
+    }
+    // The person's own name is in the toolbar of every page: it proves nothing about the body.
+    assert.ok(
+      route.mustShow.trim().length >= 4 && route.mustShow !== ownName[route.role],
+      `${route.page}: mustShow`,
+    );
+    if (route.deniedTo) assert.notEqual(route.deniedTo, route.role, `${route.page}: deniedTo`);
+  }
+});
+
+/** Today's real findings when WAL1B-2 merged. Lower this number as findings are fixed, never raise it. */
+const KNOWN_FAILING_CEILING = 18;
+
+test('the known findings list only shrinks and names real routes and sizes', async () => {
+  const { ROUTES, KNOWN_FAILING } = await routeLists();
+  assert.ok(
+    KNOWN_FAILING.length <= KNOWN_FAILING_CEILING,
+    `KNOWN_FAILING grew to ${KNOWN_FAILING.length}: fix the page instead of listing it`,
+  );
+  const sizes = [...read('apps/web/e2e/support/layout-guards.ts').matchAll(/name: '([^']+)'/g)].map(
+    (match) => match[1],
+  );
+  assert.deepEqual(sizes, ['phone 390', 'phone 400', 'desktop 1280']);
+  const keys = KNOWN_FAILING.map((k) => `${k.page} ${k.size} ${k.check}`);
+  assert.deepEqual(
+    keys.filter((key, index) => keys.indexOf(key) !== index),
+    [],
+    'duplicate findings',
+  );
+  for (const finding of KNOWN_FAILING) {
+    assert.ok(
+      ROUTES.some((route) => route.page === finding.page),
+      `${finding.page}: not guarded`,
+    );
+    assert.ok(sizes.includes(finding.size), `${finding.page}: size ${finding.size}`);
+    assert.ok(['sideways scroll', 'covered control'].includes(finding.check), finding.check);
+    assert.ok(finding.finding.trim().length > 20, `${finding.page}: describe the finding`);
+  }
 });

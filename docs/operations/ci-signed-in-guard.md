@@ -64,4 +64,32 @@ If the installed Playwright browser does not match, set `CI_SIGNED_IN_CHROMIUM` 
 3. Assert the final address (`new URL(page.url()).pathname`) and text from `seeded()` or `identity()`, never only that something rendered: a sign-in or error page must never pass.
 4. Need more made-up records? Add them to `seed.ts` through `@visastack/services` only, and add their ids to `SeededIds`.
 
-The full route list and the layout guard over every route are the next step (U1b-2).
+Superseded for whole pages by the route guard below (WAL1B-2, 18 Nov 2026): to cover a new signed-in page, add it to `routes.ts` instead of writing a test for it.
+
+## The route guard (WAL1B-2)
+
+`apps/web/ci-signed-in/route-guard.guard.ts` opens every page in `routes.ts` as its made-up person at the three guard sizes of `apps/web/e2e/support/layout-guards.ts` (phone 390, phone 400, desktop 1280). Each page must:
+
+1. answer 200 and stay on its own address (path and query), so a sign-in, not-found or error page never passes;
+2. finish loading (the route's loading screen, `output.loading`, is gone) and show its `mustShow` text in the page body: the content column without the workspace toolbar (which shows the signed-in person's name on every page) and without the agency name banner (which a non-member also sees);
+3. offer at least one control or link in the page body;
+4. need no sideways scroll, and have no control painted over (the shared WAL1 checks).
+
+A page the other made-up person may not open (`deniedTo`: the traveller's profile and case pages for the agency admin, the agency's pages and the shared record for the traveller) is also opened as that person, who must not see the `mustShow` text. That proves the text comes from the page body.
+
+### The lists in routes.ts
+
+| List | Holds | Rule (scripts/ci-signed-in.test.mjs) |
+|---|---|---|
+| `ROUTES` | 50 pages the guard opens: role, address with `{seededId}` placeholders, body text | Every page file under `apps/web/src/app/app` is in `ROUTES` or `EXCLUDED`, never both, and every listed page has a file. The body text is never the person's own name. |
+| `EXCLUDED` | 43 pages it cannot open here, each with its reason: staff pages, one-time invitation links, switched-off features (passkeys, traveller billing, agency collection requests), pages needing records the seed does not make yet (rule pack, receipt, snapshot, group trip) | A reason is required. |
+| `KNOWN_FAILING` | Today's real findings by page, size and check (WAL1B-2 records) | The guard requires each listed finding to still fail, so a fix makes it say "remove from KNOWN_FAILING". The list may only shrink: the test pins a ceiling (18 on 18 Nov 2026) that is lowered as findings are fixed, never raised. |
+
+### Add a page
+
+1. New page file under `apps/web/src/app/app`: the list test fails until it is in `ROUTES` or `EXCLUDED`.
+2. In `ROUTES`: the role, the address (use `{applicantId}`, `{caseId}`, `{organizationId}`, `{grantId}` or `{documentId}`), body text only that page shows once loaded (read it from the page body, not from a heading the agency banner or toolbar repeats), and `deniedTo` when the other person may not open it.
+3. Needs records the seed lacks: add them in `seed.ts` through `@visastack/services` only, with their ids in `SeededIds` and `RouteId`, and move the page from `EXCLUDED` to `ROUTES`.
+4. Never add to `KNOWN_FAILING` to make a new page pass: fix the page.
+
+Time: about one minute for the 50 routes on a local machine (2 workers); the GitHub run time is recorded in the WAL1B-2 records.
