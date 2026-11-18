@@ -17,7 +17,7 @@ const VIEWPORTS = [
 ] as const;
 const FIRST_SCREEN_WORDS = 30;
 
-/** Words a visitor reads in the first screen of the page's own content (the pilot notice and the
+/** Words a visitor reads in the first screen of the page's own content, pictures excluded (the pilot notice and the
  *  shared header are the same on every page and are counted by their own checks). */
 async function firstScreenWords(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -32,6 +32,8 @@ async function firstScreenWords(page: Page): Promise<number> {
       if (!parent) continue;
       const style = getComputedStyle(parent);
       if (style.visibility === 'hidden' || style.display === 'none') continue;
+      // Words drawn inside a picture (a figure) belong to the drawing, not to the copy a visitor reads.
+      if (parent.closest('figure')) continue;
       const range = document.createRange();
       range.selectNodeContents(node);
       const box = range.getBoundingClientRect();
@@ -86,9 +88,15 @@ for (const route of PAGES) {
   }) => {
     await page.setViewportSize({ width: 760, height: 600 });
     await page.goto(route);
-    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
     const stages = page.locator('.pub-scene-stage');
     const count = await stages.count();
+    // R3: the Privacy and Trust page has no pinned scenes (its hero is a timed picture with its own
+    // pause button), so it must stay that way: nothing to pin, nothing to overflow.
+    if (route === '/trust') {
+      expect(count).toBe(0);
+      return;
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
     expect(count).toBeGreaterThan(0);
     for (let at = 0; at < count; at++) {
       const fits = await stages.nth(at).evaluate((el) => el.scrollHeight <= el.clientHeight + 1);

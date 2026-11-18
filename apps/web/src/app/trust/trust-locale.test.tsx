@@ -80,8 +80,7 @@ async function render(locale: 'en' | 'bn', which: 'catalog' | 'pack') {
 describe('the public trust pages under Bengali', () => {
   it('shows Bengali for the trust story and the pack chrome, never a raw key or placeholder', async () => {
     const catalog = await render('bn', 'catalog');
-    expect(catalog).toContain(trustCatalog.bn['trust.publicTrustStory.theTrustModel']);
-    expect(catalog).toContain(trustCatalog.bn['trust.publicTrustStory.yourRecords']);
+    expect(catalog).toContain(trustCatalog.bn['trust.publicTrustStory.aHistoryYouCanReview']);
     const pack = await render('bn', 'pack');
     expect(pack).toMatch(BENGALI);
     expect(pack).toContain(trustCatalog.bn['trust.trustPackkeyPage.route']);
@@ -99,7 +98,7 @@ describe('the public trust pages under Bengali', () => {
     const pack = await render('bn', 'pack');
     for (const key of [
       'trust.publicTrustStory.clearBoundariesHumanControlNoApproval',
-      'trust.publicTrustStory.privateByDesign',
+      'trust.publicTrustStory.aHistoryYouCanReview',
     ] as const) {
       expect(key in trustCatalog.bn, key).toBe(true);
       expect(catalog, key).toContain(trustCatalog.bn[key]);
@@ -176,7 +175,7 @@ describe('the public trust pages under Bengali', () => {
 describe('the public trust pages under English', () => {
   it('render the original English with no Bengali', async () => {
     const catalog = await render('en', 'catalog');
-    expect(catalog).toContain('The Trust Model');
+    expect(catalog).toContain('A History You Can Review');
     expect(catalog).not.toMatch(BENGALI);
     const pack = await render('en', 'pack');
     expect(pack).toContain('Scam Awareness');

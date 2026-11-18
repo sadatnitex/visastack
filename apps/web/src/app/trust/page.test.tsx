@@ -105,7 +105,7 @@ describe('the public route list', () => {
 });
 
 /**
- * WP-PUB3: the trust page opens on a scroll story (share switches, then Access Ended). The route
+ * WP-PUB3: the trust page opens on a timed share sheet (switches, then Access Ended). The route
  * list below it keeps every behaviour above, and the page stays readable when the database is down.
  */
 describe('the Privacy and Trust story', () => {
@@ -117,24 +117,21 @@ describe('the Privacy and Trust story', () => {
     expect(html).toContain('id="trust-story-title"');
   });
 
-  it('shows the share scene finished without script: Saved is not Shared, then Access Ended', async () => {
+  it('shows the timed share sheet finished without script: Saved is not Shared, then Access Ended', async () => {
     listPublicTrustPublished.mockResolvedValue(routes(3));
     const html = await render();
-    expect(html).toMatch(/data-scene="share"[^>]*data-steps="4"[^>]*data-step="3"/);
-    for (const status of ['saved', 'shared', 'accessEnded']) {
-      expect(html).toContain(`data-status="${status}"`);
-    }
-    expect(html).not.toContain('data-status="received"');
-    expect(html.match(/class="pub-example"/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(html).toContain('Share with Agency');
     expect(textOf(html)).toContain('Access Ended');
+    expect(textOf(html)).toContain('Not Shared');
+    expect(html.match(/class="pub-example"/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
   });
 
-  it('alternates dark and light chapters', async () => {
+  it('runs the chapters in the order of tones the reference shows', async () => {
     listPublicTrustPublished.mockResolvedValue(routes(3));
     const html = await render();
     const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map((m) => m[1]);
-    expect(tones.length).toBeGreaterThanOrEqual(3);
-    expect(tones.every((tone, i) => i === 0 || tone !== tones[i - 1])).toBe(true);
+    // The reference runs dark, dark, dark, light, light, dark (R3 records): never light then dark then light.
+    expect(tones).toEqual(['dark', 'dark', 'dark', 'light', 'light', 'dark']);
   });
 
   it('keeps the route cards linked to their pack pages next to the story', async () => {
