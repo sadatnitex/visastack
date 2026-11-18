@@ -1,0 +1,444 @@
+/* R1 Home: the page as the approved reference tells it. Flat (depth lives in public-scenes.css).
+   Every colour is a globals.css token. Pinned chapters are sized by their content: the stage centres
+   what it shows (public-scenes.css), so nothing opens half empty. Phones keep still pictures. */
+
+.hs {
+  display: block;
+}
+
+/* Chapters hold their own spacing; a pinned stage has none of its own. */
+.pub-chapter.hs-chapter {
+  padding-block: 0;
+}
+
+.pub-chapter-light.hs-chapter-soft {
+  background-color: var(--brand-tint-1);
+}
+
+.hs-scene .pub-scene-stage {
+  padding: var(--space-6) var(--space-4);
+}
+
+html[data-scenes="live"] .hs-scene .pub-scene-stage {
+  padding-block: var(--space-3);
+}
+
+.hs-wrap,
+.hs-grid {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+.hs-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.hs-wrap.hs-grid {
+  padding-inline: var(--space-4);
+}
+
+.hs-copy {
+  display: grid;
+  gap: var(--space-4);
+  align-content: center;
+  min-width: 0;
+}
+
+.hs-visual {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+}
+
+.hs-scene .kit-h2 {
+  font-size: clamp(1.9rem, min(5.2vw, 9svh), 3.8rem);
+}
+
+/* ---- 1. hero ---- */
+.hs-hero {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.hs-hero-words {
+  position: relative;
+  z-index: 6;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+}
+
+.hs-hero .kit-h1 {
+  font-size: clamp(2.4rem, min(7vw, 10svh), 5rem);
+}
+
+.hs-hero .kit-sub {
+  margin-inline: auto;
+  font-size: clamp(1rem, min(1.7vw, 2.6svh), 1.3rem);
+}
+
+.hs-hero .kit-actions {
+  justify-content: center;
+}
+
+.hs-hero .kit-deck {
+  --deck-h: clamp(150px, calc(100svh - 500px), 400px);
+}
+
+.hs-nudge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--chapter-stroke-strong);
+  border-radius: var(--radius-pill);
+  color: var(--chapter-text);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
+.hs-alert {
+  margin: 0;
+  max-width: 60ch;
+}
+
+.hs-hero-cap {
+  position: relative;
+  z-index: 7;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  margin-top: calc(var(--space-6) * -1);
+}
+
+.hs-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 20px 6px 10px;
+  border: 1px solid var(--chapter-stroke-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--chapter-bg);
+}
+
+.hs-hero-chip .kit-ring-label {
+  font-size: 1rem;
+}
+
+.hs-hero-note {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--chapter-text);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
+/* ---- 2. add it once ---- */
+.hs-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hs-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* The lit step is white and numbered on the brand blue; the others stay readable (never faded). */
+.hs-step-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid color-mix(in srgb, var(--accent) calc(var(--on, 1) * 100%), var(--brand-tint-5));
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--accent) calc(var(--on, 1) * 100%), var(--chapter-bg));
+  color: var(--bg-elevated);
+  font-size: 0.9rem;
+}
+
+.hs-step-text {
+  display: grid;
+  gap: 2px;
+}
+
+.hs-step-text b {
+  color: color-mix(in srgb, var(--pub-ink) calc(var(--on, 1) * 100%), var(--chapter-text));
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.hs-step-text span {
+  color: var(--pub-ink-soft);
+}
+
+/* A computer shows all three step lines (the lit one is brighter); a phone shows the lit one only. */
+@media (min-width: 760px) {
+  .hs-steps .hs-step .hs-step-body {
+    display: block;
+  }
+}
+
+/* ---- 3. ready for every trip: flight arcs draw behind ---- */
+.hs-arcs {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.hs-arc {
+  fill: none;
+  stroke: var(--brand-tint-5);
+  stroke-width: 0.16;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+}
+
+.hs-arc[data-arc="1"] {
+  stroke-dashoffset: calc(1 - clamp(0, (var(--p, 1) - 0) / 0.7, 1));
+}
+
+.hs-arc[data-arc="2"] {
+  stroke-dashoffset: calc(1 - clamp(0, (var(--p, 1) - 0.1) / 0.7, 1));
+}
+
+.hs-arc[data-arc="3"] {
+  stroke-dashoffset: calc(1 - clamp(0, (var(--p, 1) - 0.2) / 0.7, 1));
+}
+
+/* ---- 4. know where it stands ---- */
+.hs-journey {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+/* ---- 5. you decide who sees what ---- */
+.hs-captions {
+  display: grid;
+  min-height: 3.6em;
+}
+
+.hs-caption {
+  --kit-show: block;
+  margin: 0;
+  color: var(--pub-ink-soft);
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ---- 6. every rule shows its source ---- */
+.pub-chapter.hs-section {
+  padding-block: clamp(48px, 8vw, 96px);
+}
+
+.hs-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-6) 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.hs-card {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-5);
+  border: 1px solid var(--edge-card);
+  border-radius: 24px;
+  background-color: var(--bg-elevated);
+}
+
+.hs-card-art {
+  display: block;
+  width: 44px;
+}
+
+.hs-card-art .pic,
+.hs-card-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hs-card-title {
+  color: var(--text);
+  font-size: 1.15rem;
+}
+
+.hs-card-body {
+  color: var(--text-secondary);
+}
+
+.hs-card-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background-color: var(--brand-bg);
+  color: var(--accent);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
+.hs-example {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+
+/* ---- phones and narrow windows: one column, still pictures, compact (6 screens in all) ---- */
+@media (max-width: 759px) {
+  .hs-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .hs-wrap.hs-grid,
+  .hs-section .hs-wrap {
+    padding-inline: var(--space-4);
+  }
+
+  .hs-scene .pub-scene-stage {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .hs-hero {
+    gap: var(--space-1);
+  }
+
+  .hs-hero-words {
+    gap: var(--space-2);
+  }
+
+  .hs-hero .kit-h1 {
+    font-size: 2.3rem;
+  }
+
+  .hs-hero .kit-sub {
+    font-size: 0.95rem;
+  }
+
+  .hs-hero .kit-deck {
+    --deck-h: 164px;
+  }
+
+  .hs-hero-cap {
+    margin-top: calc(var(--space-4) * -1);
+    width: 100%;
+  }
+
+  .hs-hero-note {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .hs-scene .kit-h2,
+  .hs-section .kit-h2 {
+    font-size: 1.9rem;
+  }
+
+  .hs-copy {
+    gap: var(--space-2);
+  }
+
+  .hs-arcs {
+    display: none;
+  }
+
+  .hs-steps {
+    gap: var(--space-1);
+    margin-top: 0;
+  }
+
+  .hs-step-text b {
+    font-size: 1.05rem;
+  }
+
+  .hs-step-text span {
+    font-size: var(--text-small);
+  }
+
+  .hs-cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+
+  .hs-card {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 2px var(--space-3);
+    padding: 10px var(--space-3);
+  }
+
+  .hs-card-art {
+    grid-row: 1 / span 3;
+    width: 36px;
+  }
+
+  .hs-captions {
+    min-height: 0;
+  }
+
+  .hs-caption {
+    font-size: 1.05rem;
+  }
+
+  .hs-journey {
+    gap: var(--space-3);
+  }
+
+  .pub-chapter.hs-section {
+    padding-block: var(--space-5);
+  }
+}
+
+/* A short computer screen (a laptop with its toolbars out, a 600 px window): tighter rows, so a pinned
+   stage still shows all its words. */
+@media (min-width: 760px) and (max-height: 700px) {
+  .hs-scene .pub-scene-stage {
+    padding-block: var(--space-2);
+  }
+
+  .hs-hero-words {
+    gap: var(--space-2);
+  }
+}

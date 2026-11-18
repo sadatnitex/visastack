@@ -3,6 +3,7 @@
 import { type Locale, formatDate as formatLocaleDate } from '@visastack/i18n';
 import Link from 'next/link';
 import {
+  type ReactNode,
   createContext,
   useActionState,
   useContext,
@@ -19,6 +20,14 @@ import {
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
+import {
+  STATUS_MEANINGS,
+  type StatusKind,
+  StatusPicture,
+  isStatusKind,
+  statusPictureWords,
+} from '../../../../components/pictures/status-picture';
+import { ExpandableSection } from '../../../../components/ui-lift/expandable-section';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../i18n/change-impact';
 import { fieldStatusWords } from '../../../../lib/field-state-words';
@@ -34,6 +43,17 @@ import type {
 import { plural } from '../../../../lib/plural';
 import { type ActionState, saveFactAction } from './actions';
 import { ChangeImpactNotice } from './change-impact/change-impact-notice';
+import {
+  MaskedValue,
+  NOT_ADDED_YET,
+  PASSPORT_PAGE_KEYS,
+  PASSPORT_PAGE_LABELS,
+  type PassportLine,
+  type PassportLineState,
+  PassportPageCard,
+  isMaskedDetail,
+  valueRowId,
+} from './passport-page-card';
 import {
   markEndedAction,
   markNotCurrentAction,
@@ -739,6 +759,132 @@ function displayValue(field: EditorFieldDef, current: ProfileValue | undefined):
   return field.type === 'date' ? formatDateOnly(value) : value;
 }
 
+/**
+ * What one detail shows in place of an edit box (WAL4), for the Passport Page Card and the value
+ * rows alike, so both always say the same thing: the saved value (a protected one masked), or the
+ * words that stand in its place. Never the stand-in "[protected]".
+ */
+function detailState(
+  field: EditorFieldDef,
+  current: ProfileValue | undefined,
+  applies: boolean,
+  otherText: string | null | undefined,
+  doesNotApply: ReactNode,
+  otherWords: (otherText: string) => string,
+): PassportLineState {
+  if (!applies) return { kind: 'note', text: doesNotApply };
+  const value = current?.value ?? null;
+  if (current?.locked || protectedStandIn(value)) {
+    return { kind: 'note', text: displayValue(field, current) };
+  }
+  if (value) {
+    if (value === OTHER_CHOICE && otherText) {
+      return { kind: 'value', text: otherWords(otherText), masked: false };
+    }
+    return {
+      kind: 'value',
+      text: field.type === 'date' ? formatDateOnly(value) : value,
+      masked: isMaskedDetail(field.key, field.sensitivity),
+    };
+  }
+  if (current?.status === 'STALE' || (current?.status && field.sensitivity !== 'STANDARD')) {
+    return { kind: 'note', text: displayValue(field, current) };
+  }
+  return { kind: 'empty' };
+}
+
+/** The status picture code for a saved value, or null: none for a value that has to be added again. */
+function statusKindOf(current: ProfileValue | undefined): StatusKind | null {
+  if (!current?.status || current.locked === 'lost') return null;
+  return isStatusKind(current.status) ? current.status : null;
+}
+
+/** The one line under a value row's name. */
+function ValueSummary({
+  field,
+  current,
+  applies,
+  otherText,
+}: {
+  readonly field: EditorFieldDef;
+  readonly current: ProfileValue | undefined;
+  readonly applies: boolean;
+  readonly otherText: string | null;
+}) {
+  const t = useT(appApplicantCatalog);
+  const state = detailState(
+    field,
+    current,
+    applies,
+    otherText,
+    t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply'),
+    (text) => t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText: text }),
+  );
+  return (
+    <>
+      {state.kind === 'empty' ? (
+        NOT_ADDED_YET
+      ) : state.kind === 'note' ? (
+        state.text
+      ) : state.masked ? (
+        <MaskedValue />
+      ) : (
+        state.text
+      )}
+      {current?.status === 'CONFLICTED' ? (
+        <>
+          {' '}
+          <span className="badge badge-warning">
+            {t.node('appApplicant.appApplicantIdProfileEditor.needsReview')}
+          </span>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** Where each of the eleven passport details has its edit row in this view. */
+interface PassportPlace {
+  readonly field: EditorFieldDef;
+  readonly layerKey: string;
+  readonly notApplicable: boolean;
+}
+
+function passportPlaces(view: MasterProfileView): ReadonlyMap<string, PassportPlace> {
+  const keys: ReadonlySet<string> = new Set(PASSPORT_PAGE_KEYS);
+  const places = new Map<string, PassportPlace>();
+  for (const layer of view.layers) {
+    for (const section of layer.sections) {
+      if (!section.open) continue;
+      for (const field of section.singles) {
+        if (!keys.has(field.key) || places.has(field.key)) continue;
+        places.set(field.key, {
+          field,
+          layerKey: layer.key,
+          notApplicable: section.notApplicable.includes(field.key),
+        });
+      }
+    }
+  }
+  return places;
+}
+
+const PASSPORT_DATE_KEYS: ReadonlySet<string> = new Set([
+  'date_of_birth',
+  'passport_issue_date',
+  'passport_expiry',
+]);
+
+/** A stand-in definition for a detail this view does not list, so its value is still drawn safely. */
+function fallbackField(key: string): EditorFieldDef {
+  return {
+    key,
+    label: key,
+    sensitivity: isMaskedDetail(key, undefined) ? 'SENSITIVE' : 'STANDARD',
+    ...(PASSPORT_DATE_KEYS.has(key) ? { type: 'date' as const } : {}),
+  };
+}
+
 /** The free "something else" record every section keeps, so nothing a person needs is left without a home. */
 function OtherItems({
   applicantId,
@@ -954,7 +1100,6 @@ function SectionFields({
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
   readonly search: string;
 }) {
-  const t = useT(appApplicantCatalog);
   const notApplicable = new Set(section.notApplicable);
   const singles = section.singles.filter((field) => matchesSearch(field.label, search));
   const groups = section.groups.filter(
@@ -965,48 +1110,52 @@ function SectionFields({
   return (
     <>
       {singles.length > 0 ? (
-        <dl className="profile-read-summary">
+        <div className="profile-value-rows">
           {singles.map((field) => {
             const current = values[field.key];
-            const otherText = field.otherDetail ? values[field.otherDetail.key]?.value : undefined;
+            const applies = !notApplicable.has(field.key);
+            const kind = statusKindOf(current);
             return (
-              <div key={field.key}>
-                <dt>{field.label}</dt>
-                <dd>
-                  {notApplicable.has(field.key)
-                    ? t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply')
-                    : current?.value === OTHER_CHOICE && otherText
-                      ? t.node('appApplicant.appApplicantIdProfileEditor.otherOthertext', {
-                          otherText,
-                        })
-                      : displayValue(field, current)}
-                </dd>
-                {current?.status === 'CONFLICTED' ? (
-                  <span className="badge badge-warning">
-                    {t.node('appApplicant.appApplicantIdProfileEditor.needsReview')}
-                  </span>
-                ) : null}
-              </div>
+              <ExpandableSection
+                key={field.key}
+                id={valueRowId(field.key)}
+                className="profile-value-row"
+                headingLevel={5}
+                title={field.label}
+                summary={
+                  <ValueSummary
+                    field={field}
+                    current={current}
+                    applies={applies}
+                    otherText={
+                      field.otherDetail ? (values[field.otherDetail.key]?.value ?? null) : null
+                    }
+                  />
+                }
+                {...(kind
+                  ? {
+                      status: (
+                        <StatusPicture
+                          kind={kind}
+                          label={`${field.label}: ${STATUS_MEANINGS[kind].name}`}
+                        />
+                      ),
+                      statusDescription: statusPictureWords(kind),
+                    }
+                  : {})}
+                defaultOpen={search.trim() !== ''}
+              >
+                <SingleField
+                  applicantId={applicantId}
+                  field={field}
+                  applies={applies}
+                  values={values}
+                  assurance={assurance}
+                />
+              </ExpandableSection>
             );
           })}
-        </dl>
-      ) : null}
-      {singles.length > 0 ? (
-        <details className="profile-edit-section" open={search.trim() ? true : undefined}>
-          <summary>{t.node('appApplicant.appApplicantIdProfileEditor.editTheseDetails')}</summary>
-          <div className="field-list">
-            {singles.map((field) => (
-              <SingleField
-                key={field.key}
-                applicantId={applicantId}
-                field={field}
-                applies={!notApplicable.has(field.key)}
-                values={values}
-                assurance={assurance}
-              />
-            ))}
-          </div>
-        </details>
+        </div>
       ) : null}
       {groups.map((group) => (
         <RepeatingGroup
@@ -1397,10 +1546,10 @@ interface ProfileEditorProps {
   readonly endedRecords?: Readonly<Record<string, string>>;
 }
 
-/** Opens the first visible section's details and focuses its first field. False when none is shown. */
+/** Opens the first visible detail's row and focuses its first box. False when none is shown. */
 function openFirstSection(root: HTMLElement | null): boolean {
   const details = root?.querySelector<HTMLDetailsElement>(
-    '[id^="profile-panel-"]:not([hidden]) .profile-edit-section',
+    '[id^="profile-panel-"]:not([hidden]) .profile-value-row > .expandable-section-details',
   );
   if (!details) return false;
   let parent: HTMLElement | null = details;
@@ -1545,9 +1694,77 @@ export function ProfileEditor({
     }
   }
   const ended = useMemo(() => new Map(Object.entries(endedRecords ?? {})), [endedRecords]);
+  // WAL4: the Passport Page Card. Its lines come from the profile; a tap opens that detail's row.
+  const places = useMemo(() => passportPlaces(view), [view]);
+  const passportLines = useMemo((): readonly PassportLine[] => {
+    if (searching) return [];
+    const essentialKeys = new Set(view.essentials.items.flatMap((item) => item.field?.key ?? []));
+    return PASSPORT_PAGE_KEYS.map((key) => {
+      const place = places.get(key);
+      const field = place?.field ?? fallbackField(key);
+      const current = values[key];
+      return {
+        key,
+        label: place?.field.label ?? PASSPORT_PAGE_LABELS[key],
+        state: detailState(
+          field,
+          current,
+          !place?.notApplicable,
+          field.otherDetail ? values[field.otherDetail.key]?.value : null,
+          t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply'),
+          (otherText) =>
+            t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText }),
+        ),
+        status: statusKindOf(current),
+        href: !place
+          ? null
+          : showAll
+            ? `#${valueRowId(key)}`
+            : essentialKeys.has(key)
+              ? `#f-${key}`
+              : `?view=all#${valueRowId(key)}`,
+      };
+    });
+  }, [searching, view, places, values, showAll, t]);
+  const [rowTarget, setRowTarget] = useState<string | null>(null);
+  function editPassportDetail(key: string) {
+    // While only the essentials show, an essential's own box is already on the page.
+    if (!showAll) {
+      const box = editor.current?.querySelector<HTMLElement>(`.profile-essential #f-${key}`);
+      if (box) {
+        box.scrollIntoView?.({ block: 'center' });
+        box.focus();
+        return;
+      }
+    }
+    const place = places.get(key);
+    if (!place) return;
+    setShowAll(true);
+    setSelected(place.layerKey);
+    setSearch('');
+    setRowTarget(key);
+  }
+  useEffect(() => {
+    if (!rowTarget) return;
+    setRowTarget(null);
+    const row = document.getElementById(valueRowId(rowTarget));
+    const details = row?.querySelector<HTMLDetailsElement>(':scope > details');
+    if (!row || !details) return;
+    details.open = true;
+    row.scrollIntoView?.({ block: 'start' });
+    // The value box first; a detail that does not apply has only its switch back.
+    const target =
+      details.querySelector<HTMLElement>(
+        'input:not([type="hidden"]):not([type="checkbox"]), select, textarea',
+      ) ??
+      details.querySelector<HTMLElement>('input[type="checkbox"], button') ??
+      details.querySelector<HTMLElement>(':scope > summary');
+    target?.focus();
+  }, [rowTarget]);
   return (
     <EndedRecordsContext.Provider value={ended}>
       <div ref={editor} id="profile-editor" tabIndex={-1}>
+        {searching ? null : <PassportPageCard lines={passportLines} onEdit={editPassportDetail} />}
         {hasEssentials ? (
           <EssentialsFirst
             applicantId={applicantId}

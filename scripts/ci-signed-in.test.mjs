@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { test } from 'node:test';
@@ -192,7 +193,17 @@ test('the stand-in answers only the session call, and only for its two made-up p
   assert.equal(call(handler, { method: 'POST', url: '/neondb/auth/get-session' }).status, 404);
 });
 
-test('the database preload refuses a database off this machine and refuses Vercel', () => {
+/** A port nothing listens on right now, so a run never collides with another process. */
+async function freePort() {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  await new Promise((resolve) => server.close(resolve));
+  return String(port);
+}
+
+test('the database preload refuses a database off this machine and refuses Vercel', async () => {
+  const [refusedPort, bothPort, childPort] = [await freePort(), await freePort(), await freePort()];
   const preload = join(guardDir, 'db-preload.cjs');
   const require = createRequire(import.meta.url);
   const { assertLoopbackDatabase, bridgePort } = require(preload);
@@ -243,8 +254,8 @@ test('the database preload refuses a database off this machine and refuses Verce
       timeout: 30_000,
     });
   for (const env of [
-    { DATABASE_URL: 'postgres://u@remote-db.example.com/db', CI_DB_BRIDGE_PORT: '45433' },
-    { VERCEL: '1', DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45433' },
+    { DATABASE_URL: 'postgres://u@remote-db.example.com/db', CI_DB_BRIDGE_PORT: refusedPort },
+    { VERCEL: '1', DATABASE_URL: local, CI_DB_BRIDGE_PORT: refusedPort },
     { DATABASE_URL: local },
   ]) {
     const refused = run(env);
@@ -253,7 +264,7 @@ test('the database preload refuses a database off this machine and refuses Verce
   }
   // Allowed, both copies of the driver point at the bridge before the first line of the app runs.
   const both = run(
-    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45434' },
+    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: bothPort },
     `const c = require('@neondatabase/serverless').neonConfig;
      import('@neondatabase/serverless').then(({ neonConfig: m }) => {
        console.log(JSON.stringify([c.wsProxy('h'), m.wsProxy('h'), c.forceDisablePgSSL, m.forceDisablePgSSL, c.useSecureWebSocket, m.useSecureWebSocket]));
@@ -265,7 +276,7 @@ test('the database preload refuses a database off this machine and refuses Verce
   // A child that inherits NODE_OPTIONS loads the preload again but opens no second bridge (the
   // start marker was used up by the parent), so it neither fails on the busy port nor bridges.
   const child = run(
-    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45435', NODE_OPTIONS: `--require ${preload}` },
+    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: childPort, NODE_OPTIONS: `--require ${preload}` },
     `const { spawnSync } = require('node:child_process');
      const r = spawnSync(process.execPath, ['-e', 'console.log(JSON.stringify([Boolean(globalThis.__visastackCiDbBridge), process.env.CI_DB_PRELOAD_START ?? null]))'], { encoding: 'utf8', timeout: 10000 });
      console.log(JSON.stringify([Boolean(globalThis.__visastackCiDbBridge), process.env.CI_DB_PRELOAD_START ?? null, r.status, r.stdout.trim()]));
@@ -279,8 +290,8 @@ test('the database preload refuses a database off this machine and refuses Verce
     JSON.stringify([false, null]),
   ]);
   assert.deepEqual(JSON.parse(both.stdout.trim().split('\n').at(-1)), [
-    '127.0.0.1:45434',
-    '127.0.0.1:45434',
+    `127.0.0.1:${bothPort}`,
+    `127.0.0.1:${bothPort}`,
     true,
     true,
     false,
@@ -335,4 +346,226 @@ test('the installed Neon Auth SDK still asks for the session the way the stand-i
     read('apps/web/src/lib/neon-auth.ts'),
     /NEON_AUTH_BASE_URL must start with https:\/\//,
   );
+});
+
+// WAL1B-2: the route guard's lists (apps/web/ci-signed-in/routes.ts).
+async function routeLists() {
+  assert.ok(
+    process.features.typescript,
+    'This Node cannot read TypeScript files; use the version in .nvmrc (22.18 or later).',
+  );
+  return import(pathToFileURL(join(guardDir, 'routes.ts')).href);
+}
+
+/** Every page file under apps/web/src/app/app, as its route (`/app/applicant/[id]/documents`). */
+function pageRoutes() {
+  const app = join(web, 'src/app');
+  return filesUnder(join(app, 'app'))
+    .filter((path) => path.endsWith(`${'/'}page.tsx`))
+    .map((path) => `/${relative(app, dirname(path)).split('\\').join('/')}`)
+    .sort();
+}
+
+const people = JSON.parse(read('apps/web/ci-signed-in/people.json'));
+
+test('every signed-in page is in exactly one list: guarded or excluded with a reason', async () => {
+  const { ROUTES, EXCLUDED } = await routeLists();
+  const pages = pageRoutes();
+  assert.ok(pages.length > 80, `only ${pages.length} page files found`);
+  const listed = [...ROUTES.map((route) => route.page), ...EXCLUDED.map((entry) => entry.page)];
+  assert.deepEqual(
+    pages.filter((page) => !listed.includes(page)),
+    [],
+    'page files in neither list: add each to ROUTES or EXCLUDED (with a reason)',
+  );
+  assert.deepEqual(
+    listed.filter((page) => !pages.includes(page)),
+    [],
+    'listed pages with no page file',
+  );
+  assert.deepEqual(
+    listed.filter((page, index) => listed.indexOf(page) !== index),
+    [],
+    'pages listed twice (or in both lists)',
+  );
+  for (const entry of EXCLUDED) assert.ok(entry.reason.trim().length > 20, `${entry.page}: reason`);
+});
+
+test('every guarded route opens its own page on this machine and checks real body text', async () => {
+  const { ROUTES, ROUTE_IDS, pathOpensPage } = await routeLists();
+  assert.ok(pathOpensPage('/app/(home)', '/app'));
+  assert.ok(pathOpensPage('/app/applicant/[id]/documents', '/app/applicant/x/documents?a=1'));
+  assert.ok(!pathOpensPage('/app/applicant/[id]/insights', '/app/applicant/x/review'));
+  assert.ok(!pathOpensPage('/app/applicant/[id]', '/app/applicant/x/review'));
+  for (const route of ROUTES) {
+    assert.ok(Object.hasOwn(people, route.role), `${route.page}: role ${route.role}`);
+    assert.ok(
+      pathOpensPage(route.page, route.path),
+      `${route.page}: path ${route.path} opens another page`,
+    );
+    for (const [, name] of route.path.matchAll(/\{(\w+)\}/g)) {
+      assert.ok(ROUTE_IDS.includes(name), `${route.page}: unknown id ${name}`);
+    }
+    // The signed-in person's own name is in the toolbar of every page: it proves nothing.
+    assert.ok(
+      route.mustShow.trim().length >= 12 && route.mustShow !== people[route.role].name,
+      `${route.page}: mustShow must be specific body text`,
+    );
+    if (route.deniedTo) {
+      assert.ok(Object.hasOwn(people, route.deniedTo), `${route.page}: deniedTo`);
+      assert.notEqual(route.deniedTo, route.role, `${route.page}: deniedTo`);
+    }
+  }
+});
+
+/**
+ * Every known finding when WAL1B-2 merged (18 Nov 2026), one line per page, check, size and
+ * control. A fix removes lines here and in KNOWN_FAILING; nothing may ever be added.
+ */
+const KNOWN_FAILING_BASELINE = new Set([
+  ...['phone 390', 'phone 400', 'desktop 1280'].flatMap((size) => [
+    `/app/applicant/[id]/documents/add | covered control | ${size} | Files to Import`,
+    `/app/applicant/[id]/documents/add | covered control | ${size} | Folder to Import`,
+    `/app/applicant/[id]/profile | covered control | ${size} | Photo File`,
+    `/app/applicant/[id]/record | covered control | ${size} | Everything2`,
+    `/app/applicant/[id]/record | covered control | ${size} | Previous Versions0`,
+    `/app/agency/[orgId]/clients | covered control | ${size} | Invite a Client`,
+    `/app/agency/[orgId]/clients | covered control | ${size} | Ask for a Document or Detail`,
+    `/app/agency/[orgId]/activity | no control | ${size} | -`,
+    `/app/agency/[orgId]/ai-connections | no control | ${size} | -`,
+  ]),
+  ...['phone 390', 'phone 400'].flatMap((size) => [
+    `/app/applicant/[id]/record | covered control | ${size} | Profile Details10`,
+    `/app/applicant/[id]/missions/prepare-again | covered control | ${size} | Create Case`,
+    `/app/applicant/[id]/outputs | covered control | ${size} | Preview`,
+    `/app/mission/start | covered control | ${size} | Start Trip`,
+  ]),
+]);
+
+test('the known findings list only shrinks and names real routes, sizes and controls', async () => {
+  const { ROUTES, KNOWN_FAILING } = await routeLists();
+  const sizes = [...read('apps/web/e2e/support/layout-guards.ts').matchAll(/name: '([^']+)'/g)].map(
+    (match) => match[1],
+  );
+  assert.deepEqual(sizes, ['phone 390', 'phone 400', 'desktop 1280']);
+  const keys = KNOWN_FAILING.flatMap((finding) =>
+    finding.sizes.flatMap((size) =>
+      (finding.controls.length > 0 ? finding.controls : ['-']).map(
+        (control) => `${finding.page} | ${finding.check} | ${size} | ${control}`,
+      ),
+    ),
+  );
+  assert.deepEqual(
+    keys.filter((key) => !KNOWN_FAILING_BASELINE.has(key)),
+    [],
+    'KNOWN_FAILING gained a finding: fix the page instead of listing it',
+  );
+  assert.deepEqual(
+    keys.filter((key, index) => keys.indexOf(key) !== index),
+    [],
+    'the same finding listed twice',
+  );
+  for (const finding of KNOWN_FAILING) {
+    assert.ok(
+      ROUTES.some((route) => route.page === finding.page),
+      `${finding.page}: not guarded`,
+    );
+    for (const size of finding.sizes) assert.ok(sizes.includes(size), `${finding.page}: ${size}`);
+    assert.ok(
+      finding.check === 'covered control'
+        ? finding.controls.length > 0
+        : finding.controls.length === 0,
+      `${finding.page}: controls for ${finding.check}`,
+    );
+    assert.ok(finding.finding.trim().length > 20, `${finding.page}: describe the finding`);
+  }
+});
+
+/**
+ * Every excluded page when WAL1B-2 merged (18 Nov 2026). A page may leave this list (seed it, then
+ * guard it); nothing may join it, so a new or newly broken page cannot be hidden by excluding it.
+ */
+const EXCLUDED_BASELINE = new Set([
+  ...[
+    '',
+    '/access',
+    '/ai',
+    '/audit',
+    '/billing',
+    '/billing/travellers',
+    '/billing/travellers/metrics',
+    '/complaints',
+    '/document-protection',
+    '/email',
+    '/insights',
+    '/members',
+    '/organizations',
+    '/organizations/[orgId]',
+    '/packs',
+    '/packs/[packId]',
+    '/packs/[packId]/diff',
+    '/packs/corrections',
+    '/packs/import',
+    '/packs/sources',
+    '/plans',
+    '/privacy',
+    '/removals',
+    '/security',
+    '/settings',
+    '/sign-in-recovery',
+  ].map((tail) => `/app/admin${tail}`),
+  '/app/staff-code',
+  '/app/client-invitations/accept',
+  '/app/contributor-requests/accept',
+  '/app/invitations/accept',
+  '/app/sharing-invitations/accept',
+  '/app/trip-invitations/accept',
+  '/app/trip-invitations/[id]',
+  '/app/account/passkeys',
+  '/app/account/plan/billing',
+  '/app/agency/[orgId]/checklists/edit',
+  '/app/agency/[orgId]/collection',
+  '/app/agency/[orgId]/collection/new',
+  '/app/agency/[orgId]/collection/request',
+  '/app/agency/[orgId]/plan/invoices/receipts/[receiptId]',
+  '/app/applicant/[id]/memory/compare',
+  '/app/mission/[id]/snapshots/[snapshotId]',
+  '/app/trips/[id]',
+]);
+
+test('the excluded pages list only shrinks', async () => {
+  const { EXCLUDED } = await routeLists();
+  assert.equal(EXCLUDED_BASELINE.size, 43);
+  assert.deepEqual(
+    EXCLUDED.map((entry) => entry.page).filter((page) => !EXCLUDED_BASELINE.has(page)),
+    [],
+    'EXCLUDED gained a page: guard it in ROUTES instead (seed what it needs)',
+  );
+});
+
+test('a known covered finding matches only the covered control, by its exact name', async () => {
+  const { coveredControlName, unlistedCovered, fixedControls } = await routeLists();
+  const listed =
+    '<button.btn.btn-primary> "Start Trip" reached from above, at 195,809, is under <svg>';
+  assert.equal(coveredControlName(listed), 'Start Trip');
+  assert.equal(
+    coveredControlName(
+      '<input.sr-only> "Photo File" is too small to press (1 by 1 px) and has no drawn label',
+    ),
+    'Photo File',
+  );
+  assert.equal(coveredControlName('<button> in the middle, at 1,2, is under <div>'), null);
+  // A new control painted over BY a listed one is new, not known.
+  const newUnderListed =
+    '<a.btn> "Cancel" reached from above, at 100,800, is under <button.btn.btn-primary> "Start Trip"';
+  assert.deepEqual(unlistedCovered([listed, newUnderListed], ['Start Trip']), [newUnderListed]);
+  // Exact names only: no prefix or partial match.
+  assert.deepEqual(
+    unlistedCovered(
+      ['<button> "Start Trip Now" in the middle, at 1,2, is under <svg>'],
+      ['Start Trip'],
+    ),
+    ['<button> "Start Trip Now" in the middle, at 1,2, is under <svg>'],
+  );
+  assert.deepEqual(fixedControls([listed], ['Start Trip', 'Preview']), ['Preview']);
 });

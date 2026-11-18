@@ -485,9 +485,12 @@ it('shows protected date states without trying to format them as dates', () => {
   const text = container.querySelector('#profile-panel-identity')?.textContent ?? '';
   expect(text).toContain('Protected detail');
   expect(text).toContain('Could not read this detail');
-  expect(container.querySelector('.profile-read-summary')?.textContent).not.toContain(
-    'Invalid Date',
-  );
+  // WAL4: the read summary is now the one line under each value row's name.
+  const summaries = [
+    ...container.querySelectorAll('.profile-value-row .expandable-section-summary'),
+  ];
+  expect(summaries.length).toBeGreaterThan(0);
+  expect(summaries.map((summary) => summary.textContent).join(' ')).not.toContain('Invalid Date');
 });
 
 describe('the list of profile areas', () => {
@@ -714,9 +717,9 @@ describe('No Longer Current and Ended (LC-G1)', () => {
   it('shows a value marked no longer current as such, offers "does not apply" again, and no second mark', () => {
     render({ values: { [key]: { factId: 'f1', value: null, status: 'STALE' } } });
     const section = container.querySelector('#section-identity_basics');
-    expect(section?.querySelector('.profile-read-summary dd')?.textContent).toBe(
-      'No Longer Current',
-    );
+    expect(
+      section?.querySelector(`#profile-row-${key} .expandable-section-summary`)?.textContent,
+    ).toBe('No Longer Current');
     expect(section?.textContent).toContain(
       'You marked this No Longer Current. Enter a new value above when you have one.',
     );
