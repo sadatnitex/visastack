@@ -10,10 +10,12 @@ import { RATE_LIMITS, checkRateLimit } from './rate-limit';
  * accept screens show no Decline and the decline actions refuse with the plain answer.
  *
  * Read from the catalogue, so it never fails a surrounding transaction the way a write of an
- * unknown enum value would. A "yes" is kept per database handle (migrations are additive); a "no"
- * never is, so the screens offer Decline from the first request after the migration.
+ * unknown enum value would. A "yes" is kept for the whole process (each request gets its own
+ * database handle, and the app talks to one database; migrations are additive), so after the
+ * first yes no request asks again. A "no" is never kept, so the screens offer Decline from the
+ * first request after the migration.
  */
-const READY = new WeakSet<object>();
+let readyInThisProcess = false;
 
 export const INVITATION_DECLINE_PRESENT = sql<boolean>`(
   (select count(*) from pg_enum e join pg_type t on t.oid = e.enumtypid
@@ -31,13 +33,21 @@ export const INVITATION_DECLINE_PRESENT = sql<boolean>`(
 )`;
 
 export async function invitationDeclineAvailable(db: Db): Promise<boolean> {
-  if (READY.has(db)) return true;
+  if (readyInThisProcess) return true;
   const rows = await db
     .select({ ready: INVITATION_DECLINE_PRESENT })
     .from(sql`(select 1) as probe`);
   const ready = rows[0]?.ready === true;
-  if (ready) READY.add(db);
+  if (ready) readyInThisProcess = true;
   return ready;
+}
+
+/**
+ * Forgets the remembered yes. Only for tests that run many databases in one process and need to
+ * see a database from before migration 0138.
+ */
+export function forgetInvitationDeclineReady(): void {
+  readyInThisProcess = false;
 }
 
 /** The four kinds of invitation a person can decline, with the audit names each one uses. */
@@ -81,14 +91,17 @@ export function unusableInvitationTokenHash(): string {
 }
 
 /**
- * The audit record of a refused decline: the kind and who tried, nothing else. Never the invitation,
- * an applicant, an address or a name, so it says nothing about an invitation that was not theirs.
- * Each invitation module writes it with its own private recorder (not exported), so a refusal
- * cannot be recorded from anywhere else.
+ * The audit record of a refused decline: the kind and who tried. When the link named a real
+ * invitation sent to another address, its id too (reason `wrong_recipient`), so repeated tries of
+ * one forwarded link can be traced; otherwise no id (reason `not_available`). Never the token, an
+ * applicant, an address or a name, and the reply the person sees is the same either way. Each
+ * invitation module writes it with its own private recorder (not exported), so a refusal cannot
+ * be recorded from anywhere else.
  */
 export function declineRefusedEvent(
   kind: DeclinableInvitationKind,
   actorAccountId: string,
+  forwardedInvitationId?: string,
 ): AuditEventInput {
   const names = INVITATION_DECLINE_EVENTS[kind];
   return {
@@ -97,6 +110,8 @@ export function declineRefusedEvent(
     method: 'MANUAL',
     result: 'DENIED',
     resourceType: names.resourceType,
-    reason: 'not_available',
+    ...(forwardedInvitationId
+      ? { resourceId: forwardedInvitationId, reason: 'wrong_recipient' }
+      : { reason: 'not_available' }),
   };
 }

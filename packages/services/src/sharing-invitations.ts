@@ -363,11 +363,31 @@ class SharingAcceptanceError extends Error {
   }
 }
 
-/** DECL1: records a refused decline (kind and who tried only); a failure never changes the refusal. */
-async function recordDeclineRefused(db: Db, actorAccountId: string): Promise<void> {
+/**
+ * DECL1: records a refused decline; a failure never changes the refusal. When the link names a
+ * real invitation sent to another address, its id goes in the record (never the token or an
+ * address), so tries of one forwarded link can be traced.
+ */
+async function recordDeclineRefused(
+  db: Db,
+  actorAccountId: string,
+  tokenHash?: string,
+  actorEmail?: string,
+): Promise<void> {
   try {
+    const named =
+      tokenHash && actorEmail
+        ? first(
+            await db
+              .select({ id: schema.sharingInvitations.id, email: schema.sharingInvitations.email })
+              .from(schema.sharingInvitations)
+              .where(eq(schema.sharingInvitations.tokenHash, tokenHash))
+              .limit(1),
+          )
+        : undefined;
+    const forwarded = named && named.email !== actorEmail ? named.id : undefined;
     await db.transaction(async (tx) => {
-      await appendAuditEvent(tx, declineRefusedEvent('sharing', actorAccountId));
+      await appendAuditEvent(tx, declineRefusedEvent('sharing', actorAccountId, forwarded));
     });
   } catch {
     // The refusal stands either way; only the record of it is missing.
@@ -388,12 +408,12 @@ export async function declineSharingInvitation(
 ): Promise<Result<{ readonly declined: true }, ServiceError>> {
   const unavailable = () => err(keyedError('not_found', 'sharing.inviteUnavailable'));
   if (!(await declineMayProceed(db, input.actorAccountId))) return unavailable();
-  const refuse = async () => {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(input.rawToken)) {
     await recordDeclineRefused(db, input.actorAccountId);
     return unavailable();
-  };
-  if (!/^[A-Za-z0-9_-]{43}$/.test(input.rawToken)) return refuse();
+  }
   const tokenHash = hashInvitationToken(input.rawToken);
+  let actorEmail: string | undefined;
   const outcome = await db.transaction(async (tx) => {
     const account = first(
       await tx
@@ -404,6 +424,7 @@ export async function declineSharingInvitation(
     );
     const email = account?.email?.toLowerCase();
     if (!email) return null;
+    actorEmail = email;
     const invitations = schema.sharingInvitations;
     const changed = first(
       await tx
@@ -435,7 +456,10 @@ export async function declineSharingInvitation(
     });
     return changed;
   });
-  if (!outcome) return refuse();
+  if (!outcome) {
+    await recordDeclineRefused(db, input.actorAccountId, tokenHash, actorEmail);
+    return unavailable();
+  }
   return ok({ declined: true as const });
 }
 

@@ -412,11 +412,34 @@ export async function abandonContributorSubmission(
     );
 }
 
-/** DECL1: records a refused decline (kind and who tried only); a failure never changes the refusal. */
-async function recordDeclineRefused(db: Db, actorAccountId: string): Promise<void> {
+/**
+ * DECL1: records a refused decline; a failure never changes the refusal. When the link names a
+ * real invitation sent to another address, its id goes in the record (never the token or an
+ * address), so tries of one forwarded link can be traced.
+ */
+async function recordDeclineRefused(
+  db: Db,
+  actorAccountId: string,
+  tokenHash?: string,
+  actorEmail?: string,
+): Promise<void> {
   try {
+    const named =
+      tokenHash && actorEmail
+        ? first(
+            await db
+              .select({
+                id: schema.contributorRequests.id,
+                email: schema.contributorRequests.contributorEmail,
+              })
+              .from(schema.contributorRequests)
+              .where(eq(schema.contributorRequests.tokenHash, tokenHash))
+              .limit(1),
+          )
+        : undefined;
+    const forwarded = named && named.email !== actorEmail ? named.id : undefined;
     await db.transaction(async (tx) => {
-      await appendAuditEvent(tx, declineRefusedEvent('contributor', actorAccountId));
+      await appendAuditEvent(tx, declineRefusedEvent('contributor', actorAccountId, forwarded));
     });
   } catch {
     // The refusal stands either way; only the record of it is missing.
@@ -479,7 +502,12 @@ export async function declineContributorRequest(
     return true;
   });
   if (!declined) {
-    await recordDeclineRefused(db, input.actorAccountId);
+    await recordDeclineRefused(
+      db,
+      input.actorAccountId,
+      tokenHash,
+      input.actorEmail.trim().toLowerCase(),
+    );
     return unavailable();
   }
   return ok({ declined: true as const });

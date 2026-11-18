@@ -24,7 +24,10 @@ import {
 } from './contributor-requests';
 import type { Db } from './db';
 import type { ServiceError } from './errors';
-import { invitationDeclineAvailable } from './invitation-decline-ready';
+import {
+  forgetInvitationDeclineReady,
+  invitationDeclineAvailable,
+} from './invitation-decline-ready';
 import { hashInvitationToken } from './invitation-tokens';
 import {
   acceptOrganizationInvitation,
@@ -60,6 +63,8 @@ let client: PGlite;
 let db: Db;
 
 beforeEach(async () => {
+  // Each test has its own database; the remembered yes belongs to the one before.
+  forgetInvitationDeclineReady();
   client = await createMigratedPglite();
   db = drizzle(client, { schema }) as unknown as Db;
 });
@@ -422,11 +427,18 @@ describe.each(KINDS)('declining a %s invitation (DECL1)', (_name, make) => {
       ]);
       expect(JSON.stringify(wrong)).not.toContain(INVITED);
     }
+    // Only the forwarded link names its invitation, by id; every other refusal names none.
+    const traced = denied.filter((row) => row.resourceId !== null);
+    expect(traced.map((row) => [row.resourceId, row.reason])).toEqual(
+      kind.name === 'client' ? [] : [[forSomeoneElse.id, 'wrong_recipient']],
+    );
     for (const row of denied) {
-      expect(row.resourceId).toBeNull();
       expect(row.applicantId).toBeNull();
       expect(row.metadata).toBeNull();
+      if (row.resourceId === null) expect(row.reason).toBe('not_available');
     }
+    expect(JSON.stringify(denied)).not.toContain(INVITED);
+    expect(JSON.stringify(denied)).not.toContain(forSomeoneElse.token);
     expect(
       (await auditRows(kind.eventType)).filter((row) => row.result === 'ALLOWED'),
     ).toHaveLength(0);
@@ -441,6 +453,9 @@ describe.each(KINDS)('declining a %s invitation (DECL1)', (_name, make) => {
     expect(messageKey(refused)).toBe(kind.answer);
     expect(JSON.stringify(refused)).not.toContain(INVITED);
     expect(await kind.status(id)).toEqual(before);
+    // The same reply as an unknown link, word for word.
+    const unknown = await kind.decline(other, 'other@example.test', 'B'.repeat(43));
+    expect(refused).toEqual(unknown);
     // The invited person can still answer it afterwards.
     const invited = await account(INVITED);
     expect(isOk(await kind.decline(invited, INVITED, token))).toBe(true);
@@ -494,6 +509,23 @@ describe('before migration 0138 is in place (DECL1)', () => {
     expect(await invitationDeclineAvailable(db)).toBe(true);
   });
 
+  it('keeps a yes for the process, so a new request handle does not ask again, and never keeps a no', async () => {
+    let asked = 0;
+    const counting = (ready: boolean) =>
+      ({
+        select: () => {
+          asked += 1;
+          return { from: async () => [{ ready }] };
+        },
+      }) as unknown as Db;
+    expect(await invitationDeclineAvailable(counting(false))).toBe(false);
+    expect(await invitationDeclineAvailable(counting(false))).toBe(false);
+    expect(asked).toBe(2);
+    expect(await invitationDeclineAvailable(counting(true))).toBe(true);
+    expect(await invitationDeclineAvailable(counting(false))).toBe(true);
+    expect(asked).toBe(3);
+  });
+
   it('says no while the sharing check lacks DECLINED, and every decline then refuses without a write', async () => {
     // Enum values cannot be dropped, but the sharing check can be put back as it was before 0138.
     await client.exec(`
@@ -541,7 +573,8 @@ describe('retention sweeps include declined invitations (DECL1)', () => {
       alter table sharing_invitations add constraint sharing_invitations_status_check
         check (status in ('PENDING', 'ACCEPTED', 'REVOKED'));
     `);
-    // A fresh handle, so the earlier "ready" answer is not reused.
+    // The yes remembered from the decline above belongs to this database as it was.
+    forgetInvitationDeclineReady();
     const before0138 = drizzle(client, { schema }) as unknown as Db;
     expect(await invitationDeclineAvailable(before0138)).toBe(false);
     const swept = await sweepAbandonedClientInvitations(before0138);
