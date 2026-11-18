@@ -30,7 +30,7 @@ Shown in English, marked lang="en" on a Bangla page, until the catalogue has the
 | Your Case, / Step by Step | How It Works headline | pub3.howItWorks.headline |
 | Add your documents once. See what each case needs next. | How It Works opening | pub3.howItWorks.lead |
 | Follow a Case / Every Case Has a Clear Next Step | case scene heading | pub3.howItWorks.sceneTitle |
-| You pick a country and a route. / Documents join the case from your vault. / Each requirement is checked against what you saved. / Every item on the list is covered. / You sent it. The decision is the embassy's, not ours. | the five stage lines (the stage names are the product's own words) | pub3.howItWorks.stage1 to stage5 |
+| You pick a country and a route. / Documents join the case from your vault. / Each requirement is checked against what you saved. / Every item on the list is covered. / You sent it. The decision is not ours. | the five stage lines (the stage names are the product's own words) | pub3.howItWorks.stage1 to stage5 |
 | Example Case: Japan Visit / Documents Ready | the drawn case and its ring | pub3.howItWorks.exampleCase |
 | You Stay in Charge | dark chapter heading | pub3.howItWorks.chargeTitle |
 | Suggested Is Not Confirmed / Saved Is Not Shared / Received Is Not Reviewed, each with one line | the three cards | pub3.howItWorks.card1 to card3 |

@@ -29,17 +29,17 @@ const STAGES = [
   { word: CASE_STATUS.INTAKE.word, line: 'Documents join the case from your vault.', ready: 2 },
   {
     word: CASE_STATUS.IN_REVIEW.word,
-    line: 'Each requirement is checked against what you saved.',
+    line: 'VisaStack checks each requirement against what you saved.',
     ready: 5,
   },
   {
     word: CASE_STATUS.SUBMISSION_READY.word,
-    line: 'Every item on the list is covered.',
+    line: 'Every document on the list is ready.',
     ready: 8,
   },
   {
     word: CASE_STATUS.SUBMITTED.word,
-    line: 'You sent it. The decision is the embassy’s, not ours.',
+    line: 'You sent it. The decision is not ours.',
     ready: 8,
   },
 ] as const;
@@ -131,7 +131,7 @@ export default async function HowItWorksPage(): Promise<ReactElement> {
               pageLang={lang}
               title={say('Suggested Is Not Confirmed')}
               body={say(
-                'A reading of your document is only a suggestion. Nothing changes until you confirm it.',
+                'What we read from your document is only a suggestion. Nothing changes until you confirm it.',
               )}
             >
               <div className="p3-chips">

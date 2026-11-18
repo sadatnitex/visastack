@@ -1,6 +1,8 @@
 import type { PublicTrustRoute } from '@visastack/services';
 import Link from 'next/link';
+import { getPageLanguage } from '../lib/i18n-server';
 import { type SearchParamsRecord, firstParam, nextShow, parseShow } from '../lib/paging';
+import { publicText } from './public-site/public-text';
 import { Chapter } from './public-site/scene';
 import { ShowMore } from './show-more';
 
@@ -37,19 +39,19 @@ export function TrustCatalogSection({
   readonly routes: readonly PublicTrustRoute[];
   readonly params: SearchParamsRecord;
 }) {
+  const say = (text: string) => publicText(text, getPageLanguage());
   return (
     <Chapter tone="light" className="p3-ch p3-catalog-chapter">
-      <section
-        className="section container trust-catalog"
-        aria-label="Maintained Route Information"
-      >
+      <section className="section container trust-catalog" aria-labelledby="trust-catalog-title">
         <div className="section-head">
           <span className="eyebrow">Public Trust</span>
-          <h2 className="section-title">Maintained Route Information</h2>
+          <h2 id="trust-catalog-title" className="section-title">
+            {say('Maintained Route Information')}
+          </h2>
           <p className="section-sub">
-            Source-backed official fees, application channels, and scam-warning guidance for
-            maintained visa routes - never an approval guarantee, an embassy endorsement, or an
-            agency ranking.
+            {say(
+              'Official fees, where to apply and scam warnings for visa routes, each with its source. This is information only: never a promise of approval, an embassy endorsement or a ranking of agencies.',
+            )}
           </p>
         </div>
 
@@ -120,7 +122,7 @@ function RouteList({
                 <p className="card-kicker">
                   {[route.jurisdiction, route.route].filter(Boolean).join(' · ') || 'Route'}
                 </p>
-                <h2 className="card-title">{route.packName}</h2>
+                <h3 className="card-title">{route.packName}</h3>
                 <p className="card-body">{route.routeDescription}</p>
               </Link>
             ))}

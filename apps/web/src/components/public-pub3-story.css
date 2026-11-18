@@ -321,3 +321,16 @@
 .p3-catalog-chapter .section-title {
   margin: 0.25rem 0 0.5rem;
 }
+
+/* The moment the share scene is on reads strongest (bold), so the list shows where the scene is. */
+.pub-scene[data-step="0"] .p3-moment:nth-child(1),
+.pub-scene[data-step="1"] .p3-moment:nth-child(2),
+.pub-scene[data-step="2"] .p3-moment:nth-child(3),
+.pub-scene[data-step="3"] .p3-moment:nth-child(4) {
+  font-weight: 700;
+  color: var(--pub-ink, var(--text));
+}
+
+figure.p3-panel {
+  margin: 0;
+}

@@ -19,8 +19,12 @@ export function PublicTrustStory() {
   const lang = getPageLanguage();
   const say = (text: string) => publicText(text, lang);
   const items = [
-    { key: 'passport', icon: 'check', label: t.node('trust.publicTrustStory.passportSummary') },
-    { key: 'itinerary', icon: 'check', label: t.node('trust.publicTrustStory.confirmedItinerary') },
+    { key: 'passport', icon: 'clipboard', label: t.node('trust.publicTrustStory.passportSummary') },
+    {
+      key: 'itinerary',
+      icon: 'clipboard',
+      label: t.node('trust.publicTrustStory.confirmedItinerary'),
+    },
   ] as const;
 
   return (
@@ -65,11 +69,14 @@ export function PublicTrustStory() {
                   </li>
                   <li className="p3-moment">
                     <StatusChip status="accessEnded" pageLang={lang} />
-                    <span>{t.node('trust.publicTrustStory.reviewPauseOrEndFutureAccess')}</span>
+                    <span>
+                      {say('You end access whenever you choose.')}{' '}
+                      {t.node('trust.publicTrustStory.reviewPauseOrEndFutureAccess')}
+                    </span>
                   </li>
                 </ol>
               </div>
-              <aside
+              <figure
                 className="p3-panel"
                 aria-label={t('trust.publicTrustStory.exampleOfSharingPermissions')}
               >
@@ -110,7 +117,7 @@ export function PublicTrustStory() {
                   </li>
                 </ul>
                 <p className="p3-until">{say('Access ends when you choose.')}</p>
-              </aside>
+              </figure>
             </div>
           </div>
         </Scene>
