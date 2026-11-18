@@ -372,9 +372,13 @@ for (const [width, height] of [
     const pause = page.getByRole('button', { name: 'Pause the Animation' });
     await expect(pause).toBeVisible();
     // The loop moves on by itself (a step change, never a fixed time).
-    await expect(page.locator('.tr-share-live .kit-sheet')).not.toHaveAttribute('data-kit-step', '0', {
-      timeout: 6000,
-    });
+    await expect(page.locator('.tr-share-live .kit-sheet')).not.toHaveAttribute(
+      'data-kit-step',
+      '0',
+      {
+        timeout: 6000,
+      },
+    );
     await scrollThrough(page);
     await frames(page);
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
