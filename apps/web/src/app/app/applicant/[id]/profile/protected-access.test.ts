@@ -135,6 +135,25 @@ function entry(fieldKey: string, value: string | null, isProtected: boolean) {
 
 type Element = { type?: unknown; props?: Record<string, unknown> };
 
+/** The props of the first element of a named component in the returned element tree. */
+function propsOf(node: unknown, wanted: string): Record<string, unknown> | undefined {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = propsOf(child, wanted);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!node || typeof node !== 'object') return undefined;
+  const element = node as Element;
+  if ((element.type as { name?: string } | undefined)?.name === wanted) return element.props;
+  for (const value of Object.values(element.props ?? {})) {
+    const found = propsOf(value, wanted);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 /** The props the page hands the profile editor, found in the returned element tree. */
 function editorProps(node: unknown): Record<string, unknown> | undefined {
   if (Array.isArray(node)) {
@@ -319,6 +338,80 @@ describe('profile page keyed read for the owner', () => {
         caseCountries: new Set(),
       }),
     );
+  });
+
+  it('sends AI app suggestions about protected details with no words and no equality sign (ESS1)', async () => {
+    mocks.createKeyManagementPort.mockReturnValue(KEY);
+    mocks.requireAccess.mockImplementation(
+      async (
+        _db: unknown,
+        _who: unknown,
+        _action: unknown,
+        _on: unknown,
+        o: { purpose: string },
+      ) => (o.purpose === 'ai_app_suggestions' ? { ok: true, value: {} } : { ok: false }),
+    );
+    const suggestion = (id: string, fieldKey: string, value: string) => ({
+      proposal: {
+        id,
+        type: 'FIELD_VALUE',
+        fieldKey,
+        value,
+        confidence: 0.9,
+        rationale: `The person said ${value}.`,
+      },
+      evidence: [{ snippet: `number ${value}`, verified: true }],
+      fromApp: null,
+      issueDate: null,
+    });
+    // One equal to the saved value, one different: they must look exactly alike.
+    mocks.listPendingAppSuggestions.mockResolvedValue([
+      suggestion('same', 'passport_number', 'X1234567'),
+      suggestion('other', 'date_of_birth', '1991-05-13'),
+    ]);
+    mocks.listApplicantProfile.mockResolvedValue([
+      entry('date_of_birth', '1990-04-12', true),
+      entry('passport_number', 'X1234567', true),
+    ]);
+    const page = await ApplicantProfilePage({ params: Promise.resolve({ id: 'person-1' }) });
+    const suggestions = propsOf(page, 'AppSuggestionsSection') as {
+      proposals: readonly Record<string, unknown>[];
+    };
+    const html = await renderServer(page);
+    const sent = JSON.stringify(suggestions);
+    for (const secret of ['X1234567', '1990-04-12', '1991-05-13', 'The person said']) {
+      expect(sent, secret).not.toContain(secret);
+      expect(html, secret).not.toContain(secret);
+    }
+    const shape = ({
+      value,
+      rationale,
+      evidence,
+      withheld,
+      difference,
+    }: Record<string, unknown>) => ({
+      value,
+      rationale,
+      evidence,
+      withheld,
+      difference,
+    });
+    expect(suggestions.proposals.map(shape)).toEqual([
+      {
+        value: null,
+        rationale: null,
+        evidence: [],
+        withheld: true,
+        difference: { current: null, undisclosed: true },
+      },
+      {
+        value: null,
+        rationale: null,
+        evidence: [],
+        withheld: true,
+        difference: { current: null, undisclosed: true },
+      },
+    ]);
   });
 
   it('leaves an ordinary detail as it is', async () => {

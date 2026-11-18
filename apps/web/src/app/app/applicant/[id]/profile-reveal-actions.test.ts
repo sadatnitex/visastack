@@ -5,6 +5,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import {
   type Db,
   type KeyManagementPort,
+  PROFILE_VALUE_ACCESS,
   createApplicant,
   editFact,
   provisionAccount,
@@ -12,6 +13,7 @@ import {
   resetProtectedFieldKeyCacheForTests,
   setConsent,
 } from '@visastack/services';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -42,18 +44,30 @@ vi.mock('../../../../lib/providers', () => ({
 const reportServerError = vi.hoisted(() => vi.fn());
 vi.mock('../../../../lib/server-error', () => ({ reportServerError }));
 
-const { revealProfileValueAction } = await import('./profile-reveal-actions');
+const { revealProfileValueAction, revealSuggestionValueAction } = await import(
+  './profile-reveal-actions'
+);
 
-function fakeKeyManagementPort(keyVersion = 'test-v1'): KeyManagementPort {
-  const masterKey = Buffer.alloc(32, 7);
+function fakeKeyManagementPort(
+  keyVersion = 'test-v1',
+  known: readonly string[] = [keyVersion],
+  unwrapped: string[] = [],
+): KeyManagementPort {
+  // Each version's data key is its own fixed bytes, so a later unwrap gives back the same key.
+  const dataKey = (version: string) => Buffer.alloc(32, version.length + 7);
   return {
     currentKeyVersion: () => keyVersion,
     async generateDataKey() {
-      return { keyVersion, plaintextDataKey: randomBytes(32), wrappedDataKey: masterKey };
+      return {
+        keyVersion,
+        plaintextDataKey: Buffer.from(dataKey(keyVersion)),
+        wrappedDataKey: randomBytes(32),
+      };
     },
     async unwrapDataKey(version) {
-      if (version !== keyVersion) throw new Error(`unknown key version ${version}`);
-      return masterKey;
+      if (!known.includes(version)) throw new Error(`unknown key version ${version}`);
+      unwrapped.push(version);
+      return dataKey(version);
     },
   };
 }
@@ -190,5 +204,93 @@ describe('revealProfileValueAction', () => {
     } finally {
       for (const spy of spies) spy.mockRestore();
     }
+  });
+
+  const events = () =>
+    db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, PROFILE_VALUE_ACCESS));
+
+  it('audits an opened value as ALLOWED with the field key, never the value', async () => {
+    await revealProfileValueAction(ownersPerson, ownersFact);
+    const rows = await events();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      result: 'ALLOWED',
+      applicantId: ownersPerson,
+      resourceType: 'profile_fact',
+      resourceId: ownersFact,
+    });
+    expect(rows[0]?.metadata).toEqual({ fieldKey: 'passport_number' });
+    expect(JSON.stringify(rows)).not.toContain('X1234567');
+  });
+
+  it('audits a refusal as DENIED, for a stranger and for a value that will not open', async () => {
+    ctx.accountId = stranger;
+    await revealProfileValueAction(ownersPerson, ownersFact);
+    ctx.accountId = owner;
+    ctx.port = undefined;
+    await revealProfileValueAction(ownersPerson, ownersFact);
+    const rows = await events();
+    expect(rows.map((row) => row.result)).toEqual(['DENIED', 'DENIED']);
+    expect(rows.map((row) => row.reason)).toEqual(['not_owner', 'no_key']);
+    // The stranger's row names no record column, so it reads alike for a real and a made-up id.
+    expect(rows[0]?.applicantId).toBeNull();
+    expect(JSON.stringify(rows)).not.toContain('X1234567');
+    expect(JSON.stringify(rows)).not.toContain('Z7654321');
+  });
+
+  it('still opens a value saved before encryption when the key setting fails', async () => {
+    const [fact] = await db.select().from(schema.facts).where(eq(schema.facts.id, ownersFact));
+    await db
+      .update(schema.factVersions)
+      .set({
+        value: 'L7654321',
+        valueCiphertext: null,
+        valueNonce: null,
+        protectedKeyVersion: null,
+      })
+      .where(eq(schema.factVersions.id, fact?.currentVersionId as string));
+    ctx.port = undefined;
+    expect(await revealProfileValueAction(ownersPerson, ownersFact)).toEqual({
+      ok: true,
+      value: 'L7654321',
+    });
+  });
+
+  it('opens only the fact asked for, never the rest of the profile', async () => {
+    await registerFieldDefinition(db, {
+      key: 'date_of_birth',
+      dataType: 'string',
+      sensitivity: 'SENSITIVE',
+    });
+    const later = fakeKeyManagementPort('test-v9', ['test-v9']);
+    const saved = await editFact(db, {
+      actorAccountId: owner,
+      applicantId: ownersPerson,
+      fieldKey: 'date_of_birth',
+      value: '1990-04-12',
+      encryption: later,
+    });
+    if (!isOk(saved)) throw new Error('second seed save failed');
+    resetProtectedFieldKeyCacheForTests();
+    const unwrapped: string[] = [];
+    ctx.port = fakeKeyManagementPort('test-v9', ['test-v1', 'test-v9'], unwrapped);
+    expect(await revealProfileValueAction(ownersPerson, saved.value.version.factId)).toEqual({
+      ok: true,
+      value: '1990-04-12',
+    });
+    // Only the Date of Birth's key was opened; the passport number (test-v1) stayed shut.
+    expect(unwrapped).toEqual(['test-v9']);
+  });
+
+  it('opens nothing for a suggestion that is not one of the owner\u2019s', async () => {
+    expect(await revealSuggestionValueAction(ownersPerson, ownersFact)).toEqual({ ok: false });
+    ctx.accountId = stranger;
+    expect(await revealSuggestionValueAction(ownersPerson, ownersFact)).toEqual({ ok: false });
+    const rows = await events();
+    expect(rows.every((row) => row.result === 'DENIED')).toBe(true);
+    expect(rows.map((row) => row.resourceType)).toEqual(['ai_suggestion', 'ai_suggestion']);
   });
 });

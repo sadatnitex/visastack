@@ -566,6 +566,11 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
       'Only the essentials the passport page above does not show. This box goes away once they are added.',
     'appApplicant.appApplicantIdProfileEditor.ess1Show': 'Show',
+    'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'Show the Value Found',
+    'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
+      'Protected detail: the value is not shown until you choose Show. Accept saves the value the app suggested.',
+    'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
+      'Your profile already holds a value for this detail. Which should it keep?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'Essentials First',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'Every essential is added. Add more from any section when a case needs it.',
@@ -1152,6 +1157,11 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
       'শুধু সেই প্রয়োজনীয় তথ্যগুলো, যা ওপরের পাসপোর্ট পাতায় দেখানো হয় না। এগুলো যোগ করা হলে এই অংশটি সরে যাবে।',
     'appApplicant.appApplicantIdProfileEditor.ess1Show': 'দেখান',
+    'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'পাওয়া মানটি দেখান',
+    'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
+      'সুরক্ষিত তথ্য: দেখান বেছে না নেওয়া পর্যন্ত মানটি দেখানো হয় না। গ্রহণ করলে অ্যাপের প্রস্তাবিত মানটি সংরক্ষিত হবে।',
+    'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
+      'আপনার প্রোফাইলে এই তথ্যের একটি মান আগে থেকেই আছে। কোনটি রাখা হবে?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'আগে প্রয়োজনীয়গুলো',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'প্রতিটি জরুরি বিষয় যোগ করা হয়েছে। কোনো ভিসা ফাইলে দরকার হলে যেকোনো অংশ থেকে আরও যোগ করুন।',

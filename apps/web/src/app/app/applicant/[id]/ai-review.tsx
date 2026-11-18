@@ -30,6 +30,7 @@ import {
 import { ChangeImpactBatchNotice } from './change-impact/change-impact-batch-notice';
 import { ChangeImpactNotice } from './change-impact/change-impact-notice';
 import { FindingRowAccept, FindingSteps } from './finding-review-parts';
+import { revealSuggestionValueAction } from './profile-reveal-actions';
 import { ReadingSourceNote } from './reading-status';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -185,7 +186,19 @@ export interface AiProposalViewModel {
    * What the profile already holds for this detail when it differs from the reading: the value,
    * or null when a value exists but is protected and not shown here.
    */
-  readonly difference?: { readonly current: string | null };
+  readonly difference?: {
+    readonly current: string | null;
+    /**
+     * ESS1: the profile holds a value, and whether it equals this one is not said (a protected
+     * detail on My Profile), so the choice is offered either way.
+     */
+    readonly undisclosed?: true;
+  };
+  /**
+   * ESS1: a suggestion about a protected detail whose words (value, reason, quoted phrases) are
+   * left out of the page; Show opens them for the owner.
+   */
+  readonly withheld?: true;
   /** A detail that never changes over time (a date of birth): "it changed" is not offered. */
   readonly fixed?: boolean;
   /** Part of a repeating record (one address among several): always decided one at a time. */
@@ -232,13 +245,13 @@ function findingLabel(proposal: AiProposalViewModel): string {
 /** A reading still waiting for the person: accept, change, settle a difference, or skip. */
 export function AiProposalReview({
   applicantId,
-  proposal,
+  proposal: given,
   canApprove,
   onEditedChange,
   onResult,
   locked = false,
   headingLevel = 'h4',
-  masked = false,
+  masked: maskedProp = false,
 }: {
   readonly applicantId: string;
   readonly proposal: AiProposalViewModel;
@@ -265,6 +278,44 @@ export function AiProposalReview({
 }) {
   const t = useT(appApplicantCatalog);
   const locale = useLocale();
+  // ESS1: a withheld suggestion (a protected detail on My Profile) has no words in the page until
+  // the owner chooses Show; they are then kept in this card's memory only.
+  const [opened, setOpened] = useState<{
+    readonly value: string | null;
+    readonly rationale: string | null;
+    readonly snippets: readonly string[];
+  } | null>(null);
+  const [opening, setOpening] = useState(false);
+  const [openProblem, setOpenProblem] = useState(false);
+  const withheld = given.withheld === true && opened === null;
+  const proposal: AiProposalViewModel = opened
+    ? {
+        ...given,
+        value: opened.value,
+        rationale: opened.rationale,
+        evidence: opened.snippets.map((snippet) => ({ snippet, verified: true })),
+      }
+    : given;
+  const masked = maskedProp || given.withheld === true;
+  async function showWithheld() {
+    setOpening(true);
+    setOpenProblem(false);
+    try {
+      const result = await revealSuggestionValueAction(applicantId, given.id);
+      if (result.ok) {
+        setOpened({ value: result.value, rationale: result.rationale, snippets: result.snippets });
+        // Nothing has been typed yet (the box appears only now), so the value found fills it.
+        const read = result.value ?? '';
+        setEditedValue(given.editor?.kind === 'date' && !ISO_DAY.test(read) ? '' : read);
+      } else {
+        setOpenProblem(true);
+      }
+    } catch {
+      setOpenProblem(true);
+    } finally {
+      setOpening(false);
+    }
+  }
   const [state, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
       const result = await decideProposalAction(previous, formData);
@@ -381,7 +432,25 @@ export function AiProposalReview({
       ) : null}
     </>
   );
-  const editor = (
+  const editor = withheld ? (
+    <div className="finding-value">
+      <p className="muted u-fs-085">
+        {t.node('appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden')}
+      </p>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        aria-busy={opening || undefined}
+        onClick={showWithheld}
+      >
+        {t.node('appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion')}
+        <span className="sr-only"> {findingLabel(given)}</span>
+      </button>
+      <output className="muted u-fs-085">
+        {openProblem ? t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow') : null}
+      </output>
+    </div>
+  ) : (
     <>
       {mappable && canApprove ? (
         <div className="finding-value">
@@ -481,7 +550,9 @@ export function AiProposalReview({
         {difference ? (
           <fieldset className="finding-difference finding-choice-tiles">
             <legend>
-              {difference.current === null || masked ? (
+              {difference.undisclosed ? (
+                t.node('appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference')
+              ) : difference.current === null || masked ? (
                 t.node('appApplicant.appApplicantIdAiReview.yourProfileAlreadyHasADifferent')
               ) : (
                 <>

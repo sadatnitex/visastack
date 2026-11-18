@@ -199,7 +199,10 @@ export default async function ApplicantProfilePage({
       photoUrl,
       profile,
       keyed: encryption !== undefined,
-      appSuggestions: pending.map((reading) => findingViewModel(reading, confirmedNow)),
+      // ESS1: a suggestion about a protected detail carries none of its words here (Show opens them).
+      appSuggestions: pending.map((reading) =>
+        findingViewModel(reading, confirmedNow, undefined, { withholdProtected: true }),
+      ),
       // The section stays while an app may suggest more, so the last decision is still confirmed.
       appSuggestionsInUse: fromApps.inUse,
       coreGranted,
