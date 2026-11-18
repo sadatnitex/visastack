@@ -34,8 +34,8 @@ test.describe('WP-SB8 landing page', () => {
     await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
     await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
     await expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'enforce' });
-    // Desktop holds the same number of screens (enforced since WP-SB10).
-    await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
+    // Desktop: 12 screens since WP-PUB2 (owner decision, 17 Nov 2026), for the pinned scroll scenes.
+    await expectWithinBudget(page, { screens: 12, viewport: 'desktop' });
   });
 
   test('opening every story group still leaves no sideways scroll, and the closed page breaks without the groups', async ({
@@ -71,6 +71,13 @@ test.describe('WP-SB8 landing page', () => {
     const menu = page.getByRole('button', { name: 'Menu', exact: true });
     await menu.click();
     await page.getByRole('link', { name: 'How It Works', exact: true }).click();
+    // WP-PUB3 (approved guard correction): the link opens the How It Works page, not a home group.
+    await expect(page).toHaveURL(/\/how-it-works$/);
+    await expect(page.locator('main h1')).toHaveCount(1);
+    // The groups below are on the home page.
+    await page.goto('/');
+    await page.locator('#how-it-works > summary').focus();
+    await page.keyboard.press('Enter');
     await expect(page.locator('#how-it-works')).toHaveAttribute('open', '');
     await expect(page.getByText('Add Your Details Once')).toBeInViewport();
     // The keyboard opens any other group; groups open independently.
@@ -114,6 +121,18 @@ test.describe('WP-SB8 trust page', () => {
     // Measure the real page, never a not-found or error page that would pass trivially.
     expect(response?.status()).toBe(200);
     await expect(page.locator('h1').first()).toBeVisible();
+    await expectWithinBudget(page, { screens: 6, viewport: 'phone' });
+    await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
+  });
+
+  // WP-PUB3: the check above runs on a build with no database, where the route list is empty. This
+  // one renders the same story and route section with 12 route cards, search and Show More, so
+  // the budget holds for the page as it ships. The budget stays at 6 screens.
+  test('the page with its 12 route cards fits 6 screens on a phone and a desktop', async ({
+    page,
+  }) => {
+    await renderFixture(page, 'PUB3-trust', {});
+    await expect(page.locator('.trust-catalog a.card')).toHaveCount(12);
     await expectWithinBudget(page, { screens: 6, viewport: 'phone' });
     await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
   });

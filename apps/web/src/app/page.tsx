@@ -2,14 +2,17 @@ import Link from 'next/link';
 import { Fragment, type ReactNode } from 'react';
 import { CountryChecklistPicker } from '../components/country-checklist-picker';
 import { Icon, type IconName } from '../components/icons';
+import { ScenesRuntime } from '../components/public-site/scenes-runtime';
 import { countryStartData } from '../lib/country-start';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
+import { ClosingScene, IntakeScene, ReadyScene } from './landing-scenes';
 import { LandingStoryHelper } from './landing-story';
 import './landing-c1.css';
 import type { CatalogKey } from '@visastack/i18n';
+import { publicText } from '../components/public-site/public-text';
 import { homeCatalog } from '../i18n/home';
-import { getServerT, primeLocale } from '../lib/i18n-server';
+import { getPageLanguage, getServerT, primeLocale } from '../lib/i18n-server';
 
 type HomeKey = CatalogKey<typeof homeCatalog>;
 
@@ -300,7 +303,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           {t.node(HERO_HEADLINE_FIRST)} <br />
           {t.node(HERO_HEADLINE_SECOND)}
         </h1>
-        <p className="c1-subline">{t.node('home.page.onePrivateFileForYourPassport')}</p>
+        <p className="c1-subline c1-subline-long">
+          {t.node('home.page.onePrivateFileForYourPassport')}
+        </p>
+        {/* WP-PUB2: a small English phone's first screen holds 30 words or fewer, so a short line takes the long one's place there (landing-c1.css). Other languages keep the long line. */}
+        {getPageLanguage() === 'en' ? (
+          <p className="c1-subline c1-subline-short">
+            {publicText('One private file for every visa application.', 'en')}
+          </p>
+        ) : null}
         <div className="c1-cta">
           <a className="c1-pill" href={startHref}>
             {startLabel}{' '}
@@ -387,6 +398,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </figcaption>
         </figure>
       </section>
+
+      <ScenesRuntime />
+      <IntakeScene />
+      <ReadyScene />
 
       {signedIn ? null : (
         <section
@@ -647,25 +662,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       <LandingStoryHelper groupIds={STORY_GROUP_IDS} rowSelector=".c1-bento" />
 
-      <section className="land-final" aria-labelledby="land-final-title">
-        <div className="land-wrap">
-          <div className="land-final-card">
-            <h2 className="land-final-title" id="land-final-title">
-              {t.node('home.page.stopStartingFromZero')}
-            </h2>
-            <p className="land-final-sub">{t.node('home.page.buildYourProfileOnceAndLet')}</p>
-            <div className="cta-row land-final-cta">
-              <a className="btn land-btn land-btn-light" href={startHref}>
-                {startLabel}
-                <Icon name="arrow" size={18} />
-              </a>
-              <Link className="btn land-btn land-btn-ghost" href="/status">
-                {t.node('home.page.seeWhatWorksToday')}
-              </Link>
+      <ClosingScene>
+        <section className="land-final" aria-labelledby="land-final-title">
+          <div className="land-wrap">
+            <div className="land-final-card">
+              <h2 className="land-final-title" id="land-final-title">
+                {t.node('home.page.stopStartingFromZero')}
+              </h2>
+              <p className="land-final-sub">{t.node('home.page.buildYourProfileOnceAndLet')}</p>
+              <div className="cta-row land-final-cta">
+                <a className="btn land-btn land-btn-light" href={startHref}>
+                  {startLabel}
+                  <Icon name="arrow" size={18} />
+                </a>
+                <Link className="btn land-btn land-btn-ghost" href="/status">
+                  {t.node('home.page.seeWhatWorksToday')}
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ClosingScene>
     </div>
   );
 }

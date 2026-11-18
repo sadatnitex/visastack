@@ -258,7 +258,7 @@ describe('public nav list', () => {
     ]);
     expect(publicNavLinks().map((link) => link.href)).toEqual([
       '/',
-      '/#how-it-works',
+      '/how-it-works',
       '/trust',
       '/#start',
       '/#for-agencies',

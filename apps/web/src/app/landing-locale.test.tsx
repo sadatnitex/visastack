@@ -162,7 +162,7 @@ describe('the site header', () => {
     // Owner, 17 Nov 2026: one list of five pages; /trust is named Privacy and Trust. Pages that
     // have no address yet point at the part of the home page that tells their story.
     expect(nav).toContain(
-      '<div class="site-nav-pages"><a href="/">Home</a><a href="/#how-it-works">How It Works</a><a href="/trust">Privacy and Trust</a><a href="/#start">Countries</a><a href="/#for-agencies">For Agencies</a></div>',
+      '<div class="site-nav-pages"><a href="/">Home</a><a href="/how-it-works">How It Works</a><a href="/trust">Privacy and Trust</a><a href="/#start">Countries</a><a href="/#for-agencies">For Agencies</a></div>',
     );
     expect(nav).not.toContain('Product');
     for (const fragment of [
@@ -187,7 +187,7 @@ describe('the site header', () => {
     const nav = header(html);
     for (const [href, key] of [
       ['/#for-agencies', 'home.page.forAgencies'],
-      ['/#how-it-works', 'home.page.howItWorks'],
+      ['/how-it-works', 'home.page.howItWorks'],
     ] as const)
       expect(nav, key).toContain(`href="${href}"><span lang="bn">${bn[key]}</span></a>`);
     expect(nav).toContain(
@@ -237,7 +237,7 @@ describe('the site header', () => {
     const html = await shell('bn', { pathname: '/auth/sign-in' });
     expect(footer(html)).toContain('href="/status"><span lang="en">Status</span></a>');
     expect(footer(html)).toContain('href="/trust"><span lang="en">Public Trust</span></a>');
-    expect(header(html)).toContain(`href="/#how-it-works">${bn['home.page.howItWorks']}</a>`);
+    expect(header(html)).toContain(`href="/how-it-works">${bn['home.page.howItWorks']}</a>`);
     for (const [href, label] of [
       ['/', 'Home'],
       ['/trust', 'Privacy and Trust'],

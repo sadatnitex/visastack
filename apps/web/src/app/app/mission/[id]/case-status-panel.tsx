@@ -23,6 +23,7 @@ import {
   OVERALL_STATE_META,
   plainRequirementCount,
 } from './case-model';
+import { CaseStageGlance } from './case-stage-glance';
 import { ChangesSinceConfirmedList } from './changes-since-confirmed';
 import { SnapshotButton } from './mission-buttons';
 
@@ -226,6 +227,15 @@ export function CaseStatusPanel({
               ))
             )}
           </ul>
+        </div>
+
+        {/* WP-WALD3: the compact stage line (the Now line, the position and the segment strip), so a
+            person who has not opened more detail still sees where the case stands. It shows where
+            the full stage row below is hidden: at Glance for every case, and at Browse as well while
+            no agency has access, since that row then waits for Everything. The stylesheet hides it
+            at any deeper level and with scripts off, where the full row shows. */}
+        <div className="lift-status-glance" data-until={selfReviewed ? 'browse' : 'glance'}>
+          <CaseStageGlance state={state} labels={stateLabels} />
         </div>
 
         {/* The seven stages are an agency's workflow; while no agency has access the traveller is
