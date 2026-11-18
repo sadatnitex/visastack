@@ -422,15 +422,7 @@ test('every guarded route opens its own page on this machine and checks real bod
  * Every known finding when WAL1B-2 merged (18 Nov 2026), one line per page, check, size and
  * control. A fix removes lines here and in KNOWN_FAILING; nothing may ever be added.
  */
-const KNOWN_FAILING_BASELINE = new Set([
-  ...['phone 390', 'phone 400', 'desktop 1280'].flatMap((size) => [
-    `/app/applicant/[id]/record | covered control | ${size} | Everything2`,
-    `/app/applicant/[id]/record | covered control | ${size} | Previous Versions0`,
-  ]),
-  ...['phone 390', 'phone 400'].flatMap((size) => [
-    `/app/applicant/[id]/record | covered control | ${size} | Profile Details10`,
-  ]),
-]);
+const KNOWN_FAILING_BASELINE = new Set([]);
 
 test('the known findings list only shrinks and names real routes, sizes and controls', async () => {
   const { ROUTES, KNOWN_FAILING } = await routeLists();

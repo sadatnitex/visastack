@@ -487,26 +487,10 @@ export const EXCLUDED: readonly ExcludedPage[] = [
 /**
  * Today's real findings (docs/upgrades/programme/wal/WAL1B-2-records.md). The guard requires each
  * to still fail exactly as listed, so a fix makes it say what to remove; scripts/ci-signed-in.test.mjs
- * pins the set, so the list only shrinks.
+ * pins the set, so the list only shrinks. Empty since FIX9 and U6 fixed the last findings (a new
+ * finding is fixed on its page, never listed here).
  */
-export const KNOWN_FAILING: readonly KnownFailing[] = [
-  {
-    page: '/app/applicant/[id]/record',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400'],
-    controls: ['Everything2', 'Profile Details10', 'Previous Versions0'],
-    finding:
-      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
-  },
-  {
-    page: '/app/applicant/[id]/record',
-    check: 'covered control',
-    sizes: ['desktop 1280'],
-    controls: ['Everything2', 'Previous Versions0'],
-    finding:
-      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
-  },
-];
+export const KNOWN_FAILING: readonly KnownFailing[] = [];
 
 /** The known finding for this page, check and size, if any. */
 export function knownFinding(

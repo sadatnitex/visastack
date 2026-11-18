@@ -310,27 +310,29 @@ describe('empty profile sections do not crowd documents off the page', () => {
     expect(recordFilterCount(items, 'all')).toBe(6);
   });
 
-  it("names a group's empty sections once, at its end, on the page with its last row", () => {
+  it('gathers the empty sections by group into Not Started, on the last page only', () => {
     const first = layoutRecordPage(all, { filter: 'all', page: 0, pageSize: 5 });
     const second = layoutRecordPage(all, { filter: 'all', page: 1, pageSize: 5 });
-    const named = (layout: typeof first, name: string) =>
-      layout.groups.find((group) => group.name === name)?.nothingSaved.map((item) => item.title);
-    expect(named(first, 'Identity')).toHaveLength(5);
-    expect(named(first, 'Money')).toEqual([]);
-    expect(named(second, 'Money')).toEqual([
+    expect(first.notStarted).toEqual([]);
+    expect(second.notStarted.map((group) => group.name)).toEqual(['Identity', 'Money']);
+    const named = (name: string) =>
+      second.notStarted.find((group) => group.name === name)?.sections.map((item) => item.title);
+    expect(named('Identity')).toHaveLength(5);
+    expect(named('Money')).toEqual([
       'Empty Section 6',
       'Empty Section 7',
       'Empty Section 8',
       'Empty Section 9',
     ]);
-    expect(named(second, 'Identity')).toBeUndefined();
+    // A group with only empty sections has no group of its own, only its Not Started row.
+    expect(second.groups.map((group) => group.name)).not.toContain('Identity');
   });
 
   it('the Profile Details filter still lists every open section as a row', () => {
     const details = filterRecordItems(items, { query: '', group: 'all', filter: 'details' });
     const layout = layoutRecordPage(details, { filter: 'details', page: 0, pageSize: 12 });
     expect(layout.rowCount).toBe(10);
-    expect(layout.groups.every((group) => group.nothingSaved.length === 0)).toBe(true);
+    expect(layout.notStarted).toEqual([]);
     expect(recordFilterCount(items, 'details')).toBe(10);
   });
 });
