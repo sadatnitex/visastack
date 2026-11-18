@@ -209,7 +209,10 @@ test('the database preload refuses a database off this machine and refuses Verce
     direct,
   );
   assert.throws(() => assertLoopbackDatabase({}), /needs DATABASE_URL/);
-  for (const remote of ['postgres://u@ep-x.neon.tech/db', 'postgres://postgres@localhost/x']) {
+  for (const remote of [
+    'postgres://u@remote-db.example.com/db',
+    'postgres://postgres@localhost/x',
+  ]) {
     assert.throws(
       () => assertLoopbackDatabase({ DATABASE_URL: remote }),
       /only allows a database on 127\.0\.0\.1/,
@@ -238,7 +241,7 @@ test('the database preload refuses a database off this machine and refuses Verce
       encoding: 'utf8',
     });
   for (const env of [
-    { DATABASE_URL: 'postgres://u@ep-x.neon.tech/db', CI_DB_BRIDGE_PORT: '45433' },
+    { DATABASE_URL: 'postgres://u@remote-db.example.com/db', CI_DB_BRIDGE_PORT: '45433' },
     { VERCEL: '1', DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45433' },
     { DATABASE_URL: local },
   ]) {
