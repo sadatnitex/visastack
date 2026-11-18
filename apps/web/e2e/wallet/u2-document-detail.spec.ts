@@ -172,4 +172,51 @@ test.describe('WAL2 the opened document', () => {
       );
     expect(moving).toBe(0);
   });
+
+  test('390 px, scrolled by touch-sized steps: every Accept and Save comes clear of the accept bar and can be tapped there', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mount(page, true);
+    for (const summary of await page.locator('.finding-row-section > details > summary').all()) {
+      await summary.click();
+    }
+    const sheet = page.locator('.wallet-selected-document');
+    const steps = await sheet.evaluate(async (el) => {
+      const TARGETS =
+        '.finding-row-accept-button, .finding-card button[value="approve"], .doc-detail-section button[type="submit"]';
+      const name = (b: Element) =>
+        `${b.getAttribute('aria-label') ?? b.textContent?.trim()} #${[...el.querySelectorAll(TARGETS)].indexOf(b)}`;
+      const clear = new Set<string>();
+      const all = new Set<string>();
+      const problems: string[] = [];
+      for (let top = 0; top <= el.scrollHeight; top += 120) {
+        el.scrollTop = top;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        const bar = el.querySelector('.finding-accept-bar')?.getBoundingClientRect();
+        // The sheet's own Back to Documents bar stays at the top (WAL0): buttons pass under it too.
+        const topBar = el.querySelector('.wallet-sheet-bar')?.getBoundingClientRect();
+        for (const button of el.querySelectorAll(TARGETS)) {
+          const box = button.getBoundingClientRect();
+          if (box.width === 0 || box.height === 0) continue;
+          all.add(name(button));
+          const inView = box.top >= (topBar?.bottom ?? 0) && box.bottom <= window.innerHeight;
+          const underBar = bar ? box.bottom > bar.top && box.top < bar.bottom : false;
+          if (!inView || underBar) {
+            if (underBar && button.closest('.doc-detail-section'))
+              problems.push(`${name(button)} under the accept bar at ${top}`);
+            continue;
+          }
+          clear.add(name(button));
+          const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+          if (!hit || !(hit === button || button.contains(hit)))
+            problems.push(`${name(button)} at ${top} is under ${hit?.className ?? 'nothing'}`);
+        }
+      }
+      return { problems, never: [...all].filter((n) => !clear.has(n)), count: all.size };
+    });
+    expect(steps.count).toBeGreaterThan(8);
+    expect(steps.problems).toEqual([]);
+    expect(steps.never).toEqual([]);
+  });
 });

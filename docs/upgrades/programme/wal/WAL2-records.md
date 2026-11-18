@@ -16,6 +16,12 @@ Owner decision, 17 Nov 2026: "Document detail: ... Liked both A& B, u do the bes
 | globals.css, new block "WP-WAL2" (end of file) | Layout of the hero, sections, rows, steps, tiles and accept bar. On a phone the accept bar is sticky at the bottom of the open document, above the bottom bar; on wider screens it sits in the flow. Flat, tokens only. |
 | pictures-depth.css, new block "WP-WAL2" | The dark pass look (gradient ground, resting shadow, light text, white focus ring). Nothing moves. |
 
+## Behaviour notes (Guardian findings round, 18 Nov 2026)
+
+- Bulk Accept is now slightly stricter than main: "Accept N Clear Details" also needs the quoted words to have been found in the document (the card's own test for Clear; a reading whose words were not found already showed Please Check on its card). The count line, the rows and the bulk Accept use this one meaning.
+- Check What We Found also renders on the What We Found page (review/page.tsx): the same rows, one-at-a-time view and accept bar. There the accept bar sits in the flow and is not sticky (only the opened document on a phone makes it sticky). Proven by review/page-findings.test.tsx.
+- Dates and Name and Kind open by themselves only after a date or kind error (accepted as is by the Guardian).
+
 ## Tests
 
 Red on main, green here (16 behaviour tests; run against main's page.tsx, ai-review.tsx and document-wallet-browser.tsx with the new files in place):
@@ -23,7 +29,8 @@ Red on main, green here (16 behaviour tests; run against main's page.tsx, ai-rev
 - documents/page.test.tsx, block "WAL2": the hero carries name, states and Preview and Download Original, with only one Preview button on the page; a file that cannot be opened has neither on its card; Dates, Name and Kind, Safe Copy and Reading and Checks with every form kept; Dates open after a date error; no Safe Copy section while a file is being checked; Issuer Confirmations is a section, never a plain fold.
 - [id]/finding-review.test.tsx: the count line; one row per ordinary detail with value and Suggested picture; row Accept only for clear details and only with consent, sending the plain approve; the accept bar is the last child and counts clear ordinary details; one at a time only for Sensitive and differing details; 1 of 2, Back, Skip for Now (saves nothing); every detail listed before the script runs; Sensitive values hidden until opened; the hidden profile value never shown; ordinary details never masked.
 - components/document-detail/document-hero-card.test.tsx: the hero's parts, no inline style, the drawing when there is no preview, each state with Explain note and word, live state announced, the browser's hero prop.
-- e2e/wallet/u2-document-detail.spec.ts on e2e/fixtures/wal2-document-detail.fixture.tsx: layout guards at 390, 400 and 1280 with sections closed and open, both motion settings, and with every card open (nothing covers Save, a date box or Accept); hero at each size with 44 px targets and the dark pass; on a phone the Add button is gone and the accept bar rests above the bottom bar; one at a time with focus following; Sensitive value hidden until opened; 56 px choice tiles; nothing animates with reduced motion.
+- review/page-findings.test.tsx: the What We Found page draws the real rows, the masked one-at-a-time Sensitive detail and the accept bar.
+- e2e/wallet/u2-document-detail.spec.ts on e2e/fixtures/wal2-document-detail.fixture.tsx: layout guards at 390, 400 and 1280 with sections closed and open, both motion settings, and with every card open (nothing covers Save, a date box or Accept); hero at each size with 44 px targets and the dark pass; on a phone the Add button is gone and the accept bar rests above the bottom bar; one at a time with focus following; Sensitive value hidden until opened; 56 px choice tiles; nothing animates with reduced motion; at 390 px, scrolled in 120 px touch steps with every section and card open, every row Accept and card Accept comes fully clear of the accept bar and the sheet's top bar and can be tapped there, and no section Save ever sits under the accept bar (proven red by fixing the bar over the bottom of the screen: four section buttons reported under it).
 
 Existing tests edited (approved list in the ACK): ai-review.test.tsx (card heading is now h5 inside its row; three selectors), a11y-forms.test.tsx (three new rows: a masked Sensitive card, row Accept, one-at-a-time view), documents/page.test.tsx (issuer confirmations mock made configurable, WAL2 block appended).
 
