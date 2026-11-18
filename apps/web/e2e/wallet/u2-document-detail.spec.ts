@@ -40,6 +40,17 @@ test.describe('WAL2 layout guards', () => {
   });
 });
 
+test.describe('WAL2 the Profile page review card', () => {
+  test('connected app suggestions with a difference: no sideways scroll, nothing covers a control', async ({
+    page,
+  }) => {
+    await runLayoutGuards(page, async () => {
+      await renderFixture(page, FIXTURE, { view: 'profile' }, { standInServerActions: true });
+      await expect(page.locator('.finding-choice-tiles > label').first()).toBeVisible();
+    });
+  });
+});
+
 test.describe('WAL2 the opened document', () => {
   for (const size of GUARD_SIZES) {
     test(`${size.width} px: the hero card leads, with its states and buttons`, async ({ page }) => {

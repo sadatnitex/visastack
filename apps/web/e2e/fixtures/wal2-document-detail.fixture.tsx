@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DocumentFindings } from '../../src/app/app/applicant/[id]/ai-review';
+import { AppSuggestionsSection } from '../../src/app/app/applicant/[id]/app-suggestions';
 import { DocumentExpiryForm } from '../../src/app/app/applicant/[id]/document-expiry-form';
 import { DocumentRenameForm } from '../../src/app/app/applicant/[id]/document-rename-form';
 import { WorkspaceShell } from '../../src/app/app/workspace-shell';
@@ -19,6 +20,11 @@ import { ExpandableSection } from '../../src/components/ui-lift/expandable-secti
 export interface Wal2FixtureProps {
   /** Every detail section starts open, so Save and the date fields are in the page flow. */
   readonly open?: boolean;
+  /**
+   * `profile`: the Profile page's suggestions from a connected app, which share the review card
+   * (with the large choice tiles for a difference), in the same signed-in shell.
+   */
+  readonly view?: 'document' | 'profile';
 }
 
 const APPLICANT = '10000000-0000-4000-8000-000000000001';
@@ -121,7 +127,41 @@ function Details({ open }: { readonly open: boolean }) {
   );
 }
 
-export default function Wal2DocumentDetailFixture({ open = false }: Wal2FixtureProps) {
+function ProfileSuggestions() {
+  return (
+    <WorkspaceShell
+      access={{
+        travellers: [{ id: APPLICANT, name: 'Example Traveller', relationship: 'SELF' }],
+        agencies: [],
+        platform: null,
+      }}
+      accountName="Example Traveller"
+      signOut={<span />}
+    >
+      <div className="container">
+        <AppSuggestionsSection
+          applicantId={APPLICANT}
+          canApprove
+          proposals={[
+            finding('p1', 'Occupation', 'Example Work', {
+              app: 'Example App',
+              rationale: 'From your message.',
+              difference: { current: 'Example Old Work' },
+              clear: false,
+            }),
+            finding('p2', 'City', 'Example City', { app: 'Example App', clear: false }),
+          ]}
+        />
+      </div>
+    </WorkspaceShell>
+  );
+}
+
+export default function Wal2DocumentDetailFixture({
+  open = false,
+  view = 'document',
+}: Wal2FixtureProps) {
+  if (view === 'profile') return <ProfileSuggestions />;
   return (
     <>
       <WorkspaceShell
