@@ -57,40 +57,19 @@ test.describe('responsive layout', () => {
   }
 });
 
-/** Programme X WP-L1 acceptance: Harbor landing with the signed corrections D4 and D15. */
-test.describe('Harbor landing (WP-L1)', () => {
+/**
+ * R1: the Home page rebuilt on the approved reference. No sideways scroll at any width, and the
+ * headline, the main action and the pilot line show without scrolling on a small phone.
+ */
+test.describe('Home page (R1)', () => {
   for (const width of [320, 360, 390, 768, 1024, 1440]) {
-    test(`no sideways scroll and no card over the phone text at ${width}px`, async ({ page }) => {
+    test(`no sideways scroll and no words cut off at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/');
-      const result = await page.evaluate(() => {
-        const phone = document.querySelector('.c1-phone')?.getBoundingClientRect();
-        const covered: string[] = [];
-        if (phone) {
-          const texts = [
-            ...document.querySelectorAll('.c1-phone .c1-phonename, .c1-phone .c1-phonepanel'),
-          ];
-          for (const card of document.querySelectorAll('.c1-floatcard')) {
-            const c = card.getBoundingClientRect();
-            if (c.width === 0) continue;
-            for (const text of texts) {
-              const r = text.getBoundingClientRect();
-              // Only the part inside the phone frame is visible; the frame hides the rest.
-              const top = Math.max(r.top, phone.top);
-              const bottom = Math.min(r.bottom, phone.bottom);
-              const left = Math.max(r.left, phone.left);
-              const right = Math.min(r.right, phone.right);
-              if (c.left < right && left < c.right && c.top < bottom && top < c.bottom)
-                covered.push(card.className);
-            }
-          }
-        }
-        return {
-          overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
-          covered,
-        };
-      });
-      expect(result).toEqual({ overflow: false, covered: [] });
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth + 1,
+      );
+      expect(overflow).toBe(false);
     });
   }
 
@@ -99,12 +78,11 @@ test.describe('Harbor landing (WP-L1)', () => {
   }) => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/');
-    await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
-    // Growth G1: the owner's promise, read as one sentence.
-    await expect(page.locator('#land-hero-title')).toHaveText('A clean file you can stand behind.');
-    await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.c1-hero .c1-nudge')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.c1-hero .c1-nudge')).toHaveText(/public beta|pilot/i);
+    await expect(page.locator('#hs-hero-title')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('#hs-hero-title')).toHaveText(/One record\.\s*Every visa\./);
+    await expect(page.locator('.hs-hero .pub-button-primary')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.hs-hero .hs-nudge')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.hs-hero .hs-nudge')).toHaveText(/public beta|pilot/i);
   });
 });
 
@@ -811,14 +789,9 @@ test.describe('flat UI reference geometry and interaction', () => {
         const effects = await page.locator('body').evaluate((body) =>
           [...body.querySelectorAll('*')]
             .filter((element) => {
-              // Owner decision D1: only the Harbor hero and product chapter on the landing may
-              // use soft shadows and gradients. Everything else stays flat, on every page.
+              // Everything is flat, on every page, except what the depth stylesheet marks itself.
               // ADR 0029: on the public site only an element that carries data-pub-depth itself.
-              if (
-                element.closest('.c1-hero, .c1-darkstage') ||
-                element.hasAttribute('data-pub-depth')
-              )
-                return false;
+              if (element.hasAttribute('data-pub-depth')) return false;
               const css = getComputedStyle(element);
               return (
                 css.boxShadow !== 'none' ||
@@ -958,12 +931,15 @@ test.describe('authoritative appearance on public routes', () => {
     const box = await page.locator('header.nav').boundingBox();
     expect(box?.width).toBe(1448);
     expect(box?.height).toBe(72);
-    // Harbor C1 geometry and colour (WP-L1): headline weight and size, and the navy stage.
-    await expect(page.locator('.c1-headline')).toHaveCSS('font-weight', '820');
-    await expect(page.locator('.c1-headline')).toHaveCSS('font-size', '97px');
-    // Legibility (G1b): loose enough that the "c" and "l" of "clean" never touch (-0.04em of 97px).
-    await expect(page.locator('.c1-headline')).toHaveCSS('letter-spacing', '-3.88px');
-    await expect(page.locator('.c1-darkstage')).toHaveCSS('background-color', 'rgb(11, 26, 48)');
+    // R1 Home geometry and colour: the headline weight and size, and the navy chapter.
+    await expect(page.locator('.kit-h1')).toHaveCSS('font-weight', '800');
+    await expect(page.locator('.kit-h1')).toHaveCSS('font-size', '80px');
+    // Legibility (G1b): loose enough that letters never touch (-0.04em of 80px).
+    await expect(page.locator('.kit-h1')).toHaveCSS('letter-spacing', '-3.2px');
+    await expect(page.locator('.pub-chapter-dark').first()).toHaveCSS(
+      'background-color',
+      'rgb(11, 26, 48)',
+    );
     const missing = await page
       .locator('a[href^="/#"]')
       .evaluateAll((links) =>
@@ -1706,112 +1682,6 @@ test('password recovery confirms the request and offers an explicit resend witho
     page.getByText('We could not request a link right now.', { exact: false }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send Me a Link' })).toBeVisible();
-});
-
-/** Growth G2: pick a country on the landing page and the checklist fills in at once. */
-test.describe('country checklist on the landing page (Growth G2)', () => {
-  const sizes = [
-    { name: 'phone', width: 390, height: 844 },
-    { name: 'desktop', width: 1440, height: 900 },
-  ] as const;
-
-  for (const size of sizes) {
-    test(`picking a country fills in its checklist at ${size.name} width`, async ({ page }) => {
-      await page.setViewportSize({ width: size.width, height: size.height });
-      await page.goto('/');
-      const box = page.getByLabel('Which Country Do You Want to Visit?');
-      await expect(box).toBeVisible();
-      // A comfortable target for a thumb, and nothing chosen yet.
-      expect((await box.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-      await expect(
-        page.getByText('Your checklist appears here as soon as you pick a country.'),
-      ).toBeVisible();
-
-      // Half a name picks nothing.
-      await box.fill('Germ');
-      await expect(page.locator('.country-pick-result')).toHaveCount(0);
-
-      // A whole name shows the checklist with no waiting and no spinner.
-      await box.fill('Germany');
-      await expect(page.getByRole('heading', { name: 'Germany', level: 3 })).toBeVisible();
-      const items = page.locator('.country-pick-item');
-      expect(await items.count()).toBeGreaterThanOrEqual(5);
-      await expect(items.first()).toBeVisible();
-      await expect(
-        page.getByText('not a decision and not a promise', { exact: false }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('status').filter({ hasText: 'Showing the checklist for Germany' }),
-      ).toBeVisible();
-
-      // A short list says so.
-      await box.fill('Canada');
-      await expect(page.getByRole('heading', { name: 'Canada', level: 3 })).toBeVisible();
-      await expect(
-        page.getByText('This list may not be complete.', { exact: false }),
-      ).toBeVisible();
-
-      // The button carries the country on to sign-up (or sign-in while sign-up is closed).
-      const start = page.locator('.country-pick-action a');
-      await expect(start).toBeVisible();
-      expect((await start.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-      await expect(start).toHaveAttribute(
-        'href',
-        /^\/auth\/sign-(up|in)\?next=%2Fapp%3Fcountry%3DCA$/,
-      );
-
-      // No sideways scroll, and the picker passes the automated accessibility rules.
-      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-        scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
-      }));
-      expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
-      // The checklist items fade in; scan only once they have finished, so no colour is measured
-      // half way through the reveal.
-      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
-        .include('.country-start')
-        .analyze();
-      const blocking = results.violations.filter(
-        (v) => v.impact === 'critical' || v.impact === 'serious',
-      );
-      expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
-    });
-  }
-
-  test('the chosen country survives the trip to the account page', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
-    await page.getByLabel('Which Country Do You Want to Visit?').fill('Japan');
-    await page.locator('.country-pick-action a').click();
-    await expect(page).toHaveURL(/\/auth\/sign-(up|in)\?next=%2Fapp%3Fcountry%3DJP$/);
-    // The return path is kept in the form, so first run opens on Japan after sign-in.
-    await expect(page.locator('input[name="next"]')).toHaveValue('/app?country=JP');
-  });
-
-  test('a device that asks for less motion gets the list with no reveal', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
-    await page.getByLabel('Which Country Do You Want to Visit?').fill('Germany');
-    const name = await page
-      .locator('.country-pick-item')
-      .first()
-      .evaluate((element) => getComputedStyle(element).animationName);
-    expect(name).toBe('none');
-  });
-
-  test('a device that allows motion reveals the items one after another', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.goto('/');
-    await page.getByLabel('Which Country Do You Want to Visit?').fill('Germany');
-    const delays = await page
-      .locator('.country-pick-item')
-      .evaluateAll((elements) =>
-        elements.slice(0, 3).map((element) => getComputedStyle(element).animationDelay),
-      );
-    expect(delays).toEqual(['0s', '0.045s', '0.09s']);
-  });
 });
 
 /*

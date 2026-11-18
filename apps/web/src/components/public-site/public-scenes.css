@@ -63,3 +63,12 @@
 .pub-card[data-pub-depth] {
   box-shadow: 0 30px 50px -34px color-mix(in srgb, var(--text) 60%, transparent);
 }
+
+/* R1 public scenes: the kit's cards rest raised on a chapter, like every story card. */
+.kit-phone[data-pub-depth],
+.kit-panel[data-pub-depth],
+.kit-sheet[data-pub-depth],
+.kit-cases[data-pub-depth],
+.kit-stage-card[data-pub-depth] {
+  box-shadow: 0 30px 50px -34px color-mix(in srgb, var(--text) 60%, transparent);
+}
