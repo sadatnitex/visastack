@@ -1284,3 +1284,32 @@
     transform-origin: left center;
   }
 }
+
+/* WP-HOT1 home phone layout: below 900 px the case line is one list, one item to a row, with the
+   mark and the words side by side and never over each other (long words wrap inside their own
+   row), and the ring keeps its own column beside the list. The page's phone height budget (6
+   screens) leaves no room to stack them. A computer (900 px and wider) is unchanged. */
+@media (max-width: 899px) {
+  .land-ready-figure {
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .land-case-line {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .land-case-item {
+    min-height: 24px;
+  }
+
+  .land-case-name {
+    overflow-wrap: break-word;
+  }
+
+  /* The ring's own words wrap inside a narrow column, which leaves the list the width it needs. */
+  .land-ring {
+    justify-self: end;
+    max-width: 8.5rem;
+  }
+}
