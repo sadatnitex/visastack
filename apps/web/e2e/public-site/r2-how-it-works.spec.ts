@@ -32,7 +32,7 @@ test.describe('how it works rebuild at 1440 wide', () => {
     for (let at = 0; at < 4; at++) {
       const row = page.locator('.hk-row').nth(at);
       await row.scrollIntoViewIfNeeded();
-      await expect(row.locator('.hk-rise[data-in]')).toHaveCount(2);
+      await expect(row.locator('.kit-rise.is-in')).toHaveCount(2);
       const text = await row.locator('.hk-row-text').boundingBox();
       const art = await row.locator('.hk-row-art').boundingBox();
       expect(text && art).toBeTruthy();
@@ -45,7 +45,7 @@ test.describe('how it works rebuild at 1440 wide', () => {
     page,
   }) => {
     await page.goto('/how-it-works');
-    await expect(page.getByText('3 of 8 Ready')).toBeVisible();
+    await expect(page.getByText('Germany: 3 of 8 Ready')).toBeVisible();
     await expect(page.getByText('Turn Off')).toBeVisible();
     await expect(page.getByText('Completeness only. Not an approval.')).toBeVisible();
   });
@@ -84,7 +84,7 @@ test.describe('how it works rebuild with less motion', () => {
     await page.goto('/how-it-works');
     await expect(page.locator('html')).not.toHaveAttribute('data-scenes', 'live');
     const hidden = await page
-      .locator('.hk-rise')
+      .locator('.kit-rise')
       .evaluateAll(
         (nodes) => nodes.filter((node) => Number(getComputedStyle(node).opacity) < 1).length,
       );
@@ -98,7 +98,7 @@ test.describe('how it works rebuild with less motion', () => {
       await page.goto('/how-it-works');
       await expect(page.locator('.hk-row')).toHaveCount(4);
       const hidden = await page
-        .locator('.hk-rise')
+        .locator('.kit-rise')
         .evaluateAll(
           (nodes) => nodes.filter((node) => Number(getComputedStyle(node).opacity) < 1).length,
         );

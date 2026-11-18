@@ -34,17 +34,16 @@ describe('the How It Works page (R2)', () => {
 
   it('runs four chapters: dark opening, light rows, light words band, dark closing', async () => {
     const html = await render();
-    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map((m) => m[1]);
+    const tones = [...html.matchAll(/<section[^>]*data-tone="(dark|light)"/g)].map((m) => m[1]);
     expect(tones).toEqual(['dark', 'light', 'light', 'dark']);
   });
 
   it('draws one row per step with the picture each step needs', async () => {
     const html = await render();
     expect(html.match(/class="hk-row"/g)).toHaveLength(4);
-    expect(html).toContain('three suggested fields');
-    expect(html).toContain('three confirmed fields');
-    expect(html).toContain('A Germany checklist with 3 of 8 items ready');
-    expect(html).toContain('3 of 8 Ready');
+    expect(html.match(/data-kit-step="1"/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(html).toMatch(/kit-phone kit-fixed[^>]*data-kit-step="2"/);
+    expect(textOf(html)).toContain('Germany: 3 of 8 Ready');
     expect(html).toContain('Share with Agency');
   });
 
