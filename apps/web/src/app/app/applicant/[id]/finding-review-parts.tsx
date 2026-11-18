@@ -74,6 +74,16 @@ export function FindingSteps({
   useEffect(() => setRunning(true), []);
   const current = Math.min(index, Math.max(0, count - 1));
   const stepped = running && count > 1;
+  // A decided detail leaves the list with the button that had focus: focus moves to the detail
+  // now shown, so it is never dropped to the top of the page.
+  const shownCount = useRef(count);
+  useEffect(() => {
+    const before = shownCount.current;
+    shownCount.current = count;
+    if (count >= before || count === 0) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    list.current?.querySelectorAll<HTMLElement>(':scope > li')[current]?.focus();
+  }, [count, current]);
   const move = (next: number) => {
     if (next < 0 || next >= count) return;
     setIndex(next);

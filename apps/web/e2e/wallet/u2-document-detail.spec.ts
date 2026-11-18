@@ -11,6 +11,11 @@ import { GUARD_SIZES, coveredControls, runLayoutGuards } from '../support/layout
 const FIXTURE = 'wal2-document-detail';
 const mount = (page: Page, open = false) =>
   renderFixture(page, FIXTURE, { open }, { standInServerActions: true });
+/**
+ * On a phone the opened document is a full-screen dialog over the page, so the page behind it is
+ * covered on purpose; every control inside the opened document is checked.
+ */
+const SHEET = { within: '.wallet-selected-document' } as const;
 
 test.describe('WAL2 layout guards', () => {
   for (const open of [false, true]) {
@@ -19,9 +24,13 @@ test.describe('WAL2 layout guards', () => {
         page,
       }) => {
         await page.emulateMedia({ reducedMotion: motion });
-        await runLayoutGuards(page, async () => {
-          await mount(page, open);
-        });
+        await runLayoutGuards(
+          page,
+          async () => {
+            await mount(page, open);
+          },
+          SHEET,
+        );
       });
     }
   }
@@ -29,14 +38,20 @@ test.describe('WAL2 layout guards', () => {
   test('with every detail card open: nothing covers Save, a date box or Accept', async ({
     page,
   }) => {
-    await runLayoutGuards(page, async () => {
-      await mount(page, true);
-      // Open each row's card (Check), so every Accept, Skip and value box is in the flow.
-      for (const summary of await page.locator('.finding-row-section > details > summary').all()) {
-        await summary.click();
-      }
-      await page.locator('.finding-masked > details > summary').first().click();
-    });
+    await runLayoutGuards(
+      page,
+      async () => {
+        await mount(page, true);
+        // Open each row's card (Check), so every Accept, Skip and value box is in the flow.
+        for (const summary of await page
+          .locator('.finding-row-section > details > summary')
+          .all()) {
+          await summary.click();
+        }
+        await page.locator('.finding-masked > details > summary').first().click();
+      },
+      SHEET,
+    );
   });
 });
 
@@ -80,13 +95,17 @@ test.describe('WAL2 the opened document', () => {
     await expect(page.locator('.docs-add-fab')).toBeHidden();
     const bar = page.locator('.finding-accept-bar');
     await expect(bar.getByRole('button')).toHaveText('Accept 4 Clear Details');
-    await page.locator('.finding-rows').scrollIntoViewIfNeeded();
+    // From the top of the opened document the details run past the bottom of the screen.
+    await page.locator('.wallet-selected-document').evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    expect(await bar.evaluate((el) => el.getBoundingClientRect().top)).toBeLessThan(844);
     expect(await bar.evaluate((el) => getComputedStyle(el).position)).toBe('sticky');
     const box = await bar.boundingBox();
     expect(box).not.toBeNull();
-    // Inside the screen, above the bottom bar's 61 px.
-    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(844 - 61 + 1);
-    expect(await coveredControls(page)).toEqual([]);
+    // Resting on the bottom edge of the screen while the details are in view.
+    expect(Math.round((box?.y ?? 0) + (box?.height ?? 0))).toBe(844);
+    expect(await coveredControls(page, SHEET)).toEqual([]);
   });
 
   test('Sensitive and conflicting details come one at a time, with Back and Skip for Now', async ({

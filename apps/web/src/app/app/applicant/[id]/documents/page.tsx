@@ -52,6 +52,7 @@ import {
   DocumentHeroCard,
   type DocumentMarkTone,
 } from '../../../../../components/document-detail/document-hero-card';
+import { OpenOnHash } from '../../../../../components/document-detail/open-on-hash';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import {
   type PassportCoverKind,
@@ -209,12 +210,15 @@ const PROCESSING_EXPLAIN = 'Where this file is in our checks right now.';
 const SAFE_COPY_EXPLAIN =
   'A copy with private details masked, for sharing. Your original file is never changed.';
 
-/** The picture tone for one of the page's badge classes. */
+/** The picture tone for each badge class the page uses; anything else is neutral. */
+const MARK_TONES: Readonly<Record<string, DocumentMarkTone>> = {
+  'badge-success': 'ok',
+  'badge-warning': 'warn',
+  'badge-danger': 'bad',
+  'badge-neutral': 'neutral',
+};
 function markTone(badgeClass: string): DocumentMarkTone {
-  if (badgeClass.includes('success')) return 'ok';
-  if (badgeClass.includes('danger')) return 'bad';
-  if (badgeClass.includes('warning')) return 'warn';
-  return 'neutral';
+  return MARK_TONES[badgeClass] ?? 'neutral';
 }
 
 /** How many pages of profile history to look through for the current nationality (100 each). */
@@ -1050,6 +1054,56 @@ export default async function ApplicantDocumentsPage({
                         and Kind.
                       </p>
                     ) : null}
+                    {/* The ways to read the file again stay in view: they are how a person recovers
+                    a file whose kind or expiry could not be read. */}
+                    {(doc.classification?.reviewRequired === true ||
+                      !doc.classification ||
+                      (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
+                    !binned &&
+                    doc.safetyStatus === 'CLEAN' &&
+                    doc.latestVersionId &&
+                    ['AWAITING_REVIEW', 'APPROVED'].includes(doc.processingStatus ?? '') ? (
+                      <form action={requestDocumentReadingAction}>
+                        <input type="hidden" name="applicantId" value={id} />
+                        <input type="hidden" name="documentId" value={doc.id} />
+                        <input type="hidden" name="versionId" value={doc.latestVersionId} />
+                        <button className="btn btn-secondary" type="submit">
+                          Check the File Again
+                        </button>
+                      </form>
+                    ) : null}
+                    {(() => {
+                      // Part 8 AI-01 item 2: shown only on a genuine deterministic
+                      // gap (no classification yet reached, or one reached but not
+                      // confident) -- never offered once a confident deterministic
+                      // (or already-approved AI) classification already exists.
+                      // Lane Z: a file in Recently Deleted or being removed is never read again.
+                      if (
+                        binned ||
+                        !data.classificationConfigured ||
+                        !data.aiGranted ||
+                        !doc.classification
+                      ) {
+                        return null;
+                      }
+                      if (
+                        doc.classification.classifiedType !== null &&
+                        !doc.classification.reviewRequired
+                      ) {
+                        return null;
+                      }
+                      const versionId = doc.latestVersionId;
+                      if (!versionId) return null;
+                      // A waiting AI kind is shown in the card above, decided with its name.
+                      if (waitingKind || !data.coreGranted || doc.docType) return null;
+                      const kindFeature = data.aiFeatures?.ai_document_kind;
+                      if (kindFeature && !kindFeature.available) {
+                        return <AiFeatureOffNote reason={kindFeature.reason} />;
+                      }
+                      return (
+                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
+                      );
+                    })()}
                     {(() => {
                       const versionId = doc.latestVersionId;
                       if (!versionId) return null;
@@ -1204,6 +1258,7 @@ export default async function ApplicantDocumentsPage({
                             returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
                           />
                         ) : null}
+                        <OpenOnHash hash={`#safe-copy-${doc.id}`} />
                         <SafeCopyEditor
                           key={`${doc.id}-${doc.latestVersionId ?? ''}`}
                           documentId={doc.id}
@@ -1220,54 +1275,6 @@ export default async function ApplicantDocumentsPage({
                       className="doc-detail-section"
                     >
                       <p className="muted u-fs-075-m0">{shortScanLine(badge.kind)}</p>
-                      {(doc.classification?.reviewRequired === true ||
-                        !doc.classification ||
-                        (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
-                      !binned &&
-                      doc.safetyStatus === 'CLEAN' &&
-                      doc.latestVersionId &&
-                      ['AWAITING_REVIEW', 'APPROVED'].includes(doc.processingStatus ?? '') ? (
-                        <form action={requestDocumentReadingAction}>
-                          <input type="hidden" name="applicantId" value={id} />
-                          <input type="hidden" name="documentId" value={doc.id} />
-                          <input type="hidden" name="versionId" value={doc.latestVersionId} />
-                          <button className="btn btn-secondary" type="submit">
-                            Check the File Again
-                          </button>
-                        </form>
-                      ) : null}
-                      {(() => {
-                        // Part 8 AI-01 item 2: shown only on a genuine deterministic
-                        // gap (no classification yet reached, or one reached but not
-                        // confident) -- never offered once a confident deterministic
-                        // (or already-approved AI) classification already exists.
-                        // Lane Z: a file in Recently Deleted or being removed is never read again.
-                        if (
-                          binned ||
-                          !data.classificationConfigured ||
-                          !data.aiGranted ||
-                          !doc.classification
-                        ) {
-                          return null;
-                        }
-                        if (
-                          doc.classification.classifiedType !== null &&
-                          !doc.classification.reviewRequired
-                        ) {
-                          return null;
-                        }
-                        const versionId = doc.latestVersionId;
-                        if (!versionId) return null;
-                        // A waiting AI kind is shown in the card above, decided with its name.
-                        if (waitingKind || !data.coreGranted || doc.docType) return null;
-                        const kindFeature = data.aiFeatures?.ai_document_kind;
-                        if (kindFeature && !kindFeature.available) {
-                          return <AiFeatureOffNote reason={kindFeature.reason} />;
-                        }
-                        return (
-                          <RunClassificationButton applicantId={id} documentVersionId={versionId} />
-                        );
-                      })()}
                       {(() => {
                         if (!data.ocrConfigured || !data.ocrGranted || !doc.classification)
                           return null;

@@ -1269,7 +1269,9 @@ describe('WAL2: the opened document leads with its card, and details sit in sect
     expect(dates).toMatch(/<input[^>]*type="date"/);
     expect(dates).toContain('>Save</button>');
     expect(stubProps(sectionBody(html, 'Name and Kind'), 'DocumentRenameForm')).toHaveLength(1);
-    expect(sectionBody(html, 'Reading and Checks')).toContain('Check the File Again');
+    // The way to read a file again stays in view, outside every closed section.
+    expect(html).toContain('Check the File Again');
+    expect(sectionBody(html, 'Reading and Checks')).not.toContain('Check the File Again');
   });
 
   it('opens Dates when a date could not be saved, so the message and the field meet', async () => {

@@ -331,6 +331,13 @@ export function AiProposalReview({
   const clear = proposal.clear === true && !unverified;
   const difference = canApprove && mappable ? proposal.difference : undefined;
   // What was read, and where from. For a masked detail it all sits inside "Value Found".
+  // Why there is no Accept without consent. For a masked detail it stays in view, without the value.
+  const consentNote = (
+    <>
+      Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
+      <Link href="/app#permissions">Home</Link> to save details to your profile.
+    </>
+  );
   const found = (
     <>
       {quote ? (
@@ -369,9 +376,7 @@ export function AiProposalReview({
       ) : null}
       {mappable && !canApprove ? (
         <p className="muted u-fs-085">
-          Found: <q>{proposal.value ?? ''}</q>. Turn on{' '}
-          <strong>Let VisaStack Process My Details</strong> on{' '}
-          <Link href="/app#permissions">Home</Link> to save details to your profile.
+          Found: <q>{proposal.value ?? ''}</q>.{masked ? null : <> {consentNote}</>}
         </p>
       ) : null}
     </>
@@ -451,6 +456,7 @@ export function AiProposalReview({
         ) : null}
       </header>
       {masked ? null : found}
+      {masked && mappable && !canApprove ? <p className="muted u-fs-085">{consentNote}</p> : null}
       <form action={formAction} className="finding-form">
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="proposalId" value={proposal.id} />
@@ -470,7 +476,7 @@ export function AiProposalReview({
         {difference ? (
           <fieldset className="finding-difference finding-choice-tiles">
             <legend>
-              {difference.current === null ? (
+              {difference.current === null || masked ? (
                 t.node('appApplicant.appApplicantIdAiReview.yourProfileAlreadyHasADifferent')
               ) : (
                 <>
@@ -620,12 +626,12 @@ export function DocumentFindings({
     );
   }
   const rank = (proposal: AiProposalViewModel) =>
-    proposal.difference ? 0 : proposal.clear ? 2 : 1;
+    proposal.difference ? 0 : isClear(proposal) ? 2 : 1;
   const ordered = [...proposals].sort((a, b) => rank(a) - rank(b));
   const clearIds = proposals
     .filter(
       (proposal) =>
-        proposal.clear &&
+        isClear(proposal) &&
         !proposal.sensitive &&
         !proposal.difference &&
         !proposal.repeating &&
@@ -684,7 +690,16 @@ export function DocumentFindings({
               <li key={proposal.id} className="finding-row" data-quick={quick ? 'true' : undefined}>
                 <ExpandableSection
                   title={label}
-                  summary={<span data-value="value">{proposal.value ?? ''}</span>}
+                  summary={
+                    <>
+                      <span data-value="value">{proposal.value ?? ''}</span>
+                      {isClear(proposal) ? null : (
+                        <span className="finding-row-check">
+                          {t.node('appApplicant.appApplicantIdAiReview.pleaseCheck')}
+                        </span>
+                      )}
+                    </>
+                  }
                   status={<StatusPicture kind="EXTRACTED_PENDING" />}
                   statusDescription={statusPictureWords('EXTRACTED_PENDING')}
                   headingLevel={4}

@@ -224,3 +224,66 @@ describe('Check What We Found: Sensitive values stay hidden until opened', () =>
     expect(host.textContent).toContain('Ayesha');
   });
 });
+
+describe('Check What We Found: review fixes (WAL2 code review)', () => {
+  it('never shows a profile value on a masked card, even if one were sent', () => {
+    render([
+      finding({
+        id: 's',
+        fieldLabel: 'Passport Number',
+        value: 'A1234567',
+        sensitive: true,
+        difference: { current: 'B7654321' },
+      }),
+    ]);
+    expect(host.textContent).not.toContain('B7654321');
+    expect(host.querySelector('legend')?.textContent).toContain('hidden here to keep it private');
+  });
+
+  it('keeps the consent note in view on a masked card, without the value', () => {
+    render(
+      [finding({ id: 's', fieldLabel: 'Passport Number', value: 'A1234567', sensitive: true })],
+      false,
+    );
+    const outside = [...host.querySelectorAll('.finding-card > p')]
+      .map((p) => p.textContent)
+      .join(' ');
+    expect(outside).toContain('Let VisaStack Process My Details');
+    expect(outside).not.toContain('A1234567');
+  });
+
+  it('uses one meaning of clear: words not found in the document are never accepted in bulk', () => {
+    render([
+      finding({ id: 'a', fieldLabel: 'Given Name' }),
+      finding({ id: 'b', fieldLabel: 'Family Name' }),
+      finding({ id: 'c', fieldLabel: 'Occupation', evidence: [{ snippet: 'x', verified: false }] }),
+    ]);
+    expect(host.querySelector('.finding-accept-bar button')?.textContent).toBe(
+      'Accept 2 Clear Details',
+    );
+    expect(host.querySelector('.document-findings-metric')?.textContent).toBe(
+      '3 details, 2 clear, 1 to check',
+    );
+    const row = [...host.querySelectorAll('.finding-row')].find((r) =>
+      r.textContent?.includes('Occupation'),
+    ) as HTMLElement;
+    expect(row.querySelector('.finding-row-check')?.textContent).toBe('Please Check');
+    expect(row.querySelector('.finding-row-accept-button')).toBeNull();
+  });
+
+  it('moves focus to the next detail when the one shown is decided', async () => {
+    const decide = [
+      finding({ id: 'x', fieldLabel: 'Passport Number', sensitive: true }),
+      finding({ id: 'y', fieldLabel: 'National ID Number', sensitive: true }),
+      finding({ id: 'z', fieldLabel: 'Tax Number', sensitive: true }),
+    ];
+    render(decide);
+    await act(async () => undefined);
+    (document.activeElement as HTMLElement | null)?.blur();
+    render(decide.slice(1));
+    await act(async () => undefined);
+    expect(document.activeElement?.closest('.finding-steps-list > li')?.textContent).toContain(
+      'National ID Number',
+    );
+  });
+});

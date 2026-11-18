@@ -23084,6 +23084,15 @@ button.wallet-stack-card {
 .finding-row-accept .btn {
   min-height: 44px;
 }
+/* An opened row shows its card, whose Accept is the one to use: the row's own Accept steps aside, so one detail is never sent twice. */
+.finding-row:has(> .expandable-section details[open]) > .finding-row-accept {
+  display: none;
+}
+.finding-row-check {
+  display: block;
+  color: var(--warning);
+  font-weight: 600;
+}
 .finding-steps {
   display: grid;
   gap: var(--space-2);
@@ -23179,16 +23188,17 @@ button.wallet-stack-card {
 .finding-accept-bar .btn {
   min-height: 44px;
 }
-/* On a phone the accept bar rests at the bottom of the open document, above the bottom bar, while the details are in view; anything scrolled to stops above it. */
+/* On a phone the open document fills the screen (over the bottom bar), so the accept bar rests at the bottom edge of the screen, clear of the phone's own bottom edge, while the details are in view; anything scrolled to stops above it. */
 @media (max-width: 760px) {
   .wallet-selected-document[data-sheet="open"] .finding-accept-bar {
     position: sticky;
-    bottom: calc(61px + env(safe-area-inset-bottom, 0px));
+    bottom: 0;
     z-index: 2;
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
   }
 
   .wallet-selected-document[data-sheet="open"] {
-    scroll-padding-bottom: calc(61px + env(safe-area-inset-bottom, 0px) + 7rem);
+    scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 7rem);
   }
 }
 /* end WP-WAL2 */
