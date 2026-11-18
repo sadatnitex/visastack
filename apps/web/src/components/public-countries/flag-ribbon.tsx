@@ -1,6 +1,9 @@
 import { AVAILABLE_FLAG_CODES } from '../flags/available-flags';
 import '../public-site/public-site.css';
 
+/** The flags a phone keeps in each copy of the band; the rest hide so the page stays short. */
+const PHONE_FLAGS = 4;
+
 export interface RibbonFlag {
   readonly code: string;
   readonly name: string;
@@ -24,8 +27,12 @@ export function FlagRibbon({ flags, href, linkLabel, pageLang = 'en' }: FlagRibb
   const have = new Set(AVAILABLE_FLAG_CODES);
   const shown = flags.filter((flag) => have.has(flag.code.toLowerCase()));
   const pills = (copy: 'a' | 'b') =>
-    shown.map((flag) => (
-      <span className="r4-pill" key={`${copy}-${flag.code}`} data-copy={copy}>
+    shown.map((flag, position) => (
+      <span
+        className={position >= PHONE_FLAGS ? 'r4-pill r4-pill-late' : 'r4-pill'}
+        key={`${copy}-${flag.code}`}
+        data-copy={copy}
+      >
         <img
           src={`/flags/${flag.code.toLowerCase()}.svg`}
           alt=""

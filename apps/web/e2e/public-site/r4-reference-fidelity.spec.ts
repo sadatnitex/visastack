@@ -7,8 +7,8 @@ import { type Locator, type Page, expect, test } from '@playwright/test';
  * country list; a light "Rules, Not Guesses." chapter beside the checklist panel; a closing band
  * "Pick a Country. See the Gap." with the passport. Each chapter is checked, then photographed at a
  * computer size and a phone size so it can be set beside the reference. Set R4_SHOTS_DIR to keep the
- * pictures (default: the test output folder); set R4_REFERENCE_HTML to a saved copy of the reference
- * to also photograph its Countries page next to ours.
+ * pictures (default: the test output folder). The reference's own pictures come from
+ * docs/upgrades/programme/pub/r4-shots/reference-shots.cjs.
  */
 
 const SIZES = [
@@ -88,6 +88,28 @@ for (const size of SIZES) {
       await expect(page.locator('.r4-search output')).toHaveText('1 country found.');
     });
 
+    test('chapter 1: a search with no match says so in words everyone can see', async ({
+      page,
+    }) => {
+      await page.goto('/countries?q=xyzq');
+      await expect(page.locator('.r4-search-status')).toBeVisible();
+      await expect(page.locator('.r4-search-status')).toHaveText('No country matches.');
+    });
+
+    test('chapter 1: the ribbon keeps a full seamless loop on every size', async ({ page }) => {
+      await page.goto('/countries');
+      const shown = await page.locator('.r4-pill').evaluateAll((pills) => {
+        const visible = (copy: string) =>
+          pills.filter(
+            (el) =>
+              el.getAttribute('data-copy') === copy && getComputedStyle(el).display !== 'none',
+          ).length;
+        return [visible('a'), visible('b')];
+      });
+      expect(shown[0]).toBeGreaterThan(0);
+      expect(shown[1]).toBe(shown[0]);
+    });
+
     test('chapter 1: reduced motion shows the search filled and still, the ribbon still', async ({
       page,
     }) => {
@@ -102,6 +124,11 @@ for (const size of SIZES) {
         .locator('.r4-ribbon-track')
         .evaluate((el) => getComputedStyle(el).animationName);
       expect(name).toBe('none');
+      // A person who then types never has to delete the demo word first.
+      await input.click();
+      await expect(input).toHaveValue('');
+      await input.pressSequentially('Japan');
+      await expect(input).toHaveValue('Japan');
     });
 
     test('chapter 1: the ribbon moves, and stops under a pointer', async ({ page }) => {
@@ -182,30 +209,4 @@ test('no script: the search still works as a plain form', async ({ browser }) =>
   await expect(page.getByRole('searchbox', { name: 'Search Countries' })).toHaveValue('germ');
   await expect(page.locator('.r4-results')).toContainText('Germany');
   await context.close();
-});
-
-test('reference: photograph its Countries page when a saved copy is given', async ({ browser }) => {
-  const reference = env('R4_REFERENCE_HTML');
-  test.skip(!reference, 'no saved copy of the reference given');
-  const dir = env('R4_SHOTS_DIR');
-  for (const size of SIZES) {
-    const context = await browser.newContext({
-      viewport: { width: size.width, height: size.height },
-      reducedMotion: 'reduce',
-    });
-    const page = await context.newPage();
-    await page.goto(`file://${reference}`);
-    await page.evaluate(() => {
-      (document.querySelector('[data-go="countries"]') as HTMLElement | null)?.click();
-      // Let the frame grow to its content, so one picture holds the whole page.
-      const frame = document.getElementById('zf');
-      if (frame) frame.setAttribute('style', 'height:auto;max-height:none;overflow:visible');
-    });
-    await page.waitForTimeout(600);
-    const path = dir
-      ? `${dir}/reference-${size.tag}.png`
-      : test.info().outputPath(`reference-${size.tag}.png`);
-    await page.locator('#zf').screenshot({ path });
-    await context.close();
-  }
 });

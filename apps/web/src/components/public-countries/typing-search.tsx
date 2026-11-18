@@ -1,10 +1,11 @@
 'use client';
 
-import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
 import {
   DEMO_WORD,
   SEARCH_LIMIT,
+  SEARCH_MAX,
   type SearchEntry,
   matchCountries,
   normaliseQuery,
@@ -46,10 +47,14 @@ export function TypingSearch({
   const [text, setText] = useState(searched ? initialQuery : DEMO_WORD);
   const [demo, setDemo] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const input = useRef<HTMLInputElement | null>(null);
+  // True while the demo word (moving or resting under reduced motion) is not the person's own text.
+  const demoWord = useRef(!searched);
 
   const stopDemo = useCallback(() => {
-    if (timer.current === null) return;
-    clearInterval(timer.current);
+    if (!demoWord.current) return;
+    demoWord.current = false;
+    if (timer.current !== null) clearInterval(timer.current);
     timer.current = null;
     setDemo(false);
     setText('');
@@ -87,19 +92,30 @@ export function TypingSearch({
   const matches = matchCountries(index, text, index.length);
   const results = matches.slice(0, SEARCH_LIMIT);
   // The count is of every match, so a long list never reads as a short one.
-  const words = resultCountWords(matches.length, text);
+  const words = resultCountWords(matches.length, text, SEARCH_LIMIT);
   const hrefFor = (code: string) =>
     signedIn ? appHrefForCountry(code) : startHrefForCountry(code, signUpOpen);
 
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    // Searching while the demo word is still there would send the demo's letters: take the field over instead.
+    if (!demoWord.current) return;
+    event.preventDefault();
+    stopDemo();
+    input.current?.focus();
+  };
   const onChange = (event: ChangeEvent<HTMLInputElement>) => {
     stopDemo();
     setText(event.target.value);
   };
 
   return (
-    <div className="r4-search" data-demo={demo ? 'on' : 'off'}>
+    <div
+      className="r4-search"
+      data-demo={demo ? 'on' : 'off'}
+      lang={pageLang === 'en' ? undefined : 'en'}
+    >
       <search>
-        <form className="r4-search-form" action="/countries" method="get">
+        <form className="r4-search-form" action="/countries" method="get" onSubmit={onSubmit}>
           <svg className="r4-search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <circle cx="11" cy="11" r="6" />
             <path d="M20 20l-4.5-4.5" />
@@ -108,6 +124,7 @@ export function TypingSearch({
             Search Countries
           </label>
           <input
+            ref={input}
             id="countries-search"
             className="r4-search-input"
             name="q"
@@ -115,7 +132,7 @@ export function TypingSearch({
             autoComplete="off"
             autoCapitalize="off"
             spellCheck={false}
-            maxLength={60}
+            maxLength={SEARCH_MAX}
             placeholder="Search Countries"
             value={text}
             onChange={onChange}
@@ -153,7 +170,7 @@ export function TypingSearch({
           </li>
         ))}
       </ul>
-      <output className="sr-only" aria-live={demo ? 'off' : 'polite'}>
+      <output className="r4-search-status" aria-live={demo ? 'off' : 'polite'}>
         {demo ? '' : words}
       </output>
     </div>

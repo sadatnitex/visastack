@@ -8,6 +8,9 @@ export interface SearchEntry {
 /** The most results the hero search lists. */
 export const SEARCH_LIMIT = 3;
 
+/** The most letters of a search the page and the box accept. */
+export const SEARCH_MAX = 60;
+
 /** The word the hero search types by itself. */
 export const DEMO_WORD = 'Singapore';
 
@@ -41,8 +44,15 @@ export function matchCountries(
 }
 
 /** The plain-words count a screen reader hears after each change of the search text. */
-export function resultCountWords(count: number, text: string): string {
+export function resultCountWords(
+  count: number,
+  text: string,
+  limit: number = SEARCH_LIMIT,
+): string {
   if (normaliseQuery(text).length < 2) return '';
   if (count === 0) return 'No country matches.';
-  return count === 1 ? '1 country found.' : `${count} countries found.`;
+  if (count === 1) return '1 country found.';
+  return count > limit
+    ? `${count} countries found. Showing the first ${limit}. Keep typing to narrow it.`
+    : `${count} countries found.`;
 }

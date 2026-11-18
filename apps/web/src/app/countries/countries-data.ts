@@ -5,7 +5,7 @@ import {
   destinationByIso2,
 } from '@visastack/core/destinations';
 import { AVAILABLE_FLAG_CODES } from '../../components/flags/available-flags';
-import type { SearchEntry } from '../../components/public-countries/search-match';
+import { SEARCH_MAX, type SearchEntry } from '../../components/public-countries/search-match';
 import { ENTRY_SHORT_LABEL, trustNotes } from '../../lib/country-view';
 import { type SearchParamsRecord, nextShow, parseShow } from '../../lib/paging';
 
@@ -14,6 +14,8 @@ import { type SearchParamsRecord, nextShow, parseShow } from '../../lib/paging';
 /** Rows shown first, and how many more each Show More adds (the 12-then-Show-More pattern of WP-SB8). */
 export const COUNTRIES_STEP = 12;
 const SHOW_KEY = 'show';
+
+const FLAGS = new Set(AVAILABLE_FLAG_CODES);
 
 /** The flags in the drifting band under the hero; only those the catalogue holds and a flag file exists for. */
 const RIBBON_CHOICE = [
@@ -35,10 +37,8 @@ const RIBBON_CHOICE = [
 ];
 
 export const RIBBON_CODES: readonly string[] = RIBBON_CHOICE.filter(
-  (code) => destinationByIso2(code) !== undefined,
+  (code) => destinationByIso2(code) !== undefined && FLAGS.has(code),
 );
-
-const FLAGS = new Set(AVAILABLE_FLAG_CODES);
 
 export const NOT_RESEARCHED_WORDS = 'Not Researched Yet';
 export const NO_DATE_WORDS = 'Date Not Recorded';
@@ -143,9 +143,6 @@ export function firstNewRowId(window: CountriesWindow): string | null {
 }
 
 const SEARCH_KEY = 'q';
-
-/** The most letters of a search the page reads; the rest is ignored. */
-const SEARCH_MAX = 60;
 
 /** What `?q=` asked for: its first value, cut to a sensible length, or empty. */
 export function searchQueryOf(params: SearchParamsRecord): string {

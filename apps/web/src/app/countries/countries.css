@@ -144,7 +144,7 @@
   align-content: start;
   gap: var(--space-2);
   /* Room for the form and three results, so nothing below moves while the demo types. */
-  min-height: calc(60px + var(--space-2) + 3 * 48px + 12px);
+  min-height: calc(60px + 2 * var(--space-2) + 3 * 48px + 12px + 2.5em);
   text-align: start;
 }
 
@@ -206,6 +206,15 @@
   list-style: none;
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
+}
+
+.r4-search-status {
+  margin: 0;
+  min-height: 2.5em;
+  padding-inline: var(--space-3);
+  color: var(--chapter-text);
+  font-size: 0.875rem;
+  text-align: center;
 }
 
 .r4-results:empty,
@@ -374,15 +383,7 @@
     font-size: 2.25rem;
   }
 
-  .r4-search {
-    min-height: calc(60px + var(--space-2) + 2 * 48px + 12px);
-  }
-
-  .r4-results > li:nth-child(n + 3) {
-    display: none;
-  }
-
-  .r4-pill:nth-child(n + 5) {
+  .r4-pill-late {
     display: none;
   }
 
