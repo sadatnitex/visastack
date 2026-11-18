@@ -1,8 +1,5 @@
-import {
-  CANONICAL_CASE_STATES,
-  LEGACY_ONLY_MISSION_STATES,
-  type MissionState,
-} from '@visastack/core';
+import type { MissionState } from '@visastack/core';
+import { caseStagePath, caseStagePosition } from './case-stage-path';
 import { JourneyTrack } from './journey-track';
 import { StepBar } from './ui-lift';
 
@@ -31,31 +28,19 @@ export function CaseStageTrackerView({
   readonly journey?: boolean;
 }) {
   const cancelLine = cancelInMore ? ' To stop the case, use More at the top of the page.' : '';
-  const legacy = (LEGACY_ONLY_MISSION_STATES as readonly string[]).includes(state);
-  const stages: readonly MissionState[] = legacy
-    ? [
-        'DRAFT',
-        ...LEGACY_ONLY_MISSION_STATES,
-        'SUBMISSION_READY',
-        'SUBMITTED',
-        'CLOSED',
-        'CANCELLED',
-      ]
-    : CANONICAL_CASE_STATES;
   const named = (stage: MissionState) => ({
     label: labels[stage] ?? stage,
     current: stage === state,
   });
   // Cancelling is not a step along the way: it is shown apart, at the end.
-  const path: readonly MissionState[] = stages.filter((stage) => stage !== 'CANCELLED');
-  const apart = stages.filter((stage) => stage === 'CANCELLED');
+  const { path, apart } = caseStagePath(state);
   const at = path.indexOf(state);
   const bar = (
     <StepBar
       ariaLabel={ariaLabel}
       steps={path.map(named)}
       apart={apart.map(named)}
-      position={at >= 0 ? `Stage ${at + 1} of ${path.length}` : 'This case was cancelled'}
+      position={caseStagePosition(path, state)}
       help={{
         summary: 'About Stages',
         children: (
