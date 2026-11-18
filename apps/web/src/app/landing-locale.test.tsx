@@ -162,7 +162,7 @@ describe('the site header', () => {
     // Owner, 17 Nov 2026: one list of five pages; /trust is named Privacy and Trust. Pages that
     // have no address yet point at the part of the home page that tells their story.
     expect(nav).toContain(
-      '<div class="site-nav-pages"><a href="/">Home</a><a href="/how-it-works">How It Works</a><a href="/trust">Privacy and Trust</a><a href="/#start">Countries</a><a href="/#for-agencies">For Agencies</a></div>',
+      '<div class="site-nav-pages"><a href="/">Home</a><a href="/how-it-works">How It Works</a><a href="/trust">Privacy and Trust</a><a href="/countries">Countries</a><a href="/for-agencies">For Agencies</a></div>',
     );
     expect(nav).not.toContain('Product');
     for (const fragment of [
@@ -186,7 +186,7 @@ describe('the site header', () => {
     );
     const nav = header(html);
     for (const [href, key] of [
-      ['/#for-agencies', 'home.page.forAgencies'],
+      ['/for-agencies', 'home.page.forAgencies'],
       ['/how-it-works', 'home.page.howItWorks'],
     ] as const)
       expect(nav, key).toContain(`href="${href}"><span lang="bn">${bn[key]}</span></a>`);
@@ -199,7 +199,7 @@ describe('the site header', () => {
     expect(bn['home.layout.skipToContent']).toBe('মূল বিষয়বস্তুতে যান');
     expect(nav).not.toMatch(/home\.(layout|page)\./);
     // Words with no catalogue entry yet stay English on this English page.
-    for (const fragment of ['href="/">Home</a>', 'href="/#start">Countries</a>'])
+    for (const fragment of ['href="/">Home</a>', 'href="/countries">Countries</a>'])
       expect(nav, fragment).toContain(fragment);
   });
 
@@ -241,7 +241,7 @@ describe('the site header', () => {
     for (const [href, label] of [
       ['/', 'Home'],
       ['/trust', 'Privacy and Trust'],
-      ['/#start', 'Countries'],
+      ['/countries', 'Countries'],
     ] as const)
       expect(header(html), label).toContain(`href="${href}"><span lang="en">${label}</span></a>`);
     expect(header(html)).toContain(`href="/app">${SIGN_IN_BN}</a>`);
