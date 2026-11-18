@@ -44,6 +44,7 @@ import type {
 import { plural } from '../../../../lib/plural';
 import { type ActionState, saveFactAction } from './actions';
 import { ChangeImpactNotice } from './change-impact/change-impact-notice';
+import { numberText } from './number-text';
 import {
   MaskedValue,
   NOT_ADDED_YET,
@@ -55,7 +56,6 @@ import {
   isMaskedDetail,
   valueRowId,
 } from './passport-page-card';
-import { numberText } from './number-text';
 import { revealProfileValueAction } from './profile-reveal-actions';
 import {
   markEndedAction,
