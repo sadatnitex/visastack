@@ -227,3 +227,20 @@ Earlier in this window and already merged: PUB1 #623 (public site foundation, AD
 - A signed-in human click-through of the Wallet screens; what is checked is the CI guard on made-up people.
 - Known gaps (U7): the sharing, client, contributor and agency invitation accept screens have no Decline; Home on a desktop first screen shows very large cropped document pictures; the "Know where it stands" example starts on Closed with the Embassy tag. The full list is in `docs/upgrades/programme/SESSION-HANDOFF-2026-11-18.md`.
 - The test "real case page" (WP-SB2, 3480 vs 3470) fails on a clean local main and passes in CI.
+
+## Update, 2026-11-18 (TIDY1): MOT1, NAV2 and ESS1 merged and checked live
+
+Supersedes the "Not live" entries for NAV2 and MOT1 and the main and last-verified-deployment line in the 2026-11-18 update above (those lines stay as history, superseded, replaced by 18 Nov 2026 (TIDY1)). Main is `19416e1e`. Next free migration number: 0138; no unit below added a migration. Still a controlled pilot with made-up records only.
+
+Merged and checked live (Vercel, Deploy Smoke, Playwright Deploy Smoke, live signed-in check, CI and CodeQL all succeeded):
+
+| Unit | PR, merge | What people see |
+|---|---|---|
+| MOT1 | #651, `769e43ea` | Public scenes move for every visitor: phones and small windows play each scene once as it comes into view, big screens keep pinned scenes, devices asking for less motion get gentle fades, data saver no longer stops motion |
+| DOC1 | #652, `9dead1fa` | Documentation only: status pages brought up to date with the Wallet, public-site and fix units |
+| NAV2 | #653, `5f39fd6d` | One-line public header with a menu where the row does not fit, and a rebuilt public footer |
+| ESS1 | #654, `19416e1e` | My Profile shows each detail once as a read row; protected values (such as Date of Birth and Passport Number) are loaded only when the person presses Show |
+
+Live lanes: TIDY1 (removes unused Home wording keys and dead stylesheet rules, no visible change; docs) and PUB5 pass 2 (public-site verification). PR #581 (Bengali refill 7) is stale.
+
+Not verified: real-device behaviour of the switched-off features; a signed-in human click-through of the Wallet and My Profile screens (what is checked is the CI guard on made-up people).

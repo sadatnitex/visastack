@@ -62,3 +62,14 @@ Other stale docs found, not edited here: `docs/uiux/ccd/PARITY-LEDGER.md` and `d
 - WP-SB2 "real case page" is red locally on a clean main; check CI before treating it as yours.
 - Keep Neon branch `ccr-85d8af87-1wrzb7-e` until the owner says "delete ccr-85d8af87-1wrzb7-e".
 - Cross-session messages need the session's listed name; a raw session id was not reachable from DOC1 (no live peers listed).
+
+## 6. Update, 18 Nov 2026 (TIDY1)
+
+Supersedes the lane table in section 2 and the follow-up items 7, 9 and 12 above (older lines stay as history, marked superseded, replaced by 18 Nov 2026 (TIDY1)).
+
+- Merged and checked live (Vercel, Deploy Smoke, Playwright Deploy Smoke, live signed-in check, CI and CodeQL all succeeded): MOT1 #651 (`769e43ea`), DOC1 #652 (`9dead1fa`), NAV2 #653 (`5f39fd6d`), ESS1 #654 (`19416e1e`). Main is `19416e1e`. Next free migration number: 0138.
+- Live lanes now: TIDY1 (`claude/tidy1-dead-keys-css`, dead keys, dead stylesheet rules, docs) and PUB5 pass 2 (`claude/pub5-public-site-verification`). PR #581 is stale.
+- Section 2 rows for MOT1, NAV2 and DOC1: superseded, replaced by 18 Nov 2026 (TIDY1); all three are merged.
+- Follow-up 7 (tidy unit): TIDY1 does it, except `appApplicant.appApplicantIdProfileEditor.editTheseDetails` and `everythingSavedForDisplaynameInOne`, which wait for PR #581.
+- Follow-up 9 (protected profile values only on Show): done in ESS1 #654.
+- Follow-up 12 (public-site verification after NAV2): NAV2 and MOT1 are merged; PUB5 pass 2 is the lane that runs it.
