@@ -43,3 +43,20 @@ The route is not on `BN_READY_ROUTES` (outside the manifest), so the page `lang`
 - Tests: page tests read a parsed document, the reduced-motion and no-script browser checks assert the real content is visible (rows, the Germany 3 of 8 count, Turn Off, the four meanings, the closing) and that nothing is faded or pressable. Proofs that the new guards fail: switching `aria-expanded` to `aria-pressed` fails the tile test; removing the words band fails three page tests.
 - Dead rules for R3 (file `apps/web/src/components/public-pub3-story.css`, left untouched by R2): classes with no use left in non-test source: `p3-at`, `p3-bar`, `p3-chips`, `p3-fill`, `p3-node`, `p3-stage`, `p3-stage-line`, `p3-stage-word`, `p3-stages`. R3 should re-check tests, e2e and scripts before deleting.
 - Share sheet wording (truth fix, approved by the Guardian outside the R2 manifest, 18 Nov 2026): `packages/services/src/sharing.ts` (`getRecipientWorkspace`) says recipient preview and download do not serve bytes yet, and non-original variants fail closed until redacted renditions exist, so sharing cannot be limited to part of a document and "Photo page only" and "Visa size" were untrue. In `apps/web/src/components/public-site/kit/share-sheet-body.tsx` the Passport and Photo sub-lines now read "See Document Details", the Bank row "Not Shared", and the chips "Passport, details" and "Photo, details". No other kit change. This also corrects the live Home page, which uses the same part. Held by a new assertion in `src/app/how-it-works/page.test.tsx`.
+
+## Known-issues chunk (to append)
+
+Append this block to the end of `docs/commercial-v1/known-issues.md` (U6 does it; R2 does not touch that file).
+
+```
+## 18 Nov 2026: R2 How It Works rebuilt on the approved reference
+
+- Behaviour: /how-it-works is rebuilt, not extended. Four chapters in a fixed order: a dark opening ("How It Works." with four numbered chips Add, Check, Prepare, Share), four alternating rows (text on one side, a picture on the other, swapping sides from 900 px, each rising in on scroll: a phone with Suggested fields, a phone with Confirmed fields, the Germany checklist at 3 of 8, the share sheet), a light band "Words Mean Exactly What They Say." with four word tiles, and a dark closing band with the start and privacy links. The old case story, "You Stay in Charge" and "Ready When You Are" are gone, and no scene is pinned on this page.
+- Words tiles: a plain non-interactive tile wherever the meaning is always shown (no script, reduced motion, data saver, phone); while scroll motion runs, a disclosure button with aria-expanded and aria-controls.
+- Truth fix outside the page (kit, approved by the Guardian): the shared share sheet said "Photo page only" and "Visa size", which sharing cannot do today (packages/services/src/sharing.ts: recipient preview and download do not serve bytes yet, redacted renditions do not exist). The sheet now says "See Document Details" for Passport and Photo, "Not Shared" for Bank, and the chips "Passport, details" and "Photo, details". This also corrects the live Home page.
+- Gate: apps/web/e2e/public-site/r2-how-it-works.spec.ts, the How It Works parts of pub3-how-trust.spec.ts, chapter pictures at 1440 and 390 beside the reference in docs/upgrades/programme/pub/r2-shots/ (table in R2-records.md, all four chapters match apart from the flat refinement).
+- Proof: page tests on a parsed document, flip-tile client test (fails if aria-expanded becomes aria-pressed), full web unit tests, scripts tests, full-check.sh on head ca58f400 (all steps exit 0), Playwright public-site + WP-SB8 + ux-public (496 passed, 15 skipped by existing conditions), check-public-budget, ui-ratchet unchanged.
+- Scroll budget: phone 390 wide English 5.31 screens, Bengali preview 5.46 (budget 6).
+- Follow-ups: Bengali for the page's English-only words (list in R2-records.md); R3 to remove the unused p3-* rules in public-pub3-story.css (list in R2-records.md); /how-it-works is not in BN_READY_ROUTES.
+- NOT verified: real devices and visitors, a person using a keyboard or screen reader, the live Bengali route, CI and CodeQL on the pushed head.
+```
