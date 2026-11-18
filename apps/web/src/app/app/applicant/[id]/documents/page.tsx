@@ -48,6 +48,11 @@ import { AiFeatureOffNote } from '../../../../../components/ai-feature-off';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { DepthScope } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
+import {
+  DocumentHeroCard,
+  type DocumentMarkTone,
+} from '../../../../../components/document-detail/document-hero-card';
+import { OpenOnHash } from '../../../../../components/document-detail/open-on-hash';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import {
   type PassportCoverKind,
@@ -60,6 +65,7 @@ import {
   type SafeCopyStateName,
 } from '../../../../../components/safe-copy-state';
 import { PageHeader } from '../../../../../components/ui';
+import { ExpandableSection } from '../../../../../components/ui-lift/expandable-section';
 import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
 import { changeImpactCatalog } from '../../../../../i18n/change-impact';
 import {
@@ -187,6 +193,33 @@ const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: s
   EXPIRED: { label: 'Expired', tone: 'badge-danger' },
   SUPERSEDED: { label: 'Replaced', tone: 'badge-neutral' },
 };
+
+/** What each expiry state means, said once beside its picture (WAL2). */
+const LIFECYCLE_EXPLAIN: Record<DocumentLifecycleStatus, string> = {
+  UNKNOWN: 'No expiry date is confirmed for this document yet.',
+  CURRENT: 'Going by the saved dates, this document is in date.',
+  EXPIRING: 'Going by the saved expiry date, this document runs out soon.',
+  EXPIRED: 'Going by the saved expiry date, this document has run out.',
+  SUPERSEDED: 'A newer document replaced this one.',
+};
+
+/** What the processing state is: where the file is in our checks. The word itself says the rest. */
+const PROCESSING_EXPLAIN = 'Where this file is in our checks right now.';
+
+/** What a safe copy is, in one sentence (ADR 0022). */
+const SAFE_COPY_EXPLAIN =
+  'A copy with private details masked, for sharing. Your original file is never changed.';
+
+/** The picture tone for each badge class the page uses; anything else is neutral. */
+const MARK_TONES: Readonly<Record<string, DocumentMarkTone>> = {
+  'badge-success': 'ok',
+  'badge-warning': 'warn',
+  'badge-danger': 'bad',
+  'badge-neutral': 'neutral',
+};
+function markTone(badgeClass: string): DocumentMarkTone {
+  return MARK_TONES[badgeClass] ?? 'neutral';
+}
 
 /** How many pages of profile history to look through for the current nationality (100 each). */
 const COVER_HISTORY_PAGES = 5;
@@ -790,15 +823,17 @@ export default async function ApplicantDocumentsPage({
                 (data.ocrConfigured && data.ocrGranted));
             // Read with AI turned off (S28): the hint takes the button's place.
             const canReadAgain = couldReadAgain && readingOn;
+            // An "Other" kind shows the name the person gave it, when there is one.
+            const kindWords = doc.docType
+              ? doc.subject && isOtherDocumentType(doc.docType)
+                ? doc.subject
+                : documentTypeLabel(doc.docType)
+              : null;
+            const walletEntry = data.wallet.get(doc.id);
             return {
               id: doc.id,
               name: doc.approvedName ?? doc.originalName,
-              // An "Other" kind shows the name the person gave it, when there is one.
-              kind: doc.docType
-                ? doc.subject && isOtherDocumentType(doc.docType)
-                  ? doc.subject
-                  : documentTypeLabel(doc.docType)
-                : null,
+              kind: kindWords,
               docType: doc.docType ?? null,
               suggestedKind: suggested ? documentTypeLabel(suggested.suggestedType) : null,
               category: category ? categoryLabel(category) : null,
@@ -866,79 +901,81 @@ export default async function ApplicantDocumentsPage({
                   </p>
                 </>
               ),
-              details: (
-                <div key={doc.id}>
-                  <div
-                    className="wallet-document-actions"
-                    style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
-                  >
-                    <ReferenceCode
-                      code={data.referenceCodes.get(doc.id)}
-                      label="Document Reference"
-                    />
-                    <div className="row">
-                      <span
-                        className="row-key"
-                        data-value="name"
-                        id={`doc-name-${doc.id}`}
-                        style={{ wordBreak: 'break-word' }}
-                      >
-                        {doc.approvedName ?? doc.originalName}
-                      </span>
-                      <span className="row-end">
-                        <span className={`badge ${badge.badgeClass}`}>{badge.label}</span>
-                        {(() => {
-                          const lifecycle = data.wallet.get(doc.id);
-                          if (!lifecycle) return null;
-                          const lifecycleBadge = LIFECYCLE_BADGES[lifecycle.status];
-                          return (
-                            <>
-                              <span className={`badge ${lifecycleBadge.tone}`}>
-                                {lifecycleBadge.label}
-                              </span>
-                              {/* Beside "Replaced": the way back to what that replacement means. */}
-                              {lifecycle.status === 'SUPERSEDED' ? (
-                                <Link
-                                  className="ci-step"
-                                  href={changeImpactHref(id, { kind: 'DOCUMENT', id: doc.id })}
-                                  aria-describedby={`doc-name-${doc.id}`}
-                                >
-                                  {impactT.node('changeImpact.review.title')}
-                                </Link>
-                              ) : null}
-                            </>
-                          );
-                        })()}
-                        {processingKey ? (
-                          <span
-                            className={`badge ${processingTone(doc.processingStatus)}`}
-                            aria-live="polite"
-                          >
-                            {t(processingKey)}
-                          </span>
-                        ) : null}
-                        {previewable && safeCopiesOn ? (
-                          <span
-                            className={`badge ${safeCopyReady ? 'badge-success' : 'badge-neutral'}`}
-                          >
-                            {safeCopyLabel}
-                          </span>
-                        ) : null}
-                        {previewable ? (
-                          <form action={previewDocumentAction}>
-                            <input type="hidden" name="applicantId" value={id} />
-                            <input type="hidden" name="documentId" value={doc.id} />
-                            <button
-                              type="submit"
-                              className="btn btn-secondary"
-                              style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
-                            >
-                              Preview
-                            </button>
-                          </form>
-                        ) : null}
-                        {previewable &&
-                        getPlatformCapabilities().originalDownload === 'available' ? (
+              // WAL2: the front of the opened document. The page's own Preview and Download
+              // Original forms sit on it, under exactly the conditions they always had.
+              hero: (
+                <DocumentHeroCard
+                  nameId={`doc-name-${doc.id}`}
+                  name={doc.approvedName ?? doc.originalName}
+                  kind={kindWords}
+                  docType={doc.docType ?? null}
+                  facts={
+                    doc.updatedAt ? [`Updated ${formatTimestampDate(doc.updatedAt, locale)}`] : []
+                  }
+                  marks={[
+                    {
+                      id: 'safety',
+                      label: badge.label,
+                      explain: badge.detail,
+                      tone: markTone(badge.badgeClass),
+                    },
+                    ...(walletEntry
+                      ? [
+                          {
+                            id: 'expiry',
+                            label: LIFECYCLE_BADGES[walletEntry.status].label,
+                            explain: LIFECYCLE_EXPLAIN[walletEntry.status],
+                            tone: markTone(LIFECYCLE_BADGES[walletEntry.status].tone),
+                            // Beside "Replaced": the way back to what that replacement means.
+                            ...(walletEntry.status === 'SUPERSEDED'
+                              ? {
+                                  after: (
+                                    <Link
+                                      className="ci-step"
+                                      href={changeImpactHref(id, { kind: 'DOCUMENT', id: doc.id })}
+                                      aria-describedby={`doc-name-${doc.id}`}
+                                    >
+                                      {impactT.node('changeImpact.review.title')}
+                                    </Link>
+                                  ),
+                                }
+                              : {}),
+                          },
+                        ]
+                      : []),
+                    ...(processingKey
+                      ? [
+                          {
+                            id: 'processing',
+                            label: t(processingKey),
+                            explain: PROCESSING_EXPLAIN,
+                            tone: markTone(processingTone(doc.processingStatus)),
+                            live: true,
+                          },
+                        ]
+                      : []),
+                    ...(previewable && safeCopiesOn
+                      ? [
+                          {
+                            id: 'safe-copy',
+                            label: safeCopyLabel,
+                            explain: SAFE_COPY_EXPLAIN,
+                            tone: safeCopyReady ? ('ok' as const) : ('neutral' as const),
+                          },
+                        ]
+                      : []),
+                  ]}
+                  actions={
+                    previewable ? (
+                      <>
+                        <form action={previewDocumentAction}>
+                          <input type="hidden" name="applicantId" value={id} />
+                          <input type="hidden" name="documentId" value={doc.id} />
+                          <button type="submit" className="btn btn-secondary">
+                            Preview
+                          </button>
+                        </form>
+                        {getPlatformCapabilities().originalDownload === 'available' ? (
                           <form action={downloadOriginalAction}>
                             <input type="hidden" name="applicantId" value={id} />
                             <input type="hidden" name="documentId" value={doc.id} />
@@ -947,24 +984,33 @@ export default async function ApplicantDocumentsPage({
                             </button>
                           </form>
                         ) : null}
-                      </span>
-                    </div>
-                    <p className="muted u-fs-075-m0">{shortScanLine(badge.kind)}</p>
-                    {previewable && isPassportPhotoType(doc.docType) ? (
-                      <VisaPhotoSizes
-                        documentId={doc.id}
-                        returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
-                      />
-                    ) : null}
-                    {previewable ? (
-                      <SafeCopyEditor
-                        key={`${doc.id}-${doc.latestVersionId ?? ''}`}
-                        documentId={doc.id}
-                        versionId={doc.latestVersionId}
-                        available={safeCopiesOn}
-                        returnTo={`/app/applicant/${id}/documents?document=${doc.id}#safe-copy-${doc.id}`}
-                        initialState={safeCopyState}
-                      />
+                      </>
+                    ) : null
+                  }
+                />
+              ),
+              details: (
+                <div key={doc.id}>
+                  <div className="wallet-document-actions doc-detail-stack">
+                    <ReferenceCode
+                      code={data.referenceCodes.get(doc.id)}
+                      label="Document Reference"
+                    />
+                    {walletEntry &&
+                    (walletEntry.usedInMissions.length > 0 ||
+                      walletEntry.accessibleTo.length > 0) ? (
+                      <p className="muted u-fs-075-m0">
+                        {walletEntry.usedInMissions.length > 0
+                          ? `Used in ${walletEntry.usedInMissions.map((m) => m.missionTitle).join(', ')}`
+                          : null}
+                        {walletEntry.usedInMissions.length > 0 &&
+                        walletEntry.accessibleTo.length > 0
+                          ? ' · '
+                          : null}
+                        {walletEntry.accessibleTo.length > 0
+                          ? `Shared with ${walletEntry.accessibleTo.map((a) => a.label).join(', ')}`
+                          : null}
+                      </p>
                     ) : null}
                     {(() => {
                       const state = doc.latestVersionId
@@ -987,6 +1033,29 @@ export default async function ApplicantDocumentsPage({
                         />
                       ) : null;
                     })()}
+                    {/* A file with no reading state (the reading service was refused) keeps the plain advice. */}
+                    {doc.processingStatus &&
+                    PROBLEM_NEXT_STEP[doc.processingStatus] &&
+                    !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
+                      <p className="muted u-fs-075-m0">
+                        {PROBLEM_NEXT_STEP_SHORT[doc.processingStatus]}
+                      </p>
+                    ) : null}
+                    {suggestion && !binned ? (
+                      <DocumentSuggestionCard
+                        applicantId={id}
+                        suggestion={suggestion}
+                        groups={documentGroups}
+                        protectedKinds={protectedKinds}
+                      />
+                    ) : doc.classification?.reviewRequired ? (
+                      <p className="muted u-fs-075">
+                        We could not tell what kind of document this is. Choose the kind under Name
+                        and Kind.
+                      </p>
+                    ) : null}
+                    {/* The ways to read the file again stay in view: they are how a person recovers
+                    a file whose kind or expiry could not be read. */}
                     {(doc.classification?.reviewRequired === true ||
                       !doc.classification ||
                       (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
@@ -1003,129 +1072,38 @@ export default async function ApplicantDocumentsPage({
                         </button>
                       </form>
                     ) : null}
-                    {/* A file with no reading state (the reading service was refused) keeps the plain advice. */}
-                    {doc.processingStatus &&
-                    PROBLEM_NEXT_STEP[doc.processingStatus] &&
-                    !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
-                      <p className="muted u-fs-075-m0">
-                        {PROBLEM_NEXT_STEP_SHORT[doc.processingStatus]}
-                      </p>
-                    ) : null}
                     {(() => {
-                      const wallet = data.wallet.get(doc.id);
+                      // Part 8 AI-01 item 2: shown only on a genuine deterministic
+                      // gap (no classification yet reached, or one reached but not
+                      // confident) -- never offered once a confident deterministic
+                      // (or already-approved AI) classification already exists.
+                      // Lane Z: a file in Recently Deleted or being removed is never read again.
                       if (
-                        !wallet ||
-                        (wallet.usedInMissions.length === 0 && wallet.accessibleTo.length === 0)
+                        binned ||
+                        !data.classificationConfigured ||
+                        !data.aiGranted ||
+                        !doc.classification
                       ) {
                         return null;
                       }
+                      if (
+                        doc.classification.classifiedType !== null &&
+                        !doc.classification.reviewRequired
+                      ) {
+                        return null;
+                      }
+                      const versionId = doc.latestVersionId;
+                      if (!versionId) return null;
+                      // A waiting AI kind is shown in the card above, decided with its name.
+                      if (waitingKind || !data.coreGranted || doc.docType) return null;
+                      const kindFeature = data.aiFeatures?.ai_document_kind;
+                      if (kindFeature && !kindFeature.available) {
+                        return <AiFeatureOffNote reason={kindFeature.reason} />;
+                      }
                       return (
-                        <p className="muted u-fs-075-m0">
-                          {wallet.usedInMissions.length > 0
-                            ? `Used in ${wallet.usedInMissions.map((m) => m.missionTitle).join(', ')}`
-                            : null}
-                          {wallet.usedInMissions.length > 0 && wallet.accessibleTo.length > 0
-                            ? ' · '
-                            : null}
-                          {wallet.accessibleTo.length > 0
-                            ? `Shared with ${wallet.accessibleTo.map((a) => a.label).join(', ')}`
-                            : null}
-                        </p>
+                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
                       );
                     })()}
-                    <form action={setDocumentDateAction} className="field-stack">
-                      <input type="hidden" name="applicantId" value={id} />
-                      <input type="hidden" name="documentId" value={doc.id} />
-                      <label className="field-label" htmlFor={`date-${doc.id}`}>
-                        Document Date
-                      </label>
-                      <div className="field-inline">
-                        <input
-                          id={`date-${doc.id}`}
-                          name="documentDate"
-                          type="date"
-                          defaultValue={doc.documentDate ?? ''}
-                          max={new Date().toISOString().slice(0, 10)}
-                          className="input"
-                          aria-describedby={`date-hint-${doc.id}`}
-                        />
-                        <button type="submit" className="btn btn-secondary">
-                          Save
-                        </button>
-                      </div>
-                    </form>
-                    {doc.expiry?.canType ? (
-                      <DocumentExpiryForm
-                        applicantId={id}
-                        documentId={doc.id}
-                        origin={doc.expiry.origin}
-                        typedOn={doc.expiry.typedOn}
-                        mismatch={doc.expiry.mismatch}
-                        savedLabel={doc.expiresAt ? formatDateOnly(doc.expiresAt, locale) : null}
-                        typedLabel={
-                          doc.expiry.typedOn
-                            ? formatDateOnly(`${doc.expiry.typedOn}T00:00:00.000Z`, locale)
-                            : null
-                        }
-                      />
-                    ) : null}
-                    <DocumentRenameForm
-                      applicantId={id}
-                      documentId={doc.id}
-                      name={doc.approvedName ?? doc.originalName}
-                    />
-                    <DocumentTypeForm
-                      applicantId={id}
-                      documentId={doc.id}
-                      docType={doc.docType}
-                      subject={doc.subject}
-                      groups={documentGroups}
-                    />
-                    {(() => {
-                      const confirmations = data.issuerVerifications.get(doc.id) ?? [];
-                      if (confirmations.length === 0) return null;
-                      return (
-                        <details className="u-fs-075">
-                          <summary className="muted" style={{ cursor: 'pointer' }}>
-                            {confirmations.length} issuer confirmation
-                            {confirmations.length === 1 ? '' : 's'}
-                          </summary>
-                          <div
-                            style={{
-                              marginTop: '0.35rem',
-                              paddingLeft: '0.75rem',
-                              borderLeft: '2px solid var(--hairline-soft)',
-                            }}
-                          >
-                            {confirmations.map((c) => {
-                              const verification = classifyExpiry(c.validUntil, new Date());
-                              return (
-                                <p key={c.id} className="muted" style={{ margin: '0 0 0.3rem' }}>
-                                  {verification.urgency === 'expired' ? '(expired) ' : ''}
-                                  {verification.urgency === 'reminder'
-                                    ? `(expires in ${verification.daysRemaining} day(s)) `
-                                    : ''}
-                                  {c.issuerIdentity}: "{c.exactClaim}", response: {c.response},
-                                  valid until {formatTimestampDate(c.validUntil)}
-                                </p>
-                              );
-                            })}
-                          </div>
-                        </details>
-                      );
-                    })()}
-                    {suggestion && !binned ? (
-                      <DocumentSuggestionCard
-                        applicantId={id}
-                        suggestion={suggestion}
-                        groups={documentGroups}
-                        protectedKinds={protectedKinds}
-                      />
-                    ) : doc.classification?.reviewRequired ? (
-                      <p className="muted u-fs-075">
-                        We could not tell what kind of document this is. Choose the kind above.
-                      </p>
-                    ) : null}
                     {(() => {
                       const versionId = doc.latestVersionId;
                       if (!versionId) return null;
@@ -1168,82 +1146,16 @@ export default async function ApplicantDocumentsPage({
                         </>
                       );
                     })()}
-                    {(() => {
-                      // Part 8 AI-01 item 2: shown only on a genuine deterministic
-                      // gap (no classification yet reached, or one reached but not
-                      // confident) -- never offered once a confident deterministic
-                      // (or already-approved AI) classification already exists.
-                      // Lane Z: a file in Recently Deleted or being removed is never read again.
-                      if (
-                        binned ||
-                        !data.classificationConfigured ||
-                        !data.aiGranted ||
-                        !doc.classification
-                      ) {
-                        return null;
-                      }
-                      if (
-                        doc.classification.classifiedType !== null &&
-                        !doc.classification.reviewRequired
-                      ) {
-                        return null;
-                      }
-                      const versionId = doc.latestVersionId;
-                      if (!versionId) return null;
-                      // A waiting AI kind is shown in the card above, decided with its name.
-                      if (waitingKind || !data.coreGranted || doc.docType) return null;
-                      const kindFeature = data.aiFeatures?.ai_document_kind;
-                      if (kindFeature && !kindFeature.available) {
-                        return <AiFeatureOffNote reason={kindFeature.reason} />;
-                      }
-                      return (
-                        <RunClassificationButton applicantId={id} documentVersionId={versionId} />
-                      );
-                    })()}
-                    {(() => {
-                      if (!data.ocrConfigured || !data.ocrGranted || !doc.classification)
-                        return null;
-                      const latestRun = data.ocrRuns.get(doc.id);
-                      return latestRun ? (
-                        <OcrResultView
-                          text={latestRun.extractedText ?? ''}
-                          reviewIssues={latestRun.reviewIssues ?? []}
-                          usedFallback={latestRun.triggeredByRunId !== null}
-                        />
-                      ) : null;
-                    })()}
-                    {(() => {
-                      // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
-                      // extraction/classification above -- the check sends the
-                      // document's own text plus the applicant's already-
-                      // confirmed TRUSTED profile facts, never a second document.
-                      if (
-                        binned ||
-                        !data.inconsistencyConfigured ||
-                        !data.aiGranted ||
-                        !doc.classification
-                      ) {
-                        return null;
-                      }
-                      const versionId = doc.latestVersionId;
-                      if (!versionId) return null;
-                      const flagsForDoc = data.pendingInconsistencyFlags.filter(
-                        (f) => f.documentVersionId === versionId,
-                      );
-                      return (
-                        <>
-                          {data.coreGranted &&
-                          data.aiFeatures?.ai_consistency_checks.available !== false ? (
-                            <RunInconsistencyCheckButton
-                              applicantId={id}
-                              documentVersionId={versionId}
-                            />
-                          ) : data.coreGranted ? (
-                            <AiFeatureOffNote
-                              reason={data.aiFeatures?.ai_consistency_checks.reason ?? null}
-                            />
-                          ) : null}
-                          {flagsForDoc.map((flag) => (
+                    {/* Possible mismatches waiting for a decision stay in view; the button that
+                    asks for a new check lives under Reading and Checks. */}
+                    {!binned &&
+                    data.inconsistencyConfigured &&
+                    data.aiGranted &&
+                    doc.classification &&
+                    doc.latestVersionId
+                      ? data.pendingInconsistencyFlags
+                          .filter((f) => f.documentVersionId === doc.latestVersionId)
+                          .map((flag) => (
                             <InconsistencyFlagReview
                               key={flag.id}
                               applicantId={id}
@@ -1254,8 +1166,182 @@ export default async function ApplicantDocumentsPage({
                                 rationale: flag.rationale,
                               }}
                             />
-                          ))}
-                        </>
+                          ))
+                      : null}
+                    <ExpandableSection
+                      title="Dates"
+                      summary={
+                        <span data-value="date">
+                          {[
+                            doc.documentDate
+                              ? `Dated ${formatDateOnly(doc.documentDate, locale)}`
+                              : 'No Document Date',
+                            doc.expiresAt
+                              ? `Expires ${formatDateOnly(doc.expiresAt, locale)}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      }
+                      defaultOpen={Boolean(dateError)}
+                      remember
+                      className="doc-detail-section"
+                    >
+                      <form action={setDocumentDateAction} className="field-stack">
+                        <input type="hidden" name="applicantId" value={id} />
+                        <input type="hidden" name="documentId" value={doc.id} />
+                        <label className="field-label" htmlFor={`date-${doc.id}`}>
+                          Document Date
+                        </label>
+                        <div className="field-inline">
+                          <input
+                            id={`date-${doc.id}`}
+                            name="documentDate"
+                            type="date"
+                            defaultValue={doc.documentDate ?? ''}
+                            max={new Date().toISOString().slice(0, 10)}
+                            className="input"
+                            aria-describedby={`date-hint-${doc.id}`}
+                          />
+                          <button type="submit" className="btn btn-secondary">
+                            Save
+                          </button>
+                        </div>
+                      </form>
+                      {doc.expiry?.canType ? (
+                        <DocumentExpiryForm
+                          applicantId={id}
+                          documentId={doc.id}
+                          origin={doc.expiry.origin}
+                          typedOn={doc.expiry.typedOn}
+                          mismatch={doc.expiry.mismatch}
+                          savedLabel={doc.expiresAt ? formatDateOnly(doc.expiresAt, locale) : null}
+                          typedLabel={
+                            doc.expiry.typedOn
+                              ? formatDateOnly(`${doc.expiry.typedOn}T00:00:00.000Z`, locale)
+                              : null
+                          }
+                        />
+                      ) : null}
+                    </ExpandableSection>
+                    <ExpandableSection
+                      title="Name and Kind"
+                      summary={<span data-value="kind">{kindWords ?? 'Kind Not Set'}</span>}
+                      defaultOpen={Boolean(typeError)}
+                      remember
+                      className="doc-detail-section"
+                    >
+                      <DocumentRenameForm
+                        applicantId={id}
+                        documentId={doc.id}
+                        name={doc.approvedName ?? doc.originalName}
+                      />
+                      <DocumentTypeForm
+                        applicantId={id}
+                        documentId={doc.id}
+                        docType={doc.docType}
+                        subject={doc.subject}
+                        groups={documentGroups}
+                      />
+                    </ExpandableSection>
+                    {previewable ? (
+                      <ExpandableSection
+                        title="Safe Copy"
+                        id={`safe-copy-section-${doc.id}`}
+                        remember
+                        className="doc-detail-section"
+                      >
+                        {isPassportPhotoType(doc.docType) ? (
+                          <VisaPhotoSizes
+                            documentId={doc.id}
+                            returnTo={`/app/applicant/${id}/documents?document=${doc.id}`}
+                          />
+                        ) : null}
+                        <OpenOnHash hash={`#safe-copy-${doc.id}`} />
+                        <SafeCopyEditor
+                          key={`${doc.id}-${doc.latestVersionId ?? ''}`}
+                          documentId={doc.id}
+                          versionId={doc.latestVersionId}
+                          available={safeCopiesOn}
+                          returnTo={`/app/applicant/${id}/documents?document=${doc.id}#safe-copy-${doc.id}`}
+                          initialState={safeCopyState}
+                        />
+                      </ExpandableSection>
+                    ) : null}
+                    <ExpandableSection
+                      title="Reading and Checks"
+                      remember
+                      className="doc-detail-section"
+                    >
+                      <p className="muted u-fs-075-m0">{shortScanLine(badge.kind)}</p>
+                      {(() => {
+                        if (!data.ocrConfigured || !data.ocrGranted || !doc.classification)
+                          return null;
+                        const latestRun = data.ocrRuns.get(doc.id);
+                        return latestRun ? (
+                          <OcrResultView
+                            text={latestRun.extractedText ?? ''}
+                            reviewIssues={latestRun.reviewIssues ?? []}
+                            usedFallback={latestRun.triggeredByRunId !== null}
+                          />
+                        ) : null;
+                      })()}
+                      {(() => {
+                        // Part 8 AI-01 item 4: same AI_EXTRACTION consent gate as
+                        // extraction/classification above -- the check sends the
+                        // document's own text plus the applicant's already-
+                        // confirmed TRUSTED profile facts, never a second document.
+                        if (
+                          binned ||
+                          !data.inconsistencyConfigured ||
+                          !data.aiGranted ||
+                          !doc.classification ||
+                          !doc.latestVersionId
+                        ) {
+                          return null;
+                        }
+                        return data.coreGranted &&
+                          data.aiFeatures?.ai_consistency_checks.available !== false ? (
+                          <RunInconsistencyCheckButton
+                            applicantId={id}
+                            documentVersionId={doc.latestVersionId}
+                          />
+                        ) : data.coreGranted ? (
+                          <AiFeatureOffNote
+                            reason={data.aiFeatures?.ai_consistency_checks.reason ?? null}
+                          />
+                        ) : null;
+                      })()}
+                    </ExpandableSection>
+                    {(() => {
+                      const confirmations = data.issuerVerifications.get(doc.id) ?? [];
+                      if (confirmations.length === 0) return null;
+                      return (
+                        <ExpandableSection
+                          title="Issuer Confirmations"
+                          summary={
+                            <span data-value="count">
+                              {confirmations.length} issuer confirmation
+                              {confirmations.length === 1 ? '' : 's'}
+                            </span>
+                          }
+                          className="doc-detail-section"
+                        >
+                          {confirmations.map((c) => {
+                            const verification = classifyExpiry(c.validUntil, new Date());
+                            return (
+                              <p key={c.id} className="muted doc-detail-issuer">
+                                {verification.urgency === 'expired' ? '(expired) ' : ''}
+                                {verification.urgency === 'reminder'
+                                  ? `(expires in ${verification.daysRemaining} day(s)) `
+                                  : ''}
+                                {c.issuerIdentity}: "{c.exactClaim}", response: {c.response}, valid
+                                until {formatTimestampDate(c.validUntil)}
+                              </p>
+                            );
+                          })}
+                        </ExpandableSection>
                       );
                     })()}
                   </div>

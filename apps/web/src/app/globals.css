@@ -23333,3 +23333,264 @@ a.passport-page-value:hover {
   margin-block: var(--space-3);
 }
 /* end WP-WAL4 */
+
+/* WP-WAL2 Document detail and Check What We Found (18 Nov 2026, owner decision: Preview Card First, no tabs). Layout of the document's pass front (its dark look is in components/pictures/pictures-depth.css), the details and dates as Expandable Section rows, the compact review rows, the one-at-a-time review, large choice tiles for a difference, and the accept bar that rests at the bottom of a phone screen while the details are in view (the Add button is already gone while a document is open, WP-WAL0). Flat: tokens only, no shadow or gradient here. Every target is at least 44 px. Nothing moves. */
+.doc-hero {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+.doc-hero-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.doc-hero-art {
+  flex: none;
+}
+.doc-hero-text {
+  min-width: 0;
+}
+.doc-hero-name {
+  margin: 0;
+  font-size: var(--text-lead);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.doc-hero-kind,
+.doc-hero-facts {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.doc-hero-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-hero-mark {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.doc-hero-mark .ci-step {
+  margin-left: var(--space-2);
+}
+.doc-hero-glyph {
+  display: block;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.doc-hero-glyph[data-tone="ok"] .doc-hero-glyph-ring {
+  fill: var(--success-bg);
+  stroke: var(--success);
+}
+.doc-hero-glyph[data-tone="ok"] .doc-hero-glyph-mark {
+  stroke: var(--success);
+}
+.doc-hero-glyph[data-tone="warn"] .doc-hero-glyph-ring {
+  fill: var(--warning-bg);
+  stroke: var(--warning);
+}
+.doc-hero-glyph[data-tone="warn"] .doc-hero-glyph-mark {
+  stroke: var(--warning);
+}
+.doc-hero-glyph[data-tone="bad"] .doc-hero-glyph-ring {
+  fill: var(--danger-bg);
+  stroke: var(--danger);
+  stroke-dasharray: 3 2.4;
+}
+.doc-hero-glyph[data-tone="bad"] .doc-hero-glyph-mark {
+  stroke: var(--danger);
+}
+.doc-hero-glyph[data-tone="neutral"] .doc-hero-glyph-ring {
+  fill: var(--bg-elevated);
+  stroke: var(--edge-control);
+  stroke-dasharray: 3 2.4;
+}
+.doc-hero-glyph[data-tone="neutral"] .doc-hero-glyph-mark {
+  stroke: var(--text-secondary);
+}
+.doc-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.doc-hero-actions .btn {
+  min-height: 44px;
+}
+.doc-detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.doc-detail-section .field-inline {
+  flex-wrap: wrap;
+}
+.doc-detail-issuer {
+  margin: 0 0 var(--space-1);
+}
+
+/* Check What We Found */
+.document-findings-metric {
+  margin: 0;
+  font-weight: 600;
+}
+.finding-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.finding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+.finding-row[data-quick="true"] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.finding-row-accept {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: 6px;
+}
+.finding-row-accept .btn {
+  min-height: 44px;
+}
+/* An opened row shows its card, whose Accept is the one to use: the row's own Accept steps aside, so one detail is never sent twice. */
+.finding-row:has(> .expandable-section details[open]) > .finding-row-accept {
+  display: none;
+}
+.finding-row-check {
+  display: block;
+  color: var(--warning);
+  font-weight: 600;
+}
+.finding-steps {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.finding-steps-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.finding-steps-head h4 {
+  margin: 0;
+}
+.finding-steps-count {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.finding-steps-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.finding-steps-list > li:focus {
+  outline: none;
+}
+.finding-steps-list > li:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.finding-steps-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.finding-steps-nav .btn {
+  min-height: 44px;
+}
+.finding-steps-nav .btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.finding-masked {
+  margin-block: var(--space-2);
+}
+.finding-choice-tiles {
+  display: grid;
+  gap: var(--space-2);
+}
+.finding-choice-tiles > label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border: 1.5px solid var(--edge-control);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-weight: 600;
+  cursor: pointer;
+}
+.finding-choice-tiles > label:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.finding-choice-tiles > label input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0;
+}
+.finding-choice-tiles > .finding-value {
+  padding-inline: var(--space-2);
+}
+.finding-accept-bar {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--edge-card);
+  background: var(--bg);
+}
+.finding-accept-bar .btn {
+  min-height: 44px;
+}
+/* On a phone the open document fills the screen (over the bottom bar), so the accept bar rests at the bottom edge of the screen, clear of the phone's own bottom edge, while the details are in view; anything scrolled to stops above it. */
+@media (max-width: 760px) {
+  .wallet-selected-document[data-sheet="open"] .finding-accept-bar {
+    position: sticky;
+    /* A sticky item stops above its scroll box's bottom padding (WP-WAL0 gives the open sheet 61 px plus the safe area plus one space): this offset takes it back to the screen's edge. */
+    bottom: calc(-1 * (61px + env(safe-area-inset-bottom, 0px) + var(--space-4)));
+    z-index: 2;
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .wallet-selected-document[data-sheet="open"] {
+    scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 9rem);
+  }
+}
+/* end WP-WAL2 */
