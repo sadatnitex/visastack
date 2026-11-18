@@ -147,7 +147,7 @@ test.describe('WAL5 one tile per connection', () => {
   }) => {
     const first = tile(page, /^Claude/).first();
     await first.getByRole('button', { name: 'Turn Off Claude' }).click();
-    await expect(first.getByRole('alert')).toContainText('Turn off Claude');
+    await expect(first.locator('.notice[role="alert"]')).toContainText('Turn off Claude');
     await expect(first.getByRole('button', { name: 'Yes, Turn Off' })).toBeVisible();
     await first.getByRole('button', { name: 'Keep It On' }).click();
     await expect(first.getByRole('button', { name: 'Turn Off Claude' })).toBeFocused();
