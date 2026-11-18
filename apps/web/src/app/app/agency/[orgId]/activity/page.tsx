@@ -115,6 +115,7 @@ export default async function AgencyActivityPage({
           <EmptyState
             icon="activity"
             title={t('appAgency.appAgencyOrgidActivityPage.noCaseActivityRecorded')}
+            action={{ href: casesHref, label: t('appAgency.appAgencyOrgidPage.openCases') }}
           >
             {t.node('appAgency.appAgencyOrgidActivityPage.newCaseNotesAppearHereWhen')}
           </EmptyState>

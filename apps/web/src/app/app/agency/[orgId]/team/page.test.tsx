@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   navigationState,
@@ -162,5 +163,36 @@ describe('agency Team', () => {
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: false });
     expect(await renderServer(Page(props))).toBe('');
     expect(mocks.loadMembers).not.toHaveBeenCalled();
+  });
+
+  it('U8: each member is one compact row with initials, the name, one role chip and its line; the invite form is folded behind Add Member', async () => {
+    const html = await renderServer(Page(props));
+    const doc = new JSDOM(`<body>${html}</body>`).window.document;
+    const rows = [...doc.querySelectorAll('.u8-row:not(.u8-add)')];
+    // Two members, one invitation.
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.querySelector('.u8-initials')?.textContent).toBe('OE');
+    expect(rows[0]?.querySelector('.lift-pill')?.textContent).toContain('Owner');
+    expect(rows[1]?.querySelector('.lift-pill')?.textContent).toContain('Reviewer');
+    expect(rows[1]?.textContent).toContain('Inactive');
+    // The form sits inside the Add Member section, which starts closed.
+    const add = doc.querySelector('.u8-add');
+    expect(add?.querySelector('h3')?.textContent).toBe('Add Member');
+    expect(add?.querySelector('details')?.hasAttribute('open')).toBe(false);
+    expect(stubProps(add?.outerHTML ?? '', 'AddMemberForm')).toHaveLength(1);
+  });
+
+  it('U8: the owner has nothing to open, so the owner row is a plain row without a fold', async () => {
+    const doc = new JSDOM(`<body>${await renderServer(Page(props))}</body>`).window.document;
+    const owner = [...doc.querySelectorAll('.u8-row')].find((row) =>
+      row.textContent?.includes('owner@example.com'),
+    );
+    expect(owner?.classList.contains('u8-plain')).toBe(true);
+    expect(owner?.querySelector('details')).toBeNull();
+    // Members who can be changed keep their fold.
+    const reviewer = [...doc.querySelectorAll('.u8-row')].find((row) =>
+      row.textContent?.includes('rev@example.com'),
+    );
+    expect(reviewer?.querySelector('details')).not.toBeNull();
   });
 });

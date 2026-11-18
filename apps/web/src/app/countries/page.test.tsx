@@ -14,7 +14,6 @@ vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => signedIn.value }
 const { default: CountriesPage, metadata } = await import('./page');
 const { COUNTRIES_STEP, sourceLabel } = await import('./countries-data');
 const { needsChecking, isUnofficial } = await import('../../lib/country-view');
-const { tonesAlternate } = await import('../../components/public-site/scene');
 const { startHrefForCountry, appHrefForCountry } = await import('../../lib/country-start-links');
 
 const TOTAL = DESTINATIONS.length;
@@ -146,17 +145,86 @@ describe('the public Countries page', () => {
     expect(member).toContain(appHrefForCountry(first));
   });
 
-  it('alternates dark and light chapters and keeps the flag ring to 12 flags', async () => {
+  it('keeps the approved story order: dark hero, flags, list, rules, closing band', async () => {
     const html = await render();
     const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map(
       (m) => m[1] as 'dark' | 'light',
     );
-    expect(tones.length).toBeGreaterThanOrEqual(3);
-    expect(tonesAlternate(tones)).toBe(true);
-    const ring = html.split('pub-flag-ring-list')[1]?.split('</ul>')[0] ?? '';
-    const flags = ring.match(/<li /g) ?? [];
-    expect(flags.length).toBeGreaterThan(0);
-    expect(flags.length).toBeLessThanOrEqual(12);
+    // Light chapters may follow each other (the list, then the rules on a tinted canvas), dark ones never do.
+    expect(tones[0]).toBe('dark');
+    expect(tones.at(-1)).toBe('dark');
+    expect(tones.every((tone, i) => i === 0 || !(tone === 'dark' && tones[i - 1] === 'dark'))).toBe(
+      true,
+    );
+    const at = (needle: string) => html.indexOf(needle);
+    const order = [
+      'Every Country.',
+      'r4-ribbon',
+      'id="countries-list-title"',
+      'Rules,',
+      'Pick a Country.',
+    ].map(at);
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(html).not.toContain('How to Read These Facts');
+    expect(html).not.toContain('pub-flag-ring');
+  });
+
+  it('has a real search form that works without script and rests on the finished demo', async () => {
+    const html = await render();
+    expect(html).toContain('<search>');
+    expect(html).toContain('action="/countries"');
+    expect(html).toContain('name="q"');
+    expect(html).toContain('value="Singapore"');
+    expect(html).toContain('1 country found.');
+  });
+
+  it('asks for a second letter when the address holds one, and finds accented names', async () => {
+    const one = await render({ q: 'g' });
+    expect(one).toContain('Type at least two letters.');
+    const accent = await render({ q: 'turk' });
+    expect(accent).toContain('>T\u00fcrkiye</span>');
+    const none = await render({ q: 'xyzq' });
+    expect(none).toContain('No countries match.');
+  });
+
+  it('lists the countries a plain ?q= search names, and shows no demo for it', async () => {
+    const html = await render({ q: 'germ' });
+    expect(html).toContain('value="germ"');
+    expect(html).toContain('>Germany</span>');
+    expect(html).not.toContain('value="Singapore"');
+  });
+
+  it('draws the flag ribbon as decoration with a visible All Countries link', async () => {
+    const html = await render();
+    const ribbon = html.split('r4-ribbon-view')[1]?.split('r4-ribbon-link')[0] ?? '';
+    expect(ribbon).toContain('aria-hidden="true"');
+    expect(ribbon).toContain('/flags/');
+    const link = html.match(/<a\b[^>]*\br4-ribbon-link\b[^>]*>([^<]*)<\/a>/);
+    expect(link?.[1]).toBe('All Countries');
+    expect(link?.[0]).toMatch(/\bhref="#countries-list"/);
+  });
+
+  it('keeps the ribbon flags light, so the page stays under the 150 KB picture budget', async () => {
+    const { RIBBON_CODES } = await import('./countries-data');
+    const { statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const bytes = RIBBON_CODES.reduce(
+      (sum, code) =>
+        sum + statSync(join(__dirname, '..', '..', '..', 'public', 'flags', `${code}.svg`)).size,
+      0,
+    );
+    expect(RIBBON_CODES.length).toBeGreaterThanOrEqual(12);
+    expect(bytes).toBeLessThan(20 * 1024);
+  });
+
+  it('shows the Rules checklist as an Example, completeness only', async () => {
+    const html = await render();
+    expect(html).toContain('Reused');
+    expect(html).toContain('To Add');
+    expect(html).toContain('5 of 8 Ready');
+    expect(html).toContain('Completeness only. Not an approval.');
+    expect(html).toContain('Example');
   });
 
   it('uses no inline style, no data picture and no em dash', async () => {
