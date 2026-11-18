@@ -164,13 +164,20 @@ for (const motion of MOTION) {
     test.describe(`Home overlaps, ${motion} motion, ${size.width}x${size.height}`, () => {
       test.use({
         viewport: { width: size.width, height: size.height },
-        reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
+        contextOptions: {
+          reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
+        },
       });
 
       test('no words overlap, none are cut off, the page never scrolls sideways', async ({
         page,
       }) => {
         await openAndSettle(page, '/');
+        // The motion setting really reached the page (a wrong option name is silently ignored).
+        const reduced = await page.evaluate(
+          () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+        );
+        expect(reduced).toBe(motion === 'reduced');
         const problems = await measure(page);
         expect(problems, JSON.stringify(problems, null, 2)).toEqual([]);
       });
