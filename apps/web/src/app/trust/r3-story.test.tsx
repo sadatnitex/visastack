@@ -195,12 +195,15 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
     act(() => root.unmount());
   });
 
-  it('holds the height of the tallest step and hides the drawn picture from screen readers (PUBFIX2 P2-3, P2-6)', () => {
+  it('holds the height of the tallest step (PUBFIX2 P2-6)', () => {
     const { host, root } = mount(true);
     const art = host.querySelector('.tr-share-art');
-    expect(art?.getAttribute('aria-hidden')).toBe('true');
-    // Four hidden steps share the cell with the live one, so the hero never changes height.
-    expect(art?.querySelectorAll('.tr-share-ghost')).toHaveLength(5);
+    // Five hidden copies share the cell with the live one, so the hero never changes height, and
+    // only the live picture is reachable by a screen reader.
+    const ghosts = [...(art?.querySelectorAll('.tr-share-ghost') ?? [])];
+    expect(ghosts).toHaveLength(5);
+    for (const ghost of ghosts) expect(ghost.getAttribute('aria-hidden')).toBe('true');
+    expect(art?.querySelector('.tr-share-live')?.closest('[aria-hidden="true"]')).toBeNull();
     expect(art?.querySelectorAll('.tr-share-live')).toHaveLength(1);
     // The Pause button stays outside the hidden picture, in reach of every visitor.
     expect(art?.contains(host.querySelector('button'))).toBe(false);

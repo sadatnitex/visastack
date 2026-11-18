@@ -65,15 +65,13 @@ export function ShareHero({
 
   return (
     <div className="tr-share" ref={box}>
-      {/* PUBFIX2 P2-3 and P2-6: the picture is drawn for the eye (the page's own words say the same
-          in plain text), so it is hidden from screen readers like the Home picture is, and it does not
-          count as page words on a first screen. All five steps sit in one cell, four of them hidden
-          and only there to hold the height of the tallest, so the hero never grows or shrinks while
-          the steps change (before: 66 px on a phone, a layout shift of 0.04). */}
-      <div className="tr-share-art" aria-hidden="true">
+      {/* PUBFIX2 P2-6: all five steps sit in one cell, four of them hidden and only there to hold the
+          height of the tallest, so the hero never grows or shrinks while the steps change (before:
+          66 px on a phone, a layout shift of 0.04). */}
+      <div className="tr-share-art">
         {steps.map((ghost, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: the five steps are fixed and never reorder
-          <div className="tr-share-ghost" key={index}>
+          <div className="tr-share-ghost" aria-hidden="true" key={index}>
             {ghost}
           </div>
         ))}

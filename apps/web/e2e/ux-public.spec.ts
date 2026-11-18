@@ -846,7 +846,7 @@ async function motionRests(page: Page): Promise<void> {
   // with its own Pause button, so both captures show the same frame.
   if ((await page.locator('.tr-share').count()) > 0) {
     await page.locator('.tr-share .tr-pause').click();
-    await expect(page.locator('.tr-share .kit-fixed')).toHaveAttribute('data-kit-step', '4');
+    await expect(page.locator('.tr-share-live .kit-fixed')).toHaveAttribute('data-kit-step', '4');
   }
 }
 

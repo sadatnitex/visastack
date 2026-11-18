@@ -37,7 +37,7 @@ export function ShareSheetBody({
       {...englishOn(pageLang)}
     >
       <ExampleTag pageLang={pageLang} />
-      <div className="kit-sheet-main">
+      <div className="kit-sheet-main" aria-hidden="true">
         <b className="kit-sheet-title">Share with Agency</b>
         {ROWS.map((row) => (
           <div className="kit-share-row" key={row.kind}>
@@ -89,7 +89,7 @@ export function ShareSheetBody({
           </span>
         </span>
       </div>
-      <div className="kit-sw kit-ended" data-from="4">
+      <div className="kit-sw kit-ended" data-from="4" aria-hidden="true">
         <Icon name="lock" size={36} />
         <b>{say('Access Ended')}</b>
         <span>{say('Everything is private again.')}</span>
