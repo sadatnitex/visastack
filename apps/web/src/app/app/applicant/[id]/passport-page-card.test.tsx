@@ -37,13 +37,14 @@ const section = (
   label: string,
   singles: EditorFieldDef[],
   notApplicable: string[] = [],
+  open = true,
 ): EditorSection => ({
   key,
   label,
   description: `${label} details.`,
   layer,
-  open: true,
-  reason: 'default',
+  open,
+  reason: open ? 'default' : 'locked',
   canClose: false,
   suggested: false,
   detailCount: singles.length,
@@ -61,7 +62,9 @@ const section = (
 });
 
 /** The live layout: seven identity details plus email in Identity, four passport details in Travel Documents. */
-function view(options: { notApplicable?: string[]; essentials?: boolean } = {}) {
+function view(
+  options: { notApplicable?: string[]; essentials?: boolean; identityClosed?: boolean } = {},
+) {
   return fixtureView({
     ...(options.essentials ? { essentials: fixtureEssentials() } : {}),
     layers: [
@@ -89,6 +92,7 @@ function view(options: { notApplicable?: string[]; essentials?: boolean } = {}) 
               field('email', 'Email Address'),
             ],
             options.notApplicable,
+            !options.identityClosed,
           ),
         ],
       },
@@ -146,7 +150,12 @@ let container: HTMLDivElement;
 
 function render(
   values: Record<string, Value>,
-  options: { notApplicable?: string[]; essentials?: boolean; startWithAll?: boolean } = {},
+  options: {
+    notApplicable?: string[];
+    essentials?: boolean;
+    startWithAll?: boolean;
+    identityClosed?: boolean;
+  } = {},
 ) {
   act(() =>
     root.render(
@@ -335,6 +344,51 @@ describe('the Passport Page Card', () => {
     expect(container.querySelector('#profile-row-place_of_birth')?.textContent).toContain(
       'This does not apply to me',
     );
+    // A tap moves the focus into the row, onto its switch back (there is no value box).
+    click(line('place_of_birth').querySelector('a'));
+    expect(
+      container.querySelector('#profile-row-place_of_birth')?.contains(document.activeElement),
+    ).toBe(true);
+  });
+
+  it('a protected detail in a closed section is never called missing', () => {
+    render(
+      { date_of_birth: { factId: 'f3', value: null, status: 'APPLICANT_CONFIRMED' } },
+      { identityClosed: true },
+    );
+    expect(line('date_of_birth').textContent).toContain('Protected detail');
+    expect(line('date_of_birth').textContent).not.toContain('Not recorded');
+    expect(line('date_of_birth').querySelector('a')).toBeNull();
+  });
+
+  it('a click with a modifier key keeps the link for a new tab', () => {
+    render(FULL);
+    const link = line('passport_number').querySelector('a.passport-page-value');
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    act(() => {
+      link?.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(
+      container.querySelector('#profile-row-passport_number details')?.hasAttribute('open'),
+    ).toBe(false);
+  });
+
+  it('the card and the row say the same for an empty and for a lost detail', () => {
+    render({
+      ...FULL,
+      passport_number: { factId: 'f8', value: null, status: 'DOCUMENT_SUPPORTED', locked: 'lost' },
+      email: { factId: 'f12', value: null, status: null },
+      given_name: { factId: 'f1', value: null, status: null },
+    });
+    expect(line('given_name').textContent).toContain('Not Added Yet');
+    expect(
+      container.querySelector('#profile-row-given_name .expandable-section-summary')?.textContent,
+    ).toBe('Not Added Yet');
+    expect(line('passport_number').querySelector('.status-picture')).toBeNull();
+    expect(
+      container.querySelector('#profile-row-passport_number .expandable-section-status'),
+    ).toBeNull();
   });
 
   it('in Essentials First, a tap on an essential goes to its own box', () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { type MouseEvent, type ReactNode, useId, useState } from 'react';
-import { StatusPicture, isStatusKind } from '../../../../components/pictures/status-picture';
+import { type StatusKind, StatusPicture } from '../../../../components/pictures/status-picture';
 
 /**
  * Passport Page Card (WAL4, owner decision 17 Nov 2026, option B): a schematic passport data page
@@ -61,6 +61,19 @@ export function isMaskedDetail(key: string, sensitivity: string | undefined): bo
 /** The dots drawn in place of a hidden value. Fixed length, so the mask says nothing about it. */
 export const MASK_TEXT = '•• ••• ••••';
 
+/** The words for a detail with nothing saved yet, on the card and on its row. */
+export const NOT_ADDED_YET = 'Not Added Yet';
+
+/** A protected value drawn as dots; screen readers hear "Hidden", never the value. */
+export function MaskedValue() {
+  return (
+    <>
+      <span aria-hidden="true">{MASK_TEXT}</span>
+      <span className="sr-only">Hidden</span>
+    </>
+  );
+}
+
 /** What one printed line holds. The editor works it out; the card only draws it. */
 export type PassportLineState =
   /** A value to print. `masked` hides it until Show. */
@@ -74,8 +87,8 @@ export interface PassportLine {
   readonly key: string;
   readonly label: string;
   readonly state: PassportLineState;
-  /** The stored status code, for the status picture (none for a code without one). */
-  readonly status: string | null;
+  /** The status picture for the saved value, or null. */
+  readonly status: StatusKind | null;
   /**
    * Where the detail's edit box is, so the line works before any script loads; null when this
    * view has no edit row for it (its section is not shown).
@@ -151,13 +164,17 @@ function LineContent({
 }) {
   const { state, label, key, href } = line;
   const follow = (event: MouseEvent<HTMLAnchorElement>) => {
+    // A new tab or window keeps the link's own way.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
     event.preventDefault();
     onEdit(key);
   };
   if (state.kind === 'empty') {
     return (
       <>
-        <span className="passport-page-empty">Not Added Yet</span>
+        <span className="passport-page-empty">{NOT_ADDED_YET}</span>
         {href ? (
           <a className="btn btn-secondary passport-page-add" href={href} onClick={follow}>
             Add<span className="sr-only"> {label}</span>
@@ -167,17 +184,7 @@ function LineContent({
     );
   }
   const hidden = state.kind === 'value' && state.masked && !shown;
-  const printed =
-    state.kind === 'note' ? (
-      state.text
-    ) : hidden ? (
-      <>
-        <span aria-hidden="true">{MASK_TEXT}</span>
-        <span className="sr-only">Hidden</span>
-      </>
-    ) : (
-      state.text
-    );
+  const printed = state.kind === 'note' ? state.text : hidden ? <MaskedValue /> : state.text;
   if (!href) {
     return (
       <span className="passport-page-value" data-masked={hidden ? 'true' : undefined}>
@@ -244,7 +251,7 @@ export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
                       <span className="sr-only"> {line.label}</span>
                     </button>
                   ) : null}
-                  {line.status && isStatusKind(line.status) ? (
+                  {line.status ? (
                     <StatusPicture kind={line.status} className="passport-page-status" />
                   ) : null}
                 </dd>

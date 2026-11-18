@@ -21,6 +21,7 @@ import {
 } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
 import {
+  type StatusKind,
   StatusPicture,
   isStatusKind,
   statusPictureWords,
@@ -42,7 +43,8 @@ import { plural } from '../../../../lib/plural';
 import { type ActionState, saveFactAction } from './actions';
 import { ChangeImpactNotice } from './change-impact/change-impact-notice';
 import {
-  MASK_TEXT,
+  MaskedValue,
+  NOT_ADDED_YET,
   PASSPORT_PAGE_KEYS,
   PASSPORT_PAGE_LABELS,
   type PassportLine,
@@ -757,9 +759,46 @@ function displayValue(field: EditorFieldDef, current: ProfileValue | undefined):
 }
 
 /**
- * The one line under a value row's name (WAL4): the saved value, or what stands in its place. A
- * protected value is drawn as dots here too; the Passport Page Card and the edit box show it.
+ * What one detail shows in place of an edit box (WAL4), for the Passport Page Card and the value
+ * rows alike, so both always say the same thing: the saved value (a protected one masked), or the
+ * words that stand in its place. Never the stand-in "[protected]".
  */
+function detailState(
+  field: EditorFieldDef,
+  current: ProfileValue | undefined,
+  applies: boolean,
+  otherText: string | null | undefined,
+  doesNotApply: ReactNode,
+  otherWords: (otherText: string) => string,
+): PassportLineState {
+  if (!applies) return { kind: 'note', text: doesNotApply };
+  const value = current?.value ?? null;
+  if (current?.locked || protectedStandIn(value)) {
+    return { kind: 'note', text: displayValue(field, current) };
+  }
+  if (value) {
+    if (value === OTHER_CHOICE && otherText) {
+      return { kind: 'value', text: otherWords(otherText), masked: false };
+    }
+    return {
+      kind: 'value',
+      text: field.type === 'date' ? formatDateOnly(value) : value,
+      masked: isMaskedDetail(field.key, field.sensitivity),
+    };
+  }
+  if (current?.status === 'STALE' || (current?.status && field.sensitivity !== 'STANDARD')) {
+    return { kind: 'note', text: displayValue(field, current) };
+  }
+  return { kind: 'empty' };
+}
+
+/** The status picture code for a saved value, or null: none for a value that has to be added again. */
+function statusKindOf(current: ProfileValue | undefined): StatusKind | null {
+  if (!current?.status || current.locked === 'lost') return null;
+  return isStatusKind(current.status) ? current.status : null;
+}
+
+/** The one line under a value row's name. */
 function ValueSummary({
   field,
   current,
@@ -772,21 +811,24 @@ function ValueSummary({
   readonly otherText: string | null;
 }) {
   const t = useT(appApplicantCatalog);
-  const lock = current?.locked ?? protectedStandIn(current?.value);
-  const masked = !lock && current?.value && isMaskedDetail(field.key, field.sensitivity);
+  const state = detailState(
+    field,
+    current,
+    applies,
+    otherText,
+    t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply'),
+    (text) => t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText: text }),
+  );
   return (
     <>
-      {!applies ? (
-        t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply')
-      ) : current?.value === OTHER_CHOICE && otherText ? (
-        t.node('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText })
-      ) : masked ? (
-        <>
-          <span aria-hidden="true">{MASK_TEXT}</span>
-          <span className="sr-only">Hidden</span>
-        </>
+      {state.kind === 'empty' ? (
+        NOT_ADDED_YET
+      ) : state.kind === 'note' ? (
+        state.text
+      ) : state.masked ? (
+        <MaskedValue />
       ) : (
-        displayValue(field, current)
+        state.text
       )}
       {current?.status === 'CONFLICTED' ? (
         <>
@@ -832,41 +874,14 @@ const PASSPORT_DATE_KEYS: ReadonlySet<string> = new Set([
   'passport_expiry',
 ]);
 
-/** What the card prints for one detail. Only the profile's own value, never the stand-in. */
-function passportLineState(
-  key: string,
-  place: PassportPlace | undefined,
-  values: Readonly<Record<string, ProfileValue>>,
-  doesNotApply: ReactNode,
-  otherWords: (otherText: string) => string,
-): PassportLineState {
-  const field: EditorFieldDef = place?.field ?? {
+/** A stand-in definition for a detail this view does not list, so its value is still drawn safely. */
+function fallbackField(key: string): EditorFieldDef {
+  return {
     key,
     label: key,
-    sensitivity: 'STANDARD',
+    sensitivity: isMaskedDetail(key, undefined) ? 'SENSITIVE' : 'STANDARD',
     ...(PASSPORT_DATE_KEYS.has(key) ? { type: 'date' as const } : {}),
   };
-  if (place?.notApplicable) return { kind: 'note', text: doesNotApply };
-  const current = values[key];
-  const value = current?.value ?? null;
-  if (current?.locked || protectedStandIn(value)) {
-    return { kind: 'note', text: displayValue(field, current) };
-  }
-  if (value) {
-    const otherText = field.otherDetail ? values[field.otherDetail.key]?.value : null;
-    if (value === OTHER_CHOICE && otherText) {
-      return { kind: 'value', text: otherWords(otherText), masked: false };
-    }
-    return {
-      kind: 'value',
-      text: field.type === 'date' ? formatDateOnly(value) : value,
-      masked: isMaskedDetail(key, field.sensitivity),
-    };
-  }
-  if (current?.status === 'STALE' || (current?.status && isMaskedDetail(key, field.sensitivity))) {
-    return { kind: 'note', text: displayValue(field, current) };
-  }
-  return { kind: 'empty' };
 }
 
 /** The free "something else" record every section keeps, so nothing a person needs is left without a home. */
@@ -1098,7 +1113,7 @@ function SectionFields({
           {singles.map((field) => {
             const current = values[field.key];
             const applies = !notApplicable.has(field.key);
-            const kind = current?.status && isStatusKind(current.status) ? current.status : null;
+            const kind = statusKindOf(current);
             return (
               <ExpandableSection
                 key={field.key}
@@ -1675,30 +1690,36 @@ export function ProfileEditor({
   const ended = useMemo(() => new Map(Object.entries(endedRecords ?? {})), [endedRecords]);
   // WAL4: the Passport Page Card. Its lines come from the profile; a tap opens that detail's row.
   const places = useMemo(() => passportPlaces(view), [view]);
-  const essentialKeys = new Set(view.essentials.items.flatMap((item) => item.field?.key ?? []));
-  const passportLines: readonly PassportLine[] = PASSPORT_PAGE_KEYS.map((key) => {
-    const place = places.get(key);
-    const status = values[key]?.status ?? null;
-    return {
-      key,
-      label: place?.field.label ?? PASSPORT_PAGE_LABELS[key],
-      state: passportLineState(
+  const passportLines = useMemo((): readonly PassportLine[] => {
+    if (searching) return [];
+    const essentialKeys = new Set(view.essentials.items.flatMap((item) => item.field?.key ?? []));
+    return PASSPORT_PAGE_KEYS.map((key) => {
+      const place = places.get(key);
+      const field = place?.field ?? fallbackField(key);
+      const current = values[key];
+      return {
         key,
-        place,
-        values,
-        t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply'),
-        (otherText) => t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText }),
-      ),
-      status: values[key]?.locked === 'lost' ? null : status,
-      href: !place
-        ? null
-        : showAll
-          ? `#${valueRowId(key)}`
-          : essentialKeys.has(key)
-            ? `#f-${key}`
-            : `?view=all#${valueRowId(key)}`,
-    };
-  });
+        label: place?.field.label ?? PASSPORT_PAGE_LABELS[key],
+        state: detailState(
+          field,
+          current,
+          !place?.notApplicable,
+          field.otherDetail ? values[field.otherDetail.key]?.value : null,
+          t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply'),
+          (otherText) =>
+            t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText }),
+        ),
+        status: statusKindOf(current),
+        href: !place
+          ? null
+          : showAll
+            ? `#${valueRowId(key)}`
+            : essentialKeys.has(key)
+              ? `#f-${key}`
+              : `?view=all#${valueRowId(key)}`,
+      };
+    });
+  }, [searching, view, places, values, showAll, t]);
   const [rowTarget, setRowTarget] = useState<string | null>(null);
   function editPassportDetail(key: string) {
     // While only the essentials show, an essential's own box is already on the page.
@@ -1725,11 +1746,14 @@ export function ProfileEditor({
     if (!row || !details) return;
     details.open = true;
     row.scrollIntoView?.({ block: 'start' });
-    details
-      .querySelector<HTMLElement>(
+    // The value box first; a detail that does not apply has only its switch back.
+    const target =
+      details.querySelector<HTMLElement>(
         'input:not([type="hidden"]):not([type="checkbox"]), select, textarea',
-      )
-      ?.focus();
+      ) ??
+      details.querySelector<HTMLElement>('input[type="checkbox"], button') ??
+      details.querySelector<HTMLElement>(':scope > summary');
+    target?.focus();
   }, [rowTarget]);
   return (
     <EndedRecordsContext.Provider value={ended}>
