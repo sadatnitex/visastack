@@ -63,7 +63,12 @@ for (const screen of SCREENS) {
       for (const row of await rows.all()) {
         const flag = row.locator('img.kit-flag');
         await expect(flag).toHaveCount(1);
-        expect(await flag.evaluate((img) => [img.offsetWidth, img.offsetHeight])).toEqual([28, 19]);
+        expect(
+          await flag.evaluate((img) => [
+            (img as HTMLElement).offsetWidth,
+            (img as HTMLElement).offsetHeight,
+          ]),
+        ).toEqual([28, 19]);
         await expect(row.locator('svg text.kit-ring-num')).toHaveText(/^\d\/8$/);
         await expect(row.locator('.kit-case-state')).toContainText(/missing|complete/i);
       }
