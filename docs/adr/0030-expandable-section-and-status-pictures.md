@@ -39,7 +39,7 @@ Owner decision, 17 November 2026 (exact words): "I agree with the rest, your rec
 | Needs Fix | short dashes | exclamation mark | danger |
 | Not Current | dots | clock | tertiary text |
 
-Each picture is wrapped in the existing `ExplainTip` (a 44 px button named by the status, described by its sentence, opened by hover, focus or tap, closed by Escape). The sentences never claim more than VisaStack knows: Backed by a Document says that alone it does not mean anyone has checked it; Suggested says it is not saved until the person confirms it. A unit test fails on words such as verified, approved or valid.
+Each picture is wrapped in the existing `ExplainTip` (a 44 px button named by the status, described by its sentence, opened by hover, focus or tap, closed by Escape). The sentences never claim more than VisaStack knows: Backed by a Document says that alone it does not mean anyone has checked it; Suggested says it is not saved until the person confirms it. A unit test fails on words such as verified, approved or valid. A key of the pictures uses the shared `status-picture-key` list: every item is a full 44 px row, because the Explain button's negative margin (it lets a 44 px target sit inside a line of text) makes stacked buttons overlap; the layout guard found this on its first run.
 
 ### 3. The raw details count-down
 
