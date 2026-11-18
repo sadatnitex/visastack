@@ -76,7 +76,7 @@ export function navIconFor(item: { readonly href: string; readonly label: string
 
 /**
  * How many links stay on the bar at the bottom of a phone; the rest sit under "More". For a
- * traveller these are the four tabs Home, Record, Cases and Sharing (WP-V3 part 2).
+ * traveller these are the four tabs Home, My Record, My Trips and Sharing & Requests (WP-V3 part 2).
  */
 const BAR_LINKS = 4;
 const MOBILE_LABELS: Readonly<Record<string, string>> = {
