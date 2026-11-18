@@ -55,7 +55,7 @@
 }
 
 .pub-chapter.tr-section {
-  padding-block: clamp(36px, 5vw, 60px);
+  padding-block: clamp(32px, 4vw, 48px);
 }
 
 .tr-wrap {
