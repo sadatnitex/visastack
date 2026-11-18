@@ -41,18 +41,35 @@
   color: var(--pub-ink-soft, var(--text-secondary));
 }
 
-.hk-center {
-  text-align: center;
-  margin-inline: auto;
-}
-
 /* Chapter 1: the dark opening with the four numbered chips. */
 .hk-hero {
   padding-block: var(--space-8) var(--space-7);
 }
 
+.hk-hero {
+  display: grid;
+  align-content: center;
+  /* The opening fills the first screen, so the first row starts on the next one. */
+  min-height: calc(100svh - var(--header-height) - var(--space-5));
+}
+
 .hk-hero .hk-inner {
-  justify-items: start;
+  justify-items: center;
+  text-align: center;
+}
+
+.hk-hero .hk-lead {
+  margin-inline: auto;
+}
+
+.hk-hero .hk-chips {
+  justify-content: center;
+}
+
+/* The headline breaks after "How It", as the reference does. */
+.hk-h1 .pub-words,
+.hk-h2 .pub-words {
+  display: block;
 }
 
 .hk-chips {
@@ -146,8 +163,29 @@ html[data-scenes="live"] .hk-rise:not([data-in]) {
   transform: translateY(28px);
 }
 
+html[data-scenes="live"] .hk-rise[data-in="now"] {
+  transition: none;
+}
+
 html[data-scenes="live"] .hk-rise {
-  transition: opacity 0.6s ease var(--hk-delay, 0s), transform 0.6s ease var(--hk-delay, 0s);
+  --hk-delay: 0s;
+  transition: opacity 0.6s ease var(--hk-delay), transform 0.6s ease var(--hk-delay);
+}
+
+.hk-wait-1 {
+  --hk-delay: 0.1s;
+}
+
+.hk-wait-2 {
+  --hk-delay: 0.2s;
+}
+
+.hk-wait-3 {
+  --hk-delay: 0.3s;
+}
+
+.hk-wait-4 {
+  --hk-delay: 0.4s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -181,14 +219,58 @@ html[data-scenes="live"] .hk-rise {
   color: var(--text);
 }
 
+.hk-phone-notch {
+  justify-self: center;
+  width: 72px;
+  height: 18px;
+  border-radius: 9px;
+  background-color: var(--chapter-bg);
+}
+
+.hk-corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 0 solid var(--bg-elevated);
+}
+
+.hk-corner-a {
+  top: 10px;
+  left: 10px;
+  border-width: 2px 0 0 2px;
+  border-top-left-radius: 6px;
+}
+
+.hk-corner-b {
+  top: 10px;
+  right: 10px;
+  border-width: 2px 2px 0 0;
+  border-top-right-radius: 6px;
+}
+
+.hk-corner-c {
+  bottom: 10px;
+  left: 10px;
+  border-width: 0 0 2px 2px;
+  border-bottom-left-radius: 6px;
+}
+
+.hk-corner-d {
+  right: 10px;
+  bottom: 10px;
+  border-width: 0 2px 2px 0;
+  border-bottom-right-radius: 6px;
+}
+
 .hk-phone-title {
   font-size: 1.05rem;
 }
 
 .hk-phone-cam {
+  position: relative;
   display: grid;
   place-items: center;
-  padding-block: var(--space-3);
+  padding-block: var(--space-4);
   border-radius: var(--radius);
   background-color: var(--chapter-bg);
 }
@@ -508,8 +590,8 @@ html[data-scenes="live"] .hk-rise {
   justify-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: 150px;
-  padding: var(--space-4);
+  min-height: 120px;
+  padding: var(--space-3);
   border: 1px solid var(--edge-card);
   border-radius: var(--radius-lg);
   background-color: var(--bg-elevated);
@@ -548,15 +630,15 @@ html[data-scenes="live"] .hk-rise {
 
 /* While the scroll engine is live the meaning is folded away until the tile is turned (it stays in
    the page for a screen reader; without script, motion or on phones it is always shown). */
-html[data-scenes="live"] .hk-flip[aria-pressed="false"] .hk-flip-means {
+html[data-scenes="live"] .hk-flip[aria-pressed="false"] .hk-flip-back {
   max-height: 0;
   opacity: 0;
   overflow: hidden;
 }
 
-html[data-scenes="live"] .hk-flip .hk-flip-means {
+html[data-scenes="live"] .hk-flip .hk-flip-back {
   transition: max-height 0.3s ease, opacity 0.3s ease;
-  max-height: 6em;
+  max-height: 8em;
 }
 
 /* Chapter 4: the dark closing. */
@@ -578,9 +660,27 @@ html[data-scenes="live"] .hk-flip .hk-flip-means {
   gap: var(--space-3);
 }
 
+@media (max-width: 899px) {
+  .hk-rows .hk-inner {
+    gap: var(--space-5);
+  }
+
+  .hk-row {
+    gap: var(--space-4);
+  }
+
+  .hk-list li {
+    min-height: 40px;
+  }
+
+  .hk-sheet-rows li {
+    min-height: 52px;
+  }
+}
+
 @media (max-width: 480px) {
-  .hk-chapter {
-    padding-block: var(--space-7);
+  .hk-chapter:not(.hk-hero) {
+    padding-block: var(--space-5);
   }
 
   .hk-actions .pub-button {

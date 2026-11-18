@@ -22,6 +22,11 @@ export function RiseIn({ children, delay = 0, as: Tag = 'div' }: RiseInProps) {
       node.setAttribute('data-in', '');
       return;
     }
+    // Already on the first screen: show it at once, with no wait for a scroll (and no fade to read through).
+    if (node.getBoundingClientRect().top < window.innerHeight) {
+      node.setAttribute('data-in', 'now');
+      return;
+    }
     const watcher = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -36,9 +41,10 @@ export function RiseIn({ children, delay = 0, as: Tag = 'div' }: RiseInProps) {
     watcher.observe(node);
     return () => watcher.disconnect();
   }, []);
-  const style = { '--hk-delay': `${Math.min(0.4, Math.max(0, delay))}s` } as React.CSSProperties;
+  // Tenths of a second, 0 to 4, as a shared class (no inline style).
+  const wait = Math.round(Math.min(0.4, Math.max(0, delay)) * 10);
   return (
-    <Tag ref={ref as never} className="hk-rise" style={style}>
+    <Tag ref={ref as never} className={`hk-rise hk-wait-${wait}`}>
       {children}
     </Tag>
   );

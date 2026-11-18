@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { VIEWPORTS, expectWithinBudget } from '../scroll-budget/support';
 
 /**
  * R2: the rebuilt How It Works page. Four chapters, four rows whose text and picture swap sides,
@@ -31,7 +32,7 @@ test.describe('how it works rebuild at 1440 wide', () => {
     for (let at = 0; at < 4; at++) {
       const row = page.locator('.hk-row').nth(at);
       await row.scrollIntoViewIfNeeded();
-      await expect(row.locator('.hk-rise').last()).toHaveAttribute('data-in', '');
+      await expect(row.locator('.hk-rise[data-in]')).toHaveCount(2);
       const text = await row.locator('.hk-row-text').boundingBox();
       const art = await row.locator('.hk-row-art').boundingBox();
       expect(text && art).toBeTruthy();
@@ -121,5 +122,18 @@ test.describe('how it works rebuild on a phone', () => {
         .map((el) => (el.textContent ?? '').trim().slice(0, 30)),
     );
     expect(small).toEqual([]);
+  });
+});
+
+test.describe('how it works rebuild scroll budget', () => {
+  test('fits 6 screens on a phone and 12 on a desktop (the public page budget)', async ({
+    page,
+  }) => {
+    await page.setViewportSize(VIEWPORTS.phone);
+    await page.goto('/how-it-works');
+    await expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'enforce' });
+    await page.setViewportSize(VIEWPORTS.desktop);
+    await page.goto('/how-it-works');
+    await expectWithinBudget(page, { screens: 12, viewport: 'desktop' });
   });
 });

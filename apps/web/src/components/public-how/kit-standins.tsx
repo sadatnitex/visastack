@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { DocumentPicture } from '../pictures/document-picture';
+import { PassportCover } from '../pictures/passport-cover';
 import { PassportTilt } from '../public-site/public-picture';
 import { ExampleTag } from '../public-site/story';
 
@@ -84,9 +85,14 @@ export function ScanPhone({ fields, step = 2, pageLang = 'en' }: ScanPhoneProps)
       {...figureLang(pageLang)}
     >
       <div className="hk-phone-screen">
+        <span className="hk-phone-notch" aria-hidden="true" />
         <b className="hk-phone-title">Add Document</b>
         <div className="hk-phone-cam" aria-hidden="true">
-          <DocumentPicture type="passport" size={64} />
+          <span className="hk-corner hk-corner-a" />
+          <span className="hk-corner hk-corner-b" />
+          <span className="hk-corner hk-corner-c" />
+          <span className="hk-corner hk-corner-d" />
+          <PassportCover nationality="BD" width={56} decorative />
         </div>
         <ul className="hk-fields">
           {step === 0
@@ -197,7 +203,7 @@ export function ShareSheet({ step = 3, pageLang = 'en' }: ShareSheetProps) {
       aria-label="A share sheet with an end date"
       {...figureLang(pageLang)}
     >
-      <b className="hk-sheet-title">Share With Agency</b>
+      <b className="hk-sheet-title">Share with Agency</b>
       <ul className="hk-sheet-rows">
         {rows.map((row) => (
           <li key={row.kind}>
@@ -251,7 +257,7 @@ export function ClosingBand({
       {title}
       <p className="hk-lead">{sub}</p>
       <div className="hk-actions">{actions}</div>
-      {passport ? <PassportTilt nationality={nationality} width={200} /> : null}
+      {passport ? <PassportTilt nationality={nationality} width={160} /> : null}
     </div>
   );
 }

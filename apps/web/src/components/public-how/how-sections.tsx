@@ -28,7 +28,8 @@ export interface HowCopy {
     readonly not: ReactNode;
     readonly means: ReactNode;
   }[];
-  readonly closingTitle: ReactNode;
+  readonly closingTitleLead: ReactNode;
+  readonly closingTitleEnd: ReactNode;
   readonly closingSub: ReactNode;
   readonly start: ReactNode;
   readonly privacy: ReactNode;
@@ -37,7 +38,7 @@ export interface HowCopy {
 /** Made-up record text drawn inside the pictures (English Example text, per the kit contract). */
 const FIELDS = [
   { label: 'Surname', value: 'Rahman' },
-  { label: 'Passport ends', value: '14 Mar 2031' },
+  { label: 'Passport Ends', value: '14 Mar 2031' },
   { label: 'Nationality', value: 'Bangladeshi' },
 ] as const;
 
@@ -53,8 +54,8 @@ const ITEMS = [
   { kind: 'flight', label: 'Flights' },
   { kind: 'insurance', label: 'Insurance' },
   { kind: 'itinerary', label: 'Itinerary' },
-  { kind: 'bank', label: 'Bank statement' },
-  { kind: 'hotel', label: 'Hotel booking' },
+  { kind: 'bank', label: 'Bank Statement' },
+  { kind: 'hotel', label: 'Hotel Booking' },
   { kind: 'invitation', label: 'Invitation' },
 ] as const;
 
@@ -146,10 +147,10 @@ export function WordsBand({ copy }: { readonly copy: HowCopy }): ReactElement {
   return (
     <Chapter tone="light" className="hk-chapter hk-words" id="words" labelledBy="words-title">
       <div className="hk-inner">
-        <h2 id="words-title" className="hk-h2 hk-center">
+        <h2 id="words-title" className="hk-h2">
           {copy.wordsLead} <HeadlineWords>{copy.wordsEnd}</HeadlineWords>
         </h2>
-        <p className="hk-hint hk-center">{copy.wordsHint}</p>
+        <p className="hk-hint">{copy.wordsHint}</p>
         <ul className="hk-flip-grid">
           {copy.words.map((item, index) => (
             <li key={item.key}>
@@ -171,7 +172,7 @@ export function HowClosing({ copy }: { readonly copy: HowCopy }): ReactElement {
         <ClosingBand
           title={
             <h2 id="closing-title" className="hk-h2">
-              {copy.closingTitle}
+              {copy.closingTitleLead} <HeadlineWords>{copy.closingTitleEnd}</HeadlineWords>
             </h2>
           }
           sub={copy.closingSub}

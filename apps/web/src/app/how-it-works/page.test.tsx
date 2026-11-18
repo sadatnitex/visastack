@@ -45,7 +45,7 @@ describe('the How It Works page (R2)', () => {
     expect(html).toContain('three confirmed fields');
     expect(html).toContain('A Germany checklist with 3 of 8 items ready');
     expect(html).toContain('3 of 8 Ready');
-    expect(html).toContain('Share With Agency');
+    expect(html).toContain('Share with Agency');
   });
 
   it('removes the old case story chapters', async () => {
