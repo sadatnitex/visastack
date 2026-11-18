@@ -11,8 +11,10 @@ import { formatTimestamp, formatTimestampDate } from './format-date';
  * - `ending_soon`: the end is close (see `aiEndingSoonWindowMs`).
  * - `ended`: the end has passed, or the services say the connection is no longer live.
  *
- * Days are counted as calendar days in the person's time zone (UTC only when it is unknown), so
- * "Ends Today" means the end falls on today's date where the person is.
+ * The end is an exact moment, so the time left is the same wherever the person is: whole days
+ * (never rounded up, so it never says more time than is left), then whole hours in the last day.
+ * The end DATE is what depends on the zone, and it is written in the person's own zone
+ * (`formatMomentIn`), UTC only when the zone is unknown.
  */
 export type AiTimeLeftState = 'open' | 'running' | 'ending_soon' | 'ended';
 
@@ -22,7 +24,7 @@ export interface AiTimeLeft {
   readonly fraction: number;
   /** Milliseconds left (0 once ended; null for an open connection). */
   readonly msLeft: number | null;
-  /** Calendar days from today to the end day in the person's zone (null for an open one). */
+  /** Whole days left, never rounded up (null for an open one). */
   readonly daysLeft: number | null;
   /** Whole hours left, for an end less than a day away (null otherwise). */
   readonly hoursLeft: number | null;
@@ -45,21 +47,17 @@ export function aiEndingSoonWindowMs(lengthMs: number): number {
   return Math.min(AI_ENDING_SOON_MAX_MS, Math.max(0, lengthMs) * AI_ENDING_SOON_SHARE);
 }
 
+const knownZones = new Map<string, boolean>();
+
 /** The zone to show times in: the person's own when the runtime knows it, else UTC. */
 export function displayTimeZone(timeZone: string | null | undefined): string {
-  return timeZone && isKnownTimeZone(timeZone) ? timeZone : 'UTC';
-}
-
-/** The calendar day of an instant in a zone, as a day number (days since 1970-01-01). */
-function dayNumber(instant: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(instant);
-  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
-  return Math.floor(Date.UTC(get('year'), get('month') - 1, get('day')) / DAY_MS);
+  if (!timeZone) return 'UTC';
+  let known = knownZones.get(timeZone);
+  if (known === undefined) {
+    known = isKnownTimeZone(timeZone);
+    knownZones.set(timeZone, known);
+  }
+  return known ? timeZone : 'UTC';
 }
 
 export function aiConnectionTimeLeft({
@@ -67,7 +65,6 @@ export function aiConnectionTimeLeft({
   end,
   now,
   live = true,
-  timeZone,
 }: {
   /** When the connection was made. */
   readonly start: Date;
@@ -76,8 +73,6 @@ export function aiConnectionTimeLeft({
   readonly now: Date;
   /** False when the services say the connection is no longer live, whatever its end says. */
   readonly live?: boolean;
-  /** The person's time zone; unknown or missing means UTC. */
-  readonly timeZone?: string | null | undefined;
 }): AiTimeLeft {
   if (!live || (end !== null && end.getTime() <= now.getTime())) {
     return { state: 'ended', fraction: 0, msLeft: 0, daysLeft: 0, hoursLeft: 0 };
@@ -85,11 +80,10 @@ export function aiConnectionTimeLeft({
   if (end === null) {
     return { state: 'open', fraction: 1, msLeft: null, daysLeft: null, hoursLeft: null };
   }
-  const zone = displayTimeZone(timeZone);
   const msLeft = end.getTime() - now.getTime();
   const length = end.getTime() - start.getTime();
   const fraction = length > 0 ? Math.min(1, Math.max(0, msLeft / length)) : 0;
-  const daysLeft = dayNumber(end, zone) - dayNumber(now, zone);
+  const daysLeft = Math.floor(msLeft / DAY_MS);
   const hoursLeft = msLeft < DAY_MS ? Math.floor(msLeft / HOUR_MS) : null;
   const state = msLeft <= aiEndingSoonWindowMs(length) ? 'ending_soon' : 'running';
   return { state, fraction, msLeft, daysLeft, hoursLeft };

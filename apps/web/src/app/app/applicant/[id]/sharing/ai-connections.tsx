@@ -1,4 +1,9 @@
-import { type AiFeatureOffReason, aiFeatureOffHint } from '@visastack/core/ai-features';
+import {
+  type AiFeatureOffReason,
+  aiAppHost,
+  aiAppName,
+  aiFeatureOffHint,
+} from '@visastack/core/ai-features';
 import type { AiConnectionList, AiConnectionSummary } from '@visastack/services';
 import { AiConnectionTile, type AiTileRead } from '../../../../../components/ai-connection-tile';
 import type { IconName } from '../../../../../components/icons';
@@ -34,7 +39,6 @@ import {
   aiAllowsSuggestions,
   aiFilesLine,
 } from '../../../../../lib/ai-consent-labels';
-import { formatTimestamp } from '../../../../../lib/format-date';
 import { getServerT } from '../../../../../lib/i18n-server';
 import { ChangeAccessForm } from './ai-connection-change';
 import { AiConnectionTurnOff } from './ai-connection-turn-off';
@@ -87,12 +91,12 @@ export function caseOptionsFor(
 }
 
 /** "How Long" on Change Access: keep the end, or count a new one from now. */
-export function changeDurations(item: AiConnectionSummary) {
+export function changeDurations(item: AiConnectionSummary, timeZone?: string | null) {
   return [
     {
       value: AI_KEEP_END,
       label: item.expiresAt
-        ? `Keep the Current End (${formatTimestamp(item.expiresAt)})`
+        ? `Keep the Current End (${formatMomentIn(item.expiresAt, timeZone)})`
         : 'Keep Until I Turn It Off',
     },
     ...AI_CONNECTION_DURATIONS.map((duration) => ({
@@ -112,6 +116,7 @@ function ChangeAccess({
   returning,
   suggestionsAvailable,
   files,
+  timeZone,
 }: {
   readonly applicantId: string;
   readonly item: AiConnectionSummary;
@@ -119,6 +124,7 @@ function ChangeAccess({
   readonly returning: AiChangeReturn | undefined;
   readonly suggestionsAvailable: boolean;
   readonly files: AiConnectionFiles | undefined;
+  readonly timeZone: string | null | undefined;
 }) {
   const t = getServerT(applicantSharingCatalog);
   const options = caseOptionsFor(item, cases);
@@ -148,7 +154,7 @@ function ChangeAccess({
         cases={options}
         initial={{ ...chosen, cases: valid ? chosen.cases : storedCase(item) }}
         suggestStored={stored.suggestChanges}
-        durations={changeDurations(item)}
+        durations={changeDurations(item, timeZone)}
         defaultDuration={back ? back.duration : AI_KEEP_END}
         suggestionsAvailable={suggestionsAvailable}
         {...(files
@@ -295,8 +301,8 @@ function connectionFacts(item: AiConnectionSummary, timeZone: string | null | un
   ];
 }
 
-function endedLine(item: AiConnectionSummary): string {
-  const when = item.endedAt ? formatTimestamp(item.endedAt) : '';
+function endedLine(item: AiConnectionSummary, timeZone: string | null | undefined): string {
+  const when = item.endedAt ? formatMomentIn(item.endedAt, timeZone) : '';
   if (item.endedBy === 'time') return `Time ran out ${when}`;
   if (item.endedBy === 'owner') return `You turned it off ${when}`;
   return `Ended ${when}`;
@@ -414,7 +420,6 @@ export function AiConnectionsSection({
                   start: item.connectedAt,
                   end: item.expiresAt,
                   now,
-                  timeZone,
                 })}
                 actions={
                   <>
@@ -426,6 +431,7 @@ export function AiConnectionsSection({
                         returning={returning}
                         suggestionsAvailable={suggestionsAvailable}
                         files={files}
+                        timeZone={timeZone}
                       />
                     ) : null}
                     <div className="page-actions ai-connection-actions">
@@ -460,9 +466,10 @@ export function AiConnectionsSection({
             {list.recentlyEnded.map((item) => (
               <li key={item.id} className="ai-connection">
                 <p className="ai-connection-name">
-                  {item.clientName} <span className="ai-consent-host">{item.clientHost}</span>
+                  {aiAppName(item.clientName)}{' '}
+                  <span className="ai-consent-host">{aiAppHost(item.clientHost)}</span>
                 </p>
-                <p className="muted u-m-0">{endedLine(item)}</p>
+                <p className="muted u-m-0">{endedLine(item, timeZone)}</p>
               </li>
             ))}
           </ul>

@@ -517,7 +517,10 @@ describe('one tile per AI connection (WAL5)', () => {
     expect(dhaka).toMatch(/Connected\s*15 Jan 2030/);
     expect(dhaka).toMatch(/Ends\s*21 Jan 2030, 02:00/);
     expect(dhaka).toMatch(/Last Used\s*15 Jan 2030, 07:00/);
-    expect(dhaka).toContain('6 Days Left');
+    // The time left is the same everywhere (5 days and 8 hours: 5 whole days); only dates move.
+    expect(dhaka).toContain('5 Days Left');
+    // Change Access offers the same end, in the same zone, as the tile.
+    expect(dhaka).toContain('Keep the Current End (21 Jan 2030, 02:00)');
     const unknown = textOf(
       render({
         applicantId: APPLICANT,

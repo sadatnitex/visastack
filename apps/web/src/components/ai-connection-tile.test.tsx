@@ -122,4 +122,18 @@ describe('the AI connection tile (WAL5)', () => {
     expect(html).not.toContain('ai-tile-actions');
     expect(await axeViolations(html)).toEqual([]);
   });
+
+  it('never draws a dated connection as a full ring, so it differs from an open one without colour', () => {
+    const fresh = tile({
+      timeLeft: aiConnectionTimeLeft({ start: at(-60_000), end: at(30 * DAY), now: NOW }),
+    });
+    expect(fresh).toContain('stroke-dasharray="98 2"');
+  });
+
+  it('cleans the name and site the app chose for itself', () => {
+    const html = tile({ appName: `Cla\u202Eude${'x'.repeat(200)}`, appHost: 'Claude.AI/<b>' });
+    expect(html).not.toContain('\u202E');
+    expect(html).toContain('<span class="ai-consent-host">claude.aib</span>');
+    expect(html).not.toContain('x'.repeat(100));
+  });
 });

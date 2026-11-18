@@ -26,12 +26,7 @@ describe('the time an AI connection has left', () => {
   });
 
   it('counts days and the share left of a 30 day connection', () => {
-    const left = aiConnectionTimeLeft({
-      start: at(-DAY),
-      end: at(29 * DAY),
-      now: NOW,
-      timeZone: 'UTC',
-    });
+    const left = aiConnectionTimeLeft({ start: at(-DAY), end: at(29 * DAY), now: NOW });
     expect(left.state).toBe('running');
     expect(left.daysLeft).toBe(29);
     expect(left.hoursLeft).toBeNull();
@@ -66,26 +61,22 @@ describe('the time an AI connection has left', () => {
     expect(off).toMatchObject({ state: 'ended', fraction: 0, msLeft: 0 });
   });
 
-  it('counts calendar days in the person time zone, so an end tonight is today', () => {
-    // 12:00 UTC now; the end is 20:00 UTC, which is already tomorrow (02:00) in Dhaka.
-    const end = at(8 * HOUR);
+  it('never says more time than is left: whole days, then hours in the last day', () => {
     const start = at(-30 * DAY);
-    expect(aiConnectionTimeLeft({ start, end, now: NOW, timeZone: 'UTC' }).daysLeft).toBe(0);
-    expect(aiConnectionTimeLeft({ start, end, now: NOW, timeZone: 'Asia/Dhaka' }).daysLeft).toBe(1);
-    // ...and in Los Angeles both moments fall on the same day.
-    expect(
-      aiConnectionTimeLeft({ start, end, now: NOW, timeZone: 'America/Los_Angeles' }).daysLeft,
-    ).toBe(0);
+    // 25 hours 15 minutes left is 1 day, never 2, whatever the clock says in any zone.
+    const nearly = aiConnectionTimeLeft({ start, end: at(25 * HOUR + 15 * 60_000), now: NOW });
+    expect(nearly.daysLeft).toBe(1);
+    expect(nearly.hoursLeft).toBeNull();
+    const last = aiConnectionTimeLeft({ start, end: at(23 * HOUR + 59 * 60_000), now: NOW });
+    expect(last.daysLeft).toBe(0);
+    expect(last.hoursLeft).toBe(23);
   });
 
   it('falls back to UTC only when the zone is unknown', () => {
     expect(displayTimeZone('Asia/Dhaka')).toBe('Asia/Dhaka');
     expect(displayTimeZone('Not/AZone')).toBe('UTC');
     expect(displayTimeZone(null)).toBe('UTC');
-    const end = at(8 * HOUR);
-    expect(
-      aiConnectionTimeLeft({ start: at(-DAY), end, now: NOW, timeZone: 'Not/AZone' }).daysLeft,
-    ).toBe(0);
+    expect(formatMomentIn(at(8 * HOUR), 'Not/AZone')).toBe('15 Jan 2030, 20:00');
   });
 
   it('writes moments and days in the person zone', () => {

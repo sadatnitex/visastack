@@ -1,13 +1,15 @@
-import type { AiConnectionList, AiConnectionSummary } from '@visastack/services';
-import { AgencyAiTurnOff } from '../../src/app/app/agency/[orgId]/agency-ai-turn-off';
+import type {
+  AgencyAiConnectionSummary,
+  AiConnectionList,
+  AiConnectionSummary,
+} from '@visastack/services';
+import { AgencyConnectionTile } from '../../src/app/app/agency/[orgId]/ai-connections/agency-connection-tile';
 import { AiConnectionsSection } from '../../src/app/app/applicant/[id]/sharing/ai-connections';
-import { AiConnectionTile } from '../../src/components/ai-connection-tile';
-import { aiConnectionTimeLeft } from '../../src/lib/ai-connection-time-left';
 
 /**
  * WAL5: one tile per AI connection, on the real stylesheet. The traveller list is the real
  * Sharing section (with its real Change Access and Turn Off; their server ends are stand-ins
- * that change nothing); the agency tiles are drawn exactly as the agency page draws them. The
+ * that change nothing); the agency tiles are the agency page's own tile component. The
  * clock is fixed, so the time left never depends on the day the test runs. Names are made up and
  * some are long, so wrapping is tested. Used by e2e/wallet/u5-connection-tiles.spec.ts.
  */
@@ -84,24 +86,28 @@ const LIST: AiConnectionList = {
   activeTotal: ACTIVE.length,
 };
 
-const AGENCY = [
+const AGENCY: AgencyAiConnectionSummary[] = [
   {
     id: 'agency-live',
-    name: 'Claude',
-    host: 'claude.ai',
+    clientName: 'Claude',
+    clientHost: 'claude.ai',
+    connectedBy: 'admin@example.com',
+    createdAt: at(-DAY),
+    endsAt: at(6 * DAY),
+    lastUsedAt: null,
     live: true,
-    end: at(6 * DAY),
-    used: null,
   },
   {
     id: 'agency-ended',
-    name: 'ChatGPT',
-    host: 'chatgpt.com',
+    clientName: 'ChatGPT',
+    clientHost: 'chatgpt.com',
+    connectedBy: 'admin@example.com',
+    createdAt: at(-DAY),
+    endsAt: at(20 * DAY),
+    lastUsedAt: at(-DAY),
     live: false,
-    end: at(20 * DAY),
-    used: at(-DAY),
   },
-] as const;
+];
 
 export default function Wal5ConnectionTilesFixture({ open = false }: Wal5FixtureProps) {
   return (
@@ -141,45 +147,7 @@ export default function Wal5ConnectionTilesFixture({ open = false }: Wal5Fixture
         <ul className="ai-connection-list">
           {AGENCY.map((item) => (
             <li className="ai-connection" key={item.id}>
-              <AiConnectionTile
-                id={item.id}
-                appName={item.name}
-                appHost={item.host}
-                readsTerm="Can Read"
-                reads={[
-                  {
-                    key: 'each_case',
-                    icon: 'users',
-                    label: 'What Each Traveller Allowed',
-                    note: 'Each app reads, for each case its owner or admin can see, only what that case’s traveller allowed this agency’s AI tools to read. It works for at most 30 days.',
-                  },
-                ]}
-                facts={[
-                  { key: 'connected', term: 'Connected', value: '14 Jan 2030' },
-                  { key: 'connected_by', term: 'Connected By', value: 'admin@example.com' },
-                  { key: 'ends', term: 'Ends', value: item.live ? '21 Jan 2030, 12:00' : 'Ended' },
-                  {
-                    key: 'last_used',
-                    term: 'Last Used',
-                    value: item.used ? '14 Jan 2030, 12:00' : 'Not Used Yet',
-                  },
-                ]}
-                timeLeft={aiConnectionTimeLeft({
-                  start: at(-DAY),
-                  end: item.end,
-                  live: item.live,
-                  now: NOW,
-                  timeZone: 'UTC',
-                })}
-                actions={
-                  <AgencyAiTurnOff
-                    organizationId="o1"
-                    connectionId={item.id}
-                    appLabel={`${item.name} (${item.host})`}
-                    live={item.live}
-                  />
-                }
-              />
+              <AgencyConnectionTile organizationId="o1" connection={item} now={NOW} />
             </li>
           ))}
         </ul>

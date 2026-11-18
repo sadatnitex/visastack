@@ -1,3 +1,4 @@
+import { aiAppHost, aiAppName } from '@visastack/core/ai-features';
 import type { ReactNode } from 'react';
 import { componentsCatalog } from '../i18n/components';
 import type { AiTimeLeft } from '../lib/ai-connection-time-left';
@@ -40,7 +41,7 @@ export interface AiConnectionTileProps {
   /** For the tile's heading id; unique on the page. */
   readonly id: string;
   readonly appName: string;
-  /** The app's site (claude.ai), or null when unknown. */
+  /** The app's site (claude.ai), or null when unknown. Both are cleaned here, as stored by the app. */
   readonly appHost: string | null;
   /** The term above the pictures ("Can Read"). */
   readonly readsTerm: ReactNode;
@@ -58,8 +59,9 @@ export interface AiConnectionTileProps {
 function ringPercent(timeLeft: AiTimeLeft): number {
   if (timeLeft.state === 'open') return 100;
   if (timeLeft.state === 'ended') return 0;
-  // Never draw an empty ring while time is left: at least a sliver shows.
-  return Math.max(2, Math.round(timeLeft.fraction * 100));
+  // Never draw an empty ring while time is left, and never a full one (that is the open
+  // connection's ring), so the shape alone tells them apart without colour.
+  return Math.min(98, Math.max(2, Math.round(timeLeft.fraction * 100)));
 }
 
 function ClockRing({ timeLeft }: { readonly timeLeft: AiTimeLeft }) {
@@ -121,6 +123,10 @@ export function AiConnectionTile({
   actions,
 }: AiConnectionTileProps) {
   const titleId = `ai-tile-${id}`;
+  // The app chose its own name and address: hidden and direction-changing characters are
+  // removed and the length is capped, the same cleaning every other AI app label gets.
+  const name = aiAppName(appName);
+  const host = aiAppHost(appHost);
   return (
     <section className="ai-tile" aria-labelledby={titleId} data-ai-tile="">
       <div className="ai-tile-head">
@@ -128,7 +134,7 @@ export function AiConnectionTile({
           <Icon name="key" size={22} />
         </span>
         <h3 className="ai-tile-name" id={titleId}>
-          {appName} {appHost ? <span className="ai-consent-host">{appHost}</span> : null}
+          {name} {host ? <span className="ai-consent-host">{host}</span> : null}
         </h3>
       </div>
       <div className="ai-tile-reads">
