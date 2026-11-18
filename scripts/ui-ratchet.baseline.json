@@ -126,7 +126,7 @@
     "apps/web/src/app/app/help/page.tsx": 5,
     "apps/web/src/app/app/mission/[id]/attempt-panel.tsx": 2,
     "apps/web/src/app/app/mission/[id]/case-more-menu.tsx": 1,
-    "apps/web/src/app/app/mission/[id]/case-rail.tsx": 8,
+    "apps/web/src/app/app/mission/[id]/case-rail.tsx": 6,
     "apps/web/src/app/app/mission/[id]/case-status-panel.tsx": 4,
     "apps/web/src/app/app/mission/[id]/case-welcome.tsx": 1,
     "apps/web/src/app/app/mission/[id]/collaboration-panels.tsx": 3,
