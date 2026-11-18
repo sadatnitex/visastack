@@ -129,6 +129,7 @@ import { composeSelectionCandidateKey } from './evidence-selection-key';
 import { SnapshotButton } from './mission-buttons';
 import { PackagePanel } from './package-panel';
 import { ReadAloudButton } from './read-aloud-button';
+import { TripJourneyLine } from './trip-journey-line';
 
 export const metadata: Metadata = { title: 'Case' };
 
@@ -1102,6 +1103,13 @@ export default async function MissionPage({
               ) : null}
               {data.readiness && data.expiringDocuments.length > 0 ? (
                 <CaseExpiringDocuments documents={data.expiringDocuments} />
+              ) : null}
+              {data.casePackage ? (
+                <TripJourneyLine
+                  pkg={data.casePackage}
+                  itemHref={itemHref}
+                  listedIds={checklistIds}
+                />
               ) : null}
               {data.casePackage ? (
                 <article className="card" id="trip-package" {...atLevel('browse')}>

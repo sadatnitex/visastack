@@ -23594,3 +23594,227 @@ a.passport-page-value:hover {
   }
 }
 /* end WP-WAL2 */
+
+/* WP-WAL3 Trip Package as a journey line with gaps (18 Nov 2026, owner decision 17 Nov, Trip Package "-A"): what the trip needs is a line of stones (solid ring and tick is ready, dashed ring and cross is a gap), at most five visible and the rest scroll inside the card, one line and one button for each gap, the four Outside VisaStack steps as pictures with an Explain popup, and Case Details and Trip Date Checks as Expandable Sections that stay open on a wide screen. Flat: hairlines and brand tokens only, no shadow, no gradient. Ring style, tick or cross and a word say each state, never colour alone. Nothing here animates. */
+.trip-journey {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.trip-journey-count {
+  margin: 0 0 var(--space-2);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.trip-journey-list {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.trip-journey-list:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.trip-stone {
+  position: relative;
+  display: flex;
+  flex: 0 0 20%;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding-inline: 2px;
+  text-align: center;
+}
+.trip-stone:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 22px;
+  inset-inline-start: calc(50% + 24px);
+  inset-inline-end: calc(-50% + 24px);
+  height: 0;
+  border-top: 3px solid var(--success);
+}
+.trip-stone-gap:not(:last-child)::after {
+  border-top: 3px dashed var(--danger);
+}
+.trip-stone-todo:not(:last-child)::after {
+  border-top: 3px dotted var(--edge-strong, var(--edge-card));
+}
+.trip-stone-ring {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  background: var(--success-bg);
+  color: var(--success);
+}
+.trip-stone-gap .trip-stone-ring {
+  border: 2px dashed var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.trip-stone-todo .trip-stone-ring {
+  border: 2px dotted var(--text-secondary);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+.trip-stone-name {
+  max-width: 100%;
+  hyphens: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.trip-stone-word {
+  max-width: 100%;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.trip-gaps {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 7.5rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.trip-gaps:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.trip-gap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px dashed var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+}
+.trip-gap-line {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.trip-gap-action {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+}
+.trip-package-head,
+.trip-outside-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.trip-package-start {
+  min-height: 44px;
+  margin-inline-start: auto;
+}
+.trip-outside-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0;
+}
+.trip-outside-row > .trip-outside-extra {
+  flex: 1 0 100%;
+}
+.trip-outside-head .package-subheading {
+  margin: 0;
+}
+.trip-outside {
+  display: flex;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.trip-outside-tile {
+  display: flex;
+  min-width: 44px;
+}
+.trip-outside-extra {
+  margin: var(--space-2) 0 0;
+}
+.rail-section-body {
+  min-width: 0;
+  scroll-margin-top: 6rem;
+}
+.rail-section .expandable-section-body {
+  padding: 0;
+}
+/* The row keeps its 56px height: the summary is one line that ends in an ellipsis, as the rail's own rows do. */
+.rail-section .expandable-section-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-section-body .lift-card {
+  position: relative;
+  border: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: transparent;
+}
+.rail-section-body .lift-card-head {
+  display: none;
+}
+@supports selector(::details-content) {
+  @media (min-width: 761px) {
+    .rail-section .expandable-section {
+      border: none;
+      border-radius: 0;
+      background: transparent;
+    }
+    .rail-section .expandable-section-details > summary {
+      display: none;
+    }
+    .rail-section .expandable-section-details::details-content {
+      content-visibility: visible;
+    }
+    .rail-section .expandable-section-body {
+      border-top: none;
+    }
+    .rail-section-body .lift-card {
+      position: static;
+      border: 1px solid var(--edge-card);
+      border-radius: var(--radius-lg);
+      background: var(--bg-elevated);
+    }
+    .rail-section-body .lift-card-head {
+      display: block;
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0 0 var(--space-4);
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+    }
+  }
+}
+/* end WP-WAL3 */
