@@ -971,16 +971,47 @@ test.describe('authoritative appearance on public routes', () => {
           .filter((id) => id && !document.getElementById(id)),
       );
     expect(missing).toEqual([]);
+    // WP-PUB3 (approved guard correction, owner PUB decision 17 Nov 2026: rebuilt /trust): the pixel
+    // position of the old two-column opening is retired with that opening. What it protected stays:
+    // one top heading, #trust-story-title, first heading in main, fully inside the first screen
+    // below the pilot notice and the header and not covered, and a caption no smaller than 12px.
+    for (const [width, height] of [
+      [1440, 900],
+      [360, 640],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto('/trust');
+      await expect(page.locator('main h1')).toHaveCount(1);
+      await expect(page.locator('main h1')).toHaveAttribute('id', 'trust-story-title');
+      expect(await page.locator('main h1, main h2, main h3').first().getAttribute('id')).toBe(
+        'trust-story-title',
+      );
+      const facts = await page.evaluate(() => {
+        const title = document.querySelector('#trust-story-title');
+        const box = title?.getBoundingClientRect();
+        const banner = document.querySelector('.pilot-banner')?.getBoundingClientRect();
+        const header = document.querySelector('header')?.getBoundingClientRect();
+        const top = box
+          ? document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+          : null;
+        return {
+          top: box?.top ?? -1,
+          bottom: box?.bottom ?? -1,
+          bannerBottom: banner?.bottom ?? 0,
+          headerBottom: header?.bottom ?? 0,
+          reached: Boolean(title && top && (top === title || title.contains(top))),
+          viewport: window.innerHeight,
+        };
+      });
+      expect(facts.top, `${width}x${height}`).toBeGreaterThanOrEqual(
+        Math.max(facts.bannerBottom, facts.headerBottom) - 1,
+      );
+      expect(facts.bottom, `${width}x${height}`).toBeLessThanOrEqual(facts.viewport);
+      expect(facts.reached, `${width}x${height}: the title is not covered`).toBe(true);
+    }
     await page.goto('/trust');
-    // The 12px caption size (owner list item 14), on the same 12px line, so the title stays put.
-    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('font-size', '12px');
-    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('line-height', '12px');
-    const trustTitle = await page.locator('#trust-story-title').boundingBox();
-    // The notice shows in full on a visitor's first page only (owner list item 17), so on this
-    // second page it may already be the slim label; the title sits under it either way.
-    const banner = await page.locator('.pilot-banner').boundingBox();
-    expect(trustTitle?.x).toBe(116);
-    expect(trustTitle?.y).toBeCloseTo(206 + (banner?.height ?? 0), 0);
+    await expect(page.locator('.p3-eyebrow').first()).toHaveCSS('font-size', '12px');
+    await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto('/auth/sign-up');
     expect((await page.locator('.auth-introduction').boundingBox())?.width).toBe(740);
     expect((await page.locator('.auth-form-panel').boundingBox())?.width).toBe(480);

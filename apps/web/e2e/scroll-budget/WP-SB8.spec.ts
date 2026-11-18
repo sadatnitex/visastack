@@ -117,6 +117,18 @@ test.describe('WP-SB8 trust page', () => {
     await expectWithinBudget(page, { screens: 6, viewport: 'phone' });
     await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
   });
+
+  // WP-PUB3: the check above runs on a build with no database, where the route list is empty. This
+  // one renders the same story and route section with 12 route cards, search and Show More, so
+  // the budget holds for the page as it ships. The budget stays at 6 screens.
+  test('the page with its 12 route cards fits 6 screens on a phone and a desktop', async ({
+    page,
+  }) => {
+    await renderFixture(page, 'PUB3-trust', {});
+    await expect(page.locator('.trust-catalog a.card')).toHaveCount(12);
+    await expectWithinBudget(page, { screens: 6, viewport: 'phone' });
+    await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
+  });
 });
 
 test.describe('WP-SB8 country list', () => {

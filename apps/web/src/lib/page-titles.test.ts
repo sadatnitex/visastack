@@ -79,8 +79,8 @@ describe('page titles', () => {
     // D3: the page is "Notifications", as the menu and the finder name it (CCD-7).
     expect(titleOf('app/notifications/page.tsx')).toBe('Notifications');
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
-    // VS-010: /trust opens on the privacy and control story; its title stays until PUB3 renames it.
-    expect(titleOf('trust/page.tsx')).toBe('Privacy and Control');
+    // WP-PUB3 (owner, 17 Nov 2026; approved guard correction): the tab is named as the menu names it.
+    expect(titleOf('trust/page.tsx')).toBe('Privacy and Trust');
     expect(readFileSync(join(APP_DIR, '../i18n/home.ts'), 'utf8')).toContain(
       "'home.layout.privacyAndControl': 'Privacy and Control'",
     );
