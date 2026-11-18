@@ -5,6 +5,7 @@ import { componentsCatalog } from '../../i18n/components';
 import { countriesPublicCatalog } from '../../i18n/countries-public';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
 import { useT } from '../i18n-provider';
+import { MotionToggle, useMotionPaused } from './motion-pause';
 import {
   DEMO_WORD,
   SEARCH_LIMIT,
@@ -52,6 +53,9 @@ export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: Typi
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const input = useRef<HTMLInputElement | null>(null);
   const demoRef = useRef(!searched);
+  const paused = useMotionPaused();
+  // Where the demo has got to, so Play carries on instead of starting over.
+  const progress = useRef({ length: 0, direction: 1, rest: 0, started: false });
 
   const stopDemo = useCallback(() => {
     if (!demoRef.current) return;
@@ -64,41 +68,47 @@ export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: Typi
   }, []);
 
   useEffect(() => {
-    if (searched) return;
+    if (searched || !demoRef.current) return;
     const field = input.current;
     // A person who focused or typed before the page woke up keeps their own text; no demo then.
-    if (field && (document.activeElement === field || field.value !== DEMO_WORD)) {
+    if (
+      !progress.current.started &&
+      field &&
+      (document.activeElement === field || field.value !== DEMO_WORD)
+    ) {
       demoRef.current = false;
       setDemoWord(false);
       setText(field.value);
       return;
     }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    let length = 0;
-    let direction = 1;
-    let rest = 0;
-    setMoving(true);
-    setText('');
+    const step = progress.current;
+    if (!step.started) {
+      step.started = true;
+      setMoving(true);
+      setText('');
+    }
+    if (paused) return;
     timer.current = setInterval(() => {
-      if (rest > 0) {
-        rest -= 1;
+      if (step.rest > 0) {
+        step.rest -= 1;
         return;
       }
-      length += direction;
-      if (length >= DEMO_WORD.length) {
-        direction = -1;
-        rest = REST_FULL;
-      } else if (length <= 0) {
-        direction = 1;
-        rest = REST_EMPTY;
+      step.length += step.direction;
+      if (step.length >= DEMO_WORD.length) {
+        step.direction = -1;
+        step.rest = REST_FULL;
+      } else if (step.length <= 0) {
+        step.direction = 1;
+        step.rest = REST_EMPTY;
       }
-      setText(DEMO_WORD.slice(0, Math.max(0, length)));
+      setText(DEMO_WORD.slice(0, Math.max(0, step.length)));
     }, STEP_MS);
     return () => {
       if (timer.current !== null) clearInterval(timer.current);
       timer.current = null;
     };
-  }, [searched]);
+  }, [searched, paused]);
 
   const matches = matchCountries(index, text, index.length);
   const results = matches.slice(0, SEARCH_LIMIT);
@@ -212,6 +222,7 @@ export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: Typi
       <p className="r4-search-status" aria-hidden="true">
         {moving ? '' : words}
       </p>
+      <MotionToggle />
       <output className="sr-only" aria-live={moving ? 'off' : 'polite'}>
         {announced}
       </output>

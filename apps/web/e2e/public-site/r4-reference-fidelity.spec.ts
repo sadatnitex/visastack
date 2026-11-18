@@ -108,6 +108,39 @@ for (const size of SIZES) {
       await expect(page.locator('.r4-search-status')).toHaveText('No countries match.');
     });
 
+    test('chapter 1: one visible Pause button stops the typing and the ribbon, Play resumes (WCAG 2.2.2)', async ({
+      page,
+    }) => {
+      await page.goto('/countries');
+      const input = page.getByRole('searchbox', { name: 'Search Countries' });
+      const track = page.locator('.r4-ribbon-track');
+      const state = () => track.evaluate((el) => getComputedStyle(el).animationPlayState);
+      const pause = page.getByRole('button', { name: 'Pause Motion' });
+      await expect(pause).toBeVisible();
+      const box = await pause.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect(input).toHaveValue(/^S[a-z]*$/, { timeout: 5000 });
+      await pause.click();
+      await page.mouse.move(0, 0);
+      expect(await state()).toBe('paused');
+      const frozen = await input.inputValue();
+      await page.waitForTimeout(900);
+      expect(await input.inputValue()).toBe(frozen);
+      await page.getByRole('button', { name: 'Play Motion' }).click();
+      await page.mouse.move(0, 0);
+      expect(await state()).toBe('running');
+      await expect(input).not.toHaveValue(frozen, { timeout: 5000 });
+    });
+
+    test('chapter 1: no Pause button when nothing moves (reduced motion)', async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto('/countries');
+      await expect(page.getByRole('searchbox', { name: 'Search Countries' })).toHaveValue(
+        'Singapore',
+      );
+      await expect(page.getByRole('button', { name: 'Pause Motion' })).toHaveCount(0);
+    });
+
     test('chapter 1: the ribbon keeps a full seamless loop on every size', async ({ page }) => {
       await page.goto('/countries');
       const shown = await page.locator('.r4-pill').evaluateAll((pills) => {

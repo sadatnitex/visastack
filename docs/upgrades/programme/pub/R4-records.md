@@ -24,6 +24,14 @@ Pictures: `r4-shots/ch*-d.png` (computer) and `ch*-m.png` (phone), reference `re
 | 3 Rules and panel | Two-line headline, copy, source chip, panel with tabs, ring 5/8, Reused and To add rows, Example note | Same parts, flat panel (no soft shadow), checklist pictures from today's document drawings (some fall back to the plain icon) | Pass, with the flat-design difference |
 | 4 Closing band | Two-line headline, sub line, two buttons, passport floating below | Same order, today's button words, still passport | Pass |
 
+## Motion control (WCAG 2.2.2)
+
+The typing demo and the ribbon both start by themselves and run for more than 5 seconds, so one visible button, `Pause Motion` / `Play Motion` (44 px, `aria-pressed`), stops and resumes both together. It shows only where something moves (not without script, not under reduced motion). The state is one attribute on the page root, so a reload starts moving again. Tested in the fidelity spec (typing freezes and the ribbon's animation state is paused, Play resumes; no button under reduced motion).
+
+## English-only words for the localization lane
+
+New file `apps/web/src/i18n/countries-public.ts` (English only, `bn` empty, approved into the manifest by Guardian 10): Matching Countries; "{count} country found." / "{count} countries found."; "{count} countries found. Showing the first {limit}. Keep typing to narrow it."; Type at least two letters.; Type a country name.; Pause Motion; Play Motion. On a Bangla page they show English, marked `lang="en"`. Reused existing keys (Bengali exists for the last three): `components.countryBrowser.searchCountries` (no Bengali yet), `components.countryBrowser.allCountries`, `components.activityLog.search`, `components.countryBrowser.noCountriesMatch`. The page's own headings and body copy go through `publicText` as on the other public pages.
+
 ## Page length (WP-SB8, phone)
 
 English 5.63 screens, Bengali 5.67 screens, limit 5.88. The phone shows 4 flags per copy of the ribbon and tighter row spacing; words and 44 px buttons are unchanged.

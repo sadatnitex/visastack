@@ -144,7 +144,7 @@
   align-content: start;
   gap: var(--space-2);
   /* Room for the form and three results, so nothing below moves while the demo types. */
-  min-height: calc(60px + 2 * var(--space-2) + 3 * 48px + 12px + 2.5em);
+  min-height: calc(60px + 3 * var(--space-2) + 3 * 48px + 12px + 2.5em + 44px);
   text-align: start;
 }
 
@@ -605,4 +605,13 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-3);
+}
+
+/* R4: the page's one Pause or Play button (WCAG 2.2.2) and what it stops. */
+.r4-motion-toggle {
+  justify-self: center;
+}
+
+html[data-r4-motion="paused"] .r4-ribbon-track {
+  animation-play-state: paused;
 }

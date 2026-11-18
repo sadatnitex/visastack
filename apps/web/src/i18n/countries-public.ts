@@ -15,6 +15,8 @@ export const countriesPublicCatalog = defineCatalog({
       '{count} countries found. Showing the first {limit}. Keep typing to narrow it.',
     'countriesPublic.search.typeMore': 'Type at least two letters.',
     'countriesPublic.search.typeACountry': 'Type a country name.',
+    'countriesPublic.motion.pause': 'Pause Motion',
+    'countriesPublic.motion.play': 'Play Motion',
   },
   bn: {},
 });
