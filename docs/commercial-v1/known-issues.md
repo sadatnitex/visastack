@@ -8489,3 +8489,9 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Baseline, not fixed: /trust, /privacy, /terms show no overlaps, clipped text or sideways scroll at the five sizes.
 - NOT verified: real devices, Safari, Bangla page, 320 px with text-spacing overrides, production.
 - HOT1 follow-up (18 Nov 2026): the first push failed Build and Typecheck because the guard set reduced motion with an option the test types do not have; it now uses contextOptions and each run asserts matchMedia agrees, and the web typecheck passes. The earlier local runs had not typechecked the spec.
+
+## 18 Nov 2026: PUBFIX public site fixes (#635)
+- Fixes all seven defects of the PUB5 verification (docs/upgrades/programme/pub/PUB5-verification.md): D1 untrue How It Works line, D2 Bengali phone length (Home 4,949 px and Countries 4,883 px in Bengali, both under 4,962), D3 eyebrow line height, D4 scene top padding, D5 For Agencies labels from the Home catalogue, D6 language marks on Countries and For Agencies, D7 44 px header, footer and notice targets.
+- Guard: home-layout-overlap.spec.ts now covers Home, How It Works, Trust, Countries and For Agencies plus a JavaScript-off pass; red with the old D3 and D4 rules, green after. WP-SB8 has the Bengali cookie cases at 2 percent under 6 screens.
+- Checked: typecheck, lint, full web tests (9,700), ux-public, public-site, WP-SB8 and browser-security on one production build (490 passed, 15 skipped by design, 0 failed), public budget script.
+- NOT verified: real phones, Safari and Firefox, screen readers, live production, Bengali on other pages. PUB-bn-words.csv not on main yet: D1 wording change recorded in docs/upgrades/programme/pub/PUBFIX-records.md.
