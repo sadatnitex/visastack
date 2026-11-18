@@ -1,17 +1,16 @@
-/* WP-PUB1 (ADR 0029): the early scroll-scenes mark. Loaded in the page head with this request's
-   nonce, before the first paint. Marks html[data-scenes="live"] only when motion is welcome, data
-   saver is off and the screen is at least 760 x 600, the same tests as the scenes runtime
-   (components/public-site/scene-engine.ts, SCENE_SCREEN_QUERY). Never throws. */
+/* WP-PUB1 (ADR 0029, MOT1): the early scenes mark, run in the head before the first paint. Same rule
+   as the runtime (scene-engine.ts sceneMode): less motion asks for "gentle", else SCENE_SCREEN_QUERY
+   picks "pinned" (data-scenes="live") or "reveal". data-scene-mode names the mode. Never throws. */
 (() => {
   try {
-    const root = document.documentElement;
     const matches = (query) => matchMedia(query).matches;
-    if (
-      !matches('(prefers-reduced-motion: reduce)') &&
-      matches('(min-width: 760px) and (min-height: 600px)') &&
-      !root.hasAttribute('data-save-data') &&
-      !navigator.connection?.saveData
-    )
-      root.setAttribute('data-scenes', 'live');
+    const mode = matches('(prefers-reduced-motion: reduce)')
+      ? 'gentle'
+      : matches('(min-width: 760px) and (min-height: 600px)')
+        ? 'pinned'
+        : 'reveal';
+    const root = document.documentElement;
+    root.setAttribute('data-scenes', mode === 'pinned' ? 'live' : mode);
+    root.setAttribute('data-scene-mode', mode);
   } catch {}
 })();

@@ -22,7 +22,8 @@ export async function requestNonce(): Promise<string | null> {
  * WP-PUB1 (ADR 0029): loads the early scenes mark (public/scenes-boot.js) in the head, nonce'd and
  * synchronous, so it runs before the first paint. Without a nonce it is left out (the policy would
  * block it); without JavaScript it never runs and every scene stays a finished section. The file
- * only sets data-scenes on html, which React does not render, so hydration is untouched.
+ * only sets data-scenes and data-scene-mode on html (pinned, reveal or gentle; MOT1), which React does
+ * not render, so hydration is untouched.
  */
 export function ScenesBoot({ nonce }: { readonly nonce: string | null }) {
   // Synchronous on purpose (no async or defer): it must run before the first paint.

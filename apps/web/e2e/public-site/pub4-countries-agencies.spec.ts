@@ -123,18 +123,23 @@ for (const route of PAGES) {
     expect(refused).toEqual([]);
   });
 
-  test(`${route}: reduced motion shows the finished step and the engine stays off`, async ({
+  test(`${route}: reduced motion is the gentle mode: nothing pins and every scene ends on its finished step`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(route);
-    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', 'live');
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'gentle');
+    await expect(page.locator('html')).toHaveAttribute('data-scene-mode', 'gentle');
     const scenes = page.locator('[data-scene]');
     for (let i = 0; i < (await scenes.count()); i++) {
       const scene = scenes.nth(i);
+      await scene.scrollIntoViewIfNeeded();
       const steps = Number(await scene.getAttribute('data-steps'));
+      // Finished means the step equals data-rest, the finished step the server wrote.
       await expect(scene).toHaveAttribute('data-step', String(steps - 1));
+      await expect(scene).toHaveAttribute('data-rest', String(steps - 1));
+      await expect(scene.locator('.pub-scene-stage')).not.toHaveCSS('position', 'sticky');
     }
   });
 }

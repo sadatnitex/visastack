@@ -12,7 +12,7 @@ export interface SceneProps {
   readonly len: SceneLength;
   /** How many steps the scene shows, at least 1. */
   readonly steps: number;
-  /** The step shown without motion (no JavaScript, reduced motion, data saver). Default: the last. */
+  /** The step shown without motion (no JavaScript) and where a scene ends. Default: the last. */
   readonly finalStep?: number;
   /** The heading that names the scene. */
   readonly labelledBy?: string;
@@ -43,6 +43,8 @@ function halves(value: number): number {
 /**
  * One scroll scene. The server writes the finished step, so the scene reads complete before (or
  * without) the scroll engine. While the engine runs, it pins the stage and moves the steps.
+ * `data-rest` repeats the finished step and never changes: reveal mode (phones) plays `data-step`
+ * through the steps but keeps layout (which words show) on the finished one.
  */
 export function Scene({
   name,
@@ -64,6 +66,7 @@ export function Scene({
       data-len={halves(len)}
       data-steps={count}
       data-step={last}
+      data-rest={last}
       {...(kitStage ? { 'data-kit-stage': '' } : {})}
       {...(minWidth ? { 'data-min-width': whole(minWidth, 1, 4000) } : {})}
       aria-labelledby={labelledBy}
