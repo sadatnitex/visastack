@@ -34,8 +34,8 @@ test.describe('WP-SB8 landing page', () => {
     await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
     await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
     await expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'enforce' });
-    // Desktop holds the same number of screens (enforced since WP-SB10).
-    await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
+    // Desktop: 12 screens since WP-PUB2 (owner decision, 17 Nov 2026), for the pinned scroll scenes.
+    await expectWithinBudget(page, { screens: 12, viewport: 'desktop' });
   });
 
   test('opening every story group still leaves no sideways scroll, and the closed page breaks without the groups', async ({

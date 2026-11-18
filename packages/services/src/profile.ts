@@ -240,6 +240,18 @@ export async function editFact(
     return err(keyedError('consent_required', 'profile.core_processing_consent_is_required'));
   }
 
+  // The stand-in a keyless read shows for a protected detail is never a value: saving it would
+  // replace the real, encrypted value with the words "[protected]" (WALD2). Refused for every
+  // field and every caller; the refusal never repeats what was sent.
+  if (isProtectedPlaceholder(input.value)) {
+    return err(
+      serviceError(
+        'invalid',
+        'This detail is saved and protected. Type the new value to change it, or leave it as it is.',
+      ),
+    );
+  }
+
   const fieldDef = await findFieldByKey(db, input.fieldKey);
   if (!fieldDef) {
     return err(serviceError('unknown_field', `unknown field: ${input.fieldKey}`));
@@ -595,13 +607,19 @@ export interface ProfileEntry {
 const PROTECTED_PLACEHOLDER = '[protected]';
 /** Shown when a row is protected, a port WAS supplied, but decryption itself failed (tamper/corruption) — distinct from "not even attempted". */
 const PROTECTED_UNREADABLE_PLACEHOLDER = '[protected: could not decrypt]';
+const PROTECTED_PLACEHOLDER_FOLDED = PROTECTED_PLACEHOLDER.replace(/\s+/g, '');
+const PROTECTED_UNREADABLE_FOLDED = PROTECTED_UNREADABLE_PLACEHOLDER.replace(/\s+/g, '');
 
 /**
  * Whether `listApplicantProfile` returned a stand-in instead of a protected value (no key service
  * given, or decryption failed). Such a value must never be compared with anything.
  */
 export function isProtectedPlaceholder(value: string | null): boolean {
-  return value === PROTECTED_PLACEHOLDER || value === PROTECTED_UNREADABLE_PLACEHOLDER;
+  if (value === null) return false;
+  // Case, spaces and padding do not matter: a stand-in typed back, pasted or reformatted is still
+  // a stand-in (WALD2).
+  const folded = value.replace(/\s+/g, '').toLowerCase();
+  return folded === PROTECTED_PLACEHOLDER_FOLDED || folded === PROTECTED_UNREADABLE_FOLDED;
 }
 
 /**

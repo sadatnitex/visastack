@@ -200,6 +200,7 @@ export {
   type RegisterFieldInput,
   editFact,
   getCurrentFactVersion,
+  isProtectedPlaceholder,
   listApplicantProfile,
   listFactHistory,
   registerFieldDefinition,
