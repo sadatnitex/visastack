@@ -23818,3 +23818,58 @@ a.passport-page-value:hover {
   }
 }
 /* end WP-WAL3 */
+
+/* WP-WAL10 Home People photo and Needs Attention rows (18 Nov 2026, owner request): the account's own photo fills the round Home avatar (initials stay for everyone else and when the photo cannot load), and each Needs Attention item is one Expandable Section row (picture, title, the reason as one clamped line, the full sentence inside) with the urgency word, person and date under it and the item's one action. Flat: tokens only, a hairline, no shadow, no gradient, no motion. Every control is at least 44 px. */
+.home-avatar[data-photo="true"] {
+  overflow: hidden;
+  background: var(--brand-bg);
+}
+.home-person:nth-child(even) .home-avatar[data-photo="true"] {
+  background: var(--brand-bg);
+}
+.home-attention-row {
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+.home-attention-section {
+  min-width: 0;
+}
+.home-attention-section .expandable-section-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+}
+.home-attention-section .expandable-section-details > summary {
+  min-height: 56px;
+}
+.home-attention-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--brand-bg);
+  color: var(--accent);
+}
+.home-attention-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.home-attention-meta .do-next-context {
+  min-width: 0;
+}
+/* end WP-WAL10 */
+
+/* WP-U8 time zone in a column row (18 Nov 2026). The shared .tz-select asks for a 15rem flex basis, meant for a row of fields. Inside a form field (.field-row is a flex column) that basis became the list's HEIGHT, a 240 px empty box. In a column the list keeps the height of every other control and takes the width of its field. Used by every form that draws a Time Zone list in a field. */
+.field-row > .tz-select {
+  flex: 0 0 auto;
+  max-width: none;
+  min-width: 0;
+  width: 100%;
+}
+/* end WP-U8 */

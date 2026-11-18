@@ -429,10 +429,6 @@ const KNOWN_FAILING_BASELINE = new Set([
     `/app/applicant/[id]/profile | covered control | ${size} | Photo File`,
     `/app/applicant/[id]/record | covered control | ${size} | Everything2`,
     `/app/applicant/[id]/record | covered control | ${size} | Previous Versions0`,
-    `/app/agency/[orgId]/clients | covered control | ${size} | Invite a Client`,
-    `/app/agency/[orgId]/clients | covered control | ${size} | Ask for a Document or Detail`,
-    `/app/agency/[orgId]/activity | no control | ${size} | -`,
-    `/app/agency/[orgId]/ai-connections | no control | ${size} | -`,
   ]),
   ...['phone 390', 'phone 400'].flatMap((size) => [
     `/app/applicant/[id]/record | covered control | ${size} | Profile Details10`,
