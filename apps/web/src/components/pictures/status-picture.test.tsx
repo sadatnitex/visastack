@@ -47,10 +47,14 @@ describe('the six status pictures (one status language)', () => {
     const rings = kinds.map((kind) => STATUS_MEANINGS[kind].ring);
     expect(new Set(rings).size).toBe(kinds.length);
     const drawings = kinds.map((kind) => renderToString(<StatusGlyph kind={kind} />));
-    const marks = drawings.map((html) => html.match(/<g class="status-picture-mark">(.*)<\/g>/)?.[1]);
+    const marks = drawings.map(
+      (html) => html.match(/<g class="status-picture-mark">(.*)<\/g>/)?.[1],
+    );
     expect(new Set(marks).size).toBe(kinds.length);
     const outlines = drawings.map((html) =>
-      [...html.matchAll(/<circle class="status-picture-ring[^"]*"[^>]*>/g)].map((m) => m[0]).join(''),
+      [...html.matchAll(/<circle class="status-picture-ring[^"]*"[^>]*>/g)]
+        .map((m) => m[0])
+        .join(''),
     );
     expect(new Set(outlines).size).toBe(kinds.length);
   });
@@ -68,7 +72,9 @@ describe('the six status pictures (one status language)', () => {
     const block = css.slice(start, end === -1 ? undefined : end);
     expect(block).toMatch(/\.status-picture\[data-tone="ok"\]/);
     // No literal colours, no shadows, no gradients: tokens only, flat.
-    expect(block.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|shadow|gradient/i);
+    expect(block.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(
+      /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|shadow|gradient/i,
+    );
   });
 
   it('each picture is an Explain button named by its status and described by its sentence', async () => {
@@ -89,7 +95,9 @@ describe('the six status pictures (one status language)', () => {
   });
 
   it('take the page language words when given, else the record', () => {
-    const html = renderToString(<StatusPicture kind="added" label="Own Words" text="Own sentence." />);
+    const html = renderToString(
+      <StatusPicture kind="added" label="Own Words" text="Own sentence." />,
+    );
     expect(html).toContain('Own Words');
     expect(html).toContain('Own sentence.');
     expect(html).not.toContain(STATUS_MEANINGS.added.sentence);

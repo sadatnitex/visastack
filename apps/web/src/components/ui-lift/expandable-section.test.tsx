@@ -52,9 +52,15 @@ describe('ExpandableSection', () => {
     const summary = element.querySelector(':scope > summary');
     expect(summary?.querySelector('h3')?.textContent).toBe('Passport Details');
     expect(summary?.querySelector('.expandable-section-summary')?.textContent).toBe('3 of 5 added');
-    expect(summary?.querySelector('.expandable-section-picture')?.getAttribute('aria-hidden')).toBe('true');
-    expect(summary?.querySelector('.expandable-section-chevron')?.getAttribute('aria-hidden')).toBe('true');
-    expect(element.querySelector(':scope > .expandable-section-body')?.textContent).toBe('Inside the section.');
+    expect(summary?.querySelector('.expandable-section-picture')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
+    expect(summary?.querySelector('.expandable-section-chevron')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
+    expect(element.querySelector(':scope > .expandable-section-body')?.textContent).toBe(
+      'Inside the section.',
+    );
   });
 
   it('keeps the status picture beside the toggle, never inside it', () => {
@@ -62,7 +68,9 @@ describe('ExpandableSection', () => {
     const summary = container.querySelector('summary');
     expect(summary?.querySelector('button, a, input, select, textarea')).toBeNull();
     const status = container.querySelector('.expandable-section > .expandable-section-status');
-    expect(status?.querySelector('button.explain-tip-trigger')?.textContent).toBe('Backed by a Document');
+    expect(status?.querySelector('button.explain-tip-trigger')?.textContent).toBe(
+      'Backed by a Document',
+    );
     expect(details().contains(status ?? null)).toBe(false);
   });
 
@@ -153,7 +161,10 @@ describe('ExpandableSection', () => {
       const html = renderToString(
         <section aria-label="Test">
           <ExpandableSection {...base} id="passport" defaultOpen={defaultOpen} />
-          <ExpandableSection title="How This Was Checked" summary="Read from a file, you confirmed it">
+          <ExpandableSection
+            title="How This Was Checked"
+            summary="Read from a file, you confirmed it"
+          >
             <p>Second section.</p>
           </ExpandableSection>
         </section>,

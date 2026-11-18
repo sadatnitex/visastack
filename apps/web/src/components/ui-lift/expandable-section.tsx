@@ -89,7 +89,13 @@ export function ExpandableSection({
       data-has-picture={picture ? 'true' : undefined}
       data-has-status={status ? 'true' : undefined}
     >
-      <details ref={ref} id={id} className="expandable-section-details" open={open} onToggle={handleToggle}>
+      <details
+        ref={ref}
+        id={id}
+        className="expandable-section-details"
+        open={open}
+        onToggle={handleToggle}
+      >
         <summary className="expandable-section-row">
           {picture ? (
             <span className="expandable-section-picture" aria-hidden="true">

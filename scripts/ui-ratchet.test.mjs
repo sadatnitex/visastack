@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { DETAILS_HOME, compare, measure, measureTree } from './ui-ratchet.mjs';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import test from 'node:test';
+import { DETAILS_HOME, compare, measure, measureTree } from './ui-ratchet.mjs';
 
 test('counts inline style props and raw codes shown as page text', () => {
   const source = `export const A = ({ doc, m }) => (

@@ -61,9 +61,16 @@ const MARKS: Readonly<Record<StatusKind, ReactNode>> = {
   // A page with a folded corner: a file holds it.
   backed: <path d="M9 7.5h4l2.5 2.5v6.5H9zM13 7.5V10h2.5M10.8 13h2.9" />,
   // A four-point spark: read from a file, waiting for the person.
-  suggested: <path className="status-picture-fill" d="M12 7l1.3 3.7L17 12l-3.7 1.3L12 17l-1.3-3.7L7 12l3.7-1.3z" />,
+  suggested: (
+    <path
+      className="status-picture-fill"
+      d="M12 7l1.3 3.7L17 12l-3.7 1.3L12 17l-1.3-3.7L7 12l3.7-1.3z"
+    />
+  ),
   // A closed eye: hidden until shown.
-  sensitive: <path d="M8 11.5c2.2 2.4 5.8 2.4 8 0M9.4 13.2l-.9 1.3M12 13.9V15.4M14.6 13.2l.9 1.3" />,
+  sensitive: (
+    <path d="M8 11.5c2.2 2.4 5.8 2.4 8 0M9.4 13.2l-.9 1.3M12 13.9V15.4M14.6 13.2l.9 1.3" />
+  ),
   // An exclamation mark: something needs the person.
   needsFix: (
     <>

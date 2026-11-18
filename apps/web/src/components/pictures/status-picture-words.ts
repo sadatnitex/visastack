@@ -46,7 +46,7 @@ export const STATUS_MEANINGS: Readonly<Record<StatusKind, StatusMeaning>> = {
   },
   backed: {
     name: 'Backed by a Document',
-    sentence: 
+    sentence:
       'A file you uploaded shows the same value, which alone does not mean anyone has checked it.',
     tone: 'ok',
     ring: 'thick',
@@ -71,8 +71,7 @@ export const STATUS_MEANINGS: Readonly<Record<StatusKind, StatusMeaning>> = {
   },
   notCurrent: {
     name: 'Not Current',
-    sentence: 
-      'This was true before and stays in your history, but it is not true now.',
+    sentence: 'This was true before and stays in your history, but it is not true now.',
     tone: 'ink',
     ring: 'dotted',
   },

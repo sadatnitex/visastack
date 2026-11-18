@@ -130,9 +130,7 @@ export function compare(current, baseline) {
     for (const [file, count] of Object.entries(current[key] ?? {})) {
       const allowed = baseline[key]?.[file] ?? 0;
       if (count > allowed)
-        errors.push(
-          `${file}: ${count} ${label}, up from ${allowed}. ${FIX[key]}`,
-        );
+        errors.push(`${file}: ${count} ${label}, up from ${allowed}. ${FIX[key]}`);
     }
   }
   return errors;
