@@ -35,6 +35,8 @@ Checked against the code by a read-only pass (services, policy, sharing screens,
 | Where we are today | Controlled pilot, made-up data only, no certification or independent security test claimed, virus scanning of uploads not switched on (privacy notice and `docs/operations/current-platform.md`). | "VisaStack is in a controlled pilot. Only practice records are used. Virus scanning of uploads is not switched on yet. Independent checks will be listed here as they are completed, and nothing before." Scanning sentence ADDED for truth. |
 | "Access Ended" screen | There is no "Access Ended" state in the app. Statuses are revoked and expired, and an ended flag. The words appear only in the shared kit's picture. | The kit picture is an Example, tagged so. No sentence on the page claims an "Access Ended" screen exists. Flagged for the Guardian: the kit label is a picture word, not a product state. |
 
+Guardian note (R2 correction of the kit's "Photo page only" row to "Full Copy"): partial-document sharing does not exist yet (sharing.ts, Milestone 2), so the page makes no part-of-document claim. The history row reads "You shared Passport with Agency" (the reference said "Passport, photo page only"), and no test pins the kit row's words.
+
 ## 3. Words with no Bengali yet (English on a Bengali page, marked `lang="en"` through `publicText`)
 
 Existing catalogue keys reused (they keep their Bengali): `trust.publicTrustStory.startWithYourOwnProfile`, `viewPrivacyDetails` (English only today), `aHistoryYouCanReview`, `clearBoundariesHumanControlNoApproval`.

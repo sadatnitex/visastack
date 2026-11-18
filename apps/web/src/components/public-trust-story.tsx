@@ -52,7 +52,7 @@ const PROMISES = [
 /** The history rows are made up, so the chapter carries the Example tag. */
 const HISTORY: readonly { icon: IconName; text: string; when: string }[] = [
   { icon: 'lock', text: 'You ended sharing with Agency', when: 'Today' },
-  { icon: 'share', text: 'You shared Passport, photo page only', when: '12 Nov' },
+  { icon: 'share', text: 'You shared Passport with Agency', when: '12 Nov' },
   { icon: 'check', text: 'You confirmed Surname', when: '10 Nov' },
 ];
 
