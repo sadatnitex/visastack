@@ -94,7 +94,10 @@ for (const size of SIZES) {
       await page.waitForTimeout(900);
       await expect(input).toHaveValue('Germa');
       await expect(page.locator('.r4-results')).toContainText('Germany');
-      await expect(page.locator('.r4-search output')).toHaveText('1 country found.');
+      // The spoken count follows once typing pauses.
+      await expect(page.locator('.r4-search output')).toHaveText('1 country found.', {
+        timeout: 5000,
+      });
     });
 
     test('chapter 1: a search with no match says so in words everyone can see', async ({
@@ -102,7 +105,7 @@ for (const size of SIZES) {
     }) => {
       await page.goto('/countries?q=xyzq');
       await expect(page.locator('.r4-search-status')).toBeVisible();
-      await expect(page.locator('.r4-search-status')).toHaveText('No country matches.');
+      await expect(page.locator('.r4-search-status')).toHaveText('No countries match.');
     });
 
     test('chapter 1: the ribbon keeps a full seamless loop on every size', async ({ page }) => {
@@ -117,6 +120,23 @@ for (const size of SIZES) {
       });
       expect(shown[0]).toBeGreaterThan(0);
       expect(shown[1]).toBe(shown[0]);
+    });
+
+    test('chapter 1: Search never looks dead while the demo word is in the field', async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto('/countries');
+      const input = page.getByRole('searchbox', { name: 'Search Countries' });
+      await page.getByRole('button', { name: 'Search', exact: true }).click();
+      await expect(input).toHaveValue('');
+      await expect(input).toBeFocused();
+      await expect(page.locator('.r4-search-status')).toHaveText('Type a country name.');
+    });
+
+    test('chapter 1: one letter asks for a second', async ({ page }) => {
+      await page.goto('/countries?q=g');
+      await expect(page.locator('.r4-search-status')).toHaveText('Type at least two letters.');
     });
 
     test('chapter 1: reduced motion shows the search filled and still, the ribbon still', async ({
@@ -189,7 +209,7 @@ for (const size of SIZES) {
       await expect(rules(page)).toHaveAttribute('data-tone', 'light');
       await expect(rules(page).locator('h2')).toHaveText(/Rules,\s*Not Guesses\./);
       await expect(rules(page).getByText('Reused').first()).toBeVisible();
-      await expect(rules(page).getByText('To add').first()).toBeVisible();
+      await expect(rules(page).getByText('To Add').first()).toBeVisible();
       await expect(rules(page)).toContainText('5 of 8 Ready');
       await expect(rules(page)).toContainText('Example');
       await expect(rules(page)).toContainText('Completeness only. Not an approval.');

@@ -10,6 +10,7 @@ import { publicText } from '../../components/public-site/public-text';
 import { Chapter } from '../../components/public-site/scene';
 import { HeadlineWords } from '../../components/public-site/story';
 import { ShowMore } from '../../components/show-more';
+import { componentsCatalog } from '../../i18n/components';
 import { homeCatalog } from '../../i18n/home';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
@@ -69,6 +70,7 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
   const lang = getPageLanguage();
   const say = (text: string) => publicText(text, lang);
   const t = getServerT(homeCatalog);
+  const tc = getServerT(componentsCatalog);
   const params: SearchParamsRecord = (await props?.searchParams) ?? {};
   const view = countriesWindow(params);
   const signedIn = await isSignedIn();
@@ -102,7 +104,6 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
             initialQuery={query}
             signedIn={signedIn}
             signUpOpen={signUpOpen}
-            pageLang={lang}
           />
         </div>
       </Chapter>
@@ -111,7 +112,7 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
         <FlagRibbon
           flags={RIBBON_FLAGS}
           href="#countries-list"
-          linkLabel="All Countries"
+          linkLabel={tc.node('components.countryBrowser.allCountries')}
           pageLang={lang}
         />
         <div className="container" id="countries-list">

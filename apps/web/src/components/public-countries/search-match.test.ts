@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchCountries, normaliseQuery, resultCountWords } from './search-match';
+import { foldAccents, matchCountries, normaliseQuery, searchStatus } from './search-match';
 
 const INDEX = [
   { c: 'DE', n: 'Germany', f: 'de' },
@@ -8,6 +8,9 @@ const INDEX = [
   { c: 'NG', n: 'Nigeria', f: 'ng' },
   { c: 'SG', n: 'Singapore', f: 'sg' },
   { c: 'AG', n: 'Antigua and Barbuda', f: 'ag' },
+  { c: 'CI', n: "Côte d'Ivoire", f: 'ci' },
+  { c: 'TR', n: 'Türkiye', f: 'tr' },
+  { c: 'TL', n: 'Timor-Leste', f: 'tl' },
 ] as const;
 
 describe('hero search matching', () => {
@@ -33,13 +36,20 @@ describe('hero search matching', () => {
     expect(matchCountries(INDEX, ' SINGA ')[0]?.n).toBe('Singapore');
   });
 
-  it('says plainly how many matched, and when only the first few are shown', () => {
-    expect(resultCountWords(0, 'xyzq')).toBe('No country matches.');
-    expect(resultCountWords(1, 'sing')).toBe('1 country found.');
-    expect(resultCountWords(2, 'ge')).toBe('2 countries found.');
-    expect(resultCountWords(5, 'ge')).toBe(
-      '5 countries found. Showing the first 3. Keep typing to narrow it.',
-    );
-    expect(resultCountWords(5, 'g')).toBe('');
+  it('ignores accents on both sides and breaks words at apostrophes, hyphens and brackets', () => {
+    expect(foldAccents('Côte Türkiye')).toBe('cote turkiye');
+    expect(matchCountries(INDEX, 'cote')[0]?.n).toBe("Côte d'Ivoire");
+    expect(matchCountries(INDEX, 'turk')[0]?.n).toBe('Türkiye');
+    expect(matchCountries(INDEX, 'Türk')[0]?.n).toBe('Türkiye');
+    expect(matchCountries(INDEX, 'ivoire')[0]?.n).toBe("Côte d'Ivoire");
+    expect(matchCountries(INDEX, 'leste')[0]?.n).toBe('Timor-Leste');
+  });
+
+  it('names what the status line should say', () => {
+    expect(searchStatus(0, '')).toEqual({ kind: 'quiet' });
+    expect(searchStatus(0, 'g')).toEqual({ kind: 'short' });
+    expect(searchStatus(0, 'xyzq')).toEqual({ kind: 'none' });
+    expect(searchStatus(2, 'ge')).toEqual({ kind: 'found', count: 2 });
+    expect(searchStatus(5, 'ge')).toEqual({ kind: 'first', count: 5, limit: 3 });
   });
 });

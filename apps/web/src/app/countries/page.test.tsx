@@ -179,6 +179,15 @@ describe('the public Countries page', () => {
     expect(html).toContain('1 country found.');
   });
 
+  it('asks for a second letter when the address holds one, and finds accented names', async () => {
+    const one = await render({ q: 'g' });
+    expect(one).toContain('Type at least two letters.');
+    const accent = await render({ q: 'turk' });
+    expect(accent).toContain('>T\u00fcrkiye</span>');
+    const none = await render({ q: 'xyzq' });
+    expect(none).toContain('No countries match.');
+  });
+
   it('lists the countries a plain ?q= search names, and shows no demo for it', async () => {
     const html = await render({ q: 'germ' });
     expect(html).toContain('value="germ"');
@@ -191,9 +200,9 @@ describe('the public Countries page', () => {
     const ribbon = html.split('r4-ribbon-view')[1]?.split('r4-ribbon-link')[0] ?? '';
     expect(ribbon).toContain('aria-hidden="true"');
     expect(ribbon).toContain('/flags/');
-    expect(html).toMatch(
-      /<a class="pub-button pub-button-secondary r4-ribbon-link" href="#countries-list">All Countries<\/a>/,
-    );
+    const link = html.match(/<a\b[^>]*\br4-ribbon-link\b[^>]*>([^<]*)<\/a>/);
+    expect(link?.[1]).toBe('All Countries');
+    expect(link?.[0]).toMatch(/\bhref="#countries-list"/);
   });
 
   it('keeps the ribbon flags light, so the page stays under the 150 KB picture budget', async () => {
@@ -212,7 +221,7 @@ describe('the public Countries page', () => {
   it('shows the Rules checklist as an Example, completeness only', async () => {
     const html = await render();
     expect(html).toContain('Reused');
-    expect(html).toContain('To add');
+    expect(html).toContain('To Add');
     expect(html).toContain('5 of 8 Ready');
     expect(html).toContain('Completeness only. Not an approval.');
     expect(html).toContain('Example');

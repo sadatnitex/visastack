@@ -62,7 +62,7 @@ export function CountryChecklistPanel({
             <li key={item.kind} className={have ? 'r4s-item r4s-item-have' : 'r4s-item'}>
               <DocumentPicture type={item.kind} size={26} />
               <span className="r4s-item-name">{item.label}</span>
-              <span className="r4s-item-tag">{have ? 'Reused' : 'To add'}</span>
+              <span className="r4s-item-tag">{have ? 'Reused' : 'To Add'}</span>
             </li>
           );
         })}

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { AVAILABLE_FLAG_CODES } from '../flags/available-flags';
 import '../public-site/public-site.css';
 
@@ -14,7 +15,7 @@ export interface FlagRibbonProps {
   readonly flags: readonly RibbonFlag[];
   /** The visible link that makes the ribbon's meaning available without it. */
   readonly href: string;
-  readonly linkLabel: string;
+  readonly linkLabel: ReactNode;
   readonly pageLang?: string;
 }
 
