@@ -32,7 +32,18 @@ The fixture's made-up words (section names, field labels) are test data, not pro
 
 ## Red then green
 
-RESULTS_PLACEHOLDER
+Red first, on main `70b8940` (the new files did not exist): the ratchet tests, the two unit test files and the browser spec all failed to load.
+
+Each guard proven red by breaking the real code once (backed up with cp, restored, then green):
+- Count-down: a second `<details>` added inside `collapsible-group.tsx` gave "collapsible-group.tsx: 2 raw details elements, up from 1" and exit 1.
+- Hit test: the Expandable Section's status column stretched over the whole card (`inset: 0`) gave "<summary> "Added Details3 of 5 added" at 195,335 is under <circle>" at every size, sections open and closed.
+- Sideways: a 2000 px wide child in the section body gave "sideways scroll in pixels" with the sections open (closed bodies are not drawn, as expected).
+
+Found by the new guards on their first run and fixed in this unit: the six Explain buttons of a stacked status key overlapped (ExplainTip's -12 px margin), fixed with `.status-picture-key` rows of 44 px; the title moved 1 px when a summary wrapped; the guard itself read points while the site's smooth scroll was still moving (now instant).
+
+Green: `e2e/wallet/u1-foundation.spec.ts` 20 of 20, run twice (40 of 40) on a production build with the no-secret settings at 390, 400 and 1280 px, including the public pages /, /trust, /privacy, /terms and /status. Unit: expandable-section.test.tsx and status-picture.test.tsx (with axe), ui-lift.test.tsx, title-case.test.ts, ui-ratchet.test.mjs 8 of 8.
+
+Review: /code-review high and an independent accessibility and design review (fresh context). Fixed: status before the row in reading and focus order; heading a direct child of the summary; forced-colours rule; right-to-left padding and chevron; guard tests every point of a row with a declared narrow companion and reports a control it cannot bring on screen; the no-script test uses true server markup; the count-down also counts the older shared folds; two sentences reworded ("choose Show", "its details say what to change"). Kept on purpose: green for Backed by a Document (the approved board shows it green; the sentence says nobody checked it); English defaults in the one record with `label` and `text` props for the page language (the brief's single source for the Bengali list).
 
 ## Not verified
 

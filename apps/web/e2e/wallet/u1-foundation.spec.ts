@@ -1,7 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { type Page, expect, test } from '@playwright/test';
-import { createElement } from 'react';
-import { renderToString } from 'react-dom/server';
-import Wal1FoundationFixture from '../fixtures/wal1-foundation.fixture';
 import { renderFixture } from '../scroll-budget/support';
 import {
   GUARD_SIZES,
@@ -20,6 +22,57 @@ import {
 
 const FIXTURE = 'wal1-foundation';
 const KINDS = ['added', 'backed', 'suggested', 'sensitive', 'needsFix', 'notCurrent'] as const;
+
+/**
+ * The fixture as a server renders it: one self-contained server bundle (the fixture, React and
+ * renderToString together, built with the same Vite the fixtures use), run here in Node. Spec
+ * files cannot render JSX themselves, because Playwright rewrites JSX in them for its own use.
+ */
+async function serverMarkup(): Promise<string> {
+  const entry = resolve(__dirname, '..', 'fixtures', `${FIXTURE}.fixture.tsx`);
+  const require = createRequire(__filename);
+  const vitePath = createRequire(require.resolve('vitest/package.json')).resolve('vite');
+  const { build } = await import(vitePath);
+  const virtual = 'virtual:wal1-server-markup';
+  const output = await build({
+    configFile: false,
+    logLevel: 'error',
+    define: { 'process.env.NODE_ENV': '"production"' },
+    esbuild: { jsx: 'automatic' },
+    ssr: { noExternal: true },
+    plugins: [
+      {
+        name: 'wal1-server-markup',
+        resolveId: (id: string) =>
+          id === virtual || id.endsWith(`/${virtual}`) ? `\0${virtual}` : null,
+        load: (id: string) =>
+          id === `\0${virtual}`
+            ? [
+                `import { createElement } from 'react';`,
+                `import { renderToString } from 'react-dom/server';`,
+                `import Fixture from ${JSON.stringify(entry)};`,
+                'export const markup = () => renderToString(createElement(Fixture, {}));',
+              ].join('\n')
+            : null,
+      },
+    ],
+    build: { ssr: virtual, write: false, rollupOptions: { output: { format: 'esm' } } },
+  });
+  const outputs = Array.isArray(output) ? output : [output];
+  const code = outputs
+    .flatMap((o: { output: { type: string; code?: string }[] }) => o.output)
+    .find((o: { type: string; code?: string }) => o.type === 'chunk')?.code;
+  if (!code) throw new Error('WAL1 server bundle missing');
+  const dir = mkdtempSync(join(tmpdir(), 'wal1-ssr-'));
+  try {
+    const file = join(dir, 'markup.mjs');
+    writeFileSync(file, code);
+    const loaded = (await import(pathToFileURL(file).href)) as { markup: () => string };
+    return loaded.markup();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const section = (page: Page, kind: string) => page.locator(`#section-${kind} > details`);
 const row = (page: Page, kind: string) => section(page, kind).locator('> summary');
@@ -161,7 +214,7 @@ test('WAL1 Expandable Section works with script switched off, from the server ma
 }) => {
   // The server's own rendering of the fixture (renderToString, as a server component page sends
   // it), placed in the site's real page with every script removed.
-  const markup = renderToString(createElement(Wal1FoundationFixture, {}));
+  const markup = await serverMarkup();
   await page.goto('/');
   const origin = new URL(page.url()).origin;
   const shell = await (await page.request.get(`${origin}/`)).text();
