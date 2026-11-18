@@ -17,7 +17,7 @@ vi.mock('../../lib/public-db', () => ({
   withPublicDb: async (fn: (db: unknown) => Promise<unknown>) => fn({}),
 }));
 
-const { default: PublicTrustCatalogPage } = await import('./page');
+const { default: PublicTrustCatalogPage, metadata } = await import('./page');
 
 function route(n: number): PublicTrustRoute {
   return {
@@ -101,5 +101,59 @@ describe('the public route list', () => {
   it('still works when called without an address, as the older checks do', async () => {
     listPublicTrustPublished.mockResolvedValue(routes(3));
     expect(cards(await renderServer(PublicTrustCatalogPage()))).toHaveLength(3);
+  });
+});
+
+/**
+ * WP-PUB3: the trust page opens on a scroll story (share switches, then Access Ended). The route
+ * list below it keeps every behaviour above, and the page stays readable when the database is down.
+ */
+describe('the Privacy and Trust story', () => {
+  it('is named Privacy and Trust and keeps one top heading with its id', async () => {
+    expect(metadata.title).toBe('Privacy and Trust');
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    expect(html.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(html).toContain('id="trust-story-title"');
+  });
+
+  it('shows the share scene finished without script: Saved is not Shared, then Access Ended', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    expect(html).toMatch(/data-scene="share"[^>]*data-steps="4"[^>]*data-step="3"/);
+    for (const status of ['saved', 'shared', 'accessEnded']) {
+      expect(html).toContain(`data-status="${status}"`);
+    }
+    expect(html).not.toContain('data-status="received"');
+    expect(html.match(/class="pub-example"/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(textOf(html)).toContain('Access Ended');
+  });
+
+  it('alternates dark and light chapters', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map((m) => m[1]);
+    expect(tones.length).toBeGreaterThanOrEqual(3);
+    expect(tones.every((tone, i) => i === 0 || tone !== tones[i - 1])).toBe(true);
+  });
+
+  it('keeps the route cards linked to their pack pages next to the story', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    expect(html).toContain('href="/trust/route-0"');
+    expect(html).toContain('Maintained Route Information');
+  });
+
+  it('says so plainly, under the story, when the database is down', async () => {
+    listPublicTrustPublished.mockRejectedValue(new Error('synthetic outage'));
+    const html = await render();
+    expect(html).toContain('id="trust-story-title"');
+    expect(textOf(html)).toContain('Route Information Is Not Available Right Now');
+    expect(html).not.toContain('href="/trust/route-');
+  });
+
+  it('has no em dash', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    expect(await render()).not.toContain('\u2014');
   });
 });
