@@ -10,6 +10,7 @@ import Link from 'next/link';
 import type { ReactElement } from 'react';
 import { ShowMore } from '../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../components/ui';
+import { ExpandableSection } from '../../../components/ui-lift/expandable-section';
 import { formatTimestampDate } from '../../../lib/format-date';
 import { getLocale } from '../../../lib/locale';
 import {
@@ -24,6 +25,13 @@ import { AddApplicantForm } from '../add-applicant-form';
 import { removedInDays } from '../applicant/[id]/traveller-manage/labels';
 import { OUTCOME_PARAM, outcomeMessage } from '../applicant/[id]/traveller-manage/messages';
 import { RestoreTravellerForm } from '../applicant/[id]/traveller-manage/restore-form';
+import {
+  AreaPicture,
+  FocusFirstFieldOnOpen,
+  PersonPicture,
+  TravellerRow,
+  TravellerRows,
+} from '../u7-rows';
 
 export const metadata: Metadata = { title: 'All Travellers' };
 
@@ -64,39 +72,42 @@ function ParkedTravellers({
           ? `Empty records you removed. Each is removed for good after ${TRAVELLER_RECENTLY_DELETED_DAYS} days; until then you can restore it.`
           : 'Hidden from your everyday lists, and their reminders are paused. Nothing is deleted.'}
       </p>
-      <ul className="rows u-mt-050 lc-traveller-list">
+      <TravellerRows className="u-mt-050 lc-traveller-list">
         {people.slice(0, shown).map((person, index) => (
-          <li className="row lc-traveller-row" key={person.id} id={`travellers-${kind}-${index}`}>
-            <span className="row-key">
-              {deleted ? (
-                person.displayName
-              ) : (
-                <Link href={`/app/applicant/${person.id}`}>{person.displayName}</Link>
+          <TravellerRow
+            key={person.id}
+            id={`travellers-${kind}-${index}`}
+            className="lc-traveller-row"
+            headingLevel={3}
+            title={person.displayName}
+            picture={<PersonPicture name={person.displayName} />}
+            chip={{ label: relationshipLabel(person.relationship, t), tone: 'neutral' }}
+            meta={
+              deleted
+                ? person.purgeAfter
+                  ? removedInDays(person.purgeAfter, now)
+                  : 'Recently Deleted'
+                : person.archivedAt
+                  ? `Archived ${formatTimestampDate(person.archivedAt)}`
+                  : 'Archived'
+            }
+          >
+            <div className="u7-body-actions">
+              {deleted ? null : (
+                <Link className="btn btn-secondary u-btn-sm" href={`/app/applicant/${person.id}`}>
+                  Open Record
+                </Link>
               )}
-            </span>
-            <span className="row-end">
-              <span className="badge badge-neutral">
-                {relationshipLabel(person.relationship, t)}
-              </span>
-              <span className="muted">
-                {deleted
-                  ? person.purgeAfter
-                    ? removedInDays(person.purgeAfter, now)
-                    : 'Recently Deleted'
-                  : person.archivedAt
-                    ? `Archived ${formatTimestampDate(person.archivedAt)}`
-                    : 'Archived'}
-              </span>
               <RestoreTravellerForm
                 applicantId={person.id}
                 name={person.displayName}
                 deleted={deleted}
                 returnTo="list"
               />
-            </span>
-          </li>
+            </div>
+          </TravellerRow>
         ))}
-      </ul>
+      </TravellerRows>
       {people.length > TRAVELLER_LIST_STEP ? (
         <ShowMore
           id={`travellers-${kind}-more`}
@@ -165,41 +176,58 @@ export default async function ApplicantsPage(
             {data.applicants.length} {data.applicants.length === 1 ? 'person' : 'people'}
           </h2>
           {data.applicants.length === 0 ? (
-            <EmptyState icon="users" title="No Travellers Yet">
+            <EmptyState
+              icon="users"
+              title="No Travellers Yet"
+              action={
+                data.coreGranted
+                  ? { href: '#add-traveller', label: 'Add a Traveller' }
+                  : { href: '/app#permissions', label: 'Turn On Processing' }
+              }
+            >
               Add yourself first. Your passport details and documents are entered once and reused
               for every application.
             </EmptyState>
           ) : (
-            <div className="rows u-mt-050">
+            <TravellerRows className="u-mt-050">
               {data.applicants.map((a) => (
-                <Link className="row row-link" key={a.id} href={`/app/applicant/${a.id}`}>
-                  <span className="row-key">{a.displayName}</span>
-                  <span className="row-end">
-                    <span className="badge badge-neutral">
-                      {relationshipLabel(a.relationship, t)}
-                    </span>
-                    <span className="muted" aria-hidden="true">
-                      →
-                    </span>
-                  </span>
-                </Link>
+                <TravellerRow
+                  key={a.id}
+                  title={a.displayName}
+                  headingLevel={3}
+                  href={`/app/applicant/${a.id}`}
+                  picture={<PersonPicture name={a.displayName} />}
+                  chip={{ label: relationshipLabel(a.relationship, t), tone: 'neutral' }}
+                />
               ))}
-            </div>
+            </TravellerRows>
           )}
         </article>
 
-        <article className="card">
-          <p className="card-kicker">New</p>
-          <h2 className="card-title">Add a Traveller</h2>
+        <ExpandableSection
+          id="add-traveller"
+          className="u7-fold"
+          headingLevel={2}
+          title="Add a Traveller"
+          summary="Yourself, a family member or a child you look after."
+          picture={<AreaPicture mark={{ icon: 'plus', tone: 'blue' }} />}
+          defaultOpen={data.coreGranted && data.applicants.length === 0}
+          remember
+        >
           {data.coreGranted ? (
-            <AddApplicantForm selfAdded={data.applicants.some((a) => a.relationship === 'SELF')} />
+            <>
+              <FocusFirstFieldOnOpen />
+              <AddApplicantForm
+                selfAdded={data.applicants.some((a) => a.relationship === 'SELF')}
+              />
+            </>
           ) : (
             <p className="card-body">
               Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
               <Link href="/app#permissions">Home</Link> to start adding traveller records.
             </p>
           )}
-        </article>
+        </ExpandableSection>
 
         <ParkedTravellers kind="archived" people={data.archived} query={query} t={t} now={now} />
         <ParkedTravellers kind="deleted" people={data.deleted} query={query} t={t} now={now} />

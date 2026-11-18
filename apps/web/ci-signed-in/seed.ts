@@ -4,17 +4,25 @@ import { type Result, isOk } from '@visastack/core';
 import { createPooledDb } from '@visastack/db';
 import { startBridge, useLocalBridge } from '@visastack/db/pg-bridge';
 import {
+  type EmailPort,
   acceptGrant,
+  accountPrincipal,
   addDocumentVersion,
   createApplicant,
   createGrant,
   createMission,
   createOrganization,
+  enqueueNotification,
+  listNotificationsForAccount,
+  markNotificationRead,
   provisionAccount,
   provisionNeonAccount,
   registerDocument,
+  requireAccess,
   reviewOrganization,
+  runNotificationWorker,
   setConsent,
+  startGroupTrip,
 } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
@@ -37,6 +45,10 @@ const MIGRATIONS = resolve(__dirname, '../../../packages/db/migrations');
 
 export const CASE_TITLE = 'Japan Tourist Visa';
 export const ORGANIZATION_NAME = 'Harbour Test Travel Agency';
+/** The made-up notices and trip that give the notifications and trips pages real rows (U7). */
+export const UNREAD_NOTICE_SUBJECT = 'Your Test Passport Was Read';
+export const READ_NOTICE_SUBJECT = 'Your Test Case Moved';
+export const TRIP_TITLE = 'Japan Test Group Trip';
 
 function must<T>(step: string, result: Result<T, { message: string }>): T {
   if (!isOk(result)) throw new Error(`Seeding failed at ${step}: ${result.error.message}`);
@@ -173,6 +185,76 @@ export async function seed(env = process.env): Promise<SeededIds> {
     must(
       'sharing accepted',
       await acceptGrant(db, { actorAccountId: admin.id, grantId: grant.id }),
+    );
+
+    // Two in-app notices (one unread, one read) and one group trip, all made up, so the
+    // notifications and trips pages are guarded on real rows and not only on their empty states.
+    for (const [index, subject] of [UNREAD_NOTICE_SUBJECT, READ_NOTICE_SUBJECT].entries()) {
+      await enqueueNotification(db, {
+        eventType: 'CASE_MOVED',
+        channel: 'IN_APP',
+        resourceId: `ci-signed-in-notice-${index + 1}`,
+        recipientAccountId: traveller.id,
+        payload: {
+          subject,
+          summary: 'A made-up notice for the signed-in guard.',
+          deepLinkPath: '/app',
+        },
+      });
+    }
+    // Only the two in-app notices are sent: the worker is told which record each is about, and
+    // the port refuses to be used, so no email can leave and no other queued message is touched.
+    const noEmail: EmailPort = {
+      send: async () => {
+        throw new Error('The signed-in guard seed never sends email.');
+      },
+    };
+    for (const index of [1, 2]) {
+      await runNotificationWorker(db, noEmail, 'http://127.0.0.1', {
+        resourceId: `ci-signed-in-notice-${index}`,
+      });
+    }
+    const notices = await listNotificationsForAccount(db, traveller.id);
+    const readOne = notices.find((notice) => notice.subject === READ_NOTICE_SUBJECT);
+    if (!readOne || !notices.some((notice) => notice.subject === UNREAD_NOTICE_SUBJECT)) {
+      throw new Error('Seeding failed at notifications.');
+    }
+    must(
+      'read notice',
+      await markNotificationRead(db, {
+        actorAccountId: traveller.id,
+        notificationId: readOne.id,
+      }),
+    );
+    // The trip is started for a second made-up person, so the traveller's own record keeps its
+    // single case (a trip opens a case of its own for whoever it is started for).
+    const companion = must(
+      'trip companion',
+      await createApplicant(db, {
+        actorAccountId: traveller.id,
+        ownerAccountId: traveller.id,
+        displayName: 'CI Test Companion',
+        relationship: 'FAMILY_MEMBER',
+        authorityConfirmed: true,
+      }),
+    );
+    const tripProof = must(
+      'trip access',
+      await requireAccess(
+        db,
+        accountPrincipal(traveller.id),
+        'MANAGE',
+        { applicantId: companion.id },
+        { purpose: 'owner_trip' },
+      ),
+    );
+    must(
+      'group trip',
+      await startGroupTrip(tripProof, {
+        destination: 'Japan',
+        purpose: 'Tourism',
+        title: TRIP_TITLE,
+      }),
     );
 
     const ids: SeededIds = {

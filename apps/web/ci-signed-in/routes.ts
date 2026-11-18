@@ -285,7 +285,7 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/notifications',
     role: 'traveller',
     path: '/app/notifications',
-    mustShow: 'No Notifications Yet',
+    mustShow: 'Your Test Passport Was Read',
   },
   { page: '/app/privacy', role: 'traveller', path: '/app/privacy', mustShow: 'Export Your Data' },
   {
@@ -298,7 +298,7 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/trips/(list)',
     role: 'traveller',
     path: '/app/trips',
-    mustShow: 'No group trips yet',
+    mustShow: 'Japan Test Group Trip',
   },
   {
     page: '/app/trips/new',

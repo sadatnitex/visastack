@@ -70,7 +70,7 @@ describe('notification levels', () => {
     const doc = new JSDOM(
       await renderServer(NotificationsPage({ searchParams: Promise.resolve(search) })),
     ).window.document;
-    return [...doc.querySelectorAll('.rows > .row')].map(
+    return [...doc.querySelectorAll('.u7-rows > [id^="notification-"]')].map(
       (row) => row.getAttribute('data-level') ?? 'glance',
     );
   };
@@ -98,8 +98,8 @@ describe('notification levels', () => {
       ...Array.from({ length: 14 }, (_, i) => note(`r${i}`, true, 25 - i)),
     ];
     const ids = (doc: Document) =>
-      [...doc.querySelectorAll('.rows > .row .row-key')].map((key) =>
-        key.childNodes[0]?.textContent?.replace('Update ', ''),
+      [...doc.querySelectorAll('.u7-rows > [id^="notification-"] .expandable-section-title')].map(
+        (key) => key.childNodes[0]?.textContent?.replace('Update ', ''),
       );
     const first = new JSDOM(await renderServer(NotificationsPage())).window.document;
     expect(ids(first)).toEqual(['n1', 'n2', ...Array.from({ length: 8 }, (_, i) => `r${i}`)]);
