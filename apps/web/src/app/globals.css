@@ -22681,3 +22681,168 @@ button.wallet-stack-card {
   }
 }
 /* end WP-WAL0 */
+/* WP-WAL1 Expandable Section and status pictures (18 Nov 2026, ADR 0030): one open-and-close section for every screen (components/ui-lift/expandable-section.tsx) and the six status pictures of the one status language (components/pictures/status-picture.tsx). Flat: a solid card, a hairline, brand tokens only, no shadow, no gradient. The row is at least 56 px with a 44 px picture, status and chevron, all pinned to the top so a wrapping summary moves nothing. The status picture sits beside the toggle in its own reserved column, never inside it. Only the chevron turns, and only without reduced motion. */
+.expandable-section {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.expandable-section + .expandable-section {
+  margin-top: var(--space-2);
+}
+.expandable-section-details {
+  min-width: 0;
+}
+.expandable-section-row {
+  --expandable-status-space: 0px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) var(--expandable-status-space) 44px;
+  align-items: start;
+  min-height: 56px;
+  padding: 6px var(--space-2) 6px var(--space-3);
+  border-radius: var(--radius);
+  list-style: none;
+  cursor: pointer;
+}
+.expandable-section-row::-webkit-details-marker {
+  display: none;
+}
+.expandable-section-row::marker {
+  content: "";
+}
+.expandable-section[data-has-status] .expandable-section-row {
+  --expandable-status-space: 48px;
+}
+.expandable-section-row:hover {
+  background: var(--bg-subtle);
+}
+.expandable-section-row:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.expandable-section-picture {
+  grid-column: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-inline-end: var(--space-3);
+  overflow: hidden;
+}
+.expandable-section-picture > svg,
+.expandable-section-picture > img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.expandable-section-words {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 44px;
+}
+.expandable-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.expandable-section-summary {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.expandable-section-chevron {
+  grid-column: 4;
+  justify-self: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 12px;
+  color: var(--text-tertiary);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.expandable-section-details[open] > .expandable-section-row .expandable-section-chevron {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .expandable-section-chevron {
+    transition: transform var(--motion-state) var(--motion-ease);
+  }
+}
+.expandable-section-status {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: calc(var(--space-2) + 44px + 4px);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+.expandable-section-status .explain-tip {
+  margin-block: 0;
+}
+.expandable-section-body {
+  padding: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.expandable-section-body > :first-child {
+  margin-top: 0;
+}
+.expandable-section-body > :last-child {
+  margin-bottom: 0;
+}
+.status-picture {
+  --status-ink: var(--brand);
+  --status-fill: var(--brand-bg);
+  display: block;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--status-ink);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.status-picture[data-tone="ok"] {
+  --status-ink: var(--success);
+  --status-fill: var(--success-bg);
+}
+.status-picture[data-tone="warn"] {
+  --status-ink: var(--warning);
+  --status-fill: var(--warning-bg);
+}
+.status-picture[data-tone="bad"] {
+  --status-ink: var(--danger);
+  --status-fill: var(--danger-bg);
+}
+.status-picture[data-tone="ink"] {
+  --status-ink: var(--text-tertiary);
+  --status-fill: var(--bg-subtle);
+}
+.status-picture-ring {
+  fill: var(--status-fill);
+}
+.status-picture-ring-inner {
+  fill: none;
+}
+.status-picture-fill {
+  fill: currentColor;
+  stroke: none;
+}
+/* end WP-WAL1 */

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 /**
- * Two counters that may only go down while the interface is being improved.
+ * Counters that may only go down while the interface is being improved.
  *
  * 1. Inline style props: every `style={{...}}` is a spacing or text decision made outside the
  *    shared stylesheet. The count must not rise in any file, and a file with none must stay at none.
@@ -12,6 +12,9 @@ import ts from 'typescript';
  *    into a page instead of a plain label. The count must not rise in any file.
  *
  * 3. Long dashes in text a person can read (page text and string values; comments are not counted).
+ * 4. Raw details elements (WAL1, ADR 0030): every open-and-close section is built with the shared
+ *    Expandable Section (components/ui-lift/expandable-section.tsx), which is the one file allowed
+ *    to hold a raw `<details>`. Each screen moved onto it lowers its file's count.
  *
  * The recorded starting point lives in scripts/ui-ratchet.baseline.json. Lower it with
  * `node scripts/ui-ratchet.mjs --lower` after a change reduces a count. Raising it needs a
@@ -33,6 +36,9 @@ export const RAW_CODE_FIELDS = new Set([
   'result',
 ]);
 
+/** The one file that may hold a raw details element: the shared Expandable Section. */
+export const DETAILS_HOME = 'apps/web/src/components/ui-lift/expandable-section.tsx';
+
 /** Built from the code point so no tool rewrites it into the character itself. */
 const LONG_DASH = String.fromCharCode(0x2014);
 
@@ -47,6 +53,7 @@ export function measure(source, filename = 'component.tsx') {
   let inlineStyles = 0;
   let rawCodes = 0;
   let emDashes = 0;
+  let rawDetails = 0;
   const visit = (node) => {
     if (
       (ts.isJsxText(node) ||
@@ -60,6 +67,11 @@ export function measure(source, filename = 'component.tsx') {
       emDashes += 1;
     if (ts.isJsxAttribute(node) && node.name.getText(file) === 'style') inlineStyles += 1;
     if (
+      (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+      node.tagName.getText(file) === 'details'
+    )
+      rawDetails += 1;
+    if (
       ts.isJsxExpression(node) &&
       node.expression &&
       ts.isPropertyAccessExpression(node.expression) &&
@@ -70,13 +82,14 @@ export function measure(source, filename = 'component.tsx') {
     ts.forEachChild(node, visit);
   };
   visit(file);
-  return { inlineStyles, rawCodes, emDashes };
+  return { inlineStyles, rawCodes, emDashes, rawDetails };
 }
 
 export function measureTree(root) {
   const inlineStyles = {};
   const rawCodes = {};
   const emDashes = {};
+  const rawDetails = {};
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
@@ -87,12 +100,22 @@ export function measureTree(root) {
         if (counts.inlineStyles) inlineStyles[key] = counts.inlineStyles;
         if (counts.rawCodes) rawCodes[key] = counts.rawCodes;
         if (counts.emDashes) emDashes[key] = counts.emDashes;
+        if (counts.rawDetails && key !== DETAILS_HOME) rawDetails[key] = counts.rawDetails;
       }
     }
   };
   walk(join(root, 'apps/web/src'));
-  return { inlineStyles, rawCodes, emDashes };
+  return { inlineStyles, rawCodes, emDashes, rawDetails };
 }
+
+const FIX = {
+  inlineStyles: 'Use a shared class.',
+  rawCodes: 'Use a plain label.',
+  emDashes: 'Use a full stop or a hyphen.',
+  rawDetails: 'Use ExpandableSection from components/ui-lift/expandable-section.tsx.',
+};
+
+const COUNTERS = ['inlineStyles', 'rawCodes', 'emDashes', 'rawDetails'];
 
 const total = (map) => Object.values(map).reduce((sum, value) => sum + value, 0);
 
@@ -102,12 +125,13 @@ export function compare(current, baseline) {
     ['inline style props', 'inlineStyles'],
     ['raw codes shown as page text', 'rawCodes'],
     ['long dashes in visible text', 'emDashes'],
+    ['raw details elements', 'rawDetails'],
   ]) {
     for (const [file, count] of Object.entries(current[key] ?? {})) {
       const allowed = baseline[key]?.[file] ?? 0;
       if (count > allowed)
         errors.push(
-          `${file}: ${count} ${label}, up from ${allowed}. Use a shared class, a plain label or a full stop.`,
+          `${file}: ${count} ${label}, up from ${allowed}. ${FIX[key]}`,
         );
     }
   }
@@ -125,21 +149,17 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.error(errors.join('\n'));
     process.exitCode = 1;
   } else {
-    const now = { inline: total(current.inlineStyles), raw: total(current.rawCodes) };
-    const was = { inline: total(baseline.inlineStyles), raw: total(baseline.rawCodes) };
-    if (process.argv.includes('--lower') && (now.inline < was.inline || now.raw < was.raw)) {
+    const now = Object.fromEntries(COUNTERS.map((k) => [k, total(current[k] ?? {})]));
+    const was = Object.fromEntries(COUNTERS.map((k) => [k, total(baseline[k] ?? {})]));
+    const lowered = COUNTERS.some((k) => now[k] < was[k]);
+    const line = COUNTERS.map((k) => `${k} ${was[k]} to ${now[k]}`).join(', ');
+    if (process.argv.includes('--lower') && lowered) {
       writeFileSync(baselinePath, `${JSON.stringify(current, null, 2)}\n`);
-      process.stdout.write(
-        `UI ratchet lowered: inline styles ${was.inline} to ${now.inline}, raw codes ${was.raw} to ${now.raw}\n`,
-      );
+      process.stdout.write(`UI ratchet lowered: ${line}\n`);
     } else {
-      const hint =
-        now.inline < was.inline || now.raw < was.raw
-          ? ' (lower it: node scripts/ui-ratchet.mjs --lower)'
-          : '';
-      process.stdout.write(
-        `UI ratchet passed: inline styles ${now.inline}, raw codes ${now.raw}${hint}\n`,
-      );
+      const hint = lowered ? ' (lower it: node scripts/ui-ratchet.mjs --lower)' : '';
+      const counts = COUNTERS.map((k) => `${k} ${now[k]}`).join(', ');
+      process.stdout.write(`UI ratchet passed: ${counts}${hint}\n`);
     }
   }
 }

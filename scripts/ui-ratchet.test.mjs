@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { compare, measure } from './ui-ratchet.mjs';
+import { DETAILS_HOME, compare, measure, measureTree } from './ui-ratchet.mjs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 test('counts inline style props and raw codes shown as page text', () => {
   const source = `export const A = ({ doc, m }) => (
@@ -10,12 +13,12 @@ test('counts inline style props and raw codes shown as page text', () => {
       <i title={m.role}>{label(m.role)}</i>
     </div>
   );`;
-  assert.deepEqual(measure(source), { inlineStyles: 2, rawCodes: 2, emDashes: 0 });
+  assert.deepEqual(measure(source), { inlineStyles: 2, rawCodes: 2, emDashes: 0, rawDetails: 0 });
 });
 
 test('a fixed class name and a plain label are not counted', () => {
   const source = 'export const A = ({ doc }) => <p className="note">{LABELS[doc.docType]}</p>;';
-  assert.deepEqual(measure(source), { inlineStyles: 0, rawCodes: 0, emDashes: 0 });
+  assert.deepEqual(measure(source), { inlineStyles: 0, rawCodes: 0, emDashes: 0, rawDetails: 0 });
 });
 
 test('fails when a file gains an inline style or a raw code, or a new file has any', () => {
@@ -45,4 +48,44 @@ export const A = () => <p title="a ${dash} b">Visit ${dash} then go {'x ${dash} 
     ).length,
     1,
   );
+});
+
+test('counts raw details elements, opening tags only, in any nesting', () => {
+  const source = `export const A = ({ open }) => (
+    <section>
+      <details open={open}><summary>One</summary>
+        <details className="inner"><summary>Two</summary></details>
+      </details>
+      <p>details are words here, not an element</p>
+    </section>
+  );`;
+  assert.equal(measure(source).rawDetails, 2);
+  assert.equal(measure('export const B = () => <details />;').rawDetails, 1);
+});
+
+test('fails when a file gains a raw details element, or a new file has one', () => {
+  const baseline = { inlineStyles: {}, rawCodes: {}, rawDetails: { 'a.tsx': 2 } };
+  const now = (rawDetails) => ({ inlineStyles: {}, rawCodes: {}, rawDetails });
+  assert.equal(compare(now({ 'a.tsx': 2 }), baseline).length, 0);
+  assert.equal(compare(now({ 'a.tsx': 1 }), baseline).length, 0);
+  assert.equal(compare(now({ 'a.tsx': 3 }), baseline).length, 1);
+  assert.equal(compare(now({ 'b.tsx': 1 }), baseline).length, 1);
+  assert.match(compare(now({ 'b.tsx': 1 }), baseline)[0], /details/);
+});
+
+test('the shared Expandable Section and test files are not counted; other files are', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ui-ratchet-'));
+  try {
+    const src = join(root, 'apps/web/src');
+    const home = join(root, DETAILS_HOME);
+    mkdirSync(join(src, 'screens'), { recursive: true });
+    mkdirSync(join(home, '..'), { recursive: true });
+    const one = 'export const A = () => <details><summary>A</summary></details>;';
+    writeFileSync(home, one);
+    writeFileSync(join(src, 'screens/a.test.tsx'), one);
+    writeFileSync(join(src, 'screens/b.tsx'), one);
+    assert.deepEqual(measureTree(root).rawDetails, { 'apps/web/src/screens/b.tsx': 1 });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
