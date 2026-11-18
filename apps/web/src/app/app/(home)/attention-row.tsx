@@ -8,8 +8,10 @@ import { ExpandableSection } from '../../../components/ui-lift/expandable-sectio
 
 /*
  * One Needs Attention item as one Wallet row (WAL10): a picture, the title, the person and case,
- * the urgency word and the item's single action. The longer sentence and the date sit inside the
- * row and open with a tap; the markup is the browser's own details, so they are in the page
+ * the urgency word and the item's single action. The reason shows as one clamped line in the row
+ * itself (so a quick look or a screen reader meets it without opening anything); the full
+ * sentence sits inside the row and opens with a tap. The urgency word, person and date are always
+ * visible. The markup is the browser's own details, so the sentence is in the page
  * without script. Nothing here reads data: Home passes in what it already worked out.
  */
 
@@ -62,6 +64,7 @@ export function AttentionRow({
     <li className={`do-next-item home-attention-row do-next-tier-${item.tier}`}>
       <ExpandableSection
         title={heading}
+        summary={item.why}
         picture={attentionPictureFor(item).node}
         className="home-attention-section"
       >

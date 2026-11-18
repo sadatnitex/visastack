@@ -56,6 +56,13 @@ describe('AttentionRow', () => {
     expect(html).toContain('expandable-section-picture');
   });
 
+  it('shows the reason as the row line and keeps the full sentence in the body', () => {
+    const html = row();
+    const head = html.slice(0, html.indexOf('expandable-section-body'));
+    expect(head).toContain('expandable-section-summary');
+    expect(head).toContain('A step in this case is coming up.');
+  });
+
   it('keeps the long sentence inside the row body and the date visible beside the person', () => {
     const html = row();
     const body = html.slice(

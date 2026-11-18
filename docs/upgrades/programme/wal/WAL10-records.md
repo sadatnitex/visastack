@@ -8,7 +8,7 @@ Owner request, 18 Nov 2026: the People card of the signed-in person did not show
 |---|---|
 | apps/web/src/app/app/(home)/home-cards.tsx | The People card uses the shared round photo component. `ownPhotoFor` gives the account photo only to the account's own Myself record (relationship SELF, owned by this account, same record the sidebar account card uses). Everyone else keeps initials. |
 | apps/web/src/app/app/(home)/page.tsx | Reads the photo through `loadOwnPhoto`, the same memoized read the sidebar uses (no new query, no service or permission change). Needs Attention renders one row component per item. |
-| apps/web/src/app/app/(home)/attention-row.tsx (new) | One Expandable Section row per item: picture (document drawing for document items, one mark otherwise), title, urgency word and person line, one action button. The long sentence sits inside the row and opens with a tap; the urgency word, person and date stay visible. |
+| apps/web/src/app/app/(home)/attention-row.tsx (new) | One Expandable Section row per item: picture (document drawing for document items, one mark otherwise), title, urgency word and person line, one action button. The reason shows as one clamped line in the row; the full sentence sits inside the row and opens with a tap. The urgency word, person and date stay visible. |
 | apps/web/src/app/globals.css | One block, WP-WAL10, at the end. |
 
 ## Kept as it was

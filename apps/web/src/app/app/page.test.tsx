@@ -1418,7 +1418,12 @@ describe('WAL10: People photo and Needs Attention rows on Home', () => {
     data.proposals = 0;
     const doc = await peopleHtml();
     const rows = [...doc.querySelectorAll('.home-attention-row')];
-    expect(rows.length).toBeGreaterThanOrEqual(3);
+    // The overdue task leads as the next step; the other three are the rows, in urgency order.
+    expect(rows.map((row) => row.querySelector('a.do-next-link')?.getAttribute('href'))).toEqual([
+      '/app/mission/b',
+      '/app/applicant/x/documents',
+      '/app/applicant/x/review',
+    ]);
     for (const row of rows) {
       expect(row.querySelectorAll('a.do-next-link')).toHaveLength(1);
       expect(row.querySelector('.expandable-section-picture')).not.toBeNull();

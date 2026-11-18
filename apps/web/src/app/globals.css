@@ -23349,6 +23349,13 @@ a.passport-page-value:hover {
 .home-attention-section {
   min-width: 0;
 }
+.home-attention-section .expandable-section-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+}
 .home-attention-section .expandable-section-details > summary {
   min-height: 56px;
 }
