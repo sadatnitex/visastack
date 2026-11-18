@@ -9362,7 +9362,7 @@ summary.visa-photo-title {
    pointer can make the button cover the words. After the first page the notice is a slim label
    (the version name and the link), one line, with no button. */
 .pilot-banner {
-  --notice-hide: 2rem;
+  --notice-hide: 44px;
   position: relative;
   padding-inline-start: calc(var(--notice-hide) + var(--space-2));
   padding-inline-end: calc(var(--notice-hide) + var(--space-2));
@@ -22740,3 +22740,38 @@ button.wallet-stack-card {
   }
 }
 /* end WP-WAL0 */
+
+/* WP-PUBFIX 44 px targets for the shared header links, the language switch, the footer links and
+   the pilot notice. The links grow their own box and pull the extra height back with a negative
+   margin, so nothing around them moves. The phone menu (960 px and below) already has 44 px rows. */
+@media (min-width: 961px) {
+  .nav-links a:not(.btn),
+  .lang-switch {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-block: 0;
+  }
+  .lang-switch {
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 0;
+  margin-block: -0.5rem;
+}
+.pilot-banner:not(.pilot-banner-slim) {
+  min-height: 44px;
+}
+.pilot-banner-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 0;
+  margin-block: -0.75rem;
+}
+/* end WP-PUBFIX */

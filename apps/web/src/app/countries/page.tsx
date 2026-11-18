@@ -2,11 +2,13 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { FlagRing } from '../../components/public-site/flag-ring';
 import { PublicButton } from '../../components/public-site/public-button';
+import { publicText } from '../../components/public-site/public-text';
 import { Chapter, Scene } from '../../components/public-site/scene';
 import { ScenesRuntime } from '../../components/public-site/scenes-runtime';
 import { HeadlineWords, StoryCard } from '../../components/public-site/story';
 import { ShowMore } from '../../components/show-more';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
+import { getPageLanguage, primeLocale } from '../../lib/i18n-server';
 import type { SearchParamsRecord } from '../../lib/paging';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
@@ -39,6 +41,9 @@ export default function CountriesPage(props: CountriesProps): Promise<ReactEleme
  * a plain `?show=` link, so the page works without script.
  */
 export default async function CountriesPage(props?: CountriesProps): Promise<ReactElement> {
+  await primeLocale();
+  const lang = getPageLanguage();
+  const say = (text: string) => publicText(text, lang);
   const params: SearchParamsRecord = (await props?.searchParams) ?? {};
   const view = countriesWindow(params);
   const signedIn = await isSignedIn();
@@ -53,21 +58,22 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
         <div className="container pub4c-hero-grid">
           <div className="pub4c-hero-copy">
             <h1 id="countries-title" className="pub4c-title">
-              Countries, <HeadlineWords>With Their Sources</HeadlineWords>
+              {say('Countries,')} <HeadlineWords>{say('With Their Sources')}</HeadlineWords>
             </h1>
             <p className="pub4c-lede">
-              Visa facts for Bangladeshi passports, with sources. Always confirm on the official
-              page.
+              {say(
+                'Visa facts for Bangladeshi passports, with sources. Always confirm on the official page.',
+              )}
             </p>
           </div>
-          <FlagRing codes={RING_CODES} label="Countries We Hold" />
+          <FlagRing codes={RING_CODES} label="Countries We Hold" pageLang={lang} />
         </div>
       </Chapter>
 
       <Chapter tone="light" labelledBy="countries-list-title" className="pub4c-list-chapter">
         <div className="container">
           <h2 id="countries-list-title" className="pub4c-h2">
-            All Countries
+            {say('All Countries')}
           </h2>
           <ul className="pub4c-rows" aria-label="Countries">
             {view.rows.map((row) => (
@@ -91,30 +97,31 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
                   <span className="pub4c-flag pub4c-flag-none" aria-hidden="true" />
                 )}
                 <div className="pub4c-row-text">
-                  <strong className="pub4c-name">{row.name}</strong>
+                  <strong className="pub4c-name">{say(row.name)}</strong>
                   {row.researched ? (
                     <>
                       <span className="pub4c-facts">
-                        {row.entry ? <span>{row.entry}</span> : null}
-                        <span>{row.source ? `Source: ${row.source}` : NO_SOURCE_WORDS}</span>
-                        <span>{row.checked}</span>
+                        {row.entry ? <span>{say(row.entry)}</span> : null}
+                        <span>{say(row.source ? `Source: ${row.source}` : NO_SOURCE_WORDS)}</span>
+                        <span>{row.checked ? say(row.checked) : null}</span>
                       </span>
                       {row.notes.length > 0 ? (
                         <span className="pub4c-notes">
                           {row.notes.map((note) => (
-                            <span key={note}>{note}</span>
+                            <span key={note}>{say(note)}</span>
                           ))}
                         </span>
                       ) : null}
                     </>
                   ) : (
                     <span className="pub4c-facts">
-                      <span>{NOT_RESEARCHED_WORDS}</span>
+                      <span>{say(NOT_RESEARCHED_WORDS)}</span>
                     </span>
                   )}
                 </div>
                 <a className="pub-button pub-button-secondary" href={startFor(row.iso2)}>
-                  Start<span className="sr-only"> With {row.name}</span>
+                  {say('Start')}
+                  <span className="sr-only">{say(` With ${row.name}`)}</span>
                 </a>
               </li>
             ))}
@@ -135,24 +142,31 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
         <Scene name="read" len={2} steps={3} labelledBy="countries-read-title">
           <div className="container pub4c-read">
             <h2 id="countries-read-title" className="pub4c-h2">
-              How to Read These Facts
+              {say('How to Read These Facts')}
             </h2>
             <div className="pub4c-read-grid">
               <StoryCard
-                title="Source"
-                body="Each fact we list names the page it came from, where one is given."
+                title={say('Source')}
+                body={say('Each fact we list names the page it came from, where one is given.')}
+                pageLang={lang}
               />
               <StoryCard
-                title="Checked On"
-                body="The latest day we checked anything for this country. Check the official page before you pay or travel."
+                title={say('Checked On')}
+                body={say(
+                  'The latest day we checked anything for this country. Check the official page before you pay or travel.',
+                )}
+                pageLang={lang}
               />
               <StoryCard
-                title="Not Researched Yet"
-                body="We have not checked this country yet. Use the official page. No date, and no claim."
+                title={say('Not Researched Yet')}
+                body={say(
+                  'We have not checked this country yet. Use the official page. No date, and no claim.',
+                )}
+                pageLang={lang}
               />
             </div>
             <PublicButton href="/for-agencies" variant="secondary">
-              For Agencies
+              {say('For Agencies')}
             </PublicButton>
           </div>
         </Scene>

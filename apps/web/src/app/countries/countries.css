@@ -140,3 +140,24 @@ html[data-scenes="live"] .pub-scene[data-step="2"] .pub4c-read-grid > .pub-card:
   font-size: 0.9375rem;
   font-weight: 600;
 }
+
+/* WP-PUBFIX phone length: Bengali words wrap to more lines, so the phone rows sit closer (still 44 px
+   buttons, same words) to keep the page 2 percent under the 6-screen limit in both languages. */
+@media (max-width: 759px) {
+  .pub4c-hero-grid {
+    gap: var(--space-4);
+  }
+
+  .pub4c-rows {
+    gap: var(--space-2);
+  }
+
+  .pub4c-row {
+    row-gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+
+  .pub4c-h2 {
+    margin-bottom: var(--space-4);
+  }
+}
