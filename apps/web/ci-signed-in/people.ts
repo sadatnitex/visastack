@@ -42,7 +42,7 @@ export function identity(role: Role): PersonIdentity {
 }
 
 /** Variable-keyed read (satisfies both the index-signature type rule and the literal-key lint rule). */
-export function envValue(
+function envValue(
   env: Readonly<Record<string, string | undefined>>,
   name: string,
 ): string | undefined {
