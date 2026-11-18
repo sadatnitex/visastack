@@ -59,6 +59,13 @@ function button(name: string): HTMLButtonElement {
 const hasButton = (name: string) =>
   [...host.querySelectorAll('button')].some((b) => b.textContent?.trim() === name);
 
+/** The picker's drawn name: a label tied by id to the real file field (never a hidden, unlabeled one). */
+function picker(name: string): HTMLInputElement | null {
+  const label = [...host.querySelectorAll('label')].find((l) => l.textContent?.trim() === name);
+  const input = label?.htmlFor ? host.querySelector(`input[id="${label.htmlFor}"]`) : null;
+  return input instanceof HTMLInputElement && input.type === 'file' ? input : null;
+}
+
 async function choose(file: File) {
   const input = host.querySelector('input[type="file"]') as HTMLInputElement;
   Object.defineProperty(input, 'files', { configurable: true, value: [file] });
@@ -95,17 +102,18 @@ afterEach(async () => {
 });
 
 describe('ProfilePhotoControl', () => {
-  it('shows initials and an Add Photo button when there is no photo', async () => {
+  it('shows initials and an Add Photo label when there is no photo', async () => {
     await mount(null);
     const avatar = host.querySelector('.profile-identity-avatar') as HTMLElement;
     expect(avatar.textContent).toBe('RA');
     expect(avatar.getAttribute('aria-hidden')).toBe('true');
     expect(avatar.querySelector('img')).toBeNull();
-    expect(hasButton('Add Photo')).toBe(true);
+    expect(picker('Add Photo')).not.toBeNull();
     expect(hasButton('Remove Photo')).toBe(false);
     const input = host.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input.accept).toContain('image/heic');
-    expect(input.tabIndex).toBe(-1);
+    expect(input.getAttribute('aria-hidden')).toBeNull();
+    expect(input.tabIndex).toBe(0);
   });
 
   it('shows the photo, offers Replace and Remove, and falls back to initials if it cannot load', async () => {
@@ -113,7 +121,7 @@ describe('ProfilePhotoControl', () => {
     const img = host.querySelector('.profile-identity-avatar img') as HTMLImageElement;
     expect(img.getAttribute('src')).toBe(PHOTO);
     expect(img.getAttribute('alt')).toBe('');
-    expect(hasButton('Replace Photo')).toBe(true);
+    expect(picker('Replace Photo')).not.toBeNull();
     expect(hasButton('Remove Photo')).toBe(true);
     await act(async () => {
       img.dispatchEvent(new Event('error'));
@@ -181,7 +189,7 @@ describe('ProfilePhotoControl', () => {
 
     await key(area, 'Escape');
     expect(host.querySelector('.profile-photo-crop')).toBeNull();
-    expect(document.activeElement).toBe(button('Add Photo'));
+    expect(document.activeElement).toBe(picker('Add Photo'));
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
@@ -252,7 +260,7 @@ describe('ProfilePhotoControl', () => {
     expect(status()).toBe('Photo saved.');
     expect(host.querySelector('.profile-photo-crop')).toBeNull();
     expect(host.querySelector('.profile-identity-avatar img')?.getAttribute('src')).toBe(NEW_PHOTO);
-    expect(document.activeElement).toBe(button('Replace Photo'));
+    expect(document.activeElement).toBe(picker('Replace Photo'));
   });
 
   it('keeps the crop step open and reads out the reason when the server refuses the photo', async () => {
@@ -280,6 +288,6 @@ describe('ProfilePhotoControl', () => {
     expect(status()).toBe('Photo removed.');
     expect(host.querySelector('.profile-identity-avatar img')).toBeNull();
     expect(host.querySelector('.profile-identity-avatar')?.textContent).toBe('RA');
-    expect(hasButton('Add Photo')).toBe(true);
+    expect(picker('Add Photo')).not.toBeNull();
   });
 });

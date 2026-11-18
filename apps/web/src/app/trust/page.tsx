@@ -1,7 +1,6 @@
 import { type PublicTrustRoute, listPublicTrustPublished } from '@visastack/services';
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
-import { Chapter } from '../../components/public-site/scene';
 import { TrustCatalogSection } from '../../components/public-trust-routes';
 import { PublicTrustStory } from '../../components/public-trust-story';
 import { TrustUnavailable } from '../../components/trust-unavailable';
@@ -11,7 +10,7 @@ import { withPublicDb } from '../../lib/public-db';
 import { reportServerError } from '../../lib/server-error';
 
 // WP-PUB3 (owner, 17 Nov 2026): the tab is named as the menu names the page. The footer link keeps
-// its own catalogue words. The route list below the story keeps its own heading.
+// its own catalogue words. The route list sits inside the Where We Are Today chapter and keeps its own heading.
 export const metadata: Metadata = { title: 'Privacy and Trust' };
 
 export const dynamic = 'force-dynamic';
@@ -45,20 +44,8 @@ export default async function PublicTrustCatalogPage(
   } catch (error) {
     // The public pages stay readable when the database is down: say so plainly (UX-02).
     reportServerError('trust catalog', error);
-    return (
-      <>
-        <PublicTrustStory />
-        <Chapter tone="light" className="p3-ch p3-catalog-chapter">
-          <TrustUnavailable withinPage />
-        </Chapter>
-      </>
-    );
+    return <PublicTrustStory catalog={<TrustUnavailable withinPage />} />;
   }
 
-  return (
-    <>
-      <PublicTrustStory />
-      <TrustCatalogSection routes={routes} params={params} />
-    </>
-  );
+  return <PublicTrustStory catalog={<TrustCatalogSection routes={routes} params={params} />} />;
 }

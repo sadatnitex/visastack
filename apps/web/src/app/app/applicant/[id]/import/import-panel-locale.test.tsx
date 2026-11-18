@@ -132,9 +132,11 @@ describe('the import panel under Bengali', () => {
       expect(text(), key).toContain(bn[`${K}${key}`]);
     expect(text()).toContain('Karim (এই ব্যক্তি)');
     expect(text()).toContain(bn['appApplicant.appApplicantIdDocumentUploader.chooseFiles']);
-    const labels = host.innerHTML.match(/aria-label="[^"]*"/g)?.join('|') ?? '';
-    expect(labels).toContain(bn[`${K}folderToImport`]);
-    expect(labels).toContain(bn[`${K}filesToImport`]);
+    // Each file picker is named by its drawn Bengali label, tied by id.
+    for (const input of host.querySelectorAll<HTMLInputElement>('input[type="file"]')) {
+      expect(input.getAttribute('aria-label')).toBeNull();
+      expect(input.labels?.[0]?.textContent?.trim()).toBeTruthy();
+    }
     // The privacy promise is Bengali since the owner sign-off of 2026-11-12.
     expect(`${K}eachFileIsStoredPrivatelyAnd` in bn).toBe(true);
     expect(text()).toContain(bn[`${K}eachFileIsStoredPrivatelyAnd`]);
