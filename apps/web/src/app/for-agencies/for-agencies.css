@@ -1,0 +1,113 @@
+/* WP-PUB4 for-agencies page. Flat: tokens only, no gradient, no shadow, no new hue. Every colour reads a
+   --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
+.pub4-hero-copy {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+  min-width: 0;
+}
+
+.pub4-kicker {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--pub-accent, var(--accent));
+}
+
+.pub4-title {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--pub-ink, var(--text));
+  overflow-wrap: anywhere;
+}
+
+.pub4-lede {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.pub4-h2 {
+  margin: 0 0 var(--space-5);
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  line-height: 1.15;
+  color: var(--pub-ink, var(--text));
+}
+
+.pub4-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.pub4-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.pub4-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pub4-board {
+  display: grid;
+  gap: var(--space-5);
+  justify-items: start;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge, var(--edge-card));
+  border-radius: var(--radius-lg);
+  background-color: var(--pub-card, var(--bg-elevated));
+}
+
+.pub4-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.pub4-step {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+  min-width: 0;
+}
+
+.pub4-step-name {
+  color: var(--pub-ink, var(--text));
+}
+
+.pub4-step-note {
+  color: var(--pub-ink-soft, var(--text-secondary));
+  overflow-wrap: anywhere;
+}
+
+/* While the scroll engine runs, the row for the current step is the clear one (Received, then
+   Suggested, then Confirmed); without it every row shows in full. */
+html[data-scenes="live"] .pub4-step {
+  opacity: 0.45;
+}
+
+html[data-scenes="live"] .pub-scene[data-step="0"] .pub4-step:nth-child(1),
+html[data-scenes="live"] .pub-scene[data-step="1"] .pub4-step:nth-child(2),
+html[data-scenes="live"] .pub-scene[data-step="2"] .pub4-step:nth-child(3) {
+  opacity: 1;
+}
+
+@media (min-width: 760px) {
+  .pub4-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pub4-grid-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
