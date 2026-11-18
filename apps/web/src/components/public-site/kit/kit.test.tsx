@@ -295,10 +295,11 @@ describe('ShareSheet timed clock', () => {
     expect(out).toContain('data-idle=""');
     expect(out).toContain('aria-hidden="true"');
     expect(out).toContain('tabindex="-1"');
+    // Hidden but laid out (visibility, never display), so nothing shifts when it appears, with or
+    // without the early mark.
     expect(CSS).toMatch(/\.kit-pause\[data-idle\] \{\s*visibility: hidden;/);
-    expect(CSS).toMatch(
-      /html:not\(\[data-scene-mode\]\) \.kit-pause\[data-idle\] \{\s*display: none;/,
-    );
+    expect(CSS).toMatch(/\.tr-pause\[data-idle\] \{\s*visibility: hidden;/);
+    expect(CSS).not.toMatch(/\[data-idle\][^{]*\{[^}]*display: none/);
   });
 });
 
@@ -381,7 +382,7 @@ describe('Scene opt-in', () => {
 describe('reveal mode styles (MOT1)', () => {
   it('moves with transform and opacity only, never layout, and only under reveal and calm motion', () => {
     const start = CSS.indexOf('MOT1 reveal mode');
-    const block = CSS.slice(start, CSS.indexOf('@keyframes kit-scan'));
+    const block = CSS.slice(start, CSS.indexOf('MOT1 gentle mode'));
     expect(block).toContain(
       'html[data-scenes="reveal"] .pub-scene[data-reveal="playing"] .kit-scan',
     );
@@ -474,10 +475,20 @@ function gentleProblems(css: string): string[] {
   return problems;
 }
 
+describe('no endless loop without a Pause (WCAG 2.2.2)', () => {
+  it('has no infinite animation anywhere in the kit styles: a scan runs twice, a picture loop has a Pause button', () => {
+    for (const file of ['kit.css', 'kit-steps.css'])
+      expect(readFileSync(join(__dirname, file), 'utf8'), file).not.toMatch(/\binfinite\b/);
+    expect(CSS).toMatch(
+      /html\[data-scenes="live"\] \.kit-scan \{\s*animation: kit-scan [\d.]+s ease-in-out 2 alternate both;/,
+    );
+  });
+});
+
 describe('gentle mode styles (owner, 18 Nov 2026: reduced motion gets gentle fading)', () => {
-  const start = CSS.indexOf('MOT1 gentle mode');
+  const start = CSS.indexOf('/* MOT1 gentle mode');
   const whole = CSS.slice(start, CSS.indexOf('/* MOT1: in reveal mode a tab label'));
-  const block = whole.slice(whole.indexOf('*/') + 2);
+  const block = whole.replace(/\/\*[\s\S]*?\*\//g, '');
   it('only overrides the global reduced-motion rule under gentle mode, with 0.4 s fades of opacity and colour', () => {
     expect(gentleProblems(CSS)).toEqual([]);
     expect(block).toContain('!important');
@@ -503,6 +514,29 @@ describe('gentle mode styles (owner, 18 Nov 2026: reduced motion gets gentle fad
       ),
     ).toEqual([]);
   });
+  it('neutralises every step-driven move over 8 px or scale in the base styles (they would jump or scale in gentle mode)', () => {
+    const risky: string[] = [];
+    const neutral = new Set<string>();
+    postcss.parse(CSS).walkRules((rule) => {
+      for (const decl of rule.nodes) {
+        if (decl.type !== 'decl' || decl.prop !== 'transform') continue;
+        if (rule.selector.includes('[data-scenes=')) {
+          if (decl.value === 'none' && rule.selector.includes('"gentle"'))
+            for (const one of rule.selectors) neutral.add(one.replace(/^.*\) /, '').trim());
+          continue;
+        }
+        if (!decl.value.includes('var(--on')) continue;
+        const over = [...decl.value.matchAll(/\*\s*([\d.]+)px/g)].some(([, px]) => Number(px) > 8);
+        if (/scale\(/.test(decl.value) || over) risky.push(rule.selector);
+      }
+    });
+    expect(risky.length).toBeGreaterThanOrEqual(2);
+    for (const selector of risky) expect([...neutral], selector).toContain(selector);
+  });
+  it('replaces the sliding switch knob by two knobs that cross-fade', () => {
+    expect(block).toMatch(/\.kit-switch::after \{[^}]*opacity: calc\(1 - var\(--on, 0\)\)/);
+    expect(block).toMatch(/\.kit-switch::before \{[^}]*opacity: var\(--on, 0\)/);
+  });
   it('moves nothing by more than 8 px and never scales, slides, tilts or sweeps', () => {
     expect(block).not.toMatch(/scale\(|perspective|rotate|translateX|--p\b|kit-scan|animation/);
     for (const [, px] of block.matchAll(/translate[XY]?\((-?[\d.]+)px\)/g))
@@ -510,11 +544,13 @@ describe('gentle mode styles (owner, 18 Nov 2026: reduced motion gets gentle fad
     expect(block).not.toMatch(/transition-delay/);
   });
   it('has its rules only under html[data-scenes="gentle"]', () => {
-    const rules = [...block.matchAll(/([^{}]+)\{[^{}]*\}/g)];
-    expect(rules.length).toBeGreaterThanOrEqual(3);
-    for (const [, selector] of rules)
-      for (const one of (selector ?? '').split(','))
-        expect(one.trim(), one).toMatch(/^html\[data-scenes="gentle"\] /);
+    const selectors: string[] = [];
+    postcss.parse(block).walkRules((rule) => {
+      selectors.push(...rule.selectors);
+    });
+    expect(selectors.length).toBeGreaterThanOrEqual(8);
+    for (const selector of selectors)
+      expect(selector, selector).toMatch(/^html\[data-scenes="gentle"\] /);
   });
 });
 

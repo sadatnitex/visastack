@@ -189,6 +189,31 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
     act(() => root.unmount());
   });
 
+  it('keeps the same picture elements from step to step so the parts can fade (no hard swap)', () => {
+    const { host, root } = mount(true);
+    const first = host.querySelector('.kit-fixed');
+    act(() => host.querySelector('button')?.click());
+    act(() => host.querySelector('button')?.click());
+    expect(host.querySelector('.kit-fixed')).toBe(first);
+    act(() => root.unmount());
+  });
+
+  it('keeps the Pause button in the server markup, idle and hidden, so nothing shifts when it appears', () => {
+    const out = renderToStaticMarkup(
+      <ShareHero
+        steps={([0, 1, 2, 3, 4] as const).map((step) => (
+          <ShareSheetBody key={step} step={step} pageLang="en" />
+        ))}
+        pauseFace="Pause the Animation"
+        playFace="Play the Animation"
+      />,
+    );
+    expect(out).toContain('class="tr-pause"');
+    expect(out).toContain('data-idle=""');
+    expect(out).toContain('aria-hidden="true"');
+    expect(out).toContain('tabindex="-1"');
+  });
+
   it('shows no dead control without script or before hydration: the finished step and no button', () => {
     const out = renderToStaticMarkup(
       <ShareHero
@@ -200,7 +225,9 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
       />,
     );
     expect(out).toContain('data-kit-step="4"');
-    expect(out).not.toContain('<button');
+    // The only button is the idle one: hidden from sight, from the tab order and from readers.
+    expect(out.match(/<button/g)).toHaveLength(1);
+    expect(out).toContain('data-idle=""');
   });
 
   describe('plays only while it should', () => {

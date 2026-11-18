@@ -839,7 +839,7 @@ html[data-scenes="reveal"] .kit-rise:not(.is-in) {
   }
 
   html[data-scenes="live"] .kit-scan {
-    animation: kit-scan 2s ease-in-out infinite alternate;
+    animation: kit-scan 1.6s ease-in-out 2 alternate both;
   }
 
   html[data-scenes="live"] .kit-field,
@@ -913,12 +913,37 @@ html[data-scenes="gentle"] .kit-rise:not(.is-in) {
   transform: translateY(8px);
 }
 
+/* Step-driven moves and scales are replaced by fades in gentle mode: the switch knob is two knobs
+   that cross-fade (left one out, right one in) instead of sliding 20 px, and the current-stage dot
+   no longer scales. */
+html[data-scenes="gentle"] :is(.pub-scene, .kit-fixed) .kit-dot-now {
+  transform: none;
+}
+
+html[data-scenes="gentle"] :is(.pub-scene, .kit-fixed) .kit-switch::after {
+  transform: none;
+  opacity: calc(1 - var(--on, 0));
+}
+
+html[data-scenes="gentle"] :is(.pub-scene, .kit-fixed) .kit-switch::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 23px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--bg-elevated);
+  opacity: var(--on, 0);
+}
+
 html[data-scenes="gentle"] .kit-rise {
   transition: transform 0.4s ease !important;
 }
 
 html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-field,
 html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-switch,
+html[data-scenes="gentle"] :is(.pub-scene, .kit-fixed) .kit-switch::before,
 html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-switch::after,
 html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-dot,
 html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-dot-now,
@@ -1298,8 +1323,8 @@ html[data-scenes="gentle"] .kit-fixed .kit-switch::after {
 }
 
 /* MOT1: the timed sharing picture and its Pause button (the loop is longer than 5 seconds). The button
-   keeps its space before hydration so nothing shifts (the early mark sets data-scene-mode before the
-   first paint); without JavaScript it takes no space. */
+   keeps its space before hydration so nothing shifts, with or without the early mark (without script
+   it is an invisible gap). The Privacy and Trust hero's Pause button (.tr-pause) does the same. */
 .kit-timed {
   display: grid;
   gap: var(--space-3);
@@ -1312,6 +1337,6 @@ html[data-scenes="gentle"] .kit-fixed .kit-switch::after {
   visibility: hidden;
 }
 
-html:not([data-scene-mode]) .kit-pause[data-idle] {
-  display: none;
+.tr-pause[data-idle] {
+  visibility: hidden;
 }

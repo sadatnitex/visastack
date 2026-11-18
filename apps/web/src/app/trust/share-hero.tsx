@@ -1,10 +1,19 @@
 'use client';
 
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { useOnScreen } from '../../components/public-site/kit/use-on-screen';
 
 /** How long each step rests, in milliseconds (the same pace as the kit's timed share sheet). */
 export const SHARE_HERO_TICK_MS = 2200;
+
+/**
+ * Every step is the same picture, so it is given one key: React then keeps the same elements and
+ * only changes their step, which lets the parts fade (a different key per step would swap the whole
+ * picture at once, with no fade even in the gentle mode).
+ */
+function sheet(node: ReactNode): ReactNode {
+  return isValidElement(node) ? cloneElement(node, { key: 'sheet' }) : node;
+}
 
 /**
  * The hero's share picture on its own clock, with the pause control WCAG 2.2.2 asks for: the five
@@ -56,12 +65,17 @@ export function ShareHero({
 
   return (
     <div className="tr-share" ref={box}>
-      {steps[step]}
-      {moves ? (
-        <button type="button" className="tr-pause" onClick={() => setPaused((value) => !value)}>
-          {paused ? playFace : pauseFace}
-        </button>
-      ) : null}
+      {sheet(steps[step])}
+      {/* Always in the markup so its space is reserved before hydration (no layout shift); idle,
+          invisible and out of the tab order until the picture really moves. */}
+      <button
+        type="button"
+        className="tr-pause"
+        {...(moves ? {} : { 'data-idle': '', 'aria-hidden': true, tabIndex: -1 })}
+        onClick={() => setPaused((value) => !value)}
+      >
+        {paused ? playFace : pauseFace}
+      </button>
     </div>
   );
 }

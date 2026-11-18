@@ -154,6 +154,7 @@ test.describe('R3 hero motion', () => {
     const sheet = page.locator('.tr-share .kit-sheet');
     await expect(sheet).toHaveAttribute('data-kit-step', '4');
     // Still stopped after more than two full ticks of the loop.
+    // This proves something does NOT change, so it waits a fixed time: more than two loop ticks.
     await page.waitForTimeout(2600);
     await expect(sheet).toHaveAttribute('data-kit-step', '4');
     await expect(page.getByRole('button', { name: 'Play the Animation' })).toBeVisible();

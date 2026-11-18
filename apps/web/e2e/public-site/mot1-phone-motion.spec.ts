@@ -26,14 +26,39 @@ async function openHome(page: Page, width = 390, height = 844): Promise<void> {
   await expect(page.locator('#hs-hero-title')).toBeVisible();
 }
 
-/** Scrolls one screen at a time to the bottom, pausing so each scene can play. */
+/** Waits for the page to paint two frames, so the observers have seen the new scroll position. */
+const frames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+  );
+
+/** Scrolls 0.7 of a screen at a time to the bottom, one painted frame after each jump. */
 async function scrollThrough(page: Page): Promise<void> {
   const total = await page.evaluate(() => document.documentElement.scrollHeight);
   const step = await page.evaluate(() => window.innerHeight * 0.7);
   for (let y = 0; y < total; y += step) {
     await page.evaluate((to) => window.scrollTo(0, to), y);
-    await page.waitForTimeout(250);
+    await frames(page);
   }
+}
+
+/** Waits (on attributes) until every scene on screen rests: nothing playing, nothing about to play. */
+async function inViewRests(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const share = (el: Element) => {
+      const box = el.getBoundingClientRect();
+      const shown = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0);
+      return box.height > 0 ? Math.max(0, shown) / box.height : 0;
+    };
+    return ![...document.querySelectorAll('[data-scene]')].some((el) => {
+      if (share(el) === 0) return false;
+      const state = el.getAttribute('data-reveal');
+      if (state === null || state === 'playing') return true;
+      if (state === 'ready') return share(el) >= 0.25;
+      return el.getAttribute('data-step') !== el.getAttribute('data-rest');
+    });
+  });
 }
 
 test.describe('phone, 390 x 844, motion welcome', () => {
@@ -68,7 +93,8 @@ test.describe('phone, 390 x 844, motion welcome', () => {
     await expect(share).toHaveAttribute('data-step', FINAL.share);
     // Once: leaving and coming back never plays it again.
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(300);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await frames(page);
     await share.scrollIntoViewIfNeeded();
     await expect(share).toHaveAttribute('data-reveal', /^(done|snapped)$/);
     await expect(share).toHaveAttribute('data-step', FINAL.share);
@@ -79,7 +105,6 @@ test.describe('phone, 390 x 844, motion welcome', () => {
   }) => {
     await openHome(page);
     await scrollThrough(page);
-    await page.waitForTimeout(5000);
     for (const name of SCENES) {
       const scene = page.locator(`[data-scene="${name}"]`);
       await expect(scene, name).toHaveAttribute('data-reveal', /^(done|snapped)$/);
@@ -116,7 +141,7 @@ test.describe('phone, 390 x 844, motion welcome', () => {
     });
     await openHome(page);
     await scrollThrough(page);
-    await page.waitForTimeout(1500);
+    await inViewRests(page);
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
     expect(cls).toBeLessThan(0.05);
   });
@@ -238,7 +263,11 @@ test.describe('gentle: reduced motion (owner, 18 Nov 2026: "what\'s best for use
     });
     await openHome(page, 390, 844);
     await scrollThrough(page);
-    await page.waitForTimeout(5000);
+    for (const name of SCENES)
+      await expect(page.locator(`[data-scene="${name}"]`), name).toHaveAttribute(
+        'data-reveal',
+        /^(done|snapped)$/,
+      );
     const changes = await page.evaluate(
       () => (window as unknown as { __steps: Array<{ at: number; scene: string }> }).__steps,
     );
@@ -282,6 +311,15 @@ test('switching between pinned and reveal on resize or rotation needs no reload 
 }) => {
   await openHome(page, 1280, 800);
   await expect(html(page)).toHaveAttribute('data-scene-mode', 'pinned');
+  // Wait until the scroll engine has really started (it writes the progress), so this is a switch
+  // of a running page and not the first start at the new size.
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-scene="hero"]')
+        .evaluate((el) => (el as HTMLElement).style.getPropertyValue('--p')),
+    )
+    .not.toBe('');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(html(page)).toHaveAttribute('data-scene-mode', 'reveal');
   await expect(html(page)).toHaveAttribute('data-scenes', 'reveal');
@@ -310,3 +348,35 @@ test('switching between pinned and reveal on resize or rotation needs no reload 
     'sticky',
   );
 });
+
+for (const [width, height] of [
+  [390, 844],
+  [1280, 800],
+] as const)
+  test(`the Privacy and Trust page shifts nothing while its hero plays (CLS under 0.05) at ${width} x ${height}`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __cls: number }).__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as unknown as Array<{
+          value: number;
+          hadRecentInput: boolean;
+        }>)
+          if (!entry.hadRecentInput) (window as unknown as { __cls: number }).__cls += entry.value;
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    await page.setViewportSize({ width, height });
+    await page.goto('/trust');
+    // The Pause button is in the markup from the start, idle; it becomes usable once the page is alive.
+    const pause = page.getByRole('button', { name: 'Pause the Animation' });
+    await expect(pause).toBeVisible();
+    // The loop moves on by itself (a step change, never a fixed time).
+    await expect(page.locator('.tr-share .kit-sheet')).not.toHaveAttribute('data-kit-step', '0', {
+      timeout: 6000,
+    });
+    await scrollThrough(page);
+    await frames(page);
+    const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+    expect(cls).toBeLessThan(0.05);
+  });
