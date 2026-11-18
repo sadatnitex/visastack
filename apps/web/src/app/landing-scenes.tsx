@@ -152,9 +152,13 @@ export function ReadyScene() {
                   data-index={index + 1}
                   key={item.name}
                 >
-                  <span className="land-case-mark" aria-hidden="true" />
+                  {item.ready ? (
+                    <span className="land-case-mark" aria-hidden="true" />
+                  ) : (
+                    <span className="land-case-mark" role="img" aria-label="Not Added Yet" />
+                  )}
                   <span className="land-case-name">{item.name}</span>
-                  <span className="land-case-state">{say(item.ready ? 'In file' : 'Missing')}</span>
+                  {item.ready ? <StatusChip status="saved" pageLang={lang} /> : null}
                 </li>
               ))}
             </ol>
@@ -186,7 +190,7 @@ export function ClosingScene({ children }: { readonly children: ReactNode }) {
   const say = (text: string) => publicText(text, lang);
   return (
     <Chapter tone="dark" className="land-chapter">
-      <Scene name="closing" len={2} steps={1} finalStep={0} className="land-scene land-scene-open">
+      <Scene name="closing" len={1} steps={1} finalStep={0} className="land-scene land-scene-open">
         <div className="land-stage land-closing">
           <figure className="land-draw land-passport-figure" {...englishOn(lang)}>
             <div className="land-passport-frame">

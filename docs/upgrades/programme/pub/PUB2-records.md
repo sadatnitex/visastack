@@ -5,7 +5,7 @@
 ## 17 Nov 2026: WP-PUB2 Home scroll story
 
 - The home page now tells its story in scroll scenes, built over the page that was there (nothing was removed): the hero stays first; below it a dark scene shows documents flying in, a scan, then the words Received, Suggested and Confirmed in that order (Suggested reads "Nothing is saved yet" and Confirmed reads "You check each value, and it joins your file"); a light scene fills a case line and shows the readiness ring with "Completeness only. Not an approval."; the page ends on the real Bangladesh passport cover tilting into place above the same closing call as before. Dark and light chapters alternate. Every drawn picture carries the Example tag and shows no real name, count, logo or rating.
-- On a computer (900 px wide or more, motion welcome) the first two scenes pin to the screen and move as you scroll; the closing scene rests in the page. Below 900 px, with reduced motion, with data saver, or without JavaScript, every scene is a still picture showing its finished step. The page's own rule keeps scenes unpinned below 900 px even though the shared engine starts at 760 px (a rule in landing-c1.css; the engine is unchanged).
+- On a computer (900 px wide or more, motion welcome) the first two scenes pin to the screen and move as you scroll; the closing scene is one screen and rests in the page. Below 900 px, with reduced motion, with data saver, or without JavaScript, every scene is a still picture showing its finished step. The page's own rule keeps scenes unpinned below 900 px even though the shared engine starts at 760 px (a rule in landing-c1.css; the engine is unchanged).
 - Page height: up to 12 screens on a computer (owner answer 1) and 6 on a phone (the WP-SB8 landing block now says 12 for the computer; the phone number is unchanged). Measured: see "Measured" below.
 - The first screen on a 360 x 640 phone holds 25 words of the page itself (headline, one short line, both buttons, the pilot label). A short line, "One private file for every visa application.", takes the place of the long supporting line and the three-word summary below 480 px; the long wording stays in the page for wider screens and is unchanged.
 - Kept as they were: the pilot notice and its wording, "Sign in to get started" and "See What Works Today", invite-only wording, the three anchors (how-it-works, for-agencies, start), the country picker, the six story groups, the closing card. The new headings are headings by role (level 2) rather than h2 elements, so the page's tested outline of one h1 and nine h2 is unchanged and no existing assertion was edited.
@@ -30,7 +30,7 @@ Shown in English, marked lang="en" on a Bangla page, until the catalogue has the
 | See How Complete | ready scene heading | home.scene.seeHowComplete |
 | Your File Is. | ready scene heading (tinted words) | home.scene.yourFileIs |
 | Completeness is how much of the list is in your file. | ready scene | home.scene.readyLead |
-| In file / Missing | ready, case line | home.scene.inFile, home.scene.missing |
+| Not Added Yet | ready, case line (accessible name of the empty mark; saved items use the shared Saved chip) | home.scene.notAddedYet |
 | Illustration with a sample case. | ready caption | home.scene.readyCaption |
 | The type of cover, not anyone's own passport. | closing caption | home.scene.passportCaption |
 
@@ -59,7 +59,7 @@ Browser spec (apps/web/e2e/public-site/pub2-home.spec.ts, 25 cases), run against
 ## Measured
 
 - Phone 390x844: 5046 px = 5.98 screens (budget 6, 5064 px). Only 18 px of margin: a font change could break it.
-- Computer 1280x800: about 10.9 screens (budget 12) with the first scene at 2 screens; 11.91 screens when it was 3 (too close, so shortened).
+- Computer 1280x800: 7925 px = 9.91 screens (budget 12), with the first scene at 2 screens, the ready scene at 2 and the closing scene at 1 (an earlier draft was 11.91 with longer scenes, too close, so shortened).
 - First screen at 360x640: 25 words of the page itself.
 - Public budget check: Home first-load JavaScript 144941 bytes gzipped against baseline 142417 (+2.5 KB, limit +10 KB); scroll engine 1535 bytes; pictures 27676 bytes; nothing from another origin.
 - Full local check (scripts/agent/full-check.sh): install, audit, typecheck, test, webtest, build, supply chain, Playwright, smoke all exit 0; lint exit 1 on a formatting line, fixed and lint re-run green.
@@ -73,3 +73,13 @@ Browser spec (apps/web/e2e/public-site/pub2-home.spec.ts, 25 cases), run against
 ## Ledger text (for the Guardian to place)
 
 - Home scroll story (WP-PUB2, ADR 0029): scenes intake, ready and closing on `/`, built from the PUB1 shared parts, Home styling in landing-c1.css; scroll budget 12 screens on a computer, 6 on a phone. Status: DONE for Home; the other four pages follow in PUB3 and PUB4.
+
+## Review round (Guardian 9, independent review of 763553a)
+
+- Passport tilt at 760 to 899 px: fixed in landing-c1.css (the passport rests flat there); pub2-home.spec.ts asserts transform none at 820x860.
+- Case line: saved items show the shared Saved chip; a missing item is an empty mark named "Not Added Yet" (no chip). The chip is read aloud but not drawn on a phone.
+- Closing scene is len 1 (one screen); the sticky assertion now covers only the intake and ready scenes.
+- The tone test now reads the whole page (hero, intake, ready, product, story groups, closing) and was proven red by flipping the ready chapter to dark once.
+- Tone token for done: the public tone tokens (--pub-*) have no done or ok colour, so .land-case-item.is-ready .land-case-mark and .land-case-bar i keep var(--success) (the product's own done colour, about 8:1 on white); the light chapter holds them.
+- Tests that pass on main (anchors kept, no invented figures) are regression guards on purpose.
+- Accepted by the Guardian, for follow-ups: phone height margin of 18 px; Bangla page height (localization lane); the three-word summary hidden under 480 px in English.

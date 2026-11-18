@@ -43,10 +43,19 @@ describe('the home page scroll story (WP-PUB2)', () => {
     }
   });
 
-  it('alternates dark and light chapters down the page', async () => {
+  it('alternates dark and light down the whole page: hero, intake, ready, product, story groups, closing', async () => {
     const html = await render();
-    const tones = valuesOf(html, 'data-tone') as ('dark' | 'light')[];
-    expect(tones.length).toBeGreaterThanOrEqual(3);
+    // The sequence as the page lays it out. The country picker is a light form section that sits
+    // inside the ready chapter's light run, so it is not a separate block here.
+    const tones = [
+      ...html.matchAll(
+        /class="c1-hero c1-shell"|data-tone="(dark|light)"|class="c1-darkstage"|class="land-section land-story"/g,
+      ),
+    ].map((match) => {
+      if (match[1]) return match[1] as 'dark' | 'light';
+      return match[0].includes('c1-darkstage') ? 'dark' : 'light';
+    });
+    expect(tones).toEqual(['light', 'dark', 'light', 'dark', 'light', 'dark']);
     expect(tonesAlternate(tones)).toBe(true);
   });
 
@@ -80,6 +89,13 @@ describe('the home page scroll story (WP-PUB2)', () => {
     const html = await render();
     expect(textOf(html)).toContain('Completeness only. Not an approval.');
     expect(html).toMatch(/data-scene="ready"[\s\S]*Completeness only\. Not an approval\./);
+  });
+
+  it('shows a saved item with the Saved chip and a missing one as an empty mark with its own name', async () => {
+    const html = await render();
+    expect(html.match(/data-status="saved"/g)?.length).toBe(4);
+    expect(html).toContain('aria-label="Not Added Yet"');
+    expect(textOf(html)).not.toMatch(/In file|Missing/);
   });
 
   it('says what a state means in its own word: Received is not Reviewed, Suggested is not Confirmed', async () => {

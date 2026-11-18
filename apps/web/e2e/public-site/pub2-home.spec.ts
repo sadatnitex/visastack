@@ -119,7 +119,8 @@ for (const size of SIZES.filter((s) => s.width >= 900)) {
     await page.setViewportSize({ width: size.width, height: size.height });
     await wait(page);
     await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-    for (const name of SCENES) {
+    // The two long scenes pin; the closing scene is one screen, so it has nothing to pin.
+    for (const name of ['intake', 'ready']) {
       const stage = page.locator(`[data-scene="${name}"] .pub-scene-stage`);
       await expect(stage).toHaveCSS('position', 'sticky');
     }
@@ -217,4 +218,15 @@ test('no pinned scene clips its words on a short computer screen (1024x600)', as
       .map((stage) => stage.closest('[data-scene]')?.getAttribute('data-scene')),
   );
   expect(clipped).toEqual([]);
+});
+
+test('the passport rests flat between 760 and 899 px, where the engine runs but no scene is pinned', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 820, height: 860 });
+  await wait(page);
+  await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
+  const tilt = page.locator('.land-passport-frame .pub-passport-tilt');
+  await tilt.scrollIntoViewIfNeeded();
+  await expect(tilt).toHaveCSS('transform', 'none');
 });

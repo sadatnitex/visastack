@@ -1025,7 +1025,7 @@
   font-weight: 600;
 }
 
-.land-case-state {
+.land-case-item .pub-chip {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1166,15 +1166,13 @@
     min-height: 32px;
   }
 
-  .land-case-state {
+  .land-case-item .pub-chip {
     position: static;
     width: auto;
     height: auto;
     margin: 0;
     overflow: visible;
     clip-path: none;
-    font-size: var(--text-caption);
-    color: var(--pub-ink-soft, var(--text-secondary));
   }
 
   .land-case-bar {
@@ -1213,6 +1211,15 @@
     position: static;
     height: auto;
     overflow: visible;
+  }
+
+  /* The shared tilt rule has no width limit, and an unpinned scene has no real progress: at 760 to
+     899 px the passport must rest flat, not sit rotated and snap. Same selector parts as the depth
+     rule plus the frame, so it wins whatever the order. */
+  html[data-scenes="live"]:not([data-save-data])
+    .land-passport-frame
+    .pub-passport-tilt[data-pub-depth] {
+    transform: none;
   }
 }
 
