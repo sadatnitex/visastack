@@ -1,0 +1,14 @@
+{
+  "traveller": {
+    "role": "traveller",
+    "providerId": "ci-stand-in-traveller-0001",
+    "email": "ci.traveller@example.test",
+    "name": "Rumana Test Traveller"
+  },
+  "agencyAdmin": {
+    "role": "agencyAdmin",
+    "providerId": "ci-stand-in-agency-admin-0001",
+    "email": "ci.agency.admin@example.test",
+    "name": "Tanvir Test Agent"
+  }
+}
