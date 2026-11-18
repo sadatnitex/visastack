@@ -1,0 +1,126 @@
+/* WP-U6 All Records on the Wallet rows (18 Nov 2026). Each item is one compact row built on the
+   Expandable Section: picture, name, one status picture, one action. Flat, tokens only, every
+   control at least 44 px, everything wraps down to 320 px. The filter buttons are separate chips
+   with their own border and corners, so nothing clips or covers a button's corner. */
+.u6-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.u6-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.u6-filters button[aria-pressed="true"] {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+}
+.u6-filters button:disabled {
+  color: var(--text-secondary);
+  cursor: default;
+}
+.u6-filters strong {
+  font-size: var(--text-body);
+}
+.u6-group {
+  margin-top: var(--space-5);
+}
+.u6-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.u6-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12rem;
+  gap: var(--space-2);
+  align-items: start;
+  min-width: 0;
+}
+.u6-row-action {
+  display: flex;
+  min-width: 0;
+}
+.u6-row-action .btn {
+  width: 100%;
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+}
+.u6-row .expandable-section-title {
+  /* Beats the older ".record-hub-group h3" rule (margin and a larger size) that the row's heading would otherwise inherit. */
+  margin: 0;
+  font-size: var(--text-body);
+}
+.u6-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.u6-fact {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+.u6-fact dt {
+  color: var(--text-secondary);
+}
+.u6-fact dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.u6-facts-list {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}
+.u6-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+}
+@media (max-width: 640px) {
+  .u6-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .u6-row-action .btn {
+    width: 100%;
+  }
+  .u6-fact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+/* The Not Started group: one quiet row per group, links inside. */
+.u6-quiet .expandable-section {
+  background: var(--bg-subtle);
+}
+.u6-links {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.u6-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}

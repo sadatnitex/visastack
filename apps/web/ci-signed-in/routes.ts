@@ -507,22 +507,6 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
       'The hidden photo picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
   },
   {
-    page: '/app/applicant/[id]/record',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400'],
-    controls: ['Everything2', 'Profile Details10', 'Previous Versions0'],
-    finding:
-      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
-  },
-  {
-    page: '/app/applicant/[id]/record',
-    check: 'covered control',
-    sizes: ['desktop 1280'],
-    controls: ['Everything2', 'Previous Versions0'],
-    finding:
-      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
-  },
-  {
     page: '/app/applicant/[id]/missions/prepare-again',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400'],
@@ -545,30 +529,6 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     controls: ['Start Trip'],
     finding:
       'Start Trip, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
-  },
-  {
-    page: '/app/agency/[orgId]/clients',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: ['Invite a Client', 'Ask for a Document or Detail'],
-    finding:
-      'The Invite a Client and Ask for a Document or Detail open rows (summary.lift-action) are painted over by their section.agency-add-part.',
-  },
-  {
-    page: '/app/agency/[orgId]/activity',
-    check: 'no control',
-    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: [],
-    finding:
-      'With no case notes yet the page body is a dead end: "No Case Activity Recorded" offers no control or link (only the agency banner back link).',
-  },
-  {
-    page: '/app/agency/[orgId]/ai-connections',
-    check: 'no control',
-    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: [],
-    finding:
-      'With no app connected the page body is a dead end: "No AI Apps Connected" says to turn it on in Settings but gives no link there.',
   },
 ];
 

@@ -12,6 +12,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
+import { ExpandableSection } from '../../../../../components/ui-lift/expandable-section';
 import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
@@ -138,7 +139,7 @@ export default async function ApplicantRecordPage({
       <PageHeader
         eyebrow={t('appApplicant.appApplicantIdExpiryPage.record')}
         title={t('appApplicant.appApplicantIdRecordPage.allRecords')}
-        description={t('appApplicant.appApplicantIdRecordPage.everythingSavedForDisplaynameInOne', {
+        description={t('appApplicant.appApplicantIdRecordRow.allRecordsIntro', {
           displayName: data.applicant.displayName,
         })}
         actions={
@@ -152,9 +153,15 @@ export default async function ApplicantRecordPage({
           </>
         }
       />
-      <p className="muted record-hub-note">
-        {t.node('appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe')}
-      </p>
+      <ExpandableSection
+        title={t.node('appApplicant.appApplicantIdRecordRow.aboutCurrentVersion')}
+        headingLevel={2}
+        className="u6-about"
+      >
+        <p className="muted record-hub-note">
+          {t.node('appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe')}
+        </p>
+      </ExpandableSection>
       {documentsLoaded ? null : (
         <p role="alert" className="notice notice-warn">
           {t.node('appApplicant.appApplicantIdRecordPage.yourDocumentsCouldNotBeLoaded')}

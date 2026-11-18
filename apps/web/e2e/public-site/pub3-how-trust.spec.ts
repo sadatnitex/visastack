@@ -83,26 +83,16 @@ for (const { name, width, height } of VIEWPORTS) {
 }
 
 for (const route of PAGES) {
-  test(`${route} pins each scene to one screen at 760 x 600 and every step fits`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 760, height: 600 });
-    await page.goto(route);
-    const stages = page.locator('.pub-scene-stage');
-    const count = await stages.count();
-    // R3: the Privacy and Trust page has no pinned scenes (its hero is a timed picture with its own
-    // pause button), so it must stay that way: nothing to pin, nothing to overflow.
-    if (route === '/trust') {
-      expect(count).toBe(0);
-      return;
-    }
-    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-    expect(count).toBeGreaterThan(0);
-    for (let at = 0; at < count; at++) {
-      const fits = await stages.nth(at).evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
-      expect(fits, `stage ${at}`).toBe(true);
-    }
-  });
+  // R2: the rebuilt How It Works page has no pinned scene (it rises in on scroll). R3: nor has the
+  // Privacy and Trust page (its hero is a picture on a timer with its own pause button), so it must
+  // stay that way: nothing to pin, nothing to overflow.
+  if (route === '/trust')
+    test(`${route} has no pinned scene at 760 x 600`, async ({ page }) => {
+      await page.setViewportSize({ width: 760, height: 600 });
+      await page.goto(route);
+      await expect(page.locator('main h1')).toHaveCount(1);
+      await expect(page.locator('.pub-scene-stage')).toHaveCount(0);
+    });
 
   test(`${route} with reduced motion shows every scene finished and still`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -166,7 +156,8 @@ test.describe('the trust list without JavaScript', () => {
   }) => {
     await page.goto('/how-it-works');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByText('Ready to Submit', { exact: true }).first()).toBeAttached();
+    await expect(page.getByText('Words Mean Exactly').first()).toBeAttached();
+    await expect(page.getByText('No one has checked it yet.')).toBeAttached();
     await page.goto('/trust');
     await expect(page.locator('#trust-story-title')).toBeVisible();
     await expect(page.getByText('Access Ended').first()).toBeAttached();

@@ -1,29 +1,31 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
+import { DocumentPicture } from '../../components/pictures/document-picture';
+import { CasesTable, ClosingBand, RiseIn } from '../../components/public-site/kit';
 import { PublicButton } from '../../components/public-site/public-button';
 import { publicText } from '../../components/public-site/public-text';
-import { ReadinessRing } from '../../components/public-site/readiness-ring';
-import { Chapter, Scene } from '../../components/public-site/scene';
-import { ScenesRuntime } from '../../components/public-site/scenes-runtime';
-import {
-  ExampleTag,
-  HeadlineWords,
-  StatusChip,
-  StoryCard,
-} from '../../components/public-site/story';
+import { Chapter } from '../../components/public-site/scene';
+import { HeadlineWords } from '../../components/public-site/story';
 import { homeCatalog } from '../../i18n/home';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
-import { AGENCY_POINTS, EXAMPLE_LINE, EXAMPLE_SHARING } from './for-agencies-data';
+import {
+  DESK_CARDS,
+  EXAMPLE_CASES,
+  PLANS_ACCESS_CLOSED,
+  PLANS_ACCESS_OPEN,
+  PLANS_LINE,
+} from './for-agencies-data';
 import './for-agencies.css';
 
 export const metadata: Metadata = { title: 'For Agencies' };
 
 /**
- * Public For Agencies page (WP-PUB4). Invite-only as the home page says today, with today's button
- * labels and the same sign-in flow. It states what the product does and shows pictures made of
- * Example figures only: no logos, counts, testimonials, ratings or partner names.
+ * Public For Agencies page (R5 rebuild to the approved reference). Four chapters: the dark hero with
+ * an Example case list, what changes at an agency desk, Plans (truthful: no price, no tier), and the
+ * closing band. Invite-only as the home page says today, with today's button labels and sign-in flow.
+ * Pictures are made of Example figures only: no logos, counts, testimonials, ratings or partner names.
  */
 export default async function ForAgenciesPage(): Promise<ReactElement> {
   await primeLocale();
@@ -40,124 +42,82 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
       : t.node('home.page.signInToGetStarted');
   const startHref = !signedIn && betaOpen ? '/auth/sign-up' : '/app';
   const actions = (
-    <div className="pub4a-actions">
+    <>
       <PublicButton href={startHref} variant="primary">
         {startLabel}
       </PublicButton>
       <PublicButton href="/status" variant="secondary">
-        {say('See What Works Today')}
+        {t.node('home.page.seeWhatWorksToday')}
       </PublicButton>
-    </div>
+    </>
   );
 
   return (
     <>
-      <Chapter tone="dark" labelledBy="agencies-title" className="pub4a-hero">
-        <div className="container pub4a-hero-copy">
-          <p className="pub4a-kicker">
-            {betaOpen ? t.node('home.page.freePublicBeta') : t.node('home.page.inviteOnlyPilot')}
-          </p>
-          <h1 id="agencies-title" className="pub4a-title">
-            {say('Stop Chasing Documents')} <HeadlineWords>{say('by Message')}</HeadlineWords>
-          </h1>
-          <p className="pub4a-lede">
-            {say('Ask for a document, then see when it arrives, all in one place.')}
-          </p>
-          {actions}
+      <Chapter tone="dark" labelledBy="agencies-title" className="r5-hero">
+        <div className="container r5-hero-grid">
+          <div className="r5-hero-copy">
+            <p className="r5-kicker">
+              {betaOpen ? t.node('home.page.freePublicBeta') : t.node('home.page.inviteOnlyPilot')}
+            </p>
+            <h1 id="agencies-title" className="r5-title">
+              {say('Clients Arrive')} <HeadlineWords>{say('Prepared.')}</HeadlineWords>
+            </h1>
+            <p className="r5-lede">{say('Clients own their record. You see what they share.')}</p>
+            <div className="r5-actions">{actions}</div>
+          </div>
+          <CasesTable rows={EXAMPLE_CASES} pageLang={lang} />
         </div>
       </Chapter>
 
-      <Chapter tone="light" labelledBy="agencies-gets-title">
+      <Chapter tone="light" labelledBy="agencies-desk-title">
         <div className="container">
-          <h2 id="agencies-gets-title" className="pub4a-h2">
-            {say('What an Agency Gets')}
+          <h2 id="agencies-desk-title" className="r5-h2">
+            {say('What Changes')} <HeadlineWords>{say('at Your Desk.')}</HeadlineWords>
           </h2>
-          <div className="pub4a-grid">
-            {AGENCY_POINTS.map((point) => (
-              <StoryCard
-                key={point.title}
-                title={say(point.title)}
-                body={say(point.body)}
-                pageLang={lang}
-              />
+          <div className="r5-cards">
+            {DESK_CARDS.map((card, i) => (
+              <RiseIn as="article" key={card.title} delay={i * 0.1}>
+                <span className="r5-card-picture">
+                  <DocumentPicture type={card.picture} size={64} />
+                </span>
+                <h3 className="r5-card-title">{say(card.title)}</h3>
+                <p className="r5-card-body">{say(card.body)}</p>
+              </RiseIn>
             ))}
           </div>
         </div>
       </Chapter>
 
-      <Chapter tone="dark">
-        <Scene name="line" len={2} steps={3} labelledBy="agencies-line-title">
-          <div className="container pub4a-line">
-            <h2 id="agencies-line-title" className="pub4a-h2">
-              {say('One Case, One Clear Line')}
-            </h2>
-            <div className="pub4a-board">
-              <ExampleTag pageLang={lang} />
-              <ReadinessRing
-                done={1}
-                total={3}
-                size="lg"
-                countLabel="Items Complete"
-                pageLang={lang}
-              />
-              <ol className="pub4a-steps">
-                {EXAMPLE_LINE.map((row) => (
-                  <li key={row.status} className="pub4a-step">
-                    <StatusChip status={row.status} pageLang={lang} />
-                    <strong className="pub4a-step-name">{say(row.name)}</strong>
-                    <span className="pub4a-step-note">{say(row.note)}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        </Scene>
-      </Chapter>
-
-      <Chapter tone="light" labelledBy="agencies-share-title">
-        <div className="container">
-          <h2 id="agencies-share-title" className="pub4a-h2">
-            {say('You See Only What Is Shared')}
+      <Chapter tone="light" labelledBy="agencies-plans-title" className="r5-plans">
+        <div className="container r5-plans-inner">
+          <h2 id="agencies-plans-title" className="r5-h2">
+            {say('Plans.')}
           </h2>
-          <div className="pub4a-grid pub4a-grid-two">
-            <StoryCard
-              title={say('Saved Is Not Shared')}
-              body={say(
-                "A client's record is private. Sharing starts with their permission, and every sharing decision is recorded.",
-              )}
-              example
-              pageLang={lang}
-              raised
-            >
-              <ul className="pub4a-chips" aria-label="Example States">
-                {EXAMPLE_SHARING.map((status) => (
-                  <li key={status}>
-                    <StatusChip status={status} pageLang={lang} />
-                  </li>
-                ))}
-              </ul>
-            </StoryCard>
-            <StoryCard
-              title={say('Access Can End')}
-              body={say('Access can end on a date the client sets, and the change is recorded.')}
-              pageLang={lang}
-            />
-          </div>
+          <p className="r5-plans-line">
+            {say(PLANS_LINE)} {say(betaOpen ? PLANS_ACCESS_OPEN : PLANS_ACCESS_CLOSED)}
+          </p>
         </div>
       </Chapter>
 
-      <Chapter tone="dark" labelledBy="agencies-close-title">
-        <div className="container pub4a-hero-copy">
-          <h2 id="agencies-close-title" className="pub4a-h2">
-            {say('One Traveller Profile, Fewer Repeat Requests')}
-          </h2>
-          {actions}
-          <PublicButton href="/countries" variant="secondary">
-            {say('Countries')}
-          </PublicButton>
-        </div>
-      </Chapter>
-      <ScenesRuntime />
+      <ClosingBand
+        title={
+          <>
+            {say('Bring Your Clients.')} <HeadlineWords>{say('Skip the Chasing.')}</HeadlineWords>
+          </>
+        }
+        titleId="closing-band-title"
+        pageLang={lang}
+        sub={say('Start with what works today.')}
+        actions={
+          <>
+            {actions}
+            <PublicButton href="/countries" variant="secondary">
+              {say('Countries')}
+            </PublicButton>
+          </>
+        }
+      />
     </>
   );
 }
