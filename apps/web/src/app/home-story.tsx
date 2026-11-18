@@ -260,12 +260,15 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
         </Scene>
       </Chapter>
 
+      {/* PUBFIX2 P2-7: the case rests on its first stage (Getting Started, You), as the approved
+          reference starts, on a phone, with reduced motion and without script. A scene that rests on
+          its first step is not replayed by reveal or gentle mode, so the picture stays still there. */}
       <Chapter tone="light" className="hs-chapter hs-chapter-soft">
         <Scene
           name="journey"
           len={1.5}
           steps={FIXTURE_STAGES.length}
-          finalStep={FIXTURE_STAGES.length - 1}
+          finalStep={0}
           minWidth={900}
           kitStage
           labelledBy="hs-journey-title"

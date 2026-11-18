@@ -17,12 +17,12 @@ const SIZES = [
 
 const SCENES = ['hero', 'add', 'ready', 'journey', 'share'] as const;
 
-/** The step each scene rests on, finished (the sharing scene rests before `Access Ended`). */
+/** The step each scene rests on, finished (the sharing scene rests before `Access Ended`; the journey rests on its first stage, PUBFIX2 P2-7). */
 const FINAL: Record<(typeof SCENES)[number], string> = {
   hero: '5',
   add: '2',
   ready: '2',
-  journey: '6',
+  journey: '0',
   share: '3',
 };
 

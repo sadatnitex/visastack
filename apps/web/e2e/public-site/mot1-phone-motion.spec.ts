@@ -14,7 +14,7 @@ const FINAL: Record<(typeof SCENES)[number], string> = {
   hero: '5',
   add: '2',
   ready: '2',
-  journey: '6',
+  journey: '0',
   share: '3',
 };
 
