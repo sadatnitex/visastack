@@ -293,9 +293,9 @@ describe('withheld protected details (ESS1)', () => {
     reveal.mockResolvedValue({ ok: false });
     render(withheld());
     await act(async () => button(/^Show Date of Birth$/).click());
-    expect(rowOf('date_of_birth')?.querySelector('output.profile-row-problem')?.textContent).toMatch(
-      /could not be shown just now/,
-    );
+    expect(
+      rowOf('date_of_birth')?.querySelector('output.profile-row-problem')?.textContent,
+    ).toMatch(/could not be shown just now/);
     expect(rowOf('date_of_birth')?.querySelector('[data-masked="true"]')).not.toBeNull();
     await act(async () => button(/^Edit Date of Birth$/).click());
     const box = container.querySelector<HTMLInputElement>('#f-date_of_birth');
