@@ -914,11 +914,7 @@
   padding: var(--space-2);
   border: 1px solid var(--pub-edge, var(--edge-card));
   border-radius: var(--radius-lg);
-  background-color: color-mix(
-    in srgb,
-    var(--pub-ink, var(--text)) 7%,
-    var(--pub-canvas, var(--bg))
-  );
+  background-color: color-mix(in srgb, var(--pub-ink, var(--text)) 7%, var(--pub-canvas, var(--bg)));
 }
 
 .land-doc-name {
@@ -1265,7 +1261,9 @@
   html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="0"] .land-state-1,
   html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="1"] .land-state-1,
   html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="2"] .land-state-2,
-  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="3"] .land-state-3 {
+  html[data-scenes="live"]:not([data-save-data])
+    [data-scene="intake"][data-step="3"]
+    .land-state-3 {
     border-inline-start-color: var(--pub-accent, var(--accent));
     color: var(--pub-ink, var(--text));
   }
