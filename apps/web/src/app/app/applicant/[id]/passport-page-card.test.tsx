@@ -436,6 +436,10 @@ describe('value rows for every single detail', () => {
     const pictures = row?.querySelectorAll('.expandable-section-status .status-picture');
     expect(pictures).toHaveLength(1);
     expect(pictures?.[0]?.getAttribute('data-status')).toBe('DECLARED');
+    // The row's status button names its detail, as on the card.
+    expect(
+      row?.querySelector('.expandable-section-status .explain-tip-trigger .sr-only')?.textContent,
+    ).toBe('Email Address: Entered');
     // Closed until opened; the edit box is inside.
     expect(row?.querySelector('details')?.open).toBe(false);
     expect(row?.querySelector('#f-email')).not.toBeNull();

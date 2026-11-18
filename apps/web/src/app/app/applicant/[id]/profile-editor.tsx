@@ -21,6 +21,7 @@ import {
 } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
 import {
+  STATUS_MEANINGS,
   type StatusKind,
   StatusPicture,
   isStatusKind,
@@ -1133,7 +1134,12 @@ function SectionFields({
                 }
                 {...(kind
                   ? {
-                      status: <StatusPicture kind={kind} />,
+                      status: (
+                        <StatusPicture
+                          kind={kind}
+                          label={`${field.label}: ${STATUS_MEANINGS[kind].name}`}
+                        />
+                      ),
                       statusDescription: statusPictureWords(kind),
                     }
                   : {})}

@@ -19,6 +19,7 @@ Unit WAL4 (Wallet upgrade U4: Profile), Class A (personal data), FULL route. Bra
 - Masked: `date_of_birth` and `passport_number` always, and any detail whose catalogue sensitivity is not STANDARD. The mask is a fixed run of dots, so it says nothing about the length.
 - The unmasked value is never put into the drawing, a label, a title or a tooltip. Show prints it on the line; Hide masks it again (the button's name says what a press does, so it carries no pressed state). One detail at a time.
 - Value rows mask the same details in their summary line.
+- What the mask protects against, said plainly: Show and Hide protect against people looking at the screen (shoulder surfing, a shared or projected screen). They do not protect against reading the page source or the browser's developer tools: the edit boxes already hold the value, exactly as on main.
 - Not changed, said plainly: the editor already receives the opened value from the page (WALD2) and puts it in the detail's edit box, which is in the page markup inside the closed row. That is exactly as before this unit. Masking is about what is shown on screen, not about what the browser holds.
 
 ## Sensitive marker (deferred to WAL4 by WAL1)
@@ -58,16 +59,18 @@ Green: see the READY message for the full run.
 
 - `/code-review` high: 10 findings. Fixed, each with a test that failed on the code before the fix (4 failed, then green): a tap on a Does Not Apply line now moves the focus into its row (onto its switch back); a protected detail in a closed section says "Protected detail", never "Not recorded"; a click with a modifier key keeps the link's own way (new tab); the card and the rows now share one rule (`detailState`) and one masked drawing (`MaskedValue`), so they always say the same thing (an empty row now says Not Added Yet, as the card does); a value to add again shows no status picture on its row either; the card's lines are memoised and skipped while searching. Left as follow-ups below: the no-script tab limit, English-only words, the leftover styles and catalogue key, the query string on the no-script link.
 - `/security-review`: no findings. Compared with main, protected values are shown in fewer places (main's read summary printed them in full).
+- Guardian review (two independent reviewers on 17cbdb8): nothing blocking, no leak. Fixed: each value row's status button also names its detail, as on the card; the records say what the mask protects against; the ratchet baseline is lowered (above).
 - Accessibility and design review (fresh context): fixed the Show and Hide button (its name already says what a press does, so the pressed state was removed: "Hide Passport Number, pressed" read as a double negative); each value link is at least 44 px wide (a one-letter value was narrower); each status button on the card names its detail ("Passport Number: Backed by a Document"), so a run of Tab stops is never a list of bare states. Polish also taken: a darker underline on the value links, and forced-colours fills that keep the drawing readable.
 
 ## Follow-ups (outside this manifest)
 
 1. Bengali: move the card's words (listed above) into the applicant catalogue and the Bengali drafts (localization lane).
-2. Leftovers from the removed read summary: the `.profile-read-summary` rules in globals.css (two older blocks) and the catalogue key `appApplicant.appApplicantIdProfileEditor.editTheseDetails` (English, Bengali and sources), now used by nothing.
+2. Leftovers from the removed read summary: the `.profile-read-summary` rules in globals.css (about lines 4979 to 5012 and the Bengali rule near 21236, both in older blocks this unit may not edit, so they stay) and the catalogue key `appApplicant.appApplicantIdProfileEditor.editTheseDetails` (English, Bengali and sources), now used by nothing.
 3. Without script, the area tabs do not switch, so a card line that points at a detail in another area (the four passport details) lands inside a hidden panel. A wider no-script tab fallback (for example `hidden="until-found"`) belongs to the editor's tab design, not to this unit.
 4. The Essentials First fallback link `?view=all#...` replaces the whole query string (today only `for` could be lost).
-5. The ui-ratchet baseline can be lowered (folds 194 to 193 and older stale counts) together with the pinned totals in `scripts/ui-ratchet.test.mjs`.
+5. Done in this unit after the Guardian review: the ui-ratchet baseline was lowered with `--lower` (folds 194 to 193, inline styles 399 to 296 from older stale counts) and the pinned totals in `scripts/ui-ratchet.test.mjs` were lowered to match. Lowering only.
 6. A Sensitive status picture, once VOCABULARY.md has its word.
+7. Load protected values only on Show (Guardian finding, separate Class A unit): today the page sends every opened protected value to the browser with the edit boxes (WALD2). A unit that fetches a protected value only when the person presses Show, or opens its edit row, would make the mask a real boundary. It touches the page's keyed read and a server action, so it is outside this presentation-only unit.
 
 ## Not verified
 
@@ -77,7 +80,6 @@ Green: see the READY message for the full run.
 - Forced-colours mode in a real browser (rule written, not run).
 - Bengali wording of the new words (listed above).
 - A `#profile-row-<key>` link opened without script lands on the closed row; the person taps it to open (a native fold has no open-on-link behaviour without script).
-- The ui-ratchet baseline was not lowered: lowering changes the pinned totals in `scripts/ui-ratchet.test.mjs`, outside this manifest. The ratchet passes with this unit's counts below the baseline (folds 193 of 194).
 
 ## Rollback
 
