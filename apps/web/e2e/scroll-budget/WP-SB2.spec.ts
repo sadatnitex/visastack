@@ -133,9 +133,11 @@ const LIFT = {
    * 3700, 3350, 1900 and 3300.
    */
   phonePage: { everything: 3700, browse: 3350, glance: 1900 },
-  desktopPage: { everything: 3300 },
+  // WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways (measured 3321).
+  desktopPage: { everything: 3330 },
   /** Where the first checklist row may start (px from the top of the page). */
-  firstRow: { phone: 1500, desktop: 1100 },
+  // WAL0/D4: second pill row at 1280, Everything (measured 1116).
+  firstRow: { phone: 1500, desktop: 1120 },
 } as const;
 
 type Level = 'glance' | 'browse' | 'everything';
@@ -281,7 +283,10 @@ test.describe('WP-LIFT-B the real case page', () => {
     }
   });
 
-  test('the section links are one row that scrolls inside its own box on a phone', async ({
+  // Approved guard correction (Guardian 7, owner D4, WAL0): the strip used to be one row that
+  // scrolled sideways. Below 761 px it is now one closed 44px "Jump to Section" row that opens
+  // into full-width 44px links in the page flow; nothing scrolls sideways.
+  test('on a phone the section links are one closed row that opens into 44px links, with no sideways scroll', async ({
     page,
   }) => {
     await page.setViewportSize(VIEWPORTS.phone);
@@ -290,15 +295,21 @@ test.describe('WP-LIFT-B the real case page', () => {
     const box = await nav.boundingBox();
     expect(box?.height ?? 0).toBeLessThanOrEqual(60);
     expect(box?.width ?? 0).toBeLessThanOrEqual(VIEWPORTS.phone.width);
-    expect(await nav.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(await nav.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false);
+    const fold = nav.locator('details.jump-select');
+    expect(await fold.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(false);
+    await fold.locator(':scope > summary').click();
     // Only the links whose section shows at this level are drawn; each one is a full target.
     let drawn = 0;
-    for (const link of await nav.locator('a').all()) {
+    for (const link of await fold.locator('.jump-select-list a').all()) {
       if (!(await link.isVisible())) continue;
       drawn += 1;
       expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
     expect(drawn).toBeGreaterThan(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      VIEWPORTS.phone.width,
+    );
   });
 
   test('at Glance the section links are not drawn, so none points at a hidden block', async ({

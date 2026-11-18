@@ -104,10 +104,12 @@ describe('the WP-LIFT-B stylesheet block', () => {
     expect(blockB).toMatch(/\.lift-fold-body \{[^}]*scroll-margin-top:/s);
   });
 
-  it('keeps the section links scrolling inside their own box on a phone, never the page', () => {
-    const phone = atRule(blockB, '@media (max-width: 760px) {\n  .jump-nav');
-    expect(phone).toMatch(/\.jump-nav \{[^}]*flex-wrap: nowrap;/s);
-    expect(phone).toMatch(/\.jump-nav \{[^}]*overflow-x: auto;/s);
+  it('wraps the section links onto more rows on a phone and never scrolls them or the page sideways', () => {
+    // Approved guard correction (Guardian 7, owner D4): the strip used to be one nowrap row with
+    // overflow-x: auto. WAL0 measures the real strip in a browser; this keeps the rules honest.
+    expect(blockB).not.toMatch(/\.jump-nav \{[^}]*flex-wrap: nowrap;/s);
+    expect(blockB).not.toMatch(/\.jump-nav \{[^}]*overflow-x: auto;/s);
+    expect(blockB).toMatch(/\.jump-nav \{[^}]*flex-wrap: wrap;/s);
     expect(blockB).toMatch(/\.jump-nav \{[^}]*max-width: 100%;/s);
   });
 
