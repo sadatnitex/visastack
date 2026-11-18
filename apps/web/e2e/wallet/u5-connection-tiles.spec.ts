@@ -200,7 +200,12 @@ test('works with script switched off: tiles, names and Change Access from the pa
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
   // The tiles as drawn, with every script removed, opened again with script switched off.
-  const markup = await page.locator('main.scroll-fixture').evaluate((el) => el.outerHTML);
+  // The script elements are removed from a copy through the page's own DOM, never by filtering text.
+  const markup = await page.locator('main.scroll-fixture').evaluate((el) => {
+    const copy = el.cloneNode(true) as HTMLElement;
+    for (const script of copy.querySelectorAll('script')) script.remove();
+    return copy.outerHTML;
+  });
   const origin = new URL(page.url()).origin;
   const sheets = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map((l) => l.href),
@@ -209,7 +214,7 @@ test('works with script switched off: tiles, names and Change Access from the pa
     '<!doctype html><html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     ...sheets.map((href) => `<link rel="stylesheet" href="${href}">`),
-    `</head><body>${markup.replace(/<script[\s\S]*?<\/script>/g, '')}</body></html>`,
+    `</head><body>${markup}</body></html>`,
   ].join('');
   const context = await browser.newContext({
     javaScriptEnabled: false,
@@ -221,6 +226,7 @@ test('works with script switched off: tiles, names and Change Access from the pa
       route.fulfill({ status: 200, contentType: 'text/html', body: html }),
     );
     await still.goto(`${origin}/__wal5-without-script`);
+    expect(await still.evaluate(() => document.querySelectorAll('script').length)).toBe(0);
     await expect(still.locator('[data-ai-tile]')).toHaveCount(5);
     await expect(still.locator('.explain-tip-popup').first()).toBeHidden();
     await expect(still.locator('.explain-tip-trigger').first()).toHaveText('Personal Details');
