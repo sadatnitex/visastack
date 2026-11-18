@@ -1,6 +1,6 @@
 # FIX9 records: the signed-in layout faults and the /status picture
 
-Owner goal (17 Nov 2026): "A permanent made-up test traveller and agency login in CI so every upgrade is checked on the real pages, not on fixtures." The route guard (WAL1B-2, see WAL1B-2-records.md) listed real faults in `KNOWN_FAILING`. This unit fixes five of them at their root, removes their pins, and finds the cause of one intermittent picture test.
+Owner goal (17 Nov 2026): "A permanent made-up test traveller and agency login in CI so every upgrade is checked on the real pages, not on fixtures." The route guard (WAL1B-2, see WAL1B-2-records.md) listed real faults in `KNOWN_FAILING`. This unit fixes five of them (U6 fixed the two on /record) at their root, removes their pins, and finds the cause of one intermittent picture test.
 
 ## Root causes and fixes
 

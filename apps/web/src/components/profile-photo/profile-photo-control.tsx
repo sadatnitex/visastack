@@ -339,6 +339,7 @@ export function ProfilePhotoControl({
             className="sr-only file-pick-input"
             type="file"
             accept={ACCEPT}
+            // Native disabled, not aria-disabled: aria-disabled would still open the chooser.
             disabled={busy}
             onChange={(event) => void onFile(event.target.files?.[0])}
           />

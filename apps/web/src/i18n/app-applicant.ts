@@ -415,8 +415,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn':
       'Files for several people wait in Needs One Decision until you choose who each one belongs to.',
     'appApplicant.appApplicantIdImportImportPanel.filesInThisImport': 'Files in This Import',
-    'appApplicant.appApplicantIdImportImportPanel.filesToImport': 'Files to Import',
-    'appApplicant.appApplicantIdImportImportPanel.folderToImport': 'Folder to Import',
     'appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou':
       'Folders inside it are included. You do not need to say what each file is first. Each file gets its own line below.',
     'appApplicant.appApplicantIdImportImportPanel.forgetEarlierImports': 'Forget Earlier Imports',
@@ -1012,8 +1010,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn':
       'কয়েকজনের ডকুমেন্ট "একটি সিদ্ধান্ত দরকার" অংশে অপেক্ষা করে, যতক্ষণ না আপনি বেছে নেন কোনটি কার।',
     'appApplicant.appApplicantIdImportImportPanel.filesInThisImport': 'এই ইমপোর্টের ডকুমেন্ট',
-    'appApplicant.appApplicantIdImportImportPanel.filesToImport': 'আমদানির ডকুমেন্ট',
-    'appApplicant.appApplicantIdImportImportPanel.folderToImport': 'আমদানির ফোল্ডার',
     'appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou':
       'এর ভেতরের ফোল্ডারগুলোও অন্তর্ভুক্ত হবে। আগে প্রতিটি ডকুমেন্ট কী, তা বলতে হবে না। নিচে প্রতিটি ডকুমেন্টের নিজস্ব সারি থাকবে।',
     'appApplicant.appApplicantIdImportImportPanel.forgetEarlierImports': 'আগের আমদানি ভুলে যান',

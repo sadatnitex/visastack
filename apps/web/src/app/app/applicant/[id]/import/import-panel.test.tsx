@@ -166,10 +166,14 @@ describe('the import panel before anything is chosen', () => {
     expect(html).toContain('>Choose Files</label>');
     expect(html).toContain('<output class="sr-only import-announce">');
     // Each hidden picker is tied to its drawn label by id, and Tab reaches the picker itself.
-    expect(html.match(/<input[^>]*tabindex="-1"/g)).toBeNull();
-    expect(html.match(/<input[^>]*type="file"/g)).toHaveLength(2);
-    for (const label of html.match(/<label for="([^"]+)"/g) ?? []) {
-      expect(html).toContain(`id="${label.slice(12, -1)}"`);
+    const page = document.createElement('div');
+    page.innerHTML = html;
+    const fields = [...page.querySelectorAll<HTMLInputElement>('input[type="file"]')];
+    expect(fields).toHaveLength(2);
+    for (const field of fields) {
+      expect(field.tabIndex, 'Tab reaches the field itself').toBe(0);
+      expect(field.getAttribute('aria-hidden')).toBeNull();
+      expect(field.labels?.length, 'one drawn label tied by id').toBe(1);
     }
   });
 
