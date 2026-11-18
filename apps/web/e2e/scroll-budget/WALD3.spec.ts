@@ -124,7 +124,8 @@ test.describe('WALD3 compact line parts never overlap', () => {
         expect(now?.bottom ?? 0).toBeLessThanOrEqual((strip?.top ?? 0) + 0.5);
         // Every part sits inside the card: no implicit extra column pushes one out.
         const card = await page.locator('.lift-status').boundingBox();
-        for (const b of boxes) expect(b.right).toBeLessThanOrEqual((card?.x ?? 0) + (card?.width ?? 0) + 0.5);
+        for (const b of boxes)
+          expect(b.right).toBeLessThanOrEqual((card?.x ?? 0) + (card?.width ?? 0) + 0.5);
       });
     }
   }
