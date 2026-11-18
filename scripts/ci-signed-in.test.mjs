@@ -424,21 +424,21 @@ test('every guarded route opens its own page on this machine and checks real bod
  */
 const KNOWN_FAILING_BASELINE = new Set([
   ...['phone 390', 'phone 400', 'desktop 1280'].flatMap((size) => [
-    `/app/applicant/[id]/documents/add | covered control | ${size} | "Files to Import"`,
-    `/app/applicant/[id]/documents/add | covered control | ${size} | "Folder to Import"`,
-    `/app/applicant/[id]/profile | covered control | ${size} | "Photo File"`,
-    `/app/applicant/[id]/record | covered control | ${size} | "Everything`,
-    `/app/applicant/[id]/record | covered control | ${size} | "Previous Versions`,
-    `/app/agency/[orgId]/clients | covered control | ${size} | "Invite a Client"`,
-    `/app/agency/[orgId]/clients | covered control | ${size} | "Ask for a Document or Detail"`,
+    `/app/applicant/[id]/documents/add | covered control | ${size} | Files to Import`,
+    `/app/applicant/[id]/documents/add | covered control | ${size} | Folder to Import`,
+    `/app/applicant/[id]/profile | covered control | ${size} | Photo File`,
+    `/app/applicant/[id]/record | covered control | ${size} | Everything2`,
+    `/app/applicant/[id]/record | covered control | ${size} | Previous Versions0`,
+    `/app/agency/[orgId]/clients | covered control | ${size} | Invite a Client`,
+    `/app/agency/[orgId]/clients | covered control | ${size} | Ask for a Document or Detail`,
     `/app/agency/[orgId]/activity | no control | ${size} | -`,
     `/app/agency/[orgId]/ai-connections | no control | ${size} | -`,
   ]),
   ...['phone 390', 'phone 400'].flatMap((size) => [
-    `/app/applicant/[id]/record | covered control | ${size} | "Profile Details`,
-    `/app/applicant/[id]/missions/prepare-again | covered control | ${size} | "Create Case"`,
-    `/app/applicant/[id]/outputs | covered control | ${size} | "Preview"`,
-    `/app/mission/start | covered control | ${size} | "Start Trip"`,
+    `/app/applicant/[id]/record | covered control | ${size} | Profile Details10`,
+    `/app/applicant/[id]/missions/prepare-again | covered control | ${size} | Create Case`,
+    `/app/applicant/[id]/outputs | covered control | ${size} | Preview`,
+    `/app/mission/start | covered control | ${size} | Start Trip`,
   ]),
 ]);
 
@@ -479,4 +479,93 @@ test('the known findings list only shrinks and names real routes, sizes and cont
     );
     assert.ok(finding.finding.trim().length > 20, `${finding.page}: describe the finding`);
   }
+});
+
+/**
+ * Every excluded page when WAL1B-2 merged (18 Nov 2026). A page may leave this list (seed it, then
+ * guard it); nothing may join it, so a new or newly broken page cannot be hidden by excluding it.
+ */
+const EXCLUDED_BASELINE = new Set([
+  ...[
+    '',
+    '/access',
+    '/ai',
+    '/audit',
+    '/billing',
+    '/billing/travellers',
+    '/billing/travellers/metrics',
+    '/complaints',
+    '/document-protection',
+    '/email',
+    '/insights',
+    '/members',
+    '/organizations',
+    '/organizations/[orgId]',
+    '/packs',
+    '/packs/[packId]',
+    '/packs/[packId]/diff',
+    '/packs/corrections',
+    '/packs/import',
+    '/packs/sources',
+    '/plans',
+    '/privacy',
+    '/removals',
+    '/security',
+    '/settings',
+    '/sign-in-recovery',
+  ].map((tail) => `/app/admin${tail}`),
+  '/app/staff-code',
+  '/app/client-invitations/accept',
+  '/app/contributor-requests/accept',
+  '/app/invitations/accept',
+  '/app/sharing-invitations/accept',
+  '/app/trip-invitations/accept',
+  '/app/trip-invitations/[id]',
+  '/app/account/passkeys',
+  '/app/account/plan/billing',
+  '/app/agency/[orgId]/checklists/edit',
+  '/app/agency/[orgId]/collection',
+  '/app/agency/[orgId]/collection/new',
+  '/app/agency/[orgId]/collection/request',
+  '/app/agency/[orgId]/plan/invoices/receipts/[receiptId]',
+  '/app/applicant/[id]/memory/compare',
+  '/app/mission/[id]/snapshots/[snapshotId]',
+  '/app/trips/[id]',
+]);
+
+test('the excluded pages list only shrinks', async () => {
+  const { EXCLUDED } = await routeLists();
+  assert.equal(EXCLUDED_BASELINE.size, 43);
+  assert.deepEqual(
+    EXCLUDED.map((entry) => entry.page).filter((page) => !EXCLUDED_BASELINE.has(page)),
+    [],
+    'EXCLUDED gained a page: guard it in ROUTES instead (seed what it needs)',
+  );
+});
+
+test('a known covered finding matches only the covered control, by its exact name', async () => {
+  const { coveredControlName, unlistedCovered, fixedControls } = await routeLists();
+  const listed =
+    '<button.btn.btn-primary> "Start Trip" reached from above, at 195,809, is under <svg>';
+  assert.equal(coveredControlName(listed), 'Start Trip');
+  assert.equal(
+    coveredControlName(
+      '<input.sr-only> "Photo File" is too small to press (1 by 1 px) and has no drawn label',
+    ),
+    'Photo File',
+  );
+  assert.equal(coveredControlName('<button> in the middle, at 1,2, is under <div>'), null);
+  // A new control painted over BY a listed one is new, not known.
+  const newUnderListed =
+    '<a.btn> "Cancel" reached from above, at 100,800, is under <button.btn.btn-primary> "Start Trip"';
+  assert.deepEqual(unlistedCovered([listed, newUnderListed], ['Start Trip']), [newUnderListed]);
+  // Exact names only: no prefix or partial match.
+  assert.deepEqual(
+    unlistedCovered(
+      ['<button> "Start Trip Now" in the middle, at 1,2, is under <svg>'],
+      ['Start Trip'],
+    ),
+    ['<button> "Start Trip Now" in the middle, at 1,2, is under <svg>'],
+  );
+  assert.deepEqual(fixedControls([listed], ['Start Trip', 'Preview']), ['Preview']);
 });

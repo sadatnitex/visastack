@@ -48,6 +48,8 @@ export interface GuardRoute {
    * from the page body and not from a heading anyone can reach.
    */
   readonly deniedTo?: GuardRole;
+  /** What this route really covers, when that is less than the whole page (WAL1B-2 records). */
+  readonly note?: string;
 }
 
 export interface ExcludedPage {
@@ -57,15 +59,16 @@ export interface ExcludedPage {
 
 /**
  * A real finding the guard expects, exactly: at these sizes the check fails on this page, and
- * (for a covered control) it reports exactly these controls, named as the check quotes them
- * (`"Create Case"`; a name may be the start of one, as `"Everything` for a button that also shows
- * a count). A new covered control on the same page still fails the guard.
+ * (for a covered control) it reports exactly these controls, each by its own exact name as the
+ * check quotes it (`Create Case`; `Everything2` for a button that shows a count with the seed's
+ * records). Only the covered control's name counts, never the element over it, so a new control
+ * covered on the same page still fails the guard.
  */
 export interface KnownFailing {
   readonly page: string;
   readonly check: 'covered control' | 'no control';
   readonly sizes: readonly GuardSizeName[];
-  /** For `covered control`: every control the check reports, and only those. */
+  /** For `covered control`: the exact name of every control the check reports, and only those. */
   readonly controls: readonly string[];
   readonly finding: string;
 }
@@ -256,6 +259,7 @@ export const ROUTES: readonly GuardRoute[] = [
     role: 'traveller',
     path: '/app/incoming',
     mustShow: 'That Share Did Not Come Through',
+    note: 'Only its switched-off fallback: sharing to VisaStack from other apps is off in this build, so the page shows that nothing came through.',
   },
   {
     page: '/app/mission/[id]',
@@ -490,7 +494,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/applicant/[id]/documents/add',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: ['"Files to Import"', '"Folder to Import"'],
+    controls: ['Files to Import', 'Folder to Import'],
     finding:
       'The hidden file pickers (input.sr-only, 1 by 1 px) can be reached but have no drawn label tied to them.',
   },
@@ -498,7 +502,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/applicant/[id]/profile',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: ['"Photo File"'],
+    controls: ['Photo File'],
     finding:
       'The hidden photo picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
   },
@@ -506,7 +510,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/applicant/[id]/record',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400'],
-    controls: ['"Everything', '"Profile Details', '"Previous Versions'],
+    controls: ['Everything2', 'Profile Details10', 'Previous Versions0'],
     finding:
       'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
   },
@@ -514,7 +518,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/applicant/[id]/record',
     check: 'covered control',
     sizes: ['desktop 1280'],
-    controls: ['"Everything', '"Previous Versions'],
+    controls: ['Everything2', 'Previous Versions0'],
     finding:
       'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
   },
@@ -522,7 +526,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/applicant/[id]/missions/prepare-again',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400'],
-    controls: ['"Create Case"'],
+    controls: ['Create Case'],
     finding:
       'Create Case, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
   },
@@ -530,7 +534,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/applicant/[id]/outputs',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400'],
-    controls: ['"Preview"'],
+    controls: ['Preview'],
     finding:
       'Preview, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
   },
@@ -538,7 +542,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/mission/start',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400'],
-    controls: ['"Start Trip"'],
+    controls: ['Start Trip'],
     finding:
       'Start Trip, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
   },
@@ -546,7 +550,7 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     page: '/app/agency/[orgId]/clients',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: ['"Invite a Client"', '"Ask for a Document or Detail"'],
+    controls: ['Invite a Client', 'Ask for a Document or Detail'],
     finding:
       'The Invite a Client and Ask for a Document or Detail open rows (summary.lift-action) are painted over by their section.agency-add-part.',
   },
@@ -578,6 +582,36 @@ export function knownFinding(
     (k) => k.page === page && k.check === check && (k.sizes as readonly string[]).includes(size),
   );
 }
+
+/**
+ * The covered control's own name in one line of the cover check (`<button.btn> "Create Case"
+ * reached from above, ... is under <svg>`): the quoted words right after its own tag, never the
+ * element over it. Null when the control has no words.
+ */
+export function coveredControlName(line: string): string | null {
+  if (!line.startsWith('<')) return null;
+  const tagEnd = line.indexOf('>');
+  if (tagEnd < 0 || !line.startsWith(' "', tagEnd + 1)) return null;
+  const close = line.indexOf('"', tagEnd + 3);
+  return close < 0 ? null : line.slice(tagEnd + 3, close);
+}
+
+/** Covered lines whose control is not one of the listed names (a new finding). */
+export function unlistedCovered(lines: readonly string[], controls: readonly string[]): string[] {
+  return lines.filter((line) => {
+    const name = coveredControlName(line);
+    return name === null || !controls.includes(name);
+  });
+}
+
+/** Listed controls the check no longer reports (fixed: remove them from KNOWN_FAILING). */
+export function fixedControls(lines: readonly string[], controls: readonly string[]): string[] {
+  const reported = new Set(lines.map(coveredControlName));
+  return controls.filter((control) => !reported.has(control));
+}
+
+/** What a member-only agency page shows a signed-in person who is not a member. */
+export const NOT_A_MEMBER = "You don't have a role in this organization.";
 
 /**
  * Whether `path` opens `page`: route groups (`(home)`) take no part of the address and each

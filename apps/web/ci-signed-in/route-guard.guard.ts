@@ -6,7 +6,16 @@ import {
   sidewaysOverflow,
 } from '../e2e/support/layout-guards';
 import { seeded } from './people';
-import { type GuardRole, ROUTES, type RouteId, knownFinding, routePath } from './routes';
+import {
+  type GuardRole,
+  NOT_A_MEMBER,
+  ROUTES,
+  type RouteId,
+  fixedControls,
+  knownFinding,
+  routePath,
+  unlistedCovered,
+} from './routes';
 import { signInAs } from './session';
 
 /**
@@ -62,7 +71,8 @@ async function signedIn(
   role: GuardRole,
   baseURL: string,
 ): Promise<BrowserContext> {
-  const context = await browser.newContext();
+  // Reduced motion: no transition is half way when a control is hit-tested.
+  const context = await browser.newContext({ reducedMotion: 'reduce' });
   await signInAs(context, role, baseURL);
   return context;
 }
@@ -103,18 +113,22 @@ for (const route of ROUTES) {
           .soft(await sidewaysOverflow(page), `${size.name}: sideways scroll in pixels`)
           .toBeLessThanOrEqual(0);
 
+        // Web fonts change line breaks and so where controls sit: wait for them first.
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
         const covered = await coveredControls(page);
         const known = knownFinding(route.page, 'covered control', size.name);
         if (known) {
-          // Exactly the listed controls: a newly covered one fails, a fixed one must be removed.
-          const unlisted = covered.filter(
-            (line) => !known.controls.some((control) => line.includes(control)),
-          );
-          const fixed = known.controls.filter(
-            (control) => !covered.some((line) => line.includes(control)),
-          );
-          expect.soft(unlisted, `${size.name}: newly covered controls`).toEqual([]);
-          expect.soft(fixed, `${size.name}: fixed? remove from KNOWN_FAILING`).toEqual([]);
+          // Exactly the listed controls, by the covered control's own name: a newly covered one
+          // fails (even under a listed element), a fixed one must be removed from the list.
+          expect
+            .soft(unlistedCovered(covered, known.controls), `${size.name}: newly covered controls`)
+            .toEqual([]);
+          expect
+            .soft(
+              fixedControls(covered, known.controls),
+              `${size.name}: fixed? remove from KNOWN_FAILING`,
+            )
+            .toEqual([]);
         } else {
           expect.soft(covered, `${size.name}: controls painted over by something else`).toEqual([]);
         }
@@ -127,9 +141,32 @@ for (const route of ROUTES) {
       const other = await signedIn(browser, route.deniedTo, base(baseURL));
       const otherPage = await other.newPage();
       try {
-        await otherPage.goto(path);
-        await loaded(otherPage);
-        await expect(body(otherPage).getByText(route.mustShow)).toHaveCount(0);
+        const response = await otherPage.goto(path);
+        // A refused page streams in too: wait for the content column, unless it never comes.
+        const framed = await otherPage
+          .locator('.app-main')
+          .waitFor({ timeout: 10_000 })
+          .then(
+            () => true,
+            () => false,
+          );
+        if (framed) await loaded(otherPage);
+        // Refused: an error status, sent elsewhere, or (an agency page) the not-a-member card.
+        const status = response?.status() ?? 0;
+        const movedAway = address(otherPage) !== path;
+        const notMember = await otherPage.getByText(NOT_A_MEMBER).count();
+        expect(
+          status >= 400 || movedAway || notMember > 0,
+          `${route.deniedTo} at ${path}: status ${status}, address ${address(otherPage)}`,
+        ).toBe(true);
+        // Without the column, everything in main except this person's own menu and toolbar.
+        const where = framed
+          ? body(otherPage).getByText(route.mustShow)
+          : otherPage
+              .locator('main')
+              .getByText(route.mustShow)
+              .and(otherPage.locator(':not(.app-shell-nav *, .workspace-toolbar *)'));
+        await expect(where).toHaveCount(0);
       } finally {
         await other.close();
       }
