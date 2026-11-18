@@ -93,7 +93,14 @@
   margin-inline-end: var(--space-2);
 }
 
+.pub4c-read {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+}
+
 .pub4c-read-grid {
+  width: 100%;
   display: grid;
   gap: var(--space-4);
 }

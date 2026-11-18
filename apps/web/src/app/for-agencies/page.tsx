@@ -127,6 +127,9 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
             One Traveller Profile, Fewer Repeat Requests
           </h2>
           {actions}
+          <PublicButton href="/countries" variant="secondary">
+            Countries
+          </PublicButton>
         </div>
       </Chapter>
       <ScenesRuntime />
