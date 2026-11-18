@@ -183,23 +183,25 @@ export default async function TripInvitationPage({
           <p className="u-m-0">
             {t.node('appTripInvitations.appTripInvitationsAcceptPage.joiningShowsYourNameToOthers')}
           </p>
-          {consent.CORE_PROCESSING ? (
-            <AcceptTripInvitationForm
-              token={token}
-              defaultName={invite.displayName}
-              first={choiceFor('NAME_ONLY')}
-              more={[choiceFor('PLAN_STATUS'), choiceFor('TRAVEL_BOOKINGS')]}
-            />
-          ) : (
-            <>
-              <CoreConsentStep />
-              <p className="muted u-m-0">
-                Turn on the consent above to continue.{' '}
-                <Link href="/privacy">Read the Privacy Notice</Link>.
-              </p>
-            </>
-          )}
-          <DeclineTripInvitationForm token={token} />
+          <div className={consent.CORE_PROCESSING ? 'u7-answer u7-answer-pair' : 'u7-answer'}>
+            {consent.CORE_PROCESSING ? (
+              <AcceptTripInvitationForm
+                token={token}
+                defaultName={invite.displayName}
+                first={choiceFor('NAME_ONLY')}
+                more={[choiceFor('PLAN_STATUS'), choiceFor('TRAVEL_BOOKINGS')]}
+              />
+            ) : (
+              <>
+                <CoreConsentStep />
+                <p className="muted u-m-0">
+                  Turn on the consent above to continue.{' '}
+                  <Link href="/privacy">Read the Privacy Notice</Link>.
+                </p>
+              </>
+            )}
+            <DeclineTripInvitationForm token={token} />
+          </div>
         </article>
       </Shell>
     );

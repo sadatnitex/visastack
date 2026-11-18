@@ -107,7 +107,7 @@ export default async function TripsPage() {
         ) : hasTravellers ? (
           <EmptyState
             icon="plane"
-            title={t('appTrips.appTripsPage.noGroupTripsYet')}
+            title={t('appTrips.appTripsU7.noGroupTripsYetTitle')}
             action={{ href: '/app/trips/new', label: t('appTrips.appTripsPage.startAGroupTrip') }}
           >
             {t.node('appTrips.appTripsPage.planOneTripForSeveralTravellers')}
@@ -115,7 +115,7 @@ export default async function TripsPage() {
         ) : (
           <EmptyState
             icon="plane"
-            title="No Group Trips Yet"
+            title={t('appTrips.appTripsU7.noGroupTripsYetTitle')}
             action={{ href: '/app', label: 'Go to Home' }}
           >
             Add a traveller first, then start a trip.

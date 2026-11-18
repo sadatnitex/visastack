@@ -50,6 +50,9 @@ export const appPrivacyCatalog = defineCatalog({
     'appPrivacy.appPrivacyPage.yourAuditTrailIsKeptAs':
       'Your audit trail is kept, as the law and security require. It no longer links to your account, but it still holds technical details such as the IP address and device used, an internal reference number, and for invitations, the email address used.',
     'appPrivacy.appPrivacyPage.yourRights': 'Your rights',
+    // WP-U7 traveller screens on the Wallet foundation (18 Nov 2026): English first, Bengali draft below, until the localization lane signs the Bengali off (docs/upgrades/programme/wal/U7-records.md).
+    'appPrivacy.appPrivacyU7.openPermissions': 'Open Permissions',
+    // end WP-U7
   },
   bn: {
     'appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired':
@@ -92,5 +95,8 @@ export const appPrivacyCatalog = defineCatalog({
     'appPrivacy.appPrivacyPage.yourAuditTrailIsKeptAs':
       'আইন ও নিরাপত্তার প্রয়োজনে আপনার অডিট ট্রেইল রেখে দেওয়া হয়। এটি আর আপনার অ্যাকাউন্টের সঙ্গে যুক্ত থাকে না, তবে ব্যবহৃত আইপি ঠিকানা ও ডিভাইস, একটি অভ্যন্তরীণ রেফারেন্স নম্বর এবং আমন্ত্রণের ক্ষেত্রে ব্যবহৃত ইমেইল ঠিকানার মতো প্রযুক্তিগত তথ্য এতে থাকে।',
     'appPrivacy.appPrivacyPage.yourRights': 'আপনার অধিকার',
+    // WP-U7 (Bengali draft)
+    'appPrivacy.appPrivacyU7.openPermissions': 'অনুমতি খুলুন',
+    // end WP-U7
   },
 });

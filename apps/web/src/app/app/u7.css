@@ -203,3 +203,41 @@
   align-items: center;
   min-height: 44px;
 }
+/* Join and Decline on the trip invitation: the same size and shape, side by side, neither smaller or hidden. The Join form's own fields keep the full width above them. */
+.u7-answer {
+  display: grid;
+  gap: var(--space-3);
+}
+.u7-answer-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.u7-answer-pair > .companion-accept-form {
+  display: contents;
+}
+.u7-answer-pair > .companion-accept-form > * {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.u7-answer-pair > .companion-accept-form > .companion-actions {
+  grid-column: 1;
+  order: 2;
+}
+.u7-answer-pair > .companion-accept-form > [id$="-msg"] {
+  order: 4;
+}
+.u7-answer-pair > .companion-decline-form {
+  grid-column: 2;
+  order: 2;
+  margin: 0;
+  align-self: start;
+}
+.u7-answer-pair .companion-actions,
+.u7-answer-pair .companion-decline-form {
+  margin-top: 0;
+}
+.u7-answer .btn {
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+}

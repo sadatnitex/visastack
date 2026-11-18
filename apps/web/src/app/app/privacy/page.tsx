@@ -182,6 +182,7 @@ export default async function PrivacyPage({
             title={t.node('appPrivacy.appPrivacyPage.exportYourData')}
             picture={<AreaPicture mark={{ icon: 'upload', tone: 'blue' }} />}
             chip={{ label: t.node('appPrivacy.appPrivacyPage.portability'), tone: 'neutral' }}
+            defaultOpen={exportInProgress}
           >
             <p className="card-body u-mb-125" {...atLevel('browse')}>
               {t.node('appPrivacy.appPrivacyPage.downloadACompleteStructuredSnapshotOf')}
@@ -239,7 +240,10 @@ export default async function PrivacyPage({
               <EmptyState
                 icon="activity"
                 title={t('appPrivacy.appPrivacyPage.noChangesYet')}
-                action={{ href: '/app#permissions', label: 'Open Permissions' }}
+                action={{
+                  href: '/app#permissions',
+                  label: t('appPrivacy.appPrivacyU7.openPermissions'),
+                }}
               >
                 {t.node('appPrivacy.appPrivacyPage.eachTimeYouTurnAPermission')}
               </EmptyState>

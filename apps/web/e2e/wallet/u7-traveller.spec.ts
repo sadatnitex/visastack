@@ -12,11 +12,11 @@ import { runLayoutGuards } from '../support/layout-guards';
 
 const FIXTURE = 'u7-traveller';
 const STAND_INS = { standInServerActions: true } as const;
-type Part = 'rows' | 'forms' | 'accept';
+type Part = 'rows' | 'forms' | 'accept' | 'answer';
 const open = (page: Page, part: Part) => renderFixture(page, FIXTURE, { part }, STAND_INS);
 
 test.describe('U7 layout guards', () => {
-  for (const part of ['rows', 'forms', 'accept'] as const) {
+  for (const part of ['rows', 'forms', 'accept', 'answer'] as const) {
     test(`${part}: no sideways scroll, nothing covers a control`, async ({ page }) => {
       await runLayoutGuards(page, async () => {
         await open(page, part);
@@ -118,4 +118,23 @@ test.describe('U7 accept screen', () => {
     await expect(fold.getByText('Help with a Japan visa case.')).toBeHidden();
     await expect(page.getByRole('button', { name: 'Accept' })).toBeVisible();
   });
+});
+
+test.describe('U7 trip invitation answers', () => {
+  for (const width of [390, 1280]) {
+    test(`Join and Decline are the same size and shape, side by side, at ${width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await open(page, 'answer');
+      const join = await page.getByRole('button', { name: 'Join the Trip' }).boundingBox();
+      const decline = await page.getByRole('button', { name: 'Decline' }).boundingBox();
+      if (!join || !decline) throw new Error('a button is missing');
+      expect(Math.abs(join.width - decline.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(join.height - decline.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(join.y - decline.y)).toBeLessThanOrEqual(1);
+      expect(decline.x).toBeGreaterThan(join.x + join.width - 1);
+      expect(decline.height).toBeGreaterThanOrEqual(44);
+    });
+  }
 });

@@ -1,5 +1,9 @@
 import { AddApplicantForm } from '../../src/app/app/add-applicant-form';
 import {
+  AcceptTripInvitationForm,
+  DeclineTripInvitationForm,
+} from '../../src/app/app/trip-invitations/accept/accept-form';
+import {
   AcceptFold,
   AreaPicture,
   FocusFirstFieldOnOpen,
@@ -17,7 +21,7 @@ import { ExpandableSection } from '../../src/components/ui-lift/expandable-secti
  * Used by e2e/wallet/u7-traveller.spec.ts.
  */
 export interface U7FixtureProps {
-  readonly part?: 'rows' | 'forms' | 'accept';
+  readonly part?: 'rows' | 'forms' | 'accept' | 'answer';
 }
 
 const LONG = 'Averyveryveryverylongunbrokenpersonnamewithoutanyspacesatalltostretchtheline';
@@ -86,6 +90,19 @@ export default function U7Fixture({ part = 'rows' }: U7FixtureProps) {
           <FocusFirstFieldOnOpen />
           <AddApplicantForm selfAdded={false} />
         </ExpandableSection>
+      ) : null}
+      {part === 'answer' ? (
+        <article className="card">
+          <div className="u7-answer u7-answer-pair">
+            <AcceptTripInvitationForm
+              token="t"
+              defaultName="Nadia Rahman"
+              first={{ value: 'NAME_ONLY', label: 'Name Only', line: 'Your name shows.' }}
+              more={[{ value: 'PLAN_STATUS', label: 'Plan Status', line: 'And your plan.' }]}
+            />
+            <DeclineTripInvitationForm token="t" />
+          </div>
+        </article>
       ) : null}
       {part === 'accept' ? (
         <article className="card">
