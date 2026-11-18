@@ -1,0 +1,259 @@
+'use client';
+
+import { type MouseEvent, type ReactNode, useId, useState } from 'react';
+import { StatusPicture, isStatusKind } from '../../../../components/pictures/status-picture';
+
+/**
+ * Passport Page Card (WAL4, owner decision 17 Nov 2026, option B): a schematic passport data page
+ * whose printed lines show the profile's own values for the eleven details a passport holds.
+ *
+ * Truthful on purpose. The drawing is flat and made up (no photo, no seal, no real document
+ * image), the values come from the profile and never from reading the paper, and the card says it
+ * does not verify identity. A protected value is masked until the person chooses Show, and its
+ * real text is never put into the drawing, a label or a tooltip. A value that is saved but could
+ * not be opened here shows the words the editor already uses, never the stand-in "[protected]".
+ *
+ * The card holds no form and no box. Tapping a line opens that detail's own edit row, so every
+ * function (save, the date it became true, where it came from, how it was checked, no longer
+ * current, does not apply) stays in one place and every box keeps one id on the page.
+ */
+
+/** The eleven details, in the order a passport data page prints them. */
+export const PASSPORT_PAGE_KEYS = [
+  'family_name',
+  'given_name',
+  'nationality',
+  'date_of_birth',
+  'sex',
+  'place_of_birth',
+  'passport_number',
+  'passport_issuing_country',
+  'passport_issue_date',
+  'passport_expiry',
+  'marital_status',
+] as const;
+
+export type PassportPageKey = (typeof PASSPORT_PAGE_KEYS)[number];
+
+/** Names for a detail this person's view does not list (its section is not shown). */
+export const PASSPORT_PAGE_LABELS: Readonly<Record<PassportPageKey, string>> = {
+  family_name: 'Family Name',
+  given_name: 'Given Name',
+  nationality: 'Nationality',
+  date_of_birth: 'Date of Birth',
+  sex: 'Sex',
+  place_of_birth: 'Place of Birth',
+  passport_number: 'Passport Number',
+  passport_issuing_country: 'Issuing Country',
+  passport_issue_date: 'Date of Issue',
+  passport_expiry: 'Date of Expiry',
+  marital_status: 'Marital Status',
+};
+
+/** Always masked, whatever the catalogue says: the two details a stranger most often misuses. */
+const ALWAYS_MASKED: ReadonlySet<string> = new Set(['date_of_birth', 'passport_number']);
+
+/** Whether a detail's value is hidden until the person chooses Show. */
+export function isMaskedDetail(key: string, sensitivity: string | undefined): boolean {
+  return ALWAYS_MASKED.has(key) || (sensitivity !== undefined && sensitivity !== 'STANDARD');
+}
+
+/** The dots drawn in place of a hidden value. Fixed length, so the mask says nothing about it. */
+export const MASK_TEXT = '•• ••• ••••';
+
+/** What one printed line holds. The editor works it out; the card only draws it. */
+export type PassportLineState =
+  /** A value to print. `masked` hides it until Show. */
+  | { readonly kind: 'value'; readonly text: string; readonly masked: boolean }
+  /** Saved and protected, but not opened here, or a note such as Does Not Apply: words, never the value. */
+  | { readonly kind: 'note'; readonly text: ReactNode }
+  /** Nothing saved yet. */
+  | { readonly kind: 'empty' };
+
+export interface PassportLine {
+  readonly key: string;
+  readonly label: string;
+  readonly state: PassportLineState;
+  /** The stored status code, for the status picture (none for a code without one). */
+  readonly status: string | null;
+  /**
+   * Where the detail's edit box is, so the line works before any script loads; null when this
+   * view has no edit row for it (its section is not shown).
+   */
+  readonly href: string | null;
+}
+
+export interface PassportPageCardProps {
+  readonly lines: readonly PassportLine[];
+  /** Opens the edit row of a detail and puts the focus in it. */
+  readonly onEdit: (key: string) => void;
+}
+
+/** The id of a detail's edit row in the full list of sections. */
+export function valueRowId(key: string): string {
+  return `profile-row-${key}`;
+}
+
+function PageArt() {
+  // Decorative and schematic: a band, an emblem ring and a blank portrait outline (never a photo).
+  return (
+    <svg
+      className="passport-page-art"
+      viewBox="0 0 96 120"
+      width="96"
+      height="120"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect className="passport-page-art-paper" x="1" y="1" width="94" height="118" rx="8" />
+      <rect className="passport-page-art-band" x="1" y="1" width="94" height="18" rx="8" />
+      <rect className="passport-page-art-band" x="1" y="11" width="94" height="8" />
+      <circle className="passport-page-art-line" cx="14" cy="10" r="4.5" />
+      <rect className="passport-page-art-ink" x="24" y="8" width="44" height="4" rx="2" />
+      <rect className="passport-page-art-frame" x="14" y="30" width="68" height="78" rx="6" />
+      <circle className="passport-page-art-ink" cx="48" cy="58" r="13" />
+      <path className="passport-page-art-ink" d="M24 106c0-15 11-24 24-24s24 9 24 24z" />
+    </svg>
+  );
+}
+
+function MachineZone() {
+  // Two rows of chevrons in the place a machine-readable zone sits. Pattern only: no value is in it.
+  const row = (y: number) => (
+    <path
+      key={y}
+      className="passport-page-zone-mark"
+      d={Array.from({ length: 30 }, (_, i) => `M${4 + i * 8} ${y}l3 3-3 3`).join('')}
+    />
+  );
+  return (
+    <svg
+      className="passport-page-zone"
+      viewBox="0 0 248 26"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {row(3)}
+      {row(15)}
+    </svg>
+  );
+}
+
+function LineContent({
+  line,
+  shown,
+  onEdit,
+}: {
+  readonly line: PassportLine;
+  readonly shown: boolean;
+  readonly onEdit: (key: string) => void;
+}) {
+  const { state, label, key, href } = line;
+  const follow = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    onEdit(key);
+  };
+  if (state.kind === 'empty') {
+    return (
+      <>
+        <span className="passport-page-empty">Not Added Yet</span>
+        {href ? (
+          <a className="btn btn-secondary passport-page-add" href={href} onClick={follow}>
+            Add<span className="sr-only"> {label}</span>
+          </a>
+        ) : null}
+      </>
+    );
+  }
+  const hidden = state.kind === 'value' && state.masked && !shown;
+  const printed =
+    state.kind === 'note' ? (
+      state.text
+    ) : hidden ? (
+      <>
+        <span aria-hidden="true">{MASK_TEXT}</span>
+        <span className="sr-only">Hidden</span>
+      </>
+    ) : (
+      state.text
+    );
+  if (!href) {
+    return (
+      <span className="passport-page-value" data-masked={hidden ? 'true' : undefined}>
+        {printed}
+      </span>
+    );
+  }
+  return (
+    <a
+      className="passport-page-value"
+      href={href}
+      onClick={follow}
+      data-masked={hidden ? 'true' : undefined}
+    >
+      {printed}
+      <span className="sr-only">. Edit {label}</span>
+    </a>
+  );
+}
+
+export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
+  const headingId = useId();
+  const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (key: string) =>
+    setShown((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  return (
+    <section className="passport-page-card" aria-labelledby={headingId}>
+      <div className="passport-page-head">
+        <h3 id={headingId}>Passport Page</h3>
+        <p className="muted">
+          Drawn from the details in your profile, not read from the passport itself. This does not
+          verify identity.
+        </p>
+      </div>
+      <div className="passport-page-sheet">
+        <PageArt />
+        <dl className="passport-page-lines">
+          {lines.map((line) => {
+            const masked = line.state.kind === 'value' && line.state.masked;
+            const isShown = shown.has(line.key);
+            return (
+              <div
+                key={line.key}
+                className="passport-page-line"
+                data-detail={line.key}
+                data-state={line.state.kind}
+              >
+                <dt className="passport-page-label">{line.label}</dt>
+                <dd className="passport-page-cell">
+                  <LineContent line={line} shown={isShown} onEdit={onEdit} />
+                  {masked ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary passport-page-show"
+                      aria-pressed={isShown}
+                      onClick={() => toggle(line.key)}
+                    >
+                      {isShown ? 'Hide' : 'Show'}
+                      <span className="sr-only"> {line.label}</span>
+                    </button>
+                  ) : null}
+                  {line.status && isStatusKind(line.status) ? (
+                    <StatusPicture kind={line.status} className="passport-page-status" />
+                  ) : null}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+        <MachineZone />
+      </div>
+    </section>
+  );
+}
