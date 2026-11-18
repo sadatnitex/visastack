@@ -66,9 +66,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
             <h1 id="agencies-title" className="r5-title">
               {say('Clients Arrive')} <HeadlineWords>{say('Prepared.')}</HeadlineWords>
             </h1>
-            <p className="r5-lede">
-              {say('Clients keep their own record. You see only what they share.')}
-            </p>
+            <p className="r5-lede">{say('Clients own their record. You see what they share.')}</p>
             <div className="r5-actions">{actions}</div>
           </div>
           <CasesTable rows={EXAMPLE_CASES} pageLang={lang} title="Cases" />
