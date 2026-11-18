@@ -622,6 +622,7 @@ export default async function SharingPage({
                   connectorOn={connectorOn}
                   cases={data.aiCases}
                   suggestionsAvailable={data.aiSuggestions.available}
+                  timeZone={data.applicant.timezone}
                   {...(data.aiAccess && !data.aiAccess.available
                     ? { accessOff: data.aiAccess.reason }
                     : {})}

@@ -1,14 +1,12 @@
-import { aiAppLabel } from '@visastack/core/ai-features';
 import { listAgencyAiConnections } from '@visastack/services';
 import type { Metadata } from 'next';
 import { EmptyState } from '../../../../../components/ui';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { AGENCY_AI_ADMINS_ONLY, AGENCY_AI_NOT_YET } from '../../../../../lib/agency-ai';
-import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
-import { AgencyAiTurnOff } from '../agency-ai-turn-off';
 import { loadOrgAccess } from '../console-data';
+import { AgencyConnectionTile } from './agency-connection-tile';
 
 export const metadata: Metadata = { title: 'Agency AI Connections' };
 
@@ -34,6 +32,7 @@ export default async function AgencyAiConnectionsPage({
     return listed.ok ? { allowed: true as const, list: listed.value } : { allowed: false as const };
   });
   if (!data) return null;
+  const now = new Date();
 
   return (
     <article className="card" aria-labelledby="agency-ai-connections-title">
@@ -56,33 +55,12 @@ export default async function AgencyAiConnectionsPage({
           {t.node('appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect')}
         </EmptyState>
       ) : (
-        <ul className="rows">
-          {data.list.connections.map((connection) => {
-            const label = aiAppLabel({ name: connection.clientName, host: connection.clientHost });
-            return (
-              <li className="row" key={connection.id}>
-                <span className="row-key">
-                  {label}
-                  <span className="scope-row-note">
-                    Connected by {connection.connectedBy} on{' '}
-                    {formatTimestampDate(connection.createdAt.toISOString())}.{' '}
-                    {connection.live
-                      ? `Ends ${formatTimestampDate(connection.endsAt.toISOString())}.`
-                      : 'Ended.'}{' '}
-                    {connection.lastUsedAt
-                      ? `Last read ${formatTimestamp(connection.lastUsedAt.toISOString())}.`
-                      : 'Not used yet.'}
-                  </span>
-                </span>
-                <AgencyAiTurnOff
-                  organizationId={orgId}
-                  connectionId={connection.id}
-                  appLabel={label}
-                  live={connection.live}
-                />
-              </li>
-            );
-          })}
+        <ul className="ai-connection-list">
+          {data.list.connections.map((connection) => (
+            <li className="ai-connection" key={connection.id}>
+              <AgencyConnectionTile organizationId={orgId} connection={connection} now={now} />
+            </li>
+          ))}
         </ul>
       )}
     </article>
