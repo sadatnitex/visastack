@@ -58,7 +58,10 @@ describe('AttentionRow', () => {
 
   it('keeps the long sentence inside the row body and the date visible beside the person', () => {
     const html = row();
-    const body = html.slice(html.indexOf('expandable-section-body'), html.indexOf('home-attention-meta'));
+    const body = html.slice(
+      html.indexOf('expandable-section-body'),
+      html.indexOf('home-attention-meta'),
+    );
     expect(body).toContain('A step in this case is coming up.');
     expect(body).not.toContain('Due on 10 Jan 2030');
     expect(html.slice(html.indexOf('home-attention-meta'))).toContain('Due on 10 Jan 2030');
