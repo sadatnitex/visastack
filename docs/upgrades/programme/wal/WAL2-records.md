@@ -27,6 +27,12 @@ Red on main, green here (16 behaviour tests; run against main's page.tsx, ai-rev
 
 Existing tests edited (approved list in the ACK): ai-review.test.tsx (card heading is now h5 inside its row; three selectors), a11y-forms.test.tsx (three new rows: a masked Sensitive card, row Accept, one-at-a-time view), documents/page.test.tsx (issuer confirmations mock made configurable, WAL2 block appended).
 
+## Reviews
+
+- /code-review high: 10 findings, 9 fixed. A return to `#safe-copy-<document>` opens the closed Safe Copy section (components/document-detail/open-on-hash.tsx). One meaning of clear everywhere, so a reading whose words were not found is never accepted in bulk. Check the File Again and the document type check stay in view. A masked card never prints a profile value and keeps the consent note in view. A row that needs checking says Please Check. Focus moves to the next detail after a decision. An opened row hides its own Accept, so one detail is never sent twice. Badge tones come from an exact list. Not taken: putting the new sections at heading level 4 would nest them under Check What We Found; the outline stays flat under Selected Document (document name, Check What We Found, then each section).
+- /security-review: no finding at confidence 8 or above. Every permission, consent and binned-file condition moved intact; row Accept uses the existing server action with its ownership check; nothing new reaches the browser.
+- Accessibility review (fresh context): focus after a row or the last detail is decided now moves to the next row, the heading or the message box; the masked value is read as "Hidden"; the processing state is announced once, from its own live region; the accept bar's scroll padding is raised so a focused control is not partly covered. Not done: "Value Found" is a level 5 heading inside a level 5 card heading, and an opened row's card repeats the row's name as a heading (Expandable Section allows levels 2 to 5 only; its type is outside this unit).
+
 ## New visible words (for the Bengali lane)
 
 English source only; no i18n file edited.
@@ -35,7 +41,7 @@ English source only; no i18n file edited.
 - State notes: "No expiry date is confirmed for this document yet.", "Going by the saved dates, this document is in date.", "Going by the saved expiry date, this document runs out soon.", "Going by the saved expiry date, this document has run out.", "A newer document replaced this one.", "Where this file is in our checks right now.", "A copy with private details masked, for sharing. Your original file is never changed."
 - Sections: "Dates", "Dated {date}", "No Document Date", "Expires {date}", "Name and Kind", "Reading and Checks", "Issuer Confirmations".
 - Changed sentence: "We could not tell what kind of document this is. Choose the kind under Name and Kind." (was "... Choose the kind above.").
-- Check What We Found: "{n} details, {n} clear, {n} to check" (and "1 detail"), "Nothing is saved to your profile until you accept it." (replaces "We read this document and found ... Nothing is saved to your profile until you accept it."), "Decide One at a Time", "{n} of {m}", "Back", "Skip for Now", "Value Found", "Accept" with the spoken name "Accept: {detail}".
+- Check What We Found: "Hidden" (read aloud for a masked value), "Please Check" on a row (existing word), "{n} details, {n} clear, {n} to check" (and "1 detail"), "Nothing is saved to your profile until you accept it." (replaces "We read this document and found ... Nothing is saved to your profile until you accept it."), "Decide One at a Time", "{n} of {m}", "Back", "Skip for Now", "Value Found", "Accept" with the spoken name "Accept: {detail}".
 
 ## Not verified
 
