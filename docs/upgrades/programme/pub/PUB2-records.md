@@ -54,11 +54,21 @@ Tests  8 failed | 2 passed (10)
 
 The two that passed on main are the ones that must keep passing (anchors kept, no invented figures). After the change: 10 passed.
 
-Browser spec (apps/web/e2e/public-site/pub2-home.spec.ts): see "Measured".
+Browser spec (apps/web/e2e/public-site/pub2-home.spec.ts, 25 cases), run against a build of main's page and Home styles with only the new files added: 7 failed, 18 passed. Red: first screen words at 360x640; pins every scene at 1280 and at 1440; pins nothing below 900 px; reduced motion shows every scene finished; without JavaScript shows every scene; the scenes move while scrolling. After the change: all 25 pass.
 
 ## Measured
 
-(Filled in at READY.)
+- Phone 390x844: 5046 px = 5.98 screens (budget 6, 5064 px). Only 18 px of margin: a font change could break it.
+- Computer 1280x800: about 10.9 screens (budget 12) with the first scene at 2 screens; 11.91 screens when it was 3 (too close, so shortened).
+- First screen at 360x640: 25 words of the page itself.
+- Public budget check: Home first-load JavaScript 144941 bytes gzipped against baseline 142417 (+2.5 KB, limit +10 KB); scroll engine 1535 bytes; pictures 27676 bytes; nothing from another origin.
+- Full local check (scripts/agent/full-check.sh): install, audit, typecheck, test, webtest, build, supply chain, Playwright, smoke all exit 0; lint exit 1 on a formatting line, fixed and lint re-run green.
+- Existing browser checks (ux-public, browser-security, no-secret-auth, WP-SB8): all pass; one existing skip unchanged.
+
+## For the Guardian to place
+
+- docs/uiux/SCROLL-BUDGET.md (append): Home desktop budget is 12 screens since WP-PUB2 (owner answer 1, 17 Nov 2026); phone stays 6.
+- The shared engine starts scenes at 760 px but the owner rule is 900 px; Home enforces 900 px in landing-c1.css. Aligning SCENE_MIN_WIDTH in scene-engine.ts would remove that workaround.
 
 ## Ledger text (for the Guardian to place)
 
