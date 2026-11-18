@@ -28,7 +28,7 @@ WAL4 (#637) put the Passport Page Card above the older Essentials First list (UX
 | `lib/document-findings.ts`, `[id]/ai-review.tsx`, `[id]/profile/page.tsx` | AI App Suggestions on My Profile: a suggestion about a protected detail is sent with no value, reason or quoted phrases, marked sensitive and withheld; when the profile already holds a value the choice of which to keep is always offered, worded so it never says whether the two match. "Show the Value Found" opens the words through `revealSuggestionValueAction`. The Documents and Review screens are unchanged. |
 | `[id]/profile/page.tsx` | Still reads the profile once with the key (to tell a value that opens from one that would not or was lost, and to compare app suggestions), but a protected value that opened is handed to the editor as `withheld: true` with no value. Counts (x of 12, Profile Health, the full-profile percent) are computed exactly as before from the same read. |
 | `globals.css`, new block "WP-ESS1" (end of file) | Read row, actions, Details, the essentials bar and the card's message. Tokens and a hairline only, no shadow, no gradient, no motion, 44 px targets. |
-| `i18n/app-applicant.ts` | Eleven keys added in one group (`appApplicant.appApplicantIdProfileEditor.ess1*`), English and Bengali. |
+| `i18n/app-applicant.ts` | Twelve keys added in one group (`appApplicant.appApplicantIdProfileEditor.ess1*`), English and Bengali. |
 
 ## Data flow and sync: what did not change
 
@@ -48,6 +48,12 @@ WAL4 (#637) put the Passport Page Card above the older Essentials First list (UX
 
 Fixed: (1) AI App Suggestions no longer carry protected words or an equality sign; (2) PROFILE_VALUE_ACCESS audit; (3) the "could not be shown" regions are always in the page and filled in place; (4) Show on the card holds for one saved version; (5) a value opened later never replaces typed text (the box starts from what Edit opened and remounts only on a save); (6) a refused "became true" date opens its Details and takes the focus; (7) a value saved before encryption opens without a key; (8) only the requested fact is decrypted; (9) timestamps in UTC; (10) tests for Save after Show and Edit (posted value, focus back on Edit). Follow-up logged by the Guardian, not done here: history/page.tsx legacy plaintext before WALD2.
 
+## Review round 2 (Guardian 14, 43e5e413)
+
+- The audit row names who acted as DOCUMENT_ACCESS does (`documentAuditActor`): the owner by role, anyone else (an agency member, a person the record is shared with, support) by account id; a shared viewer refused as not_owner leaves a DENIED row with their account id (`profile-value-access.test.ts`).
+- A refused stranger's row records `malformed_id`, `policy` (the owner of the record refused by policy) or `refused`, one word for a made-up record and someone else's, so the prober's own data export cannot tell which ids are real (DECISION sent, recommended option taken). The answer to the caller is the same in every case.
+- Owner reveals are bounded at 120 an hour per account (`PROFILE_VALUE_REVEALS_PER_HOUR`); past it nothing is opened, no row is written per call, one DENIED rate_limited row is written per hour, and the page says "Try again in a little while." (new key ess1TryAgainLater, Bengali "একটু পরে আবার চেষ্টা করুন।").
+
 ## Tests that assert changed layout (updated)
 
 `profile-editor.test.tsx` (Essentials First block, boxes reached through Edit, Add Information), `profile-editor-protected.test.tsx` (boxes reached through Edit; new withheld cases), `passport-page-card.test.tsx` (taps open rows; read rows; new ESS1 and parity cases), `profile/protected-access.test.ts` (new rule: withheld, value null), `e2e/wallet/u4-profile.spec.ts` and `e2e/fixtures/wal4-profile.fixture.tsx` (withheld fixture, Show stand-in, Details closed; new ESS1 cases at 390 and 1280 px).
@@ -66,6 +72,7 @@ Fixed: (1) AI App Suggestions no longer carry protected words or an equality sig
 | ess1Show | Show | দেখান |
 | ess1ShowSuggestion | Show the Value Found | পাওয়া মানটি দেখান |
 | ess1SuggestionHidden | Protected detail: the value is not shown until you choose Show. Accept saves the value the app suggested. | সুরক্ষিত তথ্য: দেখান বেছে না নেওয়া পর্যন্ত মানটি দেখানো হয় না। গ্রহণ করলে অ্যাপের প্রস্তাবিত মানটি সংরক্ষিত হবে। |
+| ess1TryAgainLater | Try again in a little while. | একটু পরে আবার চেষ্টা করুন। |
 | ess1UndisclosedDifference | Your profile already holds a value for this detail. Which should it keep? | আপনার প্রোফাইলে এই তথ্যের একটি মান আগে থেকেই আছে। কোনটি রাখা হবে? |
 
 The card's own new line ("This detail could not be shown just now. Try again.") is inline English like the rest of the card.
