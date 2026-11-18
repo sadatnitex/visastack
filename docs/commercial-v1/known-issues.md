@@ -8673,3 +8673,10 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Verified: typecheck, lint, full web vitest (892 files, 9,914 pass), script tests 83, em dash 0, Playwright on one fresh build (public-site, ux-public, browser-security, no-secret-auth, scroll-budget, type-scale) 812 pass. Guards shown red: pinned forced at a phone width, the gentle stylesheet guard, the old share hero.
 - Not changed: the picture stylesheet (ADR 0027) and the Save-Data flag still keep picture motion still with data saver (follow-up). Known limit: a scene already on screen at load restarts from its first step right after the page comes to life.
 - NOT verified: a real phone and a real screen reader; Safari and Firefox (easing of the registered `--p` property); the live site. WP-SB2 "real case page" fails two tests (3480 against 3470 px) locally with and without this work.
+
+## 18 Nov 2026: DOC1 documentation sync
+
+- Behaviour: none. Status pages now cover the Wallet upgrade (WAL1 to WAL10, U6 to U8, FIX9), the public-site rebuild (PUB3, PUB4, PUBFIX, HOT1, MOT1 #651, R1 to R5), the conductor operating model and the owner decisions of 16 to 18 Nov. SESSION-START section 7 is replaced by the 18 Nov state; the 1 Nov text is kept and marked superseded.
+- Proof: em dash count 0; tests that read these docs run; every PR number and merge sha read from git history on main 769e43ea.
+- Not verified: live behaviour of any unit (this change only records it); current-platform.md was not re-read.
+- Follow-ups: PARITY-LEDGER and the Small Commercial handoff section M rows for the new units.
