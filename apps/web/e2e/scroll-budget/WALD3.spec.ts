@@ -83,6 +83,53 @@ test.describe('WALD3 journey line at Glance', () => {
   }
 });
 
+test.describe('WALD3 compact line parts never overlap', () => {
+  for (const managed of KINDS) {
+    for (const width of [320, 390, 400, 768, 1280] as const) {
+      test(`${managed} at ${width}: Now, position and strip each have their own place`, async ({
+        page,
+      }) => {
+        // Traveller-managed shows the compact line at Browse as well; Glance shows it for both.
+        await open(page, managed, 'glance', width);
+        const boxes = await page.evaluate(() =>
+          [...document.querySelectorAll('.lift-status-glance:not([hidden]) > *')]
+            .filter((el) => getComputedStyle(el).display !== 'none')
+            .map((el) => {
+              const r = el.getBoundingClientRect();
+              return {
+                name: el.className.split(' ')[0],
+                left: r.left,
+                right: r.right,
+                top: r.top,
+                bottom: r.bottom,
+              };
+            }),
+        );
+        expect(boxes.map((b) => b.name)).toEqual([
+          'lift-steps-now',
+          'lift-steps-position',
+          'lift-steps-strip',
+        ]);
+        for (const [i, a] of boxes.entries()) {
+          for (const b of boxes.slice(i + 1)) {
+            const apart =
+              a.right <= b.left + 0.5 ||
+              b.right <= a.left + 0.5 ||
+              a.bottom <= b.top + 0.5 ||
+              b.bottom <= a.top + 0.5;
+            expect(apart, `${a.name} and ${b.name} overlap`).toBe(true);
+          }
+        }
+        const [now, , strip] = boxes;
+        expect(now?.bottom ?? 0).toBeLessThanOrEqual((strip?.top ?? 0) + 0.5);
+        // Every part sits inside the card: no implicit extra column pushes one out.
+        const card = await page.locator('.lift-status').boundingBox();
+        for (const b of boxes) expect(b.right).toBeLessThanOrEqual((card?.x ?? 0) + (card?.width ?? 0) + 0.5);
+      });
+    }
+  }
+});
+
 test.describe('WALD3 nothing spills', () => {
   for (const managed of KINDS) {
     for (const depth of DEPTHS) {

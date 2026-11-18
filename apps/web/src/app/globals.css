@@ -15311,16 +15311,25 @@ output.notice {
 .lift-status-glance > .lift-steps-position {
   margin: 0;
 }
+/* The step bar's own rules name grid areas for these classes; here each part is placed by row and column instead, so none lands in an extra column on top of another. */
 .lift-status-glance > .lift-steps-now {
+  grid-area: auto;
+  grid-column: 1;
+  grid-row: 1;
   font-size: var(--text-body);
   font-weight: 700;
 }
 .lift-status-glance > .lift-steps-position {
+  grid-area: auto;
+  grid-column: 2;
+  grid-row: 1;
   font-size: var(--text-small);
   color: var(--text-secondary);
 }
 .lift-status-glance > .lift-steps-strip {
+  grid-area: auto;
   grid-column: 1 / -1;
+  grid-row: 2;
   margin-top: 0;
 }
 /* Shown at Glance (and "auto", which means Glance). Deeper levels have the full stage row, and with scripts off every block shows, so the compact line steps aside there too. */

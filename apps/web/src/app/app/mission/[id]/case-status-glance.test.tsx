@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { MissionState } from '@visastack/core';
 import { createTranslator } from '@visastack/i18n';
 import type { Readiness } from '@visastack/services';
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer } from '../../../../lib/next-mocks.test-support';
+import { countProse } from '../../../../lib/prose-budget.test-support';
 
 vi.mock('server-only', () => ({}));
 vi.mock('../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
@@ -101,5 +104,28 @@ describe('the compact stage line of the case status panel', () => {
     const html = await panel(false);
     const glance = between(html);
     expect(glance).not.toMatch(/approved|reviewed|done|complete|submitted/i);
+  });
+
+  it('counts no words of explanation: both lines are labels, not sentences', async () => {
+    const html = await panel(false);
+    const glance = between(html);
+    // The wrapper is read on its own, at Glance, where the compact line shows.
+    const report = countProse(`<main><div ${glance.slice(glance.indexOf('class='))}</main>`, {
+      depth: 'glance',
+    });
+    expect(report.problems).toEqual([]);
+    expect(report.passages.map((p) => p.text)).toEqual([]);
+    expect(report.words).toBe(0);
+  });
+
+  it('is mounted once, inside the case page depth scope that hides it at deeper levels', () => {
+    const page = readFileSync(resolve(__dirname, 'page.tsx'), 'utf8');
+    const open = page.indexOf('<DepthScope family="case"');
+    const close = page.indexOf('</DepthScope>');
+    const mount = page.indexOf('<CaseStatusPanel');
+    expect(page.match(/<CaseStatusPanel/g)).toHaveLength(1);
+    expect(open).toBeGreaterThanOrEqual(0);
+    expect(mount).toBeGreaterThan(open);
+    expect(mount).toBeLessThan(close);
   });
 });
