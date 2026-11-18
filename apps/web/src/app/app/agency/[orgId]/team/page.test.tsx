@@ -163,4 +163,20 @@ describe('agency Team', () => {
     expect(await renderServer(Page(props))).toBe('');
     expect(mocks.loadMembers).not.toHaveBeenCalled();
   });
+
+  it('U8: each member is one compact row with initials, the name, one role chip and its line; the invite form is folded behind Add Member', async () => {
+    const html = await renderServer(Page(props));
+    const rows = html.split('class="expandable-section u8-row"').slice(1);
+    // Two members, one invitation.
+    expect(rows).toHaveLength(3);
+    const first = rows[0] ?? '';
+    expect(first).toContain('<span class="u8-initials" aria-hidden="true">OE</span>');
+    expect(first.match(/lift-pill/g)?.length ?? 0).toBeGreaterThan(0);
+    expect(textOf(first)).toContain('Owner');
+    // The form sits inside the Add Member section, which starts closed.
+    const add = html.slice(html.indexOf('class="expandable-section u8-row u8-add"'));
+    expect(add).toContain('>Add Member<');
+    expect(add).not.toContain('<details class="expandable-section-details" open');
+    expect(stubProps(add, 'AddMemberForm')).toHaveLength(1);
+  });
 });

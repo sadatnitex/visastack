@@ -113,3 +113,11 @@ describe('AI connections under Bengali', () => {
     expect(bn).not.toMatch(/components\./);
   });
 });
+
+describe('AI connections empty state (U8)', () => {
+  it('is not a dead end: it links to the Settings section that turns the connection on', async () => {
+    const html = await draw('en');
+    expect(html).toContain('href="/app/agency/o1/settings#agency-ai-title"');
+    expect(html).toContain('Open Settings');
+  });
+});

@@ -95,4 +95,26 @@ describe('Plan and Usage (S29)', () => {
     expect(text.match(/Complimentary/g)).toHaveLength(1);
     expect(text).not.toContain('BDT 2,500.00');
   });
+
+  it('U8: one compact row per limit, a ring for a ceiling and the word Unlimited (no empty bar) without one', async () => {
+    mocks.usage.mockResolvedValue(usage({}));
+    const html = await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) }));
+    const rows = html.split('class="expandable-section u8-row u8-limit"').slice(1);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toContain('1 of 5 used');
+    expect(rows[0]).toContain('class="u8-ring-arc"');
+    const unlimited = rows[2] ?? '';
+    expect(textOf(unlimited)).toContain('1 used, Unlimited');
+    expect(unlimited).not.toContain('u8-ring-arc');
+    expect(unlimited).not.toContain('meter-fill');
+    expect(html).not.toContain('class="meter"');
+  });
+
+  it('U8: AI Features is one section whose rows sit inside it', async () => {
+    mocks.usage.mockResolvedValue(usage({}));
+    const html = await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) }));
+    expect(html.match(/<h3 class="expandable-section-title"[^>]*>AI Features</g)).toHaveLength(1);
+    const section = html.slice(html.indexOf('>AI Features<'));
+    expect(section).toContain('Agency AI Tools');
+  });
 });

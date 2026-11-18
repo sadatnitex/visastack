@@ -160,7 +160,7 @@ describe("an agency's case workspace", () => {
     );
     const taskArea = container
       .querySelector('input[name="description"][placeholder="Add a task…"]')
-      ?.closest('form')?.parentElement;
+      ?.closest('#tasks-m1');
     if (!taskArea) throw new Error('task area not found');
     queue.push({ ok: true, message: 'Task added.' });
     typeTask(taskArea);

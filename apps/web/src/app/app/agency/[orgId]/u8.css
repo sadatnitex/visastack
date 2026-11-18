@@ -1,0 +1,133 @@
+/* WP-U8 agency screens on the Wallet foundation (18 Nov 2026). Flat: solid fills, hairlines, brand tokens only, no shadow, no gradient, no motion. The rows reuse the Expandable Section; this file adds only the initials picture, the line under a name, the spacing of a list of rows and the ring of a limit. */
+.u8-rows {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.u8-rows > .expandable-section + .expandable-section {
+  margin-top: 0;
+}
+.u8-initials {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--edge-card);
+  border-radius: 50%;
+  background: var(--brand-bg);
+  color: var(--brand);
+  font-size: var(--text-small);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.u8-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.u8-meta {
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.u8-body-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.u8-fold-body {
+  display: block;
+}
+.u8-ring {
+  display: block;
+  flex: none;
+}
+.u8-ring-track {
+  fill: none;
+  stroke: var(--hairline-soft);
+  stroke-width: 4;
+}
+.u8-ring-arc {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 4;
+  stroke-linecap: butt;
+}
+.u8-ring-warn .u8-ring-arc {
+  stroke: var(--text);
+  stroke-width: 5;
+}
+.u8-ring-full .u8-ring-arc {
+  stroke: var(--danger, var(--text));
+  stroke-width: 6;
+}
+.u8-ring-disc {
+  fill: var(--brand-bg);
+  stroke: var(--edge-card);
+  stroke-width: 1;
+}
+.u8-ring-mark {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.u8-limit-count {
+  font-weight: 650;
+  color: var(--text);
+}
+.u8-limit-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+@media (forced-colors: active) {
+  .u8-initials,
+  .u8-ring-disc {
+    border: 1px solid CanvasText;
+    forced-color-adjust: auto;
+  }
+  .u8-ring-arc,
+  .u8-ring-mark {
+    stroke: Highlight;
+  }
+  .u8-ring-track {
+    stroke: GrayText;
+  }
+}
+@media (max-width: 560px) {
+  .u8-body-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+/* Time zone list in a form row. The shared .tz-select asks for a 15rem flex basis, meant for a row of fields; inside a form field (a column) that basis became the list's HEIGHT, a 240 px empty box. In a column the list keeps the height of every other control and takes the width of its field. */
+.field-row > .tz-select {
+  flex: 0 0 auto;
+  max-width: none;
+  min-width: 0;
+  width: 100%;
+}
+.u8-rows + .u8-rows,
+.u8-rows + .u8-add,
+.u8-rows + .expandable-section {
+  margin-top: var(--space-2);
+}
+.u8-fold {
+  margin-top: var(--space-2);
+}
+/* A fold row has a name and no second line: centre the name against its picture. */
+.u8-fold .expandable-section-title,
+.u8-add .expandable-section-title {
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding-top: 0;
+}
+/* The Invite a Client and Ask for a Document or Detail rows sit in a rounded group that clips what spills out of it. Their own square corners were cut by that clip, so a press at a corner reached the section behind. The row takes the group's inner radius, so its corners are its own. */
+.agency-add-card .collapsible-group > .lift-action-summary {
+  border-radius: calc(var(--radius) - 1px);
+}

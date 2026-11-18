@@ -4,16 +4,20 @@ import {
   getPendingDowngradeForOrganization,
   getUsageForOrganization,
   listPlans,
+  mbLabel,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Icon } from '../../../../../components/icons';
 import { PageHeader } from '../../../../../components/ui';
+import { ExpandableSection } from '../../../../../components/ui-lift/expandable-section';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
-import { formatMeterValue, meterFraction, meterTone } from '../../../../../lib/usage-format';
+import { formatMeterValue, meterTone } from '../../../../../lib/usage-format';
 import { BillingStatusNotice, loadBillingNotice } from '../billing-status-notice';
 import { loadOrgAccess } from '../console-data';
+import { AgencyRows, LimitRing, UnlimitedPicture } from '../u8-rows';
 
 export const metadata: Metadata = { title: 'Agency Usage and Billing' };
 
@@ -176,78 +180,95 @@ export default async function OrgPlanPage({
               {t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
             </p>
             <h2 className="card-title">{t.node('appAgency.appAgencyOrgidPlanPage.usage')}</h2>
-            <div className="rows u-mt-100">
-              {data.usage.meters.map((meter) => (
-                <div key={meter.key} className="u-mb-125">
-                  <div className="meter-label">
-                    <span>{meter.label}</span>
-                    <span>{formatMeterValue(meter)}</span>
-                  </div>
-                  <div className="meter">
-                    <div
-                      className={`meter-fill ${meterTone(meter)}`.trim()}
-                      style={{ width: `${Math.round(meterFraction(meter) * 100)}%` }}
-                    />
-                  </div>
-                  <p
-                    className="muted"
-                    style={{ fontSize: 'var(--text-small)', marginTop: '0.35rem' }}
+            <AgencyRows id="plan-limits" ariaLabel={t('appAgency.appAgencyOrgidPlanPage.usage')}>
+              {data.usage.meters.map((meter) => {
+                const unlimited = meter.allowed === null;
+                const used = meter.key === 'storageBytes' ? mbLabel(meter.used) : `${meter.used}`;
+                return (
+                  <ExpandableSection
+                    key={meter.key}
+                    className="u8-row u8-limit"
+                    title={meter.label}
+                    picture={
+                      unlimited ? (
+                        <UnlimitedPicture />
+                      ) : (
+                        <LimitRing
+                          used={meter.used}
+                          allowed={meter.allowed ?? 0}
+                          tone={meterTone(meter) as '' | 'meter-warn' | 'meter-full'}
+                        />
+                      )
+                    }
+                    summary={
+                      unlimited ? (
+                        <>
+                          <span className="u8-limit-count">{used}</span> used, Unlimited
+                        </>
+                      ) : (
+                        <span className="u8-limit-count">{formatMeterValue(meter)}</span>
+                      )
+                    }
                   >
-                    {meter.definition}
-                    {meter.shownOnly
-                      ? t.node('appAgency.appAgencyOrgidPlanPage.shownForYourInformationItDoes')
-                      : ''}
-                  </p>
-                </div>
-              ))}
-            </div>
+                    <p className="muted u8-limit-note">
+                      {meter.definition}
+                      {meter.shownOnly
+                        ? t.node('appAgency.appAgencyOrgidPlanPage.shownForYourInformationItDoes')
+                        : ''}
+                    </p>
+                  </ExpandableSection>
+                );
+              })}
+            </AgencyRows>
           </article>
 
           {/* The traveller AI features are "not applicable" to an agency (null, S28); its plan
               decides the agency AI features instead (S22). */}
           {data.usage.entitlements.features ? (
-            <article className="card u-mt-150">
-              <p className="card-kicker">
-                {t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
-              </p>
-              <h2 className="card-title">
-                {t.node('appAgency.appAgencyOrgidPlanPage.aiFeatures')}
-              </h2>
-              <div className="rows rows-grid">
-                {AI_FEATURE_KEYS.map((feature) => {
-                  const included = data.usage?.entitlements.features?.[feature];
-                  return (
+            <div className="u-mt-150">
+              <ExpandableSection
+                className="u8-row"
+                title={t.node('appAgency.appAgencyOrgidPlanPage.aiFeatures')}
+                summary={t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
+                picture={<Icon name="settings" size={22} />}
+              >
+                <div className="rows rows-grid">
+                  {AI_FEATURE_KEYS.map((feature) => {
+                    const included = data.usage?.entitlements.features?.[feature];
+                    return (
+                      <div key={feature} className="row">
+                        <span className="row-key">{AI_FEATURES[feature].name}</span>
+                        <span className="row-val">{aiFeatureWords(included)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ExpandableSection>
+            </div>
+          ) : (
+            <div className="u-mt-150">
+              <ExpandableSection
+                className="u8-row"
+                title={t.node('appAgency.appAgencyOrgidPlanPage.aiFeatures')}
+                summary={t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
+                picture={<Icon name="settings" size={22} />}
+              >
+                <p className="card-body">
+                  {t.node('appAgency.appAgencyOrgidPlanPage.everythingInVisastackWorksWithoutAi')}
+                </p>
+                {/* S22: the agency features its plan decides, counted for the whole agency. */}
+                <div className="rows rows-grid">
+                  {AI_AGENCY_FEATURE_KEYS.map((feature) => (
                     <div key={feature} className="row">
                       <span className="row-key">{AI_FEATURES[feature].name}</span>
-                      <span className="row-val">{aiFeatureWords(included)}</span>
+                      <span className="row-val">
+                        {agencyAiFeatureWords(data.usage?.entitlements.agencyFeatures?.[feature])}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            </article>
-          ) : (
-            <article className="card u-mt-150" aria-labelledby="agency-ai-features-title">
-              <p className="card-kicker">
-                {t.node('appAgency.appAgencyOrgidPlanPage.whatYourPlanIncludes')}
-              </p>
-              <h2 className="card-title" id="agency-ai-features-title">
-                {t.node('appAgency.appAgencyOrgidPlanPage.aiFeatures')}
-              </h2>
-              <p className="card-body">
-                {t.node('appAgency.appAgencyOrgidPlanPage.everythingInVisastackWorksWithoutAi')}
-              </p>
-              {/* S22: the agency features its plan decides, counted for the whole agency. */}
-              <div className="rows rows-grid">
-                {AI_AGENCY_FEATURE_KEYS.map((feature) => (
-                  <div key={feature} className="row">
-                    <span className="row-key">{AI_FEATURES[feature].name}</span>
-                    <span className="row-val">
-                      {agencyAiFeatureWords(data.usage?.entitlements.agencyFeatures?.[feature])}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </article>
+                  ))}
+                </div>
+              </ExpandableSection>
+            </div>
           )}
         </>
       )}

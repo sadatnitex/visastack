@@ -28,6 +28,19 @@ export function openRequestAddress(
 }
 
 /** Shows a linked request that is not on this page of the list. */
+/**
+ * A request row is a closed section until opened; a link to one (`#request-<id>`) scrolls to it,
+ * so the section is opened here, where the person lands. A hash that is not a request is left alone.
+ */
+export function openRequestRow(hash: string, root: Document = document): boolean {
+  if (!ANCHOR.test(hash)) return false;
+  const row = root.getElementById(hash.slice(1).toLowerCase());
+  const details = row?.querySelector<HTMLDetailsElement>(':scope > details');
+  if (!details) return false;
+  if (!details.open) details.open = true;
+  return true;
+}
+
 export function OpenRequestFromLink() {
   const router = useRouter();
   const pathname = usePathname();
@@ -40,6 +53,7 @@ export function OpenRequestFromLink() {
         (elementId) => document.getElementById(elementId) !== null,
       );
       if (target) router.replace(target);
+      else openRequestRow(window.location.hash);
     };
     // A link that only changes the anchor on this page loads nothing by itself.
     const onClick = (event: MouseEvent) => {

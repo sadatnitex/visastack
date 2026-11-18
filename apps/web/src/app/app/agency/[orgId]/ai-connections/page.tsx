@@ -51,6 +51,7 @@ export default async function AgencyAiConnectionsPage({
         <EmptyState
           icon="shield"
           title={t('appAgency.appAgencyOrgidAiConnectionsPage.noAiAppsConnected')}
+          action={{ href: `/app/agency/${orgId}/settings#agency-ai-title`, label: 'Open Settings' }}
         >
           {t.node('appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect')}
         </EmptyState>

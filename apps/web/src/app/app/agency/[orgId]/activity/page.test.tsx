@@ -88,7 +88,10 @@ describe('agency Case Activity (WP-SB5)', () => {
       nextCursor: null,
       notes: [],
     });
-    expect(textOf(await renderServer(Page(props())))).toContain('No Case Activity Recorded');
+    const empty = await renderServer(Page(props()));
+    expect(textOf(empty)).toContain('No Case Activity Recorded');
+    // U8: the empty page is not a dead end; it leads to the one place notes are written.
+    expect(empty).toMatch(/<a [^>]*href="\/app\/agency\/o1\/cases"[^>]*>Open Cases<\/a>/);
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: false });
     expect(await renderServer(Page(props()))).toBe('');
   });
