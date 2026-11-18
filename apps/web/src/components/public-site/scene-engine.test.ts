@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SCENES_ATTRIBUTE,
   SCENES_BOOT_SRC,
+  SCENE_MODE_ATTRIBUTE,
   SCENE_SCREEN_QUERY,
   progressFor,
+  sceneMode,
   startScenes,
   stepFor,
 } from './scene-engine';
@@ -36,6 +38,17 @@ describe('progressFor', () => {
   it('never returns NaN', () => {
     expect(progressFor({ top: Number.NaN, height: 3000 }, 1000)).toBe(0);
     expect(progressFor({ top: -1, height: Number.POSITIVE_INFINITY }, 1000)).toBe(0);
+  });
+});
+
+describe('sceneMode', () => {
+  it('pins on a screen that matches SCENE_SCREEN_QUERY and reveals everywhere else', () => {
+    expect(sceneMode(true, false)).toBe('pinned');
+    expect(sceneMode(false, false)).toBe('reveal');
+  });
+  it('is gentle for a visitor whose device asks for less motion, on every screen', () => {
+    expect(sceneMode(true, true)).toBe('gentle');
+    expect(sceneMode(false, true)).toBe('gentle');
   });
 });
 
@@ -93,7 +106,7 @@ describe('startScenes', () => {
 
   it('marks the page live and follows the scroll, one update per frame', () => {
     const { element, box } = scene(3, 2);
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     expect(document.documentElement.getAttribute(SCENES_ATTRIBUTE)).toBe('live');
     expect(element.getAttribute('data-step')).toBe('0');
     expect(element.style.getPropertyValue('--p')).toBe('0.0000');
@@ -109,7 +122,7 @@ describe('startScenes', () => {
 
   it('measures again on resize and on a return from the back-forward cache', () => {
     const { element, box } = scene(2, 1);
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     box.top = -500;
     Object.defineProperty(window, 'innerHeight', { value: 2000, configurable: true });
     window.dispatchEvent(new Event('resize'));
@@ -124,7 +137,7 @@ describe('startScenes', () => {
     const { element, box } = scene(3, 2);
     element.setAttribute('data-min-width', '900');
     Object.defineProperty(window, 'innerWidth', { value: 820, configurable: true });
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     box.top = -1000;
     window.dispatchEvent(new Event('resize'));
     expect(element.getAttribute('data-step')).toBe('2');
@@ -142,7 +155,7 @@ describe('startScenes', () => {
 
   it('stop() removes the listeners and every mark, and puts back the finished step', () => {
     const { element, box } = scene(3, 2);
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     handle.stop();
     expect(document.documentElement.hasAttribute(SCENES_ATTRIBUTE)).toBe(false);
     expect(element.style.getPropertyValue('--p')).toBe('');
@@ -154,24 +167,8 @@ describe('startScenes', () => {
     expect(element.getAttribute('data-step')).toBe('2');
   });
 
-  for (const options of [
-    { reduce: true, saveData: false },
-    { reduce: false, saveData: true },
-  ])
-    it(`writes nothing and keeps the finished step (${JSON.stringify(options)})`, () => {
-      const { element } = scene(3, 2);
-      const handle = startScenes(document, options);
-      expect(document.documentElement.hasAttribute(SCENES_ATTRIBUTE)).toBe(false);
-      expect(element.getAttribute('data-step')).toBe('2');
-      expect(element.style.getPropertyValue('--p')).toBe('');
-      window.dispatchEvent(new Event('scroll'));
-      expect(frames).toHaveLength(0);
-      handle.stop();
-      expect(element.getAttribute('data-step')).toBe('2');
-    });
-
   it('does nothing on a page without scenes', () => {
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     expect(document.documentElement.hasAttribute(SCENES_ATTRIBUTE)).toBe(false);
     handle.stop();
   });
@@ -196,7 +193,7 @@ describe('startScenes', () => {
     );
     const a = scene(2, 1);
     const b = scene(2, 1);
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     expect(observed).toEqual([a.element, b.element]);
     report([{ target: a.element, isIntersecting: true }]);
     flush();
@@ -250,7 +247,7 @@ describe('startScenes reads before it writes', () => {
       document.body.append(element);
       return { element, box };
     });
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     const firstWrite = log.findIndex((entry) => entry !== 'read');
     expect(log.slice(0, firstWrite)).toEqual(['read', 'read', 'read']);
     expect(log.slice(firstWrite).every((entry) => entry !== 'read')).toBe(true);
@@ -281,15 +278,9 @@ describe('startScenes reads before it writes', () => {
     element.append(stage);
     element.getBoundingClientRect = () => ({ top: 84 - 1042, height: 3000 }) as DOMRect;
     document.body.append(element);
-    const handle = startScenes(document, { reduce: false, saveData: false });
+    const handle = startScenes(document, {});
     expect(element.style.getPropertyValue('--p')).toBe('0.5000');
     handle.stop();
-  });
-
-  it('clears the early mark when motion is not welcome after all', () => {
-    document.documentElement.setAttribute(SCENES_ATTRIBUTE, 'live');
-    startScenes(document, { reduce: true, saveData: false });
-    expect(document.documentElement.hasAttribute(SCENES_ATTRIBUTE)).toBe(false);
   });
 });
 
@@ -311,10 +302,12 @@ describe('the early mark before the first paint', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     document.documentElement.removeAttribute(SCENES_ATTRIBUTE);
+    document.documentElement.removeAttribute(SCENE_MODE_ATTRIBUTE);
     document.documentElement.removeAttribute('data-save-data');
     media.reduce = false;
     media.screen = true;
   });
+  const mode = () => document.documentElement.getAttribute(SCENE_MODE_ATTRIBUTE);
   const boot = () => {
     const queries: string[] = [];
     vi.stubGlobal('matchMedia', (query: string) => {
@@ -328,22 +321,38 @@ describe('the early mark before the first paint', () => {
   it('marks the page live with the same tests as the runtime', () => {
     const { live, queries } = boot();
     expect(live).toBe('live');
+    expect(mode()).toBe('pinned');
     expect(queries).toEqual(['(prefers-reduced-motion: reduce)', SCENE_SCREEN_QUERY]);
   });
-  it('stays still with reduced motion, a small screen or data saver', () => {
-    media.reduce = true;
-    expect(boot().live).toBe(null);
-    media.reduce = false;
+  it('reveals on a phone, a short or a zoomed window instead of staying still (MOT1)', () => {
     media.screen = false;
-    expect(boot().live).toBe(null);
-    media.screen = true;
+    expect(boot().live).toBe('reveal');
+    expect(mode()).toBe('reveal');
+  });
+  it('is gentle with reduced motion, on every screen', () => {
+    for (const screen of [true, false]) {
+      media.screen = screen;
+      media.reduce = true;
+      expect(boot().live).toBe('gentle');
+      expect(mode()).toBe('gentle');
+    }
+  });
+  it('is never stopped by data saver: it picks the same mode as without it', () => {
     document.documentElement.setAttribute('data-save-data', '');
-    expect(boot().live).toBe(null);
+    expect(boot().live).toBe('live');
+    media.screen = false;
+    expect(boot().live).toBe('reveal');
+    media.reduce = true;
+    expect(boot().live).toBe('gentle');
+    vi.stubGlobal('navigator', { connection: { saveData: true } });
+    expect(boot().live).toBe('gentle');
   });
   it("is the one source, using the runtime's screen test and the engine's attribute", () => {
     expect(SCENES_BOOT_SRC).toBe('/scenes-boot.js');
     expect(BOOT_FILE).toContain(`'${SCENE_SCREEN_QUERY}'`);
-    expect(BOOT_FILE).toContain(`'${SCENES_ATTRIBUTE}', 'live'`);
+    expect(BOOT_FILE).toContain(`'${SCENES_ATTRIBUTE}', mode === 'pinned' ? 'live' : mode`);
+    expect(BOOT_FILE).toContain(`'${SCENE_MODE_ATTRIBUTE}', mode`);
+    expect(BOOT_FILE).toMatch(/matches\('\(prefers-reduced-motion: reduce\)'\)\s*\? 'gentle'/);
     // Small, and nothing the supply-chain scan forbids.
     expect(Buffer.byteLength(BOOT_FILE)).toBeLessThan(1024);
     expect(BOOT_FILE).not.toMatch(/innerHTML|document\.write|\beval\(|new Function/);

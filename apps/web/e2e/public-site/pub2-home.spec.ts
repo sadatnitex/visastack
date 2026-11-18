@@ -132,34 +132,58 @@ for (const size of SIZES.filter((s) => s.width >= 900)) {
   });
 }
 
-test('pins nothing below 900 px, so a scene is a still, finished picture', async ({ page }) => {
+test('pins nothing below 900 px: phones reveal, and a scene never pins, stretches or runs tall', async ({
+  page,
+}) => {
   // 820 is above the engine's own floor (760): the scenes carry data-min-width="900" themselves.
   for (const width of [360, 400, 820]) {
     await page.setViewportSize({ width, height: 860 });
     await wait(page);
+    // Phones (below 760 px) are in reveal mode, never the pinned mode.
+    if (width < 760) {
+      await expect(page.locator('html'), `mode at ${width}`).toHaveAttribute(
+        'data-scenes',
+        'reveal',
+      );
+      await expect(page.locator('html'), `mode at ${width}`).not.toHaveAttribute(
+        'data-scenes',
+        'live',
+      );
+    }
     for (const name of SCENES) {
       const scene = page.locator(`[data-scene="${name}"]`);
-      await expect(scene.locator('.pub-scene-stage'), `${name} at ${width}`).not.toHaveCSS(
-        'position',
-        'sticky',
-      );
-      await expect(scene, `${name} at ${width}`).toHaveAttribute('data-step', FINAL[name]);
+      const stage = scene.locator('.pub-scene-stage');
+      // Neither sticky nor fixed, and no pinned scroll runway: the stage is never taller than
+      // one screen, and the scene is not stretched to its pinned length.
+      for (const position of ['sticky', 'fixed'])
+        await expect(stage, `${name} at ${width}`).not.toHaveCSS('position', position);
+      // The finished step the server wrote (a reveal scene is briefly at an earlier step).
+      await expect(scene, `${name} at ${width}`).toHaveAttribute('data-rest', FINAL[name]);
       const box = await scene.boundingBox();
       expect(box?.height ?? 0, `${name} at ${width}`).toBeLessThan(860 * 1.6);
+      const stageBox = await stage.boundingBox();
+      expect(stageBox?.height ?? 0, `${name} stage at ${width}`).toBeLessThanOrEqual(860);
     }
   }
 });
 
 test.describe('reduced motion', () => {
-  test('shows every scene finished and still', async ({ page }) => {
+  test('is the gentle mode: nothing pins and every scene ends on its finished step', async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1280, height: 800 });
     await wait(page);
-    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', /.*/);
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'gentle');
+    await expect(page.locator('html')).toHaveAttribute('data-scene-mode', 'gentle');
     for (const name of SCENES) {
       const scene = page.locator(`[data-scene="${name}"]`);
+      await scene.scrollIntoViewIfNeeded();
+      await expect(scene).toHaveAttribute('data-rest', FINAL[name]);
+      // Finished means the playing step reaches data-rest.
       await expect(scene).toHaveAttribute('data-step', FINAL[name]);
-      await expect(scene.locator('.pub-scene-stage')).not.toHaveCSS('position', 'sticky');
+      for (const position of ['sticky', 'fixed'])
+        await expect(scene.locator('.pub-scene-stage')).not.toHaveCSS('position', position);
     }
     await expect(page.getByText('Confirmed', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('Completeness only. Not an approval.').first()).toBeVisible();

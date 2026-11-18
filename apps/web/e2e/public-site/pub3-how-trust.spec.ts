@@ -100,26 +100,30 @@ for (const route of PAGES) {
       }
     });
 
-  test(`${route} with reduced motion shows every scene finished and still`, async ({ page }) => {
+  test(`${route} with reduced motion is the gentle mode: nothing pins and every scene ends finished`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(route);
-    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', 'live');
-    const unfinished = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-scene]')]
-        .filter(
-          (el) =>
-            Number(el.getAttribute('data-step')) !== Number(el.getAttribute('data-steps')) - 1,
-        )
-        .map((el) => el.getAttribute('data-scene')),
-    );
-    expect(unfinished).toEqual([]);
+    // Owner, 18 Nov 2026: reduced motion gets gentle fading, never the pinned mode.
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'gentle');
+    const scenes = page.locator('[data-scene]');
+    for (let at = 0; at < (await scenes.count()); at++) {
+      const scene = scenes.nth(at);
+      await scene.scrollIntoViewIfNeeded();
+      const steps = Number(await scene.getAttribute('data-steps'));
+      await expect(scene).toHaveAttribute('data-rest', String(steps - 1));
+      await expect(scene).toHaveAttribute('data-step', String(steps - 1));
+      await expect(scene.locator('.pub-scene-stage')).not.toHaveCSS('position', 'sticky');
+    }
   });
 
   test(`${route} below 900 px is stills: nothing is pinned`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(route);
-    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', 'live');
+    // MOT1: a phone reveals (plays once as scenes come into view) instead of pinning.
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'reveal');
     const pinned = await page.evaluate(
       () =>
         [...document.querySelectorAll('.pub-scene-stage')].filter(

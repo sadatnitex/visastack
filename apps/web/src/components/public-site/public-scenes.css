@@ -5,9 +5,9 @@
    - colours come only from globals.css tokens, mixed with black or transparent for darker tints
      and glows of the same brand hues (no new hue, no hex or rgb literal);
    - movement uses transform and opacity only, driven by the engine's --p, and only inside
-     @media (prefers-reduced-motion: no-preference) while html[data-scenes="live"] and
-     html:not([data-save-data]): with less motion, data saver or no JavaScript every picture rests
-     finished and still;
+     @media (prefers-reduced-motion: no-preference) while html[data-scenes="live"] (pinned scenes;
+     data saver never stops motion, owner 18 Nov 2026): with no JavaScript every picture rests
+     finished and still, and the other modes (reveal, gentle) live in kit/kit.css;
    - no automatic dark appearance. */
 
 /* WP-PUB1 public scenes: dark chapter canvas, a deep navy from the product ink with one brand glow. */
@@ -53,7 +53,7 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  html[data-scenes="live"]:not([data-save-data]) .pub-passport-tilt[data-pub-depth] {
+  html[data-scenes="live"] .pub-passport-tilt[data-pub-depth] {
     transform: perspective(900px) rotateX(calc((1 - var(--p, 1)) * 10deg))
       rotateY(calc((1 - var(--p, 1)) * -16deg));
   }

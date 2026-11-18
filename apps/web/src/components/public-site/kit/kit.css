@@ -804,34 +804,41 @@
   text-align: right;
 }
 
-/* ---- rise in: only moves while scenes are live. It never fades: words keep full contrast the whole
-   time, so a contrast check (or a reader) never meets them half transparent. ---- */
-html[data-scenes="live"] .kit-rise:not(.is-in) {
+/* ---- rise in: only moves while scenes are live (pinned) or revealing (phones, short windows). It
+   never fades: words keep full contrast the whole time, so a contrast check (or a reader) never
+   meets them half transparent. ---- */
+html[data-scenes="live"] .kit-rise:not(.is-in),
+html[data-scenes="reveal"] .kit-rise:not(.is-in) {
   transform: translateY(32px);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  html[data-scenes="live"] .kit-rise {
+  html[data-scenes="live"] .kit-rise,
+  html[data-scenes="reveal"] .kit-rise {
     transition: opacity 0.7s ease, transform 0.7s ease;
   }
 
-  html[data-scenes="live"] .kit-rise-d1 {
+  html[data-scenes="live"] .kit-rise-d1,
+  html[data-scenes="reveal"] .kit-rise-d1 {
     transition-delay: 0.1s;
   }
 
-  html[data-scenes="live"] .kit-rise-d2 {
+  html[data-scenes="live"] .kit-rise-d2,
+  html[data-scenes="reveal"] .kit-rise-d2 {
     transition-delay: 0.2s;
   }
 
-  html[data-scenes="live"] .kit-rise-d3 {
+  html[data-scenes="live"] .kit-rise-d3,
+  html[data-scenes="reveal"] .kit-rise-d3 {
     transition-delay: 0.3s;
   }
 
-  html[data-scenes="live"] .kit-rise-d4 {
+  html[data-scenes="live"] .kit-rise-d4,
+  html[data-scenes="reveal"] .kit-rise-d4 {
     transition-delay: 0.4s;
   }
 
-  html[data-scenes="live"]:not([data-save-data]) .kit-scan {
+  html[data-scenes="live"] .kit-scan {
     animation: kit-scan 2s ease-in-out infinite alternate;
   }
 
@@ -841,7 +848,14 @@ html[data-scenes="live"] .kit-rise:not(.is-in) {
   html[data-scenes="live"] .kit-dot,
   html[data-scenes="live"] .kit-dot-now,
   html[data-scenes="live"] .kit-link,
-  html[data-scenes="live"] .kit-tab {
+  html[data-scenes="live"] .kit-tab,
+  html[data-scenes="reveal"] .kit-field,
+  html[data-scenes="reveal"] .kit-switch,
+  html[data-scenes="reveal"] .kit-switch::after,
+  html[data-scenes="reveal"] .kit-dot,
+  html[data-scenes="reveal"] .kit-dot-now,
+  html[data-scenes="reveal"] .kit-link,
+  html[data-scenes="reveal"] .kit-tab {
     transition: opacity 0.4s ease, transform 0.4s ease, background-color 0.4s ease, border-color
       0.4s ease, color 0.4s ease;
   }
@@ -853,6 +867,158 @@ html[data-scenes="live"] .kit-rise:not(.is-in) {
 
   .kit-ended {
     animation: kit-fade 0.4s ease both;
+  }
+
+  /* MOT1 reveal mode (phones, short or zoomed windows): the scene plays once as it comes into view
+     (scene-reveal.ts writes data-step, --p and data-reveal). Transform and opacity only; the scan
+     line runs twice while its scene is playing, then the scene rests finished. */
+  html[data-scenes="reveal"] .pub-scene[data-reveal="playing"] .kit-scan {
+    animation: kit-scan 1.6s ease-in-out 2 alternate both;
+  }
+
+  html[data-scenes="reveal"] .pub-scene {
+    transition: --p 0.9s ease-out;
+  }
+
+  /* A scene that left the screen or was passed rests finished at once: no easing of --p. */
+  html[data-scenes="reveal"] .pub-scene[data-reveal="snapped"] {
+    transition: none;
+  }
+
+  /* The reset to the first step happens off screen or in the frame the page comes to life: no transition. */
+  html:is([data-scenes="reveal"], [data-scenes="gentle"]) .pub-scene[data-reveal="ready"],
+  html:is([data-scenes="reveal"], [data-scenes="gentle"]) .pub-scene[data-reveal="ready"] * {
+    transition: none;
+  }
+
+  html[data-scenes="reveal"] .pub-passport-tilt {
+    transform: perspective(900px) rotateX(calc((1 - var(--p, 1)) * 10deg))
+      rotateY(calc((1 - var(--p, 1)) * -16deg));
+  }
+}
+
+/* The scene's progress (0 to 1) as a real number, so reveal mode can ease it between steps. */
+@property --p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+/* MOT1 gentle mode (owner, 18 Nov 2026: reduced motion gets gentle fading): the same steps play, as
+   crossfades and moves of 8 px or less. No pinning, no sliding over distance, no scaling, no sweep,
+   no animation, at most 0.4 s per step. The global reduced-motion rule (globals.css) switches every transition and
+   animation off with !important, so these carry !important too and win by specificity. They exist
+   only under html[data-scenes="gentle"], which is set only for visitors who asked for less motion. */
+html[data-scenes="gentle"] .kit-rise:not(.is-in) {
+  transform: translateY(8px);
+}
+
+html[data-scenes="gentle"] .kit-rise {
+  transition: transform 0.4s ease !important;
+}
+
+html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-field,
+html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-switch,
+html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-switch::after,
+html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-dot,
+html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-dot-now,
+html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-link,
+html[data-scenes="gentle"] .pub-scene:not([data-reveal="ready"]) .kit-tab,
+html[data-scenes="gentle"] .kit-fixed .kit-switch,
+html[data-scenes="gentle"] .kit-fixed .kit-switch::after {
+  transition: opacity 0.4s ease, background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease !important;
+}
+
+/* MOT1: in reveal mode a tab label's width follows the scene's finished step (data-rest), never the
+   step being played: the phone rule above folds an inactive tab's label away by width, and a width
+   that changed while playing would shift the layout. The label still fades with --on. */
+@media (max-width: 759px) {
+  html:is([data-scenes="reveal"], [data-scenes="gentle"]) .pub-scene .kit-tab > span {
+    max-width: 0;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="0"]
+    .kit-tab[data-at="0"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="1"]
+    .kit-tab[data-at="1"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="2"]
+    .kit-tab[data-at="2"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="3"]
+    .kit-tab[data-at="3"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="4"]
+    .kit-tab[data-at="4"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="5"]
+    .kit-tab[data-at="5"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="6"]
+    .kit-tab[data-at="6"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="7"]
+    .kit-tab[data-at="7"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="8"]
+    .kit-tab[data-at="8"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="9"]
+    .kit-tab[data-at="9"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="10"]
+    .kit-tab[data-at="10"]
+    > span {
+    max-width: 140px;
+  }
+
+  html:is([data-scenes="reveal"], [data-scenes="gentle"])
+    .pub-scene[data-rest="11"]
+    .kit-tab[data-at="11"]
+    > span {
+    max-width: 140px;
   }
 }
 
@@ -1129,4 +1295,23 @@ html[data-scenes="live"] .kit-rise:not(.is-in) {
   .kit-stage-card {
     padding: var(--space-4);
   }
+}
+
+/* MOT1: the timed sharing picture and its Pause button (the loop is longer than 5 seconds). The button
+   keeps its space before hydration so nothing shifts (the early mark sets data-scene-mode before the
+   first paint); without JavaScript it takes no space. */
+.kit-timed {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.kit-pause[data-idle] {
+  visibility: hidden;
+}
+
+html:not([data-scene-mode]) .kit-pause[data-idle] {
+  display: none;
 }
