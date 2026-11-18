@@ -93,6 +93,39 @@
   min-width: 0;
 }
 
+/* PUBFIX2: every step of the share picture sits in one grid cell; the hidden ones keep the cell as
+   tall as the tallest step, the live one rests at the top of it. */
+.tr-share-art {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.tr-share-art > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  justify-items: center;
+}
+
+.tr-share-ghost {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.tr-share-live {
+  align-self: start;
+}
+
+/* PUBFIX2: the Where We Are Today heading and its paragraph rise together, so the heading never
+   passes over the paragraph while it settles. */
+.tr-today-copy {
+  display: grid;
+  gap: inherit;
+}
+
 .tr-pause {
   display: inline-flex;
   align-items: center;

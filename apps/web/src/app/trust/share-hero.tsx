@@ -65,7 +65,20 @@ export function ShareHero({
 
   return (
     <div className="tr-share" ref={box}>
-      {sheet(steps[step])}
+      {/* PUBFIX2 P2-3 and P2-6: the picture is drawn for the eye (the page's own words say the same
+          in plain text), so it is hidden from screen readers like the Home picture is, and it does not
+          count as page words on a first screen. All five steps sit in one cell, four of them hidden
+          and only there to hold the height of the tallest, so the hero never grows or shrinks while
+          the steps change (before: 66 px on a phone, a layout shift of 0.04). */}
+      <div className="tr-share-art" aria-hidden="true">
+        {steps.map((ghost, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the five steps are fixed and never reorder
+          <div className="tr-share-ghost" key={index}>
+            {ghost}
+          </div>
+        ))}
+        <div className="tr-share-live">{sheet(steps[step])}</div>
+      </div>
       {/* Always in the markup so its space is reserved before hydration (no layout shift); idle,
           invisible and out of the tab order until the picture really moves. */}
       <button

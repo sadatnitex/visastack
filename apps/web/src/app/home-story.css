@@ -81,12 +81,12 @@ html[data-scenes="live"] .hs-scene .pub-scene-stage {
 }
 
 .hs-hero .kit-h1 {
-  font-size: clamp(2.4rem, min(7vw, 10svh), 5rem);
+  font-size: clamp(2.4rem, min(7vw, 8svh), 5rem);
 }
 
 .hs-hero .kit-sub {
   margin-inline: auto;
-  font-size: clamp(1rem, min(1.7vw, 2.6svh), 1.3rem);
+  font-size: clamp(1rem, min(1.7vw, 2.2svh), 1.3rem);
 }
 
 .hs-hero .kit-actions {
@@ -95,6 +95,40 @@ html[data-scenes="live"] .hs-scene .pub-scene-stage {
 
 .hs-hero .kit-deck {
   --deck-h: clamp(150px, calc(100svh - 500px), 400px);
+}
+
+/* PUBFIX2 P2-2: on a computer the whole first screen stays inside the screen. The deck takes what is
+   left under the words (the readiness pill and its Example line need about 90 px below it) and never
+   more than a quarter of the width, and the four side pictures start closer to the centre and a
+   little smaller, so none is cut by an edge or the fold. The final fan (kit.css) is unchanged. */
+@media (min-width: 900px) {
+  .hs-hero .kit-deck {
+    --deck-h: clamp(140px, calc(100svh - 620px), min(360px, 25vw));
+  }
+
+  .hs-hero .kit-deck-doc[data-slot="far-left"] {
+    --x0: -38;
+    --y0: -4;
+    --s0: 1.25;
+  }
+
+  .hs-hero .kit-deck-doc[data-slot="far-right"] {
+    --x0: 38;
+    --y0: -4;
+    --s0: 1.25;
+  }
+
+  .hs-hero .kit-deck-doc[data-slot="left"] {
+    --x0: -33;
+    --y0: 6;
+    --s0: 1.2;
+  }
+
+  .hs-hero .kit-deck-doc[data-slot="right"] {
+    --x0: 33;
+    --y0: 6;
+    --s0: 1.2;
+  }
 }
 
 .hs-nudge {

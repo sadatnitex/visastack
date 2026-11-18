@@ -175,26 +175,44 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
     expect(button?.hasAttribute('aria-pressed')).toBe(false);
     act(() => button?.click());
     expect(host.querySelector('button')?.textContent).toContain('Play the Animation');
-    expect(host.querySelector('.kit-fixed')?.getAttribute('data-kit-step')).toBe('4');
+    expect(host.querySelector('.tr-share-live .kit-fixed')?.getAttribute('data-kit-step')).toBe(
+      '4',
+    );
     act(() => host.querySelector('button')?.click());
     // Playing again restarts the loop from its first step (nothing is shared yet).
-    expect(host.querySelector('.kit-fixed')?.getAttribute('data-kit-step')).toBe('0');
+    expect(host.querySelector('.tr-share-live .kit-fixed')?.getAttribute('data-kit-step')).toBe(
+      '0',
+    );
     act(() => root.unmount());
   });
 
   it('plays for visitors who asked for less motion too (gentle fades), so the Pause button shows', () => {
     const { host, root } = mount(true);
     expect(host.querySelector('button')?.textContent).toContain('Pause the Animation');
-    expect(host.querySelector('.kit-fixed')?.getAttribute('data-kit-step')).toBe('0');
+    expect(host.querySelector('.tr-share-live .kit-fixed')?.getAttribute('data-kit-step')).toBe(
+      '0',
+    );
+    act(() => root.unmount());
+  });
+
+  it('holds the height of the tallest step and hides the drawn picture from screen readers (PUBFIX2 P2-3, P2-6)', () => {
+    const { host, root } = mount(true);
+    const art = host.querySelector('.tr-share-art');
+    expect(art?.getAttribute('aria-hidden')).toBe('true');
+    // Four hidden steps share the cell with the live one, so the hero never changes height.
+    expect(art?.querySelectorAll('.tr-share-ghost')).toHaveLength(5);
+    expect(art?.querySelectorAll('.tr-share-live')).toHaveLength(1);
+    // The Pause button stays outside the hidden picture, in reach of every visitor.
+    expect(art?.contains(host.querySelector('button'))).toBe(false);
     act(() => root.unmount());
   });
 
   it('keeps the same picture elements from step to step so the parts can fade (no hard swap)', () => {
     const { host, root } = mount(true);
-    const first = host.querySelector('.kit-fixed');
+    const first = host.querySelector('.tr-share-live .kit-fixed');
     act(() => host.querySelector('button')?.click());
     act(() => host.querySelector('button')?.click());
-    expect(host.querySelector('.kit-fixed')).toBe(first);
+    expect(host.querySelector('.tr-share-live .kit-fixed')).toBe(first);
     act(() => root.unmount());
   });
 
@@ -255,7 +273,8 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
       act(() =>
         root.render(<ShareHero steps={steps} pauseFace="Pause the Animation" playFace="Play" />),
       );
-      const step = () => host.querySelector('.kit-fixed')?.getAttribute('data-kit-step');
+      const step = () =>
+        host.querySelector('.tr-share-live .kit-fixed')?.getAttribute('data-kit-step');
       return { host, root, step };
     }
     afterEach(() => {
