@@ -15,10 +15,12 @@ const SITE = readFileSync(join(HERE, 'public-site.css'), 'utf8');
 const SCENES = readFileSync(join(HERE, 'public-scenes.css'), 'utf8');
 const SITE_PATH = 'apps/web/src/components/public-site/public-site.css';
 const SCENES_PATH = 'apps/web/src/components/public-site/public-scenes.css';
-const FILES = readdirSync(HERE).map((name) => ({
-  name,
-  text: readFileSync(join(HERE, name), 'utf8'),
-}));
+const FILES = readdirSync(HERE, { recursive: true, withFileTypes: true })
+  .filter((entry) => entry.isFile())
+  .map((entry) => ({
+    name: join(entry.parentPath, entry.name).slice(HERE.length + 1),
+    text: readFileSync(join(entry.parentPath, entry.name), 'utf8'),
+  }));
 
 /** The first :root block of globals.css: the product's own colour tokens. */
 function rootTokens(css: string): Map<string, string> {
@@ -208,6 +210,8 @@ describe('public site sources', () => {
     for (const [name, css] of [
       ['public-site.css', SITE],
       ['public-scenes.css', SCENES],
+      ['kit/kit.css', readFileSync(join(HERE, 'kit', 'kit.css'), 'utf8')],
+      ['kit/kit-steps.css', readFileSync(join(HERE, 'kit', 'kit-steps.css'), 'utf8')],
     ] as const) {
       postcss.parse(css).walkDecls((decl) => {
         expect(LITERAL.test(decl.value), `${name}: ${decl.prop}: ${decl.value}`).toBe(false);
@@ -288,9 +292,8 @@ function depthProblems(css: string): string[] {
       if (!moving) return;
       if (/^(?:transition|animation)/.test(prop)) problems.push(`timed motion: ${prop}`);
       const calm = media.some((q) => /prefers-reduced-motion\s*:\s*no-preference/.test(q));
-      const live = rule.selectors.every(
-        (s) => s.includes('html[data-scenes="live"]') && s.includes(':not([data-save-data])'),
-      );
+      // Data saver never stops motion (owner, 18 Nov 2026), so it is not part of the scope.
+      const live = rule.selectors.every((s) => s.includes('html[data-scenes="live"]'));
       if (!calm || !live) problems.push(`motion outside the live, calm scope: ${rule.selector}`);
     });
   }
@@ -306,6 +309,15 @@ describe('the one depth stylesheet (ADR 0029)', () => {
 
   it('keeps depth scoped, moves only with the engine, and only when motion is welcome', () => {
     expect(depthProblems(SCENES)).toEqual([]);
+  });
+
+  it('keeps the passport tilt moving with data saver on (it is not part of the scope)', () => {
+    expect(SCENES).not.toContain('data-save-data');
+    expect(
+      depthProblems(
+        '@media (prefers-reduced-motion: no-preference) { html[data-scenes="live"] .x[data-pub-depth] { transform: scale(2) } }',
+      ),
+    ).toEqual([]);
   });
 
   it('fails each rule on a bad example', () => {
@@ -326,12 +338,12 @@ describe('the one depth stylesheet (ADR 0029)', () => {
     );
     expect(
       depthProblems(
-        '@media (prefers-reduced-motion: no-preference) { html[data-scenes="live"] [data-pub-depth] { opacity: 0 } }',
+        '@media (prefers-reduced-motion: no-preference) { html[data-scenes="reveal"] [data-pub-depth] { opacity: 0 } }',
       )[0],
     ).toMatch(/motion outside/);
     expect(
       depthProblems(
-        '@media (prefers-reduced-motion: no-preference) { html[data-scenes="live"]:not([data-save-data]) [data-pub-depth] { transition: opacity 1s } }',
+        '@media (prefers-reduced-motion: no-preference) { html[data-scenes="live"] [data-pub-depth] { transition: opacity 1s } }',
       ),
     ).toEqual(['timed motion: transition']);
     expect(

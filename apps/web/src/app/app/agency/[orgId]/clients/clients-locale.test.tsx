@@ -297,7 +297,7 @@ describe('the agency Clients page under Bengali', () => {
   it('writes the due date of a request in Bengali with a Bengali date', async () => {
     withDatedRows();
     const html = await showHtml('bn');
-    const line = sentence(html, '.request-row .muted.u-fs-085');
+    const line = sentence(html, '#agency-evidence-request-list .u8-meta');
     expect(line).toBe(
       `Rahim Uddin${(bn[k('dueFormatdateonly')] ?? '').replace(
         '{formatDateOnly}',
@@ -317,7 +317,7 @@ describe('the agency Clients page under Bengali', () => {
     const invited = sentence(html, '.badge-warning');
     expect(invited).toBe('Invited · expires 1 Nov 2099');
     expect(invited).not.toMatch(BENGALI);
-    const due = sentence(html, '.request-row .muted.u-fs-085');
+    const due = sentence(html, '#agency-evidence-request-list .u8-meta');
     expect(due).toBe('Rahim Uddin · due Oct 20, 2099');
     expect(due).not.toMatch(BENGALI);
   });

@@ -35,6 +35,9 @@ export const appContributorRequestsCatalog = defineCatalog({
       "Also allow this document to be reused for the traveller's future cases (optional - off by default, this file only helps with this one case)",
     'appContributorRequests.appContributorRequestsAcceptSubmitEvidenceForm.pdfPngJpegDocxTxtOr':
       'PDF, PNG, JPEG, DOCX, TXT or MD · file type and structure are checked on upload.',
+    // WP-U7 traveller screens on the Wallet foundation (18 Nov 2026): English only until the localization lane writes Bengali (docs/upgrades/programme/wal/U7-records.md).
+    'appContributorRequests.appContributorRequestsU7.aboutThisRequest': 'About This Request',
+    // end WP-U7
   },
   bn: {
     'appContributorRequests.appContributorRequestsAcceptPage.applicantnameTheTraveller':

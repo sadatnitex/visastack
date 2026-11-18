@@ -15,6 +15,7 @@ import type { CaseSourceRow } from './case-model';
 import { CaseDetailsForm, ItineraryForm, TransitionButtons } from './mission-buttons';
 import { OpenFoldOnLink } from './open-fold-on-link';
 import { RailFold } from './rail-fold';
+import { RailSection } from './rail-section';
 import { isPacketSnapshot } from './snapshot-packet';
 import { TripChecksPanel, tripChecksSummary } from './trip-checks-panel';
 
@@ -73,22 +74,16 @@ export function CaseTripChecks({ view, checks }: CaseTripChecksProps) {
   if (view === 'checks') {
     const summary = tripChecksSummary(checks);
     return (
-      <RailFold
+      <RailSection
         id="trip-checks"
         level="browse"
-        icon="calendar"
         title={t('appMission.appMissionIdCaseRail.tripDateChecks')}
-        meta={summary.meta}
+        summary={summary.status ? `${summary.status.label} \u00b7 ${summary.meta}` : summary.meta}
         // A check that needs a look is the point of the card, so a phone shows it already open.
         open={summary.status?.tone === 'danger' || summary.status?.tone === 'warning'}
-        pill={
-          summary.status ? (
-            <StatusPill tone={summary.status.tone}>{summary.status.label}</StatusPill>
-          ) : undefined
-        }
       >
         <TripChecksPanel checks={checks} />
-      </RailFold>
+      </RailSection>
     );
   }
   if (view === 'add-dates') {
@@ -179,11 +174,10 @@ function CaseDetailsCard({
   const t = getServerT(appMissionCatalog);
   const locale = getServerLocale();
   return (
-    <RailFold
+    <RailSection
       level="browse"
-      icon="briefcase"
       title={t('appMission.appMissionIdCaseRail.caseDetails')}
-      meta={datesLine(mission)}
+      summary={datesLine(mission)}
     >
       <SectionCard
         kicker={t('appMission.appMissionIdCaseRail.case')}
@@ -237,7 +231,7 @@ function CaseDetailsCard({
           </details>
         )}
       </SectionCard>
-    </RailFold>
+    </RailSection>
   );
 }
 

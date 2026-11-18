@@ -194,6 +194,7 @@ const { RequireDifferentReviewerToggle } = await import(
 );
 const { CreateOrgForm } = await import('../app/app/agency/create-org-form');
 const aiReview = await import('../app/app/applicant/[id]/ai-review');
+const findingParts = await import('../app/app/applicant/[id]/finding-review-parts');
 const { DocumentUploader } = await import('../app/app/applicant/[id]/document-uploader');
 const { KeepCopyAction } = await import(
   '../app/app/applicant/[id]/documents/manage/copy/keep-copy-action'
@@ -696,6 +697,35 @@ const DOCS: readonly Case[] = [
       }}
     />
   )),
+  row('review a sensitive suggested value, kept hidden until opened (WAL2)', () => (
+    <aiReview.AiProposalReview
+      applicantId="a1"
+      canApprove
+      masked
+      proposal={{
+        id: 'pr6',
+        type: 'FIELD',
+        fieldKey: 'passport_number',
+        value: 'A1234567',
+        confidence: 0.88,
+        rationale: null,
+        evidence: [{ snippet: 'A1234567', verified: true }],
+        sensitive: true,
+        difference: { current: null },
+      }}
+    />
+  )),
+  row('accept one clear detail from its row (WAL2)', () => (
+    <findingParts.FindingRowAccept applicantId="a1" proposalId="pr7" label="Given Name" />
+  )),
+  row('decide sensitive details one at a time (WAL2)', () => (
+    <findingParts.FindingSteps
+      steps={[
+        { key: 's1', node: <p>First detail</p> },
+        { key: 's2', node: <p>Second detail</p> },
+      ]}
+    />
+  )),
   row('check what we found in a document', () => (
     <aiReview.DocumentFindings
       applicantId="a1"
@@ -996,18 +1026,45 @@ const DOCS: readonly Case[] = [
   },
 ];
 
+/**
+ * Essentials First as a new person sees it: ESS1 lists only the essentials the Passport Page Card
+ * does not show, so one of those (Email) is added here to keep a real labelled box in the list.
+ */
+function essentialsFirstView() {
+  const essentials = fixtureEssentials();
+  const email = {
+    key: 'email',
+    label: 'Email Address',
+    sectionKey: 'contact',
+    answered: false,
+    notApplicable: false,
+    field: { key: 'email', label: 'Email Address', sensitivity: 'STANDARD' as const },
+  };
+  return fixtureView({
+    essentials: {
+      ...essentials,
+      items: [...essentials.items, email],
+      total: essentials.total + 1,
+      done: false,
+    },
+  });
+}
+function EssentialsFirstEditor() {
+  return (
+    <ProfileEditor
+      applicantId="a1"
+      values={{}}
+      repeatingValues={{}}
+      assurance={new Map()}
+      view={essentialsFirstView()}
+    />
+  );
+}
+
 const PROFILE: readonly Case[] = [
   {
     name: 'profile editor (essentials first)',
-    element: () => (
-      <ProfileEditor
-        applicantId="a1"
-        values={{}}
-        repeatingValues={{}}
-        assurance={new Map()}
-        view={fixtureView({ essentials: fixtureEssentials() })}
-      />
-    ),
+    element: () => <EssentialsFirstEditor />,
     fields: ['value', 'effectiveFrom'],
   },
   {
@@ -3400,6 +3457,14 @@ describe('every form and action button', () => {
     },
     SCAN_TIMEOUT_MS,
   );
+
+  it('profile editor (essentials first) draws no box for a filled essential the card shows (ESS1)', () => {
+    const html = renderToStaticMarkup(<EssentialsFirstEditor />);
+    const list = html.slice(html.indexOf('class="profile-essentials"'));
+    // Passport Number is filled and printed on the card: no box for it in Essentials First.
+    expect(list).not.toContain('id="f-passport_number"');
+    expect(list).toContain('id="f-email"');
+  });
 
   it('speaks a failure through the alert region and not only by colour', () => {
     for (const item of CASES) {

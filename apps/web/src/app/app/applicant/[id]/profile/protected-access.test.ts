@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * WALD2: the profile page opens protected values with the key only for the person who owns the
  * record. Another signed-in account gets Not Found, and the keyed read never happens, so no
- * decrypted value is produced for it. For the owner it reads once with the key and hands each box
- * its real value, or an empty box with the reason when the value was not opened. Synthetic values.
+ * decrypted value is produced for it. For the owner it reads once with the key, to tell a value
+ * that opens from one that would not or was lost.
+ *
+ * ESS1: a protected value that opened is still left out of the page: the editor gets
+ * `withheld: true` and no value, and the page's server markup holds none. Show or Edit opens it
+ * through the owner-only reveal action (profile-reveal-actions.test.ts). Synthetic values.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -50,6 +54,28 @@ vi.mock('../../../../../lib/i18n-server', () => ({
   primeLocale: async () => 'en',
   getServerT: () => Object.assign((key: string) => key, { node: (key: string) => key }),
 }));
+vi.mock('../actions', () => ({
+  saveFactAction: vi.fn(),
+  decideProposalAction: vi.fn(),
+  acceptClearDetailsAction: vi.fn(),
+  decideClassificationProposalAction: vi.fn(),
+  decideInconsistencyFlagAction: vi.fn(),
+  readAgainAction: vi.fn(),
+  runClassificationAction: vi.fn(),
+  runInconsistencyCheckAction: vi.fn(),
+}));
+vi.mock('../section-actions', () => ({
+  markEndedAction: vi.fn(),
+  markNotCurrentAction: vi.fn(),
+  openSuggestedSectionsAction: vi.fn(),
+  saveOtherItemAction: vi.fn(),
+  setExemptionAction: vi.fn(),
+  setSectionOpenAction: vi.fn(),
+}));
+vi.mock('../profile-reveal-actions', () => ({ revealProfileValueAction: vi.fn() }));
+vi.mock('../../../../../components/profile-photo/profile-photo-control', () => ({
+  ProfilePhotoControl: () => null,
+}));
 vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
   notFound: () => {
@@ -58,6 +84,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
 }));
 
 const { default: ApplicantProfilePage } = await import('./page');
+const { renderServer, textOf } = await import('../../../../../lib/next-mocks.test-support');
 
 describe('profile page keyed read', () => {
   beforeEach(() => {
@@ -107,6 +134,25 @@ function entry(fieldKey: string, value: string | null, isProtected: boolean) {
 }
 
 type Element = { type?: unknown; props?: Record<string, unknown> };
+
+/** The props of the first element of a named component in the returned element tree. */
+function propsOf(node: unknown, wanted: string): Record<string, unknown> | undefined {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = propsOf(child, wanted);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!node || typeof node !== 'object') return undefined;
+  const element = node as Element;
+  if ((element.type as { name?: string } | undefined)?.name === wanted) return element.props;
+  for (const value of Object.values(element.props ?? {})) {
+    const found = propsOf(value, wanted);
+    if (found) return found;
+  }
+  return undefined;
+}
 
 /** The props the page hands the profile editor, found in the returned element tree. */
 function editorProps(node: unknown): Record<string, unknown> | undefined {
@@ -170,7 +216,7 @@ describe('profile page keyed read for the owner', () => {
     return (props as { values: Partial<Record<Keys, Box>> }).values;
   }
 
-  it('reads once with the key and gives each box its real value', async () => {
+  it('reads once with the key and leaves every protected value out of the page (ESS1)', async () => {
     mocks.createKeyManagementPort.mockReturnValue(KEY);
     // One pending app suggestion, so the comparison with the profile runs too: it must reuse the
     // same keyed read, not open everything a second time.
@@ -205,8 +251,12 @@ describe('profile page keyed read for the owner', () => {
     const values = await open();
     expect(mocks.listApplicantProfile).toHaveBeenCalledTimes(1);
     expect(mocks.listApplicantProfile).toHaveBeenCalledWith({}, 'person-1', KEY);
-    expect(values.date_of_birth).toMatchObject({ value: '1990-04-12', locked: null });
-    expect(values.passport_number).toMatchObject({ value: 'X1234567', locked: null });
+    expect(values.date_of_birth).toEqual(
+      expect.objectContaining({ value: null, locked: null, withheld: true }),
+    );
+    expect(values.passport_number).toEqual(
+      expect.objectContaining({ value: null, locked: null, withheld: true }),
+    );
     expect(mocks.listPendingAppSuggestions).toHaveBeenCalledTimes(1);
   });
 
@@ -239,6 +289,129 @@ describe('profile page keyed read for the owner', () => {
     const values = await open();
     expect(values.passport_number).toMatchObject({ value: null, locked: 'no_key' });
     expect(mocks.reportServerError).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts no protected value in the editor props or the server markup before Show (ESS1)', async () => {
+    mocks.createKeyManagementPort.mockReturnValue(KEY);
+    mocks.listApplicantProfile.mockResolvedValue([
+      entry('date_of_birth', '1990-04-12', true),
+      entry('passport_number', 'X1234567', true),
+      // Saved before encryption, but the catalogue marks it protected: left out all the same.
+      entry('annual_income', 'BDT 987654', false),
+      entry('given_name', 'Alex', false),
+    ]);
+    const page = await ApplicantProfilePage({ params: Promise.resolve({ id: 'person-1' }) });
+    const props = JSON.stringify(editorProps(page), (_key, value) =>
+      value instanceof Map ? [...value] : value,
+    );
+    const html = await renderServer(page);
+    for (const secret of ['1990-04-12', '12 Apr 1990', 'X1234567', 'BDT 987654']) {
+      expect(props, secret).not.toContain(secret);
+      expect(html, secret).not.toContain(secret);
+    }
+    expect(textOf(html)).toContain('Alex');
+    expect(html.toLowerCase()).not.toContain('[protected');
+    // The count of essentials still counts them as added.
+    expect(await essentialAnswered('date_of_birth')).toBe(true);
+    expect(await essentialAnswered('passport_number')).toBe(true);
+  });
+
+  it('counts exactly as before: the view built from the same keyed read (ESS1 parity)', async () => {
+    mocks.createKeyManagementPort.mockReturnValue(KEY);
+    const profile = [
+      entry('date_of_birth', '1990-04-12', true),
+      entry('passport_number', 'X1234567', true),
+      entry('given_name', 'Alex', false),
+    ];
+    mocks.listApplicantProfile.mockResolvedValue(profile);
+    const props = (await render()) as { view: unknown };
+    const { buildMasterProfileView } = await import('../../../../../lib/master-profile');
+    // The same call the page made before ESS1: withholding a value changes no count.
+    expect(props.view).toEqual(
+      buildMasterProfileView({
+        entries: profile,
+        activated: new Set(),
+        notApplicable: new Set(),
+        noneDeclared: new Set(),
+        suggestFor: null,
+        uploadedDocumentTypes: new Map(),
+        caseCountries: new Set(),
+      }),
+    );
+  });
+
+  it('sends AI app suggestions about protected details with no words and no equality sign (ESS1)', async () => {
+    mocks.createKeyManagementPort.mockReturnValue(KEY);
+    mocks.requireAccess.mockImplementation(
+      async (
+        _db: unknown,
+        _who: unknown,
+        _action: unknown,
+        _on: unknown,
+        o: { purpose: string },
+      ) => (o.purpose === 'ai_app_suggestions' ? { ok: true, value: {} } : { ok: false }),
+    );
+    const suggestion = (id: string, fieldKey: string, value: string) => ({
+      proposal: {
+        id,
+        type: 'FIELD_VALUE',
+        fieldKey,
+        value,
+        confidence: 0.9,
+        rationale: `The person said ${value}.`,
+      },
+      evidence: [{ snippet: `number ${value}`, verified: true }],
+      fromApp: null,
+      issueDate: null,
+    });
+    // One equal to the saved value, one different: they must look exactly alike.
+    mocks.listPendingAppSuggestions.mockResolvedValue([
+      suggestion('same', 'passport_number', 'X1234567'),
+      suggestion('other', 'date_of_birth', '1991-05-13'),
+    ]);
+    mocks.listApplicantProfile.mockResolvedValue([
+      entry('date_of_birth', '1990-04-12', true),
+      entry('passport_number', 'X1234567', true),
+    ]);
+    const page = await ApplicantProfilePage({ params: Promise.resolve({ id: 'person-1' }) });
+    const suggestions = propsOf(page, 'AppSuggestionsSection') as {
+      proposals: readonly Record<string, unknown>[];
+    };
+    const html = await renderServer(page);
+    const sent = JSON.stringify(suggestions);
+    for (const secret of ['X1234567', '1990-04-12', '1991-05-13', 'The person said']) {
+      expect(sent, secret).not.toContain(secret);
+      expect(html, secret).not.toContain(secret);
+    }
+    const shape = ({
+      value,
+      rationale,
+      evidence,
+      withheld,
+      difference,
+    }: Record<string, unknown>) => ({
+      value,
+      rationale,
+      evidence,
+      withheld,
+      difference,
+    });
+    expect(suggestions.proposals.map(shape)).toEqual([
+      {
+        value: null,
+        rationale: null,
+        evidence: [],
+        withheld: true,
+        difference: { current: null, undisclosed: true },
+      },
+      {
+        value: null,
+        rationale: null,
+        evidence: [],
+        withheld: true,
+        difference: { current: null, undisclosed: true },
+      },
+    ]);
   });
 
   it('leaves an ordinary detail as it is', async () => {

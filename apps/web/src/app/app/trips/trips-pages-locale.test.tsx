@@ -82,7 +82,9 @@ afterEach(() => {
 describe('the group trip pages under Bengali', () => {
   it('no trips yet: the empty line and Start a Group Trip', async () => {
     const text = await draw('bn', () => TripsPage());
-    expectBengali(text, ['appTripsPage.noGroupTripsYet', 'appTripsPage.startAGroupTrip']);
+    expectBengali(text, ['appTripsU7.noGroupTripsYetTitle', 'appTripsPage.startAGroupTrip']);
+    // One Title Case name in both empty states (U7 review): the old sentence key is not the title.
+    expect(en['appTrips.appTripsU7.noGroupTripsYetTitle']).toBe('No Group Trips Yet');
   });
 
   it('a list of trips counts the travellers on each, with Bengali digits', async () => {

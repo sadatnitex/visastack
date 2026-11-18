@@ -257,7 +257,7 @@ describe('one row per destination (UX4)', () => {
     expect(rows).toHaveLength(2);
     const [documents, trips] = rows;
     for (const [row, destination, task] of [
-      [documents, 'My Documents', 'Add Documents'],
+      [documents, 'My Record', 'Add Documents'],
       [trips, 'My Trips', 'Start a Trip'],
     ] as const) {
       const links = [...(row?.querySelectorAll('a') ?? [])];

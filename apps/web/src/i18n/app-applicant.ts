@@ -125,7 +125,7 @@ export const appApplicantCatalog = defineCatalog({
       'Drop your files or a whole folder here. We check each one, read what we can, and you approve every detail.',
     'appApplicant.appApplicantIdDocumentsAddPage.dropYourFilesOrAWhole088508':
       'Drop your files or a whole folder here. We check each one and keep it for you.',
-    'appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments': 'Open My Documents',
+    'appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments': 'Open My Record',
     'appApplicant.appApplicantIdDocumentsAddPage.pluralOneAnswer': '{plural} One Answer',
     'appApplicant.appApplicantIdDocumentsAddPage.takeAPhotoOrSayWhat':
       'Take a Photo, or Say What Kind of Document It Is',
@@ -376,7 +376,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdExpiryPage.noConfirmationsYet': 'No Confirmations Yet',
     'appApplicant.appApplicantIdExpiryPage.noDateRulesYet': 'No Date Rules Yet',
     'appApplicant.appApplicantIdExpiryPage.noDocumentsYet': 'No Documents Yet',
-    'appApplicant.appApplicantIdExpiryPage.record': 'Record',
+    'appApplicant.appApplicantIdExpiryPage.record': 'All Records',
     'appApplicant.appApplicantIdExpiryPage.routeDateRules': 'Route Date Rules',
     'appApplicant.appApplicantIdExpiryPage.routeRules': 'Route Rules',
     'appApplicant.appApplicantIdExpiryPage.setExpiryDate': 'Set Expiry Date',
@@ -415,8 +415,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn':
       'Files for several people wait in Needs One Decision until you choose who each one belongs to.',
     'appApplicant.appApplicantIdImportImportPanel.filesInThisImport': 'Files in This Import',
-    'appApplicant.appApplicantIdImportImportPanel.filesToImport': 'Files to Import',
-    'appApplicant.appApplicantIdImportImportPanel.folderToImport': 'Folder to Import',
     'appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou':
       'Folders inside it are included. You do not need to say what each file is first. Each file gets its own line below.',
     'appApplicant.appApplicantIdImportImportPanel.forgetEarlierImports': 'Forget Earlier Imports',
@@ -558,6 +556,22 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay':
       'Ended on {formatDateOnly}. Its details stay on file. Save a change below to make it current again.',
     'appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller': '✓ Entered by the traveller.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Cancel': 'Cancel',
+    'appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow':
+      'This detail could not be shown just now. Try again, or type a new value to replace it.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Details': 'Details',
+    'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'Edit',
+    'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'Hide',
+    'appApplicant.appApplicantIdProfileEditor.ess1LeftToAdd': '{count} left to add',
+    'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
+      'Only the essentials the passport page above does not show. This box goes away once they are added.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Show': 'Show',
+    'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'Show the Value Found',
+    'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
+      'Protected detail: the value is not shown until you choose Show. Accept saves the value the app suggested.',
+    'appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater': 'Try again in a little while.',
+    'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
+      'Your profile already holds a value for this detail. Which should it keep?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'Essentials First',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'Every essential is added. Add more from any section when a case needs it.',
@@ -654,7 +668,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfilePage.profileHealth': 'Profile Health',
     'appApplicant.appApplicantIdProfilePage.profileHealthAndLatestChanges':
       'Profile health and latest changes',
-    'appApplicant.appApplicantIdProfilePage.record': 'Record',
+    'appApplicant.appApplicantIdProfilePage.record': 'All Records',
     'appApplicant.appApplicantIdProfilePage.recordedUpdate': 'Recorded Update',
     'appApplicant.appApplicantIdProfilePage.reviewDocumentSuggestions':
       'Review Document Suggestions →',
@@ -725,6 +739,48 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdReviewPage.youCanLeaveThisPageWe':
       'You can leave this page. We keep going, and Home tells you when details are ready.',
     'appApplicant.appApplicantIdReviewPage.yourFilesAreSaved': 'Your Files Are Saved',
+    // WP-U6 All Records rows (18 Nov 2026): new words, appended; nothing above was moved or renamed.
+    'appApplicant.appApplicantIdRecordRow.waitingOnYou': 'Waiting on You',
+    'appApplicant.appApplicantIdRecordRow.version': 'Version',
+    'appApplicant.appApplicantIdRecordRow.saved': 'Saved',
+    'appApplicant.appApplicantIdRecordRow.expires': 'Expires',
+    'appApplicant.appApplicantIdRecordRow.replacedBy': 'Replaced By',
+    'appApplicant.appApplicantIdRecordRow.usedInCases': 'Used in Cases',
+    'appApplicant.appApplicantIdRecordRow.sharedWith': 'Shared With',
+    'appApplicant.appApplicantIdRecordRow.detailsSaved': 'Details Saved',
+    'appApplicant.appApplicantIdRecordRow.detailsSavedValue': '{answered} of {total}',
+    'appApplicant.appApplicantIdRecordRow.noneYet': 'None yet',
+    'appApplicant.appApplicantIdRecordRow.noOne': 'No one',
+    'appApplicant.appApplicantIdRecordRow.notConfirmed': 'Not confirmed',
+    'appApplicant.appApplicantIdRecordRow.openDocument': 'Open Document',
+    'appApplicant.appApplicantIdRecordRow.notStarted': 'Not Started',
+    'appApplicant.appApplicantIdRecordRow.moreToAdd': '{count} more to add',
+    'appApplicant.appApplicantIdRecordRow.aboutCurrentVersion': 'About Current Version',
+    'appApplicant.appApplicantIdRecordRow.allRecordsIntro':
+      'Everything saved for {displayName}, in one place.',
+    'appApplicant.appApplicantIdRecordRow.stateCurrentVersion':
+      'The file passed its safety check and nothing is waiting for you.',
+    'appApplicant.appApplicantIdRecordRow.stateCurrentVersionDated':
+      'The file passed its safety check, is not past its end date, and nothing is waiting for you.',
+    'appApplicant.appApplicantIdRecordRow.stateExpiringSoon':
+      'Usable now, and its end date is close. Plan a replacement.',
+    'appApplicant.appApplicantIdRecordRow.stateNeedsYourCheck':
+      'Something is waiting for your decision before this is ready to use.',
+    'appApplicant.appApplicantIdRecordRow.statePartlyFilledIn':
+      'Some details are saved and some are still empty.',
+    'appApplicant.appApplicantIdRecordRow.stateStillBeingChecked':
+      'The file is saved and we are still checking and reading it.',
+    'appApplicant.appApplicantIdRecordRow.stateNothingSavedYet':
+      'No details are saved in this section yet.',
+    'appApplicant.appApplicantIdRecordRow.stateAllDetailsSaved':
+      'Every detail in this section is saved.',
+    'appApplicant.appApplicantIdRecordRow.stateCannotBeUsed':
+      'The file was refused or held back, so it cannot be opened or shared.',
+    'appApplicant.appApplicantIdRecordRow.stateExpired':
+      'The end date has passed, so this copy is no longer valid.',
+    'appApplicant.appApplicantIdRecordRow.statePreviousVersion':
+      'A newer copy replaced this one. It is kept for your history.',
+    'appApplicant.appApplicantIdRecordRow.stateSavedHere': 'Saved in this record.',
   },
   bn: {
     'appApplicant.appApplicantIdAiReview.changeItIfItIsNot': 'গ্রহণ করার আগে এটি ঠিক না হলে বদলে নিন।',
@@ -970,8 +1026,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdImportImportPanel.filesForSeveralPeopleWaitIn':
       'কয়েকজনের ডকুমেন্ট "একটি সিদ্ধান্ত দরকার" অংশে অপেক্ষা করে, যতক্ষণ না আপনি বেছে নেন কোনটি কার।',
     'appApplicant.appApplicantIdImportImportPanel.filesInThisImport': 'এই ইমপোর্টের ডকুমেন্ট',
-    'appApplicant.appApplicantIdImportImportPanel.filesToImport': 'আমদানির ডকুমেন্ট',
-    'appApplicant.appApplicantIdImportImportPanel.folderToImport': 'আমদানির ফোল্ডার',
     'appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou':
       'এর ভেতরের ফোল্ডারগুলোও অন্তর্ভুক্ত হবে। আগে প্রতিটি ডকুমেন্ট কী, তা বলতে হবে না। নিচে প্রতিটি ডকুমেন্টের নিজস্ব সারি থাকবে।',
     'appApplicant.appApplicantIdImportImportPanel.forgetEarlierImports': 'আগের আমদানি ভুলে যান',
@@ -1094,6 +1148,22 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay':
       '{formatDateOnly} তারিখে শেষ হয়েছে। এর তথ্য রেকর্ডে থেকে যায়। এটিকে আবার বর্তমান করতে নিচে একটি পরিবর্তন সংরক্ষণ করুন।',
     'appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller': '✓ ভ্রমণকারী নিজে দিয়েছেন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Cancel': 'বাতিল',
+    'appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow':
+      'এই তথ্যটি এখন দেখানো গেল না। আবার চেষ্টা করুন, অথবা বদলাতে নতুন মান লিখুন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Details': 'বিস্তারিত',
+    'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'সম্পাদনা',
+    'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'লুকান',
+    'appApplicant.appApplicantIdProfileEditor.ess1LeftToAdd': 'যোগ করা বাকি {count}টি',
+    'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
+      'শুধু সেই প্রয়োজনীয় তথ্যগুলো, যা ওপরের পাসপোর্ট পাতায় দেখানো হয় না। এগুলো যোগ করা হলে এই অংশটি সরে যাবে।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Show': 'দেখান',
+    'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'পাওয়া মানটি দেখান',
+    'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
+      'সুরক্ষিত তথ্য: দেখান বেছে না নেওয়া পর্যন্ত মানটি দেখানো হয় না। গ্রহণ করলে অ্যাপের প্রস্তাবিত মানটি সংরক্ষিত হবে।',
+    'appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater': 'একটু পরে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
+      'আপনার প্রোফাইলে এই তথ্যের একটি মান আগে থেকেই আছে। কোনটি রাখা হবে?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'আগে প্রয়োজনীয়গুলো',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'প্রতিটি জরুরি বিষয় যোগ করা হয়েছে। কোনো ভিসা ফাইলে দরকার হলে যেকোনো অংশ থেকে আরও যোগ করুন।',
@@ -1211,5 +1281,8 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdReviewPage.youCanLeaveThisPageWe':
       'আপনি এই পাতা ছেড়ে যেতে পারেন। আমরা কাজ চালিয়ে যাব, আর তথ্য প্রস্তুত হলে হোম আপনাকে জানাবে।',
     'appApplicant.appApplicantIdReviewPage.yourFilesAreSaved': 'আপনার ডকুমেন্টগুলো সংরক্ষণ করা হয়েছে',
+    // WP-U6 All Records rows (18 Nov 2026): the first sentence of the existing Bengali description.
+    'appApplicant.appApplicantIdRecordRow.allRecordsIntro':
+      '{displayName}-এর জন্য সংরক্ষিত সবকিছু এক জায়গায়।',
   },
 });

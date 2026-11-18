@@ -16,6 +16,7 @@ import {
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
+import { AcceptFold } from '../../u7-rows';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
 
@@ -115,30 +116,36 @@ export default async function AcceptClientInvitationPage({
               )}
               .
             </p>
-            <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
-              {t.node('appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe')}
-            </p>
-            {terms ? (
-              <>
-                <ul style={{ margin: '0 0 1.25rem', paddingLeft: '1.25rem' }}>
-                  {terms.agencyCan.map((sentence) => (
-                    <li key={sentence} className="muted u-fs-085">
-                      {sentence}
-                    </li>
-                  ))}
-                </ul>
-                {terms.agencyCannot ? <p className="card-body">{terms.agencyCannot}</p> : null}
-                <p className="card-body" data-testid="client-access-duration">
-                  {clientAccessDurationLine(GRANT_DEFAULT_DURATION_DAYS)}
-                </p>
-              </>
-            ) : (
-              <p className="card-body">
+            <AcceptFold
+              title={t.node('appClientInvitations.appClientInvitationsU7.whatYouAgreeTo')}
+            >
+              <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
                 {t.node(
-                  'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight',
+                  'appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe',
                 )}
               </p>
-            )}
+              {terms ? (
+                <>
+                  <ul style={{ margin: '0 0 1.25rem', paddingLeft: '1.25rem' }}>
+                    {terms.agencyCan.map((sentence) => (
+                      <li key={sentence} className="muted u-fs-085">
+                        {sentence}
+                      </li>
+                    ))}
+                  </ul>
+                  {terms.agencyCannot ? <p className="card-body">{terms.agencyCannot}</p> : null}
+                  <p className="card-body" data-testid="client-access-duration">
+                    {clientAccessDurationLine(GRANT_DEFAULT_DURATION_DAYS)}
+                  </p>
+                </>
+              ) : (
+                <p className="card-body">
+                  {t.node(
+                    'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight',
+                  )}
+                </p>
+              )}
+            </AcceptFold>
 
             {!terms ? null : !coreGranted || !sharingGranted ? (
               <>

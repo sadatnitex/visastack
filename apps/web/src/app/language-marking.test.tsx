@@ -127,10 +127,12 @@ describe('the home page under Bengali (an English page)', () => {
     const { doc, pageLang } = await pageHtml('home', 'bn');
     expect(pageLang).toBe('en');
     const r = wrongLanguage(doc, pageLang, homeCatalog as unknown as Catalogue);
-    expect(r.bengaliSeen.length).toBeGreaterThan(10);
+    // R1: the Home page keeps three catalogued messages (the pilot line and two buttons); the
+    // rest of its words are English text on an English page until the localization lane adds them.
+    expect(r.bengaliSeen.length).toBeGreaterThanOrEqual(3);
     expect(r.bengaliNotBn).toEqual([]);
     expect(r.anyBengaliScriptNotBn).toEqual([]);
-    expect(doc.querySelectorAll('span[lang="bn"]').length).toBeGreaterThan(10);
+    expect(doc.querySelectorAll('span[lang="bn"]').length).toBeGreaterThanOrEqual(3);
     expect(doc.querySelectorAll('[lang="en"]').length).toBe(0);
   });
 

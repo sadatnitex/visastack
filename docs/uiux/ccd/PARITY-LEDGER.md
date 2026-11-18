@@ -352,8 +352,8 @@ Guard: `apps/web/src/lib/experience-parity.test.ts` over the map in `apps/web/sr
 | Before P13 (traveller sidebar) | After P13 | Address |
 |---|---|---|
 | Home (tab) | Home (tab, unchanged) | `/app/applicant/{id}` |
-| Record (tab) | More Tools: Record; its sections light up My Documents | `/app/applicant/{id}/record` |
-| (Record section) Documents | My Documents (tab), with the task Add Documents | `/app/applicant/{id}/documents` |
+| Record (tab) | More Tools: Record; its sections light up My Record | `/app/applicant/{id}/record` |
+| (Record section) Documents | My Record (tab, renamed from My Documents 17 Nov 2026), with the task Add Documents | `/app/applicant/{id}/documents` |
 | Cases (tab) | My Trips (tab), with the task Start a Trip | `/app/applicant/{id}/missions` |
 | Sharing (tab) | Sharing & Requests (tab) | `/app/applicant/{id}/sharing` |
 | Notifications, Countries | unchanged (under More on a phone) | `/app/notifications`, `/app/countries` |
@@ -613,3 +613,14 @@ Held by `parity-case.test.tsx` through three approved changes in `approved-chang
 | Stage names Draft, Intake, In Review, Awaiting Traveller, Submission Ready (and older ones) | Getting Started, Gathering Documents, Being Checked, Needs You, Ready to Submit, Submitted, Closed, Cancelled | Cases, glance line |
 
 Held by `parity-cases.test.tsx` through the approved changes in `approved-changes.ts`, by `page.test.tsx` and by `components/case-list-row.test.tsx`.
+
+## Trip Package as a journey line with gaps (WAL3, 18 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| Outside VisaStack: a bullet list of full sentences | One row of four pictures (Form, Book, Bring, Pay), each with its full sentence in an Explain popup; a step the checklist adds stays a plain line | Case, Trip Package |
+| The paragraphs "This shows what you have ready ...", the file-choice hint, "VisaStack does not do these for you ..." and "Travelling with others? ..." | The same sentences in the Explain popup of the Trip Package heading; "Nothing is sent until you share it yourself." stays as a visible line; Start a Trip is a button in the heading | Case, Trip Package |
+| A gap in the package was told only in a list of reasons | Stones on one line (solid ring and tick is ready, dashed ring and cross is a gap), at most five in view, the rest scroll inside the card; each gap has one line and one button that opens the item's own panel | Case, above Trip Package, at every depth |
+| Case Details and Trip Date Checks: a native fold with a summary row on a phone, the card on a wide screen | The same behaviour as an Expandable Section with a one-line summary (the date check status is now said in the summary line, not a separate chip) | Case rail |
+
+Held by `trip-journey-line.test.tsx`, `case-rail.test.tsx`, `case-structure.test.tsx` and `e2e/scroll-budget/WAL3.spec.ts`. "This shows what you have ready ... nothing is sent until you share it yourself" and every id (#trip-package, #trip-checks) and link are unchanged.

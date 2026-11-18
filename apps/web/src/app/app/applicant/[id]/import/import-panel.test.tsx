@@ -23,9 +23,9 @@ vi.mock('../documents/manage/delete/actions', () => ({
 const sameAccount = vi.hoisted(() => vi.fn(async (_key: string) => true));
 vi.mock('./upload-account-action', () => ({ isSameUploadAccountAction: sameAccount }));
 
-const { ImportPanel, LINES_SHOWN_FIRST, BUSY_LINE, HELD_LINE, OFFLINE_LINE } = await import(
-  './import-panel'
-);
+const { ImportPanel, LINES_SHOWN_FIRST, BUSY_LINE, HELD_LINE, OFFLINE_LINE, FOLDER_FALLBACK_LINE } =
+  await import('./import-panel');
+const { folderPickerSupported } = await import('../../../../../lib/import/folder-entries');
 const { UPLOAD_UNKNOWN_OUTCOME } = await import('../document-uploader');
 
 class FakeRequest {
@@ -162,11 +162,19 @@ describe('the import panel before anything is chosen', () => {
     expect(text).toContain('Up to 4 MB per file; JPG, PNG, HEIC, Word or text files.');
     expect(text).toContain('Up to 200 files in one import.');
     expect(text).toContain('Drop Files or a Folder Here');
-    expect(html).toContain('>Add a Folder</button>');
-    expect(html).toContain('>Choose Files</button>');
+    expect(html).toContain('>Add a Folder</label>');
+    expect(html).toContain('>Choose Files</label>');
     expect(html).toContain('<output class="sr-only import-announce">');
-    // The hidden inputs are reached through the buttons, never by Tab.
-    expect(html.match(/<input[^>]*tabindex="-1"/g)).toHaveLength(2);
+    // Each hidden picker is tied to its drawn label by id, and Tab reaches the picker itself.
+    const page = document.createElement('div');
+    page.innerHTML = html;
+    const fields = [...page.querySelectorAll<HTMLInputElement>('input[type="file"]')];
+    expect(fields).toHaveLength(2);
+    for (const field of fields) {
+      expect(field.tabIndex, 'Tab reaches the field itself').toBe(0);
+      expect(field.getAttribute('aria-hidden')).toBeNull();
+      expect(field.labels?.length, 'one drawn label tied by id').toBe(1);
+    }
   });
 
   it('has no structural accessibility problems', async () => {
@@ -330,6 +338,20 @@ describe('importing many files', () => {
     expect(rows()[1]?.querySelector('.upload-item-status')?.textContent).toBe(
       'Left out. Already in this import, so it was not sent twice.',
     );
+  });
+});
+
+describe('the folder picker', () => {
+  it('says so when the browser has no folder picker, whether the label or the field is used', async () => {
+    await mount();
+    const folder = host.querySelector('[data-testid="import-folder"]') as HTMLInputElement;
+    // Happy DOM and jsdom report no folder picker, as an older phone browser does.
+    expect(folderPickerSupported(folder)).toBe(false);
+    const label = host.querySelector(`label[for="${folder.id}"]`) as HTMLLabelElement;
+    expect(label.textContent).toBe('Add a Folder');
+    expect(host.querySelector('.import-announce')?.textContent).toBe('');
+    await act(async () => folder.click());
+    expect(host.querySelector('.import-announce')?.textContent).toBe(FOLDER_FALLBACK_LINE);
   });
 });
 

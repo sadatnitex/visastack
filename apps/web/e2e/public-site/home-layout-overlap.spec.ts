@@ -22,16 +22,15 @@ const MOTION = ['live', 'reduced'] as const;
 type Problem = { kind: string; detail: string };
 
 /**
- * Pictures whose layers are drawn to overlap or to be cropped by their own frame. The page marks
- * none of them aria-hidden (each is a labelled figure), so they are named here, never by size: the
- * hero phone (a tilted, cropped screen, frozen Harbor C1 art). The exclusion is narrow: words
- * inside the figure may overlap or be cropped only by parts of the same figure. Its words must
- * never overlap words outside it, nothing outside may crop them, and it never scrolls the page.
+ * Pictures whose layers are drawn to overlap on purpose. The Home hero's fanned papers are the only
+ * one (R1): they hold no words at all (their drawings have none), so the exclusion is narrow and
+ * only keeps the deck's own layers from being measured against each other. Words must never overlap
+ * words outside it, and nothing outside may crop them.
  */
-const LAYERED_PICTURES = ['.c1-devices'] as const;
+const LAYERED_PICTURES = ['.kit-deck'] as const;
 
-/** The hero phone runs off the bottom edge of the hero on purpose; that edge may crop it, no other box. */
-const BLEED_FRAMES = ['.c1-hero'] as const;
+/** The deck fans out past the hero's edge while it flies in; that edge may crop it, no other box. */
+const BLEED_FRAMES = ['.hs-hero'] as const;
 
 /** Runs in the page: returns every overlap, clipped line and sideways overflow it finds. */
 async function measure(page: Page): Promise<Problem[]> {
@@ -159,25 +158,48 @@ async function openAndSettle(page: Page, path: string): Promise<void> {
   await page.waitForTimeout(600);
 }
 
-for (const motion of MOTION) {
-  for (const size of SIZES) {
-    test.describe(`Home overlaps, ${motion} motion, ${size.width}x${size.height}`, () => {
-      test.use({
-        viewport: { width: size.width, height: size.height },
-        contextOptions: {
-          reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
-        },
+/** Every public page of the site (WP-PUBFIX): the home page and the four pages added by PUB1 to PUB4. */
+const PAGES = ['/', '/how-it-works', '/trust', '/countries', '/for-agencies'] as const;
+
+for (const path of PAGES) {
+  for (const motion of MOTION) {
+    for (const size of SIZES) {
+      test.describe(`${path} overlaps, ${motion} motion, ${size.width}x${size.height}`, () => {
+        test.use({
+          viewport: { width: size.width, height: size.height },
+          contextOptions: {
+            reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
+          },
+        });
+
+        test('no words overlap, none are cut off, the page never scrolls sideways', async ({
+          page,
+        }) => {
+          await openAndSettle(page, path);
+          // The motion setting really reached the page (a wrong option name is silently ignored).
+          const reduced = await page.evaluate(
+            () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+          );
+          expect(reduced).toBe(motion === 'reduced');
+          const problems = await measure(page);
+          expect(problems, JSON.stringify(problems, null, 2)).toEqual([]);
+        });
       });
+    }
+  }
+}
+
+// Without JavaScript every scene is a normal section showing its finished step: same rules.
+for (const path of PAGES) {
+  for (const size of [SIZES[1], SIZES[5]]) {
+    test.describe(`${path} overlaps, JavaScript off, ${size.width}x${size.height}`, () => {
+      test.use({ viewport: { width: size.width, height: size.height }, javaScriptEnabled: false });
 
       test('no words overlap, none are cut off, the page never scrolls sideways', async ({
         page,
       }) => {
-        await openAndSettle(page, '/');
-        // The motion setting really reached the page (a wrong option name is silently ignored).
-        const reduced = await page.evaluate(
-          () => matchMedia('(prefers-reduced-motion: reduce)').matches,
-        );
-        expect(reduced).toBe(motion === 'reduced');
+        const response = await page.goto(path);
+        expect(response?.status()).toBe(200);
         const problems = await measure(page);
         expect(problems, JSON.stringify(problems, null, 2)).toEqual([]);
       });
@@ -185,9 +207,9 @@ for (const motion of MOTION) {
   }
 }
 
-// Baseline only: other public pages are measured and reported, not fixed here (HOT1 scope).
+// Baseline only: the older public pages are measured and reported, not fixed here.
 // Set HOT1_BASELINE=1 to run it; it prints findings and never fails.
-const BASELINE_PAGES = ['/trust', '/privacy', '/terms'] as const;
+const BASELINE_PAGES = ['/privacy', '/terms'] as const;
 for (const path of BASELINE_PAGES) {
   test.describe(`Baseline overlaps on ${path}`, () => {
     test.skip(

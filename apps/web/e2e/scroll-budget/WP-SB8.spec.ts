@@ -31,86 +31,37 @@ test.describe('WP-SB8 landing page', () => {
   }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     await page.goto('/');
-    await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('#hs-hero-title')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.hs-hero .pub-button-primary')).toBeInViewport({ ratio: 1 });
     await expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'enforce' });
     // Desktop: 12 screens since WP-PUB2 (owner decision, 17 Nov 2026), for the pinned scroll scenes.
     await expectWithinBudget(page, { screens: 12, viewport: 'desktop' });
   });
 
-  test('opening every story group still leaves no sideways scroll, and the closed page breaks without the groups', async ({
+  test('the page keeps its pictures finished and still on a phone, with no sideways scroll', async ({
     page,
   }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     await page.goto('/');
-    await page.evaluate(() => {
-      for (const group of document.querySelectorAll('details.land-group')) {
-        group.setAttribute('open', '');
-      }
-    });
-    // Everything open is what the page was before WP-SB8: over budget, which proves the check bites.
-    await expect(
-      expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'enforce' }),
-    ).rejects.toThrow(/page height at phone/);
+    await expect(page.locator('details')).toHaveCount(0);
+    for (const name of ['hero', 'add', 'ready', 'journey', 'share']) {
+      const stage = page.locator(`[data-scene="${name}"] .pub-scene-stage`);
+      await expect(stage, name).not.toHaveCSS('position', 'sticky');
+    }
     const sideways = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(sideways).toBeLessThanOrEqual(0);
+    await noSeriousAxe(page, 'main');
   });
 
-  test('the menu links open their group, and a closed group opens from the keyboard', async ({
-    page,
-  }) => {
+  test('the anchors other pages link to land on their chapters', async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.phone);
-    // A full load into a group's address opens it.
-    await page.goto('/#for-agencies');
-    await expect(page.locator('#for-agencies')).toHaveAttribute('open', '');
-    await expect(page.getByText('Stop Chasing Documents by Message')).toBeInViewport();
-    // The site menu moves within the page; its link still opens the group it names.
-    await page.goto('/');
-    const menu = page.getByRole('button', { name: 'Menu', exact: true });
-    await menu.click();
-    await page.getByRole('link', { name: 'How It Works', exact: true }).click();
-    // WP-PUB3 (approved guard correction): the link opens the How It Works page, not a home group.
-    await expect(page).toHaveURL(/\/how-it-works$/);
-    await expect(page.locator('main h1')).toHaveCount(1);
-    // The groups below are on the home page.
-    await page.goto('/');
-    await page.locator('#how-it-works > summary').focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('#how-it-works')).toHaveAttribute('open', '');
-    await expect(page.getByText('Add Your Details Once')).toBeInViewport();
-    // The keyboard opens any other group; groups open independently.
-    const summary = page.locator('#problem > summary');
-    await summary.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('#problem')).toHaveAttribute('open', '');
-    await expect(page.getByText('Without One Profile')).toBeVisible();
-    await expect(page.locator('#capabilities')).not.toHaveAttribute('open', '');
-    await noSeriousAxe(page, '.land-story');
-  });
-
-  test('on a phone the product cards sit in one row that scrolls inside itself', async ({
-    page,
-  }) => {
-    await page.setViewportSize(VIEWPORTS.phone);
-    await page.goto('/');
-    const row = page.locator('.c1-bento');
-    const facts = await row.evaluate((element) => ({
-      display: getComputedStyle(element).display,
-      scrolls: element.scrollWidth > element.clientWidth,
-      tops: [...element.children].map((child) => Math.round(child.getBoundingClientRect().top)),
-    }));
-    expect(facts.display).toBe('flex');
-    expect(facts.scrolls).toBe(true);
-    expect(new Set(facts.tops).size).toBe(1);
-    await row.focus();
-    await expect(row).toBeFocused();
-    await noSeriousAxe(page, '#product');
-    // On a desktop the reference grid stays, and the row is no longer a keyboard stop.
-    await page.setViewportSize(VIEWPORTS.desktop);
-    expect(await row.evaluate((element) => getComputedStyle(element).display)).toBe('grid');
-    await expect(row).not.toHaveAttribute('tabindex', /.*/);
+    for (const id of ['how-it-works', 'capabilities', 'for-agencies', 'start']) {
+      await page.goto('about:blank');
+      await page.goto(`/#${id}`);
+      await expect(page.locator(`#${id}`), id).toBeInViewport({ ratio: 0.1 });
+    }
   });
 });
 
@@ -185,3 +136,32 @@ test.describe('WP-SB8 country list', () => {
     ).rejects.toThrow(/page height at phone/);
   });
 });
+
+/**
+ * WP-PUBFIX: the home page and the public country list stay at least 2 percent under the 6-screen
+ * phone limit in English and in Bengali (the language choice is the visastack_locale cookie), so a
+ * longer line or a longer language never breaks the budget. 6 screens x 0.98 = 5.88 screens.
+ */
+const MARGIN_SCREENS = 5.88;
+
+for (const language of ['en', 'bn'] as const) {
+  for (const path of ['/', '/countries'] as const) {
+    test.describe(`WP-PUBFIX ${path} in ${language === 'bn' ? 'Bengali' : 'English'}`, () => {
+      test('fits 2 percent under 6 screens on a phone', async ({ page }) => {
+        if (language === 'bn') {
+          // Bengali is chosen through the real header switch (on a computer, where it is always
+          // visible); the choice then stays for the phone-size load below.
+          await page.setViewportSize(VIEWPORTS.desktop);
+          await page.goto('/');
+          await page.locator('.lang-switch').click();
+          await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
+        }
+        await page.setViewportSize(VIEWPORTS.phone);
+        const response = await page.goto(path);
+        expect(response?.status()).toBe(200);
+        await expect(page.locator('html')).toHaveAttribute('data-locale', language);
+        await expectWithinBudget(page, { screens: MARGIN_SCREENS, viewport: 'phone' });
+      });
+    });
+  }
+}

@@ -74,17 +74,14 @@ test('public pages load nothing from another site', async ({ page, baseURL }) =>
  */
 test('the flat check catches a shadow on a chip inside a dark chapter', async ({ page }) => {
   const spec = readFileSync(join(__dirname, '..', 'ux-public.spec.ts'), 'utf8');
-  expect(spec).toContain(
-    "element.closest('.c1-hero, .c1-darkstage') ||\n                element.hasAttribute('data-pub-depth')",
-  );
+  expect(spec).toContain("if (element.hasAttribute('data-pub-depth')) return false;");
   await page.setContent(
     '<section class="pub-chapter-dark" data-pub-depth style="background-image: radial-gradient(#1d4c98, #0b1a30)"><h2>Chapter</h2><span class="pub-chip" style="box-shadow: 0 1px 2px #000">Saved</span></section>',
   );
   const flagged = await page.locator('body').evaluate((body) =>
     [...body.querySelectorAll('*')]
       .filter((element) => {
-        if (element.closest('.c1-hero, .c1-darkstage') || element.hasAttribute('data-pub-depth'))
-          return false;
+        if (element.hasAttribute('data-pub-depth')) return false;
         const css = getComputedStyle(element);
         return (
           css.boxShadow !== 'none' ||
@@ -132,17 +129,44 @@ test.describe('the early scenes mark', () => {
     expect((await response.body()).byteLength).toBeLessThan(1024);
   });
 
-  for (const [name, setup] of [
-    ['reduced motion', (page: Page) => page.emulateMedia({ reducedMotion: 'reduce' })],
-    ['a phone screen', (page: Page) => page.setViewportSize({ width: 390, height: 844 })],
-    ['a short screen', (page: Page) => page.setViewportSize({ width: 1280, height: 560 })],
+  // Owner, 18 Nov 2026: reduced motion gets the gentle mode (fades), on every screen.
+  for (const [width, height] of [
+    [1280, 900],
+    [390, 844],
   ] as const)
-    test(`stays off with ${name}`, async ({ page }) => {
-      await page.setViewportSize({ width: 1280, height: 900 });
-      await setup(page);
+    test(`marks gentle with reduced motion at ${width} x ${height}`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.setViewportSize({ width, height });
       await blockReact(page);
       await page.goto('/');
-      await expect(page.locator('html')).not.toHaveAttribute('data-scenes', /.*/);
+      await expect(page.locator('html')).toHaveAttribute('data-scenes', 'gentle');
+      await expect(page.locator('html')).toHaveAttribute('data-scene-mode', 'gentle');
+    });
+
+  test('keeps motion on with data saver: the same mode as without it', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'connection', { value: { saveData: true } });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await blockReact(page);
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'reveal');
+  });
+
+  // MOT1 (owner, 18 Nov 2026): a phone, a short or a zoomed window reveals instead of staying still.
+  for (const [name, width, height] of [
+    ['a phone screen', 390, 844],
+    ['a short screen', 1280, 560],
+  ] as const)
+    test(`marks reveal, not pinned, on ${name}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await blockReact(page);
+      await page.goto('/');
+      await expect(page.locator('html')).toHaveAttribute('data-scenes', 'reveal');
+      await expect(page.locator('html')).toHaveAttribute('data-scene-mode', 'reveal');
     });
 });
 

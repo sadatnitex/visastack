@@ -56,6 +56,9 @@ export const appTripsCatalog = defineCatalog({
     'appTrips.appTripsTripForms.withAnEmailTheyAreInvited':
       'With an email, they are invited to join and choose what to share with you.',
     'appTrips.appTripsTripForms.yesRemoveName': 'Yes, Remove: {name}',
+    // WP-U7 traveller screens on the Wallet foundation (18 Nov 2026): English first, Bengali draft below, until the localization lane signs the Bengali off (docs/upgrades/programme/wal/U7-records.md).
+    'appTrips.appTripsU7.noGroupTripsYetTitle': 'No Group Trips Yet',
+    // end WP-U7
   },
   bn: {
     'appTrips.appTripsIdPage.thisTripIsNotAvailable': 'এই ট্রিপটি পাওয়া যাচ্ছে না।',
@@ -102,5 +105,8 @@ export const appTripsCatalog = defineCatalog({
     'appTrips.appTripsTripForms.whoSTravelling': 'কে কে ভ্রমণ করছেন?',
     'appTrips.appTripsTripForms.withAnEmailTheyAreInvited':
       'ইমেইল দিলে তাঁকে যোগ দিতে আমন্ত্রণ জানানো হয় এবং তিনি আপনার সঙ্গে কী শেয়ার করবেন তা বেছে নিতে পারেন।',
+    // WP-U7 (Bengali draft)
+    'appTrips.appTripsU7.noGroupTripsYetTitle': 'এখনও কোনো গ্রুপ ট্রিপ নেই',
+    // end WP-U7
   },
 });

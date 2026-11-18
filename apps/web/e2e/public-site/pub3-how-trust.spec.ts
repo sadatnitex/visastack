@@ -17,7 +17,7 @@ const VIEWPORTS = [
 ] as const;
 const FIRST_SCREEN_WORDS = 30;
 
-/** Words a visitor reads in the first screen of the page's own content (the pilot notice and the
+/** Words a visitor reads in the first screen of the page's own content, the share-sheet picture excluded (the pilot notice and the
  *  shared header are the same on every page and are counted by their own checks). */
 async function firstScreenWords(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -32,6 +32,8 @@ async function firstScreenWords(page: Page): Promise<number> {
       if (!parent) continue;
       const style = getComputedStyle(parent);
       if (style.visibility === 'hidden' || style.display === 'none') continue;
+      // Words drawn inside the share-sheet picture belong to the drawing, not to the copy a visitor reads.
+      if (parent.closest('.kit-sheet')) continue;
       const range = document.createRange();
       range.selectNodeContents(node);
       const box = range.getBoundingClientRect();
@@ -81,41 +83,41 @@ for (const { name, width, height } of VIEWPORTS) {
 }
 
 for (const route of PAGES) {
-  test(`${route} pins each scene to one screen at 760 x 600 and every step fits`, async ({
+  // R2: the rebuilt How It Works page has no pinned scene (it rises in on scroll). R3: nor has the
+  // Privacy and Trust page (its hero is a picture on a timer with its own pause button), so it must
+  // stay that way: nothing to pin, nothing to overflow.
+  if (route === '/trust')
+    test(`${route} has no pinned scene at 760 x 600`, async ({ page }) => {
+      await page.setViewportSize({ width: 760, height: 600 });
+      await page.goto(route);
+      await expect(page.locator('main h1')).toHaveCount(1);
+      await expect(page.locator('.pub-scene-stage')).toHaveCount(0);
+    });
+
+  test(`${route} with reduced motion is the gentle mode: nothing pins and every scene ends finished`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 760, height: 600 });
-    await page.goto(route);
-    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-    const stages = page.locator('.pub-scene-stage');
-    const count = await stages.count();
-    expect(count).toBeGreaterThan(0);
-    for (let at = 0; at < count; at++) {
-      const fits = await stages.nth(at).evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
-      expect(fits, `stage ${at}`).toBe(true);
-    }
-  });
-
-  test(`${route} with reduced motion shows every scene finished and still`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(route);
-    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', 'live');
-    const unfinished = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-scene]')]
-        .filter(
-          (el) =>
-            Number(el.getAttribute('data-step')) !== Number(el.getAttribute('data-steps')) - 1,
-        )
-        .map((el) => el.getAttribute('data-scene')),
-    );
-    expect(unfinished).toEqual([]);
+    // Owner, 18 Nov 2026: reduced motion gets gentle fading, never the pinned mode.
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'gentle');
+    const scenes = page.locator('[data-scene]');
+    for (let at = 0; at < (await scenes.count()); at++) {
+      const scene = scenes.nth(at);
+      await scene.scrollIntoViewIfNeeded();
+      const steps = Number(await scene.getAttribute('data-steps'));
+      await expect(scene).toHaveAttribute('data-rest', String(steps - 1));
+      await expect(scene).toHaveAttribute('data-step', String(steps - 1));
+      await expect(scene.locator('.pub-scene-stage')).not.toHaveCSS('position', 'sticky');
+    }
   });
 
   test(`${route} below 900 px is stills: nothing is pinned`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(route);
-    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', 'live');
+    // MOT1: a phone reveals (plays once as scenes come into view) instead of pinning.
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'reveal');
     const pinned = await page.evaluate(
       () =>
         [...document.querySelectorAll('.pub-scene-stage')].filter(
@@ -158,7 +160,8 @@ test.describe('the trust list without JavaScript', () => {
   }) => {
     await page.goto('/how-it-works');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByText('Ready to Submit', { exact: true }).first()).toBeAttached();
+    await expect(page.getByText('Words Mean Exactly').first()).toBeAttached();
+    await expect(page.getByText('No one has checked it yet.')).toBeAttached();
     await page.goto('/trust');
     await expect(page.locator('#trust-story-title')).toBeVisible();
     await expect(page.getByText('Access Ended').first()).toBeAttached();

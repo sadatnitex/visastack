@@ -26,11 +26,16 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidAgencyAiTurnOff.turnOffApplabel': 'Turn Off {appLabel}',
     'appAgency.appAgencyOrgidAiConnectionsPage.aiConnections': 'AI Connections',
     'appAgency.appAgencyOrgidAiConnectionsPage.aiTools': 'AI Tools',
+    'appAgency.appAgencyOrgidAiConnectionsPage.connectedBy': 'Connected By',
     'appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect':
       'An owner or admin can connect one from the AI app, once AI Connections for This Agency is on in Settings.',
     'appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase':
       'Each app reads, for each case its owner or admin can see, only what that case’s traveller allowed this agency’s AI tools to read. It works for at most 30 days.',
     'appAgency.appAgencyOrgidAiConnectionsPage.noAiAppsConnected': 'No AI Apps Connected',
+    'appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowed':
+      'What Each Traveller Allowed',
+    'appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowedNote':
+      'For each case its owner or admin can see, the app reads only what that case’s traveller allowed this agency’s AI tools to read.',
     'appAgency.appAgencyOrgidBrandingForm.087a68': '#087a68',
     'appAgency.appAgencyOrgidBrandingForm.accentColour': 'Accent Colour',
     'appAgency.appAgencyOrgidBrandingForm.accentColourAsASixDigit':
@@ -765,6 +770,13 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyPage.youBecomeTheOwnerNewOrganizations':
       'You become the owner. New organizations start pending verification by a platform administrator.',
     'appAgency.appAgencyPage.yourOrganizations': 'Your Organizations',
+    // WP-U8 agency screens on the Wallet foundation (18 Nov 2026): English only until the localization lane writes Bengali (docs/upgrades/programme/wal/U8-records.md).
+    'appAgency.appAgencyOrgidU8.addMember': 'Add Member',
+    'appAgency.appAgencyOrgidU8.addNote': 'Add Note',
+    'appAgency.appAgencyOrgidU8.addTask': 'Add Task',
+    'appAgency.appAgencyOrgidU8.openSettings': 'Open Settings',
+    'appAgency.appAgencyOrgidU8.schedule': 'Schedule',
+    // end WP-U8
   },
   bn: {
     'appAgency.appAgencyCreateOrgForm.organizationName': 'প্রতিষ্ঠানের নাম',

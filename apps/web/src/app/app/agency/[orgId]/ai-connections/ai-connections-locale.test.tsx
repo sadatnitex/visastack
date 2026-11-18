@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationState, renderServer } from '../../../../../lib/next-mocks.test-support';
 import { missingBengali } from '../../agency-bn.test-support';
@@ -60,5 +61,64 @@ describe('AI connections under Bengali', () => {
     const html = await draw('en');
     expect(html).toContain('No AI Apps Connected');
     expect(html).not.toMatch(/[ঀ-৿]/);
+  });
+
+  it('with connections: one tile each, its clock, Last Used and Turn Off (WAL5)', async () => {
+    const day = 86_400_000;
+    const now = Date.now();
+    mocks.list.mockResolvedValue({
+      ok: true,
+      value: {
+        available: true,
+        connections: [
+          {
+            id: 'c1',
+            clientName: 'Claude',
+            clientHost: 'claude.ai',
+            connectedBy: 'admin@example.com',
+            createdAt: new Date(now - day),
+            endsAt: new Date(now + 29 * day + 3_600_000),
+            lastUsedAt: null,
+            live: true,
+          },
+          {
+            id: 'c2',
+            clientName: 'ChatGPT',
+            clientHost: 'chatgpt.com',
+            connectedBy: 'admin@example.com',
+            createdAt: new Date(now - 3 * day),
+            endsAt: new Date(now + 4 * day),
+            lastUsedAt: new Date(now - day),
+            live: false,
+          },
+        ],
+      },
+    });
+    const html = await draw('en');
+    expect(html.match(/data-ai-tile=""/g)).toHaveLength(2);
+    const [live = '', ended = ''] = html.split('data-ai-tile=""').slice(1);
+    expect(live).toContain('data-state="running"');
+    expect(live).toMatch(/29 Days Left|30 Days Left/);
+    expect(live).toContain('Not Used Yet');
+    expect(live).toContain('<span class="sr-only">What Each Traveller Allowed</span></button>');
+    expect(live).toContain('Turn Off');
+    // Ended by the services (turned off before its end): the tile says Ended, whatever the end says.
+    expect(ended).toContain('data-state="ended"');
+    expect(ended).not.toContain('Days Left');
+    // Turned off before its end: Ended, with no Ends and no date the page cannot know.
+    expect(ended).not.toContain('<dt>Ends</dt>');
+    expect(ended).toMatch(/<span class="ai-tile-left">Ended<\/span>/);
+    expect(ended).toContain('admin@example.com');
+    const bn = await draw('bn');
+    expect(bn).not.toMatch(/appAgency\./);
+    expect(bn).not.toMatch(/components\./);
+  });
+});
+
+describe('AI connections empty state (U8)', () => {
+  it('is not a dead end: it links to the Agency Settings page, with no anchor that might be missing', async () => {
+    const doc = new JSDOM(`<body>${await draw('en')}</body>`).window.document;
+    const action = [...doc.querySelectorAll('a')].find((a) => a.textContent === 'Open Settings');
+    expect(action?.getAttribute('href')).toBe('/app/agency/o1/settings');
   });
 });

@@ -252,9 +252,11 @@ describe('every live Bengali message of the shared components is shown under bn'
 
   it('navigation, notice, time zone, photo, install card', async () => {
     show(
-      <SiteNavigation>
-        <a href="/x">X</a>
-      </SiteNavigation>,
+      <SiteNavigation
+        pages={[{ href: '/x', route: '/x', label: 'X' }]}
+        actions={<a href="/app">Sign In</a>}
+        menuExtras={<a href="/app">Sign In</a>}
+      />,
     );
     show(<VersionNotice copy={{ label: 'L', detail: 'D', short: 'S' } as never} />);
     show(<TimeZoneSelect name="zone" label="Zone" defaultValue="" />);

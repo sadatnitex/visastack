@@ -110,3 +110,17 @@ No new permanent guard is added in this PR. The cheap guard that would have caug
 - Bengali on /privacy, /terms, /status, /invitation and /pilot-access-denied.
 - The signed-in variants (header Countries link to /app/countries, "Open Your Workspace").
 - Contrast beyond what axe measures on the default (finished) step of each scene.
+
+## 8. Fixed in PUBFIX (PR #635)
+
+| # | Fixed by |
+|---|---|
+| D1 | How It Works line now reads "You look over the case before it moves on."; the matching row in PUB-bn-words.csv is changed |
+| D2 | Phone spacing trimmed (landing-c1.css, countries.css); Home and Countries end at or under 4,962 px in English and Bengali; Bengali cases (chosen through the real language switch) added to WP-SB8 |
+| D3 | `.p3-eyebrow` line height 1.25 |
+| D4 | `.pub-scene-stage` top padding 0.5rem (Home scenes keep their own spacing) |
+| D5 | For Agencies button words read the Home catalogue entries |
+| D6 | Countries and For Agencies use publicText and pass the page language to shared parts |
+| D7 | 44 px targets for header links, language switch, footer links, pilot notice link and Hide button |
+
+Guard (section 6): home-layout-overlap.spec.ts now covers all five public pages plus a JavaScript-off pass.

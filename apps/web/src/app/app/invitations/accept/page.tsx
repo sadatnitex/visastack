@@ -6,6 +6,7 @@ import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { membershipRoleLabel } from '../../../../lib/labels';
 import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
+import { AreaPicture, TravellerRow } from '../../u7-rows';
 import { AcceptInvitationForm } from './accept-form';
 
 export const metadata: Metadata = {
@@ -67,7 +68,13 @@ export default async function AcceptInvitationPage({
           </p>
         ) : (
           <>
-            <p className="card-body">
+            <TravellerRow
+              headingLevel={2}
+              title={preview.value.organizationName}
+              picture={<AreaPicture mark={{ icon: 'building', tone: 'blue' }} />}
+              chip={{ label: membershipRoleLabel(preview.value.role), tone: 'info' }}
+            />
+            <p className="card-body u-mt-100">
               You&apos;ve been invited to join <strong>{preview.value.organizationName}</strong> as{' '}
               <strong>{membershipRoleLabel(preview.value.role).toLowerCase()}</strong>.
             </p>

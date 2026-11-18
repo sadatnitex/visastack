@@ -1,22 +1,35 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
-import { FlagRing } from '../../components/public-site/flag-ring';
+import { FlagRibbon } from '../../components/public-countries/flag-ribbon';
+import { TypingSearch } from '../../components/public-countries/typing-search';
+import {
+  ClosingBand,
+  CountryChecklistPanel,
+  FIXTURE_COUNTRIES,
+  FIXTURE_ITEMS,
+  RiseIn,
+} from '../../components/public-site/kit';
 import { PublicButton } from '../../components/public-site/public-button';
-import { Chapter, Scene } from '../../components/public-site/scene';
-import { ScenesRuntime } from '../../components/public-site/scenes-runtime';
-import { HeadlineWords, StoryCard } from '../../components/public-site/story';
+import { publicText } from '../../components/public-site/public-text';
+import { Chapter } from '../../components/public-site/scene';
+import { HeadlineWords } from '../../components/public-site/story';
 import { ShowMore } from '../../components/show-more';
+import { componentsCatalog } from '../../i18n/components';
+import { homeCatalog } from '../../i18n/home';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
+import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
 import type { SearchParamsRecord } from '../../lib/paging';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
 import {
   NOT_RESEARCHED_WORDS,
   NO_SOURCE_WORDS,
-  RING_CODES,
+  RIBBON_FLAGS,
+  SEARCH_INDEX,
   countriesWindow,
   firstNewRowId,
   rowId,
+  searchQueryOf,
 } from './countries-data';
 import './countries.css';
 
@@ -39,6 +52,11 @@ export default function CountriesPage(props: CountriesProps): Promise<ReactEleme
  * a plain `?show=` link, so the page works without script.
  */
 export default async function CountriesPage(props?: CountriesProps): Promise<ReactElement> {
+  await primeLocale();
+  const lang = getPageLanguage();
+  const say = (text: string) => publicText(text, lang);
+  const t = getServerT(homeCatalog);
+  const tc = getServerT(componentsCatalog);
   const params: SearchParamsRecord = (await props?.searchParams) ?? {};
   const view = countriesWindow(params);
   const signedIn = await isSignedIn();
@@ -46,28 +64,46 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
   const startFor = (iso2: string) =>
     signedIn ? appHrefForCountry(iso2) : startHrefForCountry(iso2, signUpOpen);
   const landOn = firstNewRowId(view);
+  const query = searchQueryOf(params);
+  // The start button reads the same words and goes the same way as For Agencies and Home.
+  const startHref = !signedIn && signUpOpen ? '/auth/sign-up' : '/app';
+  const startLabel = signedIn
+    ? t.node('home.page.openYourWorkspace')
+    : signUpOpen
+      ? t.node('home.page.createYourFreeAccount')
+      : t.node('home.page.signInToGetStarted');
 
   return (
     <>
-      <Chapter tone="dark" labelledBy="countries-title" className="pub4c-hero">
-        <div className="container pub4c-hero-grid">
-          <div className="pub4c-hero-copy">
-            <h1 id="countries-title" className="pub4c-title">
-              Countries, <HeadlineWords>With Their Sources</HeadlineWords>
-            </h1>
-            <p className="pub4c-lede">
-              Visa facts for Bangladeshi passports, with sources. Always confirm on the official
-              page.
-            </p>
-          </div>
-          <FlagRing codes={RING_CODES} label="Countries We Hold" />
+      <Chapter tone="dark" labelledBy="countries-title" className="r4-hero">
+        <div className="container r4-hero-inner">
+          <h1 id="countries-title" className="r4-title">
+            {say('Every Country.')} <HeadlineWords>{say('With Its Sources.')}</HeadlineWords>
+          </h1>
+          <p className="r4-lede">
+            {say(
+              'Pick where you are going and see what you need, with the official page for each rule.',
+            )}
+          </p>
+          <TypingSearch
+            index={SEARCH_INDEX}
+            initialQuery={query}
+            signedIn={signedIn}
+            signUpOpen={signUpOpen}
+          />
         </div>
       </Chapter>
 
-      <Chapter tone="light" labelledBy="countries-list-title" className="pub4c-list-chapter">
-        <div className="container">
-          <h2 id="countries-list-title" className="pub4c-h2">
-            All Countries
+      <Chapter tone="light" labelledBy="countries-list-title" className="r4-list-chapter">
+        <FlagRibbon
+          flags={RIBBON_FLAGS}
+          href="#countries-list"
+          linkLabel={tc.node('components.countryBrowser.allCountries')}
+          pageLang={lang}
+        />
+        <div className="container" id="countries-list">
+          <h2 id="countries-list-title" className="r4-h2">
+            {say('All Countries')}
           </h2>
           <ul className="pub4c-rows" aria-label="Countries">
             {view.rows.map((row) => (
@@ -91,30 +127,31 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
                   <span className="pub4c-flag pub4c-flag-none" aria-hidden="true" />
                 )}
                 <div className="pub4c-row-text">
-                  <strong className="pub4c-name">{row.name}</strong>
+                  <strong className="pub4c-name">{say(row.name)}</strong>
                   {row.researched ? (
                     <>
                       <span className="pub4c-facts">
-                        {row.entry ? <span>{row.entry}</span> : null}
-                        <span>{row.source ? `Source: ${row.source}` : NO_SOURCE_WORDS}</span>
-                        <span>{row.checked}</span>
+                        {row.entry ? <span>{say(row.entry)}</span> : null}
+                        <span>{say(row.source ? `Source: ${row.source}` : NO_SOURCE_WORDS)}</span>
+                        <span>{row.checked ? say(row.checked) : null}</span>
                       </span>
                       {row.notes.length > 0 ? (
                         <span className="pub4c-notes">
                           {row.notes.map((note) => (
-                            <span key={note}>{note}</span>
+                            <span key={note}>{say(note)}</span>
                           ))}
                         </span>
                       ) : null}
                     </>
                   ) : (
                     <span className="pub4c-facts">
-                      <span>{NOT_RESEARCHED_WORDS}</span>
+                      <span>{say(NOT_RESEARCHED_WORDS)}</span>
                     </span>
                   )}
                 </div>
                 <a className="pub-button pub-button-secondary" href={startFor(row.iso2)}>
-                  Start<span className="sr-only"> With {row.name}</span>
+                  {say('Start')}
+                  <span className="sr-only">{say(` With ${row.name}`)}</span>
                 </a>
               </li>
             ))}
@@ -131,33 +168,54 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
         </div>
       </Chapter>
 
-      <Chapter tone="dark" className="pub4c-read-chapter">
-        <Scene name="read" len={2} steps={3} labelledBy="countries-read-title">
-          <div className="container pub4c-read">
-            <h2 id="countries-read-title" className="pub4c-h2">
-              How to Read These Facts
-            </h2>
-            <div className="pub4c-read-grid">
-              <StoryCard
-                title="Source"
-                body="Each fact we list names the page it came from, where one is given."
-              />
-              <StoryCard
-                title="Checked On"
-                body="The latest day we checked anything for this country. Check the official page before you pay or travel."
-              />
-              <StoryCard
-                title="Not Researched Yet"
-                body="We have not checked this country yet. Use the official page. No date, and no claim."
-              />
+      <Chapter tone="light" labelledBy="countries-rules-title" className="r4-rules-chapter">
+        <div className="container r4-rules">
+          <RiseIn>
+            <div className="r4-rules-copy">
+              <h2 id="countries-rules-title" className="r4-h2">
+                {say('Rules,')} <HeadlineWords>{say('Not Guesses.')}</HeadlineWords>
+              </h2>
+              <p className="r4-lede">
+                {say(
+                  'Each line shows where it came from and when it was last checked. Check the official page before you pay or travel.',
+                )}
+              </p>
+              <p className="r4-source-chip">
+                {say('Source: official page. Checked on an Example date.')}
+              </p>
             </div>
-            <PublicButton href="/for-agencies" variant="secondary">
-              For Agencies
-            </PublicButton>
-          </div>
-        </Scene>
+          </RiseIn>
+          <RiseIn delay={0.1}>
+            <CountryChecklistPanel
+              countries={FIXTURE_COUNTRIES}
+              items={FIXTURE_ITEMS}
+              active={0}
+              pageLang={lang}
+            />
+          </RiseIn>
+        </div>
       </Chapter>
-      <ScenesRuntime />
+
+      <ClosingBand
+        titleId="countries-closing-title"
+        pageLang={lang}
+        title={
+          <>
+            {say('Pick a Country.')} <HeadlineWords>{say('See the Gap.')}</HeadlineWords>
+          </>
+        }
+        sub={say('Add one document and see what the trip still needs.')}
+        actions={
+          <>
+            <PublicButton href={startHref} variant="primary">
+              {startLabel}
+            </PublicButton>
+            <PublicButton href="/for-agencies" variant="secondary">
+              {say('For Agencies')}
+            </PublicButton>
+          </>
+        }
+      />
     </>
   );
 }

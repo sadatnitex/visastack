@@ -1,0 +1,85 @@
+name: Pull Request Signed-in Guard
+
+# A made-up traveller and agency admin, signed in on the CI machine, so upgrades are checked on the
+# real signed-in pages and not only on fixtures (docs/operations/ci-signed-in-guard.md). The
+# unchanged production build runs on this machine against a throwaway Postgres service and a
+# loopback stand-in sign-in service; nothing reaches Vercel, Neon or any real person. This is a
+# separate job and not a required check.
+on:
+  pull_request:
+    # Docs-only changes cannot change a signed-in page.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
+concurrency:
+  group: pr-signed-in-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  signed-in-guard:
+    name: Signed-in guard (made-up people)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the web app
+        run: pnpm --filter @visastack/web build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Run the signed-in guard
+        timeout-minutes: 8
+        working-directory: apps/web/ci-signed-in
+        env:
+          # The service container's own empty database, on this machine only.
+          DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
+          CI_SIGNED_IN_RUN_DIR: ${{ runner.temp }}/guard-run
+        run: bash run.sh
+
+      - name: Upload the browser report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-signed-in-guard-report
+          # Screenshots of made-up pages and the run's logs; never the run's key or tokens.
+          path: |
+            apps/web/test-results/
+            ${{ runner.temp }}/guard-run/*.log
+          retention-days: 7

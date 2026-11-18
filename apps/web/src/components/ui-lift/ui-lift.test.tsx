@@ -616,7 +616,7 @@ function renderedLiftClasses(): Set<string> {
 
 /** Removes each later pass's own whole block (start line to its own end line); nothing else. */
 const LATER_BLOCK_NAMES =
-  '(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+[a-z]?|WALD?[0-9]+)';
+  '(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?|RT[0-9]+|CI|GOOGLE-SIGN-IN|PIC[0-9]+[a-z]?|WALD?[0-9]+|U[0-9]+|FIX[0-9]+|NAV[0-9]+|PUBFIX|ESS[0-9]+)';
 const stripKnownLaterBlocks = (text: string): string =>
   text.replace(
     new RegExp(`/\\* WP-${LATER_BLOCK_NAMES} [\\s\\S]*?/\\* end WP-${LATER_BLOCK_NAMES} \\*/`, 'g'),

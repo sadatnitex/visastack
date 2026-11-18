@@ -42,7 +42,7 @@ PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.sceneEyebrow,"Follow
 PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.sceneTitle,"Every Case Has a Clear Next Step",scene heading
 PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage1,"You pick a country and a route.",stage line (stage name itself is the product's own catalogue word)
 PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage2,"Documents join the case from your vault.",stage line
-PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage3,"A person looks over the case.",stage line
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage3,"You look over the case before it moves on.",stage line
 PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage4,"If something is missing, the case comes back to you.",stage line
 PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage5,"You confirm it, and the case is ready.",stage line
 PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.exampleCase,"Example Case: Japan Visit",drawn case title
