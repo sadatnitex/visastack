@@ -31,6 +31,7 @@
   margin: 0;
   font-size: var(--text-caption);
   font-weight: 700;
+  line-height: 1;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--pub-accent, var(--accent));
@@ -279,12 +280,18 @@
 .pub-chapter.p3-hero {
   display: grid;
   align-items: center;
-  min-height: calc(100svh - 12rem);
+  min-height: min(calc(100svh - 12rem), 28rem);
 }
 
 /* A little tighter than the shared chapter, so the story stays within the page length it is held to. */
 .pub-chapter.p3-ch {
-  padding-block: var(--space-7);
+  padding-block: var(--space-6);
+}
+
+@media (min-width: 760px) {
+  .pub-chapter.p3-ch {
+    padding-block: var(--space-7);
+  }
 }
 
 /* WP-PUB3 public story: the route list as compact rows. One column on a phone, two from 900 px; every
@@ -310,7 +317,7 @@
   margin: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   overflow: hidden;
 }
 

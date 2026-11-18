@@ -17,7 +17,8 @@ function route(n: number): PublicTrustRoute {
     jurisdiction: 'United Kingdom',
     route: 'Visit',
     purpose: 'Tourism',
-    routeDescription: 'Short tourist stays for visitors who plan to travel for leisure.',
+    routeDescription:
+      'Short tourist stays for visitors who plan to travel for leisure, to see family or friends, or to attend a short event.',
     version: 1,
     effectiveDate: null,
     nextReviewDate: null,

@@ -57,7 +57,11 @@ export function PublicTrustStory() {
                 <ol className="p3-moments">
                   <li className="p3-moment">
                     <StatusChip status="saved" pageLang={lang} />
-                    <span>{say('Saved is yours alone. Nobody else can see it.')}</span>
+                    <span>
+                      {say(
+                        'Saved stays yours. Agencies and other people see it only when you share it.',
+                      )}
+                    </span>
                   </li>
                   <li className="p3-moment">
                     <StatusChip status="shared" pageLang={lang} />

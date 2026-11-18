@@ -21,25 +21,21 @@ export const metadata: Metadata = { title: 'How It Works' };
 
 /**
  * The case story (WP-PUB3). The stage names are the product's own words (status-words.ts), in the
- * order a case moves through them. The case drawn here is made up and says so. Submitted never
- * reads as a decision: VisaStack does not know it.
+ * order a case moves through them. The case drawn here is made up and says so. Only stages a case can reach
+ * today are shown: Submitted is not reachable yet (packages/core domain.ts).
  */
 const STAGES = [
   { word: CASE_STATUS.DRAFT.word, line: 'You pick a country and a route.', ready: 0 },
   { word: CASE_STATUS.INTAKE.word, line: 'Documents join the case from your vault.', ready: 2 },
+  { word: CASE_STATUS.IN_REVIEW.word, line: 'A person looks over the case.', ready: 5 },
   {
-    word: CASE_STATUS.IN_REVIEW.word,
-    line: 'VisaStack checks each requirement against what you saved.',
-    ready: 5,
+    word: CASE_STATUS.AWAITING_APPLICANT.word,
+    line: 'If something is missing, the case comes back to you.',
+    ready: 6,
   },
   {
     word: CASE_STATUS.SUBMISSION_READY.word,
-    line: 'Every document on the list is ready.',
-    ready: 8,
-  },
-  {
-    word: CASE_STATUS.SUBMITTED.word,
-    line: 'You sent it. The decision is not ours.',
+    line: 'You confirm it, and the case is ready.',
     ready: 8,
   },
 ] as const;
@@ -143,7 +139,9 @@ export default async function HowItWorksPage(): Promise<ReactElement> {
               example
               pageLang={lang}
               title={say('Saved Is Not Shared')}
-              body={say('A document you save stays yours. Others see it only when you share it.')}
+              body={say(
+                'A document you save stays yours. Agencies and other people see it only when you share it.',
+              )}
             >
               <div className="p3-chips">
                 <StatusChip status="saved" pageLang={lang} />
@@ -155,7 +153,7 @@ export default async function HowItWorksPage(): Promise<ReactElement> {
               pageLang={lang}
               title={say('Received Is Not Reviewed')}
               body={say(
-                'We tell you when a file arrives, and again when someone has looked at it.',
+                'Your agency is told when a file arrives. That is not a review. You are told when it is accepted.',
               )}
             >
               <div className="p3-chips">

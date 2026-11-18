@@ -158,7 +158,7 @@ test.describe('the trust list without JavaScript', () => {
   }) => {
     await page.goto('/how-it-works');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByText('Submitted', { exact: true }).first()).toBeAttached();
+    await expect(page.getByText('Ready to Submit', { exact: true }).first()).toBeAttached();
     await page.goto('/trust');
     await expect(page.locator('#trust-story-title')).toBeVisible();
     await expect(page.getByText('Access Ended').first()).toBeAttached();

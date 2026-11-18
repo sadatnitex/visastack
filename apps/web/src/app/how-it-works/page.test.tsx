@@ -1,3 +1,4 @@
+import { CANONICAL_CASE_STATES, LEGACY_ONLY_MISSION_STATES } from '@visastack/core';
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
 import { CASE_STATUS } from '../../lib/status-words';
@@ -18,8 +19,8 @@ const STAGES = [
   'Getting Started',
   'Gathering Documents',
   'Being Checked',
+  'Needs You',
   'Ready to Submit',
-  'Submitted',
 ];
 
 describe('the How It Works page', () => {
@@ -42,6 +43,14 @@ describe('the How It Works page', () => {
     }
   });
 
+  it('draws only stages a new case can reach: each is in the core stage list, none is Submitted', () => {
+    const reachable = CANONICAL_CASE_STATES.filter((state) => state !== 'SUBMITTED');
+    const words = reachable.map((state) => CASE_STATUS[state].word);
+    for (const word of STAGES) expect(words, word).toContain(word);
+    expect(LEGACY_ONLY_MISSION_STATES).not.toContain('SUBMISSION_READY');
+    expect(STAGES).not.toContain(CASE_STATUS.SUBMITTED.word);
+  });
+
   it('puts the case line in one scene that already shows its finished step without script', async () => {
     const html = await render();
     expect(html).toMatch(/data-scene="case"[^>]*data-len="3"/);
@@ -57,7 +66,8 @@ describe('the How It Works page', () => {
     expect(text).toContain('Completeness only. Not an approval.');
     expect(text).toContain('Suggested');
     expect(text).toContain('Confirmed');
-    // Submitted is never read as a decision.
+    // Submitted is not a stage a case can reach yet, so it is not drawn.
+    expect(text).not.toContain('Submitted');
     expect(text).not.toMatch(/\bApproved\b/);
   });
 
