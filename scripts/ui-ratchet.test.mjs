@@ -152,7 +152,7 @@ test('.ts files are walked for folds (createElement), and only for folds', () =>
  * scripts/ui-ratchet.baseline.json needs the Guardian's approval written in the pull request.
  * When a count goes down, lower both this table and the baseline in the same change.
  */
-const PINNED_TOTALS = { inlineStyles: 399, rawCodes: 0, emDashes: 0, folds: 194 };
+const PINNED_TOTALS = { inlineStyles: 296, rawCodes: 0, emDashes: 0, folds: 193 };
 
 test('the baseline totals are pinned, so the baseline cannot be raised quietly', () => {
   const baseline = JSON.parse(
