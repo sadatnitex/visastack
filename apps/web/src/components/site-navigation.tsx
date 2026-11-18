@@ -85,7 +85,15 @@ export function SiteNavigation({
       className="site-navigation"
       data-open={open ? 'true' : 'false'}
       onBlur={(event) => {
-        if (open && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        // Only focus that moves to an element outside the menu closes it. Safari does not focus a
+        // link on a press, so a blur with no target happens in the middle of a click inside the
+        // menu; presses outside are handled by the pointerdown listener above.
+        if (
+          open &&
+          event.relatedTarget instanceof Node &&
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setOpen(false);
       }}
     >
       <div id={id} className="site-menu-panel">

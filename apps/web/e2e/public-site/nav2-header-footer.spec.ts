@@ -326,6 +326,26 @@ test.describe('header at the edges', () => {
     await expect(button).toHaveAttribute('aria-expanded', 'false');
   });
 
+  test('a blur with no target keeps the menu open, so a press on a menu link still lands', async ({
+    page,
+  }) => {
+    await openPage(page, 390, 'en');
+    const button = page.locator('button.site-menu-toggle');
+    await button.click();
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    // Safari does not focus a link on a press: the focused link blurs with no new target.
+    await page.evaluate(() => {
+      const link = document.querySelector('.site-nav-pages a') as HTMLElement;
+      link.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    });
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await page
+      .getByRole('navigation', { name: 'Site', exact: true })
+      .getByRole('link', { name: 'How It Works', exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/how-it-works$/);
+  });
+
   for (const lang of LANGS) {
     test(`at 320 px with the text enlarged to 200 percent nothing clips or scrolls sideways in ${lang === 'en' ? 'English' : 'Bengali'}`, async ({
       page,
