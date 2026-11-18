@@ -827,75 +827,97 @@ test.describe('authoritative appearance on public routes', () => {
         browser,
         baseURL,
       }) => {
-        await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
-        if (route === '/status') {
-          // Compare the same completed health state and timestamp across fresh renders.
-          // The live clock and unfinished requests must not become appearance differences.
-          await page.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
-        }
-        await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
-        await page.goto(route);
-        if (route === '/status') {
-          await expect(page.getByRole('button', { name: 'Check Now', exact: true })).toBeVisible();
-          await expect(
-            page.getByRole('button', { name: 'Check Now', exact: true }),
-          ).not.toHaveAttribute('aria-disabled', 'true');
-          await expect(page.getByText(/^Updated /)).toBeVisible();
-        }
-        await page.evaluate(() => document.fonts.ready);
-        const light = await page.screenshot({
-          path: test.info().outputPath('appearance-light.png'),
-          animations: 'disabled',
-          caret: 'hide',
-        });
-        await page.emulateMedia({ colorScheme: 'dark' });
-        expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
-          'light',
-        );
-        // Render the second OS preference in a fresh context. Native appearance
-        // emulation can retain rounded-edge raster caches across page reloads.
-        // Both complete renders still have to match every pixel exactly.
         if (!baseURL) throw new Error('A deployment URL is required');
-        const darkPage = await browser.newPage({
-          baseURL,
-          colorScheme: 'dark',
-          reducedMotion: 'reduce',
-          viewport: { width, height: width === 1600 ? 1000 : 844 },
-        });
-        let dark: Buffer;
-        try {
-          if (route === '/status') {
-            await darkPage.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
-          }
-          await darkPage.goto(route);
-          if (route === '/status') {
-            await expect(
-              darkPage.getByRole('button', { name: 'Check Now', exact: true }),
-            ).toBeVisible();
-            await expect(
-              darkPage.getByRole('button', { name: 'Check Now', exact: true }),
-            ).not.toHaveAttribute('aria-disabled', 'true');
-            await expect(darkPage.getByText(/^Updated /)).toBeVisible();
-          }
-          await darkPage.evaluate(() => document.fonts.ready);
-          expect(
-            await darkPage.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
-          ).toBe('light');
-          dark = await darkPage.screenshot({
-            path: test.info().outputPath('appearance-dark.png'),
-            animations: 'disabled',
-            caret: 'hide',
+        const size = { width, height: width === 1600 ? 1000 : 844 };
+        await page.setViewportSize(size);
+        await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+        /**
+         * One complete render in a brand-new page opened at the final size, so both appearances are
+         * rasterised the same way. /status is compared on the same completed health state and
+         * timestamp: the live clock and unfinished requests must not become appearance differences.
+         */
+        const capture = async (colorScheme: 'light' | 'dark', file: string): Promise<Buffer> => {
+          const fresh = await browser.newPage({
+            baseURL,
+            colorScheme,
+            reducedMotion: 'reduce',
+            viewport: size,
           });
-        } finally {
-          await darkPage.close();
+          try {
+            if (route === '/status') {
+              await fresh.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
+            }
+            await fresh.goto(route);
+            if (route === '/status') {
+              const check = fresh.getByRole('button', { name: 'Check Now', exact: true });
+              await expect(check).toBeVisible();
+              await expect(check).not.toHaveAttribute('aria-disabled', 'true');
+              await expect(fresh.getByText(/^Updated /)).toBeVisible();
+            }
+            await fresh.evaluate(() => document.fonts.ready);
+            if (route === '/status') {
+              // The page is painted in steps (the empty list, then the answers), and Chromium
+              // redraws only the changed part each time. The rounded edge of a card redrawn that way
+              // can end one level off a card drawn whole, depending only on timing under load.
+              // Invalidating the whole page and drawing it again makes every capture a full paint.
+              await fresh.evaluate(async () => {
+                const frame = () =>
+                  new Promise<void>((done) => requestAnimationFrame(() => done()));
+                const body = document.body;
+                body.style.backgroundColor = 'rgb(1, 2, 3)';
+                await frame();
+                await frame();
+                body.style.backgroundColor = '';
+                await frame();
+                await frame();
+              });
+            }
+            expect(
+              await fresh.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
+            ).toBe('light');
+            return await fresh.screenshot({
+              path: test.info().outputPath(file),
+              animations: 'disabled',
+              caret: 'hide',
+            });
+          } finally {
+            await fresh.close();
+          }
+        };
+        // Native appearance emulation can retain rounded-edge raster caches across reloads, and a
+        // page resized after it opened rasterises its tiles differently from one opened at the
+        // final size (a one-level difference on a card edge, seen only under load). So /status
+        // captures both appearances in fresh pages; both renders still match every pixel exactly.
+        const light =
+          route === '/status'
+            ? await capture('light', 'appearance-light.png')
+            : await (async () => {
+                await page.goto(route);
+                await page.evaluate(() => document.fonts.ready);
+                return page.screenshot({
+                  path: test.info().outputPath('appearance-light.png'),
+                  animations: 'disabled',
+                  caret: 'hide',
+                });
+              })();
+        // The first page only holds the appearance switch, so it has a document only off /status.
+        const firstPageLoaded = route !== '/status';
+        await page.emulateMedia({ colorScheme: 'dark' });
+        if (firstPageLoaded) {
+          expect(
+            await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
+          ).toBe('light');
         }
+        const dark = await capture('dark', 'appearance-dark.png');
         expect(
           dark.equals(light),
           'changing the device preference changes no approved surface',
         ).toBe(true);
-        expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
-          'light',
-        );
+        if (firstPageLoaded) {
+          expect(
+            await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
+          ).toBe('light');
+        }
         await test.info().attach('approved-light', { body: light, contentType: 'image/png' });
         await test.info().attach('approved-dark-device', { body: dark, contentType: 'image/png' });
       });

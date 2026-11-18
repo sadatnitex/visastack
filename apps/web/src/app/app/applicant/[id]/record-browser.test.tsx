@@ -79,7 +79,7 @@ function type(value: string) {
   });
 }
 const filterButton = (label: string) =>
-  [...container.querySelectorAll<HTMLButtonElement>('.record-hub-filters button')].find((button) =>
+  [...container.querySelectorAll<HTMLButtonElement>('.u6-filters button')].find((button) =>
     button.textContent?.startsWith(label),
   );
 
@@ -111,6 +111,10 @@ describe('the Record browser', () => {
     expect(filters?.querySelector('legend')?.textContent).toBe('Record Filters');
     expect(filters?.querySelectorAll('button')).toHaveLength(5);
     expect(filters?.querySelector('.wallet-overview-strip')).toBeNull();
+    // Separate chips: no strip with a clipping edge that covers the corner buttons.
+    expect(container.querySelector('.record-hub-filters')).toBeNull();
+    // The old strip rules are gone from the shared stylesheet.
+    expect(container.querySelector('.u6-filters')).not.toBeNull();
   });
 
   it('narrows by metadata and says plainly when nothing matches', () => {
@@ -131,16 +135,21 @@ describe('the Record browser', () => {
     expect(titles()).toEqual(['Synthetic Passport']);
   });
 
-  it('each title opens its item, with at most one further action per row', () => {
+  it('each item is one compact row: picture, name, one status picture and at most one action', () => {
     act(() => root.render(<RecordBrowser items={items} />));
-    const rows = [...container.querySelectorAll('.record-hub-item')];
+    const rows = [...container.querySelectorAll('.u6-row')];
+    expect(rows).toHaveLength(3);
     for (const row of rows) {
-      expect(
-        row.querySelector('.record-hub-item-title')?.getAttribute('href')?.startsWith(base),
-      ).toBe(true);
-      expect(row.querySelectorAll('.record-hub-actions a').length).toBeLessThanOrEqual(1);
+      expect(row.querySelectorAll('.u6-row-action a').length).toBeLessThanOrEqual(1);
+      expect(row.querySelectorAll('.expandable-section-status .status-picture')).toHaveLength(1);
+      expect(row.querySelectorAll('.expandable-section-picture')).toHaveLength(1);
+      // Closed, a row repeats no detail line: those sit inside the opened row.
+      expect(row.querySelector('details')?.hasAttribute('open')).toBe(false);
+      expect(row.querySelector('.expandable-section-summary')?.textContent ?? '').not.toMatch(
+        /Version|Saved|Used in|shared/i,
+      );
     }
-    const actions = [...container.querySelectorAll('.record-hub-actions a')].map((link) =>
+    const actions = [...container.querySelectorAll('.u6-row-action a')].map((link) =>
       link.getAttribute('aria-label'),
     );
     expect(actions).toEqual([
@@ -148,6 +157,29 @@ describe('the Record browser', () => {
       'Share: Synthetic Passport',
       'Update or Replace: Synthetic Bank Letter',
     ]);
+  });
+
+  it('the opened row holds version, saved date, use in cases and sharing, and opens its item', () => {
+    act(() => root.render(<RecordBrowser items={items} />));
+    const passport = [...container.querySelectorAll('.u6-row')].find((row) =>
+      row.textContent?.includes('Synthetic Passport'),
+    );
+    const labels = [...(passport?.querySelectorAll('.u6-fact dt') ?? [])].map(
+      (dt) => dt.textContent,
+    );
+    expect(labels).toEqual(['Version', 'Expires', 'Used in Cases', 'Shared With']);
+    // An empty value says so in words, inside the row only.
+    const values = [...(passport?.querySelectorAll('.u6-fact dd') ?? [])].map(
+      (dd) => dd.textContent,
+    );
+    expect(values).toEqual(['1', 'Not confirmed', 'None yet', 'No one']);
+    expect(passport?.querySelector('.u6-open')?.getAttribute('href')?.startsWith(base)).toBe(true);
+    expect(passport?.querySelector('.u6-open')?.getAttribute('aria-label')).toBe(
+      'Open Document: Synthetic Passport',
+    );
+    // The long repeated lines are gone from the row.
+    expect(container.textContent).not.toContain('Not used in a case yet');
+    expect(container.textContent).not.toContain('Not shared');
   });
 
   it('when documents did not load, their filters say so instead of counting zero', () => {
@@ -194,17 +226,27 @@ describe('empty profile sections on the Record', () => {
     documents: [document('40000000-0000-4000-8000-000000000001', 'Synthetic Passport')],
   });
 
-  it('are named on one quiet line at the end of their group, each a link to its place', () => {
+  it('gather into one Not Started group at the end: one quiet row per group, links inside', () => {
     act(() => root.render(<RecordBrowser items={withEmpty} />));
     expect(titles()).toEqual(['About You', 'Synthetic Passport']);
     expect(container.querySelector('output')?.textContent).toBe('2 items match.');
-    const line = container.querySelector('.record-hub-group .record-hub-nothing-saved');
-    expect(line?.textContent).toBe('Nothing saved yet: Passport, Visas You Have Held');
-    expect([...(line?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'))).toEqual([
+    const groups = [...container.querySelectorAll('section.record-hub-group h2')].map(
+      (h) => h.textContent,
+    );
+    expect(groups.at(-1)).toBe('Not Started');
+    const quiet = container.querySelector('.u6-quiet');
+    const rows = [...(quiet?.querySelectorAll(':scope > li') ?? [])];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.querySelector('.expandable-section-title')?.textContent).toBe('You');
+    expect(rows[0]?.querySelector('.expandable-section-summary')?.textContent).toBe(
+      '2 more to add',
+    );
+    expect([...(rows[0]?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'))).toEqual([
       `${base}/profile#section-passport`,
       `${base}/profile#section-visas`,
     ]);
-    expect(line?.parentElement?.lastElementChild).toBe(line);
+    // The old line of links is gone.
+    expect(container.textContent).not.toContain('Nothing saved yet:');
     expect(filterButton('Everything')?.querySelector('strong')?.textContent).toBe('2');
   });
 
@@ -212,7 +254,7 @@ describe('empty profile sections on the Record', () => {
     act(() => root.render(<RecordBrowser items={withEmpty} />));
     act(() => filterButton('Profile Details')?.click());
     expect(titles()).toEqual(['About You', 'Passport', 'Visas You Have Held']);
-    expect(container.querySelector('.record-hub-nothing-saved')).toBeNull();
+    expect(container.querySelector('.u6-quiet')).toBeNull();
   });
 });
 
@@ -266,22 +308,17 @@ describe('the Record styles fit a 320px phone and use the shared tokens', () => 
     expect(block).toContain('.record-hub-filter-set {');
     // The one-off pill tabs are gone; the section tabs are the shared .subnav.
     expect(css).not.toMatch(/\.record-sections\b/);
-    // Its own five-cell strip: one hairline between cells, the last cell spanning on a phone.
-    expect(block).toMatch(
-      /\.record-hub-filters \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);[^}]*gap: 1px;[^}]*background: var\(--hairline-soft\);/,
-    );
-    expect(block).toMatch(/\.record-hub-filters button \{[^}]*border: 0;/);
-    expect(block).toMatch(
-      /@media \(max-width: 760px\) \{[^@]*\.record-hub-filters \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^@]*\.record-hub-filters button:last-child \{\s*grid-column: 1 \/ -1;/,
-    );
-    expect(block).toMatch(/\.record-hub-item \{[^}]*border-top: 1px solid var\(--hairline-soft\);/);
+    for (const gone of [
+      'record-hub-filters',
+      'record-hub-item ',
+      'record-hub-list',
+      'record-hub-facts',
+      'record-hub-actions',
+      'record-hub-nothing-saved',
+    ]) {
+      expect(css, gone).not.toContain(`.${gone}`);
+    }
     expect(block).toMatch(/\.record-hub-group h3 \{[^}]*font-size: var\(--text-lead\);/);
-    expect(block).toMatch(
-      /\.record-hub-nothing-saved \{[^}]*border-top: 1px solid var\(--hairline-soft\);[^}]*font-size: var\(--text-small\);/,
-    );
-    expect(block).toMatch(/\.record-hub-actions \{[^}]*flex-wrap: wrap;/);
-    expect(block).toMatch(/\.record-hub-actions \.btn \{[^}]*min-height: 44px;/);
-    expect(block).toMatch(/\.record-hub-filters button \{[^}]*min-height: 44px;/);
     expect(block).toMatch(/\.record-hub-item-title \{[^}]*min-height: 44px;/);
     // Tokens only: no raw colours, and spacing on the shared scale.
     expect(block).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
@@ -292,5 +329,26 @@ describe('the Record styles fit a 320px phone and use the shared tokens', () => 
     // No fixed width anywhere in the block that could push a phone screen sideways.
     expect(block).not.toMatch(/(?:^|[\s;{])width:\s*\d{3,}px/);
     expect(block).not.toMatch(/white-space:\s*nowrap/);
+  });
+});
+
+describe('the U6 row styles', () => {
+  it('keep every control 44px, use tokens only, wrap, and stack on a phone', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(
+      `${process.cwd()}/src/app/app/applicant/[id]/record/u6-records.css`,
+      'utf8',
+    );
+    expect(css).toMatch(/\.u6-filters button \{[^}]*min-height: 44px;/);
+    expect(css).toMatch(/\.u6-row-action \.btn \{[^}]*min-height: 44px;/);
+    expect(css).toMatch(/\.u6-open \{[^}]*min-height: 44px;/);
+    // The chips are separate boxes: nothing clips a button's corner.
+    expect(css).not.toMatch(/overflow:\s*hidden/);
+    expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
+    expect(css).not.toMatch(/white-space:\s*nowrap/);
+    expect(css).not.toMatch(/(?:^|[\s;{])width:\s*\d{3,}px/);
+    expect(css).toMatch(
+      /@media \(max-width: 640px\) \{[^@]*\.u6-row \{\s*grid-template-columns: minmax\(0, 1fr\);/,
+    );
   });
 });

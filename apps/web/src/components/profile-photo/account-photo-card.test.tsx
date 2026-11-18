@@ -32,7 +32,10 @@ describe('AccountPhotoCard', () => {
       `/api/photos/applicant/${SELF}?v=1`,
     );
     const names = [...host.querySelectorAll('button')].map((b) => b.textContent);
-    expect(names).toEqual(['Replace Photo', 'Remove Photo']);
+    expect(names).toEqual(['Remove Photo']);
+    expect([...host.querySelectorAll('label')].map((l) => l.textContent)).toContain(
+      'Replace Photo',
+    );
   });
 
   it('explains how to add a photo when the person has not added themselves yet', async () => {
