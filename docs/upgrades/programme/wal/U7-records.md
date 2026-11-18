@@ -17,6 +17,20 @@ Unit U7 (Wallet upgrade, signed-in traveller screens), Class B, presentation onl
 
 Shared pieces: `app/app/u7-rows.tsx` (TravellerRow, TravellerRows, PersonPicture, AreaPicture, AcceptFold) and `app/app/u7.css`, built on the Expandable Section. Flat, brand tokens, no motion, forced-colours rule. The agency rows (U8) are separate; folding the two row kits into one is a follow-up.
 
+## Review (Opus-class code review, high) and what was done
+
+| Finding | Done |
+|---|---|
+| Links and redirects to `#delete-account`, `#large-export`, `#consent-history` landed on a closed row | New `OpenRowOnLink` (`u7-open-on-link.tsx`, on privacy and help): the fold that an address names opens on arrival and on a later address change. Tested; fails if the open line is removed. |
+| The shared-files progress list lost its polite announcements | `TravellerRows live` puts `aria-live="polite"` back. |
+| Help: the four contact routes (support email, WhatsApp, status) were closed | They are drawn open; the questions stay closed. |
+| Help: old card rules hit the new rows (doubled padding, 3-column grid, 44 px links) | The old `help-questions` and `help-guide-grid` classes are no longer used; links in a row body keep the 44 px target in `u7.css`. |
+| Sharing invitation: a bare date beside the sender | The chip reads "Access Ends" and the date. |
+| Account: Other Areas You Can Access lost its card | The card is back. |
+| Seed: asserted exactly two notices and ran the worker over everything | Each notice is sent by its own record id; the seed looks them up by subject. |
+| Unread notifications need two taps (the row is closed) | Kept, as the Guardian's brief asks for compact rows. Open and Mark Read are one press into the row. A follow-up if the owner wants unread rows open. |
+| Parity mark added to the shared row | By design (Guardian decision). |
+
 ## Guards touched (approved in the Guardian's messages)
 
 - `src/lib/ccd/inventory.ts`: one added selector, `[data-parity-text]`. Elements that carry real visible sentence text in a row's one-line summary wear the mark and count as text entries, so the parity guard still sees every sentence. Additive only. Tests in `src/lib/ccd/inventory.test.tsx`: a marked line counts; removing it makes the guard fail; no double count.
@@ -49,6 +63,10 @@ English only until the localization lane writes Bengali. Catalogue keys (one mar
 - Add a Traveller, Add Travellers, Add a Trip Document and Delete Your Account move focus to the first field when a person opens the row (the shared `FocusFirstFieldOnOpen`); a row drawn open keeps the focus where it is.
 - After a refused add the form's own `useFocusInvalidField` moves focus to the problem (unchanged).
 
+## Screenshots
+
+`u7-shots/after-{rows,forms,accept}-{1280,390}.png`: the shared pieces on the real stylesheet (the Playwright fixture). Before and after shots of the real signed-in pages could not be taken here (no Postgres for the made-up sign-in); the signed-in guard on the CI machine draws them.
+
 ## Tests
 
 - Unit (parsed DOM, no regex on HTML): applicants rows, fold and both empty states; help rows; account and privacy through the parity guard; trips rows and chip; accept screens; inventory mark.
@@ -56,6 +74,7 @@ English only until the localization lane writes Bengali. Catalogue keys (one mar
 
 ## Not verified
 
+- Playwright wallet, scroll-budget and ux-public on one fresh build: 576 passed, 2 failed (`WP-SB2` real case page, phone Browse 3480 against a 3470 ceiling). The same two failed on U8's run and no file of this unit draws that page; not checked against main here.
 - The signed-in guard itself (`apps/web/ci-signed-in/run.sh`) was not run here: this container has no Postgres. The seed sequence was proved on PGlite (notices through the worker, Mark Read, a trip through its real proof) in a throwaway test that is not kept; CI runs the real guard.
 - The pages with real signed-in data in a real browser (only the shared pieces on the fixture, and the pages in unit render).
 - Safari and Firefox (Chromium only).

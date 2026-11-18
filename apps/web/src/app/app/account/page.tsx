@@ -188,8 +188,8 @@ export default async function AccountPage() {
           ) : null}
 
           {showRoles ? (
-            <section
-              className="depth-item"
+            <article
+              className="card depth-item"
               aria-labelledby="account-roles-title"
               {...atLevel('everything')}
             >
@@ -215,7 +215,7 @@ export default async function AccountPage() {
                   />
                 ) : null}
               </TravellerRows>
-            </section>
+            </article>
           ) : null}
         </div>
       </DepthScope>

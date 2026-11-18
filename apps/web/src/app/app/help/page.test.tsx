@@ -75,7 +75,7 @@ describe('Help and Support', () => {
 describe('Help and Support as compact rows (U7)', () => {
   it('draws every question and route as one folded row with its answer inside', async () => {
     const doc = new JSDOM(await renderServer(HelpPage())).window.document;
-    const questions = [...doc.querySelectorAll('.help-questions .expandable-section')];
+    const questions = [...doc.querySelectorAll('.u7-help-questions .expandable-section')];
     expect(questions).toHaveLength(5);
     for (const row of questions) {
       expect(row.querySelector('details')?.hasAttribute('open')).toBe(false);
@@ -87,7 +87,7 @@ describe('Help and Support as compact rows (U7)', () => {
     // The resend links sit inside their question, not loose on the page.
     expect(
       doc
-        .querySelector('.help-questions a[href="/auth/verify-email"]')
+        .querySelector('.u7-help-questions a[href="/auth/verify-email"]')
         ?.closest('.expandable-section-body'),
     ).not.toBeNull();
   });

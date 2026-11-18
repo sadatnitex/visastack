@@ -6,7 +6,7 @@ import { PageHeader } from '../../../components/ui';
 import { supportEmail } from '../../../lib/support-email';
 import { supportWhatsAppNumber } from '../../../lib/support-whatsapp';
 import { composeShareMessage } from '../../../lib/whatsapp-link';
-import { AreaPicture, TravellerRow, TravellerRows } from '../u7-rows';
+import { AreaPicture, OpenRowOnLink, TravellerRow, TravellerRows } from '../u7-rows';
 export const metadata: Metadata = { title: 'Help and Support' };
 
 export default function HelpPage() {
@@ -22,7 +22,7 @@ export default function HelpPage() {
         title="Find Your Next Step"
         description="Guidance for your records, case work and account."
       />
-      <TravellerRows className="help-guide-grid">
+      <TravellerRows>
         <TravellerRow
           headingLevel={2}
           title="Your Records"
@@ -65,9 +65,10 @@ export default function HelpPage() {
           </div>
         </TravellerRow>
       </TravellerRows>
+      <OpenRowOnLink />
       <InstallAppCard />
       <h2 className="card-title u7-help-heading">Common Questions</h2>
-      <TravellerRows className="help-questions">
+      <TravellerRows className="u7-help-questions">
         <TravellerRow
           headingLevel={3}
           title="Why can I not open a document yet?"
@@ -139,6 +140,7 @@ export default function HelpPage() {
         <TravellerRows className="u-mt-050">
           <TravellerRow
             id="help-contact-case"
+            defaultOpen
             headingLevel={3}
             title="A Problem with a Case or an Agency"
             picture={<AreaPicture mark={{ icon: 'clipboard', tone: 'amber' }} />}
@@ -152,6 +154,7 @@ export default function HelpPage() {
           </TravellerRow>
           <TravellerRow
             id="help-contact-agency"
+            defaultOpen
             headingLevel={3}
             title="A Question for Your Agency"
             picture={<AreaPicture mark={{ icon: 'building', tone: 'violet' }} />}
@@ -164,6 +167,7 @@ export default function HelpPage() {
           </TravellerRow>
           <TravellerRow
             id="help-contact-data"
+            defaultOpen
             headingLevel={3}
             title="Your Data and Privacy"
             picture={<AreaPicture mark={{ icon: 'shield', tone: 'teal' }} />}
@@ -176,6 +180,7 @@ export default function HelpPage() {
           </TravellerRow>
           <TravellerRow
             id="help-contact-status"
+            defaultOpen
             headingLevel={3}
             title="Something Is Not Working"
             picture={<AreaPicture mark={{ icon: 'alert', tone: 'red' }} />}

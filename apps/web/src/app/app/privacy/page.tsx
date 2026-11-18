@@ -23,7 +23,13 @@ import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { consentName } from '../../../lib/labels';
 import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../lib/paging';
 import { withSession } from '../../../lib/session';
-import { AreaPicture, FocusFirstFieldOnOpen, TravellerRow, TravellerRows } from '../u7-rows';
+import {
+  AreaPicture,
+  FocusFirstFieldOnOpen,
+  OpenRowOnLink,
+  TravellerRow,
+  TravellerRows,
+} from '../u7-rows';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
 
@@ -168,6 +174,7 @@ export default async function PrivacyPage({
           </a>
         </nav>
 
+        <OpenRowOnLink />
         <TravellerRows>
           <TravellerRow
             id="export-data"
@@ -226,8 +233,7 @@ export default async function PrivacyPage({
             title={t.node('appPrivacy.appPrivacyPage.consentHistory')}
             picture={<AreaPicture mark={{ icon: 'activity', tone: 'teal' }} />}
             chip={{ label: t.node('appPrivacy.appPrivacyPage.transparency'), tone: 'neutral' }}
-            {...(data.history.length === 0 && !consentBefore ? { defaultOpen: true } : {})}
-            {...(consentBefore ? { defaultOpen: true } : {})}
+            defaultOpen={data.history.length === 0 || Boolean(consentBefore)}
           >
             {data.history.length === 0 && !consentBefore ? (
               <EmptyState

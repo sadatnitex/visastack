@@ -196,3 +196,10 @@
   display: inline-block;
   transform: scaleX(-1);
 }
+/* Links and buttons inside a row's body keep the 44 px touch target the old cards gave them. */
+.u7-body-actions a,
+.u7-body-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}

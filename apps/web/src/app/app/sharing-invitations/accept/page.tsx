@@ -90,7 +90,10 @@ export default async function SharingInvitationPage({
                 <AreaPicture mark={{ icon: 'share', tone: 'blue' }} />
               )
             }
-            chip={{ label: formatTimestampDate(invite.grantExpiryAt), tone: 'neutral' }}
+            chip={{
+              label: `${t('appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds')} ${formatTimestampDate(invite.grantExpiryAt)}`,
+              tone: 'neutral',
+            }}
           />
           <AcceptFold title={t.node('appSharingInvitations.appSharingInvitationsU7.whatIsShared')}>
             <dl className="rows">

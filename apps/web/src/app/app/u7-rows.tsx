@@ -10,6 +10,7 @@ import type { ItemMark } from '../../lib/item-icons';
 import './u7.css';
 
 export { FocusFirstFieldOnOpen } from './agency/[orgId]/u8-fold-focus';
+export { OpenRowOnLink } from './u7-open-on-link';
 
 /**
  * The shared pieces of the signed-in traveller screens on the Wallet foundation (U7): one compact
@@ -135,17 +136,21 @@ export function TravellerRows({
   id,
   ariaLabel,
   className,
+  live,
 }: {
   readonly children: ReactNode;
   readonly id?: string;
   readonly ariaLabel?: string;
   readonly className?: string;
+  /** Announce changes to a screen reader as they happen (a list whose rows update while it is open). */
+  readonly live?: boolean;
 }) {
   return (
     <div
       className={className ? `u7-rows ${className}` : 'u7-rows'}
       {...(id ? { id } : {})}
       {...(ariaLabel ? { role: 'group', 'aria-label': ariaLabel } : {})}
+      {...(live ? { 'aria-live': 'polite' as const } : {})}
     >
       {children}
     </div>

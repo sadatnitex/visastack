@@ -202,16 +202,23 @@ export async function seed(env = process.env): Promise<SeededIds> {
         },
       });
     }
-    // Only the in-app notices are queued, so no email can be sent: the port refuses to be used.
+    // Only the two in-app notices are sent: the worker is told which record each is about, and
+    // the port refuses to be used, so no email can leave and no other queued message is touched.
     const noEmail: EmailPort = {
       send: async () => {
         throw new Error('The signed-in guard seed never sends email.');
       },
     };
-    await runNotificationWorker(db, noEmail, 'http://127.0.0.1');
+    for (const index of [1, 2]) {
+      await runNotificationWorker(db, noEmail, 'http://127.0.0.1', {
+        resourceId: `ci-signed-in-notice-${index}`,
+      });
+    }
     const notices = await listNotificationsForAccount(db, traveller.id);
     const readOne = notices.find((notice) => notice.subject === READ_NOTICE_SUBJECT);
-    if (!readOne || notices.length !== 2) throw new Error('Seeding failed at notifications.');
+    if (!readOne || !notices.some((notice) => notice.subject === UNREAD_NOTICE_SUBJECT)) {
+      throw new Error('Seeding failed at notifications.');
+    }
     must(
       'read notice',
       await markNotificationRead(db, {

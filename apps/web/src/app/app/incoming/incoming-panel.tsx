@@ -378,7 +378,7 @@ export function IncomingPanel({
                 {OFFLINE_LINE}
               </p>
             ) : null}
-            <TravellerRows className="incoming-lines" ariaLabel="Progress of Each File">
+            <TravellerRows className="incoming-lines" ariaLabel="Progress of Each File" live>
               {items.map((item) => {
                 const line = importLine(item);
                 const done = item.state === 'added' || item.state === 'duplicate';
