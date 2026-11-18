@@ -94,7 +94,7 @@ Unit guards run on this tree: public-site, how-it-works, trust, countries, for-a
 
 ## 5. Existing browser specs on this build
 
-Specs: ux-public, public-site/* (pub1 to pub4 and HOT1's home-layout-overlap), scroll-budget/WP-SB8, browser-security, no-secret-auth. Result: SPECS_RESULT.
+Specs: ux-public, public-site/* (pub1 to pub4 and HOT1's home-layout-overlap), scroll-budget/WP-SB8, browser-security, no-secret-auth. Result: 452 tests, 430 passed, 22 skipped, 0 failed (2.0 minutes, two workers). The 22 skips are by design: 21 are HOT1's report-only baseline for /trust, /privacy and /terms (run only with HOT1_BASELINE=1) and 1 is the round Add button that exists on phones only (ux-public.spec.ts:448). Browser: the pre-installed Chromium 1243 under the names the project's Playwright expects (a scratch PLAYWRIGHT_BROWSERS_PATH outside the repository), against the same build and server as the audit.
 
 ## 6. Guards
 
