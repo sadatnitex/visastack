@@ -61,6 +61,8 @@ export const LIVE_ROUTES: ReadonlySet<string> = new Set([
 ]);
 
 export interface PublicNavLink {
+  /** The page's own address, kept apart from `href` so the current page can be told by it. */
+  readonly route: string;
   readonly href: string;
   readonly label: string;
   readonly key?: PublicNavKey;
@@ -72,8 +74,36 @@ export function publicNavLinks(
   { signedIn = false }: { readonly signedIn?: boolean } = {},
 ): PublicNavLink[] {
   return PUBLIC_NAV.map(({ route, fallback, memberFallback, label, key }) => ({
+    route,
     href: live.has(route) ? route : signedIn && memberFallback ? memberFallback : fallback,
     label,
     ...(key ? { key } : {}),
   }));
 }
+
+/**
+ * The pages the footer adds to the header's five (NAV2). Each has its own page file; a test checks
+ * every address here against the app's route files. The status page also holds the full words
+ * about this version, which the footer links to only while a version notice is shown.
+ */
+export interface FooterPage {
+  readonly route: string;
+  readonly key: 'home.layout.privacy' | 'home.layout.terms' | 'home.layout.status';
+}
+
+export const FOOTER_LEGAL: readonly FooterPage[] = Object.freeze([
+  { route: '/privacy', key: 'home.layout.privacy' },
+  { route: '/terms', key: 'home.layout.terms' },
+  { route: '/status', key: 'home.layout.status' },
+]);
+
+/** Where the full words about this version are, and its anchor on the status page. */
+export const ABOUT_VERSION_HREF = '/status#about-this-version';
+
+/** The footer's three groups of links, by the public list they draw from. */
+export const FOOTER_PRODUCT_ROUTES: readonly string[] = Object.freeze([
+  '/how-it-works',
+  '/countries',
+  '/for-agencies',
+]);
+export const FOOTER_TRUST_ROUTES: readonly string[] = Object.freeze(['/trust']);
