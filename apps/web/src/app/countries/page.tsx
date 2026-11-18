@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { FlagRibbon } from '../../components/public-countries/flag-ribbon';
-import { CountryChecklistPanel } from '../../components/public-countries/standins/checklist-panel';
-import { ClosingBand } from '../../components/public-countries/standins/closing-band';
-import { RiseIn } from '../../components/public-countries/standins/rise-in';
 import { TypingSearch } from '../../components/public-countries/typing-search';
+import {
+  ClosingBand,
+  CountryChecklistPanel,
+  FIXTURE_COUNTRIES,
+  FIXTURE_ITEMS,
+  RiseIn,
+} from '../../components/public-site/kit';
 import { PublicButton } from '../../components/public-site/public-button';
 import { publicText } from '../../components/public-site/public-text';
 import { Chapter } from '../../components/public-site/scene';
@@ -33,24 +37,6 @@ import './countries.css';
 export const metadata: Metadata = { title: 'Countries and Sources' };
 
 const COUNTRY_NOUN = { one: 'country', other: 'countries' } as const;
-
-/** The example checklist beside "Rules, Not Guesses": made-up records, always tagged Example. */
-const CHECKLIST_ITEMS = [
-  { kind: 'passport', label: 'Passport' },
-  { kind: 'photo', label: 'Photo' },
-  { kind: 'flight', label: 'Flights' },
-  { kind: 'insurance', label: 'Insurance' },
-  { kind: 'itinerary', label: 'Itinerary' },
-  { kind: 'bank', label: 'Bank Statement' },
-  { kind: 'hotel', label: 'Hotel Booking' },
-  { kind: 'invitation', label: 'Invitation' },
-] as const;
-
-const CHECKLIST_COUNTRIES = [
-  { code: 'sg', name: 'Singapore', have: [true, true, true, true, true, false, false, false] },
-  { code: 'de', name: 'Germany', have: [true, true, false, true, false, false, false, false] },
-  { code: 'jp', name: 'Japan', have: [true, true, true, false, true, true, false, false] },
-] as const;
 
 interface CountriesProps {
   readonly searchParams: Promise<SearchParamsRecord>;
@@ -201,8 +187,8 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
           </RiseIn>
           <RiseIn delay={0.1}>
             <CountryChecklistPanel
-              countries={CHECKLIST_COUNTRIES}
-              items={CHECKLIST_ITEMS}
+              countries={FIXTURE_COUNTRIES}
+              items={FIXTURE_ITEMS}
               active={0}
               pageLang={lang}
             />
@@ -211,10 +197,12 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
       </Chapter>
 
       <ClosingBand
+        titleId="countries-closing-title"
+        pageLang={lang}
         title={
-          <h2 className="r4-h2">
+          <>
             {say('Pick a Country.')} <HeadlineWords>{say('See the Gap.')}</HeadlineWords>
-          </h2>
+          </>
         }
         sub={say('Add one document and see what the trip still needs.')}
         actions={
