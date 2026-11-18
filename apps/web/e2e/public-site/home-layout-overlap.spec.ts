@@ -159,25 +159,48 @@ async function openAndSettle(page: Page, path: string): Promise<void> {
   await page.waitForTimeout(600);
 }
 
-for (const motion of MOTION) {
-  for (const size of SIZES) {
-    test.describe(`Home overlaps, ${motion} motion, ${size.width}x${size.height}`, () => {
-      test.use({
-        viewport: { width: size.width, height: size.height },
-        contextOptions: {
-          reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
-        },
+/** Every public page of the site (WP-PUBFIX): the home page and the four pages added by PUB1 to PUB4. */
+const PAGES = ['/', '/how-it-works', '/trust', '/countries', '/for-agencies'] as const;
+
+for (const path of PAGES) {
+  for (const motion of MOTION) {
+    for (const size of SIZES) {
+      test.describe(`${path} overlaps, ${motion} motion, ${size.width}x${size.height}`, () => {
+        test.use({
+          viewport: { width: size.width, height: size.height },
+          contextOptions: {
+            reducedMotion: motion === 'reduced' ? 'reduce' : 'no-preference',
+          },
+        });
+
+        test('no words overlap, none are cut off, the page never scrolls sideways', async ({
+          page,
+        }) => {
+          await openAndSettle(page, path);
+          // The motion setting really reached the page (a wrong option name is silently ignored).
+          const reduced = await page.evaluate(
+            () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+          );
+          expect(reduced).toBe(motion === 'reduced');
+          const problems = await measure(page);
+          expect(problems, JSON.stringify(problems, null, 2)).toEqual([]);
+        });
       });
+    }
+  }
+}
+
+// Without JavaScript every scene is a normal section showing its finished step: same rules.
+for (const path of PAGES) {
+  for (const size of [SIZES[1], SIZES[5]]) {
+    test.describe(`${path} overlaps, JavaScript off, ${size.width}x${size.height}`, () => {
+      test.use({ viewport: { width: size.width, height: size.height }, javaScriptEnabled: false });
 
       test('no words overlap, none are cut off, the page never scrolls sideways', async ({
         page,
       }) => {
-        await openAndSettle(page, '/');
-        // The motion setting really reached the page (a wrong option name is silently ignored).
-        const reduced = await page.evaluate(
-          () => matchMedia('(prefers-reduced-motion: reduce)').matches,
-        );
-        expect(reduced).toBe(motion === 'reduced');
+        const response = await page.goto(path);
+        expect(response?.status()).toBe(200);
         const problems = await measure(page);
         expect(problems, JSON.stringify(problems, null, 2)).toEqual([]);
       });
@@ -185,9 +208,9 @@ for (const motion of MOTION) {
   }
 }
 
-// Baseline only: other public pages are measured and reported, not fixed here (HOT1 scope).
+// Baseline only: the older public pages are measured and reported, not fixed here.
 // Set HOT1_BASELINE=1 to run it; it prints findings and never fails.
-const BASELINE_PAGES = ['/trust', '/privacy', '/terms'] as const;
+const BASELINE_PAGES = ['/privacy', '/terms'] as const;
 for (const path of BASELINE_PAGES) {
   test.describe(`Baseline overlaps on ${path}`, () => {
     test.skip(

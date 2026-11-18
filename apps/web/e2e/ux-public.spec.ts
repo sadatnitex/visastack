@@ -1012,7 +1012,7 @@ test.describe('authoritative appearance on public routes', () => {
     }
     await page.goto('/trust');
     await expect(page.locator('.p3-eyebrow').first()).toHaveCSS('font-size', '12px');
-    await expect(page.locator('.p3-eyebrow').first()).toHaveCSS('line-height', '12px');
+    await expect(page.locator('.p3-eyebrow').first()).toHaveCSS('line-height', '15px');
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto('/auth/sign-up');
     expect((await page.locator('.auth-introduction').boundingBox())?.width).toBe(740);

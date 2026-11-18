@@ -9,8 +9,10 @@ import { renderServer } from '../../lib/next-mocks.test-support';
 const state = vi.hoisted(() => ({ signedIn: false, beta: false }));
 vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
 vi.mock('../../lib/public-beta', () => ({ isPublicBetaOpen: () => state.beta }));
+vi.mock('server-only', () => ({}));
 
 const { default: ForAgenciesPage, metadata } = await import('./page');
+const { homeCatalog } = await import('../../i18n/home');
 const { tonesAlternate } = await import('../../components/public-site/scene');
 
 const render = () => renderServer(ForAgenciesPage());
@@ -34,17 +36,26 @@ describe('the public For Agencies page', () => {
   it("keeps today's invite-only wording and button labels", async () => {
     const closed = await render();
     expect(closed).toContain('Invite-Only Pilot');
-    expect(closed).toContain('Sign In to Get Started');
+    expect(closed).toContain('Sign in to get started');
     expect(closed).toContain('href="/app"');
     expect(closed).toContain('See What Works Today');
     expect(closed).toContain('href="/status"');
     state.beta = true;
     const open = await render();
     expect(open).toContain('Free Public Beta');
-    expect(open).toContain('Create Your Free Account');
+    expect(open).toContain('Create your free account');
     expect(open).toContain('href="/auth/sign-up"');
     state.signedIn = true;
-    expect(await render()).toContain('Open Your Workspace');
+    expect(await render()).toContain('Open your workspace');
+  });
+
+  it('reads its button words from the same catalogue entries as Home', async () => {
+    const en = homeCatalog.en as Record<string, string>;
+    expect(await render()).toContain(en['home.page.signInToGetStarted']);
+    state.beta = true;
+    expect(await render()).toContain(en['home.page.createYourFreeAccount']);
+    state.signedIn = true;
+    expect(await render()).toContain(en['home.page.openYourWorkspace']);
   });
 
   it('shows no logos, counts, testimonials, ratings or partner names', async () => {
