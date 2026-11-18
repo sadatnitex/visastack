@@ -237,17 +237,21 @@ test('WAL1 Expandable Section works with script switched off, from the server ma
   browser,
 }) => {
   // The server's own rendering of the fixture (renderToString, as a server component page sends
-  // it), placed in the site's real page with every script removed.
+  // it), in a page built from the site's own stylesheets with no script at all, opened with script off.
   const markup = await serverMarkup();
   await page.goto('/');
   const origin = new URL(page.url()).origin;
-  const shell = await (await page.request.get(`${origin}/`)).text();
-  const html = shell
-    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-    .replace(
-      /<body([^>]*)>[\s\S]*<\/body>/i,
-      `<body$1><main class="scroll-fixture" id="main">${markup}</main></body>`,
-    );
+  // The site's own stylesheets, read from the real page; nothing is filtered out of any markup.
+  const sheets = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map((l) => l.href),
+  );
+  expect(sheets.length).toBeGreaterThan(0);
+  const html = [
+    '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    ...sheets.map((href) => `<link rel="stylesheet" href="${href}">`),
+    `</head><body><main class="scroll-fixture" id="main">${markup}</main></body></html>`,
+  ].join('');
   const context = await browser.newContext({
     javaScriptEnabled: false,
     viewport: { width: 390, height: 844 },
