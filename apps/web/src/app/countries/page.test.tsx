@@ -196,6 +196,19 @@ describe('the public Countries page', () => {
     );
   });
 
+  it('keeps the ribbon flags light, so the page stays under the 150 KB picture budget', async () => {
+    const { RIBBON_CODES } = await import('./countries-data');
+    const { statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const bytes = RIBBON_CODES.reduce(
+      (sum, code) =>
+        sum + statSync(join(__dirname, '..', '..', '..', 'public', 'flags', `${code}.svg`)).size,
+      0,
+    );
+    expect(RIBBON_CODES.length).toBeGreaterThanOrEqual(12);
+    expect(bytes).toBeLessThan(20 * 1024);
+  });
+
   it('shows the Rules checklist as an Example, completeness only', async () => {
     const html = await render();
     expect(html).toContain('Reused');

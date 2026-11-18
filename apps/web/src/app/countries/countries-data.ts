@@ -30,7 +30,6 @@ const RIBBON_CHOICE = [
   'au',
   'nl',
   'my',
-  'es',
   'ch',
   'se',
 ];
