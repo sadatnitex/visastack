@@ -104,6 +104,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // The switch names the language it switches to, in that language's own words (WCAG 3.1.2). It is
   // drawn in the bar on a wide screen and in the menu on a narrow one: one is hidden by the stylesheet.
   // Only the bar's form carries the landmark name, so the two never share one.
+  const otherLocale = locale === 'en' ? 'bn' : 'en';
   const languageForm = (className: string, named = true) =>
     LANGUAGE_CHOICE_ENABLED ? (
       <form
@@ -113,10 +114,10 @@ export default async function RootLayout({ children }: { readonly children: Reac
       >
         {/* The menu's copy sends the language with the button itself, so the page has one hidden
           language field, the bar's. */}
-        {named ? <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} /> : null}
+        {named ? <input type="hidden" name="locale" value={otherLocale} /> : null}
         {named ? (
           <button type="submit" className={className} lang={locale === 'en' ? 'bn' : 'en'}>
-            {LANGUAGE_NAME[locale === 'en' ? 'bn' : 'en']}
+            {LANGUAGE_NAME[otherLocale]}
           </button>
         ) : (
           // The menu's copy names its language only where it differs from the page's own (a part
@@ -125,12 +126,10 @@ export default async function RootLayout({ children }: { readonly children: Reac
             type="submit"
             className={className}
             name="locale"
-            value={locale === 'en' ? 'bn' : 'en'}
-            {...(htmlLang !== (locale === 'en' ? 'bn' : 'en')
-              ? { lang: locale === 'en' ? 'bn' : 'en' }
-              : {})}
+            value={otherLocale}
+            {...(htmlLang !== otherLocale ? { lang: otherLocale } : {})}
           >
-            {LANGUAGE_NAME[locale === 'en' ? 'bn' : 'en']}
+            {LANGUAGE_NAME[otherLocale]}
           </button>
         )}
       </form>

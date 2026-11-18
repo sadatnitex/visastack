@@ -92,7 +92,11 @@ async function measureHeader(page: Page) {
   });
 }
 
-function expectOneLine(measure: Awaited<ReturnType<typeof measureHeader>>, label: string) {
+function expectOneLine(
+  measure: Awaited<ReturnType<typeof measureHeader>>,
+  label: string,
+  maxHeight = 48,
+) {
   expect(measure.items.length, `${label}: the header has controls`).toBeGreaterThan(2);
   for (const item of measure.items) {
     expect(
@@ -100,7 +104,7 @@ function expectOneLine(measure: Awaited<ReturnType<typeof measureHeader>>, label
       `${label}: "${item.name}" wrapped (${item.lines.join(',')} rects)`,
     ).toBe(true);
     // One line box plus its padding; a wrapped label is taller than a 48 px row.
-    expect(item.height, `${label}: "${item.name}" is one row tall`).toBeLessThanOrEqual(48);
+    expect(item.height, `${label}: "${item.name}" is one row tall`).toBeLessThanOrEqual(maxHeight);
     expect(item.left, `${label}: "${item.name}" starts inside the bar`).toBeGreaterThanOrEqual(
       measure.barLeft - 0.5,
     );
@@ -294,6 +298,62 @@ test.describe('header behaviour', () => {
       await expect(quiet).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     } else {
       await expect(primary).toHaveText(/Sign In|Workspace/);
+    }
+  });
+});
+
+test.describe('header at the edges', () => {
+  test('an open menu closes when focus leaves it or a press lands outside it', async ({ page }) => {
+    await openPage(page, 390, 'en');
+    const button = page.locator('button.site-menu-toggle');
+    await button.click();
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    // Tab on until focus leaves the header's controls: the covering panel must be gone.
+    for (let step = 0; step < 14; step += 1) {
+      await page.keyboard.press('Tab');
+      if ((await button.getAttribute('aria-expanded')) === 'false') break;
+    }
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    // A press outside closes it too (the brand link keeps the page where it is).
+    await button.click();
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('header .brand').click();
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    // Escape still closes it and returns focus to the button.
+    await button.click();
+    await page.keyboard.press('Escape');
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  for (const lang of LANGS) {
+    test(`at 320 px with the text enlarged to 200 percent nothing clips or scrolls sideways in ${lang === 'en' ? 'English' : 'Bengali'}`, async ({
+      page,
+    }) => {
+      await openPage(page, 320, lang);
+      await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+      await settle(page);
+      const bar = await measureHeader(page);
+      // At 200 percent text one line of the brand is taller than a button; a wrapped one is far taller.
+      expectOneLine({ ...bar, pageScroll: 0 }, `${lang} 320 at 200 percent text`, 70);
+      const primary = page.locator('header .site-nav-actions .btn-primary');
+      const toggle = page.locator('button.site-menu-toggle');
+      for (const control of [primary, toggle]) {
+        await expect(control).toBeVisible();
+        const box = await control.boundingBox();
+        expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320);
+      }
+    });
+  }
+
+  test('the public header and footer never show on the sign-in frame', async ({ page }) => {
+    for (const width of [390, 1344]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/auth/sign-in');
+      await expect(page.locator('.auth-shell')).toBeVisible();
+      await expect(page.locator('header.nav')).toBeHidden();
+      await expect(page.locator('footer.site-footer')).toBeHidden();
     }
   });
 });

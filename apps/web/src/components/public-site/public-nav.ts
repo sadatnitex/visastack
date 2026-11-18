@@ -88,14 +88,13 @@ export function publicNavLinks(
  */
 export interface FooterPage {
   readonly route: string;
-  readonly label: string;
   readonly key: 'home.layout.privacy' | 'home.layout.terms' | 'home.layout.status';
 }
 
 export const FOOTER_LEGAL: readonly FooterPage[] = Object.freeze([
-  { route: '/privacy', label: 'Privacy', key: 'home.layout.privacy' },
-  { route: '/terms', label: 'Terms', key: 'home.layout.terms' },
-  { route: '/status', label: 'Status', key: 'home.layout.status' },
+  { route: '/privacy', key: 'home.layout.privacy' },
+  { route: '/terms', key: 'home.layout.terms' },
+  { route: '/status', key: 'home.layout.status' },
 ]);
 
 /** Where the full words about this version are, and its anchor on the status page. */

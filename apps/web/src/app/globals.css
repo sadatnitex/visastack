@@ -23906,25 +23906,27 @@ a.passport-page-value:hover {
 @media (max-width: 71.875em) {
   html:not([data-locale="bn"]) .nav {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    height: 64px;
+    height: auto;
+    min-height: 64px;
     margin-top: 16px;
-    padding: 0 10px 0 18px;
+    padding: 8px 10px 8px 18px;
     border-radius: 28px;
     position: sticky;
     column-gap: 8px;
-    row-gap: 0;
+    row-gap: 4px;
   }
   html:not([data-locale="bn"]) .nav .brand {
     margin-inline-end: auto;
-    font-size: 20px;
+    font-size: 1.25rem;
   }
   html:not([data-locale="bn"]) .site-navigation {
     display: flex;
     align-items: center;
     flex: none;
     gap: 8px;
+    margin-inline-start: auto;
   }
   html:not([data-locale="bn"]) .site-navigation .site-bar-only,
   html:not([data-locale="bn"]) .site-navigation .site-nav-actions .lang-form {
@@ -24000,25 +24002,27 @@ a.passport-page-value:hover {
 @media (max-width: 76.875em) {
   html[data-locale="bn"] .nav {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    height: 64px;
+    height: auto;
+    min-height: 64px;
     margin-top: 16px;
-    padding: 0 10px 0 18px;
+    padding: 8px 10px 8px 18px;
     border-radius: 28px;
     position: sticky;
     column-gap: 8px;
-    row-gap: 0;
+    row-gap: 4px;
   }
   html[data-locale="bn"] .nav .brand {
     margin-inline-end: auto;
-    font-size: 20px;
+    font-size: 1.25rem;
   }
   html[data-locale="bn"] .site-navigation {
     display: flex;
     align-items: center;
     flex: none;
     gap: 8px;
+    margin-inline-start: auto;
   }
   html[data-locale="bn"] .site-navigation .site-bar-only,
   html[data-locale="bn"] .site-navigation .site-nav-actions .lang-form {
@@ -24109,7 +24113,7 @@ a.passport-page-value:hover {
     padding-inline: 14px 8px;
   }
   html[data-locale] .nav .brand {
-    font-size: 18px;
+    font-size: 1.125rem;
     gap: 7px;
   }
   html[data-locale] .site-navigation .site-nav-actions .nav-cta {
@@ -24119,7 +24123,7 @@ a.passport-page-value:hover {
 
 @media (max-width: 360px) {
   html[data-locale] .nav .brand {
-    font-size: 17px;
+    font-size: 1.0625rem;
     gap: 6px;
   }
   html[data-locale] .site-navigation {

@@ -232,4 +232,23 @@ describe('the stylesheet block (NAV2)', () => {
         expect(block).toContain(`html body:has(${frame}) > ${part}`);
     expect(block).toMatch(/html body:has\(\.auth-shell\) > \.footer \{\s*display: none;/);
   });
+
+  it('writes the English and the Bengali menu rules as the same rules (they cannot drift apart)', () => {
+    const css = readFileSync(join(APP, 'globals.css'), 'utf8');
+    const block = css.slice(css.indexOf('/* WP-NAV2 '), css.indexOf('/* end WP-NAV2 */'));
+    const rules = (width: string, guard: string) => {
+      const start = block.indexOf(`@media (max-width: ${width}) {`);
+      expect(start, width).toBeGreaterThan(-1);
+      // The media block ends at the first line that closes it at column zero.
+      const body = block.slice(start, block.indexOf('\n}\n', start));
+      return body.replaceAll(`${guard} `, '').split('\n').slice(1).join('\n');
+    };
+    const english = rules('71.875em', 'html:not([data-locale="bn"])');
+    const bengali = rules('76.875em', 'html[data-locale="bn"]');
+    expect(english.length).toBeGreaterThan(1500);
+    expect(bengali).toBe(english);
+    // And each rule really carries its own language guard.
+    expect(block.match(/html:not\(\[data-locale="bn"\]\) /g)?.length).toBeGreaterThan(10);
+    expect(block.match(/html\[data-locale="bn"\] \.nav/g)?.length).toBeGreaterThan(0);
+  });
 });

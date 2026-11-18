@@ -15,14 +15,8 @@ import {
 import { publicText } from './public-site/public-text';
 
 type HomeText = PartsTranslator<CatalogKey<typeof homeCatalog>>;
+type FooterKey = CatalogKey<typeof homeCatalog>;
 type AuthText = PartsTranslator<CatalogKey<typeof authCatalog>>;
-
-/**
- * The footer's one short line about what VisaStack is, and its group names. English until the
- * catalogue has them (listed under "Bengali words" in docs/upgrades/programme/pub/NAV2-records.md).
- */
-export const FOOTER_ABOUT = 'One private profile for every visa.';
-export const FOOTER_GROUPS = { trust: 'Trust', account: 'Account' } as const;
 
 export interface FooterNotice {
   /** The version name, from the same words the page's notice shows ("VisaStack Public Beta"). */
@@ -30,6 +24,14 @@ export interface FooterNotice {
   /** What it means in a few words ("Free, at your own risk."). */
   readonly short: string;
 }
+
+/** The version line's words, as catalogue keys (the English words come from the page's own notice). */
+const NOTICE_KEYS: Readonly<Record<string, FooterKey>> = {
+  'VisaStack Public Beta': 'home.layout.noticePublicBeta',
+  'Free, at your own risk.': 'home.layout.noticePublicBetaShort',
+  'VisaStack Private Pilot': 'home.layout.noticePilot',
+  'Test version. Made-up details only.': 'home.layout.noticePilotShort',
+};
 
 /**
  * The public footer (NAV2): the brand with one truthful line, three groups of links (Product,
@@ -64,6 +66,10 @@ export function SiteFooter({
       .filter((page): page is PublicNavLink => page !== undefined);
   const word = (link: PublicNavLink): ReactNode =>
     link.key ? t.node(link.key) : publicText(link.label, pageLang);
+  const noticeWord = (english: string): ReactNode => {
+    const key = NOTICE_KEYS[english];
+    return key ? t.node(key) : publicText(english, pageLang);
+  };
   const accountWord = signedIn
     ? t.node('home.layout.workspace')
     : tAuth.node('auth.authSignInPage.signIn');
@@ -76,14 +82,16 @@ export function SiteFooter({
             <BrandMark />
             VisaStack
           </Link>
-          <p className="site-footer-about">{publicText(FOOTER_ABOUT, pageLang)}</p>
+          <p className="site-footer-about">{t.node('home.layout.footerAbout')}</p>
         </div>
         <nav className="site-footer-nav" aria-label={t('home.layout.footer')}>
           <div className="site-footer-group">
             <p className="site-footer-heading" id="footer-product">
               {t.node('home.layout.product')}
             </p>
-            <ul aria-labelledby="footer-product">
+            {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
+            {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
+            <ul role="list" aria-labelledby="footer-product">
               {pick(FOOTER_PRODUCT_ROUTES).map((link) => (
                 <li key={link.route}>
                   <Link href={link.href}>{word(link)}</Link>
@@ -93,9 +101,11 @@ export function SiteFooter({
           </div>
           <div className="site-footer-group">
             <p className="site-footer-heading" id="footer-trust">
-              {publicText(FOOTER_GROUPS.trust, pageLang)}
+              {t.node('home.layout.footerTrust')}
             </p>
-            <ul aria-labelledby="footer-trust">
+            {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
+            {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
+            <ul role="list" aria-labelledby="footer-trust">
               {pick(FOOTER_TRUST_ROUTES).map((link) => (
                 <li key={link.route}>
                   <Link href={link.href}>{word(link)}</Link>
@@ -115,9 +125,11 @@ export function SiteFooter({
           </div>
           <div className="site-footer-group">
             <p className="site-footer-heading" id="footer-account">
-              {publicText(FOOTER_GROUPS.account, pageLang)}
+              {t.node('home.layout.footerAccount')}
             </p>
-            <ul aria-labelledby="footer-account">
+            {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
+            {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
+            <ul role="list" aria-labelledby="footer-account">
               <li>
                 {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in
                   provider, and a prefetch of it would be a blocked cross-origin request. */}
@@ -136,7 +148,7 @@ export function SiteFooter({
         <span>{copyright}</span>
         {notice ? (
           <p className="site-footer-beta">
-            {publicText(`${notice.label}. ${notice.short}`, pageLang)}
+            {noticeWord(notice.label)}. {noticeWord(notice.short)}
           </p>
         ) : null}
       </div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { componentsCatalog } from '../i18n/components';
+import { isCurrentPath } from '../lib/navigation';
 import { useT } from './i18n-provider';
 import { Icon } from './icons';
 
@@ -13,12 +14,6 @@ export interface SiteNavigationPage {
   /** The page's own address, so the current page can be told apart. */
   readonly route: string;
   readonly label: ReactNode;
-}
-
-/** The page is the current one on its own address or anywhere beneath it. */
-export function isCurrentPage(pathname: string | null, route: string): boolean {
-  if (!pathname) return false;
-  return route === '/' ? pathname === '/' : pathname === route || pathname.startsWith(`${route}/`);
 }
 
 /**
@@ -47,6 +42,7 @@ export function SiteNavigation({
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
   const links = useRef<HTMLElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new path closes the menu
   useEffect(() => setOpen(false), [pathname]);
@@ -62,17 +58,36 @@ export function SiteNavigation({
     return () => document.removeEventListener('keydown', onEscape);
   }, [open]);
 
-  // Choosing a page or the language is the end of the menu's job: it closes.
+  // An open menu covers the page, so it closes when a press lands outside it or when keyboard focus
+  // moves out of it (a tab past the last control), as well as on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+
+  // Choosing a page or the language is the end of the menu's job: it closes. A page link takes the
+  // person to the new page; the language button is hidden with the menu, so focus goes back to the
+  // menu button instead of dropping to the top of the page.
   const closeOnChoice = (event: { target: EventTarget }) => {
-    if (!(event.target as HTMLElement).closest('a, button')) return;
+    const chosen = (event.target as HTMLElement).closest('a, button');
+    if (!chosen) return;
     setOpen(false);
-    // The choice is about to be hidden with the menu (a page link that stays on this page, or the
-    // language button): keep focus on the menu button rather than dropping it to the page top.
-    button.current?.focus();
+    if (chosen.tagName === 'BUTTON') button.current?.focus();
   };
 
   return (
-    <div className="site-navigation" data-open={open ? 'true' : 'false'}>
+    <div
+      ref={root}
+      className="site-navigation"
+      data-open={open ? 'true' : 'false'}
+      onBlur={(event) => {
+        if (open && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
       <div id={id} className="site-menu-panel">
         <nav
           ref={links}
@@ -85,7 +100,16 @@ export function SiteNavigation({
               <Link
                 key={page.route}
                 href={page.href}
-                aria-current={isCurrentPage(pathname, page.route) ? 'page' : undefined}
+                aria-current={
+                  pathname &&
+                  isCurrentPath(pathname, {
+                    href: page.route,
+                    label: '',
+                    exact: page.route === '/',
+                  })
+                    ? 'page'
+                    : undefined
+                }
               >
                 {page.label}
               </Link>

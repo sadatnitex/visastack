@@ -37,22 +37,28 @@ Left alone on purpose: `.sticky-action-bar` and the phone bottom nav (FIX9), `pu
 
 ## Bengali words
 
-Shown in English (marked `lang="en"` on a Bengali page) until the catalogue has them:
+New catalogue keys in `home.ts` (English and Bengali; sources in `home.sources.json`). The Bengali below is for localization review: the rows marked "register draft" use the register's own draft for the same English (still DRAFT_NOT_FOR_RELEASE); the rows marked "new" have no register row and were written here.
 
-| Place | English |
-|---|---|
-| Footer group | Trust |
-| Footer group | Account |
-| Footer line | One private profile for every visa. |
-| Footer version line | the page notice's own words ("VisaStack Public Beta. Free, at your own risk."); already English-only in the notice |
+| Key | English | Bengali | Where it comes from |
+|---|---|---|---|
+| `home.layout.language` (Bengali was missing) | Language | ভাষা | register draft (SG-ce01db35) |
+| `home.layout.footerAccount` | Account | অ্যাকাউন্ট | register draft (SG-0a8720d7) |
+| `home.layout.footerTrust` | Trust | আস্থা | new (no register row; note the open "Public Trust" term decision) |
+| `home.layout.footerAbout` | One private profile for every visa. | প্রতিটি ভিসার জন্য একটি ব্যক্তিগত প্রোফাইল। | new |
+| `home.layout.noticePublicBeta` | VisaStack Public Beta | VisaStack পাবলিক বিটা | register draft (SG-755ddf32) |
+| `home.layout.noticePublicBetaShort` | Free, at your own risk. | বিনামূল্যে, আপনার নিজের ঝুঁকিতে। | register draft (SG-6105d452) |
+| `home.layout.noticePilot` | VisaStack Private Pilot | VisaStack প্রাইভেট পাইলট | register draft (SG-f746eb40) |
+| `home.layout.noticePilotShort` | Test version. Made-up details only. | পরীক্ষামূলক সংস্করণ। শুধু বানানো তথ্য। | register draft (SG-b9398c95) |
 
-Everything else comes from existing keys (`home.layout.*`, `home.page.*`, `auth.authSignInPage.signIn`, `components.siteNavigation.*`).
+The two new rows have source ids made from their English text (no register group exists yet). The page's own notice at the top still shows these words in English only; the footer's version line now reads them from the catalogue, so on a Bengali page the footer line can be Bengali while the notice above it is English until the notice moves to the catalogue.
+
+Everything else comes from existing keys (`home.layout.*`, `home.page.*`, `auth.authSignInPage.signIn`, `components.siteNavigation.*`). `home.layout.features` and `home.layout.publicTrust` are no longer used by the footer and stay for the tidy-up unit.
 
 ## Verification run (frozen head, one fresh build)
 
 - Typecheck, lint (biome, flat design, route navigation, ui-ratchet at the baseline: inline styles 286, raw codes 0, em dashes 0, folds 189), full web vitest, `node --test scripts/*.test.mjs` (83 of 83), em dash sweep 0.
 - Playwright on the one build, with sign-up open and again with sign-up closed: the whole suite passes except the two known WP-SB2 "WP-LIFT-B the real case page" tests, which fail the same way on a build of main in this container.
-- Independent accessibility review (fresh agent, read-only). Applied: the menu panel scrolls inside itself on a short screen, a forced-colours marker, focus kept on the menu button after any choice. Not applied: list roles on the footer lists (the linter forbids a redundant role; Safari list-semantics risk with `list-style: none` and `display: contents` is noted below), a nav list wrapper for the five links, a different name for the Site landmark, closing the menu on an outside click, a menu-only entry for Get Started at 320 px with very large text.
+- Independent accessibility review (fresh agent, read-only). Applied: the menu panel scrolls inside itself on a short screen, a forced-colours marker, focus kept on the menu button after any choice. Round two (Guardian fix list): the menu now closes on focus leaving it and on a press outside; focus returns to the menu button only after the language button (a page link takes the person to the page); `role="list"` on the footer lists (with the two lint rules suppressed in place, with reasons); bar sized in rem with a minimum height and wrapping so 320 px at 200 percent text keeps Get Started and Menu fully visible (e2e, English and Bengali); header current page now uses the shared `isCurrentPath`; a unit test proves the English and Bengali menu rules are the same rules; an e2e proves the public header and footer are hidden on the sign-in frame. Not applied: a nav list wrapper for the five links, a different name for the Site landmark, closing the menu on an outside click, a menu-only entry for Get Started at 320 px with very large text.
 
 ## Known-issues chunk (to append)
 
@@ -62,5 +68,5 @@ NAV2 (18 Nov 2026): the public header and footer were rebuilt (branch `claude/na
 
 - Safari and real phones; a screen reader pass; a pass by a person on the design and the words.
 - The signed-in header is checked on the real page with its one link swapped, and by the unit test on the server markup; no real signed-in session was used.
-- Bengali text at browser text sizes above 100 percent was not measured; the `em` breakpoints are designed for it. At 320 px with very large text the bar (brand, Get Started, Menu) may not fit; not measured.
-- Footer lists on phones use `display: contents` with `list-style: none`; older Safari and VoiceOver may drop the list and its name there. Not tested in Safari.
+- Bengali text at browser text sizes above 100 percent was not measured; the `em` breakpoints are designed for it. At 320 px the bar wraps Get Started and Menu to a second row at 200 percent text (checked with a stylesheet text size, not the browser setting).
+- Footer lists on phones use `display: contents` with `list-style: none` and an explicit `role="list"`; not tested in Safari or VoiceOver.
