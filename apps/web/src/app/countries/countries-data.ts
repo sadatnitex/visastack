@@ -5,7 +5,6 @@ import {
   lastCheckedOn,
 } from '@visastack/core/destinations';
 import { AVAILABLE_FLAG_CODES } from '../../components/flags/available-flags';
-import type { ChapterTone } from '../../components/public-site/scene';
 import { ENTRY_SHORT_LABEL } from '../../lib/country-view';
 import { type SearchParamsRecord, nextShow, parseShow } from '../../lib/paging';
 
@@ -14,9 +13,6 @@ import { type SearchParamsRecord, nextShow, parseShow } from '../../lib/paging';
 /** Rows shown first, and how many more each Show More adds (the 12-then-Show-More pattern of WP-SB8). */
 export const COUNTRIES_STEP = 12;
 const SHOW_KEY = 'show';
-
-/** The page's chapters, top to bottom. They alternate (a test holds this). */
-export const CHAPTER_TONES: readonly ChapterTone[] = ['dark', 'light', 'dark'];
 
 /** Places the ring of flags in the hero; only those the catalogue holds and a flag file exists for. */
 const RING_CHOICE = ['jp', 'gb', 'us', 'de', 'fr', 'sg', 'ae', 'ca', 'au', 'it', 'nl', 'my'];
@@ -74,9 +70,10 @@ export function countryRow(destination: Destination): CountryRow {
   };
 }
 
-const ALL_ROWS: readonly CountryRow[] = [...DESTINATIONS]
-  .sort((a, b) => a.country.localeCompare(b.country))
-  .map(countryRow);
+/** In name order (English rules, so the order is the same on every machine). Rows are built only for what is drawn. */
+const SORTED: readonly Destination[] = [...DESTINATIONS].sort((a, b) =>
+  a.country.localeCompare(b.country, 'en'),
+);
 
 export interface CountriesWindow {
   readonly rows: readonly CountryRow[];
@@ -91,11 +88,11 @@ export interface CountriesWindow {
  * to whole steps; the ceiling is the whole list rounded up to a step, so Show More always reaches the end.
  */
 export function countriesWindow(params: SearchParamsRecord): CountriesWindow {
-  const total = ALL_ROWS.length;
+  const total = SORTED.length;
   const max = Math.max(1, Math.ceil(total / COUNTRIES_STEP)) * COUNTRIES_STEP;
   const shown = Math.min(total, parseShow(params[SHOW_KEY], { step: COUNTRIES_STEP, max }));
   const next = shown < total ? nextShow(shown, { step: COUNTRIES_STEP, max }) : null;
-  return { rows: ALL_ROWS.slice(0, shown), total, shown, next };
+  return { rows: SORTED.slice(0, shown).map(countryRow), total, shown, next };
 }
 
 /** The id of a country's row, so Show More can land on the first new one. */
@@ -105,6 +102,6 @@ export function rowId(iso2: string): string {
 
 /** The id of the first row a Show More click adds, or null at the end. */
 export function firstNewRowId(window: CountriesWindow): string | null {
-  const row = ALL_ROWS[window.shown];
+  const row = SORTED[window.shown];
   return window.next === null || row === undefined ? null : rowId(row.iso2);
 }

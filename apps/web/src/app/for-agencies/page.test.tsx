@@ -11,7 +11,6 @@ vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }
 vi.mock('../../lib/public-beta', () => ({ isPublicBetaOpen: () => state.beta }));
 
 const { default: ForAgenciesPage, metadata } = await import('./page');
-const { CHAPTER_TONES } = await import('./for-agencies-data');
 const { tonesAlternate } = await import('../../components/public-site/scene');
 
 const render = () => renderServer(ForAgenciesPage());
@@ -66,8 +65,12 @@ describe('the public For Agencies page', () => {
   });
 
   it('alternates dark and light chapters, uses no inline style and no em dash', async () => {
-    expect(tonesAlternate(CHAPTER_TONES)).toBe(true);
     const html = await render();
+    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map(
+      (m) => m[1] as 'dark' | 'light',
+    );
+    expect(tones.length).toBeGreaterThanOrEqual(5);
+    expect(tonesAlternate(tones)).toBe(true);
     expect(html).not.toMatch(/ style="/);
     expect(html).not.toContain('data:image');
     expect(html).not.toContain(String.fromCharCode(0x2014));

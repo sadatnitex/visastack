@@ -1,18 +1,18 @@
 /* WP-PUB4 countries page. Flat: tokens only, no gradient, no shadow, no new hue. Every colour reads a
    --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
-.pub4-hero-grid {
+.pub4c-hero-grid {
   display: grid;
   gap: var(--space-6);
   align-items: center;
 }
 
-.pub4-hero-copy {
+.pub4c-hero-copy {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
 }
 
-.pub4-title {
+.pub4c-title {
   margin: 0;
   font-size: clamp(2rem, 6vw, 3.5rem);
   line-height: 1.08;
@@ -21,7 +21,7 @@
   overflow-wrap: anywhere;
 }
 
-.pub4-lede {
+.pub4c-lede {
   margin: 0;
   max-width: 34rem;
   font-size: 1.125rem;
@@ -29,14 +29,14 @@
   color: var(--pub-ink-soft, var(--text-secondary));
 }
 
-.pub4-h2 {
+.pub4c-h2 {
   margin: 0 0 var(--space-5);
   font-size: clamp(1.5rem, 4vw, 2.25rem);
   line-height: 1.15;
   color: var(--pub-ink, var(--text));
 }
 
-.pub4-rows {
+.pub4c-rows {
   display: grid;
   gap: var(--space-3);
   margin: 0 0 var(--space-5);
@@ -44,7 +44,7 @@
   list-style: none;
 }
 
-.pub4-row {
+.pub4c-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--space-4);
@@ -56,7 +56,7 @@
   scroll-margin-top: calc(var(--header-height) + var(--space-5));
 }
 
-.pub4-flag {
+.pub4c-flag {
   display: block;
   width: 36px;
   height: 27px;
@@ -64,60 +64,63 @@
   object-fit: cover;
 }
 
-.pub4-flag-none {
+.pub4c-flag-none {
   border: 1px solid var(--pub-edge, var(--edge-card));
 }
 
-.pub4-row-text {
+.pub4c-row-text {
   display: grid;
   gap: var(--space-1);
   min-width: 0;
 }
 
-.pub4-name {
+.pub4c-name {
   color: var(--pub-ink, var(--text));
   overflow-wrap: anywhere;
 }
 
-.pub4-facts {
+.pub4c-facts {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-2);
   color: var(--pub-ink-soft, var(--text-secondary));
   font-size: 0.9375rem;
   overflow-wrap: anywhere;
 }
 
-.pub4-read-grid {
+.pub4c-facts > span + span::before {
+  content: "\00b7";
+  margin-inline-end: var(--space-2);
+}
+
+.pub4c-read-grid {
   display: grid;
   gap: var(--space-4);
 }
 
-/* While the scroll engine runs, the card for the current step is the clear one; without it every
-   card shows in full. */
-html[data-scenes="live"] .pub4-read-grid > .pub-card {
-  opacity: 0.45;
-}
-
-html[data-scenes="live"] .pub-scene[data-step="0"] .pub4-read-grid > .pub-card:nth-child(1),
-html[data-scenes="live"] .pub-scene[data-step="1"] .pub4-read-grid > .pub-card:nth-child(2),
-html[data-scenes="live"] .pub-scene[data-step="2"] .pub4-read-grid > .pub-card:nth-child(3) {
-  opacity: 1;
+/* While the scroll engine runs, the card for the current step gets the strong edge; text never dims. */
+html[data-scenes="live"] .pub-scene[data-step="0"] .pub4c-read-grid > .pub-card:nth-child(1),
+html[data-scenes="live"] .pub-scene[data-step="1"] .pub4c-read-grid > .pub-card:nth-child(2),
+html[data-scenes="live"] .pub-scene[data-step="2"] .pub4c-read-grid > .pub-card:nth-child(3) {
+  border-color: var(--pub-edge-strong, var(--accent));
 }
 
 @media (min-width: 760px) {
-  .pub4-hero-grid {
+  .pub4c-hero-grid {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   }
 
-  .pub4-read-grid {
+  .pub4c-read-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 400px) {
-  .pub4-row {
+  .pub4c-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .pub4-row > .pub-button {
+  .pub4c-row > .pub-button {
     grid-column: 1 / -1;
     justify-self: start;
   }

@@ -1,20 +1,20 @@
 /* WP-PUB4 for-agencies page. Flat: tokens only, no gradient, no shadow, no new hue. Every colour reads a
    --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
-.pub4-hero-copy {
+.pub4a-hero-copy {
   display: grid;
   gap: var(--space-4);
   justify-items: start;
   min-width: 0;
 }
 
-.pub4-kicker {
+.pub4a-kicker {
   margin: 0;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--pub-accent, var(--accent));
 }
 
-.pub4-title {
+.pub4a-title {
   margin: 0;
   font-size: clamp(2rem, 6vw, 3.5rem);
   line-height: 1.08;
@@ -23,7 +23,7 @@
   overflow-wrap: anywhere;
 }
 
-.pub4-lede {
+.pub4a-lede {
   margin: 0;
   max-width: 34rem;
   font-size: 1.125rem;
@@ -31,31 +31,34 @@
   color: var(--pub-ink-soft, var(--text-secondary));
 }
 
-.pub4-h2 {
+.pub4a-h2 {
   margin: 0 0 var(--space-5);
   font-size: clamp(1.5rem, 4vw, 2.25rem);
   line-height: 1.15;
   color: var(--pub-ink, var(--text));
 }
 
-.pub4-actions {
+.pub4a-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
 }
 
-.pub4-grid {
+.pub4a-grid {
   display: grid;
   gap: var(--space-4);
 }
 
-.pub4-chips {
+.pub4a-chips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.pub4-board {
+.pub4a-board {
   display: grid;
   gap: var(--space-5);
   justify-items: start;
@@ -65,7 +68,7 @@
   background-color: var(--pub-card, var(--bg-elevated));
 }
 
-.pub4-steps {
+.pub4a-steps {
   display: grid;
   gap: var(--space-3);
   margin: 0;
@@ -74,40 +77,41 @@
   width: 100%;
 }
 
-.pub4-step {
+.pub4a-step {
   display: grid;
   gap: var(--space-1);
   justify-items: start;
   min-width: 0;
 }
 
-.pub4-step-name {
+.pub4a-step-name {
   color: var(--pub-ink, var(--text));
 }
 
-.pub4-step-note {
+.pub4a-step-note {
   color: var(--pub-ink-soft, var(--text-secondary));
   overflow-wrap: anywhere;
 }
 
-/* While the scroll engine runs, the row for the current step is the clear one (Received, then
-   Suggested, then Confirmed); without it every row shows in full. */
-html[data-scenes="live"] .pub4-step {
-  opacity: 0.45;
+/* While the scroll engine runs, the row for the current step (Received, then Suggested, then
+   Confirmed) gets the strong edge; text never dims. */
+.pub4a-step {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid transparent;
 }
 
-html[data-scenes="live"] .pub-scene[data-step="0"] .pub4-step:nth-child(1),
-html[data-scenes="live"] .pub-scene[data-step="1"] .pub4-step:nth-child(2),
-html[data-scenes="live"] .pub-scene[data-step="2"] .pub4-step:nth-child(3) {
-  opacity: 1;
+html[data-scenes="live"] .pub-scene[data-step="0"] .pub4a-step:nth-child(1),
+html[data-scenes="live"] .pub-scene[data-step="1"] .pub4a-step:nth-child(2),
+html[data-scenes="live"] .pub-scene[data-step="2"] .pub4a-step:nth-child(3) {
+  border-inline-start-color: var(--pub-edge-strong, var(--accent));
 }
 
 @media (min-width: 760px) {
-  .pub4-grid {
+  .pub4a-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .pub4-grid-two {
+  .pub4a-grid-two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

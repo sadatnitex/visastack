@@ -11,13 +11,19 @@ const signedIn = vi.hoisted(() => ({ value: false }));
 vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => signedIn.value }));
 
 const { default: CountriesPage, generateMetadata } = await import('./page');
-const { COUNTRIES_STEP, CHAPTER_TONES } = await import('./countries-data');
+const { COUNTRIES_STEP } = await import('./countries-data');
 const { tonesAlternate } = await import('../../components/public-site/scene');
 const { startHrefForCountry, appHrefForCountry } = await import('../../lib/country-start-links');
 
 const TOTAL = DESTINATIONS.length;
 const render = (params: Record<string, string | string[]> = {}) =>
   renderServer(CountriesPage({ searchParams: Promise.resolve(params) }));
+const escapeHtml = (text: string) =>
+  text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll("'", '&#x27;')
+    .replaceAll('"', '&quot;');
 const rows = (html: string) => html.match(/data-country-row="[A-Z]{2}"/g) ?? [];
 
 beforeEach(() => {
@@ -65,14 +71,21 @@ describe('the public Countries page', () => {
     expect(rows(await render({ show: ['24', '48'] }))).toHaveLength(24);
   });
 
-  it('shows each row with a flag, its name, source and a Checked On date from the catalogue', async () => {
+  it('shows each row with a flag, its name, its source and its own Checked On date', async () => {
     const html = await render({ show: String(TOTAL) });
-    for (const d of DESTINATIONS.filter((x) => x.researched).slice(0, 5)) {
+    for (const d of DESTINATIONS.filter((x) => x.researched)) {
+      const row =
+        html.split(`data-country-row="${d.iso2}"`)[1]?.split('data-country-row=')[0] ?? '';
+      expect(row, d.country).toContain(escapeHtml(d.country));
+      expect(row, d.country).toMatch(/\/flags\/[a-z]{2}\.svg|pub4c-flag-none/);
+      expect(row, d.country).toMatch(/Source: |No Source Given/);
       const when = lastCheckedOn(d.country);
-      expect(html).toContain(d.country);
-      if (when) expect(html).toMatch(/Checked On \d{1,2} [A-Z][a-z]{2} \d{4}/);
+      expect(row, d.country).toContain(
+        when === null
+          ? 'Check Date Not Given'
+          : `Checked On ${new Date(when).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })}`,
+      );
     }
-    expect(html).toContain('/flags/');
   });
 
   it('says Not Researched Yet, with no date, for a country with no stated facts', async () => {
@@ -97,8 +110,12 @@ describe('the public Countries page', () => {
   });
 
   it('alternates dark and light chapters and keeps the flag ring to 12 flags', async () => {
-    expect(tonesAlternate(CHAPTER_TONES)).toBe(true);
     const html = await render();
+    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map(
+      (m) => m[1] as 'dark' | 'light',
+    );
+    expect(tones.length).toBeGreaterThanOrEqual(3);
+    expect(tonesAlternate(tones)).toBe(true);
     const ring = html.split('pub-flag-ring-list')[1]?.split('</ul>')[0] ?? '';
     const flags = ring.match(/<li /g) ?? [];
     expect(flags.length).toBeGreaterThan(0);
