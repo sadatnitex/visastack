@@ -95,7 +95,7 @@ export function FindingSteps({
   if (count === 0) return null;
   return (
     // A group, not a landmark: several documents on one page can each have one.
-    <div className="finding-steps" role="group" aria-labelledby={headingId}>
+    <fieldset className="finding-steps" aria-labelledby={headingId}>
       <div className="finding-steps-head">
         <h4 id={headingId}>Decide One at a Time</h4>
         {stepped ? (
@@ -131,6 +131,6 @@ export function FindingSteps({
           </button>
         </div>
       ) : null}
-    </div>
+    </fieldset>
   );
 }
