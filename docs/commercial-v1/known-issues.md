@@ -8498,3 +8498,10 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Dropped for U4: a Sensitive picture (no vocabulary word yet).
 - NOT verified: signed-in routes (U1b), Safari and Firefox, VoiceOver and NVDA, forced colours and right to left in a real browser, Bengali wording of the six sentences, production.
 - CodeQL follow-up (18 Nov 2026): the first PR head failed CodeQL (two high alerts: regex removal of script tags in the no-script test). The test now builds its page from the site's own stylesheet links and the server markup, with no HTML filtering, and opens it with script switched off; spec 25 of 25 run twice, typecheck, lint and the full web suite green before the push.
+
+## 18 Nov 2026: WAL9 My Record tab (#633)
+
+- Owner decision 17 Nov 2026 (overrides D6 for this tab only): the bottom tab "My Documents" is now "My Record", on desktop and phone (no short label). The More Tools entry to the /record hub is "All Records", and the Expiry and Profile page links back to it say "All Records". "Open My Documents" on the add-documents page is now "Open My Record" (English source only, Bengali drafts untouched).
+- Not renamed on purpose: consent scope wording (Let AI Read Details from My Documents, List of My Documents, Text Read From My Documents, Review My Documents); it names data a person agreed to share, not the tab.
+- Proof: tab-name tests changed first and failed on main; merged head: lint, typecheck, full web tests, build, supply-chain scan, smoke green; Playwright 325 of 325 including the phone bar at 320, 360, 390 and 768 px; e2e/wallet 25 of 25. Local, not production.
+- Follow-ups: Bengali rows SG-fe32af9d, SG-f1e29103, SG-afd7a3f5 and the Expiry and Profile record link keys; docs sweep for docs/uiux/ccd/FAMILIAR-PATTERNS.md, docs/uiux/ccd/JOURNEY-FRICTION-REGISTER-2026-11-10.md and a globals.css comment at the WP-UMPE-P13 block.
