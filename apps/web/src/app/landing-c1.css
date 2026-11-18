@@ -841,3 +841,446 @@
     padding: 1.25rem 1.25rem 1.2rem;
   }
 }
+
+/* WP-PUB2 home scenes: layout shared by the three scenes. Colours come from the chapter tone
+   (--pub-*, with the light tone as fallback); nothing here is a new hue. The phone rules are the
+   base; a computer's two-column layout is added from 900 px. */
+.land-chapter {
+  padding-block: 0;
+}
+
+.land-stage {
+  display: grid;
+  gap: var(--space-3);
+  align-content: center;
+  min-width: 0;
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.land-copy {
+  display: grid;
+  gap: var(--space-2);
+  align-content: center;
+  min-width: 0;
+}
+
+.land-scene-title {
+  margin: 0;
+  font-size: clamp(1.4rem, 6.4vw, 1.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  color: var(--pub-ink, var(--text));
+}
+
+.land-lead {
+  margin: 0;
+  max-width: 44ch;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.land-draw {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.land-caption {
+  display: none;
+  font-size: var(--text-caption);
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+/* WP-PUB2 home scenes: intake. Documents, the scan line, and the three states in order. */
+.land-docs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.land-doc {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--space-2);
+  border: 1px solid var(--pub-edge, var(--edge-card));
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in srgb, var(--pub-ink, var(--text)) 7%, var(--pub-canvas, var(--bg)));
+}
+
+.land-doc-name {
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pub-ink, var(--text));
+}
+
+.land-doc-lines {
+  display: none;
+  gap: var(--space-1);
+}
+
+.land-doc-lines i {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--pub-edge-strong, var(--accent));
+  opacity: 0.55;
+}
+
+.land-doc-lines i:nth-child(2) {
+  width: 80%;
+}
+
+.land-doc-lines i:nth-child(3) {
+  width: 55%;
+}
+
+.land-scan {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background-color: var(--pub-accent, var(--accent));
+  opacity: 0;
+}
+
+.land-states {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.land-state {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-inline-start: 3px solid transparent;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.land-state .pub-chip {
+  flex: none;
+}
+
+/* WP-PUB2 home scenes: ready. The case line, its marks, the bar that fills, and the ring. The case
+   line is two columns on a phone, with the In file and Missing words read aloud but not drawn. */
+.land-ready-figure {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.land-ready-figure > .pub-example,
+.land-ready-figure > .land-caption,
+.land-ready-figure > .land-case-bar {
+  grid-column: 1 / -1;
+}
+
+.land-case-line {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.land-case-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 24px;
+  color: var(--pub-ink, var(--text));
+}
+
+.land-case-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--pub-edge-strong, var(--accent));
+  border-radius: 50%;
+}
+
+.land-case-item.is-ready .land-case-mark {
+  border-color: var(--success);
+  background-color: var(--success);
+}
+
+.land-case-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.land-case-item .pub-chip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.land-case-bar {
+  display: none;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background-color: var(--pub-edge, var(--edge-card));
+}
+
+.land-case-bar i {
+  display: block;
+  width: 80%;
+  height: 100%;
+  border-radius: 3px;
+  background-color: var(--success);
+  transform-origin: left center;
+}
+
+.land-ring {
+  justify-self: start;
+}
+
+.land-ring .progress-ring-lg .progress-ring-graphic {
+  width: 5.5rem;
+}
+
+/* WP-PUB2 home scenes: closing. The passport beside (or above) the closing call, which keeps its
+   own card. The card stays light inside the dark chapter, so its words take the page's dark ink. */
+.land-passport-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.land-passport-frame .pic-cover {
+  width: 96px;
+  height: auto;
+}
+
+.land-passport-figure {
+  justify-items: center;
+  text-align: center;
+}
+
+.land-closing .land-final {
+  padding-block: 0;
+}
+
+.land-closing .land-final-card {
+  padding: var(--space-4);
+}
+
+.land-closing .land-final-card .land-final-title {
+  color: var(--text);
+  font-size: clamp(1.6rem, 7vw, 2.2rem);
+}
+
+.land-closing .land-final-sub {
+  margin-bottom: var(--space-3);
+}
+
+/* WP-PUB2 home hero: a small English phone's first screen holds 30 words or fewer. A short line
+   takes the long supporting line's place and the three-word summary waits for a wider screen.
+   Other languages keep today's lines (the short line is only sent in English). */
+.c1 .c1-subline-short {
+  display: none;
+}
+
+@media (max-width: 479px) {
+  html[lang="en"] .c1 .c1-subline-long,
+  html[lang="en"] .c1 .c1-meta {
+    display: none;
+  }
+
+  html[lang="en"] .c1 .c1-subline-short {
+    display: block;
+  }
+}
+
+/* WP-PUB2 home scenes: a computer (900 px and wider) gets two columns and fuller pictures. */
+@media (min-width: 900px) {
+  .land-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: center;
+    gap: var(--space-7);
+    padding: var(--space-6);
+  }
+
+  .land-scene-title {
+    font-size: clamp(1.75rem, 4.5vw, 3rem);
+  }
+
+  .land-lead {
+    font-size: var(--text-lead);
+  }
+
+  .land-copy {
+    gap: var(--space-3);
+  }
+
+  .land-draw {
+    gap: var(--space-3);
+  }
+
+  .land-caption {
+    display: block;
+  }
+
+  .land-doc {
+    padding: var(--space-3);
+  }
+
+  .land-doc-lines {
+    display: grid;
+  }
+
+  .land-state {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding-block: var(--space-2);
+  }
+
+  .land-case-line {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .land-case-item {
+    min-height: 32px;
+  }
+
+  .land-case-item .pub-chip {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .land-case-bar {
+    display: block;
+  }
+
+  .land-ring .progress-ring-lg .progress-ring-graphic {
+    width: 8rem;
+  }
+
+  .land-passport-frame {
+    min-height: 150px;
+  }
+
+  .land-passport-frame .pic-cover {
+    width: 180px;
+  }
+
+  .land-closing .land-final-card {
+    padding: var(--space-5);
+  }
+
+  .land-closing .land-final-card .land-final-title {
+    font-size: clamp(1.9rem, 5vw, 3rem);
+  }
+}
+
+/* WP-PUB2 home scenes: below 900 px a scene is an unpinned still picture showing its finished
+   step, whatever the engine does (it starts at 760 px; the page's rule is 900). */
+@media (max-width: 899px) {
+  html[data-scenes="live"] .pub-scene[data-scene][data-len] {
+    height: auto;
+  }
+
+  html[data-scenes="live"] .pub-scene[data-scene] .pub-scene-stage {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* The shared tilt rule has no width limit, and an unpinned scene has no real progress: at 760 to
+     899 px the passport must rest flat, not sit rotated and snap. Same selector parts as the depth
+     rule plus the frame, so it wins whatever the order. */
+  html[data-scenes="live"]:not([data-save-data])
+    .land-passport-frame
+    .pub-passport-tilt[data-pub-depth] {
+    transform: none;
+  }
+}
+
+/* WP-PUB2 home scenes: the closing scene's stage is as tall as its content (never clipped). */
+@media (min-width: 900px) {
+  html[data-scenes="live"] .pub-scene.land-scene-open[data-scene] .pub-scene-stage {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+/* WP-PUB2 home scenes: motion. Only while the engine runs on a big screen with motion welcome:
+   documents fly in, the scan line sweeps, the current state is marked, the case bar fills and the
+   ring settles. Each uses transform or the --p the engine writes; no timed transition. Without the
+   engine everything rests finished (--p falls back to 1). Nothing is hidden with opacity, so a
+   scene's words stay readable at any scroll position. */
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  html[data-scenes="live"]:not([data-save-data]) .land-stage {
+    min-height: calc(100svh - var(--pub-nav-offset));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-intake {
+    --fly-1: clamp(0, calc(var(--p, 1) * 5), 1);
+    --fly-2: clamp(0, calc(var(--p, 1) * 5 - 0.2), 1);
+    --fly-3: clamp(0, calc(var(--p, 1) * 5 - 0.4), 1);
+    --scan: clamp(0, calc((var(--p, 1) - 0.25) * 4), 1);
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-doc-1 {
+    transform: translate(calc((1 - var(--fly-1)) * 60%), calc((1 - var(--fly-1)) * 240%));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-doc-2 {
+    transform: translate(calc((1 - var(--fly-2)) * 10%), calc((1 - var(--fly-2)) * 260%));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-doc-3 {
+    transform: translate(calc((1 - var(--fly-3)) * -40%), calc((1 - var(--fly-3)) * 280%));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="1"] .land-scan {
+    opacity: 1;
+    transform: translateY(calc(var(--scan) * 5.5rem));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="0"] .land-state-1,
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="1"] .land-state-1,
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="2"] .land-state-2,
+  html[data-scenes="live"]:not([data-save-data])
+    [data-scene="intake"][data-step="3"]
+    .land-state-3 {
+    border-inline-start-color: var(--pub-accent, var(--accent));
+    color: var(--pub-ink, var(--text));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-case-bar i {
+    transform: scaleX(var(--p, 1));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-ring {
+    transform: scale(calc(0.88 + 0.12 * var(--p, 1)));
+    transform-origin: left center;
+  }
+}

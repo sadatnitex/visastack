@@ -9970,6 +9970,8 @@ summary.visa-photo-title {
   gap: 0.4rem;
   flex: 1 1 14rem;
   min-width: 0;
+  /* WP-WAL0: a pasted web address has no break point; "anywhere" also lowers the item's minimum width, so it no longer stretches the whole page sideways. */
+  overflow-wrap: anywhere;
 }
 .task-row .badge {
   white-space: nowrap;
@@ -16363,12 +16365,10 @@ details[open] > .lift-action-summary .lift-action-chevron {
 
 /* The section links under the card: one quiet row. */
 .lift-case .jump-nav {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: var(--space-1);
   margin-bottom: var(--space-4);
   padding-bottom: var(--space-1);
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 .lift-case .jump-nav a {
   padding: 0 var(--space-3);
@@ -16669,10 +16669,8 @@ details[open] > .lift-action-summary .lift-action-chevron {
     align-self: flex-start;
   }
   .lift-case .jump-nav {
-    flex-wrap: nowrap;
-    gap: 0 var(--space-4);
-    overflow-x: auto;
-    white-space: nowrap;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2);
   }
   .lift-case .jump-nav a {
     display: inline-flex;
@@ -17011,7 +17009,7 @@ a.row.lift-snap:hover {
   padding-bottom: 0;
 }
 
-/* The section links under the status panel: one row of quiet pills that scrolls inside its own box. */
+/* The section links under the status panel: quiet pills that wrap onto more rows, so the strip never needs a sideways scroll (WP-WAL0). */
 .jump-nav {
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -17019,14 +17017,6 @@ a.row.lift-snap:hover {
   margin: 0 0 var(--space-5);
   padding: 0;
   border-bottom: none;
-}
-@media (max-width: 760px) {
-  .jump-nav {
-    flex-wrap: nowrap;
-    padding-bottom: var(--space-1);
-    overflow-x: auto;
-    scrollbar-width: thin;
-  }
 }
 .jump-nav a {
   flex: none;
@@ -22002,8 +21992,11 @@ body:lang(bn),
 }
 /* A List or Stack switch fades the document area only, never the whole page. Motion is allowed here only when the person has not asked for less. */
 @media (prefers-reduced-motion: no-preference) {
-  .document-wallet-layout {
-    view-transition-name: wallet-view;
+  /* WP-WAL0: a view-transition name makes a stacking context. On a phone the open document sheet sits inside this box, so the Add button and the bottom bar painted over it. The fade is kept only above 760 px, where the chosen document is a side panel and never a full screen. */
+  @media (min-width: 761px) {
+    .document-wallet-layout {
+      view-transition-name: wallet-view;
+    }
   }
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -22636,3 +22629,114 @@ button.wallet-stack-card {
   }
 }
 /* end WP-PIC5 */
+
+/* WP-WAL0 Documents sheet, More panel and case section links. Documents sheet on a phone: while a document sheet is open the Add button and its spacer are gone (a sheet opened in the browser too), and the sheet's last control clears the bottom bar and the phone's bottom edge. Tokens only. */
+/* A title with no break points (a pasted web address) wraps inside its row instead of widening the page: tasks, appointments and any other row of this kind. */
+.row .row-key {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab,
+  body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab-space {
+    display: none;
+  }
+
+  .wallet-selected-document[data-sheet="open"] {
+    padding-bottom: calc(61px + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  }
+}
+
+/* The More menu opens as a panel on the row under its button, inside the screen: from 641 to 760 px the button can sit on the left or the right depending on how the header buttons wrap, so a panel anchored to the button's right edge ran off the left edge. At 640 px and below an earlier rule already puts the panel in the flow. */
+@media (min-width: 641px) and (max-width: 760px) {
+  .case-more {
+    position: static;
+  }
+
+  .case-more-panel {
+    top: auto;
+    right: var(--space-4);
+    left: var(--space-4);
+    width: auto;
+    max-width: 22rem;
+    margin-top: 0.35rem;
+  }
+}
+
+/* The Glance, Browse, Everything switch keeps all three buttons inside a 320 px screen. */
+@media (max-width: 22rem) {
+  .depth-seg {
+    padding-inline: var(--space-3);
+  }
+}
+/* Jump to Section: below 761 px the case page's section links are one closed 44 px native fold (no script) that opens into full-width 44 px links in the page flow, so nothing scrolls sideways and nothing is covered. From 761 px the same links are the wrapping pills and the fold is not drawn. */
+.jump-select {
+  display: none;
+}
+/* The wrapper adds no box of its own on a wide screen: the pills stay direct items of the strip and keep its gap. */
+.jump-links {
+  display: contents;
+}
+@media (max-width: 760px) {
+  .lift-case .jump-nav .jump-links {
+    display: none;
+  }
+
+  .lift-case .jump-nav .jump-select {
+    display: block;
+    flex: 1 1 100%;
+  }
+
+  .jump-select > summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--space-4);
+    border: 1px solid var(--edge-card);
+    border-radius: var(--radius-pill);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .jump-select > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .jump-select > summary::after {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    margin: 0 var(--space-1) 0 auto;
+    border-right: 2px solid var(--text-tertiary);
+    border-bottom: 2px solid var(--text-tertiary);
+    transform: rotate(45deg);
+  }
+
+  .jump-select[open] > summary::after {
+    transform: rotate(-135deg);
+  }
+
+  .jump-select-list {
+    display: flex;
+    flex-direction: column;
+    margin-top: var(--space-1);
+  }
+
+  .lift-case .jump-nav .jump-select-list a {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 var(--space-4);
+    border: 0;
+    border-bottom: 1px solid var(--hairline);
+    border-radius: 0;
+    background: transparent;
+    white-space: normal;
+  }
+}
+/* end WP-WAL0 */

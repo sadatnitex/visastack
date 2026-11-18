@@ -813,7 +813,12 @@ test.describe('flat UI reference geometry and interaction', () => {
             .filter((element) => {
               // Owner decision D1: only the Harbor hero and product chapter on the landing may
               // use soft shadows and gradients. Everything else stays flat, on every page.
-              if (element.closest('.c1-hero, .c1-darkstage')) return false;
+              // ADR 0029: on the public site only an element that carries data-pub-depth itself.
+              if (
+                element.closest('.c1-hero, .c1-darkstage') ||
+                element.hasAttribute('data-pub-depth')
+              )
+                return false;
               const css = getComputedStyle(element);
               return (
                 css.boxShadow !== 'none' ||
@@ -934,7 +939,7 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(
       page
         .getByRole('navigation', { name: 'Site', exact: true })
-        .getByRole('link', { name: 'Product', exact: true }),
+        .getByRole('link', { name: 'Home', exact: true }),
     ).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();

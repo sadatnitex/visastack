@@ -34,6 +34,7 @@ import {
   growUploadReservation,
   isAiDispatchAllowed,
   isAiFeatureRefusal,
+  isProtectedPlaceholder,
   isValidDocumentDateString,
   loadUploadQuotaConfig,
   mbLabel,
@@ -276,6 +277,10 @@ async function withChangeImpactBatch(
   return batch ? { ...saved, changeImpactBatch: batch } : saved;
 }
 
+/** Said when a save carries the stand-in for a protected detail instead of a real value. */
+const PROTECTED_STAND_IN_LINE =
+  'This detail is saved and protected. Type the new value to change it, or leave it as it is.';
+
 /** Save a Master Profile fact (append-only immutable version). */
 export async function saveFactAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
@@ -289,6 +294,10 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
   const def = savableField(fieldKey);
   if (!def) return { ok: false, message: 'Unknown field.' };
   if (value.length === 0) return { ok: false, message: 'Enter a value first.', field: 'value' };
+  // WALD2: the stand-in shown for a protected detail is never a value; the service refuses it too.
+  if (isProtectedPlaceholder(value)) {
+    return { ok: false, message: PROTECTED_STAND_IN_LINE, field: 'value' };
+  }
 
   const effectiveFromRaw = String(formData.get('effectiveFrom') ?? '').trim();
   let effectiveFrom: Date | undefined;

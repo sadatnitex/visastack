@@ -16,11 +16,14 @@ export const LANDING_EFFECTS_EXCEPTION = 'apps/web/src/app/landing-c1.css';
  * - the landing (owner decision D1, 24 Oct 2026)
  * - the picture stylesheet for illustrations and hero cards (ADR 0027, owner decision D2,
  *   17 Nov 2026)
+ * - the one depth stylesheet for the public site's scroll scenes (ADR 0029, owner decision of
+ *   17 Nov 2026 for the public site upgrade); its own guard keeps every rule under [data-pub-depth]
  * Inline style effects in components stay forbidden everywhere.
  */
 export const EFFECTS_EXCEPTIONS = Object.freeze([
   LANDING_EFFECTS_EXCEPTION,
   'apps/web/src/components/pictures/pictures-depth.css',
+  'apps/web/src/components/public-site/public-scenes.css',
 ]);
 
 export function checkCss(css, source = 'stylesheet', { allowEffects = false } = {}) {

@@ -191,7 +191,37 @@ interface FieldRowProps {
   readonly sourceDocumentId?: string | null | undefined;
   /** Called with the chosen option, so a choice that accepts "Other" can open its text box at once. */
   readonly onChoice?: ((choice: string) => void) | undefined;
+  /** A protected value that is saved but could not be shown here (WALD2). */
+  readonly locked?: ProtectedLock | undefined;
 }
+
+/**
+ * Why a saved, protected value is not shown: no key here (it cannot be shown or changed now), it
+ * could not be opened, or what was stored is the stand-in itself (saved over the real value before
+ * WALD2), so the real value has to be typed again.
+ */
+export type ProtectedLock = 'no_key' | 'unreadable' | 'lost';
+
+/**
+ * The stand-in a keyless read shows for a protected detail. Case and spaces do not matter. Mirrors
+ * isProtectedPlaceholder in the services package (a test keeps the two in step); the client bundle
+ * cannot import the services package itself.
+ */
+function protectedStandIn(value: string | null | undefined): ProtectedLock | undefined {
+  if (!value) return undefined;
+  const folded = value.replace(/\s+/g, '').toLowerCase();
+  if (folded === '[protected]') return 'no_key';
+  if (folded === '[protected:couldnotdecrypt]') return 'unreadable';
+  return undefined;
+}
+
+/** Plain words under a protected detail whose value is saved but not shown. */
+const LOCKED_HINT: Readonly<Record<ProtectedLock, string>> = {
+  no_key: 'Saved and Protected. It cannot be shown or changed here right now.',
+  unreadable:
+    'Saved and Protected, but it could not be opened just now. Type a new value only to replace it.',
+  lost: 'This detail needs to be added again. Type it and press Save.',
+};
 
 /** Same UTC day — the common case where a value is effective the moment it's saved. */
 function sameDay(a: string, b: string): boolean {
@@ -209,6 +239,7 @@ function FieldRow({
   assurance,
   sourceDocumentId,
   onChoice,
+  locked,
 }: FieldRowProps) {
   const t = useT(appApplicantCatalog);
   const impactT = useT(changeImpactCatalog);
@@ -219,6 +250,11 @@ function FieldRow({
   useFocusInvalidField(formRef, state);
   const inputId = repeatingRecordKey ? `f-${field.key}-${repeatingRecordKey}` : `f-${field.key}`;
   const sensitivityLabel = SENSITIVITY_LABELS[field.sensitivity];
+  // A stand-in is never a value: it is never put in the box, so it can never be saved back.
+  const standIn = protectedStandIn(currentValue);
+  const shownValue = standIn ? null : currentValue;
+  const lock = locked ?? standIn;
+  const hintId = `${inputId}-locked`;
 
   return (
     <form ref={formRef} action={formAction} className="field-row">
@@ -248,12 +284,14 @@ function FieldRow({
       <div className="field-control">
         {field.options ? (
           <select
+            // Remount when the stored value changes, so a save shows what was stored, not old typing.
+            key={shownValue ?? ''}
             id={inputId}
             name="value"
-            defaultValue={currentValue ?? ''}
+            defaultValue={shownValue ?? ''}
             className="input"
             onChange={(event) => onChoice?.(event.target.value)}
-            {...fieldProblem(state, 'value', messageId)}
+            {...fieldProblem(state, 'value', messageId, ...(lock ? [hintId] : []))}
           >
             <option {...t.lang('appApplicant.appApplicantIdProfileEditor.select')} value="">
               {t('appApplicant.appApplicantIdProfileEditor.select')}
@@ -266,17 +304,26 @@ function FieldRow({
           </select>
         ) : (
           <input
+            // Remount when the stored value changes, so a save shows what was stored, not old typing.
+            key={shownValue ?? ''}
             id={inputId}
             name="value"
             type={field.type === 'date' ? 'date' : 'text'}
-            defaultValue={currentValue ?? ''}
-            placeholder={field.placeholder ?? ''}
+            defaultValue={shownValue ?? ''}
+            placeholder={
+              lock && lock !== 'lost' ? 'Saved and Protected' : (field.placeholder ?? '')
+            }
             className="input"
-            {...fieldProblem(state, 'value', messageId)}
+            {...fieldProblem(state, 'value', messageId, ...(lock ? [hintId] : []))}
           />
         )}
         <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
       </div>
+      {lock ? (
+        <p id={hintId} className="muted u-fs-075-m0" data-protected-lock={lock}>
+          {LOCKED_HINT[lock]}
+        </p>
+      ) : null}
       <details className="field-backdate">
         <summary className="muted">
           {t.node('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
@@ -339,6 +386,8 @@ export interface ProfileValue {
   readonly effectiveFrom?: string | null;
   /** The document the current value was read from, when it came from one. */
   readonly sourceDocumentId?: string | null;
+  /** Saved and protected, but its value is not shown here (`value` is then null). */
+  readonly locked?: ProtectedLock | null;
 }
 
 type RepeatingValues = Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
@@ -374,8 +423,10 @@ function FieldWithOther({
         assurance={current ? assurance.get(current.factId) : undefined}
         sourceDocumentId={current?.sourceDocumentId}
         onChoice={detail ? setChoice : undefined}
+        locked={current?.locked ?? undefined}
       />
-      {detail && (choice === OTHER_CHOICE || detailCurrent?.value) ? (
+      {/* A saved Other text stays visible when it is protected and not shown here (WALD2). */}
+      {detail && (choice === OTHER_CHOICE || detailCurrent?.value || detailCurrent?.locked) ? (
         <FieldRow
           applicantId={applicantId}
           field={detail}
@@ -385,6 +436,7 @@ function FieldWithOther({
           updatedAt={detailCurrent?.updatedAt}
           effectiveFrom={detailCurrent?.effectiveFrom}
           assurance={detailCurrent ? assurance.get(detailCurrent.factId) : undefined}
+          locked={detailCurrent?.locked ?? undefined}
         />
       ) : null}
     </>
@@ -674,14 +726,16 @@ function matchesSearch(label: string, search: string): boolean {
 
 function displayValue(field: EditorFieldDef, current: ProfileValue | undefined): string {
   const value = current?.value;
+  const lock = current?.locked ?? protectedStandIn(value);
+  if (lock === 'unreadable') return 'Could not read this detail';
+  if (lock === 'lost') return 'Needs to be added again';
+  if (lock === 'no_key') return 'Protected detail';
   if (!value && current?.status === 'STALE') return 'No Longer Current';
   if (!value) {
     return current?.status && field.sensitivity !== 'STANDARD'
       ? 'Protected detail'
       : 'Not recorded';
   }
-  if (value === '[protected: could not decrypt]') return 'Could not read this detail';
-  if (value === '[protected]') return 'Protected detail';
   return field.type === 'date' ? formatDateOnly(value) : value;
 }
 

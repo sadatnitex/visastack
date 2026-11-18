@@ -1277,7 +1277,7 @@ export default async function ApplicantDocumentsPage({
           ) : null}
         </details>
       </DepthScope>
-      {/* On a phone, adding a file is always one tap away; larger screens have the button in the header. The spacer keeps the end of the page clear of it. */}
+      {/* On a phone, adding a file is always one tap away; larger screens have the button in the header. The spacer keeps the end of the page clear of it. While a document sheet is open the stylesheet hides both (body:has on the open sheet), so nothing sits over it and the button is back when the sheet closes. */}
       <div className="docs-add-fab-space" aria-hidden="true" />
       <Link className="docs-add-fab" href={addDocumentsHref} aria-label="Add Documents">
         <svg
