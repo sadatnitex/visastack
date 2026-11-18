@@ -13,16 +13,24 @@ const LANGS: Lang[] = ['en', 'bn'];
 
 async function open(
   page: Page,
-  baseURL: string | undefined,
+  _baseURL: string | undefined,
   path: string,
   size: { width: number; height: number },
   lang: Lang = 'en',
 ): Promise<void> {
   await page.setViewportSize(size);
-  if (lang === 'bn' && baseURL) {
-    await page.context().addCookies([{ name: 'visastack_locale', value: 'bn', url: baseURL }]);
-  }
   await page.goto(path);
+  // Bengali is chosen the way a visitor does it: the language switch in the bar or in the menu.
+  if (lang === 'bn' && (await page.locator('html').getAttribute('data-locale')) !== 'bn') {
+    const bar = page.locator('.lang-switch');
+    if (await bar.isVisible()) {
+      await bar.click();
+    } else {
+      await page.locator('button.site-menu-toggle').click();
+      await page.locator('.menu-lang').click();
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-locale', 'bn');
+  }
   await page.evaluate(async () => {
     await document.fonts.ready;
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
