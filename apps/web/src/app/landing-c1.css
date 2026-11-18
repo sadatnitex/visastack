@@ -1309,3 +1309,39 @@
     font-size: var(--text-lead);
   }
 }
+
+/* WP-PUBFIX phone length: Home is held 2 percent under the 6-screen phone limit in English and in
+   Bengali (Bengali lines wrap more). Only vertical spacing between sections is trimmed on phones
+   and tablets; no word, picture or control changes. */
+@media (max-width: 899px) {
+  .c1 .c1-devices {
+    margin-top: 24px;
+  }
+  .c1 .c1-darkstage {
+    padding-block: 32px;
+  }
+  .c1 .c1-bento {
+    margin-top: 24px;
+  }
+  .land-section.country-start {
+    padding-block: 32px;
+  }
+  .land-section.land-story {
+    padding-block: 20px;
+  }
+  .land-stage {
+    padding-block: var(--space-2);
+  }
+  .c1 .c1-hero {
+    padding-top: 32px;
+  }
+  .c1 .c1-phone {
+    margin-bottom: 8px;
+  }
+}
+
+/* WP-PUBFIX the home scenes keep their own top spacing (.land-stage), so the shared stage's small top
+   padding is not added on top of it: the pinned scenes must still fit a short computer screen. */
+.pub-scene.land-scene .pub-scene-stage {
+  padding-top: 0;
+}

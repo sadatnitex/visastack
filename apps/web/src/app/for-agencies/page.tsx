@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { PublicButton } from '../../components/public-site/public-button';
+import { publicText } from '../../components/public-site/public-text';
 import { ReadinessRing } from '../../components/public-site/readiness-ring';
 import { Chapter, Scene } from '../../components/public-site/scene';
 import { ScenesRuntime } from '../../components/public-site/scenes-runtime';
@@ -10,6 +11,8 @@ import {
   StatusChip,
   StoryCard,
 } from '../../components/public-site/story';
+import { homeCatalog } from '../../i18n/home';
+import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
 import { AGENCY_POINTS, EXAMPLE_LINE, EXAMPLE_SHARING } from './for-agencies-data';
@@ -23,13 +26,18 @@ export const metadata: Metadata = { title: 'For Agencies' };
  * Example figures only: no logos, counts, testimonials, ratings or partner names.
  */
 export default async function ForAgenciesPage(): Promise<ReactElement> {
+  await primeLocale();
+  const lang = getPageLanguage();
+  const say = (text: string) => publicText(text, lang);
+  // The start button reads the same catalogue words as Home, so the two pages never differ.
+  const t = getServerT(homeCatalog);
   const signedIn = await isSignedIn();
   const betaOpen = isPublicBetaOpen();
   const startLabel = signedIn
-    ? 'Open Your Workspace'
+    ? t.node('home.page.openYourWorkspace')
     : betaOpen
-      ? 'Create Your Free Account'
-      : 'Sign In to Get Started';
+      ? t.node('home.page.createYourFreeAccount')
+      : t.node('home.page.signInToGetStarted');
   const startHref = !signedIn && betaOpen ? '/auth/sign-up' : '/app';
   const actions = (
     <div className="pub4a-actions">
@@ -37,7 +45,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
         {startLabel}
       </PublicButton>
       <PublicButton href="/status" variant="secondary">
-        See What Works Today
+        {say('See What Works Today')}
       </PublicButton>
     </div>
   );
@@ -46,12 +54,14 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
     <>
       <Chapter tone="dark" labelledBy="agencies-title" className="pub4a-hero">
         <div className="container pub4a-hero-copy">
-          <p className="pub4a-kicker">{betaOpen ? 'Free Public Beta' : 'Invite-Only Pilot'}</p>
+          <p className="pub4a-kicker">
+            {betaOpen ? t.node('home.page.freePublicBeta') : t.node('home.page.inviteOnlyPilot')}
+          </p>
           <h1 id="agencies-title" className="pub4a-title">
-            Stop Chasing Documents <HeadlineWords>by Message</HeadlineWords>
+            {say('Stop Chasing Documents')} <HeadlineWords>{say('by Message')}</HeadlineWords>
           </h1>
           <p className="pub4a-lede">
-            Ask for a document, then see when it arrives, all in one place.
+            {say('Ask for a document, then see when it arrives, all in one place.')}
           </p>
           {actions}
         </div>
@@ -60,11 +70,16 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
       <Chapter tone="light" labelledBy="agencies-gets-title">
         <div className="container">
           <h2 id="agencies-gets-title" className="pub4a-h2">
-            What an Agency Gets
+            {say('What an Agency Gets')}
           </h2>
           <div className="pub4a-grid">
             {AGENCY_POINTS.map((point) => (
-              <StoryCard key={point.title} title={point.title} body={point.body} />
+              <StoryCard
+                key={point.title}
+                title={say(point.title)}
+                body={say(point.body)}
+                pageLang={lang}
+              />
             ))}
           </div>
         </div>
@@ -74,17 +89,23 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
         <Scene name="line" len={2} steps={3} labelledBy="agencies-line-title">
           <div className="container pub4a-line">
             <h2 id="agencies-line-title" className="pub4a-h2">
-              One Case, One Clear Line
+              {say('One Case, One Clear Line')}
             </h2>
             <div className="pub4a-board">
-              <ExampleTag />
-              <ReadinessRing done={1} total={3} size="lg" countLabel="Items Complete" />
+              <ExampleTag pageLang={lang} />
+              <ReadinessRing
+                done={1}
+                total={3}
+                size="lg"
+                countLabel="Items Complete"
+                pageLang={lang}
+              />
               <ol className="pub4a-steps">
                 {EXAMPLE_LINE.map((row) => (
                   <li key={row.status} className="pub4a-step">
-                    <StatusChip status={row.status} />
-                    <strong className="pub4a-step-name">{row.name}</strong>
-                    <span className="pub4a-step-note">{row.note}</span>
+                    <StatusChip status={row.status} pageLang={lang} />
+                    <strong className="pub4a-step-name">{say(row.name)}</strong>
+                    <span className="pub4a-step-note">{say(row.note)}</span>
                   </li>
                 ))}
               </ol>
@@ -96,26 +117,30 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
       <Chapter tone="light" labelledBy="agencies-share-title">
         <div className="container">
           <h2 id="agencies-share-title" className="pub4a-h2">
-            You See Only What Is Shared
+            {say('You See Only What Is Shared')}
           </h2>
           <div className="pub4a-grid pub4a-grid-two">
             <StoryCard
-              title="Saved Is Not Shared"
-              body="A client's record is private. Sharing starts with their permission, and every sharing decision is recorded."
+              title={say('Saved Is Not Shared')}
+              body={say(
+                "A client's record is private. Sharing starts with their permission, and every sharing decision is recorded.",
+              )}
               example
+              pageLang={lang}
               raised
             >
               <ul className="pub4a-chips" aria-label="Example States">
                 {EXAMPLE_SHARING.map((status) => (
                   <li key={status}>
-                    <StatusChip status={status} />
+                    <StatusChip status={status} pageLang={lang} />
                   </li>
                 ))}
               </ul>
             </StoryCard>
             <StoryCard
-              title="Access Can End"
-              body="Access can end on a date the client sets, and the change is recorded."
+              title={say('Access Can End')}
+              body={say('Access can end on a date the client sets, and the change is recorded.')}
+              pageLang={lang}
             />
           </div>
         </div>
@@ -124,11 +149,11 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
       <Chapter tone="dark" labelledBy="agencies-close-title">
         <div className="container pub4a-hero-copy">
           <h2 id="agencies-close-title" className="pub4a-h2">
-            One Traveller Profile, Fewer Repeat Requests
+            {say('One Traveller Profile, Fewer Repeat Requests')}
           </h2>
           {actions}
           <PublicButton href="/countries" variant="secondary">
-            Countries
+            {say('Countries')}
           </PublicButton>
         </div>
       </Chapter>
