@@ -113,6 +113,12 @@ describe('asking a sponsor for one document, then sending the request on WhatsAp
     // The owner revokes it: the link no longer works, so it is no longer offered.
     await mount(ORIGIN, [request('REVOKED')]);
     expect(sendLink()).toBeNull();
+    // DECL1: the person asked said no: the owner reads Declined, and the link is not offered.
+    await mount(ORIGIN, [request('DECLINED')]);
+    expect(sendLink()).toBeNull();
+    expect([...container.querySelectorAll('.badge')].map((badge) => badge.textContent)).toContain(
+      'Declined',
+    );
     expect(
       [...container.querySelectorAll('button')].some((b) => b.textContent === 'Copy Message'),
     ).toBe(false);

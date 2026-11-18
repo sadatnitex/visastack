@@ -98,6 +98,12 @@ export const ROUTES: readonly GuardRoute[] = [
     mustShow: 'Ask about your cases from WhatsApp',
   },
   {
+    page: '/app/invitations/declined',
+    role: 'traveller',
+    path: '/app/invitations/declined',
+    mustShow: 'Invitation Declined',
+  },
+  {
     page: '/app/applicants',
     role: 'traveller',
     path: '/app/applicants',

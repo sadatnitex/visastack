@@ -1,6 +1,6 @@
 'use server';
 
-import { acceptSharingInvitation } from '@visastack/services';
+import { acceptSharingInvitation, declineSharingInvitation } from '@visastack/services';
 import { redirect } from 'next/navigation';
 import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
@@ -23,4 +23,21 @@ export async function acceptSharingInvitationAction(
   );
   if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
   redirect(`/app/shared/${result.value}`);
+}
+
+/** DECL1: say no. Refused the same way for every reason; on success the link is ended for good. */
+export async function declineSharingInvitationAction(
+  _previous: { readonly ok: boolean; readonly message: string },
+  form: FormData,
+): Promise<{ readonly ok: boolean; readonly message: string }> {
+  if (process.env[sharingInvitationFlag] !== 'true')
+    return { ok: false, message: 'Sharing invitations are temporarily unavailable.' };
+  const result = await withSession(({ db, accountId }) =>
+    declineSharingInvitation(db, {
+      actorAccountId: accountId,
+      rawToken: String(form.get('token') ?? ''),
+    }),
+  );
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
+  redirect('/app/invitations/declined');
 }

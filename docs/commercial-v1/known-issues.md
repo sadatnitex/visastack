@@ -8732,3 +8732,13 @@ NAV2 header and footer
 - Translation register and review queue rows for SG-7edc4f46 and SG-0e7ceaa1 are left as they are, as TIDY1 #656 did for the removed Home keys.
 - Checks: lint, typecheck, `vitest run src/i18n src/lib` 3319 pass, `node --test scripts/*.test.mjs` 83 pass, em dash sweep 0.
 - NOT verified: full build, Playwright and smoke (left to CI).
+
+## DECL1: saying no to an invitation (2026-11-18, migration 0138)
+- A person can Decline a sharing, client, contributor or agency team invitation on its accept screen. Only the person it was sent to (their own signed-in address), while pending and unexpired; one conditional update sets DECLINED and replaces the token hash with one nobody holds, so the link can never be accepted or declined again; nothing is created (no grant, case exception, profile, case, membership or upload right). Every refusal gives the kind's existing not-found answer. Records: `docs/upgrades/programme/decl/DECL1-records.md`.
+- Senders read Declined on the sharing invitation list and the case's contributor request list; the Access Log reads Sharing Invitation Declined and Document Request Declined. Agency team and client lists show pending invitations only, so a declined one simply leaves them (as before for any answered one).
+- Migration 0138 adds DECLINED to the three invitation enums and widens the sharing invitation check. It is not run in production: it needs the owner's word "migrate 0138". Until then the screens show no Decline and every decline refuses; the retention sweeps skip declined rows.
+- Access ratchet: four reasoned `APPLICANT_TRUSTED` entries (Guardian decision, under owner decision "G3 A"), each naming `invitation-decline.test.ts`.
+- Class A review (Guardian 16): two independent Opus reviewers plus a security pass on e9c52663, no confirmed defect, the four APPLICANT_TRUSTED entries justified by both; fixes F1-F3 applied.
+- Checks: `scripts/agent/full-check.sh` with `NODE_OPTIONS=--max-old-space-size=8192` exported (without it typecheck and build run out of memory), `node --test scripts/*.test.mjs`, em dash sweep 0. Every new guard was proven red by breaking the real code once.
+- New English catalogue keys for the localization lane are listed in the records file (four `...Decl1` groups).
+- NOT verified: live and real-device click-through of the four screens; production behaviour before and after 0138.

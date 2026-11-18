@@ -1,6 +1,6 @@
 import type { PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, lt, or, sql } from 'drizzle-orm';
 import { assignMember, isActiveMember } from './agency';
 import { createApplicant, getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -9,6 +9,13 @@ import { type Db, first, required, schema } from './db';
 import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError, serviceError } from './errors';
 import type { ServiceMessageKey } from './i18n';
+import {
+  INVITATION_DECLINE_EVENTS,
+  declineMayProceed,
+  declineRefusedEvent,
+  invitationDeclineAvailable,
+  unusableInvitationTokenHash,
+} from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { createMission } from './missions';
@@ -132,7 +139,7 @@ async function recordWrongRecipient(
   actorAccountId: string,
   invitationId: string,
   organizationId: string,
-  stage: 'preview' | 'accept',
+  stage: 'preview' | 'accept' | 'decline',
   reason: 'wrong_recipient' | 'phone_invitation',
 ): Promise<void> {
   try {
@@ -800,6 +807,97 @@ export async function revokeClientInvitation(
   return ok(undefined);
 }
 
+/** DECL1: records a refused decline (kind and who tried only); a failure never changes the refusal. */
+async function recordDeclineRefused(db: Db, actorAccountId: string): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, declineRefusedEvent('client', actorAccountId));
+    });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
+}
+
+/**
+ * DECL1: the invited traveller says no to an agency's invitation. Only the person it was sent to may
+ * do it, while it is pending and unexpired; every other case (unknown link, someone else's, used,
+ * withdrawn, expired, already declined, too many tries, the update not yet in place) is the same
+ * one answer, so nothing about the invitation shows. One conditional update ends it, so a decline
+ * racing an accept or a withdrawal ends one way only. No profile, case or grant is made, and the
+ * link stops matching anything at once.
+ */
+export async function declineClientInvitation(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly rawToken: string },
+): Promise<Result<{ readonly declined: true }, ServiceError>> {
+  const unavailable = () => err(keyedError('not_found', 'client_invitations.invitation_not_found'));
+  if (!(await declineMayProceed(db, input.actorAccountId))) return unavailable();
+  const tokenHash = hashInvitationToken(input.rawToken);
+  const invitation = first(
+    await db
+      .select({
+        id: schema.clientInvitations.id,
+        organizationId: schema.clientInvitations.organizationId,
+        contactDestination: schema.clientInvitations.contactDestination,
+        status: schema.clientInvitations.status,
+      })
+      .from(schema.clientInvitations)
+      .where(eq(schema.clientInvitations.tokenHash, tokenHash))
+      .limit(1),
+  );
+  // Someone else's link is recorded like a refused preview or accept (ids and reason only).
+  if (
+    invitation &&
+    !(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))
+  ) {
+    await recordWrongRecipient(
+      db,
+      input.actorAccountId,
+      invitation.id,
+      invitation.organizationId,
+      'decline',
+      refusalOf(invitation).reason,
+    );
+    return unavailable();
+  }
+  const declined =
+    invitation &&
+    (await db.transaction(async (tx) => {
+      const changed = await tx
+        .update(schema.clientInvitations)
+        .set({
+          status: 'DECLINED',
+          tokenHash: unusableInvitationTokenHash(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.clientInvitations.id, invitation.id),
+            eq(schema.clientInvitations.tokenHash, tokenHash),
+            eq(schema.clientInvitations.status, 'PENDING'),
+            gt(schema.clientInvitations.expiresAt, new Date()),
+          ),
+        )
+        .returning({ id: schema.clientInvitations.id });
+      if (changed.length === 0) return false;
+      await appendAuditEvent(tx, {
+        eventType: INVITATION_DECLINE_EVENTS.client.eventType,
+        actorAccountId: input.actorAccountId,
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: INVITATION_DECLINE_EVENTS.client.resourceType,
+        resourceId: invitation.id,
+        metadata: { organizationId: invitation.organizationId },
+      });
+      return true;
+    }));
+  if (!declined) {
+    await recordDeclineRefused(db, input.actorAccountId);
+    return unavailable();
+  }
+  return ok({ declined: true as const });
+}
+
 /**
  * WP-SB5: one page of the invitations the full read below returns, newest first (time, then id),
  * at most `limit` (clamped to 1 to 100), optionally in one status only, with how many match in
@@ -903,6 +1001,7 @@ export async function sweepAbandonedClientInvitations(
   limit = DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT,
 ): Promise<AbandonedClientInvitationSweepResult> {
   const cutoff = new Date(Date.now() - ABANDONED_INVITATION_AGE_MS);
+  const declineReady = await invitationDeclineAvailable(db);
   const stale = await db
     .select({ id: schema.clientInvitations.id })
     .from(schema.clientInvitations)
@@ -916,6 +1015,14 @@ export async function sweepAbandonedClientInvitations(
           eq(schema.clientInvitations.status, 'REVOKED'),
           lt(schema.clientInvitations.revokedAt, cutoff),
         ),
+        // DECL1: a declined invitation has no revokedAt; the day it was declined is its updatedAt.
+        // Before migration 0138 the value does not exist (comparing with it would fail the query).
+        declineReady
+          ? and(
+              eq(schema.clientInvitations.status, 'DECLINED'),
+              lt(schema.clientInvitations.updatedAt, cutoff),
+            )
+          : undefined,
       ),
     )
     .limit(limit);

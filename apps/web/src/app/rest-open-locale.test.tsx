@@ -29,6 +29,7 @@ const svc = vi.hoisted(() => ({
   getOrganizationBrandingForDisplay: vi.fn(),
   aiAssistAvailable: vi.fn(),
   getRetentionPolicies: vi.fn(),
+  invitationDeclineAvailable: vi.fn(),
 }));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
@@ -121,6 +122,7 @@ beforeEach(() => {
   vi.stubEnv('PERSONAL_SHARING_INVITATIONS_ENABLED', 'true');
   for (const f of Object.values(svc)) f.mockReset();
   svc.listApplicants.mockResolvedValue([{ id: 'a1', displayName: 'Rina' }]);
+  svc.invitationDeclineAvailable.mockResolvedValue(false);
   svc.getOrganizationBrandingForDisplay.mockResolvedValue(null);
   svc.aiAssistAvailable.mockResolvedValue(true);
   svc.getRetentionPolicies.mockResolvedValue([{ docType: 'BANK_STATEMENT', retentionDays: 30 }]);

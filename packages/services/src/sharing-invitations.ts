@@ -13,6 +13,12 @@ import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError } from './errors';
+import {
+  INVITATION_DECLINE_EVENTS,
+  declineMayProceed,
+  declineRefusedEvent,
+  unusableInvitationTokenHash,
+} from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
@@ -355,6 +361,106 @@ class SharingAcceptanceError extends Error {
   constructor(readonly serviceError: ServiceError) {
     super(serviceError.message);
   }
+}
+
+/**
+ * DECL1: records a refused decline; a failure never changes the refusal. When the link names a
+ * real invitation sent to another address, its id goes in the record (never the token or an
+ * address), so tries of one forwarded link can be traced.
+ */
+async function recordDeclineRefused(
+  db: Db,
+  actorAccountId: string,
+  tokenHash?: string,
+  actorEmail?: string,
+): Promise<void> {
+  try {
+    const named =
+      tokenHash && actorEmail
+        ? first(
+            await db
+              .select({ id: schema.sharingInvitations.id, email: schema.sharingInvitations.email })
+              .from(schema.sharingInvitations)
+              .where(eq(schema.sharingInvitations.tokenHash, tokenHash))
+              .limit(1),
+          )
+        : undefined;
+    const forwarded = named && named.email !== actorEmail ? named.id : undefined;
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, declineRefusedEvent('sharing', actorAccountId, forwarded));
+    });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
+}
+
+/**
+ * DECL1: the invited person says no. Only the person the invitation was sent to may do it, while it
+ * is pending and unexpired; every other case (unknown or malformed link, someone else's, used,
+ * withdrawn, expired, already declined, too many tries, the update not yet in place) is the same
+ * one answer, so nothing about the invitation shows. The claim is one conditional update, so a
+ * decline racing an accept or a withdrawal ends one way only. No grant, no case exception and no
+ * access is made, and the link stops matching anything at once.
+ */
+export async function declineSharingInvitation(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly rawToken: string },
+): Promise<Result<{ readonly declined: true }, ServiceError>> {
+  const unavailable = () => err(keyedError('not_found', 'sharing.inviteUnavailable'));
+  if (!(await declineMayProceed(db, input.actorAccountId))) return unavailable();
+  if (!/^[A-Za-z0-9_-]{43}$/.test(input.rawToken)) {
+    await recordDeclineRefused(db, input.actorAccountId);
+    return unavailable();
+  }
+  const tokenHash = hashInvitationToken(input.rawToken);
+  let actorEmail: string | undefined;
+  const outcome = await db.transaction(async (tx) => {
+    const account = first(
+      await tx
+        .select({ email: schema.accounts.email })
+        .from(schema.accounts)
+        .where(eq(schema.accounts.id, input.actorAccountId))
+        .limit(1),
+    );
+    const email = account?.email?.toLowerCase();
+    if (!email) return null;
+    actorEmail = email;
+    const invitations = schema.sharingInvitations;
+    const changed = first(
+      await tx
+        .update(invitations)
+        .set({
+          status: 'DECLINED',
+          tokenHash: unusableInvitationTokenHash(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(invitations.tokenHash, tokenHash),
+            eq(invitations.email, email),
+            eq(invitations.status, 'PENDING'),
+            gt(invitations.expiresAt, new Date()),
+          ),
+        )
+        .returning({ id: invitations.id, applicantId: invitations.applicantId }),
+    );
+    if (!changed) return null;
+    await appendAuditEvent(tx, {
+      eventType: INVITATION_DECLINE_EVENTS.sharing.eventType,
+      actorAccountId: input.actorAccountId,
+      applicantId: changed.applicantId,
+      resourceType: INVITATION_DECLINE_EVENTS.sharing.resourceType,
+      resourceId: changed.id,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+    });
+    return changed;
+  });
+  if (!outcome) {
+    await recordDeclineRefused(db, input.actorAccountId, tokenHash, actorEmail);
+    return unavailable();
+  }
+  return ok({ declined: true as const });
 }
 
 export async function listSharingInvitations(

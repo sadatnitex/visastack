@@ -4,6 +4,7 @@ import {
   GRANT_AI_ASSIST_STEP_UP_ACTION,
   acceptClientInvitation,
   accountPrincipal,
+  declineClientInvitation,
   requireAccess,
   setGrantAiAssist,
 } from '@visastack/services';
@@ -79,4 +80,17 @@ export async function acceptClientInvitationAction(
   if (result.next) redirect(result.next);
   if (result.applicantId) redirect(`/app/applicant/${result.applicantId}`);
   return { ok: false, message: result.message };
+}
+
+/** DECL1: say no to the agency. Refused the same way for every reason; nothing is created. */
+export async function declineClientInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const rawToken = String(formData.get('token') ?? '');
+  const result = await withSession(({ db, accountId }) =>
+    declineClientInvitation(db, { actorAccountId: accountId, rawToken }),
+  );
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
+  redirect('/app/invitations/declined');
 }
