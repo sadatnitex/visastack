@@ -58,7 +58,7 @@ describe('check what we found', () => {
     ]);
     expect(host.querySelector('h3')?.textContent).toBe('Check What We Found');
     expect(host.textContent).toContain('Nothing is saved to your profile until you accept it.');
-    const headings = [...host.querySelectorAll('.finding-card h4')].map((h) => h.textContent);
+    const headings = [...host.querySelectorAll('.finding-card h5')].map((h) => h.textContent);
     expect(headings).toEqual(['City', 'Occupation', 'Given Name']);
     const badges = [...host.querySelectorAll('.finding-card-head .badge')].map(
       (b) => b.textContent,
@@ -153,7 +153,7 @@ describe('check what we found', () => {
     expect(unverified?.textContent).toContain(
       'We could not find these exact words in the document.',
     );
-    expect(unmapped?.querySelector('h4')?.textContent).toBe('Detail We Could Not Place');
+    expect(unmapped?.querySelector('h5')?.textContent).toBe('Detail We Could Not Place');
     expect(unmapped?.querySelector('button[value="approve"]')).toBeNull();
   });
 
@@ -355,7 +355,7 @@ describe('where each suggestion came from (S6)', () => {
     ]);
     const origin = (heading: string) =>
       [...host.querySelectorAll('.finding-card')]
-        .find((card) => card.querySelector('h4')?.textContent === heading)
+        .find((card) => card.querySelector('h5')?.textContent === heading)
         ?.querySelector('.finding-origin')?.textContent;
     expect(origin('Family Name')).toContain(
       'Read from the Two Lines at the Bottom of the Passport',

@@ -3,7 +3,7 @@ import './public-site.css';
 import './public-scenes.css';
 
 /** A scroll scene's length, in screen heights, while scenes move (1 to 4). */
-export type SceneLength = 1 | 2 | 3 | 4;
+export type SceneLength = 1 | 1.5 | 2 | 2.5 | 3 | 4;
 
 export interface SceneProps {
   /** A short name for the scene, unique on the page (for example "hero"). */
@@ -16,12 +16,28 @@ export interface SceneProps {
   readonly finalStep?: number;
   /** The heading that names the scene. */
   readonly labelledBy?: string;
+  /**
+   * The narrowest screen, in CSS pixels, on which this scene is pinned and moves (R1: Home uses 900).
+   * Between the engine's own floor and this width the scene is an ordinary finished section. The
+   * stylesheet un-pins a scene below 899 px, so 900 is the value it supports today.
+   */
+  readonly minWidth?: number;
+  /**
+   * Opts the scene into the kit's centred stage (R1): a pinned stage centres what it shows instead of
+   * sitting at the top. Pages built before the kit leave it off and are unchanged.
+   */
+  readonly kitStage?: boolean;
   readonly className?: string;
   readonly children: ReactNode;
 }
 
 function whole(value: number, min: number, max: number): number {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, Math.floor(value))) : min;
+}
+
+/** A scroll length in half screens, from 1 to 4 (R1: a scene may take 1.5 or 2.5 screens). */
+function halves(value: number): number {
+  return Number.isFinite(value) ? Math.min(4, Math.max(1, Math.round(value * 2) / 2)) : 1;
 }
 
 /**
@@ -34,6 +50,8 @@ export function Scene({
   steps,
   finalStep,
   labelledBy,
+  minWidth,
+  kitStage,
   className,
   children,
 }: SceneProps) {
@@ -43,9 +61,11 @@ export function Scene({
     <section
       className={className ? `pub-scene ${className}` : 'pub-scene'}
       data-scene={name}
-      data-len={whole(len, 1, 4)}
+      data-len={halves(len)}
       data-steps={count}
       data-step={last}
+      {...(kitStage ? { 'data-kit-stage': '' } : {})}
+      {...(minWidth ? { 'data-min-width': whole(minWidth, 1, 4000) } : {})}
       aria-labelledby={labelledBy}
     >
       <div className="pub-scene-stage">{children}</div>

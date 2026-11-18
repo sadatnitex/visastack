@@ -126,3 +126,30 @@ img.pic-cover {
   }
 }
 /* end WP-PIC2 */
+/* WP-WAL2 Document detail pass (18 Nov 2026, owner decision: Preview Card First with the Wallet Pass front as the hero). The front of an opened document is a dark pass, the one raised card on that screen: deep brand ground with a soft light from the top corner and a resting shadow. Text on it is page white and the pale brand tint, at least 5.9:1 on the lightest part of the ground and more on the darkest. Its controls keep their own solid surfaces; the focus ring turns page white so it shows on the dark ground. Layout lives in globals.css (WP-WAL2); only the look lives here. Nothing here moves. */
+.pic-pass {
+  background: radial-gradient(120% 90% at 85% 0%, var(--brand) 0%, var(--text) 62%);
+  color: var(--bg-elevated);
+  box-shadow: 0 10px 24px rgb(19 36 61 / 0.28), 0 1px 2px rgb(19 36 61 / 0.2);
+}
+.pic-pass .doc-hero-kind,
+.pic-pass .doc-hero-facts,
+.pic-pass .doc-hero-mark-word {
+  color: var(--brand-tint-4);
+}
+.pic-pass .doc-hero-name {
+  color: var(--bg-elevated);
+}
+.pic-pass .pic-glow::before {
+  background: radial-gradient(closest-side, rgb(232 240 252 / 0.32), rgb(232 240 252 / 0));
+}
+.pic-pass .explain-tip-trigger {
+  color: var(--bg-elevated);
+}
+.pic-pass :focus-visible {
+  outline-color: var(--bg-elevated);
+}
+.pic-pass .ci-step {
+  color: var(--bg-elevated);
+}
+/* end WP-WAL2 */

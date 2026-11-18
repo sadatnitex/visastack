@@ -103,7 +103,9 @@ const words = (el: Element | null | undefined) =>
 describe('the case rail', () => {
   it('lists its cards in order: details, date checks, pack, advance, snapshots, itinerary', () => {
     const doc = rail();
-    const headings = [...doc.querySelectorAll('aside h2')].map((h) => words(h));
+    const headings = [...doc.querySelectorAll('aside h2:not(.expandable-section-title)')].map((h) =>
+      words(h),
+    );
     expect(headings).toEqual([
       'Case Details',
       'Trip Date Checks',
@@ -116,7 +118,8 @@ describe('the case rail', () => {
 
   it('keeps the ids and depth levels the page links to', () => {
     const doc = rail();
-    const level = (id: string) => foldOf(doc, id)?.getAttribute('data-level');
+    const level = (id: string) =>
+      doc.getElementById(id)?.closest('[data-level]')?.getAttribute('data-level');
     expect(level('trip-checks')).toBe('browse');
     expect(level('pack')).toBe('browse');
     expect(level('snapshots')).toBe('everything');
@@ -131,9 +134,13 @@ describe('the case rail', () => {
       const fold = target?.closest('details');
       expect(fold, id).not.toBeNull();
       expect(fold?.id, id).toBe('');
-      // Inside the closed row, after the summary the browser leaves showing.
-      expect(target?.parentElement, id).toBe(fold);
-      expect(target?.previousElementSibling?.tagName, id).toBe('SUMMARY');
+      // Inside the closed row, after the summary the browser leaves showing. A rail fold holds the
+      // anchor directly; an Expandable Section (WAL3) holds it one level down, in its body.
+      const holder =
+        id === 'trip-checks' ? target?.parentElement?.parentElement : target?.parentElement;
+      expect(holder, id).toBe(fold);
+      const afterSummary = id === 'trip-checks' ? target?.parentElement : target;
+      expect(afterSummary?.previousElementSibling?.tagName, id).toBe('SUMMARY');
     }
   });
 
@@ -151,16 +158,27 @@ describe('the case rail', () => {
   it('makes every card one native fold whose first child is its summary row', () => {
     const doc = rail();
     const folds = [...doc.querySelectorAll('aside > details.lift-fold')];
-    expect(folds).toHaveLength(6);
+    expect(folds).toHaveLength(4);
     for (const fold of folds) {
       expect(fold.firstElementChild?.tagName).toBe('SUMMARY');
       expect(fold.querySelector(':scope > .lift-fold-body h2')).not.toBeNull();
     }
     // The summary row names the card the same way the card names itself.
     const names = folds.map((f) => words(f.querySelector('.lift-action-title')));
-    expect(names).toEqual([
+    // Case Details and Trip Date Checks are Expandable Sections (WAL3): the same native fold,
+    // with their name as the row's heading and a one-line summary.
+    const sections = [
+      ...doc.querySelectorAll('aside > .rail-section details.expandable-section-details'),
+    ];
+    expect(sections.map((d) => words(d.querySelector(':scope > summary h2')))).toEqual([
       'Case Details',
       'Trip Date Checks',
+    ]);
+    for (const section of sections) {
+      expect(section.firstElementChild?.tagName).toBe('SUMMARY');
+      expect(section.querySelector(':scope .rail-section-body h2')).not.toBeNull();
+    }
+    expect(names).toEqual([
       'Requirement Pack',
       'Advance the Case',
       'Snapshots',
@@ -171,9 +189,8 @@ describe('the case rail', () => {
   it('says in the row what is inside, so a phone shows the state without opening anything', () => {
     const doc = rail();
     const meta = (id: string) => words(foldOf(doc, id)?.querySelector('.lift-action-meta'));
-    expect(meta('trip-checks')).toBe('2 checks on your trip dates');
-    expect(words(foldOf(doc, 'trip-checks')?.querySelector('.lift-action-pill'))).toBe(
-      'Take a Look',
+    expect(words(foldOf(doc, 'trip-checks')?.querySelector('.expandable-section-summary'))).toBe(
+      'Take a Look \u00b7 2 checks on your trip dates',
     );
     expect(meta('pack')).toBe('Japan Temporary Visitor Visa (Tourism)');
     expect(words(foldOf(doc, 'pack')?.querySelector('.lift-action-pill'))).toBe('Reviewed');
@@ -200,7 +217,7 @@ describe('the case rail', () => {
       mission: mission({ travelStartDate: null, travelEndDate: null }),
       tripChecks: { view: 'add-dates', checks: null },
     });
-    const details = doc.querySelector('aside > details');
+    const details = doc.querySelector('aside > .rail-section');
     expect(words(details)).toContain('Travel dates not set');
     expect(words(details?.querySelector('.lift-rail-note'))).toBe(
       'Add your travel dates under Edit Case Details to see passport and insurance date checks.',

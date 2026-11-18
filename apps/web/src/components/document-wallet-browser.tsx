@@ -48,6 +48,12 @@ export interface WalletBrowserDocument {
   readonly stateWords?: { readonly label: string; readonly tone: RowTone } | null;
   readonly details: ReactNode;
   /**
+   * The front of the opened document (WAL2): its picture, name and the state of its checks. When
+   * given it takes the place of the plain name box at the top of the opened document; without it
+   * the name box shows as before.
+   */
+  readonly hero?: ReactNode;
+  /**
    * The sentences about this file that are not facts or actions (how it was checked, why a hint
    * exists, what to try next). They sit in the one closed "About This File" fold, so the opened
    * document shows its facts and its actions (Owner, 5 Nov 2026: no page should have more than 30
@@ -461,12 +467,23 @@ export function DocumentWalletBrowser({
                   {t.node('components.documentWalletBrowser.yourSelectedDocumentIsOutsideThe')}
                 </p>
               ) : null}
-              <div className="document-preview-placeholder">
-                <strong data-value="name">{selected.name}</strong>
-                {selected.previewAllowed ? null : (
-                  <p>{t.node('components.documentWalletBrowser.previewIsBlockedForThisFile')}</p>
-                )}
-              </div>
+              {selected.hero ? (
+                <>
+                  {selected.hero}
+                  {selected.previewAllowed ? null : (
+                    <p className="muted">
+                      {t.node('components.documentWalletBrowser.previewIsBlockedForThisFile')}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="document-preview-placeholder">
+                  <strong data-value="name">{selected.name}</strong>
+                  {selected.previewAllowed ? null : (
+                    <p>{t.node('components.documentWalletBrowser.previewIsBlockedForThisFile')}</p>
+                  )}
+                </div>
+              )}
               {selected.details}
               <Link className="btn btn-secondary" href={`/app/applicant/${applicantId}/sharing`}>
                 {t.node('components.documentWalletBrowser.reviewSharingPermissions')}

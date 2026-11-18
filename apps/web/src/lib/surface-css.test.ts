@@ -10,7 +10,6 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = join(__dirname, '..');
 const css = readFileSync(join(SRC, 'app', 'globals.css'), 'utf8');
-const landing = readFileSync(join(SRC, 'app', 'page.tsx'), 'utf8');
 
 /** The body of every rule written with exactly this selector, in order (media blocks included). */
 function rules(selector: string): string[] {
@@ -145,15 +144,5 @@ describe('surfaces and edges by role (WP-C2)', () => {
     ]) {
       expect(body).not.toMatch(/gradient|shadow|filter|animation|!important/);
     }
-  });
-
-  it('has removed the ghost numerals from the landing steps', () => {
-    expect(css).not.toContain('land-step-num');
-    expect(landing).not.toContain('land-step-num');
-    // The step label comes from the message catalogue; its English text is still "Step {value}".
-    expect(landing).toContain("t.node('home.page.stepValue', { value })");
-    expect(readFileSync(join(__dirname, '..', 'i18n', 'home.ts'), 'utf8')).toContain(
-      "'home.page.stepValue': 'Step {value}'",
-    );
   });
 });

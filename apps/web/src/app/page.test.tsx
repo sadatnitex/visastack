@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
 
@@ -12,89 +14,111 @@ const { default: HomePage } = await import('./page');
 const render = async (searchParams: { auth_error?: string } = {}) =>
   renderServer(HomePage({ searchParams: Promise.resolve(searchParams) }));
 
-describe('the public home page (Harbor C1, WP-L1)', () => {
-  it('says each promise once instead of repeating the same list', async () => {
-    const text = textOf(await render());
-    const count = (needle: string) => text.split(needle).length - 1;
-    expect(count('Enter your details once and reuse them everywhere')).toBe(1);
-    expect(count('Less paperwork. More control.')).toBe(1);
-  });
+/** The eight chapters of the approved reference, in order (R1, owner 18 Nov 2026). */
+const CHAPTERS = [
+  'One record.',
+  'Add it once.',
+  'Ready for',
+  'Know where',
+  'You decide',
+  'Every rule shows',
+  'Built for',
+  'Start with',
+] as const;
 
-  it('labels the drawn interface as sample information', async () => {
+describe('the public home page (R1, the approved reference)', () => {
+  it('tells the eight chapters in order and nothing else between them', async () => {
     const html = await render();
-    expect(textOf(html)).toContain('Illustrative interface · Sample information');
-    expect(textOf(html)).toContain('Ayesha’s record · Example');
-    expect(html).toContain('aria-label="Illustrative interface with sample information"');
+    const at = CHAPTERS.map((words) => html.indexOf(words));
+    for (const index of at) expect(index).toBeGreaterThan(-1);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    // One top heading, and one second-level heading for each of the seven other chapters.
+    expect(html.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(html.match(/<h2[ >]/g)).toHaveLength(7);
+    expect(html.match(/data-scene="/g)).toHaveLength(5);
   });
 
-  it('says what the product is for in everyday words', async () => {
-    const text = textOf(await render());
-    // CL15: the owner's promise, in full, as one sentence for a reader or a screen reader.
-    expect(text).toContain('A clean file you can stand behind.');
-    expect(text).not.toContain('Your documents. Ready when you are.');
-    expect(text).toContain('Invite-Only Pilot');
-    // CL16: the supporting line says what the file is made of, and who sees which part.
+  it('opens with the record promise, the plain line and today’s buttons', async () => {
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('One record.');
+    expect(text).toContain('Every visa.');
     expect(text).toContain(
-      'One private file for your passport and papers. See what is missing, keep every version, and share only the part someone needs.',
+      'Keep your passport, photos and papers in one private place. Reuse them for every trip.',
     );
-    expect(text).toContain('One personal record. Separate cases. Explicit sharing.');
-    for (const title of [
-      'Keep the details.',
-      'See exactly',
-      'Share the part.',
-      'Yesterday stays',
+    expect(text).toContain('Invite-Only Pilot');
+    expect(html).toMatch(
+      /<a class="pub-button pub-button-primary" href="\/app">Sign in to get started/,
+    );
+    expect(html).toMatch(/<a [^>]*href="\/status"[^>]*>See What Works Today/);
+  });
+
+  it('leaves out everything the old page had', async () => {
+    const html = await render();
+    const text = textOf(html);
+    for (const gone of [
+      'A clean file you can stand behind.',
+      'Which Country Do You Want to Visit?',
+      'Stop starting from zero.',
+      'Without One Profile',
+      'Ayesha',
+      'class="c1-',
+      'land-group',
+      'land-hero-title',
     ]) {
-      expect(text).toContain(title);
+      expect(html + text, gone).not.toContain(gone);
     }
+    expect(html).not.toContain('<details');
   });
 
-  it('only claims what has shipped (claim register CL06, CL08, CL10, D5)', async () => {
-    const text = textOf(await render());
-    // CL08: comparing versions and reuse in a new case have not shipped yet.
-    expect(text).toContain('Find your current documents and see their earlier versions.');
-    expect(text).not.toContain('compare earlier versions');
-    expect(text).not.toContain('reuse the right information in a new case');
-    // D5: Prepare again has not shipped, so its card is replaced by the expiry reminder.
-    expect(text).not.toContain('Prepared again, faster');
-    expect(text).toContain('Reminder Before It Expires');
-    // D5: the phone's bottom tab is the Record, not Documents.
-    expect(text).toContain('▤ Record');
-    // CL10: the access end date is optional.
-    expect(text).toContain('if you want, set an access end date');
-    // CL12.
-    expect(text).toContain('Privacy and sharing are governed by actual product permissions.');
+  it('says every drawn figure is an example, and readiness is completeness never approval', async () => {
+    const html = await render();
+    const text = textOf(html);
+    expect(html.match(/class="pub-example"/g)?.length).toBeGreaterThanOrEqual(6);
+    expect(text).toContain('Example. Completeness only. Not an approval.');
+    expect(text).toContain('Example record.');
+    expect(text).toContain('Completeness only. Not an approval.');
+    expect(text).toContain('Example names and counts.');
   });
 
-  it('carries the agency proof line the owner chose (VS-016, 6 Nov 2026), once, with no number', async () => {
+  it('keeps the truthful words apart: Suggested is not Confirmed, Saved is not Shared', async () => {
     const text = textOf(await render());
-    const line = 'One traveller profile, so agencies stop asking for the same documents twice.';
-    expect(text.split(line).length - 1).toBe(1);
-    expect(line).not.toMatch(/\d/);
+    expect(text).toContain('Suggested');
+    expect(text).toContain('Confirmed');
+    expect(text).toContain('Nothing is saved as true until you say so.');
+    expect(text).toContain('Not Shared');
+    expect(text).toContain('Access Ended');
+    expect(text).not.toMatch(/\bReviewed\b/);
   });
 
-  it('is honest that this is a private pilot with some features not switched on', async () => {
+  it('names the stages with the product’s own words and says who acts', async () => {
     const text = textOf(await render());
-    expect(text).toContain('some features are still being switched on');
-    expect(text).toContain('some features are not switched on yet');
-    expect(text).toContain('made-up details');
+    for (const stage of [
+      'Getting Started',
+      'Gathering Documents',
+      'Being Checked',
+      'Needs You',
+      'Submitted',
+      'Closed',
+    ]) {
+      expect(text).toContain(stage);
+    }
+    expect(text).toContain('Illustration. Stages follow each real case.');
   });
 
   it('never promises what the product does not do', async () => {
     const text = textOf(await render()).toLowerCase();
-    // Readiness is how complete a file is, never a prediction.
-    expect(text).toContain('never a guess at your chances of approval');
     for (const overclaim of [
       'guarantee',
       'bank-grade',
       'unhackable',
       '100% secure',
-      'bangla',
       'nobody sees',
-      'every action',
-      'use everything',
       'verified booking',
       'certified copy',
       'boarding pass',
+      'approved',
+      'we decide',
     ]) {
       expect(text, overclaim).not.toContain(overclaim);
     }
@@ -109,34 +133,22 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
       /Universal Core/,
       /\bports?\b/i,
       /Harbor/,
+      /\bmission/i,
     ]) {
       expect(text, String(jargon)).not.toMatch(jargon);
     }
   });
 
-  it('sends a visitor to sign in and to see what works today', async () => {
-    const html = await render();
-    expect(html).toMatch(/<a class="c1-pill" href="\/app">Sign in to get started/);
-    expect(html.match(/href="\/app"/g)?.length).toBe(2);
-    expect(html.match(/href="\/status"/g)?.length).toBe(3);
-    for (const id of ['capabilities', 'for-agencies', 'land-how-title', 'how-it-works', 'product'])
-      expect(html).toContain(`id="${id}"`);
-  });
-
-  it('uses the open-registration flag and states the at-your-own-risk terms plainly', async () => {
+  it('keeps today’s sign-in flow: open registration leads to sign-up and says Free Public Beta', async () => {
     betaState.value = true;
     try {
       const html = await render();
       const text = textOf(html);
       expect(text).toContain('Free Public Beta');
       expect(text).toContain('Create your free account');
-      expect(text).toContain('Registration is open for public beta');
-      expect(text).toContain('free to use at your own risk');
-      expect(text).toContain('virus scanning of uploads');
-      expect(text).not.toContain('Real applicant details are not accepted yet');
-      expect(text).not.toContain('private pilot for invited users');
-      expect(text).not.toContain('VisaStack is in a private pilot');
-      expect(html.match(/href="\/auth\/sign-up"/g)?.length).toBe(2);
+      expect(text).not.toContain('Invite-Only Pilot');
+      // Two buttons lead to sign-up: the first chapter and the closing band.
+      expect(html.match(/href="\/auth\/sign-up"/g)).toHaveLength(2);
     } finally {
       betaState.value = false;
     }
@@ -154,135 +166,11 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
     expect(await render()).not.toContain('role="alert"');
   });
 
-  it('tells the story in order, from the product to the closing call to action', async () => {
+  it('sends a visitor to sign in twice, to see what works today twice and to For Agencies once', async () => {
     const html = await render();
-    const order = [
-      'id="land-hero-title"',
-      'Pick a country. See what is usually asked.',
-      'Less paperwork. More control.',
-      'Every visa starts with the same scramble',
-      'Three Simple Steps',
-      'Switched On Step by Step',
-      'Calmer for the Traveller, Clearer for the Agency',
-      'How VisaStack Treats Your Information',
-      'Honest about where we are',
-      'Stop starting from zero.',
-    ].map((heading) => html.indexOf(heading));
-    expect(order.every((at) => at >= 0)).toBe(true);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-  });
-
-  it('shows the before and after', async () => {
-    const text = textOf(await render());
-    expect(text).toContain('Without One Profile');
-    expect(text).toContain('With VisaStack');
-  });
-
-  it('is honest that the longer-term direction is an aim, not a promise', async () => {
-    const text = textOf(await render());
-    expect(text).toContain('We are working toward');
-    expect(text).toContain('The status page shows exactly what works today');
-  });
-
-  it('gives every section a name for screen readers and keeps one top heading', async () => {
-    const html = await render();
-    expect(html.match(/<h1[ >]/g)?.length).toBe(1);
-    // Nine story sections plus the country picker under the hero (Growth G2). Since WP-SB8 six of
-    // them are groups that open in place, each still a named region with its own heading.
-    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(10);
-    expect(html.match(/<h2[ >]/g)?.length).toBe(9);
-    expect(html).toContain('id="land-hero-title"');
-  });
-
-  it('folds the six story sections into closed groups that open in place (WP-SB8)', async () => {
-    const html = await render();
-    const groups = [
-      ...html.matchAll(/<details class="land-group[^"]*" id="([a-z-]+)"( open="")?>/g),
-    ];
-    expect(groups.map((g) => g[1])).toEqual([
-      'problem',
-      'how-it-works',
-      'capabilities',
-      'for-agencies',
-      'trust',
-      'road-ahead',
-    ]);
-    expect(groups.map((g) => g[2] !== undefined)).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
-    // Each group names itself in its summary row with its own heading, so a closed group still
-    // reads as a heading and the menu links land on it.
-    const summaries = html.match(/<summary class="land-group-summary">[\s\S]*?<\/summary>/g) ?? [];
-    expect(summaries).toHaveLength(6);
-    for (const summary of summaries)
-      expect(summary).toMatch(/<h2 class="land-h2" id="land-[a-z]+-title">/);
-    // Every word is still in the page: closed groups hide nothing from search or from the tests above.
-    const text = textOf(html);
-    for (const words of [
-      'Without One Profile',
-      'Add Your Details Once',
-      'never a guess at your chances of approval',
-      'Stop Chasing Documents by Message',
-      'AI never changes your profile on its own',
-      'We are working toward',
-    ])
-      expect(text).toContain(words);
-  });
-
-  it('puts the product cards in one sideways row a keyboard can reach, named by its heading (WP-SB8)', async () => {
-    const html = await render();
-    expect(html).toMatch(
-      /<div class="c1-bento" role="group" aria-labelledby="land-product-title" tabindex="0">/,
-    );
-    expect(html.match(/<article class="c1-feature/g)?.length).toBe(4);
-  });
-
-  it('puts a country picker straight under the hero, with no checklist until a country is chosen', async () => {
-    const html = await render();
-    const text = textOf(html);
-    const hero = html.indexOf('id="land-hero-title"');
-    const picker = html.indexOf('id="land-country-title"');
-    const story = html.indexOf('id="land-product-title"');
-    expect(hero).toBeGreaterThan(-1);
-    expect(picker).toBeGreaterThan(hero);
-    expect(story).toBeGreaterThan(picker);
-    expect(text).toContain('Which Country Do You Want to Visit?');
-    expect(text).toContain('Your checklist appears here as soon as you pick a country.');
-    // Every country is in the browser's own list, and the box is a plain labelled field.
-    expect(html.match(/<option value="[^"]+"><\/option>/g)?.length).toBe(156);
-    expect(html).toMatch(/<label[^>]*for="[^"]+-country"[^>]*>Which Country/);
-    // Nothing is chosen, so there is no button to create an account for a country.
-    expect(text).not.toContain('Create Free Account for');
-    // The hero and its promise are untouched by the picker.
-    expect(text).toContain('A clean file you can stand behind.');
-  });
-
-  it('keeps the picker honest: a checklist is what is usually asked, never a decision or an approval', async () => {
-    const text = textOf(await render()).toLowerCase();
-    const picker = text.slice(
-      text.indexOf('see your checklist'),
-      text.indexOf('every visa starts'),
-    );
-    expect(picker).toContain('no account is needed to look');
-    for (const word of ['approved', 'approval', 'accepted', 'guarantee', 'cleared']) {
-      expect(picker, word).not.toContain(word);
-    }
-  });
-
-  it('does not show the picker to someone who is already signed in', async () => {
-    signedInState.value = true;
-    try {
-      const html = await render();
-      expect(html).not.toContain('land-country-title');
-      expect(textOf(html)).not.toContain('Which Country Do You Want to Visit?');
-    } finally {
-      signedInState.value = false;
-    }
+    expect(html.match(/href="\/app"/g)).toHaveLength(2);
+    expect(html.match(/href="\/status"/g)).toHaveLength(2);
+    expect(html.match(/href="\/for-agencies"/g)).toHaveLength(1);
   });
 
   it('shows no sign-in wording to someone who is already signed in', async () => {
@@ -292,9 +180,25 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
       const text = textOf(html);
       expect(text).toContain('Open your workspace');
       expect(text).not.toContain('Sign in to get started');
-      expect(html.match(/href="\/app"/g)?.length).toBe(2);
+      expect(html.match(/href="\/app"/g)).toHaveLength(2);
     } finally {
       signedInState.value = false;
     }
+  });
+
+  it('starts the scroll engine, or the pictures never move (the page lost it once in the rebuild)', () => {
+    const story = readFileSync(join(__dirname, 'home-story.tsx'), 'utf8');
+    expect(story).toContain(
+      "import { ScenesRuntime } from '../components/public-site/scenes-runtime';",
+    );
+    expect(story).toContain('<ScenesRuntime />');
+  });
+
+  it('shows the real Bangladesh passport cover from this site, with no outside or inline picture', async () => {
+    const html = await render();
+    expect(html).toContain('src="/pictures/passport-bd.png"');
+    expect(html).not.toMatch(/src="(?:https?:)?\/\//);
+    expect(html).not.toMatch(/src="(?:data|blob):/);
+    expect(html).not.toMatch(/ style=/);
   });
 });

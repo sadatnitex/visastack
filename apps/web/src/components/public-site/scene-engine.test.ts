@@ -120,6 +120,26 @@ describe('startScenes', () => {
     handle.stop();
   });
 
+  it('leaves a scene finished below its data-min-width and moves it again once the screen is wide enough', () => {
+    const { element, box } = scene(3, 2);
+    element.setAttribute('data-min-width', '900');
+    Object.defineProperty(window, 'innerWidth', { value: 820, configurable: true });
+    const handle = startScenes(document, { reduce: false, saveData: false });
+    box.top = -1000;
+    window.dispatchEvent(new Event('resize'));
+    expect(element.getAttribute('data-step')).toBe('2');
+    expect(element.style.getPropertyValue('--p')).toBe('');
+    Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+    expect(element.getAttribute('data-step')).toBe('1');
+    expect(element.style.getPropertyValue('--p')).toBe('0.5000');
+    Object.defineProperty(window, 'innerWidth', { value: 820, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+    expect(element.getAttribute('data-step')).toBe('2');
+    expect(element.style.getPropertyValue('--p')).toBe('');
+    handle.stop();
+  });
+
   it('stop() removes the listeners and every mark, and puts back the finished step', () => {
     const { element, box } = scene(3, 2);
     const handle = startScenes(document, { reduce: false, saveData: false });
