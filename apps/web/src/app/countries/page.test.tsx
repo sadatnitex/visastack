@@ -8,6 +8,7 @@ import { renderServer } from '../../lib/next-mocks.test-support';
  */
 
 const signedIn = vi.hoisted(() => ({ value: false }));
+vi.mock('server-only', () => ({}));
 vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => signedIn.value }));
 
 const { default: CountriesPage, metadata } = await import('./page');

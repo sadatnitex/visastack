@@ -136,10 +136,10 @@ Added 3 Nov 2026 (UMPE P13, three traveller entry points; locked contract sectio
 
 | Thing | Canonical name | Retire | Status |
 |---|---|---|---|
-| The traveller's documents entry point (opens Documents; lit on All Records, My Profile, Dates & Expiry and History) | My Documents (phone bar: Documents) | "Record" as the second tab, "Vault", "Wallet" | **New (P13)**; the Record hub stays under More Tools as Record, its pages keep their names |
+| The traveller's documents entry point (opens Documents; lit on All Records, My Profile, Dates & Expiry and History) | ~~My Documents~~ (superseded, replaced 17 Nov 2026 by My Record, phone bar: Record) | "Record" as the second tab, "Vault", "Wallet" | **New (P13)**; the Record hub stays under More Tools as Record, its pages keep their names |
 | The traveller's trips entry point (opens Cases; lit on case pages, Start a Trip and Group Trips) | My Trips (phone bar: Trips) | "Cases" as the third tab, "Missions" | **New (P13)**; the Cases page keeps its heading "Cases" (owner may later rename the page itself) |
 | The traveller's sharing entry point (opens Sharing; lit on Evidence Requests and Shared with Me) | Sharing & Requests (phone bar: Sharing) | "Sharing" as the fourth tab, "Sharing & Access" | **New (P13)**; the Sharing page keeps its heading "Sharing" |
-| The task under My Documents | Add Documents (opens the upload on Documents) | "Upload", "Import Files" in the menu | **New (P13)** |
+| The task under My Record (was My Documents) | Add Documents (opens the upload on Documents) | "Upload", "Import Files" in the menu | **New (P13)** |
 | The task under My Trips | Start a Trip (the existing P4 page) | "New Trip", "Plan Trip" | **New (P13)**: first menu entry for this page |
 | More Tools entries added | Group Trips (P5 page), Answers to Agencies (P7 page "Your Answers to Agencies") | "Agency Responses" | **New (P13)**: first menu entry for both pages |
 | Home's task row | Start Here: Add Documents, Start a Trip, Answer a Request (or See Sharing & Requests) | "Quick Start", "Get Started" | **New (P13)** |
@@ -222,3 +222,9 @@ Send on WhatsApp, everywhere a person sends something (10 Nov 2026). Owner decis
 
 | The stage of a case on the Trips list | Getting Started, Gathering Documents, Being Checked, Needs You, Ready to Submit, Submitted, Closed, Cancelled (`CASE_STATUS`); older stages read as the nearest word | "Draft", "Intake", "In Review", "Awaiting Traveller", "Submission Ready", "Approved" (never used for Submitted) | **Done (P12)** |
 | The two groups on the Trips list | Active (N) and Past Trips (N) | "Active Cases", "Past Cases", "All Past Cases" | **Done (P12)** |
+
+Added 17 Nov 2026 (owner decision, WAL9; overrides D6 for this tab only):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The traveller's documents entry point (opens Documents; lit on All Records, My Profile, Dates & Expiry and History) | My Record (phone bar: Record) | "My Documents" as the tab name | **New (WAL9)**. The consent wording "Let AI Read Details from My Documents" and its siblings name a stored consent scope, not the tab, and stay as they are. The More Tools entry Record keeps its name. |

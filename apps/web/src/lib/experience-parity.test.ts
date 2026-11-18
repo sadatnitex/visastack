@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { OUTSIDE_APP_NAVIGATION, ROUTE_PARITY } from './experience-parity';
 import { type NavLink, isCurrentPath } from './navigation';
 import {
-  MY_DOCUMENTS,
+  MY_RECORD,
   MY_TRIPS,
   SHARING_AND_REQUESTS,
   type WorkspaceAccess,
@@ -144,14 +144,14 @@ describe('the three traveller entry points (UMPE P13)', () => {
     const nav = workspaceNavigation(`/app/applicant/${P}`, everything);
     expect(nav.primary.slice(0, 4).map((item) => item.label)).toEqual([
       'Home',
-      MY_DOCUMENTS,
+      MY_RECORD,
       MY_TRIPS,
       SHARING_AND_REQUESTS,
     ]);
   });
 
   it('shows the entry points to travellers only, never in an agency or platform workspace', () => {
-    const names = new Set<string>([MY_DOCUMENTS, MY_TRIPS, SHARING_AND_REQUESTS]);
+    const names = new Set<string>([MY_RECORD, MY_TRIPS, SHARING_AND_REQUESTS]);
     for (const at of [
       `/app/agency/${O}`,
       `/app/agency/${O}/cases`,

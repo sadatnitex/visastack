@@ -107,14 +107,14 @@ describe('the notice keeps room for its Hide button under every width and pointe
     }
   });
 
-  it('sets the variable to 32px for a precise pointer, 44px on touch, and 0 in the slim label', () => {
+  it('sets the variable to 44px for every pointer (the Hide button is a 44px target), and 0 in the slim label', () => {
     const values = ALL.filter((rule) => rule.declarations.has('--notice-hide')).map((rule) => [
       rule.selectors.join(', '),
       rule.media,
       rule.declarations.get('--notice-hide'),
     ]);
     expect(values).toEqual([
-      ['.pilot-banner', '', '2rem'],
+      ['.pilot-banner', '', '44px'],
       ['.pilot-banner.pilot-banner-slim', '', '0px'],
       ['.pilot-banner', '@media (pointer: coarse)', '44px'],
       ['.pilot-banner.pilot-banner-slim', '@media (pointer: coarse)', '0px'],
