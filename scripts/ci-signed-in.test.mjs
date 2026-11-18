@@ -366,13 +366,13 @@ function pageRoutes() {
     .sort();
 }
 
+const people = JSON.parse(read('apps/web/ci-signed-in/people.json'));
+
 test('every signed-in page is in exactly one list: guarded or excluded with a reason', async () => {
   const { ROUTES, EXCLUDED } = await routeLists();
   const pages = pageRoutes();
   assert.ok(pages.length > 80, `only ${pages.length} page files found`);
-  const guarded = ROUTES.map((route) => route.page);
-  const excluded = EXCLUDED.map((entry) => entry.page);
-  const listed = [...guarded, ...excluded];
+  const listed = [...ROUTES.map((route) => route.page), ...EXCLUDED.map((entry) => entry.page)];
   assert.deepEqual(
     pages.filter((page) => !listed.includes(page)),
     [],
@@ -391,51 +391,92 @@ test('every signed-in page is in exactly one list: guarded or excluded with a re
   for (const entry of EXCLUDED) assert.ok(entry.reason.trim().length > 20, `${entry.page}: reason`);
 });
 
-test('every guarded route opens a page on this machine with real body text', async () => {
-  const { ROUTES } = await routeLists();
-  const ids = new Set(['applicantId', 'caseId', 'organizationId', 'grantId', 'documentId']);
-  const ownName = { traveller: 'Rumana Test Traveller', agencyAdmin: 'Tanvir Test Agent' };
+test('every guarded route opens its own page on this machine and checks real body text', async () => {
+  const { ROUTES, ROUTE_IDS, pathOpensPage } = await routeLists();
+  assert.ok(pathOpensPage('/app/(home)', '/app'));
+  assert.ok(pathOpensPage('/app/applicant/[id]/documents', '/app/applicant/x/documents?a=1'));
+  assert.ok(!pathOpensPage('/app/applicant/[id]/insights', '/app/applicant/x/review'));
+  assert.ok(!pathOpensPage('/app/applicant/[id]', '/app/applicant/x/review'));
   for (const route of ROUTES) {
-    assert.ok(['traveller', 'agencyAdmin'].includes(route.role), `${route.page}: role`);
-    assert.ok(route.path.startsWith('/app'), `${route.page}: path`);
-    for (const [, name] of route.path.matchAll(/\{(\w+)\}/g)) {
-      assert.ok(ids.has(name), `${route.page}: unknown id ${name}`);
-    }
-    // The person's own name is in the toolbar of every page: it proves nothing about the body.
+    assert.ok(Object.hasOwn(people, route.role), `${route.page}: role ${route.role}`);
     assert.ok(
-      route.mustShow.trim().length >= 4 && route.mustShow !== ownName[route.role],
-      `${route.page}: mustShow`,
+      pathOpensPage(route.page, route.path),
+      `${route.page}: path ${route.path} opens another page`,
     );
-    if (route.deniedTo) assert.notEqual(route.deniedTo, route.role, `${route.page}: deniedTo`);
+    for (const [, name] of route.path.matchAll(/\{(\w+)\}/g)) {
+      assert.ok(ROUTE_IDS.includes(name), `${route.page}: unknown id ${name}`);
+    }
+    // The signed-in person's own name is in the toolbar of every page: it proves nothing.
+    assert.ok(
+      route.mustShow.trim().length >= 12 && route.mustShow !== people[route.role].name,
+      `${route.page}: mustShow must be specific body text`,
+    );
+    if (route.deniedTo) {
+      assert.ok(Object.hasOwn(people, route.deniedTo), `${route.page}: deniedTo`);
+      assert.notEqual(route.deniedTo, route.role, `${route.page}: deniedTo`);
+    }
   }
 });
 
-/** Today's real findings when WAL1B-2 merged. Lower this number as findings are fixed, never raise it. */
-const KNOWN_FAILING_CEILING = 18;
+/**
+ * Every known finding when WAL1B-2 merged (18 Nov 2026), one line per page, check, size and
+ * control. A fix removes lines here and in KNOWN_FAILING; nothing may ever be added.
+ */
+const KNOWN_FAILING_BASELINE = new Set([
+  ...['phone 390', 'phone 400', 'desktop 1280'].flatMap((size) => [
+    `/app/applicant/[id]/documents/add | covered control | ${size} | "Files to Import"`,
+    `/app/applicant/[id]/documents/add | covered control | ${size} | "Folder to Import"`,
+    `/app/applicant/[id]/profile | covered control | ${size} | "Photo File"`,
+    `/app/applicant/[id]/record | covered control | ${size} | "Everything`,
+    `/app/applicant/[id]/record | covered control | ${size} | "Previous Versions`,
+    `/app/agency/[orgId]/clients | covered control | ${size} | "Invite a Client"`,
+    `/app/agency/[orgId]/clients | covered control | ${size} | "Ask for a Document or Detail"`,
+    `/app/agency/[orgId]/activity | no control | ${size} | -`,
+    `/app/agency/[orgId]/ai-connections | no control | ${size} | -`,
+  ]),
+  ...['phone 390', 'phone 400'].flatMap((size) => [
+    `/app/applicant/[id]/record | covered control | ${size} | "Profile Details`,
+    `/app/applicant/[id]/missions/prepare-again | covered control | ${size} | "Create Case"`,
+    `/app/applicant/[id]/outputs | covered control | ${size} | "Preview"`,
+    `/app/mission/start | covered control | ${size} | "Start Trip"`,
+  ]),
+]);
 
-test('the known findings list only shrinks and names real routes and sizes', async () => {
+test('the known findings list only shrinks and names real routes, sizes and controls', async () => {
   const { ROUTES, KNOWN_FAILING } = await routeLists();
-  assert.ok(
-    KNOWN_FAILING.length <= KNOWN_FAILING_CEILING,
-    `KNOWN_FAILING grew to ${KNOWN_FAILING.length}: fix the page instead of listing it`,
-  );
   const sizes = [...read('apps/web/e2e/support/layout-guards.ts').matchAll(/name: '([^']+)'/g)].map(
     (match) => match[1],
   );
   assert.deepEqual(sizes, ['phone 390', 'phone 400', 'desktop 1280']);
-  const keys = KNOWN_FAILING.map((k) => `${k.page} ${k.size} ${k.check}`);
+  const keys = KNOWN_FAILING.flatMap((finding) =>
+    finding.sizes.flatMap((size) =>
+      (finding.controls.length > 0 ? finding.controls : ['-']).map(
+        (control) => `${finding.page} | ${finding.check} | ${size} | ${control}`,
+      ),
+    ),
+  );
+  assert.deepEqual(
+    keys.filter((key) => !KNOWN_FAILING_BASELINE.has(key)),
+    [],
+    'KNOWN_FAILING gained a finding: fix the page instead of listing it',
+  );
   assert.deepEqual(
     keys.filter((key, index) => keys.indexOf(key) !== index),
     [],
-    'duplicate findings',
+    'the same finding listed twice',
   );
   for (const finding of KNOWN_FAILING) {
     assert.ok(
       ROUTES.some((route) => route.page === finding.page),
       `${finding.page}: not guarded`,
     );
-    assert.ok(sizes.includes(finding.size), `${finding.page}: size ${finding.size}`);
-    assert.ok(['sideways scroll', 'covered control'].includes(finding.check), finding.check);
+    for (const size of finding.sizes) assert.ok(sizes.includes(size), `${finding.page}: ${size}`);
+    assert.ok(
+      finding.check === 'covered control'
+        ? finding.controls.length > 0
+        : finding.controls.length === 0,
+      `${finding.page}: controls for ${finding.check}`,
+    );
     assert.ok(finding.finding.trim().length > 20, `${finding.page}: describe the finding`);
   }
 });

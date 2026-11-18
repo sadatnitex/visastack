@@ -19,10 +19,12 @@ Found by the shared WAL1 layout checks on the first signed-in run, 18 Nov 2026, 
 | /app/applicant/[id]/outputs | 390, 400 | covered control | "Preview", same: under the phone bottom app bar. |
 | /app/mission/start | 390, 400 | covered control | "Start Trip", same: under the phone bottom app bar (at 390 px its Notifications icon). |
 | /app/agency/[orgId]/clients | 390, 400, 1280 | covered control | The "Invite a Client" and "Ask for a Document or Detail" open rows (`summary.lift-action`) are painted over by their `section.agency-add-part`. |
+| /app/agency/[orgId]/activity | 390, 400, 1280 | no control | With no case notes yet the page body is a dead end: "No Case Activity Recorded" offers no control or link (only the agency banner back link). |
+| /app/agency/[orgId]/ai-connections | 390, 400, 1280 | no control | With no app connected the page body is a dead end: "No AI Apps Connected" says to turn it on in Settings but gives no link there. |
 
-18 page and size pairs in all. No page needed a sideways scroll.
+24 page and size pairs in all (35 lines in the pinned baseline, one per control). At desktop 1280 the record page reports only Everything and Previous Versions. No page needed a sideways scroll.
 
-Likely shared causes, for the fixing unit to confirm: the three bottom-bar findings point at one missing bottom space under the phone app bar on pages whose last control is a main button; the record and clients findings at one stacking rule in the filter set and the add-part section.
+Likely shared causes, for the fixing unit to confirm: the three bottom-bar findings point at one missing bottom space under the phone app bar on pages whose last control is a main button; the record and clients findings at one stacking rule in the filter set and the add-part section; the two agency empty states need a next step (a link to Settings for AI connections).
 
 ## Not findings (checked and explained)
 
@@ -31,7 +33,7 @@ Likely shared causes, for the fixing unit to confirm: the three bottom-bar findi
 
 ## Proof
 
-- scripts/ci-signed-in.test.mjs (10 tests): new rules red on broken data (a page in neither list, a listed page with no file, a page in both lists, the known list growing, the person's own name as body text), then green.
+- scripts/ci-signed-in.test.mjs (10 tests): new rules red on broken data (a page in neither list, a listed page with no file, a page in both lists, the known list growing, the person's own name as body text, a path opening another page), then green.
 - The guard red when a listed finding no longer fails ("fixed? remove from KNOWN_FAILING") and when its body text sits only in the agency banner, then green.
 - Local end to end on a fresh Postgres: 54 of 54 (50 routes and the 4 WAL1B-1 proofs) in about one minute with 2 workers.
 

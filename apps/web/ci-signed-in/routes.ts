@@ -18,10 +18,23 @@
  * Plain data only (no imports at run time), so the Node test can read this file directly.
  */
 
-export type GuardRole = 'traveller' | 'agencyAdmin';
+import type { Role } from './people';
 
-/** Ids the paths may use, filled from seeded.json. */
-export type RouteId = 'applicantId' | 'caseId' | 'organizationId' | 'grantId' | 'documentId';
+/** The made-up person a page is opened as (people.json). */
+export type GuardRole = Role;
+
+/** Ids the paths may use, filled from seeded.json (documentId is the first seeded document). */
+export const ROUTE_IDS = [
+  'applicantId',
+  'caseId',
+  'organizationId',
+  'grantId',
+  'documentId',
+] as const;
+export type RouteId = (typeof ROUTE_IDS)[number];
+
+/** Guard size names, as in GUARD_SIZES (apps/web/e2e/support/layout-guards.ts). */
+export type GuardSizeName = 'phone 390' | 'phone 400' | 'desktop 1280';
 
 export interface GuardRoute {
   readonly page: string;
@@ -42,11 +55,18 @@ export interface ExcludedPage {
   readonly reason: string;
 }
 
+/**
+ * A real finding the guard expects, exactly: at these sizes the check fails on this page, and
+ * (for a covered control) it reports exactly these controls, named as the check quotes them
+ * (`"Create Case"`; a name may be the start of one, as `"Everything` for a button that also shows
+ * a count). A new covered control on the same page still fails the guard.
+ */
 export interface KnownFailing {
   readonly page: string;
-  /** Guard size name, as in GUARD_SIZES (`phone 390`, `phone 400`, `desktop 1280`). */
-  readonly size: string;
-  readonly check: 'sideways scroll' | 'covered control';
+  readonly check: 'covered control' | 'no control';
+  readonly sizes: readonly GuardSizeName[];
+  /** For `covered control`: every control the check reports, and only those. */
+  readonly controls: readonly string[];
   readonly finding: string;
 }
 
@@ -98,7 +118,7 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/applicant/[id]/change-impact',
     role: 'traveller',
     path: `${A}/change-impact?document={documentId}`,
-    mustShow: 'passport-scan',
+    mustShow: 'What This Change Affects',
     deniedTo: 'agencyAdmin',
   },
   {
@@ -133,14 +153,14 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/applicant/[id]/expiry',
     role: 'traveller',
     path: `${A}/expiry`,
-    mustShow: 'Expiry',
+    mustShow: 'About These Dates',
     deniedTo: 'agencyAdmin',
   },
   {
     page: '/app/applicant/[id]/history',
     role: 'traveller',
     path: `${A}/history`,
-    mustShow: 'History',
+    mustShow: 'Every saved value is kept, and nothing is overwritten',
     deniedTo: 'agencyAdmin',
   },
   {
@@ -196,7 +216,7 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/applicant/[id]/removal-records',
     role: 'traveller',
     path: `${A}/removal-records`,
-    mustShow: 'Removal',
+    mustShow: 'What was deleted from this record',
     deniedTo: 'agencyAdmin',
   },
   {
@@ -223,9 +243,14 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/countries/[iso2]',
     role: 'traveller',
     path: '/app/countries/JP',
-    mustShow: 'Japan',
+    mustShow: 'For an ordinary Bangladeshi passport. Rules change',
   },
-  { page: '/app/help', role: 'traveller', path: '/app/help', mustShow: 'Next Step' },
+  {
+    page: '/app/help',
+    role: 'traveller',
+    path: '/app/help',
+    mustShow: 'Guidance for your records, case work and account',
+  },
   {
     page: '/app/incoming',
     role: 'traveller',
@@ -236,14 +261,14 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/mission/[id]',
     role: 'traveller',
     path: '/app/mission/{caseId}',
-    mustShow: 'Japan Tourist Visa',
+    mustShow: 'Case Reference',
     deniedTo: 'agencyAdmin',
   },
   {
     page: '/app/mission/[id]/snapshots',
     role: 'traveller',
     path: '/app/mission/{caseId}/snapshots',
-    mustShow: 'Snapshot',
+    mustShow: 'Each snapshot keeps exactly what this case held',
     deniedTo: 'agencyAdmin',
   },
   {
@@ -338,7 +363,7 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/agency/[orgId]/countries/[iso2]',
     role: 'agencyAdmin',
     path: `${O}/countries/JP`,
-    mustShow: 'Japan',
+    mustShow: 'For an ordinary Bangladeshi passport. Rules change',
     deniedTo: 'traveller',
   },
   {
@@ -352,7 +377,7 @@ export const ROUTES: readonly GuardRoute[] = [
     page: '/app/agency/[orgId]/plan/invoices',
     role: 'agencyAdmin',
     path: `${O}/plan/invoices`,
-    mustShow: 'Invoice',
+    mustShow: 'Pay an invoice online or tell us about a payment',
     deniedTo: 'traveller',
   },
   {
@@ -455,135 +480,119 @@ export const EXCLUDED: readonly ExcludedPage[] = [
   { page: '/app/trips/[id]', reason: 'Needs a group trip; the seed makes none yet.' },
 ];
 
-/** Today's real findings (WAL1B-2 records). Each fix removes its line; the list never grows. */
+/**
+ * Today's real findings (docs/upgrades/programme/wal/WAL1B-2-records.md). The guard requires each
+ * to still fail exactly as listed, so a fix makes it say what to remove; scripts/ci-signed-in.test.mjs
+ * pins the set, so the list only shrinks.
+ */
 export const KNOWN_FAILING: readonly KnownFailing[] = [
   {
     page: '/app/applicant/[id]/documents/add',
-    size: 'phone 390',
     check: 'covered control',
+    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
+    controls: ['"Files to Import"', '"Folder to Import"'],
     finding:
-      'The hidden file pickers "Files to Import" and "Folder to Import" (input.sr-only, 1 by 1 px) can be reached but have no drawn label tied to them.',
-  },
-  {
-    page: '/app/applicant/[id]/documents/add',
-    size: 'phone 400',
-    check: 'covered control',
-    finding:
-      'The hidden file pickers "Files to Import" and "Folder to Import" (input.sr-only, 1 by 1 px) can be reached but have no drawn label tied to them.',
-  },
-  {
-    page: '/app/applicant/[id]/documents/add',
-    size: 'desktop 1280',
-    check: 'covered control',
-    finding:
-      'The hidden file pickers "Files to Import" and "Folder to Import" (input.sr-only, 1 by 1 px) can be reached but have no drawn label tied to them.',
+      'The hidden file pickers (input.sr-only, 1 by 1 px) can be reached but have no drawn label tied to them.',
   },
   {
     page: '/app/applicant/[id]/profile',
-    size: 'phone 390',
     check: 'covered control',
+    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
+    controls: ['"Photo File"'],
     finding:
-      'The hidden "Photo File" picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
-  },
-  {
-    page: '/app/applicant/[id]/profile',
-    size: 'phone 400',
-    check: 'covered control',
-    finding:
-      'The hidden "Photo File" picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
-  },
-  {
-    page: '/app/applicant/[id]/profile',
-    size: 'desktop 1280',
-    check: 'covered control',
-    finding:
-      'The hidden "Photo File" picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
+      'The hidden photo picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
   },
   {
     page: '/app/applicant/[id]/record',
-    size: 'phone 390',
     check: 'covered control',
+    sizes: ['phone 390', 'phone 400'],
+    controls: ['"Everything', '"Profile Details', '"Previous Versions'],
     finding:
-      'The Record Filters buttons (Everything, Profile Details, Previous Versions) are painted over by their own fieldset.record-hub-filter-set.',
+      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
   },
   {
     page: '/app/applicant/[id]/record',
-    size: 'phone 400',
     check: 'covered control',
+    sizes: ['desktop 1280'],
+    controls: ['"Everything', '"Previous Versions'],
     finding:
-      'The Record Filters buttons (Everything, Profile Details, Previous Versions) are painted over by their own fieldset.record-hub-filter-set.',
-  },
-  {
-    page: '/app/applicant/[id]/record',
-    size: 'desktop 1280',
-    check: 'covered control',
-    finding:
-      'The Record Filters buttons (Everything, Profile Details, Previous Versions) are painted over by their own fieldset.record-hub-filter-set.',
+      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
   },
   {
     page: '/app/applicant/[id]/missions/prepare-again',
-    size: 'phone 390',
     check: 'covered control',
+    sizes: ['phone 390', 'phone 400'],
+    controls: ['"Create Case"'],
     finding:
-      '"Create Case", scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
-  },
-  {
-    page: '/app/applicant/[id]/missions/prepare-again',
-    size: 'phone 400',
-    check: 'covered control',
-    finding:
-      '"Create Case", scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
+      'Create Case, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
   },
   {
     page: '/app/applicant/[id]/outputs',
-    size: 'phone 390',
     check: 'covered control',
+    sizes: ['phone 390', 'phone 400'],
+    controls: ['"Preview"'],
     finding:
-      '"Preview", scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
-  },
-  {
-    page: '/app/applicant/[id]/outputs',
-    size: 'phone 400',
-    check: 'covered control',
-    finding:
-      '"Preview", scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
+      'Preview, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
   },
   {
     page: '/app/mission/start',
-    size: 'phone 390',
     check: 'covered control',
+    sizes: ['phone 390', 'phone 400'],
+    controls: ['"Start Trip"'],
     finding:
-      '"Start Trip", scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
-  },
-  {
-    page: '/app/mission/start',
-    size: 'phone 400',
-    check: 'covered control',
-    finding:
-      '"Start Trip", scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
+      'Start Trip, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
   },
   {
     page: '/app/agency/[orgId]/clients',
-    size: 'phone 390',
     check: 'covered control',
+    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
+    controls: ['"Invite a Client"', '"Ask for a Document or Detail"'],
     finding:
-      'The "Invite a Client" and "Ask for a Document or Detail" open rows (summary.lift-action) are painted over by their section.agency-add-part.',
+      'The Invite a Client and Ask for a Document or Detail open rows (summary.lift-action) are painted over by their section.agency-add-part.',
   },
   {
-    page: '/app/agency/[orgId]/clients',
-    size: 'phone 400',
-    check: 'covered control',
+    page: '/app/agency/[orgId]/activity',
+    check: 'no control',
+    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
+    controls: [],
     finding:
-      'The "Invite a Client" and "Ask for a Document or Detail" open rows (summary.lift-action) are painted over by their section.agency-add-part.',
+      'With no case notes yet the page body is a dead end: "No Case Activity Recorded" offers no control or link (only the agency banner back link).',
   },
   {
-    page: '/app/agency/[orgId]/clients',
-    size: 'desktop 1280',
-    check: 'covered control',
+    page: '/app/agency/[orgId]/ai-connections',
+    check: 'no control',
+    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
+    controls: [],
     finding:
-      'The "Invite a Client" and "Ask for a Document or Detail" open rows (summary.lift-action) are painted over by their section.agency-add-part.',
+      'With no app connected the page body is a dead end: "No AI Apps Connected" says to turn it on in Settings but gives no link there.',
   },
 ];
+
+/** The known finding for this page, check and size, if any. */
+export function knownFinding(
+  page: string,
+  check: KnownFailing['check'],
+  size: string,
+): KnownFailing | undefined {
+  return KNOWN_FAILING.find(
+    (k) => k.page === page && k.check === check && (k.sizes as readonly string[]).includes(size),
+  );
+}
+
+/**
+ * Whether `path` opens `page`: route groups (`(home)`) take no part of the address and each
+ * dynamic segment (`[id]`) is one segment. The query is ignored.
+ */
+export function pathOpensPage(page: string, path: string): boolean {
+  const want = page
+    .split('/')
+    .filter((part) => part && !(part.startsWith('(') && part.endsWith(')')));
+  const got = (path.split('?')[0] ?? '').split('/').filter(Boolean);
+  if (want.length !== got.length) return false;
+  return want.every((part, index) =>
+    part.startsWith('[') ? (got[index] ?? '').length > 0 : part === got[index],
+  );
+}
 
 /** The address to open for a route, with this run's ids. */
 export function routePath(route: GuardRoute, ids: Readonly<Record<RouteId, string>>): string {
