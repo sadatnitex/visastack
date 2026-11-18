@@ -103,13 +103,6 @@
     align-items: stretch;
   }
 }
-/* Time zone list in a form row. The shared .tz-select asks for a 15rem flex basis, meant for a row of fields; inside a form field (a column) that basis became the list's HEIGHT, a 240 px empty box. In a column the list keeps the height of every other control and takes the width of its field. */
-.field-row > .tz-select {
-  flex: 0 0 auto;
-  max-width: none;
-  min-width: 0;
-  width: 100%;
-}
 .u8-rows + .u8-rows,
 .u8-rows + .u8-add,
 .u8-rows + .expandable-section {

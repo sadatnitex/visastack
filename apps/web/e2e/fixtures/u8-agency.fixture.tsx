@@ -7,6 +7,7 @@ import {
   UnlimitedPicture,
 } from '../../src/app/app/agency/[orgId]/u8-rows';
 import u8 from '../../src/app/app/agency/[orgId]/u8.css?inline';
+import { AppointmentsPanel } from '../../src/app/app/mission/[id]/collaboration-panels';
 import { ExpandableSection } from '../../src/components/ui-lift/expandable-section';
 
 /**
@@ -17,7 +18,7 @@ import { ExpandableSection } from '../../src/components/ui-lift/expandable-secti
  */
 export interface U8FixtureProps {
   /** Which part to draw: the open case, or the team and limit rows. */
-  readonly part?: 'case' | 'rows';
+  readonly part?: 'case' | 'rows' | 'traveller';
 }
 
 const MEMBERS = [
@@ -26,6 +27,9 @@ const MEMBERS = [
 ];
 
 export default function U8Fixture({ part = 'case' }: U8FixtureProps) {
+  if (part === 'traveller') {
+    return <AppointmentsPanel missionId="m1" appointments={[]} />;
+  }
   if (part === 'rows') {
     return (
       <div className="u8-fixture-rows">

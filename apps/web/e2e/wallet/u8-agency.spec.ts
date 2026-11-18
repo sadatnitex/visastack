@@ -13,7 +13,7 @@ import { runLayoutGuards } from '../support/layout-guards';
 const FIXTURE = 'u8-agency';
 const STAND_INS = { standInServerActions: true } as const;
 
-const open = (page: Page, props: { part?: 'case' | 'rows' } = {}) =>
+const open = (page: Page, props: { part?: 'case' | 'rows' | 'traveller' } = {}) =>
   renderFixture(page, FIXTURE, props, STAND_INS);
 const fold = (page: Page, title: string) =>
   page.locator('.u8-fold').filter({ has: page.getByRole('heading', { name: title }) });
@@ -81,6 +81,17 @@ test.describe('U8 open case', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
       .analyze();
     expect(result.violations.map((v) => v.id)).toEqual([]);
+  });
+});
+
+test.describe('U8 Time Zone on the traveller case page', () => {
+  test('the list is as tall as the Time box beside it there too', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await open(page, { part: 'traveller' });
+    const zone = page.locator('select[name="timezone"]');
+    await expect(zone).toBeVisible();
+    const box = await zone.boundingBox();
+    expect(box?.height ?? 999).toBeLessThanOrEqual(64);
   });
 });
 

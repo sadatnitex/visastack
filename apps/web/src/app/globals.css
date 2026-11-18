@@ -23818,3 +23818,12 @@ a.passport-page-value:hover {
   }
 }
 /* end WP-WAL3 */
+
+/* WP-U8 time zone in a column row (18 Nov 2026). The shared .tz-select asks for a 15rem flex basis, meant for a row of fields. Inside a form field (.field-row is a flex column) that basis became the list's HEIGHT, a 240 px empty box. In a column the list keeps the height of every other control and takes the width of its field. Used by every form that draws a Time Zone list in a field. */
+.field-row > .tz-select {
+  flex: 0 0 auto;
+  max-width: none;
+  min-width: 0;
+  width: 100%;
+}
+/* end WP-U8 */
