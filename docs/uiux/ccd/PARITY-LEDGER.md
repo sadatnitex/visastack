@@ -352,8 +352,8 @@ Guard: `apps/web/src/lib/experience-parity.test.ts` over the map in `apps/web/sr
 | Before P13 (traveller sidebar) | After P13 | Address |
 |---|---|---|
 | Home (tab) | Home (tab, unchanged) | `/app/applicant/{id}` |
-| Record (tab) | More Tools: Record; its sections light up My Documents | `/app/applicant/{id}/record` |
-| (Record section) Documents | My Documents (tab), with the task Add Documents | `/app/applicant/{id}/documents` |
+| Record (tab) | More Tools: Record; its sections light up My Record | `/app/applicant/{id}/record` |
+| (Record section) Documents | My Record (tab, renamed from My Documents 17 Nov 2026), with the task Add Documents | `/app/applicant/{id}/documents` |
 | Cases (tab) | My Trips (tab), with the task Start a Trip | `/app/applicant/{id}/missions` |
 | Sharing (tab) | Sharing & Requests (tab) | `/app/applicant/{id}/sharing` |
 | Notifications, Countries | unchanged (under More on a phone) | `/app/notifications`, `/app/countries` |

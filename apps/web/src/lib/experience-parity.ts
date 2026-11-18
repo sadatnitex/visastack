@@ -1,6 +1,6 @@
 /**
  * UMPE P13 parity map: every signed-in page and how a person reaches it once the traveller
- * navigation leads with My Documents, My Trips and Sharing & Requests (locked contract section 9,
+ * navigation leads with My Record, My Trips and Sharing & Requests (locked contract section 9,
  * annex F: "information-architecture priorities, not authorization to rename/delete old routes or
  * hide working features").
  *

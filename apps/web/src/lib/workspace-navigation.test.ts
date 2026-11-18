@@ -28,7 +28,7 @@ describe('current contextual navigation contract', () => {
     expect(nav.caption).toBe('Managed Traveller');
     expect(nav.primary.map((link) => link.label)).toEqual([
       'Home',
-      'My Documents',
+      'My Record',
       'My Trips',
       'Sharing & Requests',
       'Notifications',
@@ -38,7 +38,7 @@ describe('current contextual navigation contract', () => {
     expect(
       nav.primary.slice(0, 4).every((link) => link.href.startsWith(`/app/applicant/${p2}`)),
     ).toBe(true);
-    // The task under My Documents opens this traveller's own upload, never another's.
+    // The task under My Record opens this traveller's own upload, never another's.
     expect(nav.primary[1]?.action).toEqual({
       href: `/app/applicant/${p2}/documents/add`,
       label: 'Add Documents',
@@ -246,7 +246,7 @@ describe('current contextual navigation contract', () => {
     const nav = workspaceNavigation(path, access);
     expect(
       nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
-    ).toEqual(['My Documents']);
+    ).toEqual(['My Record']);
     const providers = workspaceNavigation('/app/admin', access).primary.find(
       (link) => link.label === 'Providers',
     );
@@ -287,7 +287,7 @@ describe('workspace navigation link list (characterization)', () => {
     const nav = workspaceNavigation(base, linkAccess);
     expect(pairs(nav.primary)).toEqual([
       ['Home', base],
-      ['My Documents', `${base}/documents`],
+      ['My Record', `${base}/documents`],
       ['My Trips', `${base}/missions`],
       ['Sharing & Requests', `${base}/sharing`],
       ['Notifications', '/app/notifications'],
@@ -456,7 +456,7 @@ describe('no destination is lost by the four-tab change', () => {
     }
   });
 
-  it('each Record section lights up My Documents and only that entry point (UMPE P13)', () => {
+  it('each Record section lights up My Record and only that entry point (UMPE P13)', () => {
     const nav = workspaceNavigation(base, linkAccess);
     for (const section of recordSections(self)) {
       for (const path of [section.href, `${section.href}/synthetic`]) {
@@ -464,7 +464,7 @@ describe('no destination is lost by the four-tab change', () => {
         expect(
           nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
           path,
-        ).toEqual(['My Documents']);
+        ).toEqual(['My Record']);
       }
     }
     // Requests belong to Sharing & Requests; trips and cases to My Trips.
@@ -517,7 +517,7 @@ describe('archived travellers (LC-E)', () => {
     expect(nav.name).toBe('Synthetic Archived');
     expect(nav.primary.slice(0, 4).map((link) => link.label)).toEqual([
       'Home',
-      'My Documents',
+      'My Record',
       'My Trips',
       'Sharing & Requests',
     ]);

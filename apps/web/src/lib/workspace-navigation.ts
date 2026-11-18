@@ -226,7 +226,7 @@ export function travellerEntryPoints(applicantId: string): readonly NavLink[] {
     { href: base, label: HOME, exact: true },
     {
       href: `${base}/documents`,
-      label: MY_DOCUMENTS,
+      label: MY_RECORD,
       // The Record hub and its sections (WP-V3 part 2) are where documents grow into a profile.
       alsoCurrentFor: recordSections(applicantId).map((section) => section.href),
       action: { href: `${base}/documents/add`, label: 'Add Documents' },
@@ -250,7 +250,7 @@ export function travellerEntryPoints(applicantId: string): readonly NavLink[] {
 
 /** The entry point names, one spelling for the navigation, Home and the tests. */
 export const HOME = 'Home';
-export const MY_DOCUMENTS = 'My Documents';
+export const MY_RECORD = 'My Record';
 export const MY_TRIPS = 'My Trips';
 export const SHARING_AND_REQUESTS = 'Sharing & Requests';
 

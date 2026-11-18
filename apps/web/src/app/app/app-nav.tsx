@@ -27,7 +27,7 @@ const ICONS: Readonly<Record<string, IconName>> = {
 const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   Home: 'home',
   // UMPE P13: the traveller's three entry points and their tasks.
-  'My Documents': 'folder',
+  'My Record': 'folder',
   'My Trips': 'briefcase',
   'Sharing & Requests': 'share',
   'Add Documents': 'upload',
@@ -86,7 +86,7 @@ const MOBILE_LABELS: Readonly<Record<string, string>> = {
   'Choose a Traveller': 'Travellers',
   'Add a Traveller': 'Traveller',
   'Evidence Requests': 'Requests',
-  'My Documents': 'Documents',
+  'My Record': 'Record',
   'My Trips': 'Trips',
   'Sharing & Requests': 'Sharing',
   'Activity Log': 'Activity',

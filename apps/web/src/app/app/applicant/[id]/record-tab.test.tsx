@@ -65,7 +65,7 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
     mount(FULL);
     expect(labelsOf('.app-bar .app-shell-links a:not(.app-nav-action)')).toEqual([
       'Home',
-      'My Documents',
+      'My Record',
       'My Trips',
       'Sharing & Requests',
     ]);
@@ -79,7 +79,7 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
     expect(tools).toContain('Record');
   });
 
-  it('marks My Documents as the current entry point on each Record section, and nothing else', () => {
+  it('marks My Record as the current entry point on each Record section, and nothing else', () => {
     for (const section of ['record', 'profile', 'documents', 'expiry', 'history']) {
       act(() => root.render(<span />));
       route.pathname = `/app/applicant/${SELF}/${section}`;
@@ -88,7 +88,7 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
       expect(
         current.map((a) => a.getAttribute('aria-label')),
         section,
-      ).toEqual(['My Documents']);
+      ).toEqual(['My Record']);
     }
   });
 
@@ -125,10 +125,10 @@ describe('the three traveller entry points in the shell (UMPE P13)', () => {
 
   it('puts each task right under its destination, in keyboard order', () => {
     mount(FULL);
-    // Document order is the Tab order: Home, My Documents, its task, My Trips, its task, Sharing.
+    // Document order is the Tab order: Home, My Record, its task, My Trips, its task, Sharing.
     expect(sidebarOrder()).toEqual([
       'Home',
-      'My Documents',
+      'My Record',
       '+ Add Documents',
       'My Trips',
       '+ Start a Trip',
@@ -182,7 +182,7 @@ describe('the three traveller entry points in the shell (UMPE P13)', () => {
     const labels = [...container.querySelectorAll('.app-shell-nav a')].map(
       (a) => a.getAttribute('aria-label') ?? a.textContent,
     );
-    for (const name of ['My Documents', 'My Trips', 'Sharing & Requests', 'Add Documents']) {
+    for (const name of ['My Record', 'My Trips', 'Sharing & Requests', 'Add Documents']) {
       expect(labels).not.toContain(name);
     }
     expect(container.querySelector('nav[aria-label="Quick actions"]')).toBeNull();
