@@ -74,6 +74,7 @@ test('only the separate, non-required pull request workflow runs it, with no sec
   }
   const flow = read('.github/workflows/pr-signed-in-guard.yml');
   assert.match(flow, /^on:\n {2}pull_request:\n/m);
+  assert.doesNotMatch(flow, /guard-run\/\*\.(pem|json)|tokens\.json|key\.pem/);
   assert.match(flow, /^permissions:\n {2}contents: read\n/m);
   assert.match(flow, /^ {4}timeout-minutes: 20$/m);
   assert.doesNotMatch(flow, /secrets\./);
@@ -194,46 +195,75 @@ test('the stand-in answers only the session call, and only for its two made-up p
 test('the database preload refuses a database off this machine and refuses Vercel', () => {
   const preload = join(guardDir, 'db-preload.cjs');
   const require = createRequire(import.meta.url);
-  process.env.CI_DB_PRELOAD_TEST = '1';
-  const { assertLoopbackDatabase } = require(preload);
-  Reflect.deleteProperty(process.env, 'CI_DB_PRELOAD_TEST');
-  assert.deepEqual(
-    assertLoopbackDatabase({ DATABASE_URL: 'postgres://postgres@127.0.0.1:5432/x' }),
-    {
-      host: '127.0.0.1',
-      port: 5432,
-    },
+  const { assertLoopbackDatabase, bridgePort } = require(preload);
+  const local = 'postgres://postgres@127.0.0.1:5432/x';
+  assert.deepEqual(assertLoopbackDatabase({ DATABASE_URL: local }), {
+    url: local,
+    host: '127.0.0.1',
+    port: 5432,
+  });
+  // The app's own choice order: DIRECT_DATABASE_URL wins over DATABASE_URL.
+  const direct = 'postgres://postgres@127.0.0.1:6543/y';
+  assert.equal(
+    assertLoopbackDatabase({ DATABASE_URL: local, DIRECT_DATABASE_URL: direct }).url,
+    direct,
   );
   assert.throws(() => assertLoopbackDatabase({}), /needs DATABASE_URL/);
-  assert.throws(
-    () => assertLoopbackDatabase({ DATABASE_URL: 'postgres://u@ep-x.neon.tech/db' }),
-    /only allows a database on 127\.0\.0\.1/,
-  );
+  for (const remote of ['postgres://u@ep-x.neon.tech/db', 'postgres://postgres@localhost/x']) {
+    assert.throws(
+      () => assertLoopbackDatabase({ DATABASE_URL: remote }),
+      /only allows a database on 127\.0\.0\.1/,
+    );
+  }
   assert.throws(
     () =>
       assertLoopbackDatabase({
-        DATABASE_URL: 'postgres://postgres@127.0.0.1:5432/x',
+        DATABASE_URL: local,
         POSTGRES_URL: 'postgres://u@db.example.com/db',
       }),
     /POSTGRES_URL/,
   );
   assert.throws(
-    () => assertLoopbackDatabase({ VERCEL: '1', DATABASE_URL: 'postgres://postgres@127.0.0.1/x' }),
+    () => assertLoopbackDatabase({ VERCEL: '1', DATABASE_URL: local }),
     /never runs on Vercel/,
   );
+  assert.throws(() => bridgePort({}), /CI_DB_BRIDGE_PORT/);
+  assert.equal(bridgePort({ CI_DB_BRIDGE_PORT: '45432' }), 45432);
+
   // Loaded the way the server loads it, it stops the process before anything starts.
-  const run = (env) =>
-    spawnSync(process.execPath, ['--require', preload, '-e', 'console.log("started")'], {
+  const run = (env, script = 'console.log("started")') =>
+    spawnSync(process.execPath, ['--require', preload, '-e', script], {
       cwd: web,
-      env: { PATH: process.env.PATH, ...env },
+      env: { PATH: process.env.PATH, CI_DB_PRELOAD_START: '1', ...env },
       encoding: 'utf8',
     });
-  const remote = run({ DATABASE_URL: 'postgres://u@ep-x.neon.tech/db' });
-  assert.notEqual(remote.status, 0);
-  assert.doesNotMatch(remote.stdout, /started/);
-  const vercel = run({ VERCEL: '1', DATABASE_URL: 'postgres://postgres@127.0.0.1/x' });
-  assert.notEqual(vercel.status, 0);
-  assert.doesNotMatch(vercel.stdout, /started/);
+  for (const env of [
+    { DATABASE_URL: 'postgres://u@ep-x.neon.tech/db', CI_DB_BRIDGE_PORT: '45433' },
+    { VERCEL: '1', DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45433' },
+    { DATABASE_URL: local },
+  ]) {
+    const refused = run(env);
+    assert.notEqual(refused.status, 0, JSON.stringify(env));
+    assert.doesNotMatch(refused.stdout, /started/);
+  }
+  // Allowed, both copies of the driver point at the bridge before the first line of the app runs.
+  const both = run(
+    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45434' },
+    `const c = require('@neondatabase/serverless').neonConfig;
+     import('@neondatabase/serverless').then(({ neonConfig: m }) => {
+       console.log(JSON.stringify([c.wsProxy('h'), m.wsProxy('h'), c.forceDisablePgSSL, m.forceDisablePgSSL, c.useSecureWebSocket, m.useSecureWebSocket]));
+       process.exit(0);
+     });`,
+  );
+  assert.equal(both.status, 0, both.stderr);
+  assert.deepEqual(JSON.parse(both.stdout.trim().split('\n').at(-1)), [
+    '127.0.0.1:45434',
+    '127.0.0.1:45434',
+    true,
+    true,
+    false,
+    false,
+  ]);
 });
 
 test('the installed Neon Auth SDK still asks for the session the way the stand-in answers it', () => {

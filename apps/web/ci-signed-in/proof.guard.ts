@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { identity, seeded } from './people';
-import { signInAs } from './session';
+import { SESSION_COOKIE, signInAs } from './session';
 
 /**
  * Proof that the signed-in guard really signs in (docs/operations/ci-signed-in-guard.md). Each test
@@ -37,7 +37,7 @@ test('a session token the stand-in does not know goes to sign-in', async ({
   const url = new URL(base(baseURL));
   await context.addCookies([
     {
-      name: '__Secure-neon-auth.session_token',
+      name: SESSION_COOKIE,
       value: 'ci.not-a-known-token',
       domain: url.hostname,
       path: '/',

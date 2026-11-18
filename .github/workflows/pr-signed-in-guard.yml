@@ -7,6 +7,10 @@ name: Pull Request Signed-in Guard
 # separate job and not a required check.
 on:
   pull_request:
+    # Docs-only changes cannot change a signed-in page.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
 
 concurrency:
   group: pr-signed-in-guard-${{ github.event.pull_request.number }}
@@ -74,7 +78,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pr-signed-in-guard-report
+          # Screenshots of made-up pages and the run's logs; never the run's key or tokens.
           path: |
-            apps/web/playwright-report/
             apps/web/test-results/
+            ${{ runner.temp }}/guard-run/*.log
           retention-days: 7

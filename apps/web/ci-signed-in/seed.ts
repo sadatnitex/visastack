@@ -18,7 +18,9 @@ import {
 } from '@visastack/services';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import { type SeededIds, envValue, identity, runDir } from './people';
+// One database rule for the preload and the seed.
+import { assertLoopbackDatabase } from './db-preload.cjs';
+import { type SeededIds, identity, runDir } from './people';
 
 /**
  * Builds the made-up world of the signed-in guard in a fresh throwaway database: the shipped
@@ -41,28 +43,28 @@ function must<T>(step: string, result: Result<T, { message: string }>): T {
   return result.value;
 }
 
-/** The loopback database the app was started with (same rule as db-preload.cjs). */
-export function loopbackDatabaseUrl(env: Readonly<Record<string, string | undefined>>): URL {
-  if (envValue(env, 'VERCEL')) throw new Error('The CI seed never runs on Vercel.');
-  const raw = envValue(env, 'DATABASE_URL');
-  if (!raw) throw new Error('The CI seed needs DATABASE_URL.');
-  const url = new URL(raw);
-  if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') {
-    throw new Error('The CI seed only writes to a database on 127.0.0.1.');
-  }
-  return url;
+/**
+ * The database the app was started with: the same check as db-preload.cjs (one rule, shared), so
+ * the seed always writes where the app reads, and only ever to 127.0.0.1.
+ */
+export function loopbackDatabase(env: Readonly<Record<string, string | undefined>>): {
+  readonly url: string;
+  readonly port: number;
+} {
+  return assertLoopbackDatabase(env);
 }
 
 export async function seed(env = process.env): Promise<SeededIds> {
-  const url = loopbackDatabaseUrl(env);
-  const bridge = await startBridge({
-    listenPort: 0,
-    pgHost: '127.0.0.1',
-    pgPort: Number(url.port || '5432'),
-  });
+  const target = loopbackDatabase(env);
+  const bridge = await startBridge({ listenPort: 0, pgHost: '127.0.0.1', pgPort: target.port });
   useLocalBridge(bridge.port);
-  const { db, pool } = createPooledDb(url.toString());
+  const { db, pool } = createPooledDb(target.url);
   try {
+    // A fresh database every run: a second seed would add a second case and agency.
+    const used = await pool.query("select to_regclass('drizzle.__drizzle_migrations') as t");
+    if (used.rows[0]?.t) {
+      throw new Error('The signed-in guard needs an empty database; this one was used before.');
+    }
     await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS });
 
     // The traveller: account (bound to the stand-in identity), consents, profile, case, documents.
