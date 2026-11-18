@@ -114,14 +114,16 @@ export function DocumentHeroCard({
               <ExplainTip label={mark.label} text={mark.explain}>
                 <MarkGlyph tone={mark.tone} />
               </ExplainTip>
-              {/* The word repeats the button's name, so it is hidden from screen readers, except
-              for a live state, whose change must be announced. */}
-              <span
-                className="doc-hero-mark-word"
-                {...(mark.live ? { 'aria-live': 'polite' as const } : { 'aria-hidden': true })}
-              >
+              {/* The word repeats the button's name, so it is hidden from screen readers. A live
+              state is also announced from its own hidden region when it changes. */}
+              <span className="doc-hero-mark-word" aria-hidden="true">
                 {mark.label}
               </span>
+              {mark.live ? (
+                <span className="sr-only" aria-live="polite">
+                  {mark.label}
+                </span>
+              ) : null}
               {mark.after ?? null}
             </li>
           ))}

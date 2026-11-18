@@ -23198,7 +23198,7 @@ button.wallet-stack-card {
   }
 
   .wallet-selected-document[data-sheet="open"] {
-    scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 7rem);
+    scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 9rem);
   }
 }
 /* end WP-WAL2 */

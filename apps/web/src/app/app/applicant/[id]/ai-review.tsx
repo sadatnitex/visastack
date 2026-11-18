@@ -3,7 +3,7 @@
 import type { IssueDateReading } from '@visastack/core/catalogue';
 import type { ReadingSource } from '@visastack/services';
 import Link from 'next/link';
-import { useActionState, useCallback, useId, useState } from 'react';
+import { useActionState, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ExplainTip } from '../../../../components/explain-tip';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
@@ -463,7 +463,12 @@ export function AiProposalReview({
         {masked ? (
           <ExpandableSection
             title="Value Found"
-            summary={<span data-value="masked">••••••••</span>}
+            summary={
+              <span data-value="masked">
+                <span aria-hidden="true">••••••••</span>
+                <span className="sr-only">Hidden</span>
+              </span>
+            }
             headingLevel={5}
             className="finding-masked"
           >
@@ -594,6 +599,22 @@ export function DocumentFindings({
   const impactT = useT(changeImpactCatalog);
   // The latest outcome, kept here: a card disappears once decided, and its message with it.
   const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
+  // WAL2: a decided detail leaves the list with the button that had focus. Focus then moves to the
+  // next row, or to the heading (or this box) when no row is left, never to the top of the page.
+  // The one-at-a-time view moves focus itself first while it still has a detail to show.
+  const box = useRef<HTMLDivElement>(null);
+  const shownCount = useRef(proposals.length);
+  useEffect(() => {
+    const before = shownCount.current;
+    shownCount.current = proposals.length;
+    if (proposals.length >= before) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    const target =
+      box.current?.querySelector<HTMLElement>('.finding-row summary') ??
+      box.current?.querySelector<HTMLElement>(':scope > h3') ??
+      box.current;
+    target?.focus();
+  }, [proposals.length]);
   const [edited, setEdited] = useState<ReadonlySet<string>>(new Set());
   const [, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
@@ -614,7 +635,7 @@ export function DocumentFindings({
   }, []);
   if (proposals.length === 0) {
     return lastResult === INITIAL ? null : (
-      <div className="document-findings">
+      <div className="document-findings" ref={box} tabIndex={-1}>
         <FormMessage result={lastResult} />
         <ChangeImpactNotice
           summary={lastResult.changeImpact}
@@ -658,8 +679,8 @@ export function DocumentFindings({
   );
   return (
     // Not a landmark: several documents on one page each have one, all with this heading.
-    <div className="document-findings">
-      <h3>{t.node('appApplicant.appApplicantIdAiReview.checkWhatWeFound')}</h3>
+    <div className="document-findings" ref={box}>
+      <h3 tabIndex={-1}>{t.node('appApplicant.appApplicantIdAiReview.checkWhatWeFound')}</h3>
       <p className="document-findings-metric" data-value="count">
         {count === 1 ? '1 detail' : `${count} details`}, {clearCount} clear, {count - clearCount} to
         check

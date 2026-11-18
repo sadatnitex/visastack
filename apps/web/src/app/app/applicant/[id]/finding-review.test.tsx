@@ -286,4 +286,35 @@ describe('Check What We Found: review fixes (WAL2 code review)', () => {
       'National ID Number',
     );
   });
+
+  it('moves focus to the next row when an accepted row leaves, and to the heading when none is left', async () => {
+    const rows = [
+      finding({ id: 'a', fieldLabel: 'Given Name' }),
+      finding({ id: 'b', fieldLabel: 'Family Name' }),
+    ];
+    render(rows);
+    (document.activeElement as HTMLElement | null)?.blur();
+    render(rows.slice(1));
+    await act(async () => undefined);
+    expect(document.activeElement?.tagName).toBe('SUMMARY');
+    expect(document.activeElement?.closest('.finding-row')?.textContent).toContain('Family Name');
+    // The last row is accepted: its message stays, and focus lands on the box that holds it.
+    vi.mocked(actions.decideProposalAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    await act(async () => {
+      (host.querySelector('.finding-row-accept-button') as HTMLButtonElement).click();
+    });
+    (document.activeElement as HTMLElement | null)?.blur();
+    render([]);
+    await act(async () => undefined);
+    expect(document.activeElement?.classList.contains('document-findings')).toBe(true);
+  });
+
+  it('says Hidden, never a row of dots, for a masked value', () => {
+    render([finding({ id: 's', fieldLabel: 'Passport Number', sensitive: true })]);
+    const summary = host.querySelector(
+      '.finding-masked .expandable-section-summary',
+    ) as HTMLElement;
+    expect(summary.querySelector('[aria-hidden="true"]')?.textContent).toBe('••••••••');
+    expect(summary.querySelector('.sr-only')?.textContent).toBe('Hidden');
+  });
 });

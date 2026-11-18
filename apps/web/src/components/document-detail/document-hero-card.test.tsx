@@ -89,7 +89,8 @@ describe('the document hero card', () => {
         { id: 's', label: 'Current', explain: 'In date.', tone: 'ok' },
       ],
     });
-    expect(html).toMatch(/class="doc-hero-mark-word" aria-live="polite">Ready</);
+    expect(html).toMatch(/class="doc-hero-mark-word" aria-hidden="true">Ready</);
+    expect(html).toMatch(/class="sr-only" aria-live="polite">Ready</);
     expect(html).toMatch(/class="doc-hero-mark-word" aria-hidden="true">Current</);
   });
 
