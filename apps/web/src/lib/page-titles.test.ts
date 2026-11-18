@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PUBLIC_NAV } from '../components/public-site/public-nav';
+import { homeCatalog } from '../i18n/home';
 
 /**
  * WCAG 2.4.2 (Page Titled, level A): every page names itself, so a person with a
@@ -130,5 +131,16 @@ describe('landmarks', () => {
 
   it('says in which language the language switch is written', () => {
     expect(read('layout.tsx')).toMatch(/lang=\{locale === 'en' \? 'bn' : 'en'\}/);
+  });
+});
+
+describe('the home wording and its register sources', () => {
+  // TIDY1 (18 Nov 2026): a key left out of home.sources.json drops out of the held-back wording
+  // check in rest-locale.test.tsx without any test failing, so the two files must name the same keys.
+  it('has one sources entry for every English key, and no entry without a key', () => {
+    const sources = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../i18n/home.sources.json', import.meta.url)), 'utf8'),
+    ) as Record<string, string | null>;
+    expect(Object.keys(sources).sort()).toEqual(Object.keys(homeCatalog.en).sort());
   });
 });

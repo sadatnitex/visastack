@@ -781,6 +781,11 @@ Generate a migration only after the previous migration is on main.
 | 24 | S24. Commercial acceptance and release reconciliation (WP-V6) | none | O3, O5, O7, O9 to O12, O16, O17 | owner word (never automatic) |
 | 25 | S25. Bangla | none expected | O15 | owner word |
 | 25a | **S30. Billing screens polish and downloadable documents: BUILT** (30 Oct; local branch `s30-wip`, not merged, not live). Invoice and Receipt PDFs, Grace and Suspended notice, downgrade notice, typed plan and billing refusals, one money and date style, billing email wording; see `docs/operations/billing-documents.md` | none | none | owner word |
+| 25b | **WAL: Wallet upgrade (signed-in screens): DONE.** Merged 17 to 18 Nov 2026: WAL1 #631 (`11e63a9b`), WAL9 #633 (`7df6af80`), WAL1B #634 (`2e834406`) and #638 (`39c49936`), WAL5 #636 (`3b46ffb2`), WAL4 #637 (`9a4dac3d`), WAL2 #639 (`5f5f0287`), WAL3 #640 (`17a5a73c`), WAL10 #643 (`0054091f`), FIX9 #648 (`a83110b3`); presentation only, live. Records: `docs/upgrades/programme/wal/` | none | none | done |
+| 25c | **U6, U7, U8: screens on the Wallet foundation: DONE.** Merged 18 Nov 2026: U8 #644 (`0a703417`, agency screens), U6 #647 (`8a347174`, All Records), U7 #650 (`00c01849`, traveller screens); live. Records: `docs/upgrades/programme/wal/` | none | none | done |
+| 25d | **NAV2: public header and footer: DONE.** Merged as #653 (`5f39fd6d`) on 18 Nov 2026; checked live (Vercel, Deploy Smoke, Playwright Deploy Smoke, live signed-in check, CI, CodeQL). Record: `docs/upgrades/programme/pub/NAV2-records.md` | none | none | done |
+| 25e | **MOT1: motion on every screen and for every visitor: DONE.** Merged as #651 (`769e43ea`) on 18 Nov 2026; checked live as above. Record: `docs/upgrades/programme/pub/MOT1-records.md` | none | none | done |
+| 25f | **ESS1: My Profile shows each detail once, protected values loaded only on Show: DONE.** Merged as #654 (`19416e1e`) on 18 Nov 2026; checked live as above. Record: `docs/upgrades/programme/ess/ESS1-records.md` | none | none | done |
 
 Note, 29 Oct 2026:
 
