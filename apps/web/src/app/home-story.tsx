@@ -140,6 +140,7 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
           steps={HERO_STEPS}
           finalStep={HERO_STEPS - 1}
           minWidth={900}
+          kitStage
           labelledBy="hs-hero-title"
           className="hs-scene"
         >
@@ -193,6 +194,7 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
           steps={3}
           finalStep={2}
           minWidth={900}
+          kitStage
           labelledBy="hs-add-title"
           className="hs-scene"
         >
@@ -231,6 +233,7 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
           steps={FIXTURE_COUNTRIES.length}
           finalStep={FIXTURE_COUNTRIES.length - 1}
           minWidth={900}
+          kitStage
           labelledBy="hs-ready-title"
           className="hs-scene"
         >
@@ -264,6 +267,7 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
           steps={FIXTURE_STAGES.length}
           finalStep={FIXTURE_STAGES.length - 1}
           minWidth={900}
+          kitStage
           labelledBy="hs-journey-title"
           className="hs-scene"
         >
@@ -285,6 +289,7 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
           steps={5}
           finalStep={3}
           minWidth={900}
+          kitStage
           labelledBy="hs-share-title"
           className="hs-scene"
         >

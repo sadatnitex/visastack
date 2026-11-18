@@ -99,15 +99,18 @@ html[data-scenes="live"] .pub-scene-stage {
   top: var(--pub-nav-offset);
   height: calc(100svh - var(--pub-nav-offset));
   overflow: clip;
-  /* R1: a pinned stage centres what it shows, so a short scene never opens with an empty stretch.
-     "safe" keeps the top in view when a scene is taller than the screen (never cut at the top). */
+}
+
+/* R1: a scene opts in with data-kit-stage (the Scene prop kitStage): its pinned stage is a grid that
+   centres what it shows, so a short scene never opens with an empty stretch. "safe" keeps the top in
+   view when a scene is taller than the screen. Scenes that do not opt in are unchanged. */
+html[data-scenes="live"] .pub-scene[data-kit-stage] .pub-scene-stage {
   display: grid;
   align-content: start;
   align-content: safe center;
 }
 
-/* R1: the stage's one child may shrink inside it (grid items default to min-width: auto). */
-html[data-scenes="live"] .pub-scene-stage > * {
+html[data-scenes="live"] .pub-scene[data-kit-stage] .pub-scene-stage > * {
   min-width: 0;
 }
 

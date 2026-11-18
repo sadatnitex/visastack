@@ -18,9 +18,15 @@ export interface SceneProps {
   readonly labelledBy?: string;
   /**
    * The narrowest screen, in CSS pixels, on which this scene is pinned and moves (R1: Home uses 900).
-   * Between the engine's own floor and this width the scene is an ordinary finished section.
+   * Between the engine's own floor and this width the scene is an ordinary finished section. The
+   * stylesheet un-pins a scene below 899 px, so 900 is the value it supports today.
    */
-  readonly minWidth?: 900;
+  readonly minWidth?: number;
+  /**
+   * Opts the scene into the kit's centred stage (R1): a pinned stage centres what it shows instead of
+   * sitting at the top. Pages built before the kit leave it off and are unchanged.
+   */
+  readonly kitStage?: boolean;
   readonly className?: string;
   readonly children: ReactNode;
 }
@@ -45,6 +51,7 @@ export function Scene({
   finalStep,
   labelledBy,
   minWidth,
+  kitStage,
   className,
   children,
 }: SceneProps) {
@@ -57,6 +64,7 @@ export function Scene({
       data-len={halves(len)}
       data-steps={count}
       data-step={last}
+      {...(kitStage ? { 'data-kit-stage': '' } : {})}
       {...(minWidth ? { 'data-min-width': whole(minWidth, 1, 4000) } : {})}
       aria-labelledby={labelledBy}
     >

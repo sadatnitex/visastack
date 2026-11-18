@@ -70,8 +70,10 @@ Shared rise-in on scroll. Visible with no JavaScript, reduced motion, data saver
 
 ## Scene engine change (R1, as built)
 
-- `Scene` `len` may be 1, 1.5, 2, 2.5, 3 or 4 screens. The pinned stage is a grid with `align-content: safe center` (public-site.css), so a short scene is centred and a tall one keeps its top in view.
-- `Scene` `minWidth={900}` (the only value) marks a scene that pins and moves only from 900 px: the engine leaves it finished below that and the stylesheet un-pins it. Use it on every scene of a page that has two columns.
+- `Scene` `kitStage` opts a scene into the centred stage (`data-kit-stage`); pages built before the kit are unchanged. Every rebuilt page passes it.
+- `ShareSheet` scroll mode rests on the scene's `finalStep`: a page that wants the `Access Ended` state passes `finalStep={4}`.
+- `Scene` `len` may be 1, 1.5, 2, 2.5, 3 or 4 screens. With `kitStage` the pinned stage is a grid with `align-content: safe center` (public-site.css), so a short scene is centred and a tall one keeps its top in view.
+- `Scene` `minWidth={900}` (a number; 900 is the only value the stylesheet un-pins for) marks a scene that pins and moves only from 900 px: the engine leaves it finished below that and the stylesheet un-pins it. Use it on every scene of a page that has two columns.
 - Existing parts stay as they are: `Scene`, `Chapter`, `FlagRing`, `CountryFlag`, `ExampleTag`, `StatusChip`, `StoryCard`, `HeadlineWords`, `PublicButton`, `PassportTilt`, `DepthGlow`.
 - Every page that has scenes must render `<ScenesRuntime />` (Home lost it once in the rebuild; a unit test now guards it).
 - Known limit: on a computer the first paint of a pinned scene shows its finished state for a moment before the engine writes its start state (the early mark runs before the body exists, so it cannot write the step).

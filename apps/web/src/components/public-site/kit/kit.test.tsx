@@ -271,6 +271,28 @@ describe('RiseIn', () => {
   });
 });
 
+describe('Scene opt-in', () => {
+  it('centres the stage only for a scene that asks (kitStage), so older pages are unchanged', () => {
+    expect(
+      html(
+        <Scene name="a" len={2} steps={2} kitStage>
+          <i />
+        </Scene>,
+      ),
+    ).toContain('data-kit-stage=""');
+    expect(
+      html(
+        <Scene name="b" len={2} steps={2}>
+          <i />
+        </Scene>,
+      ),
+    ).not.toContain('data-kit-stage');
+    const sheet = readFileSync(join(__dirname, '..', 'public-site.css'), 'utf8');
+    expect(sheet).toContain('.pub-scene[data-kit-stage] .pub-scene-stage');
+    expect(sheet).not.toMatch(/html\[data-scenes="live"\] \.pub-scene-stage \{[^}]*display: grid/);
+  });
+});
+
 describe('kit rules', () => {
   it('has switch rules for every step 0 to 11, at, from and upto', () => {
     for (let step = 0; step < 12; step++) {
