@@ -2,6 +2,7 @@
 
 import { type ReactNode, useActionState } from 'react';
 import { FormMessage, SubmitButton } from './form-feedback';
+import { ExpandableSection } from './ui-lift/expandable-section';
 
 export interface DeclineInvitationState {
   readonly ok: boolean;
@@ -20,10 +21,10 @@ export interface DeclineInvitationLabels {
 const INITIAL: DeclineInvitationState = { ok: true, message: '' };
 
 /**
- * DECL1: say no to an invitation on its accept screen. Decline opens a short confirm in place (a
- * plain disclosure, no dialog, so nothing traps focus) and one more press ends the invitation. It is
- * an ordinary form post, so it works with JavaScript off. The page shows it only while the
- * invitation is open and the update that stores a decline is in place.
+ * DECL1: say no to an invitation on its accept screen. Decline opens a short confirm in place
+ * (the shared Expandable Section, no dialog, so nothing traps focus) and one more press ends the
+ * invitation. It is an ordinary form post, so it works with JavaScript off. The page shows it
+ * only while the invitation is open and the update that stores a decline is in place.
  */
 export function DeclineInvitation({
   token,
@@ -39,22 +40,23 @@ export function DeclineInvitation({
 }) {
   const [state, formAction, pending] = useActionState(action, INITIAL);
   return (
-    <details className="lc-g3-withdraw" data-testid="decline-invitation">
-      <summary className="btn btn-secondary">{labels.decline}</summary>
-      <form action={formAction} className="lc-g3-confirm">
-        <input type="hidden" name="token" value={token} />
-        {/* The question is the group's name, so a screen reader says it with the button. */}
-        <fieldset className="fieldset">
-          <legend className="lc-g3-confirm-text">{labels.explain}</legend>
-          <SubmitButton
-            pending={pending}
-            idle={labels.confirm}
-            busy={labels.busy}
-            className="btn btn-danger"
-          />
-        </fieldset>
-        <FormMessage result={state} />
-      </form>
-    </details>
+    <div data-testid="decline-invitation">
+      <ExpandableSection title={labels.decline}>
+        <form action={formAction} className="lc-g3-confirm">
+          <input type="hidden" name="token" value={token} />
+          {/* The question is the group's name, so a screen reader says it with the button. */}
+          <fieldset className="fieldset">
+            <legend className="lc-g3-confirm-text">{labels.explain}</legend>
+            <SubmitButton
+              pending={pending}
+              idle={labels.confirm}
+              busy={labels.busy}
+              className="btn btn-danger"
+            />
+          </fieldset>
+          <FormMessage result={state} />
+        </form>
+      </ExpandableSection>
+    </div>
   );
 }

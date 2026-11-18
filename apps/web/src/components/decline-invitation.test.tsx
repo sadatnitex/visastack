@@ -29,7 +29,7 @@ describe('the Decline control (DECL1)', () => {
     const details = host.querySelector('details');
     expect(details).not.toBeNull();
     expect(details?.hasAttribute('open')).toBe(false);
-    expect(details?.querySelector(':scope > summary')?.textContent).toBe('Decline');
+    expect(details?.querySelector('summary')?.textContent).toContain('Decline');
     expect(host.querySelector('[role="dialog"], dialog')).toBeNull();
     const form = details?.querySelector('form');
     const submit = form?.querySelector('button[type="submit"]');
