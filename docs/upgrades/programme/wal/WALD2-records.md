@@ -30,6 +30,25 @@ Each test below was run against the code on main first (by backing up the change
 | `apps/web/.../profile/protected-access.test.ts` | Owner cases 5 failed. Non-owner cases passed on main and failed when the key read was moved above the owner check on purpose. | 7 passed |
 | `apps/web/.../profile/protected-essentials.test.ts` | Passed on main. This locks the chip rule in place, it is not a fix. | 4 passed |
 
+## Guardian findings on 1445839 (fixed)
+
+| Finding | Fix | Proof it can fail |
+| --- | --- | --- |
+| F1: the essentials test passed on main and did not guard the real fix, which is the lost-value filter in `profile/page.tsx` | `protected-access.test.ts` now checks the page's own Essentials list: a lost passport number is not Added, an unopened Date of Birth is | With the filter removed, the lost-value test goes red (1 failed, 6 passed) |
+| F2: the read-once test had no pending suggestion, so a second keyed read would not be noticed | That test now has one pending app suggestion and still expects exactly one keyed read | With a second keyed read put back for the suggestion comparison, it goes red (1 failed, 6 passed) |
+| F3: a saved Other text under a protected choice was hidden when its value was not shown | The Other row shows when its detail is locked too | With the change removed, 3 tests go red (no_key, unreadable, lost) |
+
+`protected-essentials.test.ts` is kept. It does not guard the page fix (F1 does that). It pins the rule the page works around: a protected stand-in with a status counts as Added in `master-profile.ts`.
+
+17 protected choice fields (RESTRICTED or SENSITIVE, each with an Other detail at the same level) exist in the catalogue, so F3 reaches real people: immigration_incident_type, immigration_incident_appeal_outcome, travel_ban_type, travel_ban_appeal_status, criminal_record_outcome, military_service_discharge_type, clearance_result, organisation_membership_type, bankruptcy_type, bankruptcy_status, tax_default_tax_type, vaccination_vaccine, medical_exam_type, medical_exam_result, health_declaration_treatment_status, labour_migration_medical_result and gcc_medical_test_result.
+
+Review notes, recorded here and not in code:
+
+- The two profile lifecycle writes in `profile-lifecycle.ts` cannot write the stand-in: No Longer Current writes null, Ended copies the real value (confirmed by review).
+- Every profile view now opens all protected values with the key. Before, it did so only when app suggestions were pending. The key-service cost on production has not been measured.
+- The Evidence reply label "[protected]" stays for a later unit.
+- Look-alike characters (for example full-width brackets) are stored as typed. Accepted.
+
 ## Other screens that read the profile without the key (audit only, not edited)
 
 | Screen | What it does with a protected value | Writes it back? |

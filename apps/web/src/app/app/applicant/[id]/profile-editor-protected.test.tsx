@@ -150,6 +150,25 @@ describe('protected details in the profile editor', () => {
     expect(row?.querySelector('.field-badges .badge-neutral')).toBeNull();
   });
 
+  it.each(['no_key', 'unreadable', 'lost'] as const)(
+    'keeps a saved Other text row on screen when it is protected and %s',
+    (lock) => {
+      render({
+        marital_status: { factId: 'f-ms', value: null, status: 'DECLARED', locked: lock },
+        marital_status_other: { factId: 'f-mso', value: null, status: 'DECLARED', locked: lock },
+      });
+      const other = container.querySelector<HTMLInputElement>('#f-marital_status_other');
+      expect(other).not.toBeNull();
+      expect(other?.value).toBe('');
+      expect(hintFor('marital_status_other')).not.toBeNull();
+    },
+  );
+
+  it('still hides the Other text row when nothing is saved there', () => {
+    render({ marital_status: { factId: 'f-ms', value: 'Single', status: 'DECLARED' } });
+    expect(container.querySelector('#f-marital_status_other')).toBeNull();
+  });
+
   it('links the hint to a protected choice box too', () => {
     render({
       marital_status: { factId: 'f-ms', value: '[protected]', status: 'DECLARED' },

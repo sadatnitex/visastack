@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   listApplicantProfile: vi.fn(),
   createKeyManagementPort: vi.fn(),
   reportServerError: vi.fn(),
+  requireAccess: vi.fn(),
+  listPendingAppSuggestions: vi.fn(),
   accountId: 'stranger-account',
 }));
 
@@ -28,7 +30,10 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   }),
   getWalletView: async () => ({ ok: true, value: [] }),
   listDocumentsDetailed: async () => ({ ok: true, value: [] }),
-  requireAccess: async () => ({ ok: false }),
+  requireAccess: mocks.requireAccess,
+  listPendingAppSuggestions: mocks.listPendingAppSuggestions,
+  aiSuggestionsInUse: async () => true,
+  listEndedRecords: async () => new Map(),
   listMissions: async () => ({ ok: true, value: [] }),
 }));
 vi.mock('../../../../../lib/profile-photos', () => ({ ownedPhotoUrl: async () => null }));
@@ -58,6 +63,8 @@ describe('profile page keyed read', () => {
   beforeEach(() => {
     mocks.accountId = 'stranger-account';
     mocks.reportServerError.mockReset();
+    mocks.requireAccess.mockReset();
+    mocks.requireAccess.mockResolvedValue({ ok: false });
     mocks.getApplicant.mockReset();
     mocks.listApplicantProfile.mockReset();
     mocks.createKeyManagementPort.mockReset();
@@ -125,6 +132,10 @@ describe('profile page keyed read for the owner', () => {
   beforeEach(() => {
     mocks.accountId = 'owner-account';
     mocks.reportServerError.mockReset();
+    mocks.requireAccess.mockReset();
+    mocks.requireAccess.mockResolvedValue({ ok: false });
+    mocks.listPendingAppSuggestions.mockReset();
+    mocks.listPendingAppSuggestions.mockResolvedValue([]);
     mocks.getApplicant.mockReset();
     mocks.listApplicantProfile.mockReset();
     mocks.createKeyManagementPort.mockReset();
@@ -137,10 +148,23 @@ describe('profile page keyed read for the owner', () => {
     });
   });
 
-  async function open() {
+  async function render() {
     const page = await ApplicantProfilePage({ params: Promise.resolve({ id: 'person-1' }) });
     const props = editorProps(page);
     if (!props) throw new Error('profile editor not rendered');
+    return props;
+  }
+
+  /** Whether the Essentials list counts a detail as Added. */
+  async function essentialAnswered(key: string) {
+    const props = (await render()) as {
+      view: { essentials: { items: readonly { key: string; answered: boolean }[] } };
+    };
+    return props.view.essentials.items.find((item) => item.key === key)?.answered;
+  }
+
+  async function open() {
+    const props = await render();
     type Box = { value: string | null; locked: string | null; status: string | null };
     type Keys = 'date_of_birth' | 'passport_number' | 'given_name';
     return (props as { values: Partial<Record<Keys, Box>> }).values;
@@ -148,6 +172,32 @@ describe('profile page keyed read for the owner', () => {
 
   it('reads once with the key and gives each box its real value', async () => {
     mocks.createKeyManagementPort.mockReturnValue(KEY);
+    // One pending app suggestion, so the comparison with the profile runs too: it must reuse the
+    // same keyed read, not open everything a second time.
+    mocks.requireAccess.mockImplementation(
+      async (
+        _db: unknown,
+        _who: unknown,
+        _action: unknown,
+        _on: unknown,
+        o: { purpose: string },
+      ) => (o.purpose === 'ai_app_suggestions' ? { ok: true, value: {} } : { ok: false }),
+    );
+    mocks.listPendingAppSuggestions.mockResolvedValue([
+      {
+        proposal: {
+          id: 'proposal-1',
+          type: 'FIELD_VALUE',
+          fieldKey: 'passport_number',
+          value: 'X1234567',
+          confidence: 0.9,
+          rationale: 'Synthetic.',
+        },
+        evidence: [],
+        fromApp: null,
+        issueDate: null,
+      },
+    ]);
     mocks.listApplicantProfile.mockResolvedValue([
       entry('date_of_birth', '1990-04-12', true),
       entry('passport_number', 'X1234567', true),
@@ -157,6 +207,7 @@ describe('profile page keyed read for the owner', () => {
     expect(mocks.listApplicantProfile).toHaveBeenCalledWith({}, 'person-1', KEY);
     expect(values.date_of_birth).toMatchObject({ value: '1990-04-12', locked: null });
     expect(values.passport_number).toMatchObject({ value: 'X1234567', locked: null });
+    expect(mocks.listPendingAppSuggestions).toHaveBeenCalledTimes(1);
   });
 
   it('with no key, hands an empty box marked Saved and Protected, never the stand-in', async () => {
@@ -175,6 +226,9 @@ describe('profile page keyed read for the owner', () => {
     const values = await open();
     expect(values.date_of_birth).toMatchObject({ value: null, locked: 'unreadable' });
     expect(values.passport_number).toMatchObject({ value: null, locked: 'lost', status: null });
+    // The Essentials list agrees with the boxes: a lost value is not Added, an unopened one is.
+    expect(await essentialAnswered('passport_number')).toBe(false);
+    expect(await essentialAnswered('date_of_birth')).toBe(true);
   });
 
   it('an unknown key setting still opens the page, with protected values marked', async () => {

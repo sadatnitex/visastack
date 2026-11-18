@@ -425,7 +425,8 @@ function FieldWithOther({
         onChoice={detail ? setChoice : undefined}
         locked={current?.locked ?? undefined}
       />
-      {detail && (choice === OTHER_CHOICE || detailCurrent?.value) ? (
+      {/* A saved Other text stays visible when it is protected and not shown here (WALD2). */}
+      {detail && (choice === OTHER_CHOICE || detailCurrent?.value || detailCurrent?.locked) ? (
         <FieldRow
           applicantId={applicantId}
           field={detail}
