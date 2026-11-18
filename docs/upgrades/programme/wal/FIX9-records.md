@@ -26,9 +26,10 @@ Test: "/status keeps identical pixels under both device appearances at 390px" (a
 ## New tests
 
 - apps/web/e2e/wallet/fix9-sticky-bar.spec.ts: the real stylesheet over the real class names. At 390 and 400 px a press on the bar's button reaches the button, not the navigation bar (red on the old stylesheet, green now); at 1280 px the bar still sticks to the bottom edge.
+- The same fix9 spec also opens the real consent screen (no navigation bar), Start a Case and the calendar bar (both inside the shell) at 390 and 1280 px (fixture e2e/fixtures/fix9-bars.fixture.tsx): every button of the bar is reached with the page at its top and its bottom, and the bar ends above the navigation bar. With the old stylesheet Start a Case and the calendar bar fail at 390 px; consent and the 1280 px cases pass either way, as expected. One more test (fixture fix9-pickers) holds one tab stop per picker (the field, never the label), a drawn label of at least 44 px, the field named by the label's words, and Enter on the field opens the file chooser.
 - import-panel.test.tsx, profile-photo-control.test.tsx, account-photo-card.test.tsx, import-panel-locale.test.tsx: each file field is tied to a drawn label by id, is reached by Tab, has no hidden-field attributes.
 - scripts/ci-signed-in.test.mjs: the baseline loses the five lines; routes.ts loses the five entries. The signed-in guard passes 54 of 54 with them removed (a pin that still fails would be reported as unlisted).
 
 ## NOT verified
 
-Safari and Firefox, real phones (the home-indicator space is the browser's `env()` value, not measured on a device), the GitHub run time, the two /record pins and the agency pins (other units), the case page's own next-step bar (kept as it was; not in the guard).
+Safari and Firefox, real phones (the home-indicator space is the browser's `env()` value, not measured on a device), the GitHub run time, the two /record pins and the agency pins (other units), the WP-SB2 case page height (3480 against 3470 px, fails the same way with main's stylesheet), the case page's own next-step bar (kept as it was; not in the guard).
