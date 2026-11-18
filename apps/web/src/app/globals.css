@@ -22700,9 +22700,12 @@ button.wallet-stack-card {
   --expandable-status-space: 0px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) var(--expandable-status-space) 44px;
+  grid-template-rows: auto 1fr;
   align-items: start;
+  row-gap: 2px;
   min-height: 56px;
-  padding: 6px var(--space-2) 6px var(--space-3);
+  padding-block: 6px;
+  padding-inline: var(--space-3) var(--space-2);
   border-radius: var(--radius);
   list-style: none;
   cursor: pointer;
@@ -22725,6 +22728,7 @@ button.wallet-stack-card {
 }
 .expandable-section-picture {
   grid-column: 1;
+  grid-row: 1 / span 2;
   display: grid;
   place-items: center;
   width: 44px;
@@ -22737,18 +22741,13 @@ button.wallet-stack-card {
   max-width: 100%;
   max-height: 100%;
 }
-.expandable-section-words {
-  grid-column: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 2px;
-  min-width: 0;
-  min-height: 44px;
-  padding-top: 1px;
-}
 .expandable-section-title {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  min-width: 0;
   margin: 0;
+  padding-top: 2px;
   color: var(--text);
   font-size: var(--text-body);
   font-weight: 650;
@@ -22756,6 +22755,9 @@ button.wallet-stack-card {
   overflow-wrap: anywhere;
 }
 .expandable-section-summary {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
   color: var(--text-secondary);
   font-size: var(--text-small);
   line-height: 1.4;
@@ -22763,6 +22765,7 @@ button.wallet-stack-card {
 }
 .expandable-section-chevron {
   grid-column: 4;
+  grid-row: 1;
   justify-self: center;
   width: 20px;
   height: 20px;
@@ -22775,6 +22778,12 @@ button.wallet-stack-card {
   stroke-linejoin: round;
 }
 .expandable-section-details[open] > summary .expandable-section-chevron {
+  transform: rotate(90deg);
+}
+[dir="rtl"] .expandable-section-chevron {
+  transform: scaleX(-1);
+}
+[dir="rtl"] .expandable-section-details[open] > summary .expandable-section-chevron {
   transform: rotate(90deg);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -22845,6 +22854,15 @@ button.wallet-stack-card {
 .status-picture-fill {
   fill: currentColor;
   stroke: none;
+}
+/* High-contrast mode: the system colours replace the tints, so ring shape and mark carry the meaning. */
+@media (forced-colors: active) {
+  .status-picture {
+    color: CanvasText;
+  }
+  .status-picture-ring {
+    fill: Canvas;
+  }
 }
 /* A key of status pictures, one per line or wrapped on a wide screen: each item is a full 44 px row, so the Explain buttons never overlap. */
 .status-picture-key {

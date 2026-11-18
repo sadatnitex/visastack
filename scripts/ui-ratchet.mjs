@@ -12,9 +12,11 @@ import ts from 'typescript';
  *    into a page instead of a plain label. The count must not rise in any file.
  *
  * 3. Long dashes in text a person can read (page text and string values; comments are not counted).
- * 4. Raw details elements (WAL1, ADR 0030): every open-and-close section is built with the shared
- *    Expandable Section (components/ui-lift/expandable-section.tsx), which is the one file allowed
- *    to hold a raw `<details>`. Each screen moved onto it lowers its file's count.
+ * 4. Open-and-close sections built outside the Expandable Section (WAL1, ADR 0030): a raw
+ *    `<details>`, or one of the older shared folds (Disclosure, AboutDisclosure, CollapsibleGroup,
+ *    CollapsibleGroups, StickyDetails). Every new section uses ExpandableSection
+ *    (components/ui-lift/expandable-section.tsx), the one file not counted. Each screen moved onto
+ *    it lowers its file's count.
  *
  * The recorded starting point lives in scripts/ui-ratchet.baseline.json. Lower it with
  * `node scripts/ui-ratchet.mjs --lower` after a change reduces a count. Raising it needs a
@@ -36,8 +38,18 @@ export const RAW_CODE_FIELDS = new Set([
   'result',
 ]);
 
-/** The one file that may hold a raw details element: the shared Expandable Section. */
+/** The one file that may build an open-and-close section directly: the Expandable Section. */
 export const DETAILS_HOME = 'apps/web/src/components/ui-lift/expandable-section.tsx';
+
+/** JSX tags that build an open-and-close section outside the Expandable Section. */
+export const FOLD_TAGS = new Set([
+  'details',
+  'Disclosure',
+  'AboutDisclosure',
+  'CollapsibleGroup',
+  'CollapsibleGroups',
+  'StickyDetails',
+]);
 
 /** Built from the code point so no tool rewrites it into the character itself. */
 const LONG_DASH = String.fromCharCode(0x2014);
@@ -53,7 +65,7 @@ export function measure(source, filename = 'component.tsx') {
   let inlineStyles = 0;
   let rawCodes = 0;
   let emDashes = 0;
-  let rawDetails = 0;
+  let folds = 0;
   const visit = (node) => {
     if (
       (ts.isJsxText(node) ||
@@ -68,9 +80,9 @@ export function measure(source, filename = 'component.tsx') {
     if (ts.isJsxAttribute(node) && node.name.getText(file) === 'style') inlineStyles += 1;
     if (
       (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
-      node.tagName.getText(file) === 'details'
+      FOLD_TAGS.has(node.tagName.getText(file))
     )
-      rawDetails += 1;
+      folds += 1;
     if (
       ts.isJsxExpression(node) &&
       node.expression &&
@@ -82,14 +94,14 @@ export function measure(source, filename = 'component.tsx') {
     ts.forEachChild(node, visit);
   };
   visit(file);
-  return { inlineStyles, rawCodes, emDashes, rawDetails };
+  return { inlineStyles, rawCodes, emDashes, folds };
 }
 
 export function measureTree(root) {
   const inlineStyles = {};
   const rawCodes = {};
   const emDashes = {};
-  const rawDetails = {};
+  const folds = {};
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
@@ -100,22 +112,22 @@ export function measureTree(root) {
         if (counts.inlineStyles) inlineStyles[key] = counts.inlineStyles;
         if (counts.rawCodes) rawCodes[key] = counts.rawCodes;
         if (counts.emDashes) emDashes[key] = counts.emDashes;
-        if (counts.rawDetails && key !== DETAILS_HOME) rawDetails[key] = counts.rawDetails;
+        if (counts.folds && key !== DETAILS_HOME) folds[key] = counts.folds;
       }
     }
   };
   walk(join(root, 'apps/web/src'));
-  return { inlineStyles, rawCodes, emDashes, rawDetails };
+  return { inlineStyles, rawCodes, emDashes, folds };
 }
 
 const FIX = {
   inlineStyles: 'Use a shared class.',
   rawCodes: 'Use a plain label.',
   emDashes: 'Use a full stop or a hyphen.',
-  rawDetails: 'Use ExpandableSection from components/ui-lift/expandable-section.tsx.',
+  folds: 'Use ExpandableSection from components/ui-lift/expandable-section.tsx.',
 };
 
-const COUNTERS = ['inlineStyles', 'rawCodes', 'emDashes', 'rawDetails'];
+const COUNTERS = ['inlineStyles', 'rawCodes', 'emDashes', 'folds'];
 
 const total = (map) => Object.values(map).reduce((sum, value) => sum + value, 0);
 
@@ -125,7 +137,7 @@ export function compare(current, baseline) {
     ['inline style props', 'inlineStyles'],
     ['raw codes shown as page text', 'rawCodes'],
     ['long dashes in visible text', 'emDashes'],
-    ['raw details elements', 'rawDetails'],
+    ['open-and-close sections outside ExpandableSection', 'folds'],
   ]) {
     for (const [file, count] of Object.entries(current[key] ?? {})) {
       const allowed = baseline[key]?.[file] ?? 0;

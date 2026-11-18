@@ -24,8 +24,7 @@ export type GuardSize = (typeof GUARD_SIZES)[number];
 
 /**
  * What counts as a control. Links count when they are drawn as buttons; a plain link inside a
- * sentence is text. A summary (an open-and-close row) is tested at its centre only, because a
- * status picture may sit in its own column at the row's end by design.
+ * sentence is text. An open-and-close row (summary) counts too.
  */
 export const CONTROL_SELECTOR = [
   'button',
@@ -77,12 +76,23 @@ export async function coveredControls(page: Page, options: CoverOptions = {}): P
           .slice(0, 40);
         return `<${el.tagName.toLowerCase()}${id}${cls}>${words ? ` "${words}"` : ''}`;
       };
-      /** A press here reaches the control: the control itself, inside it, or its own label. */
+      /**
+       * A press here reaches the control: the control itself, inside it, or its own label. A row
+       * may also declare a companion drawn in its own column on the row (`data-row-companion`, the
+       * status picture of an Expandable Section): a hit on the companion of the same card counts.
+       */
       const reaches = (control: Element, hit: Element | null): boolean => {
         if (!hit) return false;
         if (control === hit || control.contains(hit)) return true;
         const label = hit.closest('label');
-        return Boolean(label && (label as HTMLLabelElement).control === control);
+        if (label && (label as HTMLLabelElement).control === control) return true;
+        // A companion is a narrow column: one that spreads over the row is a cover like any other.
+        const companion = hit.closest('[data-row-companion]');
+        return Boolean(
+          control.tagName === 'SUMMARY' &&
+            companion?.parentElement?.contains(control) &&
+            companion.getBoundingClientRect().width <= control.getBoundingClientRect().width / 3,
+        );
       };
       const scope = within ? document.querySelector(within) : document;
       if (!scope) return [`no element matches ${within}`];
@@ -107,18 +117,22 @@ export async function coveredControls(page: Page, options: CoverOptions = {}): P
         control.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
         rect = control.getBoundingClientRect();
         const centre: [number, number] = [rect.left + rect.width / 2, rect.top + rect.height / 2];
-        const points: [number, number][] =
-          control.tagName === 'SUMMARY'
-            ? [centre]
-            : [
-                centre,
-                [rect.left + rect.width * 0.2, rect.top + rect.height * 0.3],
-                [rect.right - rect.width * 0.2, rect.top + rect.height * 0.3],
-                [rect.left + rect.width * 0.2, rect.bottom - rect.height * 0.3],
-                [rect.right - rect.width * 0.2, rect.bottom - rect.height * 0.3],
-              ];
-        for (const [x, y] of points) {
-          if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) continue;
+        const points: [number, number][] = [
+          centre,
+          [rect.left + rect.width * 0.2, rect.top + rect.height * 0.3],
+          [rect.right - rect.width * 0.2, rect.top + rect.height * 0.3],
+          [rect.left + rect.width * 0.2, rect.bottom - rect.height * 0.3],
+          [rect.right - rect.width * 0.2, rect.bottom - rect.height * 0.3],
+        ];
+        const onScreen = points.filter(
+          ([x, y]) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight,
+        );
+        // A control that cannot be brought on screen cannot be pressed either.
+        if (onScreen.length === 0) {
+          covered.push(`${describe(control)} cannot be brought on screen`);
+          continue;
+        }
+        for (const [x, y] of onScreen) {
           const hit = document.elementFromPoint(x, y);
           if (!reaches(control, hit)) {
             covered.push(

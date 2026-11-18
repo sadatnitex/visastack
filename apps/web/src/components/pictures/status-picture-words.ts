@@ -59,13 +59,13 @@ export const STATUS_MEANINGS: Readonly<Record<StatusKind, StatusMeaning>> = {
   },
   sensitive: {
     name: 'Sensitive',
-    sentence: 'Hidden until you tap Show, and only you see it on this screen.',
+    sentence: 'Hidden until you choose Show, and only you see it on this screen.',
     tone: 'warn',
     ring: 'double',
   },
   needsFix: {
     name: 'Needs Fix',
-    sentence: 'Something here does not fit, so open it to see what to change.',
+    sentence: 'Something here does not fit, and its details say what to change.',
     tone: 'bad',
     ring: 'broken',
   },

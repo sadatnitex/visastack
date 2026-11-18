@@ -1,4 +1,7 @@
 import { type Page, expect, test } from '@playwright/test';
+import { createElement } from 'react';
+import { renderToString } from 'react-dom/server';
+import Wal1FoundationFixture from '../fixtures/wal1-foundation.fixture';
 import { renderFixture } from '../scroll-budget/support';
 import {
   GUARD_SIZES,
@@ -152,15 +155,22 @@ test.describe('WAL1 Expandable Section', () => {
   });
 });
 
-test('WAL1 Expandable Section works with script switched off', async ({ page, browser }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await renderFixture(page, FIXTURE, {});
-  // The page exactly as drawn, without any script: the same markup the server sends.
-  const html = await page.evaluate(() => {
-    for (const script of document.querySelectorAll('script')) script.remove();
-    return `<!doctype html>${document.documentElement.outerHTML}`;
-  });
+test('WAL1 Expandable Section works with script switched off, from the server markup', async ({
+  page,
+  browser,
+}) => {
+  // The server's own rendering of the fixture (renderToString, as a server component page sends
+  // it), placed in the site's real page with every script removed.
+  const markup = renderToString(createElement(Wal1FoundationFixture, {}));
+  await page.goto('/');
   const origin = new URL(page.url()).origin;
+  const shell = await (await page.request.get(`${origin}/`)).text();
+  const html = shell
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(
+      /<body([^>]*)>[\s\S]*<\/body>/i,
+      `<body$1><main class="scroll-fixture" id="main">${markup}</main></body>`,
+    );
   const context = await browser.newContext({
     javaScriptEnabled: false,
     viewport: { width: 390, height: 844 },
@@ -172,11 +182,17 @@ test('WAL1 Expandable Section works with script switched off', async ({ page, br
     );
     await still.goto(`${origin}/__wal1-without-script`);
     expect(await still.evaluate(() => document.querySelectorAll('script').length)).toBe(0);
+    await expect(section(still, 'needsFix')).not.toHaveAttribute('open');
     await row(still, 'needsFix').click();
     await expect(section(still, 'needsFix').locator('.expandable-section-body')).toBeVisible();
     await row(still, 'needsFix').focus();
     await still.keyboard.press('Enter');
     await expect(section(still, 'needsFix').locator('.expandable-section-body')).toBeHidden();
+    // Before any script the Explain notes stay closed and the names are still there to be read.
+    await expect(still.locator('.explain-tip-popup').first()).toBeHidden();
+    await expect(still.locator('.wal1-section-backed .explain-tip-trigger')).toHaveText(
+      'Backed by a Document',
+    );
     await expectNoSidewaysScroll(still);
     await expectNothingCoversControls(still);
   } finally {
@@ -208,6 +224,32 @@ test.describe('WAL1 the guards themselves can fail', () => {
     await page.setContent(`<main><details><summary style="min-height:44px">Row</summary>
       <button>Hidden</button></details></main>`);
     expect(await coveredControls(page)).toEqual([]);
+  });
+});
+
+test.describe('WAL1 the guard reads a row companion and an unreachable control', () => {
+  test('a narrow companion on a row is allowed; one spread over the row is a cover', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const card = (width: string) => `<main><div style="position:relative">
+      <span data-row-companion style="position:absolute;top:0;right:0;width:${width};height:44px;background:#fff"></span>
+      <details><summary style="display:block;min-height:44px">Row</summary></details></div></main>`;
+    await page.setContent(card('44px'));
+    expect(await coveredControls(page)).toEqual([]);
+    await page.setContent(card('100%'));
+    expect(await coveredControls(page)).toEqual([
+      expect.stringMatching(/<summary> "Row" at \d+,\d+ is under <span>/),
+    ]);
+  });
+
+  test('a button that can never be brought on screen is reported', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setContent(`<main><div style="overflow:clip;width:100px">
+      <button style="margin-left:900px;width:80px;height:44px">Lost</button></div></main>`);
+    expect(await coveredControls(page)).toEqual([
+      expect.stringMatching(/<button> "Lost" cannot be brought on screen/),
+    ]);
   });
 });
 

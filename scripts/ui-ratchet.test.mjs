@@ -13,12 +13,12 @@ test('counts inline style props and raw codes shown as page text', () => {
       <i title={m.role}>{label(m.role)}</i>
     </div>
   );`;
-  assert.deepEqual(measure(source), { inlineStyles: 2, rawCodes: 2, emDashes: 0, rawDetails: 0 });
+  assert.deepEqual(measure(source), { inlineStyles: 2, rawCodes: 2, emDashes: 0, folds: 0 });
 });
 
 test('a fixed class name and a plain label are not counted', () => {
   const source = 'export const A = ({ doc }) => <p className="note">{LABELS[doc.docType]}</p>;';
-  assert.deepEqual(measure(source), { inlineStyles: 0, rawCodes: 0, emDashes: 0, rawDetails: 0 });
+  assert.deepEqual(measure(source), { inlineStyles: 0, rawCodes: 0, emDashes: 0, folds: 0 });
 });
 
 test('fails when a file gains an inline style or a raw code, or a new file has any', () => {
@@ -59,18 +59,32 @@ test('counts raw details elements, opening tags only, in any nesting', () => {
       <p>details are words here, not an element</p>
     </section>
   );`;
-  assert.equal(measure(source).rawDetails, 2);
-  assert.equal(measure('export const B = () => <details />;').rawDetails, 1);
+  assert.equal(measure(source).folds, 2);
+  assert.equal(measure('export const B = () => <details />;').folds, 1);
+});
+
+test('counts the older shared folds too, so a screen cannot slip past through them', () => {
+  const source = `export const A = () => (
+    <>
+      <Disclosure title="A">x</Disclosure>
+      <AboutDisclosure summary="B">y</AboutDisclosure>
+      <CollapsibleGroup title="C">z</CollapsibleGroup>
+      <CollapsibleGroups groups={[]} />
+      <StickyDetails initiallyOpen summary="D">w</StickyDetails>
+      <ExpandableSection title="E">v</ExpandableSection>
+    </>
+  );`;
+  assert.equal(measure(source).folds, 5);
 });
 
 test('fails when a file gains a raw details element, or a new file has one', () => {
-  const baseline = { inlineStyles: {}, rawCodes: {}, rawDetails: { 'a.tsx': 2 } };
-  const now = (rawDetails) => ({ inlineStyles: {}, rawCodes: {}, rawDetails });
+  const baseline = { inlineStyles: {}, rawCodes: {}, folds: { 'a.tsx': 2 } };
+  const now = (folds) => ({ inlineStyles: {}, rawCodes: {}, folds });
   assert.equal(compare(now({ 'a.tsx': 2 }), baseline).length, 0);
   assert.equal(compare(now({ 'a.tsx': 1 }), baseline).length, 0);
   assert.equal(compare(now({ 'a.tsx': 3 }), baseline).length, 1);
   assert.equal(compare(now({ 'b.tsx': 1 }), baseline).length, 1);
-  assert.match(compare(now({ 'b.tsx': 1 }), baseline)[0], /details/);
+  assert.match(compare(now({ 'b.tsx': 1 }), baseline)[0], /ExpandableSection/);
 });
 
 test('the shared Expandable Section and test files are not counted; other files are', () => {
@@ -84,7 +98,7 @@ test('the shared Expandable Section and test files are not counted; other files 
     writeFileSync(home, one);
     writeFileSync(join(src, 'screens/a.test.tsx'), one);
     writeFileSync(join(src, 'screens/b.tsx'), one);
-    assert.deepEqual(measureTree(root).rawDetails, { 'apps/web/src/screens/b.tsx': 1 });
+    assert.deepEqual(measureTree(root).folds, { 'apps/web/src/screens/b.tsx': 1 });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
