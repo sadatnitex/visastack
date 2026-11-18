@@ -11,7 +11,7 @@ Owner request (18 Nov 2026, to the Guardian): "u must the documentation with eve
 | `docs/upgrades/programme/STATUS.md` | Rewritten for the Wallet and public-site units (the 1 Nov view stays in git history) |
 | `docs/upgrades/programme/SESSION-HANDOFF-2026-11-18.md` | New: roles, lanes, decisions, follow-ups, pitfalls |
 
-Every PR number and sha comes from `git log 28c053c..origin/main`; unit content from each unit's records file.
+Every PR number and sha comes from `git log 28c053c..origin/main` (#627 to #651); unit content from each unit's records file.
 
 ## Stale docs not edited (follow-up)
 
@@ -21,7 +21,7 @@ Every PR number and sha comes from `git log 28c053c..origin/main`; unit content 
 
 ## 18 Nov 2026: DOC1 documentation sync
 
-- Behaviour: none. Status pages now cover the Wallet upgrade (WAL1 to WAL10, U6 to U8, FIX9), the public-site rebuild (PUB3, PUB4, PUBFIX, HOT1, R1 to R5), the conductor operating model and the owner decisions of 16 to 18 Nov. SESSION-START section 7 is replaced by the 18 Nov state; the 1 Nov text is kept and marked superseded.
-- Proof: em dash count 0; tests that read these docs run; every PR number and merge sha read from git history on main 00c01849.
+- Behaviour: none. Status pages now cover the Wallet upgrade (WAL1 to WAL10, U6 to U8, FIX9), the public-site rebuild (PUB3, PUB4, PUBFIX, HOT1, MOT1 #651, R1 to R5), the conductor operating model and the owner decisions of 16 to 18 Nov. SESSION-START section 7 is replaced by the 18 Nov state; the 1 Nov text is kept and marked superseded.
+- Proof: em dash count 0; tests that read these docs run; every PR number and merge sha read from git history on main 769e43ea.
 - Not verified: live behaviour of any unit (this change only records it); current-platform.md was not re-read.
 - Follow-ups: PARITY-LEDGER and the Small Commercial handoff section M rows for the new units.
