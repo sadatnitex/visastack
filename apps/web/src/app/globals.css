@@ -22572,6 +22572,12 @@ button.wallet-stack-card {
 /* end WP-PIC5 */
 
 /* WP-WAL0 Documents sheet, More panel and case section links. Documents sheet on a phone: while a document sheet is open the Add button and its spacer are gone (a sheet opened in the browser too), and the sheet's last control clears the bottom bar and the phone's bottom edge. Tokens only. */
+/* A title with no break points (a pasted web address) wraps inside its row instead of widening the page: tasks, appointments and any other row of this kind. */
+.row .row-key {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab,
   body:has(.wallet-selected-document[data-sheet="open"]) .docs-add-fab-space {

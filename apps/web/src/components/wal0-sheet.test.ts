@@ -98,3 +98,37 @@ describe('WAL0 the case page stays inside the screen', () => {
     );
   });
 });
+
+describe('WAL0 the fixture keeps the case page section links', () => {
+  /** Every link in the page's `jumpLinks` block: address, label and level token, in order. */
+  function pageLinks(): readonly string[] {
+    const source = readFileSync(resolve(__dirname, '../app/app/mission/[id]/page.tsx'), 'utf8');
+    const start = source.indexOf('const jumpLinks = (');
+    const block = source.slice(start, source.indexOf('\n  );', start));
+    return [...block.matchAll(/<a href="(#[a-z-]+)"([^>]*)>\s*([^<]+?)\s*<\/a>/g)].map((m) => {
+      const level = /atLevel\((?:'(\w+)'|(notesLevel))\)/.exec(m[2] ?? '');
+      // The page's notesLevel is Browse, or Everything on a reviewed case with no notes; the
+      // fixture draws the usual Browse.
+      const token = level ? (level[1] ?? 'browse') : 'none';
+      return `${m[1]} | ${m[3]} | ${token}`;
+    });
+  }
+
+  function fixtureLinks(): readonly string[] {
+    const source = readFileSync(
+      resolve(__dirname, '../../e2e/scroll-budget/WAL0.fixture.tsx'),
+      'utf8',
+    );
+    const start = source.indexOf('const LINKS');
+    const block = source.slice(start, source.indexOf('\n];', start));
+    return [...block.matchAll(/\['(#[a-z-]+)', '([^']+)', (?:'(\w+)'|null)\]/g)].map(
+      (m) => `${m[1]} | ${m[2]} | ${m[3] ?? 'none'}`,
+    );
+  }
+
+  it('lists the same addresses, labels and levels, in the same order, as the page', () => {
+    const fromPage = pageLinks();
+    expect(fromPage.length).toBeGreaterThan(5);
+    expect(fixtureLinks()).toEqual(fromPage);
+  });
+});

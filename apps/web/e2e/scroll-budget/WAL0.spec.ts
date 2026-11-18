@@ -99,7 +99,9 @@ for (const motion of MOTION) {
   }
 }
 
-const STRIP_WIDTHS = [320, 360, 390, 400, 641, 650, 700, 760, 761, 768, 1280] as const;
+const STRIP_WIDTHS = [
+  320, 360, 390, 400, 641, 650, 700, 760, 761, 768, 900, 1100, 1280, 1440,
+] as const;
 
 for (const width of STRIP_WIDTHS) {
   for (const depth of ['glance', 'browse', 'everything'] as const) {
