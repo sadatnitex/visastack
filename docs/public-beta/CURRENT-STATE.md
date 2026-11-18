@@ -210,13 +210,15 @@ Main is `00c01849` (U7, #650). Deployment verified for that commit (Vercel, Depl
 | R4 | #642, `2d1f29e6` | Countries rebuilt to the approved reference |
 | R5 | #645, `ff941a37` | For Agencies rebuilt to the approved reference |
 | R2 | #646, `8e84ea0c` | How It Works rebuilt; the share example wording made truthful |
+| MOT1 | #651, `769e43ea` | Merged, deploy being verified (not yet checked live): public scenes move for every visitor. Phones and small windows play each scene once as it comes into view; big screens keep pinned scenes; devices asking for less motion get gentle fades; data saver no longer stops motion |
 | R3 | #649, `b3cba3f9` | Privacy and Trust rebuilt as six chapters; promises softened where the code does not back them (end dates, copies already downloaded) |
 
 Earlier in this window and already merged: PUB1 #623 (public site foundation, ADR 0029), PUB2 #626 (Home scroll story), WAL0 #624, WALD2 #625, WALD3 #627, passkeys and sign-in links #621 (off by switch).
 
 ### Not live
 
-- MOT1 (phone motion) and NAV2 (public header and footer rebuild): in progress on their own branches, no pull request yet.
+- NAV2 (public header and footer rebuild): in progress on its own branch, no pull request yet.
+- MOT1 (#651, `769e43ea`) is merged; its deployment was still being verified when this was written, so treat it as not yet checked live.
 - Bengali for the new wording: English only until the localization lane works from the word lists in each unit's records; PR #581 (Bengali refill 7) is stale and needs a refresh.
 - Switched off until the owner turns them on after real-device tests: `WEB_SHARE_TARGET`, `BACKGROUND_UPLOAD_SYNC`, `PROGRESS_CARD`, `PASSKEYS`, `SIGN_IN_LINKS`, `WEB_PUSH` (and its keys).
 

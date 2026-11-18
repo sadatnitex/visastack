@@ -16,13 +16,13 @@ Rules and message formats: `.claude/skills/conductor/SKILL.md`. At most 6 builde
 
 | Lane | Branch | State |
 |---|---|---|
-| MOT1 phone motion | `claude/mot1-phone-motion` | Running, ahead of main, no PR yet. Also appends to known-issues |
+| MOT1 motion for every visitor | `claude/mot1-phone-motion` | Merged as #651 (`769e43ea`), deploy being verified by the Guardian; archive the branch after |
 | NAV2 public header and footer | `claude/nav2-header-footer` | Running, no PR yet |
 | PUB5 public-site verification | `claude/pub5-public-site-verification` | Idle; a second pass is due after NAV2 and MOT1 |
 | PR #581 Bengali refill 7 | `claude/magical-curie-3p4qcx-refill-7` | Draft, stale, needs a refresh from main |
 | DOC1 (this sync) | `claude/doc1-docs-sync-2026-11-18` | Docs only |
 
-Main is `00c01849` (U7 #650), deploy verified. Next free migration number: 0138.
+Main is `769e43ea` (MOT1 #651, deploy being verified); U7 #650 `00c01849` deploy verified. Next free migration number: 0138.
 
 ## 3. Owner decisions (17 and 18 Nov; full list in SESSION-START section 6)
 
@@ -49,7 +49,7 @@ Standing builder pre-push rule: typecheck (`NODE_OPTIONS=--max-old-space-size=81
 9. Load protected profile values only on Show (Class A).
 10. Layout-guards rAF settle; Home phone page is 1 px under budget at 390.
 11. Owner switches after real-device tests: `WEB_SHARE_TARGET`, `BACKGROUND_UPLOAD_SYNC`, `PROGRESS_CARD`, `PASSKEYS`, `SIGN_IN_LINKS`, `WEB_PUSH` plus keys.
-12. Public-site verification pass after NAV2 and MOT1.
+12. Public-site verification pass after NAV2 (MOT1 is merged).
 13. WP-SB2 "real case page" 3480 vs 3470 fails locally on clean main, passes in CI.
 
 Other stale docs found, not edited here: `docs/uiux/ccd/PARITY-LEDGER.md` and `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M have no Wallet or public-site rows; `docs/operations/current-platform.md` was not re-checked.
