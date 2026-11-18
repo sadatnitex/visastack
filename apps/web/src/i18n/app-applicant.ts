@@ -376,7 +376,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdExpiryPage.noConfirmationsYet': 'No Confirmations Yet',
     'appApplicant.appApplicantIdExpiryPage.noDateRulesYet': 'No Date Rules Yet',
     'appApplicant.appApplicantIdExpiryPage.noDocumentsYet': 'No Documents Yet',
-    'appApplicant.appApplicantIdExpiryPage.record': 'Record',
+    'appApplicant.appApplicantIdExpiryPage.record': 'All Records',
     'appApplicant.appApplicantIdExpiryPage.routeDateRules': 'Route Date Rules',
     'appApplicant.appApplicantIdExpiryPage.routeRules': 'Route Rules',
     'appApplicant.appApplicantIdExpiryPage.setExpiryDate': 'Set Expiry Date',
@@ -654,7 +654,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfilePage.profileHealth': 'Profile Health',
     'appApplicant.appApplicantIdProfilePage.profileHealthAndLatestChanges':
       'Profile health and latest changes',
-    'appApplicant.appApplicantIdProfilePage.record': 'Record',
+    'appApplicant.appApplicantIdProfilePage.record': 'All Records',
     'appApplicant.appApplicantIdProfilePage.recordedUpdate': 'Recorded Update',
     'appApplicant.appApplicantIdProfilePage.reviewDocumentSuggestions':
       'Review Document Suggestions →',

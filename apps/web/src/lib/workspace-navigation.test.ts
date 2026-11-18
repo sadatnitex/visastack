@@ -47,7 +47,12 @@ describe('current contextual navigation contract', () => {
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining(['All Records', 'Shared with Me', 'Account Overview', 'Evidence Requests']),
+      expect.arrayContaining([
+        'All Records',
+        'Shared with Me',
+        'Account Overview',
+        'Evidence Requests',
+      ]),
     );
   });
   it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
