@@ -69,10 +69,11 @@ export default function Wal1FoundationFixture({ open = false }: Wal1FixtureProps
   return (
     <div className="wal1-fixture" id="top">
       <h1>Status Pictures</h1>
-      <ul className="wal1-fixture-legend" aria-label="Status Pictures">
+      <ul className="status-picture-key wal1-fixture-legend" aria-label="Status Pictures">
         {STATUS_KINDS.map((kind) => (
           <li key={kind} data-kind={kind}>
-            <StatusPicture kind={kind} /> {STATUS_MEANINGS[kind].name}
+            <StatusPicture kind={kind} />
+            <span>{STATUS_MEANINGS[kind].name}</span>
           </li>
         ))}
       </ul>

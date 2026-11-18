@@ -22741,10 +22741,11 @@ button.wallet-stack-card {
   grid-column: 2;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 2px;
   min-width: 0;
   min-height: 44px;
+  padding-top: 1px;
 }
 .expandable-section-title {
   margin: 0;
@@ -22844,5 +22845,23 @@ button.wallet-stack-card {
 .status-picture-fill {
   fill: currentColor;
   stroke: none;
+}
+/* A key of status pictures, one per line or wrapped on a wide screen: each item is a full 44 px row, so the Explain buttons never overlap. */
+.status-picture-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.status-picture-key > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+}
+.status-picture-key .explain-tip {
+  margin-block: 0;
 }
 /* end WP-WAL1 */
