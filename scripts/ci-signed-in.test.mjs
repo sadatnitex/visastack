@@ -427,11 +427,8 @@ const KNOWN_FAILING_BASELINE = new Set([
     `/app/applicant/[id]/documents/add | covered control | ${size} | Files to Import`,
     `/app/applicant/[id]/documents/add | covered control | ${size} | Folder to Import`,
     `/app/applicant/[id]/profile | covered control | ${size} | Photo File`,
-    `/app/applicant/[id]/record | covered control | ${size} | Everything2`,
-    `/app/applicant/[id]/record | covered control | ${size} | Previous Versions0`,
   ]),
   ...['phone 390', 'phone 400'].flatMap((size) => [
-    `/app/applicant/[id]/record | covered control | ${size} | Profile Details10`,
     `/app/applicant/[id]/missions/prepare-again | covered control | ${size} | Create Case`,
     `/app/applicant/[id]/outputs | covered control | ${size} | Preview`,
     `/app/mission/start | covered control | ${size} | Start Trip`,
