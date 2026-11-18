@@ -22696,7 +22696,7 @@ button.wallet-stack-card {
 .expandable-section-details {
   min-width: 0;
 }
-.expandable-section-row {
+.expandable-section-details > summary {
   --expandable-status-space: 0px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) var(--expandable-status-space) 44px;
@@ -22707,19 +22707,19 @@ button.wallet-stack-card {
   list-style: none;
   cursor: pointer;
 }
-.expandable-section-row::-webkit-details-marker {
+.expandable-section-details > summary::-webkit-details-marker {
   display: none;
 }
-.expandable-section-row::marker {
+.expandable-section-details > summary::marker {
   content: "";
 }
-.expandable-section[data-has-status] .expandable-section-row {
+.expandable-section[data-has-status] .expandable-section-details > summary {
   --expandable-status-space: 48px;
 }
-.expandable-section-row:hover {
+.expandable-section-details > summary:hover {
   background: var(--bg-subtle);
 }
-.expandable-section-row:focus-visible {
+.expandable-section-details > summary:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: -3px;
 }
@@ -22773,7 +22773,7 @@ button.wallet-stack-card {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.expandable-section-details[open] > .expandable-section-row .expandable-section-chevron {
+.expandable-section-details[open] > summary .expandable-section-chevron {
   transform: rotate(90deg);
 }
 @media (prefers-reduced-motion: no-preference) {

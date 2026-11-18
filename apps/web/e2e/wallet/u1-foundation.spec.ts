@@ -18,7 +18,7 @@ import {
 const FIXTURE = 'wal1-foundation';
 const KINDS = ['added', 'backed', 'suggested', 'sensitive', 'needsFix', 'notCurrent'] as const;
 
-const section = (page: Page, kind: string) => page.locator(`#section-${kind}`);
+const section = (page: Page, kind: string) => page.locator(`#section-${kind} > details`);
 const row = (page: Page, kind: string) => section(page, kind).locator('> summary');
 
 async function isOpen(page: Page, kind: string): Promise<boolean> {

@@ -1,6 +1,5 @@
-'use client';
-
-import { type ReactNode, type SyntheticEvent, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { StickyDetails } from '../sticky-details';
 
 export type ExpandableHeadingLevel = 2 | 3 | 4 | 5 | 6;
 
@@ -29,9 +28,7 @@ export interface ExpandableSectionProps {
    * never closes a section over the message the person still needs, nor opens one they closed.
    */
   readonly remember?: boolean;
-  /** Called with the new state after the person opens or closes the section. */
-  readonly onToggle?: (open: boolean) => void;
-  /** For links that point at the section (`#id`); the browser opens it when the link is used. */
+  /** For links that point at the section (`#id`). Set `defaultOpen` when the link should open it. */
   readonly id?: string;
   /** An extra class for the page's own spacing. */
   readonly className?: string;
@@ -48,8 +45,9 @@ export interface ExpandableSectionProps {
  * that wraps onto a second line moves nothing. Under reduced motion the chevron does not turn
  * gradually, it shows its finished position.
  *
- * Server and browser draw the same first state (`defaultOpen`), so nothing flashes on load. If
- * the person toggled the section before the script arrived, the browser's state is kept.
+ * Server and browser draw the same first state (`defaultOpen`), so nothing flashes on load. It is
+ * a server component (the kit carries no client code); with `remember` the open-and-close state
+ * is held by the shared StickyDetails island, so a toggle made before the script arrived is kept.
  */
 export function ExpandableSection({
   title,
@@ -60,65 +58,55 @@ export function ExpandableSection({
   headingLevel = 3,
   defaultOpen = false,
   remember = false,
-  onToggle,
   id,
   className,
 }: ExpandableSectionProps) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  const [kept, setKept] = useState(defaultOpen);
-  const open = remember ? kept : defaultOpen;
-
-  // A toggle made before the script loaded fired no event React heard: take the browser's state.
-  // Only on the first draw; afterwards every toggle arrives through onToggle.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, on the first draw only
-  useEffect(() => {
-    const element = ref.current;
-    if (remember && element && element.open !== kept) setKept(element.open);
-  }, []);
-
-  const handleToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
-    const now = event.currentTarget.open;
-    if (remember) setKept(now);
-    onToggle?.(now);
-  };
-
   const Heading = `h${headingLevel}` as const;
+  const row = (
+    <>
+      {picture ? (
+        <span className="expandable-section-picture" aria-hidden="true">
+          {picture}
+        </span>
+      ) : null}
+      <span className="expandable-section-words">
+        <Heading className="expandable-section-title">{title}</Heading>
+        {summary ? <span className="expandable-section-summary">{summary}</span> : null}
+      </span>
+      <svg
+        className="expandable-section-chevron"
+        viewBox="0 0 24 24"
+        width="20"
+        height="20"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </>
+  );
+  const body = <div className="expandable-section-body">{children}</div>;
   return (
     <div
+      id={id}
       className={`expandable-section${className ? ` ${className}` : ''}`}
       data-has-picture={picture ? 'true' : undefined}
       data-has-status={status ? 'true' : undefined}
     >
-      <details
-        ref={ref}
-        id={id}
-        className="expandable-section-details"
-        open={open}
-        onToggle={handleToggle}
-      >
-        <summary className="expandable-section-row">
-          {picture ? (
-            <span className="expandable-section-picture" aria-hidden="true">
-              {picture}
-            </span>
-          ) : null}
-          <span className="expandable-section-words">
-            <Heading className="expandable-section-title">{title}</Heading>
-            {summary ? <span className="expandable-section-summary">{summary}</span> : null}
-          </span>
-          <svg
-            className="expandable-section-chevron"
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </summary>
-        <div className="expandable-section-body">{children}</div>
-      </details>
+      {remember ? (
+        <StickyDetails
+          className="expandable-section-details"
+          initiallyOpen={defaultOpen}
+          summary={row}
+        >
+          {body}
+        </StickyDetails>
+      ) : (
+        <details className="expandable-section-details" open={defaultOpen || undefined}>
+          <summary>{row}</summary>
+          {body}
+        </details>
+      )}
       {status ? <span className="expandable-section-status">{status}</span> : null}
     </div>
   );

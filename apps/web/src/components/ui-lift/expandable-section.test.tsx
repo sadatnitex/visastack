@@ -147,15 +147,6 @@ describe('ExpandableSection', () => {
     expect(details().open).toBe(true);
   });
 
-  it('reports each toggle', () => {
-    const onToggle = vi.fn();
-    root = createRoot(container);
-    act(() => root?.render(<ExpandableSection {...base} onToggle={onToggle} />));
-    personToggles(true);
-    personToggles(false);
-    expect(onToggle.mock.calls).toEqual([[true], [false]]);
-  });
-
   it('passes axe open and closed, with picture and status', async () => {
     for (const defaultOpen of [false, true]) {
       const html = renderToString(
