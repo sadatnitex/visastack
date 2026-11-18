@@ -1,32 +1,3 @@
-/* WP-PUB3 public story: shared layout for How It Works and Privacy and Trust. Flat. Colours come only
-   from the --pub-* tone tokens of the chapter a part sits in; nothing here is a new hue and nothing
-   here moves: a scene's step is shown by [data-step] alone, so reduced motion, no script and a phone
-   all read the same finished story. */
-.p3-inner {
-  display: grid;
-  gap: var(--space-5);
-  width: 100%;
-  max-width: 72rem;
-  margin-inline: auto;
-  padding-inline: var(--space-5);
-  min-width: 0;
-}
-
-.p3-hero-title {
-  margin: 0;
-  font-size: clamp(2.25rem, 7vw, 4rem);
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-}
-
-.p3-lead {
-  margin: 0;
-  max-width: 40rem;
-  font-size: var(--text-lead);
-  color: var(--pub-ink-soft, var(--text-secondary));
-}
-
 .p3-eyebrow {
   margin: 0;
   font-size: var(--text-caption);
@@ -35,13 +6,6 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--pub-accent, var(--accent));
-}
-
-.p3-heading {
-  margin: 0;
-  font-size: var(--text-display);
-  line-height: 1.15;
-  text-wrap: balance;
 }
 
 .p3-text-link {
@@ -53,267 +17,28 @@
   color: var(--pub-accent, var(--accent));
 }
 
-/* WP-PUB3 public story: scene layout. One column on a phone; two columns where a scene can pin. */
-.p3-scene-grid {
-  display: grid;
-  gap: var(--space-5);
-  align-items: center;
-  min-width: 0;
-}
+/* R3: the route list as compact rows, inside the Where We Are Today chapter. One column on a phone,
+   two from 900 px; every row stays a 44 px target and shows its country and route, name and a short
+   summary. */
 
-@media (min-width: 760px) {
-  .p3-scene-grid {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-    gap: var(--space-7);
-  }
-}
-
-.p3-panel {
-  display: grid;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-5);
-  border: 1px solid var(--pub-edge, var(--edge-card));
-  border-radius: var(--radius-lg);
-  background-color: var(--pub-card, var(--bg-elevated));
-}
-
-.p3-panel-title {
-  margin: 0;
-  font-size: var(--text-lead);
-}
-
-/* WP-PUB3 public story: the case line. The fill and the nodes follow the scene's step; the finished
-   step (the last) is what the server writes, so a phone and no script see every stage reached. */
-.p3-bar {
-  height: 0.5rem;
-  border-radius: var(--radius-pill);
-  background-color: var(--pub-edge, var(--edge-card));
-  overflow: hidden;
-}
-
-.p3-fill {
-  display: block;
-  height: 100%;
-  width: 100%;
-  border-radius: var(--radius-pill);
-  background-color: var(--pub-accent, var(--accent));
-}
-
-.pub-scene[data-step="0"] .p3-fill {
-  width: 10%;
-}
-.pub-scene[data-step="1"] .p3-fill {
-  width: 30%;
-}
-.pub-scene[data-step="2"] .p3-fill {
-  width: 55%;
-}
-.pub-scene[data-step="3"] .p3-fill {
-  width: 80%;
-}
-
-.p3-stages {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.p3-stage {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
-  min-height: 44px;
-  color: var(--pub-ink-soft, var(--text-secondary));
-}
-
-.p3-node {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border: 2px solid var(--pub-edge-strong, var(--accent));
-  border-radius: var(--radius-pill);
-  font-size: var(--text-caption);
-  font-weight: 700;
-  color: var(--pub-ink, var(--text));
-}
-
-.p3-stage-word {
-  display: block;
-  font-weight: 700;
-  color: var(--pub-ink, var(--text));
-}
-
-.p3-stage-line {
-  display: block;
-}
-
-/* A reached stage has its node filled; the stage the scene is on is bold and its node larger. */
-.pub-scene[data-step="0"] .p3-stage:nth-child(-n + 1) .p3-node,
-.pub-scene[data-step="1"] .p3-stage:nth-child(-n + 2) .p3-node,
-.pub-scene[data-step="2"] .p3-stage:nth-child(-n + 3) .p3-node,
-.pub-scene[data-step="3"] .p3-stage:nth-child(-n + 4) .p3-node,
-.pub-scene[data-step="4"] .p3-stage:nth-child(-n + 5) .p3-node {
-  background-color: var(--pub-accent, var(--accent));
-  border-color: var(--pub-accent, var(--accent));
-  color: var(--pub-canvas, var(--bg));
-}
-
-.pub-scene[data-step="0"] .p3-stage:nth-child(1) .p3-stage-word,
-.pub-scene[data-step="1"] .p3-stage:nth-child(2) .p3-stage-word,
-.pub-scene[data-step="2"] .p3-stage:nth-child(3) .p3-stage-word,
-.pub-scene[data-step="3"] .p3-stage:nth-child(4) .p3-stage-word,
-.pub-scene[data-step="4"] .p3-stage:nth-child(5) .p3-stage-word {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
-/* The ring for each step; only the one for the scene's step shows. */
-.p3-at {
-  display: none;
-}
-.pub-scene[data-step="0"] .p3-at[data-at="0"],
-.pub-scene[data-step="1"] .p3-at[data-at="1"],
-.pub-scene[data-step="2"] .p3-at[data-at="2"],
-.pub-scene[data-step="3"] .p3-at[data-at="3"],
-.pub-scene[data-step="4"] .p3-at[data-at="4"] {
-  display: block;
-}
-
-/* WP-PUB3 public story: the share panel. Each row shows its state in words, never colour alone. */
-.p3-people {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.p3-person {
-  display: block;
-  font-weight: 700;
-  color: var(--pub-ink, var(--text));
-}
-
-.p3-rows {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.p3-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-height: 44px;
-  padding-block: var(--space-1);
-  border-top: 1px solid var(--pub-edge, var(--edge-card));
-}
-
-.p3-until {
-  display: none;
-  margin: 0;
-  color: var(--pub-ink-soft, var(--text-secondary));
-}
-
-.pub-scene[data-step="2"] .p3-until {
-  display: block;
-}
-
-.p3-state {
-  display: none;
-}
-.pub-scene[data-step="0"] .p3-state-saved,
-.pub-scene[data-step="1"] .p3-state-shared,
-.pub-scene[data-step="2"] .p3-state-shared,
-.pub-scene[data-step="3"] .p3-state-ended {
-  display: inline-flex;
-}
-
-/* The step captions: all four are listed; the one for the scene's step reads strongest. */
-.p3-moments {
-  display: grid;
-  gap: var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.p3-moment {
-  display: grid;
-  gap: var(--space-1);
-  justify-items: start;
-}
-
-.p3-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: var(--space-4);
-}
-
-.p3-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.p3-bottom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-/* WP-PUB3 public story: the route list and its notice sit in a light chapter and keep their own look. */
-.p3-catalog-chapter .section {
-  padding-block: 0;
-}
-
-/* WP-PUB3 public story: the opening chapter fills the first screen, so the next chapter starts below
-   the fold and the first screen stays short and calm. */
-.pub-chapter.p3-hero {
-  display: grid;
-  align-items: center;
-  min-height: min(calc(100svh - 12rem), 28rem);
-}
-
-/* A little tighter than the shared chapter, so the story stays within the page length it is held to. */
-.pub-chapter.p3-ch {
-  padding-block: var(--space-6);
-}
-
-@media (min-width: 760px) {
-  .pub-chapter.p3-ch {
-    padding-block: var(--space-7);
-  }
-}
-
-/* WP-PUB3 public story: the route list as compact rows. One column on a phone, two from 900 px; every
-   row stays a 44 px target and shows its country and route, name and a one-line summary. */
-.p3-catalog-chapter .trust-catalog .grid {
+.tr-catalog .grid {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
 
 @media (min-width: 900px) {
-  .p3-catalog-chapter .trust-catalog .grid {
+  .tr-catalog .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.p3-catalog-chapter .trust-catalog .grid .card {
+.tr-catalog .grid .card {
   min-height: 44px;
   padding: var(--space-3) var(--space-4);
   gap: 0;
 }
 
-.p3-catalog-chapter .trust-catalog .grid .card-body {
+.tr-catalog .grid .card-body {
   margin: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -321,23 +46,316 @@
   overflow: hidden;
 }
 
-.p3-catalog-chapter .section-head {
-  margin-bottom: 2rem;
+/* R3 Privacy and Trust (owner, 18 Nov 2026): the page as the approved reference tells it. Flat; every
+   colour comes from the --pub-* tokens of the chapter a part sits in. Nothing here moves except the
+   shared rise-in and the hero share picture, which has its own pause button). */
+
+.pub-chapter.tr-chapter {
+  padding-block: 0;
 }
 
-.p3-catalog-chapter .section-title {
-  margin: 0.25rem 0 0.5rem;
+.pub-chapter.tr-section {
+  padding-block: clamp(32px, 4vw, 48px);
 }
 
-/* The moment the share scene is on reads strongest (bold), so the list shows where the scene is. */
-.pub-scene[data-step="0"] .p3-moment:nth-child(1),
-.pub-scene[data-step="1"] .p3-moment:nth-child(2),
-.pub-scene[data-step="2"] .p3-moment:nth-child(3),
-.pub-scene[data-step="3"] .p3-moment:nth-child(4) {
+.tr-wrap {
+  display: grid;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: var(--space-4);
+  min-width: 0;
+}
+
+.pub-chapter.tr-hero {
+  padding-block: clamp(32px, 4.5vw, 56px);
+}
+
+.tr-hero-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.tr-hero-copy {
+  display: grid;
+  gap: var(--space-4);
+  align-content: center;
+  min-width: 0;
+}
+
+.tr-hero-visual,
+.tr-share {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tr-pause {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--pub-edge-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--pub-ink);
+  font: inherit;
   font-weight: 700;
-  color: var(--pub-ink, var(--text));
+  cursor: pointer;
 }
 
-figure.p3-panel {
+.tr-promises {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-promise {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge);
+  border-radius: 24px;
+  color: var(--pub-ink);
+}
+
+.tr-promise-art {
+  display: block;
+  width: 56px;
+}
+
+.tr-promise-art .pic,
+.tr-promise-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tr-promise-title {
+  font-size: 1.15rem;
+}
+
+.tr-promise-body {
+  color: var(--pub-ink-soft);
+}
+
+.tr-history {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 640px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-history::before {
+  content: "";
+  position: absolute;
+  inset-block: 20px;
+  inset-inline-start: 19px;
+  width: 2px;
+  background-color: var(--pub-edge-strong);
+  opacity: 0.5;
+}
+
+.tr-event {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: 44px;
+}
+
+.tr-event-icon {
+  position: relative;
+  z-index: 1;
+  background-color: var(--pub-canvas);
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--pub-accent);
+  border-radius: 50%;
+  color: var(--pub-accent);
+}
+
+.tr-event-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: var(--pub-ink);
+}
+
+.tr-event-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--pub-ink-soft);
+  font-size: var(--text-caption);
+}
+
+.tr-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.tr-col {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge);
+  border-radius: 24px;
+  background-color: var(--bg-elevated);
+  min-width: 0;
+}
+
+.tr-col-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.tr-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  font-weight: 600;
+}
+
+.tr-list svg {
+  flex: none;
+  color: var(--ok);
+}
+
+.tr-list-not svg {
+  color: var(--pub-ink-soft);
+}
+
+.tr-today-text {
+  max-width: 52ch;
+}
+
+.tr-today-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.tr-catalog {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.tr-catalog-head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tr-catalog-title {
+  margin: 0;
+  font-size: var(--text-display);
+}
+
+.tr-catalog-sub {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--pub-ink-soft);
+}
+
+@media (max-width: 759px) {
+  .tr-hero-grid,
+  .tr-two,
+  .tr-promises {
+    grid-template-columns: 1fr;
+  }
+
+  .pub-chapter.tr-hero {
+    padding-block: var(--space-5);
+  }
+
+  .tr-hero .kit-h1 {
+    font-size: 2.3rem;
+  }
+
+  .tr-hero-copy {
+    gap: var(--space-3);
+  }
+
+  /* The same link sits in the Where We Are Today chapter; a phone opens on the one start button. */
+
+  .tr-hero-more {
+    display: none;
+  }
+
+  .tr-hero-grid,
+  .tr-wrap {
+    gap: var(--space-3);
+  }
+
+  .tr-promises {
+    gap: var(--space-3);
+  }
+
+  .tr-promise {
+    padding: var(--space-3);
+    grid-template-columns: 44px minmax(0, 1fr);
+    column-gap: var(--space-3);
+    row-gap: 2px;
+  }
+
+  .tr-promise-art {
+    grid-row: span 2;
+    width: 44px;
+  }
+
+  .tr-col {
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-1);
+  }
+
+  .tr-list li {
+    min-height: 36px;
+  }
+
+  .tr-today-links {
+    gap: var(--space-3);
+  }
+
+  .pub-chapter.tr-section {
+    padding-block: var(--space-5);
+  }
+
+  /* Twelve route cards must not run the page past its six screens on a phone. */
+
+  .tr-catalog .card-kicker,
+  .tr-catalog .card-title {
+    margin-bottom: 2px;
+  }
+
+  .tr-catalog .grid .card-body {
+    -webkit-line-clamp: 1;
+  }
 }

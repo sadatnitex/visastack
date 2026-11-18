@@ -5,16 +5,24 @@
  *
  * Markup contract, written by `<Scene>` on the server:
  * - `[data-scene]` marks a scene; `data-steps` is how many steps it has and `data-step` is the
- *   step it shows. The server always writes the FINISHED step, so a page without JavaScript, with
- *   reduced motion or with data saver shows every scene complete and still.
+ *   step it shows; `data-rest` repeats the finished step and never changes. The server always
+ *   writes the FINISHED step, so a page without JavaScript shows every scene complete and still.
  * - While motion is allowed the engine sets `html[data-scenes="live"]` (the stylesheet pins scenes
  *   only then), and keeps `--p` (0..1, how far through the scene) and `data-step` up to date.
+ * - MOT1 (ADR 0029 amendment, 18 Nov 2026): three motion modes from one rule, `sceneMode()`.
+ *   "pinned" (above) where SCENE_SCREEN_QUERY matches; "reveal" everywhere else (phones, short or
+ *   zoomed windows): `html[data-scenes="reveal"]`, nothing pinned, no added height, each scene plays
+ *   its steps once as it comes into view (scene-reveal.ts); "gentle" for anyone whose device asks
+ *   for less motion, on any screen: the same steps as crossfades and moves of 8 px or less, nothing
+ *   pinned, slid or scaled. `html[data-scene-mode]` names the mode. Data saver never stops motion.
  *
  * One passive scroll listener, throttled to one update per animation frame, plus one
  * IntersectionObserver so only scenes near the screen are measured. Resizing and coming back
  * from the back-forward cache measure again. `stop()` removes every listener, the observer and
  * every attribute the engine wrote, and puts back the finished step.
  */
+
+import { startReveal } from './scene-reveal';
 
 export interface SceneBox {
   /** The scene's top edge relative to the top of the screen, in CSS pixels. */
@@ -24,18 +32,23 @@ export interface SceneBox {
 }
 
 export interface SceneOptions {
-  /** True when the visitor asked for less motion (or the screen is too small for scenes). */
-  readonly reduce: boolean;
-  /** True when the browser says data saver is on. */
-  readonly saveData: boolean;
+  /** "pinned" (scroll scenes, the default), "reveal" (phones, short windows) or "gentle" (less motion). */
+  readonly mode?: SceneMode;
+  /** Reveal and gentle only: false rests every scene finished (a mode switch, so nothing replays). Default true. */
+  readonly animate?: boolean;
 }
+
+/** How scenes move for this visitor (see the header). */
+export type SceneMode = 'pinned' | 'reveal' | 'gentle';
 
 export interface SceneHandle {
   stop(): void;
 }
 
-/** The attribute on `html` that tells the stylesheet scenes are moving. */
+/** The attribute on `html` that tells the stylesheet scenes are moving ("live" pinned, "reveal", "gentle"). */
 export const SCENES_ATTRIBUTE = 'data-scenes';
+/** The attribute on `html` that names the mode, set with SCENES_ATTRIBUTE and removed with it. */
+export const SCENE_MODE_ATTRIBUTE = 'data-scene-mode';
 
 /**
  * How far through a pinned scene the visitor has scrolled, from 0 (its top has just reached the
@@ -57,21 +70,29 @@ export function stepFor(progress: number, steps: number): number {
   return Math.min(count - 1, Math.floor(p * count));
 }
 
-/** Below this width scenes stay still (owner, 17 Nov 2026: phones keep still pictures). */
+/** Below this width scenes are not pinned (owner, 18 Nov 2026: phones get reveal motion instead). */
 export const SCENE_MIN_WIDTH = 760;
 /**
- * Below this height scenes stay still too: a pinned stage is one screen high, so on a short or
- * zoomed screen its words could be cut off (WCAG 1.4.10 reflow).
+ * Below this height scenes are not pinned either: a pinned stage is one screen high, so on a short or
+ * zoomed screen its words could be cut off (WCAG 1.4.10 reflow). They reveal instead.
  */
 export const SCENE_MIN_HEIGHT = 600;
-/** The screens on which scenes may move. */
+/** The screens on which scenes may be pinned. */
 export const SCENE_SCREEN_QUERY = `(min-width: ${SCENE_MIN_WIDTH}px) and (min-height: ${SCENE_MIN_HEIGHT}px)`;
+
+/**
+ * The one rule for the mode: gentle for a visitor whose device asks for less motion (any screen),
+ * else pinned where the screen matches SCENE_SCREEN_QUERY, else reveal. Data saver changes nothing.
+ */
+export function sceneMode(screenMatches: boolean, reduceMotion: boolean): SceneMode {
+  return reduceMotion ? 'gentle' : screenMatches ? 'pinned' : 'reveal';
+}
 
 /**
  * The early scenes mark: a tiny same-site file the root layout loads in the page head, nonce'd and
  * synchronous, so it runs before the first paint and a scene has its scroll length from the start
- * (nothing jumps when the page comes to life). It runs the same tests as the runtime: motion
- * welcome, no data saver, a screen matching SCENE_SCREEN_QUERY. Without JavaScript it never runs
+ * (nothing jumps when the page comes to life). It runs the same rule as the runtime: sceneMode() of
+ * SCENE_SCREEN_QUERY and the reduced-motion query. Without JavaScript it never runs
  * and every scene stays an ordinary finished section. The file itself (public/scenes-boot.js) is
  * the one source; a test runs it and checks it uses this query and attribute.
  */
@@ -97,9 +118,9 @@ function pinLine(win: Window, scenes: readonly Tracked[]): number {
 }
 
 /**
- * Starts the scenes under `root`. With reduced motion or data saver it writes nothing (and
- * clears the early mark): the server-rendered finished steps stay. The returned handle undoes
- * everything it did.
+ * Starts the scenes under `root` in `options.mode`. In "reveal" and "gentle" mode the scenes play
+ * once as they come into view instead of being pinned. The returned handle undoes everything it
+ * did and puts back every scene's finished step. Without a window nothing is written.
  */
 export function startScenes(root: Document | Element, options: SceneOptions): SceneHandle {
   const doc = 'documentElement' in root ? root : root.ownerDocument;
@@ -116,11 +137,26 @@ export function startScenes(root: Document | Element, options: SceneOptions): Sc
       step: element.getAttribute('data-step') ?? '',
     }),
   );
-  if (options.reduce || options.saveData || !win) {
+  const clearMarks = () => {
     html.removeAttribute(SCENES_ATTRIBUTE);
-    return { stop() {} };
+    html.removeAttribute(SCENE_MODE_ATTRIBUTE);
+  };
+  if (!win) return { stop() {} };
+  const mode = options.mode ?? 'pinned';
+  if (scenes.length === 0 && mode === 'pinned') {
+    // No scenes here, but the page's other parts (rises, timed pictures) read the mode marks.
+    html.setAttribute(SCENES_ATTRIBUTE, 'live');
+    html.setAttribute(SCENE_MODE_ATTRIBUTE, 'pinned');
+    return { stop: clearMarks };
   }
-  if (scenes.length === 0) return { stop() {} };
+  if (mode !== 'pinned')
+    return startReveal(win, scenes, options.animate !== false, mode === 'gentle', {
+      set() {
+        html.setAttribute(SCENES_ATTRIBUTE, mode);
+        html.setAttribute(SCENE_MODE_ATTRIBUTE, mode);
+      },
+      clear: clearMarks,
+    });
 
   const near = new Set<Tracked>(typeof win.IntersectionObserver === 'function' ? [] : scenes);
   let frame = 0;
@@ -187,6 +223,7 @@ export function startScenes(root: Document | Element, options: SceneOptions): Sc
       : null;
 
   html.setAttribute(SCENES_ATTRIBUTE, 'live');
+  html.setAttribute(SCENE_MODE_ATTRIBUTE, 'pinned');
   for (const scene of scenes) observer?.observe(scene.element);
   measure();
   const passive = { passive: true } as const;
@@ -203,7 +240,7 @@ export function startScenes(root: Document | Element, options: SceneOptions): Sc
       if (frame !== 0) win.cancelAnimationFrame(frame);
       frame = 0;
       near.clear();
-      html.removeAttribute(SCENES_ATTRIBUTE);
+      clearMarks();
       for (const scene of scenes) {
         scene.element.style.removeProperty('--p');
         if (scene.finished === null) scene.element.removeAttribute('data-step');

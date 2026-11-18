@@ -176,3 +176,54 @@ their merge. Two changes since the first update: a look at what a change affects
 never hold up a save that already went through; and a replacement chain cut by a document removed
 for good says plainly that a later document was removed and we cannot tell whether a newer one
 exists. The wording is still English only (118 messages); Bangla is not drafted.
+
+## Update, 2026-11-18: Wallet upgrade, public-site rebuild and the signed-in guard
+
+Main is `769e43ea` (MOT1, #651), merged and not yet checked live. The last verified deployment is `00c01849` (U7, #650) (Vercel, Deploy Smoke, Playwright Deploy Smoke, live signed-in check, CI, CodeQL; the Wallet and public-site rows below were live by then, except MOT1). Still a controlled pilot with made-up records only. No migration was added by any unit below (next free number 0138). Per-unit detail: `docs/upgrades/programme/wal/` and `pub/`.
+
+### Live: Wallet upgrade (signed-in screens)
+
+| Unit | PR, merge | What people see |
+|---|---|---|
+| WAL1 | #631, `11e63a9b` | Foundation only: one open-and-close section and six status pictures that read one status map; nothing changes on screen yet |
+| WAL9 | #633, `7df6af80` | The bottom tab "My Documents" is now "My Record"; More Tools "Record" is now "All Records" |
+| WAL1B-1, WAL1B-2 | #634 `2e834406`, #638 `39c49936` | No change for people. CI signs a made-up traveller and a made-up agency in and opens 50 signed-in pages at 390, 400 and 1280 wide |
+| WAL5 | #636, `3b46ffb2` | AI Connections: one tile per connection, traveller and agency; access unchanged |
+| WAL4 | #637, `9a4dac3d` | Profile: a Passport Page Card with protected details masked, value rows for the rest |
+| WAL2 | #639, `5f5f0287` | Document detail leads with a pass card and compact review rows; one-at-a-time review only for sensitive or conflicting details |
+| WAL3 | #640, `17a5a73c` | Trip Package as a journey line with gaps |
+| WAL10 | #643, `0054091f` | People shows your own account photo; Needs Attention is Wallet rows |
+| U8 | #644, `0a703417` | Agency Team, Clients, Cases, Plan and Usage on Wallet rows; the Time Zone box fixed |
+| U6 | #647, `8a347174` | All Records as compact rows with plain status wording |
+| FIX9 | #648, `a83110b3` | Pinned action bars sit above the phone nav; hidden file pickers have labels; the /status picture test is deterministic |
+| U7 | #650, `00c01849` | Notifications, Account, Privacy, Help, People, invitation accept screens, Trips and shared files as Wallet rows |
+
+### Live: public site
+
+| Unit | PR, merge | What people see |
+|---|---|---|
+| PUB3 | #628, `36149839` | How It Works page and a rebuilt Privacy and Trust page, wording checked against the code |
+| PUB4 | #630, `a78d67c5` | Countries and For Agencies pages, with source and needs-checking notes kept |
+| HOT1 | #629, `cb5e1ba9` | Home checklist items no longer overlap on phones; a text-overlap guard covers the public pages |
+| PUBFIX | #635, `ba169214` | Fixes from the independent check: truthful stage words, Bangla page length, 44 px header and footer links |
+| R1 | #641, `e7c635ac` | Home rebuilt to the approved reference on one shared picture kit |
+| R4 | #642, `2d1f29e6` | Countries rebuilt to the approved reference |
+| R5 | #645, `ff941a37` | For Agencies rebuilt to the approved reference |
+| R2 | #646, `8e84ea0c` | How It Works rebuilt; the share example wording made truthful |
+| R3 | #649, `b3cba3f9` | Privacy and Trust rebuilt as six chapters; promises softened where the code does not back them (end dates, copies already downloaded) |
+
+Earlier in this window and already merged: PUB1 #623 (public site foundation, ADR 0029), PUB2 #626 (Home scroll story), WAL0 #624, WALD2 #625, WALD3 #627, passkeys and sign-in links #621 (off by switch).
+
+### Not live
+
+- NAV2 (public header and footer rebuild): in progress on its own branch, no pull request yet.
+- MOT1 (#651, `769e43ea`): merged, deployment still being verified when this was written, so not yet checked live. What it does: public scenes move for every visitor. Phones and small windows play each scene once as it comes into view; big screens keep pinned scenes; devices asking for less motion get gentle fades; data saver no longer stops motion.
+- Bengali for the new wording: English only until the localization lane works from the word lists in each unit's records; PR #581 (Bengali refill 7) is stale and needs a refresh.
+- Switched off until the owner turns them on after real-device tests: `WEB_SHARE_TARGET`, `BACKGROUND_UPLOAD_SYNC`, `PROGRESS_CARD`, `PASSKEYS`, `SIGN_IN_LINKS`, `WEB_PUSH` (and its keys).
+
+### Not verified
+
+- Real-device behaviour of the switched-off features.
+- A signed-in human click-through of the Wallet screens; what is checked is the CI guard on made-up people.
+- Known gaps (U7): the sharing, client, contributor and agency invitation accept screens have no Decline; Home on a desktop first screen shows very large cropped document pictures; the "Know where it stands" example starts on Closed with the Embassy tag. The full list is in `docs/upgrades/programme/SESSION-HANDOFF-2026-11-18.md`.
+- The test "real case page" (WP-SB2, 3480 vs 3470) fails on a clean local main and passes in CI.

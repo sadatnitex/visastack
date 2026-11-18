@@ -11,6 +11,9 @@ import {
 import Link from 'next/link';
 import { NextStepCard } from '../../../components/ui';
 import { AboutDisclosure } from '../../../components/ui-lift';
+import { ExpandableSection } from '../../../components/ui-lift/expandable-section';
+import type { LiftTone } from '../../../components/ui-lift/types';
+import { AreaPicture, FocusFirstFieldOnOpen, PersonPicture, TravellerRow } from '../u7-rows';
 import {
   AddTravellersForm,
   AddTripEvidenceForm,
@@ -29,10 +32,10 @@ import {
  * here merges travellers or shares anything automatically.
  */
 
-const PHRASE_TONE: Readonly<Record<PackagePhrase, string>> = {
-  NEEDS_ATTENTION: 'badge-warning',
-  READY_FOR_FINAL_REVIEW: 'badge-neutral',
-  PREPARED_FOR_HANDOFF: 'badge-success',
+const PHRASE_TONE: Readonly<Record<PackagePhrase, LiftTone>> = {
+  NEEDS_ATTENTION: 'warning',
+  READY_FOR_FINAL_REVIEW: 'neutral',
+  PREPARED_FOR_HANDOFF: 'success',
 };
 
 const RELATIONSHIP_WORDS: Readonly<Record<TripRelationship, string>> = {
@@ -128,30 +131,41 @@ function TripCompanions({
       <h2 id="trip-companions-title" className="card-title">
         Travelling with You
       </h2>
-      <ul className="trip-traveller-list">
+      <ul className="trip-traveller-list u7-rows u7-list">
         {companions.map((c) => (
           <li key={c.id} className="trip-traveller">
-            <div className="trip-traveller-head">
-              <h3 className="trip-traveller-name">{c.name}</h3>
-              <span className="badge badge-neutral">{COMPANION_STATE_WORDS[c.status]}</span>
-            </div>
-            {c.status === 'JOINED' && c.shareLevel ? (
-              <p className="muted u-fs-085 u-m-0">
-                Shares {COMPANION_SHARE_LEVEL_LABELS[c.shareLevel]}
-                {c.planStatus ? `: ${c.planStatus}` : ''}
-              </p>
-            ) : null}
-            {c.status === 'JOINED' && c.papers.length > 0 ? (
-              <p className="muted u-fs-085 u-m-0">
-                Papers: {c.papers.map((paper) => `${paper.name} (${paper.kind})`).join(', ')}
-              </p>
-            ) : null}
-            <div className="trip-companion-actions">
-              {c.status === 'INVITED' || c.status === 'EXPIRED' ? (
-                <ResendCompanionForm tripId={tripId} companionId={c.id} name={c.name} />
+            <TravellerRow
+              headingLevel={3}
+              title={c.name}
+              picture={<PersonPicture name={c.name} />}
+              chip={{
+                label: COMPANION_STATE_WORDS[c.status],
+                tone:
+                  c.status === 'JOINED'
+                    ? 'success'
+                    : c.status === 'EXPIRED'
+                      ? 'warning'
+                      : 'neutral',
+              }}
+            >
+              {c.status === 'JOINED' && c.shareLevel ? (
+                <p className="muted u-fs-085 u-m-0">
+                  Shares {COMPANION_SHARE_LEVEL_LABELS[c.shareLevel]}
+                  {c.planStatus ? `: ${c.planStatus}` : ''}
+                </p>
               ) : null}
-              <RemoveCompanionForm tripId={tripId} companionId={c.id} name={c.name} />
-            </div>
+              {c.status === 'JOINED' && c.papers.length > 0 ? (
+                <p className="muted u-fs-085 u-m-0">
+                  Papers: {c.papers.map((paper) => `${paper.name} (${paper.kind})`).join(', ')}
+                </p>
+              ) : null}
+              <div className="u7-body-actions trip-companion-actions">
+                {c.status === 'INVITED' || c.status === 'EXPIRED' ? (
+                  <ResendCompanionForm tripId={tripId} companionId={c.id} name={c.name} />
+                ) : null}
+                <RemoveCompanionForm tripId={tripId} companionId={c.id} name={c.name} />
+              </div>
+            </TravellerRow>
           </li>
         ))}
       </ul>
@@ -195,39 +209,46 @@ export function TripOverview({
         {travellers.length === 0 ? (
           <p className="u-m-0">Nobody is on this trip yet. Add Travellers below.</p>
         ) : (
-          <ul className="trip-traveller-list">
+          <ul className="trip-traveller-list u7-rows u7-list">
             {travellers.map((t) => (
               <li key={t.applicantId} className="trip-traveller">
-                <div className="trip-traveller-head">
-                  <h3 className="trip-traveller-name">{t.name}</h3>
-                  <span className="muted u-fs-085">{RELATIONSHIP_WORDS[t.relationship]}</span>
-                </div>
-                <p className="u-m-0">
-                  {t.phrase ? (
-                    <span className={`badge ${PHRASE_TONE[t.phrase]}`}>
-                      {PACKAGE_PHRASE_LABELS[t.phrase]}
-                    </span>
-                  ) : (
-                    <span className="muted">Open the case to see where it stands.</span>
+                <TravellerRow
+                  headingLevel={3}
+                  title={t.name}
+                  picture={<PersonPicture name={t.name} />}
+                  {...(t.phrase
+                    ? {
+                        chip: {
+                          label: PACKAGE_PHRASE_LABELS[t.phrase],
+                          tone: PHRASE_TONE[t.phrase],
+                        },
+                      }
+                    : {})}
+                  meta={RELATIONSHIP_WORDS[t.relationship]}
+                >
+                  {t.phrase ? null : (
+                    <p className="u-m-0">
+                      <span className="muted">Open the case to see where it stands.</span>
+                    </p>
                   )}
-                </p>
-                {t.phrase ? <TripTrack phrase={t.phrase} /> : null}
-                <p className="u-m-0">
-                  <Link
-                    className="btn btn-secondary trip-next-action"
-                    href={`/app/mission/${t.missionId}#trip-package`}
-                    aria-label={`${TRIP_NEXT_ACTION_LABELS[t.nextAction]}: ${t.name}`}
-                  >
-                    {TRIP_NEXT_ACTION_LABELS[t.nextAction]}
-                  </Link>
-                </p>
-                <p className="muted u-fs-085 u-m-0">Case: {t.caseTitle}</p>
-                {t.tripDocuments.length > 0 ? (
-                  <p className="u-fs-085 u-m-0">
-                    Shared Trip Documents: {t.tripDocuments.map((d) => d.name).join(', ')}
+                  {t.phrase ? <TripTrack phrase={t.phrase} /> : null}
+                  <p className="u-m-0">
+                    <Link
+                      className="btn btn-secondary trip-next-action"
+                      href={`/app/mission/${t.missionId}#trip-package`}
+                      aria-label={`${TRIP_NEXT_ACTION_LABELS[t.nextAction]}: ${t.name}`}
+                    >
+                      {TRIP_NEXT_ACTION_LABELS[t.nextAction]}
+                    </Link>
                   </p>
-                ) : null}
-                <RemoveTravellerForm tripId={tripId} applicantId={t.applicantId} name={t.name} />
+                  <p className="muted u-fs-085 u-m-0">Case: {t.caseTitle}</p>
+                  {t.tripDocuments.length > 0 ? (
+                    <p className="u-fs-085 u-m-0">
+                      Shared Trip Documents: {t.tripDocuments.map((d) => d.name).join(', ')}
+                    </p>
+                  ) : null}
+                  <RemoveTravellerForm tripId={tripId} applicantId={t.applicantId} name={t.name} />
+                </TravellerRow>
               </li>
             ))}
           </ul>
@@ -244,10 +265,17 @@ export function TripOverview({
         <TripCompanions tripId={tripId} companions={companions} />
       ) : null}
 
-      <section className="card trip-section" aria-labelledby="trip-add-title">
-        <h2 id="trip-add-title" className="card-title">
-          Add Travellers
-        </h2>
+      <ExpandableSection
+        id="trip-add"
+        className="u7-fold trip-section"
+        headingLevel={2}
+        title="Add Travellers"
+        summary="Choose who else is going on this trip."
+        picture={<AreaPicture mark={{ icon: 'plus', tone: 'blue' }} />}
+        defaultOpen={travellers.length === 0}
+        remember
+      >
+        <FocusFirstFieldOnOpen />
         <AddTravellersForm
           // Who is on the trip changing (someone was added) starts the form fresh. A new person
           // made while something else failed does not, so the message and their tick stay.
@@ -263,7 +291,7 @@ export function TripOverview({
             or change someone else&apos;s records.
           </p>
         </AboutDisclosure>
-      </section>
+      </ExpandableSection>
 
       <section className="card trip-section" aria-labelledby="trip-documents-title">
         <h2 id="trip-documents-title" className="card-title">
@@ -276,48 +304,60 @@ export function TripOverview({
           </p>
         </AboutDisclosure>
         {sharedDocuments.length > 0 ? (
-          <ul className="trip-document-list">
+          <ul className="trip-document-list u7-rows u7-list">
             {sharedDocuments.map((d) => (
               <li key={d.id} className="trip-document">
-                <p className="u-m-0">
-                  <strong>{d.name}</strong>{' '}
-                  <span className="muted u-fs-085">From {d.sourceName}</span>
-                </p>
-                <div className="trip-document-actions">
-                  {travellers
-                    .filter((t) => t.applicantId !== d.sourceApplicantId)
-                    .map((t) => {
-                      const allowed = d.allowedFor.includes(t.applicantId);
-                      return (
-                        <div key={t.applicantId} className="trip-allow">
-                          <span className="trip-allow-who">{t.name}</span>
-                          <span className={`trip-allow-state${allowed ? ' trip-allow-on' : ''}`}>
-                            {allowed ? 'Allowed' : 'Not Allowed'}
-                          </span>
-                          <TripEvidenceAllowanceForm
-                            tripId={tripId}
-                            evidenceId={d.id}
-                            applicantId={t.applicantId}
-                            travellerName={t.name}
-                            documentName={d.name}
-                            allowed={allowed}
-                          />
-                        </div>
-                      );
-                    })}
-                  <RemoveTripEvidenceForm
-                    tripId={tripId}
-                    evidenceId={d.id}
-                    applicantId={d.sourceApplicantId}
-                    documentName={d.name}
-                  />
-                </div>
+                <TravellerRow
+                  headingLevel={3}
+                  title={d.name}
+                  picture={<AreaPicture mark={{ icon: 'file', tone: 'teal' }} />}
+                  meta={`From ${d.sourceName}`}
+                >
+                  <div className="trip-document-actions">
+                    {travellers
+                      .filter((t) => t.applicantId !== d.sourceApplicantId)
+                      .map((t) => {
+                        const allowed = d.allowedFor.includes(t.applicantId);
+                        return (
+                          <div key={t.applicantId} className="trip-allow">
+                            <span className="trip-allow-who">{t.name}</span>
+                            <span className={`trip-allow-state${allowed ? ' trip-allow-on' : ''}`}>
+                              {allowed ? 'Allowed' : 'Not Allowed'}
+                            </span>
+                            <TripEvidenceAllowanceForm
+                              tripId={tripId}
+                              evidenceId={d.id}
+                              applicantId={t.applicantId}
+                              travellerName={t.name}
+                              documentName={d.name}
+                              allowed={allowed}
+                            />
+                          </div>
+                        );
+                      })}
+                    <RemoveTripEvidenceForm
+                      tripId={tripId}
+                      evidenceId={d.id}
+                      applicantId={d.sourceApplicantId}
+                      documentName={d.name}
+                    />
+                  </div>
+                </TravellerRow>
               </li>
             ))}
           </ul>
         ) : null}
         {documentOptions.length > 0 ? (
-          <AddTripEvidenceForm tripId={tripId} documents={documentOptions} />
+          <ExpandableSection
+            className="u7-fold"
+            headingLevel={3}
+            title="Add a Trip Document"
+            picture={<AreaPicture mark={{ icon: 'upload', tone: 'blue' }} />}
+            remember
+          >
+            <FocusFirstFieldOnOpen />
+            <AddTripEvidenceForm tripId={tripId} documents={documentOptions} />
+          </ExpandableSection>
         ) : (
           <>
             <p className="u-m-0">No travel documents to share yet.</p>

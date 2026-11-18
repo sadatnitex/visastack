@@ -320,6 +320,7 @@ describe('privacy screens, language of parts', () => {
       bn['appPrivacy.appPrivacyPage.privacyConsent'],
       bn['appPrivacy.appPrivacyPage.aboutThis'],
       bn['appPrivacy.appPrivacyPage.noChangesYet'],
+      bn['appPrivacy.appPrivacyU7.openPermissions'],
       `aria-label: ${bn['appPrivacy.appPrivacyPage.yourRights']}`,
       `placeholder: ${bn['appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired']}`,
     ]);

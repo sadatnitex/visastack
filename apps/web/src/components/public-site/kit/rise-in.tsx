@@ -37,8 +37,9 @@ function delayClass(delay: number | undefined): string {
 
 /**
  * Rises in once as it scrolls into view. It is fully visible with no JavaScript, with reduced
- * motion, with data saver and on a phone: it only starts hidden while `html[data-scenes="live"]`,
- * which the early mark sets before the first paint (see kit.css).
+ * motion and with data saver: it only starts lowered while `html[data-scenes]` is "live" (pinned
+ * scenes) or "reveal" (phones, short or zoomed windows, MOT1), which the early mark sets before the
+ * first paint (see kit.css).
  */
 export function RiseIn({ children, delay, as = 'div', className }: RiseInProps) {
   const ref = useRef<HTMLElement>(null);

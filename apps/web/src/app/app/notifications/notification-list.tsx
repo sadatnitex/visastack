@@ -7,6 +7,7 @@ import type { DepthLevel } from '../../../lib/ccd/depth';
 import { formatTimestampDate } from '../../../lib/format-date';
 import { getServerT } from '../../../lib/i18n-server';
 import type { SearchParamsRecord } from '../../../lib/paging';
+import { AreaPicture, TravellerRow, TravellerRows } from '../u7-rows';
 
 export interface NotificationRow {
   readonly id: string;
@@ -65,50 +66,51 @@ export function NotificationList({
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
         tabIndex={0}
       >
-        <div className="rows">
+        <TravellerRows>
           {notifications.map((n, index) => (
-            <div
-              key={n.id}
-              id={rowAnchor(index + 1)}
-              {...(n.level ? atLevel(n.level) : {})}
-              className="row notification-row"
-            >
-              <div className="notification-head">
-                <span className="row-key">
-                  {n.subject}
-                  {!n.read ? (
-                    <span className="badge badge-warning notification-new">
-                      {t.node('appNotifications.appNotificationsNotificationList.new')}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="muted u-fs-075">
-                  {locale === 'bn'
+            <div key={n.id} id={rowAnchor(index + 1)} {...(n.level ? atLevel(n.level) : {})}>
+              <TravellerRow
+                title={n.subject}
+                headingLevel={2}
+                picture={
+                  <AreaPicture mark={{ icon: 'bell', tone: n.read ? 'neutral' : 'amber' }} />
+                }
+                {...(n.read
+                  ? {}
+                  : {
+                      chip: {
+                        label: t.node('appNotifications.appNotificationsNotificationList.new'),
+                        tone: 'warning' as const,
+                      },
+                    })}
+                meta={
+                  locale === 'bn'
                     ? formatDate(n.createdAt, 'bn', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric',
                       })
-                    : formatTimestampDate(n.createdAt)}
-                </span>
-              </div>
-              <p className="muted notification-summary">{n.summary}</p>
-              <div className="notification-actions">
-                <Link href={n.deepLinkPath} className="btn btn-secondary u-btn-sm">
-                  {t.node('appNotifications.appNotificationsNotificationList.open')}
-                </Link>
-                {!n.read ? (
-                  <form action={markReadAction}>
-                    <input type="hidden" name="notificationId" value={n.id} />
-                    <button type="submit" className="btn btn-secondary u-btn-sm">
-                      {t.node('appNotifications.appNotificationsNotificationList.markRead')}
-                    </button>
-                  </form>
-                ) : null}
-              </div>
+                    : formatTimestampDate(n.createdAt)
+                }
+              >
+                <p className="u7-body-text notification-summary">{n.summary}</p>
+                <div className="u7-body-actions notification-actions">
+                  <Link href={n.deepLinkPath} className="btn btn-secondary u-btn-sm">
+                    {t.node('appNotifications.appNotificationsNotificationList.open')}
+                  </Link>
+                  {!n.read ? (
+                    <form action={markReadAction}>
+                      <input type="hidden" name="notificationId" value={n.id} />
+                      <button type="submit" className="btn btn-secondary u-btn-sm">
+                        {t.node('appNotifications.appNotificationsNotificationList.markRead')}
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              </TravellerRow>
             </div>
           ))}
-        </div>
+        </TravellerRows>
       </section>
       <ShowMore
         id="notifications-more"

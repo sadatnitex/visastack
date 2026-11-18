@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { renderServer, textOf } from '../../../../lib/next-mocks.test-support';
 
 import { schema } from '@visastack/db';
@@ -145,7 +146,11 @@ describe('the invitation page for the person invited', () => {
     // Name Only is chosen already; the other two sit inside the one quiet Share More choice.
     const nameOnly = /<input[^>]*value="NAME_ONLY"[^>]*>/.exec(html)?.[0] ?? '';
     expect(nameOnly).toContain('checked');
-    const more = /<details[^>]*>([\s\S]*?)<\/details>/.exec(html)?.[1] ?? '';
+    // The fold of trip facts comes first (U7); the Share More choice is the one that holds the other two.
+    const more =
+      [...new JSDOM(html).window.document.querySelectorAll('details')].find((fold) =>
+        fold.textContent?.includes('Share More'),
+      )?.innerHTML ?? '';
     expect(more).toContain('Share More');
     expect(more).toContain('value="PLAN_STATUS"');
     expect(more).toContain('value="TRAVEL_BOOKINGS"');

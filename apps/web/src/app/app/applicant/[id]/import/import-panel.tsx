@@ -1,7 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  type ChangeEvent,
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { usePageLanguage, useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
@@ -437,6 +446,8 @@ export function ImportPanel({
   /** Whom each stored document is for, so What We Found opens on the right person's page. */
   const personOfDocument = useRef(new Map<string, string>());
   const limitsId = useId();
+  const filesId = useId();
+  const folderId = useId();
   const dropTitleId = useId();
   const dropHintId = useId();
   const listId = useId();
@@ -629,13 +640,15 @@ export function ImportPanel({
       .catch(() => setAnnouncement('We could not read what was dropped. Try choosing it instead.'));
   });
 
-  const chooseFolder = () => {
-    if (folderPickerSupported(folderRef.current)) {
-      folderRef.current?.click();
-      return;
-    }
-    setAnnouncement(FOLDER_FALLBACK_LINE);
-    filesRef.current?.click();
+  /** Taking what a picker returned, then clearing it so the same file can be chosen again. */
+  const onPick = (event: ChangeEvent<HTMLInputElement>) => {
+    take(readChosenFiles(Array.from(event.currentTarget.files ?? [])));
+    event.currentTarget.value = '';
+  };
+
+  /** A browser with no folder picker opens the plain file picker; say so (a click or the keyboard). */
+  const folderNotice = () => {
+    if (!folderPickerSupported(folderRef.current)) setAnnouncement(FOLDER_FALLBACK_LINE);
   };
 
   /** Moves focus to the heading before a control that is about to go away does its work. */
@@ -769,52 +782,37 @@ export function ImportPanel({
           {t.node('appApplicant.appApplicantIdImportImportPanel.foldersInsideItAreIncludedYou')}
         </p>
         <div className="upload-drop-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
+          {/* Each picker is a real file field kept out of sight; the drawn button is its label, so a
+              tap opens it and the keyboard reaches the field itself. */}
+          <input
+            id={filesId}
+            ref={filesRef}
+            className="sr-only file-pick-input"
+            type="file"
+            multiple
             aria-describedby={limitsId}
-            onClick={() => filesRef.current?.click()}
-          >
+            data-testid="import-files"
+            onChange={onPick}
+          />
+          <label htmlFor={filesId} className="btn btn-primary">
             {t.node('appApplicant.appApplicantIdDocumentUploader.chooseFiles')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
+          </label>
+          <input
+            id={folderId}
+            ref={folderRef}
+            className="sr-only file-pick-input"
+            type="file"
+            multiple
             aria-describedby={limitsId}
-            onClick={chooseFolder}
-          >
+            data-testid="import-folder"
+            onClick={folderNotice}
+            onChange={onPick}
+          />
+          <label htmlFor={folderId} className="btn btn-secondary">
             {t.node('appApplicant.appApplicantIdImportImportPanel.addAFolder')}
-          </button>
+          </label>
         </div>
       </section>
-      <input
-        ref={folderRef}
-        className="sr-only"
-        type="file"
-        multiple
-        tabIndex={-1}
-        aria-hidden="true"
-        aria-label={t('appApplicant.appApplicantIdImportImportPanel.folderToImport')}
-        data-testid="import-folder"
-        onChange={(event) => {
-          take(readChosenFiles(Array.from(event.currentTarget.files ?? [])));
-          event.currentTarget.value = '';
-        }}
-      />
-      <input
-        ref={filesRef}
-        className="sr-only"
-        type="file"
-        multiple
-        tabIndex={-1}
-        aria-hidden="true"
-        aria-label={t('appApplicant.appApplicantIdImportImportPanel.filesToImport')}
-        data-testid="import-files"
-        onChange={(event) => {
-          take(readChosenFiles(Array.from(event.currentTarget.files ?? [])));
-          event.currentTarget.value = '';
-        }}
-      />
 
       <h3 className="import-summary-title" ref={headingRef} tabIndex={-1}>
         {t.node('appApplicant.appApplicantIdImportImportPanel.yourFiles')}
