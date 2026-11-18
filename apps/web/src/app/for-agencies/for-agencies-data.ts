@@ -1,41 +1,58 @@
-import type { PublicStatus } from '../../components/public-site/story';
+/** R5: the words and made-up rows of the public For Agencies page. Plain English, Title Case names, no invented figures. */
 
-/** WP-PUB4: the words of the public For Agencies page. Plain English, Title Case names, no invented figures. */
-
-/** What an agency gets today: the same facts the home page states, one card each. */
-export const AGENCY_POINTS: readonly { readonly title: string; readonly body: string }[] = [
+/** The made-up case list beside the headline. Every row is an Example (the table tags itself). */
+export const EXAMPLE_CASES = [
   {
-    title: 'Ask for One Document',
-    body: 'Ask a client for a specific document and see when it arrives.',
+    name: 'Aisha K.',
+    code: 'sg',
+    country: 'Singapore',
+    filled: 6,
+    missing: 2,
+    status: 'Being Prepared',
   },
   {
-    title: 'See What Is Missing',
-    body: 'Open a case and see at once what is missing or overdue.',
+    name: 'Rafi H.',
+    code: 'de',
+    country: 'Germany',
+    filled: 3,
+    missing: 5,
+    status: 'Waiting on Client',
   },
   {
-    title: 'Keep a Clear Record',
-    body: 'Keep a clear record of who did what, and when.',
+    name: 'Nadia S.',
+    code: 'jp',
+    country: 'Japan',
+    filled: 8,
+    missing: 'Complete',
+    status: 'Ready to Share',
   },
-];
+] as const;
 
-/** The made-up case line: every row is an Example, each state shown with its own word. */
-export const EXAMPLE_LINE: readonly {
-  readonly status: PublicStatus;
-  readonly name: string;
-  readonly note: string;
+/** What changes at an agency desk: three cards, each with a drawing of the kind of paper it is about. */
+export const DESK_CARDS: readonly {
+  readonly title: string;
+  readonly body: string;
+  readonly picture: string;
 }[] = [
   {
-    status: 'received',
-    name: 'Passport Scan',
-    note: 'Arrived from the client. Nobody has checked it yet.',
+    title: 'One List of Cases',
+    body: 'Each row shows its ring and what is missing.',
+    picture: 'flight_ticket',
   },
   {
-    status: 'suggested',
-    name: 'Date of Birth',
-    note: 'Read from the scan. It waits for the client to confirm.',
+    title: 'Only What Is Shared',
+    body: 'Clients choose what you see, and can end it.',
+    picture: 'travel_insurance',
   },
-  { status: 'confirmed', name: 'Visa Photo', note: 'The client checked it and confirmed it.' },
+  {
+    title: 'Completeness, Not Approval',
+    body: 'The ring counts what is complete. It never promises a visa.',
+    picture: 'passport',
+  },
 ];
 
-/** The made-up sharing line. Saved is not Shared; ending access is a recorded step. */
-export const EXAMPLE_SHARING: readonly PublicStatus[] = ['saved', 'shared', 'accessEnded'];
+/** The Plans words. Nothing here is a price or a tier: selling is not open, so none is shown. */
+export const PLANS_LINE = 'Pricing is shown here when selling opens.';
+export const PLANS_ACCESS_CLOSED =
+  'Agency access is by invitation while we test with practice records.';
+export const PLANS_ACCESS_OPEN = 'Accounts are free during the public beta.';

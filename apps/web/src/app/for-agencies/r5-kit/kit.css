@@ -1,0 +1,169 @@
+/* R5 local stand-ins for the shared kit. Flat: tokens only, no gradient, no shadow, no translucent surface. */
+.r5-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.r5-ring-art {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+}
+
+.r5-ring-art[data-size="lg"] {
+  width: 96px;
+  height: 96px;
+}
+
+.r5-ring-art svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.r5-seg {
+  stroke: var(--pub-edge, var(--edge-card));
+}
+
+.r5-seg-on {
+  stroke: var(--pub-accent, var(--accent));
+}
+
+.r5-ring-centre {
+  position: relative;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--pub-ink, var(--text));
+}
+
+.r5-ring-art[data-size="lg"] .r5-ring-centre {
+  font-size: 1.375rem;
+}
+
+.r5-ring-label {
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r5-cases {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge, var(--edge-card));
+  border-radius: var(--radius-lg);
+  background-color: var(--pub-card, var(--bg-elevated));
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r5-cases-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.r5-cases-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--pub-ink, var(--text));
+}
+
+.r5-cases-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.r5-cases-list > li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 64px;
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--pub-edge, var(--edge-card));
+}
+
+.r5-flag {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.r5-cases-who,
+.r5-cases-state {
+  display: grid;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.r5-cases-who strong,
+.r5-cases-state strong {
+  color: var(--pub-ink, var(--text));
+}
+
+.r5-cases-state {
+  text-align: end;
+}
+
+.r5-cases-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r5-closing {
+  text-align: center;
+}
+
+.r5-closing-inner {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.r5-closing-title {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.r5-closing-sub {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 1.125rem;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r5-closing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.r5-closing-passport {
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 480px) {
+  .r5-cases-list > li {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+
+  .r5-cases-state {
+    grid-column: 2 / -1;
+    text-align: start;
+  }
+}

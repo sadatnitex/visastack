@@ -1,29 +1,36 @@
-/* WP-PUB4 for-agencies page. Flat: tokens only, no gradient, no shadow, no new hue. Every colour reads a
-   --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
-.pub4a-hero-copy {
+/* R5 for-agencies page, rebuilt to the approved reference. Flat: tokens only, no gradient, no shadow, no new hue.
+   Every colour reads a --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
+.r5-hero-grid {
+  display: grid;
+  gap: var(--space-6);
+  align-items: center;
+  min-width: 0;
+}
+
+.r5-hero-copy {
   display: grid;
   gap: var(--space-4);
   justify-items: start;
   min-width: 0;
 }
 
-.pub4a-kicker {
+.r5-kicker {
   margin: 0;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--pub-accent, var(--accent));
 }
 
-.pub4a-title {
+.r5-title {
   margin: 0;
-  font-size: clamp(2rem, 6vw, 3.5rem);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
+  font-size: clamp(2.25rem, 6vw, 4rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
   color: var(--pub-ink, var(--text));
   overflow-wrap: anywhere;
 }
 
-.pub4a-lede {
+.r5-lede {
   margin: 0;
   max-width: 34rem;
   font-size: 1.125rem;
@@ -31,87 +38,87 @@
   color: var(--pub-ink-soft, var(--text-secondary));
 }
 
-.pub4a-h2 {
-  margin: 0 0 var(--space-5);
-  font-size: clamp(1.5rem, 4vw, 2.25rem);
-  line-height: 1.15;
-  color: var(--pub-ink, var(--text));
-}
-
-.pub4a-actions {
+.r5-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
 }
 
-.pub4a-grid {
+.r5-h2 {
+  margin: 0 0 var(--space-6);
+  font-size: clamp(1.75rem, 4.5vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--pub-ink, var(--text));
+}
+
+.r5-cards {
   display: grid;
   gap: var(--space-4);
 }
 
-.pub4a-chips {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.pub4a-board {
+.r5-cards > article {
   display: grid;
-  gap: var(--space-5);
-  justify-items: start;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
   padding: var(--space-5);
   border: 1px solid var(--pub-edge, var(--edge-card));
   border-radius: var(--radius-lg);
   background-color: var(--pub-card, var(--bg-elevated));
 }
 
-.pub4a-steps {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  width: 100%;
+.r5-card-picture {
+  display: inline-flex;
+  min-height: 80px;
 }
 
-.pub4a-step {
+.r5-card-title {
+  margin: 0;
+  font-size: 1.1875rem;
+}
+
+.r5-card-body {
+  margin: 0;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r5-plans-inner {
   display: grid;
-  gap: var(--space-1);
-  justify-items: start;
+  justify-items: center;
+  text-align: center;
   min-width: 0;
 }
 
-.pub4a-step-name {
-  color: var(--pub-ink, var(--text));
+.r5-plans-inner .r5-h2 {
+  margin-bottom: var(--space-3);
 }
 
-.pub4a-step-note {
+.r5-plans-line {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 1.125rem;
   color: var(--pub-ink-soft, var(--text-secondary));
-  overflow-wrap: anywhere;
 }
 
-/* While the scroll engine runs, the row for the current step (Received, then Suggested, then
-   Confirmed) gets the strong edge; text never dims. */
-.pub4a-step {
-  padding-inline-start: var(--space-3);
-  border-inline-start: 3px solid transparent;
+/* The first phone screen keeps to 30 words (WP-PUB4 guard): the second sentence waits for a wider screen. */
+.r5-lede-more {
+  display: none;
 }
 
-html[data-scenes="live"] .pub-scene[data-step="0"] .pub4a-step:nth-child(1),
-html[data-scenes="live"] .pub-scene[data-step="1"] .pub4a-step:nth-child(2),
-html[data-scenes="live"] .pub-scene[data-step="2"] .pub4a-step:nth-child(3) {
-  border-inline-start-color: var(--pub-edge-strong, var(--accent));
+@media (min-width: 640px) {
+  .r5-lede-more {
+    display: inline;
+  }
 }
 
-@media (min-width: 760px) {
-  .pub4a-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (min-width: 860px) {
+  .r5-hero-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-7, var(--space-6));
   }
 
-  .pub4a-grid-two {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .r5-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
