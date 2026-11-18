@@ -22780,10 +22780,17 @@ button.wallet-stack-card {
 .expandable-section-details[open] > summary .expandable-section-chevron {
   transform: rotate(90deg);
 }
+/* Right-to-left: the closed chevron points the reading way. :dir() follows the language the page inherits; the attribute rule covers browsers without :dir(). */
 [dir="rtl"] .expandable-section-chevron {
   transform: scaleX(-1);
 }
+.expandable-section-chevron:dir(rtl) {
+  transform: scaleX(-1);
+}
 [dir="rtl"] .expandable-section-details[open] > summary .expandable-section-chevron {
+  transform: rotate(90deg);
+}
+.expandable-section-details[open] > summary .expandable-section-chevron:dir(rtl) {
   transform: rotate(90deg);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -22832,10 +22839,6 @@ button.wallet-stack-card {
 .status-picture[data-tone="ok"] {
   --status-ink: var(--success);
   --status-fill: var(--success-bg);
-}
-.status-picture[data-tone="warn"] {
-  --status-ink: var(--warning);
-  --status-fill: var(--warning-bg);
 }
 .status-picture[data-tone="bad"] {
   --status-ink: var(--danger);

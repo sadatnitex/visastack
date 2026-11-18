@@ -4,21 +4,35 @@ import { join } from 'node:path';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { axeViolations } from '../../lib/axe.test-support';
+import { FIELD_STATUS_WORDS } from '../../lib/field-state-words';
 import { isTitleCase } from '../../lib/title-case';
-import { STATUS_KINDS, STATUS_MEANINGS, StatusGlyph, StatusPicture } from './status-picture';
+import {
+  STATUS_KINDS,
+  STATUS_MEANINGS,
+  StatusGlyph,
+  StatusPicture,
+  isStatusKind,
+} from './status-picture';
 
 const kinds = [...STATUS_KINDS];
 
 describe('the six status pictures (one status language)', () => {
-  it('are exactly the six the board names, each in Title Case', () => {
+  it('take their names from the one field status map, never typed again', () => {
+    for (const kind of kinds) expect(STATUS_MEANINGS[kind].name).toBe(FIELD_STATUS_WORDS[kind]);
     expect(kinds.map((kind) => STATUS_MEANINGS[kind].name)).toEqual([
-      'Added',
-      'Backed by a Document',
+      'Entered',
       'Suggested',
-      'Sensitive',
-      'Needs Fix',
-      'Not Current',
+      'Confirmed',
+      'Backed by a Document',
+      'Does Not Match',
+      'No Longer Current',
     ]);
+    const source = readFileSync(join(__dirname, 'status-picture-words.ts'), 'utf8');
+    for (const kind of kinds) {
+      expect(source, 'the name is read, not written').not.toContain(
+        `'${STATUS_MEANINGS[kind].name}'`,
+      );
+    }
     for (const kind of kinds) expect(isTitleCase(STATUS_MEANINGS[kind].name), kind).toBe(true);
   });
 
@@ -35,12 +49,20 @@ describe('the six status pictures (one status language)', () => {
     for (const kind of kinds) {
       const { sentence } = STATUS_MEANINGS[kind];
       expect(sentence, kind).not.toMatch(overclaim);
-      // "checked" or "confirmed" only ever appear as something that has NOT happened yet.
-      if (/checked/i.test(sentence)) expect(sentence, kind).toMatch(/not mean anyone has checked/);
-      if (/confirm/i.test(sentence)) expect(sentence, kind).toMatch(/until you confirm/);
+      // "checked" only ever appears as something that has NOT happened.
+      if (/checked/i.test(sentence))
+        expect(sentence, kind).toMatch(/not (mean anyone has )?checked/);
+      // Nothing promises to keep a value for ever, or that only one person can see it.
+      expect(sentence, kind).not.toMatch(/\b(forever|always|only you)\b/i);
     }
-    expect(STATUS_MEANINGS.backed.sentence).toMatch(/does not mean anyone has checked it/);
-    expect(STATUS_MEANINGS.suggested.sentence).toMatch(/not saved until you confirm/);
+    expect(STATUS_MEANINGS.DOCUMENT_SUPPORTED.sentence).toMatch(
+      /does not mean anyone has checked it/,
+    );
+    expect(STATUS_MEANINGS.EXTRACTED_PENDING.sentence).toMatch(
+      /reading one of your files or by a connected app/,
+    );
+    expect(STATUS_MEANINGS.EXTRACTED_PENDING.sentence).toMatch(/not confirmed/);
+    expect(STATUS_MEANINGS.APPLICANT_CONFIRMED.sentence).toMatch(/not checked against a file/);
   });
 
   it('read without colour: every ring style and every mark is different', () => {
@@ -61,7 +83,7 @@ describe('the six status pictures (one status language)', () => {
 
   it('use brand colour families only, drawn from stylesheet tokens', () => {
     for (const kind of kinds) {
-      expect(['brand', 'ok', 'warn', 'bad', 'ink']).toContain(STATUS_MEANINGS[kind].tone);
+      expect(['brand', 'ok', 'bad', 'ink']).toContain(STATUS_MEANINGS[kind].tone);
       const html = renderToString(<StatusGlyph kind={kind} />);
       expect(html, kind).not.toMatch(/fill="#|stroke="#|style=/);
     }
@@ -94,12 +116,18 @@ describe('the six status pictures (one status language)', () => {
     }
   });
 
+  it('know which stored codes have a picture', () => {
+    expect(isStatusKind('DOCUMENT_SUPPORTED')).toBe(true);
+    expect(isStatusKind('SUPERSEDED')).toBe(false);
+    expect(isStatusKind(null)).toBe(false);
+  });
+
   it('take the page language words when given, else the record', () => {
     const html = renderToString(
-      <StatusPicture kind="added" label="Own Words" text="Own sentence." />,
+      <StatusPicture kind="DECLARED" label="Own Words" text="Own sentence." />,
     );
     expect(html).toContain('Own Words');
     expect(html).toContain('Own sentence.');
-    expect(html).not.toContain(STATUS_MEANINGS.added.sentence);
+    expect(html).not.toContain(STATUS_MEANINGS.DECLARED.sentence);
   });
 });

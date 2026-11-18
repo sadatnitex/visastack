@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -101,5 +101,65 @@ test('the shared Expandable Section and test files are not counted; other files 
     assert.deepEqual(measureTree(root).folds, { 'apps/web/src/screens/b.tsx': 1 });
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a fold cannot slip past by a dotted name, a renamed import or createElement', () => {
+  const dotted = 'export const A = () => <ui.Disclosure title="A">x</ui.Disclosure>;';
+  assert.equal(measure(dotted).folds, 1);
+  const renamed = `import { Disclosure as Fold2, StickyDetails as Keep } from './ui';
+export const A = () => (<><Fold2 title="A">x</Fold2><Keep initiallyOpen summary="B">y</Keep></>);`;
+  assert.equal(measure(renamed).folds, 2);
+  const created = `import { createElement } from 'react';
+import * as React from 'react';
+export const A = () => createElement('details', null, createElement('summary', null, 'A'));
+export const B = () => React.createElement(Disclosure, { title: 'B' });
+export const C = () => createElement('section', null);`;
+  assert.equal(measure(created, 'plain.ts').folds, 2);
+});
+
+test('the case, collect and readiness folds are counted', () => {
+  const source = `export const A = () => (
+    <>
+      <RailFold title="A">x</RailFold>
+      <Fold title="B">y</Fold>
+      <ReadinessLegendFold segments={[]} />
+      <LazyDisclosure title="C">z</LazyDisclosure>
+    </>
+  );`;
+  assert.equal(measure(source).folds, 4);
+});
+
+test('.ts files are walked for folds (createElement), and only for folds', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ui-ratchet-ts-'));
+  try {
+    const src = join(root, 'apps/web/src/lib');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(
+      join(src, 'make.ts'),
+      `import { createElement } from 'react';\nexport const fold = () => createElement('details', null);\nexport const words = 'a ${String.fromCharCode(0x2014)} b';\n`,
+    );
+    const counts = measureTree(root);
+    assert.deepEqual(counts.folds, { 'apps/web/src/lib/make.ts': 1 });
+    assert.deepEqual(counts.emDashes, {});
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/*
+ * The recorded totals. The baseline may only go down by `--lower`; raising any number here or in
+ * scripts/ui-ratchet.baseline.json needs the Guardian's approval written in the pull request.
+ * When a count goes down, lower both this table and the baseline in the same change.
+ */
+const PINNED_TOTALS = { inlineStyles: 399, rawCodes: 0, emDashes: 0, folds: 194 };
+
+test('the baseline totals are pinned, so the baseline cannot be raised quietly', () => {
+  const baseline = JSON.parse(
+    readFileSync(new URL('./ui-ratchet.baseline.json', import.meta.url), 'utf8'),
+  );
+  const sum = (map) => Object.values(map ?? {}).reduce((a, b) => a + b, 0);
+  for (const [key, total] of Object.entries(PINNED_TOTALS)) {
+    assert.equal(sum(baseline[key]), total, `${key} total in ui-ratchet.baseline.json`);
   }
 });

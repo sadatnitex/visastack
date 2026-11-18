@@ -9,6 +9,7 @@ export {
   type StatusMeaning,
   type StatusRing,
   type StatusTone,
+  isStatusKind,
 } from './status-picture-words';
 
 /** Ring geometry on a 24 by 24 canvas. Colour comes from the stylesheet (WP-WAL1 block). */
@@ -56,30 +57,28 @@ const RINGS: Readonly<Record<StatusRing, ReactNode>> = {
 
 /** The mark inside the ring, so the six differ in shape as well as in ring. */
 const MARKS: Readonly<Record<StatusKind, ReactNode>> = {
-  // A filled dot: something is here.
-  added: <circle className="status-picture-fill" cx="12" cy="12" r="3" />,
-  // A page with a folded corner: a file holds it.
-  backed: <path d="M9 7.5h4l2.5 2.5v6.5H9zM13 7.5V10h2.5M10.8 13h2.9" />,
-  // A four-point spark: read from a file, waiting for the person.
-  suggested: (
+  // A filled dot: something is saved here.
+  DECLARED: <circle className="status-picture-fill" cx="12" cy="12" r="3" />,
+  // A four-point spark: offered, waiting for a person.
+  EXTRACTED_PENDING: (
     <path
       className="status-picture-fill"
       d="M12 7l1.3 3.7L17 12l-3.7 1.3L12 17l-1.3-3.7L7 12l3.7-1.3z"
     />
   ),
-  // A closed eye: hidden until shown.
-  sensitive: (
-    <path d="M8 11.5c2.2 2.4 5.8 2.4 8 0M9.4 13.2l-.9 1.3M12 13.9V15.4M14.6 13.2l.9 1.3" />
-  ),
-  // An exclamation mark: something needs the person.
-  needsFix: (
+  // A tick: a person confirmed it.
+  APPLICANT_CONFIRMED: <path d="M9 12.2l2.1 2.1 4-4.4" />,
+  // A page with a folded corner: a file holds it.
+  DOCUMENT_SUPPORTED: <path d="M9 7.5h4l2.5 2.5v6.5H9zM13 7.5V10h2.5M10.8 13h2.9" />,
+  // An exclamation mark: two sources disagree.
+  CONFLICTED: (
     <>
       <path d="M12 7.6v5" />
       <circle className="status-picture-fill" cx="12" cy="15.8" r="1.1" />
     </>
   ),
   // A clock: true before, not now.
-  notCurrent: <path d="M12 8.2V12l2.6 1.6" />,
+  STALE: <path d="M12 8.2V12l2.6 1.6" />,
 };
 
 export interface StatusPictureProps {
@@ -89,6 +88,12 @@ export interface StatusPictureProps {
   readonly text?: ReactNode;
   /** An extra class for the page's own spacing. */
   readonly className?: string | undefined;
+}
+
+/** The status in words, name then sentence, for a row that describes itself by it. */
+export function statusPictureWords(kind: StatusKind): string {
+  const meaning = STATUS_MEANINGS[kind];
+  return `${meaning.name}. ${meaning.sentence}`;
 }
 
 /** The drawing alone, hidden from screen readers. For a list or legend that names it in words. */

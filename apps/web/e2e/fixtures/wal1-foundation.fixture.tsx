@@ -4,6 +4,7 @@ import {
   STATUS_MEANINGS,
   type StatusKind,
   StatusPicture,
+  statusPictureWords,
 } from '../../src/components/pictures/status-picture';
 import { ExpandableSection } from '../../src/components/ui-lift/expandable-section';
 
@@ -25,12 +26,12 @@ const LONG_BANGLA =
   'আপনার পাসপোর্টের নাম, জন্ম তারিখ, জন্মস্থান, পাসপোর্ট নম্বর, ইস্যুর তারিখ এবং মেয়াদ শেষের তারিখ, যার মধ্যে আরও দুটি তথ্য যোগ করা বাকি আছে';
 
 const SUMMARIES: Readonly<Record<StatusKind, { text: string; bangla?: true }>> = {
-  added: { text: '3 of 5 added' },
-  backed: { text: LONG_ENGLISH },
-  suggested: { text: LONG_BANGLA, bangla: true },
-  sensitive: { text: 'Date of birth, hidden' },
-  needsFix: { text: `${LONG_ENGLISH} ${LONG_ENGLISH}` },
-  notCurrent: { text: `${LONG_BANGLA} ${LONG_BANGLA}`, bangla: true },
+  DECLARED: { text: '3 of 5 added' },
+  DOCUMENT_SUPPORTED: { text: LONG_ENGLISH },
+  EXTRACTED_PENDING: { text: LONG_BANGLA, bangla: true },
+  APPLICANT_CONFIRMED: { text: 'Date of birth' },
+  CONFLICTED: { text: `${LONG_ENGLISH} ${LONG_ENGLISH}` },
+  STALE: { text: `${LONG_BANGLA} ${LONG_BANGLA}`, bangla: true },
 };
 
 function Body({ kind }: { readonly kind: StatusKind }) {
@@ -73,7 +74,8 @@ export default function Wal1FoundationFixture({ open = false }: Wal1FixtureProps
         {STATUS_KINDS.map((kind) => (
           <li key={kind} data-kind={kind}>
             <StatusPicture kind={kind} />
-            <span>{STATUS_MEANINGS[kind].name}</span>
+            {/* The button already carries the name for screen readers; this copy is for the eye. */}
+            <span aria-hidden="true">{STATUS_MEANINGS[kind].name}</span>
           </li>
         ))}
       </ul>
@@ -90,6 +92,7 @@ export default function Wal1FoundationFixture({ open = false }: Wal1FixtureProps
               summary={bangla ? <span lang="bn">{text}</span> : text}
               picture={<DocumentPicture type="PASSPORT" size={40} />}
               status={<StatusPicture kind={kind} />}
+              statusDescription={statusPictureWords(kind)}
               defaultOpen={open}
               remember
             >

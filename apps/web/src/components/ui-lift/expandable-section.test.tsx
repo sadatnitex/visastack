@@ -4,7 +4,7 @@ import { type Root, createRoot, hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../lib/axe.test-support';
-import { StatusPicture } from '../pictures/status-picture';
+import { StatusPicture, statusPictureWords } from '../pictures/status-picture';
 import { ExpandableSection, type ExpandableSectionProps } from './expandable-section';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -26,7 +26,8 @@ const base: ExpandableSectionProps = {
   title: 'Passport Details',
   summary: '3 of 5 added',
   picture: <svg viewBox="0 0 10 10" />,
-  status: <StatusPicture kind="backed" />,
+  status: <StatusPicture kind="DOCUMENT_SUPPORTED" />,
+  statusDescription: statusPictureWords('DOCUMENT_SUPPORTED'),
   children: <p>Inside the section.</p>,
 };
 
@@ -72,6 +73,42 @@ describe('ExpandableSection', () => {
       'Backed by a Document',
     );
     expect(details().contains(status ?? null)).toBe(false);
+  });
+
+  it('names the row by its title alone and describes it by its summary line and status', () => {
+    for (const remember of [false, true]) {
+      container.innerHTML = renderToString(<ExpandableSection {...base} remember={remember} />);
+      const summary = container.querySelector('summary');
+      const title = container.querySelector('summary h3');
+      expect(summary?.getAttribute('aria-labelledby')).toBe(title?.id);
+      const described = (summary?.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => container.querySelector(`[id="${id}"]`)?.textContent);
+      expect(described).toEqual([
+        '3 of 5 added',
+        'Backed by a Document. A file you uploaded shows the same value, which alone does not mean anyone has checked it.',
+      ]);
+    }
+  });
+
+  it('puts the status after the section in page order: the row is met first', () => {
+    container.innerHTML = renderToString(<ExpandableSection {...base} />);
+    const card = container.querySelector('.expandable-section');
+    const children = [...(card?.children ?? [])].map((el) => el.className || el.tagName);
+    expect(children.slice(0, 2)).toEqual([
+      'expandable-section-details',
+      'expandable-section-status',
+    ]);
+  });
+
+  it('describes the row by its summary only when no status words are given', () => {
+    container.innerHTML = renderToString(
+      <ExpandableSection title="Plain" summary="Line" status={<StatusPicture kind="STALE" />}>
+        <p>x</p>
+      </ExpandableSection>,
+    );
+    const ids = container.querySelector('summary')?.getAttribute('aria-describedby')?.split(' ');
+    expect(ids).toHaveLength(1);
   });
 
   it('pressing the status picture opens its note and does not toggle the section', () => {

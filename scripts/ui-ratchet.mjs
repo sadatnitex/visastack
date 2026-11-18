@@ -13,10 +13,11 @@ import ts from 'typescript';
  *
  * 3. Long dashes in text a person can read (page text and string values; comments are not counted).
  * 4. Open-and-close sections built outside the Expandable Section (WAL1, ADR 0030): a raw
- *    `<details>`, or one of the older shared folds (Disclosure, AboutDisclosure, CollapsibleGroup,
- *    CollapsibleGroups, StickyDetails). Every new section uses ExpandableSection
- *    (components/ui-lift/expandable-section.tsx), the one file not counted. Each screen moved onto
- *    it lowers its file's count.
+ *    `<details>`, or a use of one of the older shared folds (FOLD_TAGS), however it is written:
+ *    a plain tag, a dotted name (`<ui.Disclosure>`, counted by its last part), a renamed import
+ *    (`import { Disclosure as D }`), or `createElement('details' | Disclosure, ...)`, in .tsx and
+ *    .ts files. Every new section uses ExpandableSection (components/ui-lift/expandable-section.tsx),
+ *    the one file not counted. Each screen moved onto it lowers its file's count.
  *
  * The recorded starting point lives in scripts/ui-ratchet.baseline.json. Lower it with
  * `node scripts/ui-ratchet.mjs --lower` after a change reduces a count. Raising it needs a
@@ -49,7 +50,20 @@ export const FOLD_TAGS = new Set([
   'CollapsibleGroup',
   'CollapsibleGroups',
   'StickyDetails',
+  'LazyDisclosure',
+  'RailFold',
+  'Fold',
+  'ReadinessLegendFold',
 ]);
+
+/** The last part of a tag or callee name: `ui.Disclosure` is `Disclosure`. */
+function lastPart(node) {
+  if (ts.isIdentifier(node)) return node.text;
+  if (ts.isPropertyAccessExpression(node)) return node.name.text;
+  if (ts.isJsxNamespacedName?.(node)) return node.name.text;
+  if (node.kind === ts.SyntaxKind.ThisKeyword) return '';
+  return node.getText();
+}
 
 /** Built from the code point so no tool rewrites it into the character itself. */
 const LONG_DASH = String.fromCharCode(0x2014);
@@ -60,8 +74,22 @@ export function measure(source, filename = 'component.tsx') {
     source,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TSX,
+    filename.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
+  // A counted fold imported under another name is still that fold.
+  const foldNames = new Set(FOLD_TAGS);
+  for (const statement of file.statements) {
+    const named = ts.isImportDeclaration(statement)
+      ? statement.importClause?.namedBindings
+      : undefined;
+    if (named && ts.isNamedImports(named)) {
+      for (const element of named.elements) {
+        if (element.propertyName && FOLD_TAGS.has(element.propertyName.text)) {
+          foldNames.add(element.name.text);
+        }
+      }
+    }
+  }
   let inlineStyles = 0;
   let rawCodes = 0;
   let emDashes = 0;
@@ -80,7 +108,17 @@ export function measure(source, filename = 'component.tsx') {
     if (ts.isJsxAttribute(node) && node.name.getText(file) === 'style') inlineStyles += 1;
     if (
       (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
-      FOLD_TAGS.has(node.tagName.getText(file))
+      foldNames.has(lastPart(node.tagName))
+    )
+      folds += 1;
+    if (
+      ts.isCallExpression(node) &&
+      lastPart(node.expression) === 'createElement' &&
+      node.arguments[0] &&
+      ((ts.isStringLiteralLike(node.arguments[0]) && node.arguments[0].text === 'details') ||
+        (!ts.isStringLiteralLike(node.arguments[0]) &&
+          foldNames.has(lastPart(node.arguments[0])) &&
+          lastPart(node.arguments[0]) !== 'details'))
     )
       folds += 1;
     if (
@@ -106,12 +144,19 @@ export function measureTree(root) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith('.tsx') && !entry.name.includes('.test')) {
+      else if (
+        /\.tsx?$/.test(entry.name) &&
+        !entry.name.endsWith('.d.ts') &&
+        !entry.name.includes('.test')
+      ) {
         const counts = measure(readFileSync(full, 'utf8'), full);
         const key = relative(root, full).replaceAll('\\', '/');
-        if (counts.inlineStyles) inlineStyles[key] = counts.inlineStyles;
-        if (counts.rawCodes) rawCodes[key] = counts.rawCodes;
-        if (counts.emDashes) emDashes[key] = counts.emDashes;
+        // The first three counters read page markup, which only .tsx files hold.
+        if (entry.name.endsWith('.tsx')) {
+          if (counts.inlineStyles) inlineStyles[key] = counts.inlineStyles;
+          if (counts.rawCodes) rawCodes[key] = counts.rawCodes;
+          if (counts.emDashes) emDashes[key] = counts.emDashes;
+        }
         if (counts.folds && key !== DETAILS_HOME) folds[key] = counts.folds;
       }
     }

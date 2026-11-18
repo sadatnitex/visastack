@@ -6,29 +6,36 @@ Unit WAL1 (Wallet upgrade U1a Foundation), Class A, FULL route. Branch claude/wa
 
 | Where | Change |
 |---|---|
-| components/ui-lift/expandable-section.tsx | New. `ExpandableSection`: native details and summary; row = picture, name (heading level 2 to 6), one-line summary, status, chevron; same body padding everywhere; `remember` keeps the person's choice through the existing StickyDetails island; server-safe like the rest of the kit. The status picture sits beside the toggle, never inside it. |
-| components/pictures/status-picture-words.ts | New. The one typed record of the six status names and sentences (`STATUS_MEANINGS`). |
-| components/pictures/status-picture.tsx | New. `StatusPicture` (Explain note around the drawing) and `StatusGlyph` (drawing alone). Six rings that differ without colour, six marks, brand tokens only. |
-| globals.css, new block "WP-WAL1" (end of file) | Section and picture styles, plus `.status-picture-key` (a list of status pictures with full 44 px rows). Flat, tokens only; chevron turns only without reduced motion. |
-| scripts/ui-ratchet.mjs, .baseline.json, .test.mjs | Fourth counter `folds`: open-and-close sections per file built outside expandable-section.tsx (raw details or the older shared folds; tests excluded). Baseline 175 in 103 files. The pass line and `--lower` now cover all four counters. |
-| e2e/support/layout-guards.ts | New. `expectNoSidewaysScroll`, `coveredControls`, `expectNothingCoversControls`, `runLayoutGuards`, `GUARD_SIZES` (390, 400, 1280). |
-| e2e/fixtures/wal1-foundation.fixture.tsx, e2e/wallet/u1-foundation.spec.ts | New. Fixture with all six pictures, long English and long Bangla summaries; spec runs the guard on the fixture (open and closed) and the public pages, keyboard toggle, Explain and Escape, 44 px, wrap without shift, reduced motion, script switched off, and self-tests that prove each guard fails. |
+| components/ui-lift/expandable-section.tsx | New. `ExpandableSection`: native details and summary with the content inside; row = picture, name (heading level 2 to 5), one-line summary, chevron; status picture after the details element, drawn in a reserved column of the row; the summary is named by the title and described by the summary line and the status in words (`statusDescription`); `remember` keeps the person's choice through StickyDetails; server-safe like the rest of the kit. |
+| components/sticky-details.tsx | One optional, additive `summaryProps` (class, aria-labelledby, aria-describedby). Existing callers draw byte for byte as before (sticky-details.test.tsx). |
+| components/pictures/status-picture-words.ts | New. Picture and sentence for six stored status codes; the NAMES are read from `FIELD_STATUS_WORDS` (lib/field-state-words.ts), never typed again. |
+| components/pictures/status-picture.tsx | New. `StatusPicture` (Explain note around the drawing), `StatusGlyph` (drawing alone), `statusPictureWords(kind)`, `isStatusKind`. Six rings and six marks that differ without colour, brand tokens only. |
+| globals.css, new block "WP-WAL1" (end of file) | Section and picture styles, `.status-picture-key` (a key of status pictures with full 44 px rows), forced-colours rule, right-to-left chevron. Flat, tokens only; the chevron turns only without reduced motion. |
+| scripts/ui-ratchet.mjs, .baseline.json, .test.mjs | Fourth counter `folds`: open-and-close sections built outside expandable-section.tsx, raw details or any use of the shared folds (also dotted, renamed or through createElement; .tsx and .ts). Baseline 194 in 106 files (108 raw details in 72 files). Totals of every counter pinned in the test. The pass line and `--lower` cover all four counters. |
+| .github/CODEOWNERS | The ratchet baseline file named with its owner. |
+| e2e/support/layout-guards.ts | New. `expectNoSidewaysScroll`, `coveredControls`, `expectNothingCoversControls`, `runLayoutGuards`, `GUARD_SIZES` (390, 400, 1280). Controls met in the middle, from above and from below, nine points each; tiny controls, unreachable controls and ignores without a reason are reported. |
+| e2e/fixtures/wal1-foundation.fixture.tsx, e2e/wallet/u1-foundation.spec.ts | New. Fixture with the six pictures, long English and long Bangla summaries; spec runs the guard on the fixture (open and closed) and the public pages, keyboard toggle, Tab order and the row's name and description, Explain and Escape, 44 px, wrap without shift, reduced motion, server markup with script switched off, and self-tests that prove each guard rule fails. |
 | .github/workflows/pr-browser-checks.yml line 123 | ` wallet/` added (Guardian 9 decision) so pull requests run the new spec. |
 | docs/adr/0030-expandable-section-and-status-pictures.md | New ADR. |
+| docs/uiux/ccd/VOCABULARY.md | The field state row notes that the status pictures read the same map. |
 
 ## New visible words for the localization list
 
-Names (Title Case): "Added", "Backed by a Document", "Suggested", "Sensitive", "Needs Fix", "Not Current".
+No new names: Entered, Suggested, Confirmed, Backed by a Document, Does Not Match and No Longer Current already exist in `FIELD_STATUS_WORDS`.
 
-Sentences:
-- Added: "You typed this in yourself, and it is not linked to any file."
+New sentences (the Explain notes):
+- Entered: "Saved in this record with no confirmation and no file behind it yet."
+- Suggested: "Offered by reading one of your files or by a connected app, and not confirmed yet."
+- Confirmed: "Confirmed by a person with access to this record, but not checked against a file."
 - Backed by a Document: "A file you uploaded shows the same value, which alone does not mean anyone has checked it."
-- Suggested: "Read from one of your files, and not saved until you confirm it."
-- Sensitive: "Hidden until you choose Show, and only you see it on this screen."
-- Needs Fix: "Something here does not fit, and its details say what to change."
-- Not Current: "This was true before and stays in your history, but it is not true now."
+- Does Not Match: "A file or a suggestion disagrees with the saved value, and the details show both."
+- No Longer Current: "Marked as no longer current, so it is not used as the value for today."
 
 The fixture's made-up words (section names, field labels) are test data, not product words.
+
+## For U4
+
+- Sensitive (a protection marker for hidden values, not a field state) was on the board but has no word in VOCABULARY.md; it was dropped from this unit. U4 decides its word and picture.
 
 ## Red then green
 
@@ -50,4 +57,7 @@ Review: /code-review high and an independent accessibility and design review (fr
 - Signed-in pages: the guard runs on fixture-mounted screens and public pages only (U1b brings a CI test user).
 - Safari and Firefox (only Chromium was run).
 - Remembering a section across visits (StickyDetails remembers within the page; no new storage, by design).
-- Bengali wording of the six names and sentences (listed above for the localization list).
+- Bengali wording of the six sentences (listed above for the localization list).
+- VoiceOver and NVDA: heading navigation inside a summary, and how the row's description is read.
+- Forced-colours mode and right-to-left layout in a real browser (rules written, not run).
+- A `#id` link opening a closed section (it scrolls to the card only, by design; a page sets `defaultOpen`).

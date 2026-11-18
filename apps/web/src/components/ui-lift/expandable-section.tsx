@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useId } from 'react';
 import { StickyDetails } from '../sticky-details';
 import type { LiftHeadingLevel } from './types';
 
@@ -13,12 +13,17 @@ export interface ExpandableSectionProps {
   /** A small picture at the start of the row (a document drawing, an area mark). Decorative. */
   readonly picture?: ReactNode;
   /**
-   * A status picture at the end of the row, for example `<StatusPicture kind="backed" />`. It is
-   * drawn beside the toggle, never inside it, so its Explain button is a control of its own and
-   * pressing it never opens or closes the section. In reading and focus order it comes just
-   * before the row, so it is never separated from the row by the open content.
+   * A status picture at the end of the row, for example `<StatusPicture kind="DOCUMENT_SUPPORTED" />`.
+   * It is drawn beside the toggle, never inside it, so its Explain button is a control of its own
+   * and pressing it never opens or closes the section. In page order it follows the section, so
+   * the row comes first; `statusDescription` lets the row itself say the status.
    */
   readonly status?: ReactNode;
+  /**
+   * The status in words, read as part of the row's description (for a status picture:
+   * `statusPictureWords(kind)`). Without it a screen reader meets the status only at its button.
+   */
+  readonly statusDescription?: ReactNode;
   /** What the section holds. Drawn with the same padding in every section. */
   readonly children: ReactNode;
   /** The heading level of the name inside the row, to fit the page's outline. Default 3. */
@@ -60,6 +65,7 @@ export function ExpandableSection({
   summary,
   picture,
   status,
+  statusDescription,
   children,
   headingLevel = 3,
   defaultOpen = false,
@@ -68,6 +74,19 @@ export function ExpandableSection({
   className,
 }: ExpandableSectionProps) {
   const Heading = `h${headingLevel}` as const;
+  const base = useId();
+  const titleId = `${base}-title`;
+  const summaryId = `${base}-summary`;
+  const statusId = `${base}-status`;
+  const describedBy = [summary ? summaryId : '', status && statusDescription ? statusId : '']
+    .filter(Boolean)
+    .join(' ');
+  // The row is named by its title alone and described by its summary line and status, so the
+  // name a screen reader announces for the toggle stays short.
+  const summaryProps = {
+    'aria-labelledby': titleId,
+    ...(describedBy ? { 'aria-describedby': describedBy } : {}),
+  };
   const row = (
     <>
       {picture ? (
@@ -75,8 +94,14 @@ export function ExpandableSection({
           {picture}
         </span>
       ) : null}
-      <Heading className="expandable-section-title">{title}</Heading>
-      {summary ? <span className="expandable-section-summary">{summary}</span> : null}
+      <Heading className="expandable-section-title" id={titleId}>
+        {title}
+      </Heading>
+      {summary ? (
+        <span className="expandable-section-summary" id={summaryId}>
+          {summary}
+        </span>
+      ) : null}
       <svg
         className="expandable-section-chevron"
         viewBox="0 0 24 24"
@@ -97,25 +122,31 @@ export function ExpandableSection({
       data-has-picture={picture ? 'true' : undefined}
       data-has-status={status ? 'true' : undefined}
     >
-      {status ? (
-        <span className="expandable-section-status" data-row-companion="">
-          {status}
-        </span>
-      ) : null}
       {remember ? (
         <StickyDetails
           className="expandable-section-details"
           initiallyOpen={defaultOpen}
           summary={row}
+          summaryProps={summaryProps}
         >
           {body}
         </StickyDetails>
       ) : (
         <details className="expandable-section-details" open={defaultOpen || undefined}>
-          <summary>{row}</summary>
+          <summary {...summaryProps}>{row}</summary>
           {body}
         </details>
       )}
+      {status ? (
+        <span className="expandable-section-status" data-row-companion="">
+          {status}
+        </span>
+      ) : null}
+      {status && statusDescription ? (
+        <span id={statusId} hidden>
+          {statusDescription}
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -39,11 +39,17 @@ export const CONTROL_SELECTOR = [
   'summary',
 ].join(', ');
 
+/** A control the cover check leaves out, always with the reason it does not apply. */
+export interface CoverIgnore {
+  readonly selector: string;
+  readonly reason: string;
+}
+
 export interface CoverOptions {
   /** Only controls inside this element (a CSS selector) are tested. Default: the whole page. */
   readonly within?: string;
-  /** Controls to leave out, as a CSS selector, each with its reason written next to the call. */
-  readonly ignore?: string;
+  /** Controls to leave out. Each needs a reason, written where the check is called. */
+  readonly ignore?: readonly CoverIgnore[];
 }
 
 /** The page's sideways overflow in CSS pixels; 0 when it fits. */
@@ -60,8 +66,17 @@ export async function expectNoSidewaysScroll(page: Page): Promise<void> {
 /**
  * Every visible control that something else paints over, as one readable line each: what the
  * control is, where it was pressed and what was hit instead. An empty list means none.
+ *
+ * Each control is tested where a person meets it: brought to the middle of the screen, reached
+ * from above (it arrives at the bottom edge, where fixed bars sit) and reached from below (it
+ * arrives at the top edge, under a sticky header), each as the browser scrolls to a focused
+ * control. At each place nine points are pressed: the centre, the four corners (2 px in, and
+ * inside a rounded corner's curve) and the middle of each edge (2 px in).
  */
 export async function coveredControls(page: Page, options: CoverOptions = {}): Promise<string[]> {
+  for (const rule of options.ignore ?? []) {
+    if (!rule.reason.trim()) throw new Error(`Ignored controls need a reason: ${rule.selector}`);
+  }
   return page.evaluate(
     ({ selector, within, ignore }) => {
       const describe = (el: Element): string => {
@@ -76,31 +91,59 @@ export async function coveredControls(page: Page, options: CoverOptions = {}): P
           .slice(0, 40);
         return `<${el.tagName.toLowerCase()}${id}${cls}>${words ? ` "${words}"` : ''}`;
       };
+      const inside = (r: DOMRect, x: number, y: number) =>
+        x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
       /**
        * A press here reaches the control: the control itself, inside it, or its own label. A row
        * may also declare a companion drawn in its own column on the row (`data-row-companion`, the
-       * status picture of an Expandable Section): a hit on the companion of the same card counts.
+       * status picture of an Expandable Section). A hit counts only inside the companion's own box
+       * (never on something it lets spill out) and only while the companion stays a narrow column.
        */
-      const reaches = (control: Element, hit: Element | null): boolean => {
+      const reaches = (control: Element, hit: Element | null, x: number, y: number): boolean => {
         if (!hit) return false;
         if (control === hit || control.contains(hit)) return true;
         const label = hit.closest('label');
         if (label && (label as HTMLLabelElement).control === control) return true;
-        // A companion is a narrow column: one that spreads over the row is a cover like any other.
         const companion = hit.closest('[data-row-companion]');
-        return Boolean(
-          control.tagName === 'SUMMARY' &&
-            companion?.parentElement?.contains(control) &&
-            companion.getBoundingClientRect().width <= control.getBoundingClientRect().width / 3,
+        if (control.tagName !== 'SUMMARY' || !companion?.parentElement?.contains(control)) {
+          return false;
+        }
+        const box = companion.getBoundingClientRect();
+        return inside(box, x, y) && box.width <= control.getBoundingClientRect().width / 3;
+      };
+      /** The nine points of a box, kept inside rounded corners. */
+      const pointsOf = (target: Element): [number, number][] => {
+        const r = target.getBoundingClientRect();
+        const style = getComputedStyle(target);
+        const radius = Math.min(
+          Number.parseFloat(style.borderTopLeftRadius) || 0,
+          r.width / 2,
+          r.height / 2,
         );
+        const corner = Math.min(2 + radius * 0.3, r.width / 2, r.height / 2);
+        const edge = Math.min(2, r.width / 2, r.height / 2);
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        return [
+          [cx, cy],
+          [r.left + corner, r.top + corner],
+          [r.right - corner, r.top + corner],
+          [r.left + corner, r.bottom - corner],
+          [r.right - corner, r.bottom - corner],
+          [cx, r.top + edge],
+          [cx, r.bottom - edge],
+          [r.left + edge, cy],
+          [r.right - edge, cy],
+        ];
       };
       const scope = within ? document.querySelector(within) : document;
       if (!scope) return [`no element matches ${within}`];
       const startX = window.scrollX;
       const startY = window.scrollY;
+      const go = (top: number) => window.scrollTo({ left: 0, top, behavior: 'instant' });
       const covered: string[] = [];
       for (const control of scope.querySelectorAll<HTMLElement>(selector)) {
-        if (ignore && control.matches(ignore)) continue;
+        if (ignore.some((rule) => control.matches(rule))) continue;
         // Inside a closed open-and-close section only its own row is drawn.
         let hiddenInFold = false;
         for (let fold = control.closest('details:not([open])'); fold; ) {
@@ -110,42 +153,75 @@ export async function coveredControls(page: Page, options: CoverOptions = {}): P
         if (hiddenInFold) continue;
         const style = getComputedStyle(control);
         if (style.visibility === 'hidden' || style.display === 'none') continue;
-        let rect = control.getBoundingClientRect();
-        // Visually hidden (a screen-reader-only field or a styled checkbox's real input).
-        if (rect.width < 4 || rect.height < 4) continue;
-        // Instant: the site scrolls smoothly, and a point read mid-scroll would miss the control.
-        control.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-        rect = control.getBoundingClientRect();
-        const centre: [number, number] = [rect.left + rect.width / 2, rect.top + rect.height / 2];
-        const points: [number, number][] = [
-          centre,
-          [rect.left + rect.width * 0.2, rect.top + rect.height * 0.3],
-          [rect.right - rect.width * 0.2, rect.top + rect.height * 0.3],
-          [rect.left + rect.width * 0.2, rect.bottom - rect.height * 0.3],
-          [rect.right - rect.width * 0.2, rect.bottom - rect.height * 0.3],
-        ];
-        const onScreen = points.filter(
-          ([x, y]) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight,
-        );
-        // A control that cannot be brought on screen cannot be pressed either.
-        if (onScreen.length === 0) {
-          covered.push(`${describe(control)} cannot be brought on screen`);
-          continue;
-        }
-        for (const [x, y] of onScreen) {
-          const hit = document.elementFromPoint(x, y);
-          if (!reaches(control, hit)) {
+        const own = control.getBoundingClientRect();
+        if (own.width === 0 && own.height === 0) continue; // not drawn at all
+        // A visually hidden field is pressed through its label; with no drawn label it is reported.
+        let target: Element = control;
+        if (own.width < 4 || own.height < 4) {
+          const labels =
+            'labels' in control ? [...((control as HTMLInputElement).labels ?? [])] : [];
+          const drawn = labels.find((l) => {
+            const r = l.getBoundingClientRect();
+            return r.width >= 4 && r.height >= 4;
+          });
+          if (!drawn) {
             covered.push(
-              `${describe(control)} at ${Math.round(x)},${Math.round(y)} is under ${hit ? describe(hit) : 'nothing'}`,
+              `${describe(control)} is too small to press (${Math.round(own.width)} by ${Math.round(own.height)} px) and has no drawn label`,
+            );
+            continue;
+          }
+          target = drawn;
+        }
+        const places: [string, () => void][] = [
+          [
+            'in the middle',
+            () => target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }),
+          ],
+          [
+            'reached from above',
+            () => {
+              go(0);
+              target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+            },
+          ],
+          [
+            'reached from below',
+            () => {
+              go(document.documentElement.scrollHeight);
+              target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+            },
+          ],
+        ];
+        let everOnScreen = false;
+        for (const [where, bring] of places) {
+          bring();
+          const onScreen = pointsOf(target).filter(
+            ([x, y]) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight,
+          );
+          if (onScreen.length === 0) continue;
+          everOnScreen = true;
+          const miss = onScreen.find(
+            ([x, y]) => !reaches(control, document.elementFromPoint(x, y), x, y),
+          );
+          if (miss) {
+            const hit = document.elementFromPoint(miss[0], miss[1]);
+            covered.push(
+              `${describe(control)} ${where}, at ${Math.round(miss[0])},${Math.round(miss[1])}, is under ${hit ? describe(hit) : 'nothing'}`,
             );
             break;
           }
         }
+        // A control that cannot be brought on screen cannot be pressed either.
+        if (!everOnScreen) covered.push(`${describe(control)} cannot be brought on screen`);
       }
       window.scrollTo({ left: startX, top: startY, behavior: 'instant' });
       return covered;
     },
-    { selector: CONTROL_SELECTOR, within: options.within, ignore: options.ignore },
+    {
+      selector: CONTROL_SELECTOR,
+      within: options.within,
+      ignore: (options.ignore ?? []).map((rule) => rule.selector),
+    },
   );
 }
 

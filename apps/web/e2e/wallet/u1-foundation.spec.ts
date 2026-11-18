@@ -21,7 +21,14 @@ import {
  */
 
 const FIXTURE = 'wal1-foundation';
-const KINDS = ['added', 'backed', 'suggested', 'sensitive', 'needsFix', 'notCurrent'] as const;
+const KINDS = [
+  'DECLARED',
+  'EXTRACTED_PENDING',
+  'APPLICANT_CONFIRMED',
+  'DOCUMENT_SUPPORTED',
+  'CONFLICTED',
+  'STALE',
+] as const;
 
 /**
  * The fixture as a server renders it: one self-contained server bundle (the fixture, React and
@@ -112,13 +119,30 @@ test.describe('WAL1 Expandable Section', () => {
   });
 
   test('Enter and Space toggle a section from the keyboard', async ({ page }) => {
-    await row(page, 'added').focus();
+    await row(page, 'DECLARED').focus();
     await page.keyboard.press('Enter');
-    expect(await isOpen(page, 'added')).toBe(true);
+    expect(await isOpen(page, 'DECLARED')).toBe(true);
     await page.keyboard.press('Space');
-    expect(await isOpen(page, 'added')).toBe(false);
+    expect(await isOpen(page, 'DECLARED')).toBe(false);
     await page.keyboard.press('Space');
-    expect(await isOpen(page, 'added')).toBe(true);
+    expect(await isOpen(page, 'DECLARED')).toBe(true);
+  });
+
+  test('Tab meets the row first, then its status; the row says its name and status', async ({
+    page,
+  }) => {
+    const summary = row(page, 'DOCUMENT_SUPPORTED');
+    await expect(summary).toHaveAccessibleName('Backed by a Document Details');
+    await expect(summary).toHaveAccessibleDescription(/Backed by a Document\./);
+    await expect(summary).toHaveAccessibleDescription(/does not mean anyone has checked it/);
+    await summary.focus();
+    await page.keyboard.press('Tab');
+    const focused = page.locator(':focus');
+    await expect(focused).toHaveClass(/explain-tip-trigger/);
+    await expect(focused).toHaveText('Backed by a Document');
+    expect(await focused.evaluate((el) => el.closest('.expandable-section')?.id)).toBe(
+      'section-DOCUMENT_SUPPORTED',
+    );
   });
 
   test('every row and every status picture is a 44 px target', async ({ page }) => {
@@ -132,7 +156,7 @@ test.describe('WAL1 Expandable Section', () => {
   test('the Explain note opens on focus and tap, Escape closes it, the section never toggles', async ({
     page,
   }) => {
-    const tip = page.locator('.wal1-section-backed .explain-tip');
+    const tip = page.locator('.wal1-section-DOCUMENT_SUPPORTED .explain-tip');
     const popup = tip.locator('.explain-tip-popup');
     await tip.locator('.explain-tip-trigger').focus();
     await expect(popup).toBeVisible();
@@ -142,10 +166,10 @@ test.describe('WAL1 Expandable Section', () => {
     await expect(popup).toBeHidden();
     await tip.locator('.explain-tip-trigger').click();
     await expect(popup).toBeVisible();
-    expect(await isOpen(page, 'backed')).toBe(false);
+    expect(await isOpen(page, 'DOCUMENT_SUPPORTED')).toBe(false);
     await page.keyboard.press('Escape');
     await expect(popup).toBeHidden();
-    expect(await isOpen(page, 'backed')).toBe(false);
+    expect(await isOpen(page, 'DOCUMENT_SUPPORTED')).toBe(false);
   });
 
   test('a wrapping summary moves nothing: picture, status and chevron stay put', async ({
@@ -166,8 +190,8 @@ test.describe('WAL1 Expandable Section', () => {
           title: at('.expandable-section-title'),
         };
       });
-    const short = await offsets('added');
-    for (const kind of ['backed', 'suggested', 'needsFix', 'notCurrent']) {
+    const short = await offsets('DECLARED');
+    for (const kind of ['DOCUMENT_SUPPORTED', 'EXTRACTED_PENDING', 'CONFLICTED', 'STALE']) {
       const rowHeight = await row(page, kind).evaluate((el) => el.getBoundingClientRect().height);
       expect(rowHeight, `${kind} wraps`).toBeGreaterThan(60);
       expect(await offsets(kind), kind).toEqual(short);
@@ -176,9 +200,9 @@ test.describe('WAL1 Expandable Section', () => {
 
   test('reduced motion: the chevron shows its finished position at once', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    const chevron = section(page, 'added').locator('.expandable-section-chevron');
+    const chevron = section(page, 'DECLARED').locator('.expandable-section-chevron');
     expect(await chevron.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s');
-    await row(page, 'added').click();
+    await row(page, 'DECLARED').click();
     expect(await chevron.evaluate((el) => getComputedStyle(el).transform)).toBe(
       'matrix(0, 1, -1, 0, 0, 0)',
     );
@@ -235,15 +259,15 @@ test('WAL1 Expandable Section works with script switched off, from the server ma
     );
     await still.goto(`${origin}/__wal1-without-script`);
     expect(await still.evaluate(() => document.querySelectorAll('script').length)).toBe(0);
-    await expect(section(still, 'needsFix')).not.toHaveAttribute('open');
-    await row(still, 'needsFix').click();
-    await expect(section(still, 'needsFix').locator('.expandable-section-body')).toBeVisible();
-    await row(still, 'needsFix').focus();
+    await expect(section(still, 'CONFLICTED')).not.toHaveAttribute('open');
+    await row(still, 'CONFLICTED').click();
+    await expect(section(still, 'CONFLICTED').locator('.expandable-section-body')).toBeVisible();
+    await row(still, 'CONFLICTED').focus();
     await still.keyboard.press('Enter');
-    await expect(section(still, 'needsFix').locator('.expandable-section-body')).toBeHidden();
+    await expect(section(still, 'CONFLICTED').locator('.expandable-section-body')).toBeHidden();
     // Before any script the Explain notes stay closed and the names are still there to be read.
     await expect(still.locator('.explain-tip-popup').first()).toBeHidden();
-    await expect(still.locator('.wal1-section-backed .explain-tip-trigger')).toHaveText(
+    await expect(still.locator('.wal1-section-DOCUMENT_SUPPORTED .explain-tip-trigger')).toHaveText(
       'Backed by a Document',
     );
     await expectNoSidewaysScroll(still);
@@ -269,7 +293,9 @@ test.describe('WAL1 the guards themselves can fail', () => {
       </main>`);
     const covered = await coveredControls(page);
     expect(covered).toHaveLength(1);
-    expect(covered[0]).toMatch(/<button> "Save" at \d+,\d+ is under <div\.floating-add>/);
+    expect(covered[0]).toMatch(
+      /<button> "Save" in the middle, at \d+,\d+, is under <div\.floating-add>/,
+    );
   });
 
   test('a control inside a closed section is not tested; its row is', async ({ page }) => {
@@ -292,7 +318,7 @@ test.describe('WAL1 the guard reads a row companion and an unreachable control',
     expect(await coveredControls(page)).toEqual([]);
     await page.setContent(card('100%'));
     expect(await coveredControls(page)).toEqual([
-      expect.stringMatching(/<summary> "Row" at \d+,\d+ is under <span>/),
+      expect.stringMatching(/<summary> "Row" in the middle, at \d+,\d+, is under <span>/),
     ]);
   });
 
@@ -303,6 +329,74 @@ test.describe('WAL1 the guard reads a row companion and an unreachable control',
     expect(await coveredControls(page)).toEqual([
       expect.stringMatching(/<button> "Lost" cannot be brought on screen/),
     ]);
+  });
+});
+
+test.describe('WAL1 the guard meets controls where a person does', () => {
+  test('a sticky header over a control reached from below is named', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setContent(`<main>
+      <header class="bar" style="position:sticky;top:0;height:90px;background:#fff;z-index:2">Top</header>
+      <div style="height:1200px"></div>
+      <button style="display:block;width:200px;height:44px">Send</button>
+      <div style="height:1200px"></div></main>`);
+    const covered = await coveredControls(page);
+    expect(covered).toEqual([
+      expect.stringMatching(
+        /<button> "Send" reached from below, at \d+,\d+, is under <header\.bar>/,
+      ),
+    ]);
+  });
+
+  test('a control too small to press, with no drawn label, is reported', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setContent(`<main>
+      <input id="tiny" style="width:2px;height:2px">
+      <input id="styled" type="checkbox" style="position:absolute;width:1px;height:1px;opacity:0">
+      <label for="styled" style="display:inline-block;min-height:44px;padding:12px">Styled Choice</label>
+      </main>`);
+    expect(await coveredControls(page)).toEqual([
+      expect.stringMatching(
+        /<input#tiny> is too small to press \(2 by 2 px\) and has no drawn label/,
+      ),
+    ]);
+  });
+
+  test('a control can be left out only with a reason', async ({ page }) => {
+    await page.setContent('<main><button>One</button></main>');
+    await expect(
+      coveredControls(page, { ignore: [{ selector: 'button', reason: ' ' }] }),
+    ).rejects.toThrow(/need a reason/);
+    expect(
+      await coveredControls(page, {
+        ignore: [{ selector: 'button', reason: 'Self-test: the reason is required and present.' }],
+      }),
+    ).toEqual([]);
+  });
+
+  test('under the real stylesheet, a fixed bar over a section control is named', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await renderFixture(page, FIXTURE, { open: true });
+    await page.evaluate(() => {
+      const bar = document.createElement('nav');
+      bar.className = 'wal1-test-bar';
+      Object.assign(bar.style, {
+        position: 'fixed',
+        left: '0',
+        right: '0',
+        bottom: '0',
+        height: '96px',
+        background: 'var(--bg-elevated)',
+        zIndex: '50',
+      });
+      document.body.append(bar);
+    });
+    const covered = await coveredControls(page, { within: '.wal1-fixture-sections' });
+    expect(covered.length).toBeGreaterThan(0);
+    for (const line of covered)
+      expect(line).toMatch(/reached from above, at \d+,\d+, is under <nav\.wal1-test-bar>/);
   });
 });
 
