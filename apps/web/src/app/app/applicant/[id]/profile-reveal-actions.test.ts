@@ -304,5 +304,22 @@ describe('revealProfileValueAction', () => {
     const rows = await events();
     expect(rows.map((row) => row.reason)).toEqual(['refused', 'refused', 'malformed_id']);
     expect(rows.every((row) => row.applicantId === null)).toBe(true);
+    // A made-up record and someone else's real one leave identical rows, apart from the ids asked
+    // for and the chain fields.
+    const shape = (row: (typeof rows)[number]) => ({
+      eventType: row.eventType,
+      actorAccountId: row.actorAccountId,
+      actorRole: row.actorRole,
+      action: row.action,
+      result: row.result,
+      method: row.method,
+      applicantId: row.applicantId,
+      resourceType: row.resourceType,
+      reason: row.reason,
+      metadataKeys: Object.keys((row.metadata ?? {}) as object).sort(),
+    });
+    expect(shape(rows[0] as (typeof rows)[number])).toEqual(
+      shape(rows[1] as (typeof rows)[number]),
+    );
   });
 });
