@@ -8680,3 +8680,10 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Proof: em dash count 0; tests that read these docs run; every PR number and merge sha read from git history on main 769e43ea.
 - Not verified: live behaviour of any unit (this change only records it); current-platform.md was not re-read.
 - Follow-ups: PARITY-LEDGER and the Small Commercial handoff section M rows for the new units.
+
+NAV2 header and footer
+
+- Behaviour: the public header is one row at every width (320 to 1920 px, English and Bengali): every link and button is one line; below 1150 px (English) or 1230 px (Bengali) the pages, the language switch and the quiet Sign In move into the menu, which closes on Escape, on a press outside and when focus leaves it; Get Started (else Sign In or Workspace) stays in the bar; the current page has aria-current and a marker bar. The footer has Product, Trust and Account groups, one line about VisaStack, the copyright and the page's own version line, read from new Bengali-ready catalogue keys; on a phone its links flow in rows to keep the page height budgets. The public header and footer stay hidden inside the signed-in app and the sign-in frame.
+- Proof: new e2e `apps/web/e2e/public-site/nav2-header-footer.spec.ts` (36 tests, 20 of the first 32 fail on a build of main) and unit `apps/web/src/app/layout-header-footer.test.tsx`; measured full-row widths 1132 px (English) and 1211 px (Bengali); whole browser suite green on one build with sign-up open and closed apart from the two known WP-SB2 real case page tests; em dash 0. Records: docs/upgrades/programme/pub/NAV2-records.md.
+- Not verified: Safari and real phones, a screen reader pass, browser text sizes above 100 percent (200 percent was checked with a stylesheet text size), a real signed-in session, the owner's reading of the design and the new Bengali words.
+- Follow-ups: new Bengali words for localization review (list in NAV2-records.md); unused `.footer-inner` and `.footer-links` rules and the `home.layout.features` and `home.layout.publicTrust` keys for the tidy-up unit.

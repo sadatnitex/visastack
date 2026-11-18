@@ -23798,6 +23798,523 @@ a.passport-page-value:hover {
   opacity: 0.6;
 }
 /* end WP-FIX9 */
+
+/* WP-NAV2 header and footer (18 Nov 2026). One calm header row: the brand on the left, the five pages in the middle, the actions on the right, every item on one line at every width. When the row would not fit (the width is measured per language, see docs/upgrades/programme/pub/NAV2-records.md) the pages, the language switch and the quiet sign-in move into the menu and the one action that matters stays in the bar. The two menu rule sets below are the same rules under two language guards (and two widths): change both together. The bar stays solid white with a hairline edge, so it reads over light and dark sections alike. The current page has a marker bar as well as a darker colour. The footer is a quiet closing in three groups; on a phone the groups stack with 44 px targets. */
+.nav {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  align-items: center;
+  column-gap: 20px;
+  flex-wrap: nowrap;
+  padding: 0 20px 0 26px;
+}
+.nav .brand,
+.site-footer .brand {
+  min-height: 44px;
+}
+.nav .brand {
+  justify-self: start;
+  white-space: nowrap;
+}
+.site-navigation,
+.site-menu-panel {
+  display: contents;
+}
+.site-menu-extras {
+  display: none;
+}
+.nav-links {
+  grid-column: 2;
+  justify-content: center;
+  width: auto;
+  gap: 0;
+}
+.site-nav-pages {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+}
+.nav-links a:not(.btn) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: 620;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.nav-links a:not(.btn):hover {
+  background: var(--bg-subtle);
+}
+.nav-links a[aria-current="page"] {
+  color: var(--text);
+}
+.nav-links a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 10px 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.site-nav-actions {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.site-nav-actions > * {
+  flex: none;
+}
+.site-nav-actions form {
+  margin: 0;
+}
+.site-nav-actions .lang-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: 560;
+  white-space: nowrap;
+}
+.site-nav-actions .lang-switch:hover {
+  background: var(--bg-subtle);
+  text-decoration: none;
+  color: var(--text);
+}
+.site-nav-actions .nav-cta {
+  padding: 0 20px;
+  font-size: var(--text-small);
+  white-space: nowrap;
+}
+.site-nav-actions .btn-primary {
+  color: #ffffff;
+}
+.site-nav-actions .nav-signin {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+}
+.site-nav-actions .nav-signin:hover {
+  background: var(--bg-subtle);
+  border-color: transparent;
+}
+.site-menu-toggle {
+  display: none;
+  white-space: nowrap;
+}
+.menu-lang,
+.menu-signin {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 620;
+  text-align: start;
+  cursor: pointer;
+}
+.menu-lang:hover,
+.menu-signin:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+  text-decoration: none;
+}
+@media (max-width: 71.875em) {
+  html:not([data-locale="bn"]) .nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    height: auto;
+    min-height: 64px;
+    margin-top: 16px;
+    padding: 8px 10px 8px 18px;
+    border-radius: 28px;
+    position: sticky;
+    column-gap: 8px;
+    row-gap: 4px;
+  }
+  html:not([data-locale="bn"]) .nav .brand {
+    margin-inline-end: auto;
+    font-size: 1.25rem;
+  }
+  html:not([data-locale="bn"]) .site-navigation {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-bar-only,
+  html:not([data-locale="bn"]) .site-navigation .site-nav-actions .lang-form {
+    display: none;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-toggle {
+    display: inline-flex;
+    order: 3;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(340px, calc(100vw - 32px));
+    padding: 10px;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--edge-control);
+    border-radius: 20px;
+    background: #ffffff;
+    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  html:not([data-locale="bn"]) .site-navigation[data-open="true"] .site-menu-panel {
+    display: flex;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-panel .nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    position: static;
+    background: none;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-pages {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin: 0;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-pages a:not(.btn) {
+    display: flex;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: var(--text-body);
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-pages a[aria-current="page"]::after {
+    inset: 12px auto 12px 0;
+    width: 3px;
+    height: auto;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-extras {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hairline-soft);
+  }
+}
+@media (max-width: 76.875em) {
+  html[data-locale="bn"] .nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    height: auto;
+    min-height: 64px;
+    margin-top: 16px;
+    padding: 8px 10px 8px 18px;
+    border-radius: 28px;
+    position: sticky;
+    column-gap: 8px;
+    row-gap: 4px;
+  }
+  html[data-locale="bn"] .nav .brand {
+    margin-inline-end: auto;
+    font-size: 1.25rem;
+  }
+  html[data-locale="bn"] .site-navigation {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+  html[data-locale="bn"] .site-navigation .site-bar-only,
+  html[data-locale="bn"] .site-navigation .site-nav-actions .lang-form {
+    display: none;
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-toggle {
+    display: inline-flex;
+    order: 3;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(340px, calc(100vw - 32px));
+    padding: 10px;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--edge-control);
+    border-radius: 20px;
+    background: #ffffff;
+    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  html[data-locale="bn"] .site-navigation[data-open="true"] .site-menu-panel {
+    display: flex;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-panel .nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    position: static;
+    background: none;
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-pages {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin: 0;
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-pages a:not(.btn) {
+    display: flex;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: var(--text-body);
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-pages a[aria-current="page"]::after {
+    inset: 12px auto 12px 0;
+    width: 3px;
+    height: auto;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-extras {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hairline-soft);
+  }
+}
+@media (max-width: 400px) {
+  html[data-locale] .site-navigation .site-menu-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  html[data-locale] .site-navigation .site-menu-toggle {
+    min-width: 44px;
+    padding: 0;
+  }
+  html[data-locale] .nav {
+    width: calc(100% - 16px);
+    padding-inline: 14px 8px;
+  }
+  html[data-locale] .nav .brand {
+    font-size: 1.125rem;
+    gap: 7px;
+  }
+  html[data-locale] .site-navigation .site-nav-actions .nav-cta {
+    padding: 0 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  html[data-locale] .nav .brand {
+    font-size: 1.0625rem;
+    gap: 6px;
+  }
+  html[data-locale] .site-navigation {
+    gap: 6px;
+  }
+  html[data-locale] .site-navigation .site-nav-actions .nav-cta {
+    padding: 0 12px;
+  }
+}
+
+.site-footer {
+  padding: clamp(40px, 6vw, 72px) 0 0;
+  border-top: 1px solid var(--hairline);
+  background: var(--brand-tint-1);
+  color: var(--text-secondary);
+}
+.site-footer-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: start;
+  justify-content: normal;
+}
+.site-footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.site-footer-about {
+  max-width: 34ch;
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.site-footer-beta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 620;
+  line-height: 1.4;
+  color: var(--text);
+}
+.site-footer-beta::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.site-footer-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.site-footer-heading {
+  margin: 0 0 6px;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+.site-footer-group ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.site-footer-group a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-small);
+  font-weight: 560;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.site-footer-group a:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.site-footer-base {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 24px;
+  margin-top: clamp(24px, 4vw, 40px);
+  padding-block: 20px;
+  border-top: 1px solid var(--hairline);
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+/* On a phone the footer has to stay about as short as it was (the page height budgets): the three
+   groups keep their lists and their names for a screen reader, and their links flow in rows of
+   44 px targets (the rows overlap by the extra height, as the old footer links did). */
+@media (max-width: 760px) {
+  .site-footer {
+    padding-top: 4px;
+  }
+  .site-footer-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .site-footer-brand {
+    gap: 0;
+  }
+  .site-footer-about {
+    font-size: var(--text-small);
+    line-height: 1.3;
+  }
+  .site-footer-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 14px;
+  }
+  .site-footer-group,
+  .site-footer-group ul {
+    display: contents;
+  }
+  .site-footer-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .site-footer-group a {
+    margin-block: -9px;
+  }
+  .site-footer-base {
+    margin-top: 0;
+    padding-block: 4px;
+  }
+}
+/* The public header and footer never show inside the signed-in app or the sign-in frame (the rule near the top of the file, kept above the header's own display rules). */
+html body:has(.app-frame) > .nav,
+html body:has(.auth-shell) > .nav,
+html body:has(.app-frame) > .footer,
+html body:has(.auth-shell) > .footer {
+  display: none;
+}
+@media (forced-colors: active) {
+  .nav-links a[aria-current="page"]::after {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}
+/* end WP-NAV2 */
+
 /* WP-ESS1 Profile read rows (18 Nov 2026, owner question on Essentials First): a saved detail reads as one row (name, value, Show for a protected one, Edit) and its box opens only on Edit; the history tools (the date it became true, last confirmed, where it came from, how it was checked, No Longer Current) sit behind one closed Details per row. Essentials First lists only the essentials the Passport Page Card does not show, so the top of the page draws each detail once. Flat: tokens and a hairline only, no shadow, no gradient, no motion. Every control is at least 44 px. */
 .profile-field-row {
   display: flex;

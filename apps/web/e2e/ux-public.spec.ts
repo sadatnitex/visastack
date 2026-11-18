@@ -982,7 +982,10 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(menu).toBeFocused();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
-    await page.getByRole('link', { name: 'How It Works', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Site', exact: true })
+      .getByRole('link', { name: 'How It Works', exact: true })
+      .click();
     // WP-PUB3 (approved guard correction): the menu link opens the How It Works page.
     await expect(page).toHaveURL(/\/how-it-works$/);
     await expect(page.locator('main h1')).toHaveCount(1);

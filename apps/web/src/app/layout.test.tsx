@@ -167,16 +167,20 @@ describe('the public site frame (WP-PUB1)', () => {
     }
   });
 
-  it('keeps every footer link it had before', async () => {
+  it('keeps every footer destination it had, under the one name each page has (NAV2)', async () => {
     const foot = footer(await renderServer(RootLayout({ children: <p>Page</p> })));
     for (const fragment of [
-      'href="/#capabilities">Features</a>',
-      'href="/trust">Public Trust</a>',
+      // The public pages, named as the header names them (owner, 17 Nov 2026).
+      'href="/how-it-works">How It Works</a>',
+      'href="/trust">Privacy and Trust</a>',
+      'href="/countries">Countries</a>',
+      'href="/for-agencies">For Agencies</a>',
       'href="/status">Status</a>',
       'href="/status#about-this-version">About This Version</a>',
       'href="/privacy">Privacy</a>',
       'href="/terms">Terms</a>',
       'href="/app">Sign In</a>',
+      'href="/auth/sign-up">Get Started</a>',
     ])
       expect(foot, fragment).toContain(fragment);
   });

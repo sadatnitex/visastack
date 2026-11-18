@@ -85,11 +85,16 @@ describe('page titles', () => {
       "'home.layout.privacyAndControl': 'Privacy and Control'",
     );
     // WP-PUB1 (owner, 17 Nov 2026; approved guard correction): the header names /trust
-    // "Privacy and Trust" from the one public list, and the footer keeps its own /trust link.
+    // "Privacy and Trust" from the one public list. WP-NAV2 (Guardian, 18 Nov 2026; approved guard
+    // correction): the footer draws /trust from the same list, so it carries the same name.
     expect(PUBLIC_NAV.find((entry) => entry.route === '/trust')?.label).toBe('Privacy and Trust');
     const layout = readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8');
     expect(layout).toContain('publicNavLinks(');
-    expect(layout).toContain('<Link href="/trust">{t.node(\'home.layout.publicTrust\')}</Link>');
+    // The header (not only the footer) draws its pages from that one list.
+    expect(layout).toContain('const links = publicNavLinks(undefined, { signedIn });');
+    expect(layout).toMatch(/<SiteNavigation[\s\S]*?pages=\{links\.map\(/);
+    expect(layout).toMatch(/<SiteFooter[\s\S]*?pages=\{links\}/);
+    expect(layout).not.toContain('home.layout.publicTrust');
     // WP-PUB4 (Guardian, 18 Nov 2026): the public page is told apart from the signed-in "Countries" by its tab title.
     expect(titleOf('countries/page.tsx')).toBe('Countries and Sources');
     expect(titleOf('for-agencies/page.tsx')).toBe('For Agencies');
@@ -108,14 +113,15 @@ describe('landmarks', () => {
   const read = (file: string) => readFileSync(join(APP_DIR, file), 'utf8');
 
   it('tells public and workspace navigation landmarks apart', () => {
-    expect(read('layout.tsx')).toContain('<SiteNavigation>');
+    // WP-NAV2 (approved guard correction): the header hands its pages and actions to the component.
+    expect(read('layout.tsx')).toContain('<SiteNavigation');
     // The label comes from the message catalogue; its English text is still "Site".
     expect(read('../components/site-navigation.tsx')).toContain(
       "aria-label={t('components.siteNavigation.site')}",
     );
     expect(read('../i18n/components.ts')).toContain("'components.siteNavigation.site': 'Site'");
     // The label comes from the message catalogue; its English text is still "Footer".
-    expect(read('layout.tsx')).toContain("aria-label={t('home.layout.footer')}");
+    expect(read('../components/site-footer.tsx')).toContain("aria-label={t('home.layout.footer')}");
     expect(read('../i18n/home.ts')).toContain("'home.layout.footer': 'Footer'");
     // The label now comes from the message catalogue; its English text is still "Workspace".
     expect(read('app/app-nav.tsx')).toContain("aria-label={t('appHome.appAppNav.workspace')}");
