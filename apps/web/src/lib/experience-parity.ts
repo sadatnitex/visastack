@@ -68,6 +68,11 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
     from: 'app/invitation/accept-paths.ts',
     contains: 'sharing-invitations/accept',
   },
+  // DECL1: reached only by the decline redirect, the same from all four accept screens.
+  '/app/invitations/declined': link(
+    'app/app/sharing-invitations/accept/actions.ts',
+    "redirect('/app/invitations/declined')",
+  ),
 
   // One traveller: Home and the three entry points, their tasks and More Tools.
   '/app/applicant/[id]': nav,
