@@ -17,6 +17,8 @@ const FINAL: Record<(typeof SCENES)[number], string> = {
   journey: '0',
   share: '3',
 };
+/** Where each scene ends after playing in reveal mode: the journey plays on to its last stage (PUBFIX2 P2-7). */
+const PLAYED_TO: Record<(typeof SCENES)[number], string> = { ...FINAL, journey: '6' };
 
 const html = (page: Page) => page.locator('html');
 
@@ -108,7 +110,7 @@ test.describe('phone, 390 x 844, motion welcome', () => {
     for (const name of SCENES) {
       const scene = page.locator(`[data-scene="${name}"]`);
       await expect(scene, name).toHaveAttribute('data-reveal', /^(done|snapped)$/);
-      await expect(scene, name).toHaveAttribute('data-step', FINAL[name]);
+      await expect(scene, name).toHaveAttribute('data-step', PLAYED_TO[name]);
       expect(await scene.evaluate((el) => (el as HTMLElement).style.getPropertyValue('--p'))).toBe(
         '',
       );

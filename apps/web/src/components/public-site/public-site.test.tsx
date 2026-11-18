@@ -33,6 +33,24 @@ describe('Scene', () => {
     expect(out).toContain('aria-labelledby="add-title"');
     expect(out).toContain('class="pub-scene-stage"');
   });
+  it('writes data-play-to only when a scene has its own end, kept inside its steps (PUBFIX2 P2-7)', () => {
+    const play = (value: number) =>
+      renderToStaticMarkup(
+        <Scene name="y" len={2} steps={4} finalStep={0} playTo={value}>
+          <p>x</p>
+        </Scene>,
+      );
+    expect(play(3)).toContain('data-play-to="3"');
+    expect(play(9)).toContain('data-play-to="3"');
+    expect(
+      renderToStaticMarkup(
+        <Scene name="z" len={2} steps={4}>
+          <p>x</p>
+        </Scene>,
+      ),
+    ).not.toContain('data-play-to');
+  });
+
   it('repeats the finished step as data-rest, which reveal mode lays words out by (MOT1)', () => {
     expect(
       html(

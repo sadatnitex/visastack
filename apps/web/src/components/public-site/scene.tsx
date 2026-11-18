@@ -14,6 +14,12 @@ export interface SceneProps {
   readonly steps: number;
   /** The step shown without motion (no JavaScript) and where a scene ends. Default: the last. */
   readonly finalStep?: number;
+  /**
+   * Reveal mode only (phones, short or zoomed windows; not gentle): the step the scene plays up to
+   * when it comes into view, and rests on after. The server still writes `finalStep`, so without
+   * script and with reduced motion the scene rests there. Default: the same as the finished step.
+   */
+  readonly playTo?: number;
   /** The heading that names the scene. */
   readonly labelledBy?: string;
   /**
@@ -51,6 +57,7 @@ export function Scene({
   len,
   steps,
   finalStep,
+  playTo,
   labelledBy,
   minWidth,
   kitStage,
@@ -67,6 +74,7 @@ export function Scene({
       data-steps={count}
       data-step={last}
       data-rest={last}
+      {...(playTo === undefined ? {} : { 'data-play-to': whole(playTo, 0, count - 1) })}
       {...(kitStage ? { 'data-kit-stage': '' } : {})}
       {...(minWidth ? { 'data-min-width': whole(minWidth, 1, 4000) } : {})}
       aria-labelledby={labelledBy}

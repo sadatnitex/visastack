@@ -20,6 +20,8 @@ describe('Home: where each scene rests (PUBFIX2 P2-7)', () => {
     const journey = scene('journey');
     expect(journey?.getAttribute('data-step')).toBe('0');
     expect(journey?.getAttribute('data-rest')).toBe('0');
+    // On a phone it then plays on to its last stage (reveal mode reads this).
+    expect(journey?.getAttribute('data-play-to')).toBe('6');
     // The scenes that tell a finished story keep their last step.
     expect(scene('share')?.getAttribute('data-rest')).toBe('3');
     expect(scene('ready')?.getAttribute('data-rest')).toBe('2');

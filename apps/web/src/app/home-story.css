@@ -476,3 +476,30 @@ html[data-scenes="live"] .hs-scene .pub-scene-stage {
     gap: var(--space-2);
   }
 }
+
+/* WP-PUBFIX2 P2-7 phone journey. In reveal mode the stage card follows the stage that is playing
+   (the generic reveal rules keep the words of the finished step, because showing and hiding words
+   changes layout). Here the seven stages sit in one cell, so the card is as tall as the tallest and
+   nothing moves; only opacity changes, with a short fade. */
+html[data-scenes="reveal"] .pub-scene .hs-journey .kit-stage.kit-sw[data-at] {
+  display: grid;
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+}
+
+html[data-scenes="reveal"]
+  :is(
+    .pub-scene[data-step="0"] .hs-journey .kit-stage[data-at="0"],
+    .pub-scene[data-step="1"] .hs-journey .kit-stage[data-at="1"],
+    .pub-scene[data-step="2"] .hs-journey .kit-stage[data-at="2"],
+    .pub-scene[data-step="3"] .hs-journey .kit-stage[data-at="3"],
+    .pub-scene[data-step="4"] .hs-journey .kit-stage[data-at="4"],
+    .pub-scene[data-step="5"] .hs-journey .kit-stage[data-at="5"],
+    .pub-scene[data-step="6"] .hs-journey .kit-stage[data-at="6"]
+  ) {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.35s ease;
+}

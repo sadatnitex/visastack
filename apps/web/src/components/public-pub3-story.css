@@ -343,6 +343,13 @@
     display: none;
   }
 
+  /* PUBFIX2 P2-3: the first phone screen holds 30 words or fewer. The line under the headline is the
+     first sentence of the first promise (Private by Default), so a phone opens on the headline,
+     the start button and the picture, and reads the line in the promises. */
+  .tr-hero .kit-sub {
+    display: none;
+  }
+
   .tr-hero-grid,
   .tr-wrap {
     gap: var(--space-3);

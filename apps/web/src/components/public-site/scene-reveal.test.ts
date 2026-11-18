@@ -328,6 +328,36 @@ describe('reveal mode', () => {
     mode = 'reveal';
   });
 
+  it('a scene with its own end (data-play-to) rests on the server step, plays up to its end in reveal mode, and keeps resting in gentle mode (PUBFIX2 P2-7)', () => {
+    const element = scene(7, 0, 'journey');
+    element.setAttribute('data-play-to', '6');
+    const handle = start();
+    expect(step(element)).toBe('0');
+    near(element);
+    see(element, 'yes');
+    expect(element.getAttribute('data-reveal')).toBe('playing');
+    const seen = [step(element)];
+    for (let i = 0; i < 7; i += 1) {
+      vi.advanceTimersByTime(stepEvery(6) + 10);
+      if (seen[seen.length - 1] !== step(element)) seen.push(step(element));
+    }
+    expect(seen).toEqual(['0', '1', '2', '3', '4', '5', '6']);
+    expect(element.getAttribute('data-reveal')).toBe('done');
+    handle.stop();
+    expect(step(element)).toBe('0');
+
+    mode = 'gentle';
+    const calm = scene(7, 0, 'journey-gentle');
+    calm.setAttribute('data-play-to', '6');
+    const gentle = start();
+    near(calm);
+    see(calm, 'yes');
+    vi.advanceTimersByTime(5000);
+    expect(step(calm)).toBe('0');
+    gentle.stop();
+    mode = 'reveal';
+  });
+
   it('never changes a scene more than three times a second, however many steps it has', () => {
     for (let last = 1; last <= 11; last++) {
       expect(stepEvery(last)).toBeGreaterThanOrEqual(334);

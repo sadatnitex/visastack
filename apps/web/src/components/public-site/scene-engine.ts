@@ -105,6 +105,8 @@ interface Tracked {
   /** The narrowest screen on which this scene moves (data-min-width); below it, it rests finished. */
   readonly minWidth: number;
   readonly finished: string | null;
+  /** Reveal mode only: the step a scene plays up to (data-play-to), or null. */
+  readonly playTo: number | null;
   /** What the engine last wrote, so an unchanged value is never written again. */
   p: string;
   step: string;
@@ -133,6 +135,9 @@ export function startScenes(root: Document | Element, options: SceneOptions): Sc
       steps: Number(element.getAttribute('data-steps') ?? '1') || 1,
       minWidth: Number(element.getAttribute('data-min-width') ?? '0') || 0,
       finished: element.getAttribute('data-step'),
+      playTo: element.hasAttribute('data-play-to')
+        ? Number(element.getAttribute('data-play-to'))
+        : null,
       p: '',
       step: element.getAttribute('data-step') ?? '',
     }),
