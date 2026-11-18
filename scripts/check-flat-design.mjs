@@ -5,15 +5,8 @@ import postcss from 'postcss';
 import ts from 'typescript';
 
 /**
- * Owner decision D1 (Programme X, 24 Oct 2026): the public landing keeps the approved Harbor
- * look, which uses soft shadows, gradients and floating cards. Kept exported for older callers.
- */
-export const LANDING_EFFECTS_EXCEPTION = 'apps/web/src/app/landing-c1.css';
-
-/**
  * The only stylesheets that may use shadows, gradients, blur and translucency. Every other file
  * keeps the full flat rule, and automatic dark appearance stays forbidden in these too.
- * - the landing (owner decision D1, 24 Oct 2026)
  * - the picture stylesheet for illustrations and hero cards (ADR 0027, owner decision D2,
  *   17 Nov 2026)
  * - the one depth stylesheet for the public site's scroll scenes (ADR 0029, owner decision of
@@ -21,7 +14,6 @@ export const LANDING_EFFECTS_EXCEPTION = 'apps/web/src/app/landing-c1.css';
  * Inline style effects in components stay forbidden everywhere.
  */
 export const EFFECTS_EXCEPTIONS = Object.freeze([
-  LANDING_EFFECTS_EXCEPTION,
   'apps/web/src/components/pictures/pictures-depth.css',
   'apps/web/src/components/public-site/public-scenes.css',
 ]);

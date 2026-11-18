@@ -132,7 +132,8 @@ const LIFT = {
    * After the section tabs and the folders (10 Nov 2026): 3636, 3308, 1828 and 3275 px, held at
    * 3700, 3350, 1900 and 3300.
    */
-  phonePage: { everything: 3700, browse: 3350, glance: 1900 },
+  // WAL3: owner-approved journey line at every depth (17 Nov 2026), +112 px measured (everything 3633 to 3746, browse 3368 to 3480 in the same container), raised by 120 each.
+  phonePage: { everything: 3820, browse: 3470, glance: 1900 },
   // WAL0/D4: Everything pills wrap to a second row at 1280 instead of scrolling sideways (measured 3321).
   desktopPage: { everything: 3330 },
   /** Where the first checklist row may start (px from the top of the page). */
@@ -238,7 +239,9 @@ test.describe('WP-LIFT-B the real case page', () => {
       await openReal(page, level);
       // The date checks start open when one needs a look; close every row to measure the rows.
       await page.evaluate(() => {
-        for (const fold of document.querySelectorAll<HTMLDetailsElement>('.split-rail > details')) {
+        for (const fold of document.querySelectorAll<HTMLDetailsElement>(
+          '.split-rail > details, .split-rail > .rail-section details.expandable-section-details',
+        )) {
           fold.open = false;
         }
       });
@@ -325,7 +328,9 @@ test.describe('WP-LIFT-B the real case page', () => {
   }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     await openReal(page, 'everything');
-    const folds = page.locator('.split-rail > details.lift-fold');
+    const folds = page.locator(
+      '.split-rail > details.lift-fold, .split-rail > .rail-section details.expandable-section-details',
+    );
     await expect(folds).toHaveCount(6);
     for (const fold of await folds.all()) {
       const row = fold.locator(':scope > summary');
@@ -348,7 +353,9 @@ test.describe('WP-LIFT-B the real case page', () => {
   }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     await openReal(page, 'everything');
-    const folds = page.locator('.split-rail > details.lift-fold');
+    const folds = page.locator(
+      '.split-rail > details.lift-fold, .split-rail > .rail-section details.expandable-section-details',
+    );
     // The worst-case page has a check that needs a look, so that row starts open.
     const trip = folds.filter({ has: page.locator('#trip-checks') });
     await expect(trip).toHaveAttribute('open', '');
@@ -370,7 +377,11 @@ test.describe('WP-LIFT-B the real case page', () => {
     await page.setViewportSize(VIEWPORTS.desktop);
     await openReal(page, 'everything');
     const result = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll<HTMLElement>('.split-rail > details > summary')];
+      const rows = [
+        ...document.querySelectorAll<HTMLElement>(
+          '.split-rail > details > summary, .split-rail > .rail-section details.expandable-section-details > summary',
+        ),
+      ];
       const stray = rows.filter((row) => {
         row.focus();
         return document.activeElement === row;
@@ -390,7 +401,11 @@ test.describe('WP-LIFT-B the real case page', () => {
       await page.keyboard.press('Tab');
       const onHiddenRow = await page.evaluate(() => {
         const active = document.activeElement;
-        return Boolean(active?.matches('.split-rail > details > summary'));
+        return Boolean(
+          active?.matches(
+            '.split-rail > details > summary, .split-rail > .rail-section details.expandable-section-details > summary',
+          ),
+        );
       });
       expect(onHiddenRow, `tab stop ${step + 1} is a hidden row`).toBe(false);
     }

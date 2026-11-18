@@ -194,6 +194,7 @@ const { RequireDifferentReviewerToggle } = await import(
 );
 const { CreateOrgForm } = await import('../app/app/agency/create-org-form');
 const aiReview = await import('../app/app/applicant/[id]/ai-review');
+const findingParts = await import('../app/app/applicant/[id]/finding-review-parts');
 const { DocumentUploader } = await import('../app/app/applicant/[id]/document-uploader');
 const { KeepCopyAction } = await import(
   '../app/app/applicant/[id]/documents/manage/copy/keep-copy-action'
@@ -694,6 +695,35 @@ const DOCS: readonly Case[] = [
         rationale: null,
         evidence: [],
       }}
+    />
+  )),
+  row('review a sensitive suggested value, kept hidden until opened (WAL2)', () => (
+    <aiReview.AiProposalReview
+      applicantId="a1"
+      canApprove
+      masked
+      proposal={{
+        id: 'pr6',
+        type: 'FIELD',
+        fieldKey: 'passport_number',
+        value: 'A1234567',
+        confidence: 0.88,
+        rationale: null,
+        evidence: [{ snippet: 'A1234567', verified: true }],
+        sensitive: true,
+        difference: { current: null },
+      }}
+    />
+  )),
+  row('accept one clear detail from its row (WAL2)', () => (
+    <findingParts.FindingRowAccept applicantId="a1" proposalId="pr7" label="Given Name" />
+  )),
+  row('decide sensitive details one at a time (WAL2)', () => (
+    <findingParts.FindingSteps
+      steps={[
+        { key: 's1', node: <p>First detail</p> },
+        { key: 's2', node: <p>Second detail</p> },
+      ]}
     />
   )),
   row('check what we found in a document', () => (
