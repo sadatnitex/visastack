@@ -177,13 +177,16 @@ test.describe('R3 phone page length', () => {
     test(`the page fits six phone screens in ${locale === 'en' ? 'English' : 'Bengali'}`, async ({
       page,
     }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
+      // The switch sits in the header on a computer and in the menu on a phone, so the choice is made
+      // at a computer size and the page is then measured at the phone size.
+      await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto('/trust');
       if (locale === 'bn') {
         // The visitor's own choice through the language switch, never a cookie set by the test.
         await page.locator('.lang-switch').click();
       }
       await expect(page.locator('html')).toHaveAttribute('data-locale', locale);
+      await page.setViewportSize({ width: 390, height: 844 });
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
       expect(height, `${locale} page height`).toBeLessThanOrEqual(BUDGET);
     });

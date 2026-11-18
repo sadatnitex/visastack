@@ -47,11 +47,18 @@ New English-only words through `publicText`: You decide / who sees what. | Agenc
 
 Pictures: `r3-shots/<chapter>-ref-<size>.png` (the reference) beside `r3-shots/<chapter>-mine-<size>.png` (this page), size 1440 and 390. The fidelity spec `apps/web/e2e/public-site/r3-reference-fidelity.spec.ts` checks the structure and takes the same pictures.
 
-FILLED AFTER THE FINAL PICTURES, see section 5.
+Final pictures taken from the production build on the final head, 1440 by 900 and 390 by 844, reduced motion on. Page length at 390: 3883 px in English (4.6 screens; 5064 px budget with twelve route cards, measured in the fixture at 4777 or less). Bengali phone length is held to six screens by the fidelity spec.
 
 ## 5. Match / differs table
 
-FILLED AFTER THE FINAL PICTURES.
+| Chapter | 1440 | 390 | Verdict |
+|---|---|---|---|
+| 1 Hero | Dark, headline two lines with accent on the second, one sentence, two buttons left, share sheet right | One column, headline, sentence, one start button, sheet below | match in layout. differs: the sheet rests on the kit's Access Ended state (the reference still frame shows the toggles); words are the agreed truthful sentence; the reference's glow and gradient words are flat and single-accent (kit rule); the phone drops the second button |
+| 2 Promises | Dark, "Five promises." and five rounded cards in a 3 + 2 grid, a drawing on each | One column, drawing left, text right | match in layout and order. differs: drawings are the product's real document drawings (passport, bank, ID, photo, plus the "A History You Can Review" card), the reference draws a shield, umbrella, card, form and passport; cards are flat, not glass; promise 1 carries the support exception, so it is taller |
+| 3 History | Dark, headline, three rows with round icons on a vertical line | Same, one column | match. differs: Example tag as a chip on each row (the reference writes "Example," in the caption); first row reads "You ended sharing with Agency" and the second "You shared Passport with Agency" (no part-of-document claim) |
+| 4 Limits | Light, headline with the accent on the second line, two white cards We Do / We Do Not with checks and marks | One column | match. differs: the second-column marks are a plain cross, not the power icon; one line added under the cards, "Clear boundaries. Human control. No approval guarantees."; list lines softened (see section 2); card shadow is flat |
+| 5 Today | Light, headline, paragraph, centred in the reference | Left aligned, one column | differs (why): left aligned to the page's other chapters; adds the virus-scanning sentence, an eyebrow, two links and the country rules list (hidden when empty) |
+| 6 Closing | Dark band, headline, sentence, buttons, floating passport | Same | match. differs: one button (start), no second button, passport is the kit's flat cover with the Example caption |
 
 ## 6. Deliberate differences and decisions
 
