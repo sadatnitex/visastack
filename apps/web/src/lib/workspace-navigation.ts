@@ -260,7 +260,7 @@ export const SHARING_AND_REQUESTS = 'Sharing & Requests';
  */
 function travellerTools(base: string): readonly NavLink[] {
   return [
-    { href: `${base}/record`, label: 'Record' },
+    { href: `${base}/record`, label: 'All Records' },
     { href: `${base}/evidence`, label: 'Evidence Requests' },
     ...ACCOUNT_TOOLS,
     // The account-wide page has its own name, Account Overview, so it is never mistaken for a

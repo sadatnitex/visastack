@@ -47,7 +47,7 @@ describe('current contextual navigation contract', () => {
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining(['Record', 'Shared with Me', 'Account Overview', 'Evidence Requests']),
+      expect.arrayContaining(['All Records', 'Shared with Me', 'Account Overview', 'Evidence Requests']),
     );
   });
   it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
@@ -300,7 +300,7 @@ describe('workspace navigation link list (characterization)', () => {
       ['Start a Trip', '/app/mission/start'],
     ]);
     expect(pairs(nav.tools)).toEqual([
-      ['Record', `${base}/record`],
+      ['All Records', `${base}/record`],
       ['Evidence Requests', `${base}/evidence`],
       ['Group Trips', '/app/trips'],
       ['Answers to Agencies', '/collect/account/answers'],

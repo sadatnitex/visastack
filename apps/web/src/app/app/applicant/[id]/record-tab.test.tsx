@@ -76,7 +76,7 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
     // The account-wide page keeps its own name, so it is never a second Home.
     expect(tools).toContain('Account Overview');
     // Record and its sections stay one step away.
-    expect(tools).toContain('Record');
+    expect(tools).toContain('All Records');
   });
 
   it('marks My Record as the current entry point on each Record section, and nothing else', () => {
