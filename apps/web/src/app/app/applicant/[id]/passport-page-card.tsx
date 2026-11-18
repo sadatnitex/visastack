@@ -296,9 +296,9 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
         <MachineZone />
       </div>
       {problem ? (
-        <p id={problemId} className="muted passport-page-problem" role="status">
+        <output id={problemId} className="muted passport-page-problem">
           This detail could not be shown just now. Try again.
-        </p>
+        </output>
       ) : null}
     </section>
   );

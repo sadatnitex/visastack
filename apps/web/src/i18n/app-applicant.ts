@@ -562,6 +562,9 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.ess1Details': 'Details',
     'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'Edit',
     'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'Hide',
+    'appApplicant.appApplicantIdProfileEditor.ess1LeftToAdd': '{count} left to add',
+    'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
+      'Only the essentials the passport page above does not show. This box goes away once they are added.',
     'appApplicant.appApplicantIdProfileEditor.ess1Show': 'Show',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'Essentials First',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
@@ -1145,6 +1148,9 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.ess1Details': 'বিস্তারিত',
     'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'সম্পাদনা',
     'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'লুকান',
+    'appApplicant.appApplicantIdProfileEditor.ess1LeftToAdd': 'যোগ করা বাকি {count}টি',
+    'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
+      'শুধু সেই প্রয়োজনীয় তথ্যগুলো, যা ওপরের পাসপোর্ট পাতায় দেখানো হয় না। এগুলো যোগ করা হলে এই অংশটি সরে যাবে।',
     'appApplicant.appApplicantIdProfileEditor.ess1Show': 'দেখান',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'আগে প্রয়োজনীয়গুলো',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':

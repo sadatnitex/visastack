@@ -55,6 +55,7 @@ import {
   isMaskedDetail,
   valueRowId,
 } from './passport-page-card';
+import { numberText } from './number-text';
 import { revealProfileValueAction } from './profile-reveal-actions';
 import {
   markEndedAction,
@@ -300,6 +301,7 @@ function FieldRow({
   const messageId = useId();
   const formId = useId();
   const dateId = useId();
+  const dateHintId = useId();
   const problemId = useId();
   useFocusInvalidField(formRef, state);
   const inputId = repeatingRecordKey ? `f-${field.key}-${repeatingRecordKey}` : `f-${field.key}`;
@@ -321,7 +323,7 @@ function FieldRow({
   const setShown = (on: boolean) => setShownVersion(on ? version : null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(false);
-  const focusNext = useRef<'box' | 'edit' | null>(null);
+  const focusNext = useRef<'box' | 'date' | 'edit' | null>(null);
   useEffect(() => {
     // The value went away (marked No Longer Current): the box is how a new one is added.
     if (!filled) setEditing(true);
@@ -331,15 +333,15 @@ function FieldRow({
     // Saved: back to the read row, with the focus on Edit, so the saved message is read in place.
     focusNext.current = 'edit';
     setEditing(false);
-    setShown(false);
+    setShownVersion(null);
   }, [state]);
   useEffect(() => {
     const target = focusNext.current;
-    if (!target || editing !== (target === 'box')) return;
+    if (!target || editing !== (target !== 'edit')) return;
     focusNext.current = null;
     if (target === 'edit') editRef.current?.focus();
-    else document.getElementById(inputId)?.focus();
-  }, [editing, inputId]);
+    else document.getElementById(target === 'date' ? dateId : inputId)?.focus();
+  }, [editing, inputId, dateId]);
 
   /** Opens a withheld value once; true when it is now in memory. */
   async function open(): Promise<boolean> {
@@ -350,10 +352,10 @@ function FieldRow({
     setProblem(!result.ok);
     return result.ok;
   }
-  async function startEdit() {
+  async function startEdit(focus: 'box' | 'date' = 'box') {
     // A value that would not open still leaves the box: typing a new value replaces it.
     await open();
-    focusNext.current = 'box';
+    focusNext.current = focus;
     setEditing(true);
   }
   function cancelEdit() {
@@ -460,12 +462,7 @@ function FieldRow({
         </div>
         <div className="field-control">
           {control}
-          <SubmitButton
-            pending={pending}
-            idle="Save"
-            busy="Saving…"
-            className="btn btn-secondary"
-          />
+          <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-primary" />
           {live && filled ? (
             <button type="button" className="btn btn-secondary" onClick={cancelEdit}>
               {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Cancel')}
@@ -516,14 +513,6 @@ function FieldRow({
           formatDateOnly: dayText(effectiveFrom, locale),
         })
       : null;
-  const hasDetails =
-    editing ||
-    effectiveLine !== null ||
-    Boolean(updatedAt) ||
-    Boolean(sourceDocumentId) ||
-    assurance !== undefined ||
-    extra !== undefined;
-
   return (
     <div className="profile-field-row" data-field={field.key} data-editing={editing || undefined}>
       {editing ? (
@@ -564,7 +553,7 @@ function FieldRow({
                 className="btn btn-secondary btn-compact"
                 data-edit={field.key}
                 aria-busy={busy || undefined}
-                onClick={startEdit}
+                onClick={() => startEdit()}
               >
                 {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Edit')}
               </button>
@@ -580,61 +569,73 @@ function FieldRow({
         </div>
       )}
       {problem ? (
-        <p id={problemId} className="muted u-fs-075-m0" role="status">
+        <output id={problemId} className="muted u-fs-075-m0 profile-row-problem">
           {t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow')}
-        </p>
+        </output>
       ) : null}
-      {hasDetails ? (
-        <details className="profile-row-details">
-          <summary className="muted">
-            {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Details')}
-          </summary>
-          <div className="profile-row-details-body">
-            {editing ? (
-              <div className="field-backdate">
-                <label className="field-label" htmlFor={dateId}>
-                  {t.node('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
-                </label>
-                <input
-                  id={dateId}
-                  type="date"
-                  name="effectiveFrom"
-                  form={formId}
-                  className="input"
-                  aria-label={t(
-                    'appApplicant.appApplicantIdProfileEditor.whenTolowercaseBecameTrueLeaveBlank',
-                    { toLowerCase: field.label.toLowerCase() },
-                  )}
-                  {...fieldProblem(state, 'effectiveFrom', messageId)}
-                />
-              </div>
-            ) : null}
-            {effectiveLine ? <p className="muted u-fs-075-m0">{effectiveLine}</p> : null}
-            {updatedAt ? (
-              <p className="muted u-fs-075-m0">
-                {t.node('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
-                  formatDate: formatTimestampDate(updatedAt, locale),
-                })}
+      {/* One Details per row, closed at first, in the order of the approved layout. */}
+      <details className="profile-row-details">
+        <summary className="muted">
+          {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Details')}
+        </summary>
+        <div className="profile-row-details-body">
+          {effectiveLine ? <p className="muted u-fs-075-m0">{effectiveLine}</p> : null}
+          {updatedAt ? (
+            <p className="muted u-fs-075-m0">
+              {t.node('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
+                formatDate: formatTimestampDate(updatedAt, locale),
+              })}
+            </p>
+          ) : null}
+          {sourceDocumentId ? (
+            <p className="u-fs-075-m0">
+              <Link
+                href={`/app/applicant/${applicantId}/documents?document=${encodeURIComponent(sourceDocumentId)}`}
+                aria-label={t(
+                  'appApplicant.appApplicantIdProfileEditor.whereThisCameFromTheDocument',
+                  { label: field.label },
+                )}
+              >
+                {t.node('appApplicant.appApplicantIdProfileEditor.whereThisCameFrom')}
+              </Link>
+            </p>
+          ) : null}
+          {assurance ? <AssuranceDetail assurance={assurance} /> : null}
+          {editing ? (
+            <div className="field-backdate">
+              <label className="field-label" htmlFor={dateId}>
+                {t.node('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
+              </label>
+              <p id={dateHintId} className="muted u-fs-075-m0">
+                {t.node(
+                  'appApplicant.appApplicantIdProfileEditor.whenTolowercaseBecameTrueLeaveBlank',
+                  { toLowerCase: field.label.toLowerCase() },
+                )}
               </p>
-            ) : null}
-            {sourceDocumentId ? (
-              <p className="u-fs-075-m0">
-                <Link
-                  href={`/app/applicant/${applicantId}/documents?document=${encodeURIComponent(sourceDocumentId)}`}
-                  aria-label={t(
-                    'appApplicant.appApplicantIdProfileEditor.whereThisCameFromTheDocument',
-                    { label: field.label },
-                  )}
-                >
-                  {t.node('appApplicant.appApplicantIdProfileEditor.whereThisCameFrom')}
-                </Link>
-              </p>
-            ) : null}
-            {assurance ? <AssuranceDetail assurance={assurance} /> : null}
-            {extra}
-          </div>
-        </details>
-      ) : null}
+              <input
+                id={dateId}
+                type="date"
+                name="effectiveFrom"
+                form={formId}
+                className="input"
+                {...fieldProblem(state, 'effectiveFrom', messageId, dateHintId)}
+              />
+            </div>
+          ) : (
+            <p className="profile-row-details-actions">
+              {/* Opens the box with the date field, so the date goes with the value it is for. */}
+              <button
+                type="button"
+                className="btn btn-secondary btn-compact"
+                onClick={() => startEdit('date')}
+              >
+                {labelWithName('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
+              </button>
+            </p>
+          )}
+          {extra}
+        </div>
+      </details>
       <FormMessage id={messageId} result={state} />
       <ChangeImpactNotice
         summary={state.changeImpact}
@@ -1737,21 +1738,28 @@ function EssentialsFirst({
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
 }) {
   const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const headingId = useId();
+  const left = items.filter((item) => !item.answered).length;
   return (
     <section className="profile-essentials" aria-labelledby={headingId}>
       <div className="profile-essentials-head">
-        <div>
-          <h3 id={headingId}>
-            {t.node('appApplicant.appApplicantIdProfileEditor.essentialsFirst')}
-          </h3>
-          <p className="muted">
-            {t.node('appApplicant.appApplicantIdProfileEditor.startWithTheDetailsMostVisa')}
-          </p>
-        </div>
+        <h3 id={headingId}>{t.node('appApplicant.appApplicantIdProfileEditor.essentialsFirst')}</h3>
+        {left > 0 ? (
+          <span className="badge badge-warning profile-essentials-left">
+            {t.node('appApplicant.appApplicantIdProfileEditor.ess1LeftToAdd', {
+              count: numberText(left, locale),
+            })}
+          </span>
+        ) : null}
       </div>
+      <p className="muted profile-essentials-lede">
+        {t.node('appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage')}
+      </p>
       <ol className="profile-essentials-list">
         {items.map((item) => {
+          // A detail names itself in its own row; a record (Home Address) is named here.
+          const named = Boolean(item.group) || Boolean(item.hint) || item.notApplicable;
           const status = essentialStatus(item);
           return (
             <li
@@ -1759,11 +1767,15 @@ function EssentialsFirst({
               className={`profile-essential ${item.answered ? 'is-done' : 'is-missing'}`}
               data-essential={item.key}
             >
-              <div className="profile-essential-status">
-                {item.group ? <strong>{item.label}</strong> : null}
-                <span className={`badge ${status.tone}`}>{status.label}</span>
-                {item.hint ? <span className="muted">{item.hint}</span> : null}
-              </div>
+              {named ? (
+                <div className="profile-essential-status">
+                  {item.group ? <strong>{item.label}</strong> : null}
+                  {item.notApplicable ? (
+                    <span className={`badge ${status.tone}`}>{status.label}</span>
+                  ) : null}
+                  {item.hint ? <span className="muted">{item.hint}</span> : null}
+                </div>
+              ) : null}
               {item.field ? (
                 <SingleField
                   applicantId={applicantId}

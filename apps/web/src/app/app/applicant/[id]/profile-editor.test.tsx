@@ -83,7 +83,7 @@ function tab(label: string) {
 async function editBox(id: string): Promise<HTMLInputElement> {
   if (!container.querySelector(`#${id}`)) {
     const row = [...container.querySelectorAll<HTMLElement>('.profile-field-row')].find(
-      (r) => r.querySelector(`[data-edit]`) && id.startsWith(`f-${r.dataset['field']}`),
+      (r) => r.querySelector('[data-edit]') && id.startsWith(`f-${r.getAttribute('data-field')}`),
     );
     const edit = [...container.querySelectorAll<HTMLButtonElement>('button[data-edit]')].find(
       (b) => b.closest('.profile-field-row') === row,
@@ -602,6 +602,10 @@ describe('Essentials First (owner finding 5)', () => {
     if (!button) throw new Error('Missing the Show All Sections control');
     return button;
   };
+  const listed = () =>
+    [...container.querySelectorAll<HTMLElement>('[data-essential]')].map((node) =>
+      node.getAttribute('data-essential'),
+    );
   const badges = () =>
     [...container.querySelectorAll('.profile-essential-status .badge')].map(
       (node) => node.textContent,
@@ -618,7 +622,9 @@ describe('Essentials First (owner finding 5)', () => {
     // The count and bar sit once, in the page banner above this block.
     expect(text).not.toContain('essentials added');
     // Given Name and Passport Number are on the card, so the list holds the home address only.
-    expect(badges()).toEqual(['Not Added Yet']);
+    expect(listed()).toEqual(['address']);
+    expect(container.querySelector('.profile-essentials-left')?.textContent).toBe('1 left to add');
+    expect(badges()).toEqual([]);
     expect(container.querySelector('.profile-essentials #f-given_name')).toBeNull();
     expect(container.querySelector('.profile-essentials [data-essential="given_name"]')).toBeNull();
     expect(
@@ -727,7 +733,7 @@ describe('Essentials First (owner finding 5)', () => {
       })),
     });
     // Given Name is on the card, so the card says it, and its own row (one tap away) undoes it.
-    expect(badges()).toEqual(['Not Added Yet']);
+    expect(listed()).toEqual(['address']);
     expect(
       container.querySelector('.passport-page-card [data-detail="given_name"]')?.textContent,
     ).toContain('Does not apply.');

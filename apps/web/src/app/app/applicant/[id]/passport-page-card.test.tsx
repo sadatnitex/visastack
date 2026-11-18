@@ -536,7 +536,7 @@ describe('ESS1: read rows, one Details per row, one date style', () => {
     expect(document.activeElement).toBe(edit());
     vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Family Name saved.' });
     await clickAndSettle(edit());
-    const form = container.querySelector<HTMLFormElement>('#f-family_name')?.form;
+    const form = container.querySelector<HTMLInputElement>('#f-family_name')?.form;
     await act(async () => {
       form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
     });
@@ -604,12 +604,12 @@ describe('ESS1: read rows, one Details per row, one date style', () => {
       );
     reveal.mockResolvedValueOnce({ ok: false });
     await clickAndSettle(show());
-    expect(card().querySelector('[role="status"]')?.textContent).toMatch(/could not be shown/);
+    expect(card().querySelector('output')?.textContent).toMatch(/could not be shown/);
     expect(line('date_of_birth').textContent).not.toContain('1990');
     reveal.mockResolvedValueOnce({ ok: true, value: '1990-04-12' });
     await clickAndSettle(show());
     expect(reveal).toHaveBeenLastCalledWith('synthetic-person', 'f3');
     expect(line('date_of_birth').textContent).toContain('12 Apr 1990');
-    expect(card().querySelector('[role="status"]')).toBeNull();
+    expect(card().querySelector('output')).toBeNull();
   });
 });
