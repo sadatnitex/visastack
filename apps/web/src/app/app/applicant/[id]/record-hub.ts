@@ -65,6 +65,28 @@ export interface RecordAction {
   readonly href: string;
 }
 
+export type RecordDetailId =
+  | 'waiting'
+  | 'version'
+  | 'saved'
+  | 'expires'
+  | 'replacedBy'
+  | 'usedIn'
+  | 'sharedWith'
+  | 'detailsSaved';
+
+/**
+ * One detail shown inside an opened row (version, saved date, use in cases, sharing). The row
+ * component names it from the message catalogue by `id`. A null value means "nothing to show":
+ * the component says so in words (None yet, No one, Not confirmed).
+ */
+export interface RecordDetailRow {
+  readonly id: RecordDetailId;
+  readonly value: string | null;
+  /** For Details Saved only: the section's size, so the row can say "1 of 4". */
+  readonly total?: number;
+}
+
 export interface RecordItem {
   readonly id: string;
   readonly kind: 'details' | 'document';
@@ -79,6 +101,11 @@ export interface RecordItem {
   /** A profile section with nothing saved yet. Listed by name only, outside the item count. */
   readonly empty: boolean;
   readonly facts: readonly string[];
+  /**
+   * The same facts as labelled rows for the opened row (U6). `facts` stays the searchable text;
+   * a caller that builds an item by hand may leave this out and the row lists the facts instead.
+   */
+  readonly detailRows?: readonly RecordDetailRow[];
   /** Where the item's title leads: the item's own page (a document, or its place in the profile). */
   readonly href: string;
   /** At most one further action, the most useful one for the item's state. Others live on the item page. */
@@ -157,8 +184,9 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
       : doc.checked && doc.review.kindNeedsCheck
         ? { label: 'Choose the Kind', href: view }
         : { label: 'Update or Replace', href: replace };
+  const reasons = reviewReasons(doc.review);
   const facts = [
-    ...reviewReasons(doc.review),
+    ...reasons,
     doc.version !== null ? `Version ${doc.version}` : null,
     doc.updatedLabel ? `Saved ${doc.updatedLabel}` : null,
     // Only a kind with an end date of its own says anything about expiry.
@@ -171,6 +199,18 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
     doc.usedIn.length ? `Used in ${doc.usedIn.join(', ')}` : 'Not used in a case yet',
     doc.sharedWith.length ? `Shared with ${doc.sharedWith.join(', ')}` : 'Not shared',
   ].filter((fact): fact is string => fact !== null);
+  const detailRows: RecordDetailRow[] = [
+    ...(reasons.length ? [{ id: 'waiting' as const, value: reasons.join(', ') }] : []),
+    ...(doc.version !== null ? [{ id: 'version' as const, value: String(doc.version) }] : []),
+    ...(doc.updatedLabel ? [{ id: 'saved' as const, value: doc.updatedLabel }] : []),
+    // Only a kind with an end date of its own says anything about expiry.
+    ...(doc.expiresLabel || doc.expiryApplies
+      ? [{ id: 'expires' as const, value: doc.expiresLabel }]
+      : []),
+    ...(doc.replacedBy ? [{ id: 'replacedBy' as const, value: doc.replacedBy.name }] : []),
+    { id: 'usedIn', value: doc.usedIn.length ? doc.usedIn.join(', ') : null },
+    { id: 'sharedWith', value: doc.sharedWith.length ? doc.sharedWith.join(', ') : null },
+  ];
   const group = doc.groupLabel || NOT_SORTED_GROUP;
   return {
     id: `document:${doc.id}`,
@@ -181,6 +221,7 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
     type: doc.typeLabel,
     ...state,
     facts,
+    detailRows,
     href: view,
     action,
     searchText: [doc.name, doc.typeLabel, group, state.status.label, ...facts]
@@ -210,6 +251,7 @@ function detailsItem(base: string, section: RecordDetailsInput): RecordItem {
     needsAttention: false,
     previousVersion: false,
     facts,
+    detailRows: [{ id: 'detailsSaved', value: String(section.answered), total: section.total }],
     href: profile,
     // Every open section offers the way to fill it in or correct it (owner decision 2026-10-25).
     action: { label: 'Update Details', href: profile },
@@ -266,21 +308,27 @@ export interface RecordPageGroup {
   readonly name: string;
   /** Documents and profile sections with saved details, as full rows. */
   readonly rows: readonly RecordItem[];
-  /** The group's empty profile sections, named on one quiet line at the end of the group. */
-  readonly nothingSaved: readonly RecordItem[];
+}
+
+/** The empty profile sections of one group, for the one Not Started group at the end. */
+export interface RecordNotStarted {
+  readonly name: string;
+  readonly sections: readonly RecordItem[];
 }
 
 /**
  * Lay one page of the Record out. Empty profile sections would crowd documents off the first
- * page, so outside the Profile Details filter they are not rows: they are named on one line at
- * the end of their group and are left out of the count and the paging. The Profile Details
- * filter lists every open section as a row.
+ * page, so outside the Profile Details filter they are not rows: they gather, by group, in one
+ * Not Started group on the last page and are left out of the count and the paging. The Profile
+ * Details filter lists every open section as a row.
  */
 export function layoutRecordPage(
   matches: readonly RecordItem[],
   options: { readonly filter: RecordFilter; readonly page: number; readonly pageSize: number },
 ): {
   readonly groups: readonly RecordPageGroup[];
+  /** Empty sections by group; filled only on the last page, and never under Profile Details. */
+  readonly notStarted: readonly RecordNotStarted[];
   readonly rowCount: number;
   readonly pageCount: number;
   readonly activePage: number;
@@ -294,18 +342,19 @@ export function layoutRecordPage(
   const names = [...new Set(matches.map((item) => item.group))];
   const groups: RecordPageGroup[] = [];
   for (const name of names) {
-    const groupRows = rows.filter((item) => item.group === name);
-    const shownRows = groupRows.filter((item) => visible.has(item));
-    const empties = condense ? matches.filter((item) => item.empty && item.group === name) : [];
-    // The quiet line goes on the page that shows the group's last row, or the last page when
-    // the group has no rows at all.
-    const last = groupRows.at(-1);
-    const linePage = last ? Math.floor(rows.indexOf(last) / options.pageSize) : pageCount - 1;
-    const nothingSaved = linePage === activePage ? empties : [];
-    if (shownRows.length || nothingSaved.length)
-      groups.push({ name, rows: shownRows, nothingSaved });
+    const shownRows = rows.filter((item) => item.group === name && visible.has(item));
+    if (shownRows.length) groups.push({ name, rows: shownRows });
   }
-  return { groups, rowCount: rows.length, pageCount, activePage };
+  const notStarted: RecordNotStarted[] =
+    condense && activePage === pageCount - 1
+      ? names
+          .map((name) => ({
+            name,
+            sections: matches.filter((item) => item.empty && item.group === name),
+          }))
+          .filter((group) => group.sections.length > 0)
+      : [];
+  return { groups, notStarted, rowCount: rows.length, pageCount, activePage };
 }
 
 /** How many items a filter holds, counted as the page counts them. */

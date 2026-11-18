@@ -507,22 +507,6 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
       'The hidden photo picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
   },
   {
-    page: '/app/applicant/[id]/record',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400'],
-    controls: ['Everything2', 'Profile Details10', 'Previous Versions0'],
-    finding:
-      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
-  },
-  {
-    page: '/app/applicant/[id]/record',
-    check: 'covered control',
-    sizes: ['desktop 1280'],
-    controls: ['Everything2', 'Previous Versions0'],
-    finding:
-      'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
-  },
-  {
     page: '/app/applicant/[id]/missions/prepare-again',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400'],
