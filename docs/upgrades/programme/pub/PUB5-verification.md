@@ -116,7 +116,7 @@ No new permanent guard is added in this PR. The cheap guard that would have caug
 | # | Fixed by |
 |---|---|
 | D1 | How It Works line now reads "You look over the case before it moves on."; the matching row in PUB-bn-words.csv is changed |
-| D2 | Phone spacing trimmed (landing-c1.css, countries.css); Home and Countries end at or under 4,962 px in English and Bengali; Bengali cookie cases added to WP-SB8 |
+| D2 | Phone spacing trimmed (landing-c1.css, countries.css); Home and Countries end at or under 4,962 px in English and Bengali; Bengali cases (chosen through the real language switch) added to WP-SB8 |
 | D3 | `.p3-eyebrow` line height 1.25 |
 | D4 | `.pub-scene-stage` top padding 0.5rem (Home scenes keep their own spacing) |
 | D5 | For Agencies button words read the Home catalogue entries |

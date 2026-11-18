@@ -7,7 +7,7 @@ Fixes every defect in docs/upgrades/programme/pub/PUB5-verification.md (PR #632)
 | # | Fix | Where |
 |---|---|---|
 | D1 | "A person looks over the case." is now "You look over the case before it moves on." (only the case owner moves a case into review) | how-it-works/page.tsx; guard in how-it-works/page.test.tsx |
-| D2 | Phone spacing trimmed so Home and Countries stay at or under 4,962 px (2 percent under 6 screens) in English and Bengali; no word cut. Measured on the production build: Home 4,949 (bn), 4,838 (en); Countries 4,883 (bn), 4,619 (en). Bengali cookie cases added | landing-c1.css (WP-PUBFIX blocks), countries/countries.css, e2e/scroll-budget/WP-SB8.spec.ts |
+| D2 | Phone spacing trimmed so Home and Countries stay at or under 4,962 px (2 percent under 6 screens) in English and Bengali; no word cut. Measured on the production build: Home 4,949 (bn), 4,838 (en); Countries 4,883 (bn), 4,619 (en). Bengali cases (chosen through the real language switch) added | landing-c1.css (WP-PUBFIX blocks), countries/countries.css, e2e/scroll-budget/WP-SB8.spec.ts |
 | D3 | `.p3-eyebrow` line height 1 to 1.25 | components/public-pub3-story.css |
 | D4 | `.pub-scene-stage` gets 0.5rem top padding; Home scenes keep their own spacing (no extra padding) so the pinned scenes still fit 1024 x 600 | components/public-site/public-site.css, landing-c1.css |
 | D5 | For Agencies button words and the kicker read the Home catalogue entries (same words as Home, Bengali follows the language) | for-agencies/page.tsx; test compares with the catalogue |
