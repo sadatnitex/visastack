@@ -31,9 +31,13 @@ export function ShareHero({
   const [step, setStep] = useState(last);
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const saver = document.documentElement.hasAttribute('data-save-data');
-    setMoves(!(reduced || saver));
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const read = () =>
+      setMoves(!(reduced.matches || document.documentElement.hasAttribute('data-save-data')));
+    read();
+    // A visitor who turns reduced motion on while the page is open gets stillness at once.
+    reduced.addEventListener?.('change', read);
+    return () => reduced.removeEventListener?.('change', read);
   }, []);
   useEffect(() => {
     if (!moves || paused) {
@@ -51,12 +55,7 @@ export function ShareHero({
     <div className="tr-share">
       {steps[step]}
       {moves ? (
-        <button
-          type="button"
-          className="tr-pause"
-          aria-pressed={paused}
-          onClick={() => setPaused((value) => !value)}
-        >
+        <button type="button" className="tr-pause" onClick={() => setPaused((value) => !value)}>
           {paused ? playFace : pauseFace}
         </button>
       ) : null}

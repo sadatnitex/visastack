@@ -17,7 +17,7 @@ const VIEWPORTS = [
 ] as const;
 const FIRST_SCREEN_WORDS = 30;
 
-/** Words a visitor reads in the first screen of the page's own content, pictures excluded (the pilot notice and the
+/** Words a visitor reads in the first screen of the page's own content, the share-sheet picture excluded (the pilot notice and the
  *  shared header are the same on every page and are counted by their own checks). */
 async function firstScreenWords(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -32,8 +32,8 @@ async function firstScreenWords(page: Page): Promise<number> {
       if (!parent) continue;
       const style = getComputedStyle(parent);
       if (style.visibility === 'hidden' || style.display === 'none') continue;
-      // Words drawn inside a picture (a figure) belong to the drawing, not to the copy a visitor reads.
-      if (parent.closest('figure')) continue;
+      // Words drawn inside the share-sheet picture belong to the drawing, not to the copy a visitor reads.
+      if (parent.closest('.kit-sheet')) continue;
       const range = document.createRange();
       range.selectNodeContents(node);
       const box = range.getBoundingClientRect();

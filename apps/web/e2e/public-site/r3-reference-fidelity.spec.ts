@@ -156,10 +156,7 @@ test.describe('R3 hero motion', () => {
     // Still stopped after more than two full ticks of the loop.
     await page.waitForTimeout(2600);
     await expect(sheet).toHaveAttribute('data-kit-step', '4');
-    await expect(page.getByRole('button', { name: 'Play the Animation' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(page.getByRole('button', { name: 'Play the Animation' })).toBeVisible();
   });
 
   test('with reduced motion nothing loops and there is no dead control', async ({ page }) => {

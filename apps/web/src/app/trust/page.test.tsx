@@ -56,7 +56,7 @@ describe('the public route list', () => {
     expect(html).toContain('href="/trust?show=24#trust-route-12"');
     expect(html).toContain('id="trust-route-11"');
     // More than 12 routes, so the search is offered, as a plain form that needs no script.
-    expect(html).toMatch(/<form class="trust-search" action="\/trust" method="get">/);
+    expect(html).toMatch(/<form class="trust-search" action="\/trust#today" method="get">/);
     expect(html).toContain('name="q"');
   });
 
@@ -74,7 +74,7 @@ describe('the public route list', () => {
     expect(cards(japan)).toEqual([expect.stringContaining('href="/trust/route-150"')]);
     expect(textOf(japan)).toContain('Showing the only route.');
     expect(japan).toContain('value="japan"');
-    expect(japan).toContain('href="/trust">Clear Search');
+    expect(japan).toContain('href="/trust#today">Clear Search');
     const page = await render({ q: 'route number 1', show: '12' });
     expect(page).toContain('href="/trust?q=route+number+1&amp;show=24#trust-route-12"');
     const none = await render({ q: 'atlantis' });

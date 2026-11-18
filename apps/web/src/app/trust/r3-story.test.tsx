@@ -147,9 +147,8 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
     const { host, root } = mount(false);
     const button = host.querySelector('button');
     expect(button?.textContent).toContain('Pause the Animation');
-    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    expect(button?.hasAttribute('aria-pressed')).toBe(false);
     act(() => button?.click());
-    expect(host.querySelector('button')?.getAttribute('aria-pressed')).toBe('true');
     expect(host.querySelector('button')?.textContent).toContain('Play the Animation');
     expect(host.querySelector('.kit-fixed')?.getAttribute('data-kit-step')).toBe('4');
     act(() => host.querySelector('button')?.click());

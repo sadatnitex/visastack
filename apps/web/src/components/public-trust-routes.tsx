@@ -78,7 +78,7 @@ function RouteList({
   return (
     <>
       {searchable ? (
-        <form className="trust-search" action="/trust" method="get">
+        <form className="trust-search" action="/trust#today" method="get">
           <label className="field">
             <span className="label">Search Routes</span>
             <input
@@ -93,7 +93,7 @@ function RouteList({
           <button className="btn btn-secondary" type="submit">
             Search
           </button>
-          {words !== '' ? <Link href="/trust">Clear Search</Link> : null}
+          {words !== '' ? <Link href="/trust#today">Clear Search</Link> : null}
         </form>
       ) : null}
       {visible.length === 0 ? (
