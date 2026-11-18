@@ -175,4 +175,35 @@ describe("an agency's case workspace", () => {
     await press(buttonNamed(taskArea, 'Start'));
     expect(lines(taskArea)).toEqual(['Task in progress.']);
   });
+
+  it('U8: after a refused add, focus moves to the message that says why', async () => {
+    act(() =>
+      root.render(
+        <MissionCollaboration
+          organizationId="o1"
+          missionId="m1"
+          applicantId="a1"
+          title="UK visit"
+          applicantName="Synthetic Traveller"
+          viewerAssigned
+          members={[{ accountId: 'u1', email: 'staff@example.test' }]}
+          assignments={[]}
+          notes={[]}
+          tasks={[]}
+          appointments={[]}
+          requirements={[]}
+          decisions={[]}
+          issuerVerifications={[]}
+        />,
+      ),
+    );
+    const taskArea = container.querySelector('#tasks-m1');
+    if (!taskArea) throw new Error('task area not found');
+    queue.push({ ok: false, message: 'Write what the task is.' });
+    typeTask(taskArea);
+    await press(buttonNamed(taskArea, 'Add'));
+    const message = document.activeElement;
+    expect(message?.getAttribute('role')).toBe('alert');
+    expect(message?.textContent).toBe('Write what the task is.');
+  });
 });

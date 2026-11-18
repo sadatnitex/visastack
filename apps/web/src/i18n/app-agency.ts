@@ -770,6 +770,13 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyPage.youBecomeTheOwnerNewOrganizations':
       'You become the owner. New organizations start pending verification by a platform administrator.',
     'appAgency.appAgencyPage.yourOrganizations': 'Your Organizations',
+    // WP-U8 agency screens on the Wallet foundation (18 Nov 2026): English only until the localization lane writes Bengali (docs/upgrades/programme/wal/U8-records.md).
+    'appAgency.appAgencyOrgidU8.addMember': 'Add Member',
+    'appAgency.appAgencyOrgidU8.addNote': 'Add Note',
+    'appAgency.appAgencyOrgidU8.addTask': 'Add Task',
+    'appAgency.appAgencyOrgidU8.openSettings': 'Open Settings',
+    'appAgency.appAgencyOrgidU8.schedule': 'Schedule',
+    // end WP-U8
   },
   bn: {
     'appAgency.appAgencyCreateOrgForm.organizationName': 'প্রতিষ্ঠানের নাম',

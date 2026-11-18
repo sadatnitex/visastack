@@ -61,6 +61,17 @@ test.describe('U8 open case', () => {
     await expect(fold(page, 'Add Task').locator('form')).toBeHidden();
   });
 
+  test('opening a fold by its row moves focus to its first field', async ({ page }) => {
+    for (const [title, field] of [
+      ['Add Task', 'description'],
+      ['Schedule', 'title'],
+      ['Add Note', 'body'],
+    ] as const) {
+      await fold(page, title).locator('summary').click();
+      await expect(fold(page, title).locator(`[name="${field}"]`)).toBeFocused();
+    }
+  });
+
   test('the Time Zone list is as tall as the Time box beside it, never a 240 px empty box', async ({
     page,
   }) => {
@@ -112,11 +123,11 @@ test.describe('U8 rows', () => {
     expect(box?.height ?? 999).toBeLessThanOrEqual(96);
   });
 
-  test('a limit with no ceiling shows its count and the word Unlimited, with no bar or arc', async ({
+  test('a limit with no ceiling shows its count and the shared words (unlimited), with no bar or arc', async ({
     page,
   }) => {
     const rows = page.locator('#plan-limits .u8-limit');
-    await expect(rows.nth(1)).toContainText('1 used, Unlimited');
+    await expect(rows.nth(1)).toContainText('1 used (unlimited)');
     await expect(rows.nth(1).locator('.u8-ring-arc')).toHaveCount(0);
     await expect(rows.nth(1).locator('.lift-meter, .meter')).toHaveCount(0);
     await expect(rows.nth(0)).toContainText('4 of 5 used');

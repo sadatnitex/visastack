@@ -4,7 +4,6 @@ import {
   getPendingDowngradeForOrganization,
   getUsageForOrganization,
   listPlans,
-  mbLabel,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -183,7 +182,6 @@ export default async function OrgPlanPage({
             <AgencyRows id="plan-limits" ariaLabel={t('appAgency.appAgencyOrgidPlanPage.usage')}>
               {data.usage.meters.map((meter) => {
                 const unlimited = meter.allowed === null;
-                const used = meter.key === 'storageBytes' ? mbLabel(meter.used) : `${meter.used}`;
                 return (
                   <ExpandableSection
                     key={meter.key}
@@ -196,21 +194,18 @@ export default async function OrgPlanPage({
                         <LimitRing
                           used={meter.used}
                           allowed={meter.allowed ?? 0}
-                          tone={meterTone(meter) as '' | 'meter-warn' | 'meter-full'}
+                          tone={
+                            // Nothing allowed and nothing used is not a full limit.
+                            meter.allowed === 0 && meter.used === 0
+                              ? ''
+                              : (meterTone(meter) as '' | 'meter-warn' | 'meter-full')
+                          }
                         />
                       )
                     }
                     // An informational meter opens at first so its "does not limit" note is never hidden.
                     defaultOpen={meter.shownOnly}
-                    summary={
-                      unlimited ? (
-                        <>
-                          <span className="u8-limit-count">{used}</span> used, Unlimited
-                        </>
-                      ) : (
-                        <span className="u8-limit-count">{formatMeterValue(meter)}</span>
-                      )
-                    }
+                    summary={<span className="u8-limit-count">{formatMeterValue(meter)}</span>}
                   >
                     <p className="muted u8-limit-note">
                       {meter.definition}

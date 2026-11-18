@@ -32,8 +32,8 @@ export interface AgencyRowProps {
   /** Keep the row as the person left it across a page refresh (for a row with a form). */
   readonly remember?: boolean | undefined;
   readonly headingLevel?: LiftHeadingLevel | undefined;
-  /** The details: shown when the row is open. */
-  readonly children: ReactNode;
+  /** The details, shown when the row is open. A row with nothing to open (no children) is a plain row. */
+  readonly children?: ReactNode;
 }
 
 /** One compact row for a person, a client, a request or a case. */
@@ -55,6 +55,20 @@ export function AgencyRow({
         {meta ? <span className="u8-meta">{meta}</span> : null}
       </span>
     ) : undefined;
+  if (children === undefined) {
+    const Heading = `h${headingLevel}` as const;
+    return (
+      <div className="expandable-section u8-row u8-plain" {...(id ? { id } : {})}>
+        <span className="u8-plain-picture" aria-hidden="true">
+          {picture}
+        </span>
+        <Heading className="expandable-section-title u8-plain-title">{title}</Heading>
+        {summary ? (
+          <span className="expandable-section-summary u8-plain-line">{summary}</span>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <ExpandableSection
       className="u8-row"

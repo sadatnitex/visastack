@@ -60,7 +60,7 @@ export default function U8Fixture({ part = 'case' }: U8FixtureProps) {
             className="u8-row u8-limit"
             title="AI Allowance"
             picture={<UnlimitedPicture />}
-            summary="1 used, Unlimited"
+            summary="1 used (unlimited)"
           >
             <p className="muted u8-limit-note">Shown for your information.</p>
           </ExpandableSection>

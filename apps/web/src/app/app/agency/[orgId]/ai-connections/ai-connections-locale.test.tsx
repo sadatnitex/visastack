@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationState, renderServer } from '../../../../../lib/next-mocks.test-support';
 import { missingBengali } from '../../agency-bn.test-support';
@@ -115,9 +116,9 @@ describe('AI connections under Bengali', () => {
 });
 
 describe('AI connections empty state (U8)', () => {
-  it('is not a dead end: it links to the Settings section that turns the connection on', async () => {
-    const html = await draw('en');
-    expect(html).toContain('href="/app/agency/o1/settings#agency-ai-title"');
-    expect(html).toContain('Open Settings');
+  it('is not a dead end: it links to the Agency Settings page, with no anchor that might be missing', async () => {
+    const doc = new JSDOM(`<body>${await draw('en')}</body>`).window.document;
+    const action = [...doc.querySelectorAll('a')].find((a) => a.textContent === 'Open Settings');
+    expect(action?.getAttribute('href')).toBe('/app/agency/o1/settings');
   });
 });

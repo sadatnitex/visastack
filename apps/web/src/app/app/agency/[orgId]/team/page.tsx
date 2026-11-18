@@ -11,6 +11,7 @@ import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../conso
 import { InvitationRevokeButton } from '../invitation-revoke-button';
 import { AddMemberForm } from '../member-form';
 import { MemberToggleButton } from '../member-toggle-button';
+import { FocusFirstFieldOnOpen } from '../u8-fold-focus';
 import { AgencyRow, AgencyRows, InitialsPicture } from '../u8-rows';
 import { DocumentRequestToggle } from './document-request-toggle';
 
@@ -106,9 +107,7 @@ export default async function AgencyTeamPage({
                     active={m.active}
                   />
                 </div>
-              ) : (
-                <p className="muted u8-note">{m.email}</p>
-              )}
+              ) : undefined}
             </AgencyRow>
           ))}
         </AgencyRows>
@@ -138,11 +137,12 @@ export default async function AgencyTeamPage({
       ) : null}
       <ExpandableSection
         className="u8-row u8-add"
-        title="Add Member"
+        title={t('appAgency.appAgencyOrgidU8.addMember')}
         picture={<Icon name="plus" size={20} />}
         headingLevel={3}
         remember
       >
+        <FocusFirstFieldOnOpen />
         <AddMemberForm
           organizationId={orgId}
           pendingInvitationIds={data.invitations.map((invitation) => invitation.id)}

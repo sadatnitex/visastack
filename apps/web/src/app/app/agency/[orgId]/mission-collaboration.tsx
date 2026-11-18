@@ -1,12 +1,17 @@
 'use client';
 
-import { type ComponentProps, type ReactNode, useActionState, useId } from 'react';
+import { type ComponentProps, type ReactNode, useActionState, useEffect, useId } from 'react';
 import { useFormStatus } from 'react-dom';
 import { atLevel, revealAt } from '../../../../components/depth';
 import { Icon } from '../../../../components/icons';
 import { ExpandableSection } from '../../../../components/ui-lift/expandable-section';
 import './u8.css';
-import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
+import {
+  FormMessage,
+  NO_RESULT,
+  SubmitButton,
+  isFailure,
+} from '../../../../components/form-feedback';
 import { useT } from '../../../../components/i18n-provider';
 import { useLatestOf } from '../../../../components/latest-result';
 import { ReferenceCode } from '../../../../components/reference-code';
@@ -31,6 +36,7 @@ import { caseAnchorId } from './case-anchor';
 import type { CaseTriageView } from './case-triage';
 import { CaseTriageSummary } from './case-triage-summary';
 import { NeedsYouText } from './needs-you-text';
+import { FocusFirstFieldOnOpen } from './u8-fold-focus';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -145,6 +151,17 @@ interface MissionCollaborationProps {
   readonly ask?: ReactNode;
 }
 
+/** After a refused add, move focus to the message that says why, so it is read at once. */
+function useFocusOnFailure(state: ActionState, id: string): void {
+  useEffect(() => {
+    if (!isFailure(state)) return;
+    const message = document.getElementById(id);
+    if (!message) return;
+    message.setAttribute('tabindex', '-1');
+    message.focus();
+  }, [state, id]);
+}
+
 export function MissionCollaboration({
   organizationId,
   missionId,
@@ -212,6 +229,9 @@ export function MissionCollaboration({
   });
   // Each case on the page has its own copy of these forms, so every field id is made per copy.
   const uid = useId();
+  useFocusOnFailure(taskCreateState, `${uid}-task-error`);
+  useFocusOnFailure(apptCreateState, `${uid}-appt-error`);
+  useFocusOnFailure(noteState, `${uid}-note-error`);
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
   const memberEmailByAccountId = new Map(members.map((m) => [m.accountId, m.email] as const));
@@ -422,11 +442,12 @@ export function MissionCollaboration({
         <FormMessage result={taskFrom === 'add' ? NO_RESULT : taskStatus} />
         <ExpandableSection
           className="u8-row u8-fold"
-          title="Add Task"
+          title={t('appAgency.appAgencyOrgidU8.addTask')}
           picture={<Icon name="check" size={20} />}
           headingLevel={4}
           remember
         >
+          <FocusFirstFieldOnOpen />
           <form action={taskCreateAction} className="field-list form-narrow">
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="missionId" value={missionId} />
@@ -512,7 +533,10 @@ export function MissionCollaboration({
             </div>
           </form>
         </ExpandableSection>
-        <FormMessage result={taskFrom === 'add' ? taskStatus : NO_RESULT} />
+        <FormMessage
+          id={`${uid}-task-error`}
+          result={taskFrom === 'add' ? taskStatus : NO_RESULT}
+        />
       </div>
 
       <div
@@ -580,11 +604,12 @@ export function MissionCollaboration({
         <FormMessage result={appointmentFrom === 'add' ? NO_RESULT : appointmentStatus} />
         <ExpandableSection
           className="u8-row u8-fold"
-          title="Schedule"
+          title={t('appAgency.appAgencyOrgidU8.schedule')}
           picture={<Icon name="calendar" size={20} />}
           headingLevel={4}
           remember
         >
+          <FocusFirstFieldOnOpen />
           <form action={apptCreateAction} className="field-list form-narrow">
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="missionId" value={missionId} />
@@ -676,7 +701,10 @@ export function MissionCollaboration({
             </div>
           </form>
         </ExpandableSection>
-        <FormMessage result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT} />
+        <FormMessage
+          id={`${uid}-appt-error`}
+          result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT}
+        />
       </div>
 
       <div id={`notes-${missionId}`} style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
@@ -717,11 +745,12 @@ export function MissionCollaboration({
         {notesMore}
         <ExpandableSection
           className="u8-row u8-fold"
-          title="Add Note"
+          title={t('appAgency.appAgencyOrgidU8.addNote')}
           picture={<Icon name="file" size={20} />}
           headingLevel={4}
           remember
         >
+          <FocusFirstFieldOnOpen />
           <form action={noteAction} className="field-list form-narrow">
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="missionId" value={missionId} />
@@ -784,7 +813,7 @@ export function MissionCollaboration({
             </div>
           </form>
         </ExpandableSection>
-        <FormMessage result={noteState} />
+        <FormMessage id={`${uid}-note-error`} result={noteState} />
       </div>
 
       {requirements.length > 0 ? (
