@@ -103,7 +103,8 @@ export async function coveredControls(page: Page, options: CoverOptions = {}): P
         let rect = control.getBoundingClientRect();
         // Visually hidden (a screen-reader-only field or a styled checkbox's real input).
         if (rect.width < 4 || rect.height < 4) continue;
-        control.scrollIntoView({ block: 'center', inline: 'center' });
+        // Instant: the site scrolls smoothly, and a point read mid-scroll would miss the control.
+        control.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
         rect = control.getBoundingClientRect();
         const centre: [number, number] = [rect.left + rect.width / 2, rect.top + rect.height / 2];
         const points: [number, number][] =
@@ -127,7 +128,7 @@ export async function coveredControls(page: Page, options: CoverOptions = {}): P
           }
         }
       }
-      window.scrollTo(startX, startY);
+      window.scrollTo({ left: startX, top: startY, behavior: 'instant' });
       return covered;
     },
     { selector: CONTROL_SELECTOR, within: options.within, ignore: options.ignore },
