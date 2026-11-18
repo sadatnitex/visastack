@@ -23,6 +23,7 @@ import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { consentName } from '../../../lib/labels';
 import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../lib/paging';
 import { withSession } from '../../../lib/session';
+import { AreaPicture, FocusFirstFieldOnOpen, TravellerRow, TravellerRows } from '../u7-rows';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
 
@@ -167,14 +168,18 @@ export default async function PrivacyPage({
           </a>
         </nav>
 
-        <div className="grid">
-          <article className="card" id="export-data">
-            <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.portability')}</p>
-            <h2 className="card-title">{t.node('appPrivacy.appPrivacyPage.exportYourData')}</h2>
+        <TravellerRows>
+          <TravellerRow
+            id="export-data"
+            headingLevel={2}
+            title={t.node('appPrivacy.appPrivacyPage.exportYourData')}
+            picture={<AreaPicture mark={{ icon: 'upload', tone: 'blue' }} />}
+            chip={{ label: t.node('appPrivacy.appPrivacyPage.portability'), tone: 'neutral' }}
+          >
             <p className="card-body u-mb-125" {...atLevel('browse')}>
               {t.node('appPrivacy.appPrivacyPage.downloadACompleteStructuredSnapshotOf')}
             </p>
-            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <div className="u7-body-actions">
               <a href="/app/privacy/export" className="btn btn-primary" download>
                 {t.node('appPrivacy.appPrivacyPage.downloadExportJson')}
               </a>
@@ -186,100 +191,118 @@ export default async function PrivacyPage({
             <div id="large-export" {...(exportInProgress ? {} : atLevel('everything'))}>
               <LargeExportPanel jobs={data.exportJobs} />
             </div>
-          </article>
+          </TravellerRow>
 
           {/* A deletion already on its way is never hidden: cancelling it must stay one look away. */}
-          <article
-            className="card"
-            id="delete-account"
-            {...(data.scheduledFor ? {} : atLevel('everything'))}
+          <div {...(data.scheduledFor ? {} : atLevel('everything'))}>
+            <TravellerRow
+              id="delete-account"
+              headingLevel={2}
+              title={t.node('appPrivacy.appPrivacyPage.deleteYourAccount')}
+              picture={<AreaPicture mark={{ icon: 'alert', tone: 'red' }} />}
+              chip={{ label: t.node('appPrivacy.appPrivacyPage.erasure'), tone: 'neutral' }}
+              {...(data.scheduledFor ? { defaultOpen: true } : {})}
+              remember
+            >
+              <FocusFirstFieldOnOpen />
+              <p className="card-body u-mb-125">
+                {t.node('appPrivacy.appPrivacyPage.deletionIsReversibleDuringA7')}
+              </p>
+              <details className="card-body u-mb-125">
+                <summary>{t.node('appPrivacy.appPrivacyPage.whatHappensToYourAuditTrail')}</summary>
+                <p>{t.node('appPrivacy.appPrivacyPage.yourAuditTrailIsKeptAs')}</p>
+              </details>
+              <DeletionPanel
+                scheduledFor={data.scheduledFor}
+                impact={data.impact}
+                holds={data.holds}
+              />
+            </TravellerRow>
+          </div>
+        </TravellerRows>
+
+        <div className="u7-rows-gap" {...atLevel('browse')}>
+          <TravellerRow
+            id="consent-history"
+            headingLevel={2}
+            title={t.node('appPrivacy.appPrivacyPage.consentHistory')}
+            picture={<AreaPicture mark={{ icon: 'activity', tone: 'teal' }} />}
+            chip={{ label: t.node('appPrivacy.appPrivacyPage.transparency'), tone: 'neutral' }}
+            {...(data.history.length === 0 && !consentBefore ? { defaultOpen: true } : {})}
+            {...(consentBefore ? { defaultOpen: true } : {})}
           >
-            <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.erasure')}</p>
-            <h2 className="card-title">{t.node('appPrivacy.appPrivacyPage.deleteYourAccount')}</h2>
-            <p className="card-body u-mb-125">
-              {t.node('appPrivacy.appPrivacyPage.deletionIsReversibleDuringA7')}
-            </p>
-            <details className="card-body u-mb-125">
-              <summary>{t.node('appPrivacy.appPrivacyPage.whatHappensToYourAuditTrail')}</summary>
-              <p>{t.node('appPrivacy.appPrivacyPage.yourAuditTrailIsKeptAs')}</p>
-            </details>
-            <DeletionPanel
-              scheduledFor={data.scheduledFor}
-              impact={data.impact}
-              holds={data.holds}
-            />
-          </article>
+            {data.history.length === 0 && !consentBefore ? (
+              <EmptyState
+                icon="activity"
+                title={t('appPrivacy.appPrivacyPage.noChangesYet')}
+                action={{ href: '/app#permissions', label: 'Open Permissions' }}
+              >
+                {t.node('appPrivacy.appPrivacyPage.eachTimeYouTurnAPermission')}
+              </EmptyState>
+            ) : (
+              <div>
+                {/* The consent history carries the approved legal wording: it stays English under every language. */}
+                <I18nProvider locale="en" pageLang="en">
+                  <ActivityLog
+                    id={CONSENT_LOG_ID}
+                    label={t('appPrivacy.appPrivacyPage.consentHistoryEntries')}
+                    entries={data.history}
+                    {...(data.historyOlder
+                      ? {
+                          olderHref: pagingHref(
+                            PATHNAME,
+                            query,
+                            { consentBefore: data.historyOlder },
+                            CONSENT_LOG_ID,
+                          ),
+                        }
+                      : {})}
+                    {...(consentBefore
+                      ? {
+                          newestHref: pagingHref(
+                            PATHNAME,
+                            query,
+                            { consentBefore: null },
+                            CONSENT_LOG_ID,
+                          ),
+                        }
+                      : {})}
+                  />
+                </I18nProvider>
+              </div>
+            )}
+          </TravellerRow>
         </div>
 
-        <article className="card u-mt-150" id="consent-history" {...atLevel('browse')}>
-          <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.transparency')}</p>
-          <h2 className="card-title">{t.node('appPrivacy.appPrivacyPage.consentHistory')}</h2>
-          {data.history.length === 0 && !consentBefore ? (
-            <EmptyState icon="activity" title={t('appPrivacy.appPrivacyPage.noChangesYet')}>
-              {t.node('appPrivacy.appPrivacyPage.eachTimeYouTurnAPermission')}
-            </EmptyState>
-          ) : (
-            <div className="u-mt-050">
-              {/* The consent history carries the approved legal wording: it stays English under every language. */}
-              <I18nProvider locale="en" pageLang="en">
-                <ActivityLog
-                  id={CONSENT_LOG_ID}
-                  label={t('appPrivacy.appPrivacyPage.consentHistoryEntries')}
-                  entries={data.history}
-                  {...(data.historyOlder
-                    ? {
-                        olderHref: pagingHref(
-                          PATHNAME,
-                          query,
-                          { consentBefore: data.historyOlder },
-                          CONSENT_LOG_ID,
-                        ),
-                      }
-                    : {})}
-                  {...(consentBefore
-                    ? {
-                        newestHref: pagingHref(
-                          PATHNAME,
-                          query,
-                          { consentBefore: null },
-                          CONSENT_LOG_ID,
-                        ),
-                      }
-                    : {})}
-                />
-              </I18nProvider>
-            </div>
-          )}
-        </article>
-
         {data.aiUsage ? (
-          <article
-            className="card u-mt-150"
-            id="ai-use-today"
-            aria-labelledby="ai-use-today-title"
-            {...atLevel('browse')}
-          >
-            <p className="card-kicker">{t.node('appPrivacy.appPrivacyPage.transparency')}</p>
-            <h2 className="card-title" id="ai-use-today-title">
-              {t.node('appPrivacy.appPrivacyPage.aiUseToday')}
-            </h2>
-            <p className="card-body">{t.node('appPrivacy.appPrivacyPage.howMuchYouUsedEachAi')}</p>
-            <div className="rows u-mt-050">
-              {data.aiUsage.map((feature) => {
-                const badge = usageBadge(feature);
-                return (
-                  <div className="row" key={feature.feature}>
-                    <span className="row-key">{feature.name}</span>
-                    <span className="row-end">
-                      <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                      <span className="muted u-fs-085">{usageLine(feature)}</span>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="muted u-fs-085 u-mt-050">{AI_DAY_BOUNDARY_NOTE}</p>
-          </article>
+          <div className="u7-rows-gap" {...atLevel('browse')}>
+            <TravellerRow
+              id="ai-use-today"
+              headingLevel={2}
+              title={t.node('appPrivacy.appPrivacyPage.aiUseToday')}
+              picture={<AreaPicture mark={{ icon: 'eye', tone: 'violet' }} />}
+              chip={{ label: t.node('appPrivacy.appPrivacyPage.transparency'), tone: 'neutral' }}
+            >
+              <p className="card-body">
+                {t.node('appPrivacy.appPrivacyPage.howMuchYouUsedEachAi')}
+              </p>
+              <div className="rows u-mt-050">
+                {data.aiUsage.map((feature) => {
+                  const badge = usageBadge(feature);
+                  return (
+                    <div className="row" key={feature.feature}>
+                      <span className="row-key">{feature.name}</span>
+                      <span className="row-end">
+                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                        <span className="muted u-fs-085">{usageLine(feature)}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="muted u-fs-085 u-mt-050">{AI_DAY_BOUNDARY_NOTE}</p>
+            </TravellerRow>
+          </div>
         ) : null}
 
         <p className="muted u-mt-150" {...atLevel('everything')}>

@@ -1,4 +1,5 @@
 import type { OrganiserCompanionView } from '@visastack/services';
+import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { renderServer } from '../../../lib/next-mocks.test-support';
@@ -247,7 +248,7 @@ describe('TripOverview: Travelling with You', () => {
       />,
     );
   const section = (html: string) =>
-    html.slice(html.indexOf('trip-companions-title'), html.indexOf('trip-add-title'));
+    html.slice(html.indexOf('trip-companions-title'), html.indexOf('id="trip-add"'));
 
   it('lists each person with their name and one state word', async () => {
     const html = section(await render({ companionsOn: true, companions: people }));
@@ -315,7 +316,10 @@ describe('TripOverview: Travelling with You', () => {
 
   it('states state in words, not colour alone, and keeps every action quiet', async () => {
     const html = section(await render({ companionsOn: true, companions: people }));
-    expect(html.match(/class="badge badge-neutral"/g)).toHaveLength(people.length);
+    // One status chip in words for every person (U7: the shared status chip, one per row).
+    expect(new JSDOM(html).window.document.querySelectorAll('.lift-pill')).toHaveLength(
+      people.length,
+    );
     expect(html).not.toContain('btn-primary');
     expect(html).not.toContain('style=');
   });

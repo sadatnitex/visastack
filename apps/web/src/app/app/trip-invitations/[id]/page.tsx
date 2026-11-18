@@ -18,6 +18,7 @@ import { PageHeader } from '../../../../components/ui';
 import { appTripInvitationsCatalog } from '../../../../i18n/app-trip-invitations';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
+import { AcceptFold, AreaPicture, TravellerRow } from '../../u7-rows';
 import {
   ChoosePaperForm,
   LeaveTripForm,
@@ -90,31 +91,39 @@ export default async function JoinedTripPage({
         description={t('appTripInvitations.appTripInvitationsIdPage.youJoinedThisTrip')}
       />
       <article className="card">
-        <dl className="rows">
-          <div className="row">
-            <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
-            <dd>
-              <DestinationLabel destination={trip.destination} />
-            </dd>
-          </div>
-          <div className="row">
-            <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
-            <dd>{trip.purpose}</dd>
-          </div>
-          <div className="row">
-            <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.travelling')}</dt>
-            <dd>
-              <ul className="companion-people">
-                {trip.people.map((name, at) => (
-                  <li key={`${at}-${name}`}>{name}</li>
-                ))}
-              </ul>
-              {trip.moreTravelling > 0 ? (
-                <p className="muted u-fs-085 u-m-0">{moreWords(trip.moreTravelling)}</p>
-              ) : null}
-            </dd>
-          </div>
-        </dl>
+        <TravellerRow
+          headingLevel={2}
+          title={trip.title}
+          picture={<AreaPicture mark={{ icon: 'plane', tone: 'blue' }} />}
+          meta={<DestinationLabel destination={trip.destination} />}
+        />
+        <AcceptFold title={t.node('appTripInvitations.appTripInvitationsU7.aboutThisTrip')}>
+          <dl className="rows">
+            <div className="row">
+              <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
+              <dd>
+                <DestinationLabel destination={trip.destination} />
+              </dd>
+            </div>
+            <div className="row">
+              <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
+              <dd>{trip.purpose}</dd>
+            </div>
+            <div className="row">
+              <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.travelling')}</dt>
+              <dd>
+                <ul className="companion-people">
+                  {trip.people.map((name, at) => (
+                    <li key={`${at}-${name}`}>{name}</li>
+                  ))}
+                </ul>
+                {trip.moreTravelling > 0 ? (
+                  <p className="muted u-fs-085 u-m-0">{moreWords(trip.moreTravelling)}</p>
+                ) : null}
+              </dd>
+            </div>
+          </dl>
+        </AcceptFold>
         <div className="companion-actions">
           {ownCaseId ? (
             <Link className="btn btn-primary" href={`/app/mission/${ownCaseId}`}>

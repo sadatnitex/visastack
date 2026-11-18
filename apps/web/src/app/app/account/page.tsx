@@ -20,6 +20,7 @@ import { signOutCurrentUser } from '../../../lib/sign-out';
 import { webPushReady } from '../../../lib/web-push';
 import { readWhatsAppConfig } from '../../../lib/whatsapp';
 import { setLocaleAction } from '../../actions';
+import { AreaPicture, TravellerRow, TravellerRows } from '../u7-rows';
 import { PushCard, TurnOffPushOnSubmit } from './push-card';
 
 export const metadata: Metadata = { title: 'Account' };
@@ -83,12 +84,14 @@ export default async function AccountPage() {
         <DepthSwitch family="account" initial={depth} copy={copy} />
 
         <div className="grid">
-          <article className="card">
-            <p className="card-kicker">{t.node('appAccount.appAccountPage.session')}</p>
-            <h2 className="card-title">{t.node('appAccount.appAccountPage.signedIn')}</h2>
-            <p className="card-body u-mb-125">
-              {t.node('appAccount.appAccountPage.signOutOfThisDevice')}
-            </p>
+          <TravellerRow
+            headingLevel={2}
+            title={t.node('appAccount.appAccountPage.signedIn')}
+            chip={{ label: t.node('appAccount.appAccountPage.session'), tone: 'neutral' }}
+            picture={<AreaPicture mark={{ icon: 'logout', tone: 'neutral' }} />}
+            meta={t.node('appAccount.appAccountPage.signOutOfThisDevice')}
+            remember
+          >
             <form
               action={async (form: FormData) => {
                 'use server';
@@ -101,7 +104,7 @@ export default async function AccountPage() {
                 {t.node('appAccount.appAccountPage.signOut')}
               </button>
             </form>
-          </article>
+          </TravellerRow>
 
           {/* WP-PIC18: only while Web Push is on and ready; the card hides itself where the browser cannot alert. */}
           {data.push ? <PushCard publicKey={data.push.publicKey} /> : null}
@@ -114,91 +117,105 @@ export default async function AccountPage() {
 
           {/* Shown while language choice is on (see LANGUAGE_CHOICE_ENABLED). */}
           {LANGUAGE_CHOICE_ENABLED ? (
-            <article className="card" {...atLevel('browse')}>
-              <p className="card-kicker">Preferences</p>
-              <h2 className="card-title">Language</h2>
-              <p className="card-body u-mb-125">Applies immediately across the whole product.</p>
-              <form action={setLocaleAction}>
-                <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-                <button type="submit" className="btn btn-secondary">
-                  Switch to{' '}
-                  <span lang={locale === 'en' ? 'bn' : 'en'}>
-                    {locale === 'en' ? 'বাংলা' : 'English'}
-                  </span>
-                </button>
-              </form>
-            </article>
+            <div className="depth-item" {...atLevel('browse')}>
+              <TravellerRow
+                headingLevel={2}
+                title="Language"
+                chip={{ label: 'Preferences', tone: 'neutral' }}
+                picture={<AreaPicture mark={{ icon: 'globe', tone: 'violet' }} />}
+                meta="Applies immediately across the whole product."
+              >
+                <form action={setLocaleAction}>
+                  <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
+                  <button type="submit" className="btn btn-secondary">
+                    Switch to{' '}
+                    <span lang={locale === 'en' ? 'bn' : 'en'}>
+                      {locale === 'en' ? 'বাংলা' : 'English'}
+                    </span>
+                  </button>
+                </form>
+              </TravellerRow>
+            </div>
           ) : null}
 
-          <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">{t.node('appAccount.appAccountPage.plan')}</p>
-            <h2 className="card-title">{t.node('appAccount.appAccountPage.planUsage')}</h2>
-            <p className="card-body u-mb-125">
-              {t.node('appAccount.appAccountPage.yourPlanWhatItIncludesAnd')}
-            </p>
-            <Link href="/app/account/plan" className="btn btn-secondary">
-              {t.node('appAccount.appAccountPage.openPlanUsage')}
-            </Link>
-          </article>
+          <div className="depth-item" {...atLevel('browse')}>
+            <TravellerRow
+              headingLevel={2}
+              title={t.node('appAccount.appAccountPage.planUsage')}
+              chip={{ label: t.node('appAccount.appAccountPage.plan'), tone: 'neutral' }}
+              picture={<AreaPicture mark={{ icon: 'activity', tone: 'blue' }} />}
+              meta={t.node('appAccount.appAccountPage.yourPlanWhatItIncludesAnd')}
+            >
+              <Link href="/app/account/plan" className="btn btn-secondary">
+                {t.node('appAccount.appAccountPage.openPlanUsage')}
+              </Link>
+            </TravellerRow>
+          </div>
 
-          <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">{t.node('appAccount.appAccountPage.dataRights')}</p>
-            <h2 className="card-title">{t.node('appAccount.appAccountPage.privacy')}</h2>
-            <p className="card-body u-mb-125">
-              {t.node('appAccount.appAccountPage.exportYourDataReviewConsentHistory')}
-            </p>
-            <Link href="/app/privacy" className="btn btn-secondary">
-              {t.node('appAccount.appAccountPage.openPrivacy')}
-            </Link>
-            {passkeysEnabled() ? (
-              <p className="card-body">
-                <Link href="/app/account/passkeys">Manage Your Passkeys</Link>
-              </p>
-            ) : null}
-          </article>
+          <div className="depth-item" {...atLevel('browse')}>
+            <TravellerRow
+              headingLevel={2}
+              title={t.node('appAccount.appAccountPage.privacy')}
+              chip={{ label: t.node('appAccount.appAccountPage.dataRights'), tone: 'neutral' }}
+              picture={<AreaPicture mark={{ icon: 'shield', tone: 'teal' }} />}
+              meta={t.node('appAccount.appAccountPage.exportYourDataReviewConsentHistory')}
+            >
+              <div className="u7-body-actions">
+                <Link href="/app/privacy" className="btn btn-secondary">
+                  {t.node('appAccount.appAccountPage.openPrivacy')}
+                </Link>
+                {passkeysEnabled() ? (
+                  <Link href="/app/account/passkeys">Manage Your Passkeys</Link>
+                ) : null}
+              </div>
+            </TravellerRow>
+          </div>
 
           {showWhatsApp ? (
-            <article className="card" {...atLevel('everything')}>
-              <p className="card-kicker">{t.node('appAccount.appAccountPage.optional')}</p>
-              <h2 className="card-title">{t.node('appAccount.appAccountPage.whatsapp')}</h2>
-              <p className="card-body u-mb-125">
-                {t.node('appAccount.appAccountPage.askAboutYourCasesFromWhatsapp')}
-              </p>
-              <Link href="/app/account/whatsapp" className="btn btn-secondary">
-                {t.node('appAccount.appAccountPage.openWhatsappSettings')}
-              </Link>
-            </article>
+            <div className="depth-item" {...atLevel('everything')}>
+              <TravellerRow
+                headingLevel={2}
+                title={t.node('appAccount.appAccountPage.whatsapp')}
+                chip={{ label: t.node('appAccount.appAccountPage.optional'), tone: 'neutral' }}
+                picture={<AreaPicture mark={{ icon: 'mail', tone: 'green' }} />}
+                meta={t.node('appAccount.appAccountPage.askAboutYourCasesFromWhatsapp')}
+              >
+                <Link href="/app/account/whatsapp" className="btn btn-secondary">
+                  {t.node('appAccount.appAccountPage.openWhatsappSettings')}
+                </Link>
+              </TravellerRow>
+            </div>
           ) : null}
 
           {showRoles ? (
-            <article className="card" {...atLevel('everything')}>
+            <section
+              className="depth-item"
+              aria-labelledby="account-roles-title"
+              {...atLevel('everything')}
+            >
               <p className="card-kicker">{t.node('appAccount.appAccountPage.roles')}</p>
-              <h2 className="card-title">
+              <h2 className="card-title" id="account-roles-title">
                 {t.node('appAccount.appAccountPage.otherAreasYouCanAccess')}
               </h2>
-              <div className="rows u-mt-050">
+              <TravellerRows>
                 {data.hasAgencyAccess ? (
-                  <Link className="row row-link" href="/app/agency">
-                    <span className="row-key">
-                      {t.node('appAccount.appAccountPage.agencyDesk')}
-                    </span>
-                    <span className="muted" aria-hidden="true">
-                      →
-                    </span>
-                  </Link>
+                  <TravellerRow
+                    headingLevel={3}
+                    href="/app/agency"
+                    title={t.node('appAccount.appAccountPage.agencyDesk')}
+                    picture={<AreaPicture mark={{ icon: 'building', tone: 'blue' }} />}
+                  />
                 ) : null}
                 {data.isAdmin ? (
-                  <Link className="row row-link" href="/app/admin">
-                    <span className="row-key">
-                      {t.node('appAccount.appAccountPage.platformAdministration')}
-                    </span>
-                    <span className="muted" aria-hidden="true">
-                      →
-                    </span>
-                  </Link>
+                  <TravellerRow
+                    headingLevel={3}
+                    href="/app/admin"
+                    title={t.node('appAccount.appAccountPage.platformAdministration')}
+                    picture={<AreaPicture mark={{ icon: 'settings', tone: 'violet' }} />}
+                  />
                 ) : null}
-              </div>
-            </article>
+              </TravellerRows>
+            </section>
           ) : null}
         </div>
       </DepthScope>

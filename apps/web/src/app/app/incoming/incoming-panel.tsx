@@ -31,6 +31,7 @@ import {
   confirmUploadAccount,
   importLine,
 } from '../applicant/[id]/import/import-panel';
+import { AreaPicture, TravellerRow, TravellerRows } from '../u7-rows';
 
 type Phase = 'loading' | 'empty' | 'ready' | 'sending' | 'cancelled';
 
@@ -318,26 +319,33 @@ export function IncomingPanel({
             {`${fileWord(inbox.dropped)} not kept. VisaStack takes up to ${SHARE_MAX_FILES} photos or PDFs at a time.`}
           </p>
         ) : null}
-        <ul className="incoming-grid">
+        <TravellerRows className="incoming-grid" ariaLabel="Files Shared to VisaStack">
           {inbox.files.map((file) => (
-            <li key={file.n} className="incoming-tile">
-              {SHARE_PICTURE_TYPES.includes(file.type) ? (
-                <img
-                  className="incoming-picture"
-                  src={sharedFileUrl(file.n, inbox.token)}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
-                <span className="incoming-file" aria-hidden="true">
-                  {file.type === 'application/pdf' ? 'PDF' : 'Photo'}
-                </span>
-              )}
-              <span className="incoming-name">{file.name}</span>
-            </li>
+            <TravellerRow
+              key={file.n}
+              className="incoming-tile"
+              headingLevel={3}
+              title={<span className="incoming-name">{file.name}</span>}
+              picture={
+                SHARE_PICTURE_TYPES.includes(file.type) ? (
+                  <img
+                    className="incoming-picture u7-thumb"
+                    src={sharedFileUrl(file.n, inbox.token)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <AreaPicture mark={{ icon: 'file', tone: 'neutral' }} />
+                )
+              }
+              chip={{
+                label: file.type === 'application/pdf' ? 'PDF' : 'Photo',
+                tone: 'neutral',
+              }}
+            />
           ))}
-        </ul>
+        </TravellerRows>
         {waiting ? (
           <>
             {people.length > 1 ? (
@@ -370,20 +378,44 @@ export function IncomingPanel({
                 {OFFLINE_LINE}
               </p>
             ) : null}
-            <ul className="incoming-lines" aria-live="polite">
+            <TravellerRows className="incoming-lines" ariaLabel="Progress of Each File">
               {items.map((item) => {
                 const line = importLine(item);
+                const done = item.state === 'added' || item.state === 'duplicate';
+                const failed =
+                  item.state === 'refused' ||
+                  item.state === 'unknown' ||
+                  item.state === 'unsupported' ||
+                  item.state === 'skipped';
                 return (
-                  <li key={item.id}>
-                    <strong>{item.name}</strong> {line.flag}
-                    {line.text}
-                  </li>
+                  <TravellerRow
+                    key={item.id}
+                    headingLevel={3}
+                    title={item.name}
+                    picture={
+                      <AreaPicture
+                        mark={
+                          done
+                            ? { icon: 'check', tone: 'green' }
+                            : failed
+                              ? { icon: 'alert', tone: 'amber' }
+                              : { icon: 'clock', tone: 'neutral' }
+                        }
+                      />
+                    }
+                    meta={`${line.flag}${line.text}`}
+                  />
                 );
               })}
               {unreadable > 0 ? (
-                <li>{`${fileWord(unreadable)} could no longer be read on this phone. Share again to add them.`}</li>
+                <TravellerRow
+                  headingLevel={3}
+                  title="Files Not Read"
+                  picture={<AreaPicture mark={{ icon: 'alert', tone: 'amber' }} />}
+                  meta={`${fileWord(unreadable)} could no longer be read on this phone. Share again to add them.`}
+                />
               ) : null}
-            </ul>
+            </TravellerRows>
             {finished ? (
               <>
                 <output className="incoming-note">

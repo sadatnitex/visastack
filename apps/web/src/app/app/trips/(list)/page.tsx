@@ -1,36 +1,61 @@
 import { formatDate } from '@visastack/i18n';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { DestinationLabel } from '../../../../components/destination-label';
+import { CountryFlag } from '../../../../components/country-flag';
+import { DestinationLabel, destinationFlagCode } from '../../../../components/destination-label';
 import { SearchableList } from '../../../../components/list-pattern';
-import { PageHeader } from '../../../../components/ui';
+import { EmptyState, PageHeader } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift';
 import { appTripsCatalog } from '../../../../i18n/app-trips';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
+import { AreaPicture, TravellerRow } from '../../u7-rows';
 import { loadJoinedTrips, loadTripList } from '../trip-data';
 
 export const metadata: Metadata = { title: 'Group Trips' };
 
 export const dynamic = 'force-dynamic';
 
-/** One group trip in the list: its name and how many travellers it holds. */
+/** The picture of a trip: the flag of its country when one is known, otherwise a plane. */
+function TripPicture({ destination }: { readonly destination: string }) {
+  const iso2 = destinationFlagCode(destination);
+  return iso2 ? (
+    <CountryFlag iso2={iso2} name={destination} size="lg" decorative />
+  ) : (
+    <AreaPicture mark={{ icon: 'plane', tone: 'blue' }} />
+  );
+}
+
+/** One group trip in the list: its name, where it goes and how many travellers it holds. */
 function TripItem({
   trip,
 }: {
-  readonly trip: { readonly id: string; readonly title: string; readonly travellerCount: number };
+  readonly trip: {
+    readonly id: string;
+    readonly title: string;
+    readonly destination: string;
+    readonly travellerCount: number;
+  };
 }) {
   const t = getServerT(appTripsCatalog);
   return (
     <li>
-      <Link href={`/app/trips/${trip.id}`}>{trip.title}</Link>{' '}
-      <span className="muted u-fs-085">
-        {trip.travellerCount === 1
-          ? t.node('appTrips.appTripsPage.1Traveller')
-          : t.node('appTrips.appTripsPage.travellercountTravellers', {
-              travellerCount: trip.travellerCount,
-            })}
-      </span>
+      <TravellerRow
+        headingLevel={2}
+        href={`/app/trips/${trip.id}`}
+        title={trip.title}
+        picture={<TripPicture destination={trip.destination} />}
+        chip={{
+          label:
+            trip.travellerCount === 1
+              ? t.node('appTrips.appTripsPage.1Traveller')
+              : t.node('appTrips.appTripsPage.travellercountTravellers', {
+                  travellerCount: trip.travellerCount,
+                }),
+          tone: 'neutral',
+        }}
+        meta={<DestinationLabel destination={trip.destination} />}
+      />
     </li>
   );
 }
@@ -71,20 +96,30 @@ export default async function TripsPage() {
             noun={{ one: 'trip', other: 'trips' }}
             searchLabel="Search Group Trips"
             resultsTag="ul"
-            resultsClassName="trip-list"
+            resultsClassName="trip-list u7-rows u7-list"
           >
-            <ul className="trip-list">
+            <ul className="trip-list u7-rows u7-list">
               {trips.map((trip) => (
                 <TripItem key={trip.id} trip={trip} />
               ))}
             </ul>
           </SearchableList>
         ) : hasTravellers ? (
-          <p className="u-m-0">{t.node('appTrips.appTripsPage.noGroupTripsYet')}</p>
+          <EmptyState
+            icon="plane"
+            title={t('appTrips.appTripsPage.noGroupTripsYet')}
+            action={{ href: '/app/trips/new', label: t('appTrips.appTripsPage.startAGroupTrip') }}
+          >
+            {t.node('appTrips.appTripsPage.planOneTripForSeveralTravellers')}
+          </EmptyState>
         ) : (
-          <p className="u-m-0">
-            Add a traveller first, then start a trip. <Link href="/app">Go to Home</Link>
-          </p>
+          <EmptyState
+            icon="plane"
+            title="No Group Trips Yet"
+            action={{ href: '/app', label: 'Go to Home' }}
+          >
+            Add a traveller first, then start a trip.
+          </EmptyState>
         )}
       </article>
       {joined.length > 0 ? (
@@ -92,26 +127,32 @@ export default async function TripsPage() {
           <h2 id="trips-joined-title" className="card-title">
             {t.node('appTrips.appTripsPage.tripsYouJoined')}
           </h2>
-          <ul className="trip-list">
+          <ul className="trip-list u7-rows u7-list">
             {joined.map((trip) => (
               <li key={trip.key}>
-                {trip.joined ? (
-                  <Link href={`/app/trip-invitations/${trip.tripId}`}>{trip.title}</Link>
-                ) : (
-                  <span>{trip.title}</span>
-                )}{' '}
-                <span className="muted u-fs-085">
-                  <DestinationLabel destination={trip.destination} />
-                  {trip.joined
-                    ? ''
-                    : t.node('appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink', {
-                        formatTimestampDate: formatDate(new Date(trip.endsAt), locale, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        }),
-                      })}
-                </span>
+                <TravellerRow
+                  headingLevel={3}
+                  {...(trip.joined ? { href: `/app/trip-invitations/${trip.tripId}` } : {})}
+                  title={trip.title}
+                  picture={<TripPicture destination={trip.destination} />}
+                  meta={
+                    <>
+                      <DestinationLabel destination={trip.destination} />
+                      {trip.joined
+                        ? ''
+                        : t.node(
+                            'appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink',
+                            {
+                              formatTimestampDate: formatDate(new Date(trip.endsAt), locale, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              }),
+                            },
+                          )}
+                    </>
+                  }
+                />
               </li>
             ))}
           </ul>

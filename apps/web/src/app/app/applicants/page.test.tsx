@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +22,7 @@ vi.mock('../add-applicant-form', () => ({
   ),
 }));
 const { default: ApplicantsPage } = await import('./page');
+const parse = (html: string) => new JSDOM(html).window.document;
 
 const person = (id: string, relationship: string) => ({
   id,
@@ -109,12 +111,12 @@ describe('Archived and Recently Deleted travellers (LC-E)', () => {
     const many = Array.from({ length: 12 }, (_, index) => archivedPerson(`a${index}`));
     lists([person('b', 'SELF')], many);
     const first = renderToStaticMarkup(await ApplicantsPage());
-    expect(first.match(/class="row lc-traveller-row"/g)).toHaveLength(10);
+    expect(parse(first).querySelectorAll('.lc-traveller-row')).toHaveLength(10);
     expect(first).toContain('Show More');
     const more = renderToStaticMarkup(
       await ApplicantsPage({ searchParams: Promise.resolve({ archived: '20' }) }),
     );
-    expect(more.match(/class="row lc-traveller-row"/g)).toHaveLength(12);
+    expect(parse(more).querySelectorAll('.lc-traveller-row')).toHaveLength(12);
     // A result line from the last action is not carried into Show More.
     const after = renderToStaticMarkup(
       await ApplicantsPage({ searchParams: Promise.resolve({ traveller: 'restored' }) }),
@@ -134,5 +136,49 @@ describe('Archived and Recently Deleted travellers (LC-E)', () => {
     );
     expect(forged).not.toContain('pwned');
     expect(forged).not.toContain('id="traveller-outcome"');
+  });
+});
+
+describe('People on Your Account as compact rows (U7)', () => {
+  it('draws one row per person with a picture, the name as the link and one relationship chip', async () => {
+    lists([person('a', 'SELF'), person('b', 'FAMILY_MEMBER')]);
+    const doc = parse(renderToStaticMarkup(await ApplicantsPage()));
+    const links = [...doc.querySelectorAll<HTMLAnchorElement>('.u7-plain .u7-plain-link')];
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/app/applicant/a',
+      '/app/applicant/b',
+    ]);
+    expect(links.map((link) => link.textContent)).toEqual(['Synthetic a', 'Synthetic b']);
+    for (const row of doc.querySelectorAll('.u7-plain')) {
+      expect(row.querySelector('.u7-initials')).not.toBeNull();
+      expect(row.querySelectorAll('.badge')).toHaveLength(1);
+    }
+  });
+
+  it('folds Add a Traveller behind one row, closed while people exist', async () => {
+    lists([person('a', 'SELF')]);
+    const doc = parse(renderToStaticMarkup(await ApplicantsPage()));
+    const fold = doc.querySelector('#add-traveller details');
+    expect(fold).not.toBeNull();
+    expect(fold?.hasAttribute('open')).toBe(false);
+    expect(fold?.querySelector('[data-form="add-applicant"]')).not.toBeNull();
+    expect(doc.querySelector('#add-traveller h2')?.textContent).toBe('Add a Traveller');
+  });
+
+  it('with nobody yet, opens the fold and its empty state links to it', async () => {
+    lists([]);
+    const doc = parse(renderToStaticMarkup(await ApplicantsPage()));
+    expect(doc.querySelector('#add-traveller details')?.hasAttribute('open')).toBe(true);
+    const action = doc.querySelector<HTMLAnchorElement>('.empty-state a');
+    expect(action?.getAttribute('href')).toBe('#add-traveller');
+    expect(action?.textContent).toBe('Add a Traveller');
+  });
+
+  it('without the processing permission, the empty state points to where it is turned on', async () => {
+    service.getConsents.mockResolvedValue({});
+    lists([]);
+    const doc = parse(renderToStaticMarkup(await ApplicantsPage()));
+    expect(doc.querySelector('.empty-state a')?.getAttribute('href')).toBe('/app#permissions');
+    expect(doc.querySelector('#add-traveller details')?.hasAttribute('open')).toBe(false);
   });
 });

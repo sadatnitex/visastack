@@ -17,6 +17,7 @@ import { appTripInvitationsCatalog } from '../../../../i18n/app-trip-invitations
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
+import { AcceptFold, AreaPicture, TravellerRow } from '../../u7-rows';
 import {
   AcceptTripInvitationForm,
   DeclineTripInvitationForm,
@@ -151,26 +152,34 @@ export default async function TripInvitationPage({
           description={t('appTripInvitations.appTripInvitationsAcceptPage.someoneAddedYouToATrip')}
         />
         <article className="card">
-          <dl className="rows">
-            <div className="row">
-              <dt>{t.node('appTripInvitations.appTripInvitationsAcceptPage.trip')}</dt>
-              <dd>{invite.title}</dd>
-            </div>
-            <div className="row">
-              <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
-              <dd>
-                <DestinationLabel destination={invite.destination} />
-              </dd>
-            </div>
-            <div className="row">
-              <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
-              <dd>{invite.purpose}</dd>
-            </div>
-            <div className="row">
-              <dt>{t.node('appTripInvitations.appTripInvitationsAcceptPage.invitationEnds')}</dt>
-              <dd>{formatTimestampDate(invite.expiresAt)}</dd>
-            </div>
-          </dl>
+          <TravellerRow
+            headingLevel={2}
+            title={invite.title}
+            picture={<AreaPicture mark={{ icon: 'plane', tone: 'blue' }} />}
+            meta={<DestinationLabel destination={invite.destination} />}
+          />
+          <AcceptFold title={t.node('appTripInvitations.appTripInvitationsU7.aboutThisTrip')}>
+            <dl className="rows">
+              <div className="row">
+                <dt>{t.node('appTripInvitations.appTripInvitationsAcceptPage.trip')}</dt>
+                <dd>{invite.title}</dd>
+              </div>
+              <div className="row">
+                <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
+                <dd>
+                  <DestinationLabel destination={invite.destination} />
+                </dd>
+              </div>
+              <div className="row">
+                <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
+                <dd>{invite.purpose}</dd>
+              </div>
+              <div className="row">
+                <dt>{t.node('appTripInvitations.appTripInvitationsAcceptPage.invitationEnds')}</dt>
+                <dd>{formatTimestampDate(invite.expiresAt)}</dd>
+              </div>
+            </dl>
+          </AcceptFold>
           <p className="u-m-0">
             {t.node('appTripInvitations.appTripInvitationsAcceptPage.joiningShowsYourNameToOthers')}
           </p>
