@@ -1,9 +1,12 @@
 import { isAcceptableInvitationContact, isUuid } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Icon } from '../../../../../components/icons';
+import { DocumentPicture } from '../../../../../components/pictures/document-picture';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure, SectionCard } from '../../../../../components/ui-lift';
+import type { LiftTone } from '../../../../../components/ui-lift/types';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { getServerLocale, getServerT, primeLocale } from '../../../../../lib/i18n-server';
@@ -37,6 +40,7 @@ import {
 import { EvidenceRequestActions } from '../evidence-request-actions';
 import { RequestConversation } from '../request-conversation';
 import { RequestEvidenceForm } from '../request-evidence-form';
+import { AgencyRow, AgencyRows, InitialsPicture } from '../u8-rows';
 import { FormGroup } from './form-group';
 import { OpenRequestFromLink } from './open-request-from-link';
 
@@ -204,52 +208,52 @@ export default async function AgencyClientsPage({
                 noun={{ one: 'pending invitation', other: 'pending invitations' }}
                 openAtFirst={pagingInvitations || requests.viewCounts.all === 0}
               >
-                <div className="rows u-mb-100" id="client-invitation-list">
-                  {invitations.items.map((invitation) => (
-                    <div className="row" key={invitation.id}>
-                      <span className="row-key">
-                        {invitation.displayName}
-                        <span className="muted lc-invite-contact">
-                          {invitation.contactDestination}
-                        </span>
-                      </span>
-                      <span className="row-end">
-                        {!isAcceptableInvitationContact(invitation.contactDestination) ? (
-                          // Saved without a valid email address before invitations became email-only:
-                          // nobody can accept it.
-                          <span className="badge badge-danger">
-                            {t.node(
-                              'appAgency.appAgencyOrgidClientsPage.cannotBeAcceptedRevokeAndInvite',
-                            )}
-                          </span>
-                        ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
-                          <span className="badge badge-neutral">
-                            {t.node(
-                              'appAgency.appAgencyOrgidClientsPage.expiredFormattimestampdateInviteAgain',
-                              { formatTimestampDate: formatTimestampDate(invitation.expiresAt) },
-                            )}
-                          </span>
-                        ) : (
-                          <span className="badge badge-warning">
-                            {t.node(
-                              'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
-                              {
-                                formatTimestampDate: formatTimestampDate(
-                                  invitation.expiresAt,
-                                  locale,
+                <AgencyRows id="client-invitation-list">
+                  {invitations.items.map((invitation) => {
+                    const unusable = !isAcceptableInvitationContact(invitation.contactDestination);
+                    const expired = new Date(invitation.expiresAt).getTime() < Date.now();
+                    return (
+                      <AgencyRow
+                        key={invitation.id}
+                        title={invitation.displayName}
+                        picture={<InitialsPicture name={invitation.displayName} />}
+                        chip={{
+                          // Saved without a valid email address before invitations became
+                          // email-only: nobody can accept it.
+                          label: unusable
+                            ? t.node(
+                                'appAgency.appAgencyOrgidClientsPage.cannotBeAcceptedRevokeAndInvite',
+                              )
+                            : expired
+                              ? t.node(
+                                  'appAgency.appAgencyOrgidClientsPage.expiredFormattimestampdateInviteAgain',
+                                  {
+                                    formatTimestampDate: formatTimestampDate(invitation.expiresAt),
+                                  },
+                                )
+                              : t.node(
+                                  'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
+                                  {
+                                    formatTimestampDate: formatTimestampDate(
+                                      invitation.expiresAt,
+                                      locale,
+                                    ),
+                                  },
                                 ),
-                              },
-                            )}
-                          </span>
-                        )}
-                        <ClientInvitationRevokeButton
-                          organizationId={orgId}
-                          invitationId={invitation.id}
-                        />
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                          tone: unusable ? 'danger' : expired ? 'neutral' : 'warning',
+                        }}
+                        meta={invitation.contactDestination}
+                      >
+                        <div className="u8-body-actions">
+                          <ClientInvitationRevokeButton
+                            organizationId={orgId}
+                            invitationId={invitation.id}
+                          />
+                        </div>
+                      </AgencyRow>
+                    );
+                  })}
+                </AgencyRows>
                 <ListPager
                   id="client-invitation-more"
                   landOn="client-invitation-list"
@@ -373,17 +377,17 @@ export default async function AgencyClientsPage({
               ))}
             </nav>
             {data.linkedRequest ? (
-              <div
-                className="rows u-mt-050"
-                aria-label={t('appAgency.appAgencyOrgidClientsPage.theRequestYouFollowedALink')}
+              <AgencyRows
+                ariaLabel={t('appAgency.appAgencyOrgidClientsPage.theRequestYouFollowedALink')}
               >
                 <RequestRow
                   orgId={orgId}
                   req={data.linkedRequest}
                   copies={data.copies.get(data.linkedRequest.id)}
                   fileUnavailable={fileUnavailable && linkedId === data.linkedRequest.id}
+                  linked
                 />
-              </div>
+              </AgencyRows>
             ) : null}
             {requests.items.length === 0 ? (
               <p className="card-body u-mt-100">
@@ -391,7 +395,7 @@ export default async function AgencyClientsPage({
               </p>
             ) : (
               <>
-                <div className="rows u-mt-050" id="agency-evidence-request-list">
+                <AgencyRows id="agency-evidence-request-list">
                   {requests.items.map((req) => (
                     <RequestRow
                       key={req.id}
@@ -401,7 +405,7 @@ export default async function AgencyClientsPage({
                       fileUnavailable={fileUnavailable && linkedId === req.id}
                     />
                   ))}
-                </div>
+                </AgencyRows>
                 <ListPager
                   id="agency-evidence-request-more"
                   landOn="agency-evidence-request-list"
@@ -437,12 +441,15 @@ function RequestRow({
   req,
   copies,
   fileUnavailable,
+  linked = false,
 }: {
   readonly orgId: string;
   readonly req: EvidenceRequestRow;
   /** The sent copies read for this request; undefined when they could not be read (or none apply). */
   readonly copies: EvidenceCopiesData | undefined;
   readonly fileUnavailable: boolean;
+  /** The request a link pointed at: it opens on its own. */
+  readonly linked?: boolean;
 }) {
   const t = getServerT(appAgencyCatalog);
   const rb = REQ_STATUS[req.status] ?? { label: req.status, tone: 'badge-neutral' };
@@ -452,30 +459,35 @@ function RequestRow({
   const hasCopies = req.kind === 'DOCUMENT' && COPIES_STATUSES.has(req.status);
   const waiting = waitingCopy(copies?.list, req.status);
   return (
-    <div
-      className="row request-row"
+    <AgencyRow
       // Do Next links straight to a request waiting for review.
       id={`request-${req.id}`}
+      defaultOpen={linked}
+      remember
+      title={`${
+        req.kind === 'FIELD'
+          ? t('appAgency.appAgencyOrgidClientsPage.field')
+          : t('appAgency.appAgencyOrgidClientsPage.document')
+      }: ${target}`}
+      picture={
+        req.kind === 'DOCUMENT' ? (
+          <DocumentPicture type={req.docType} size={28} />
+        ) : (
+          <Icon name="clipboard" size={22} />
+        )
+      }
+      chip={{ label: rb.label, tone: requestTone(req.status, rb.tone) }}
+      meta={
+        <>
+          {req.applicantName}
+          {req.dueDate
+            ? t.node('appAgency.appAgencyOrgidClientsPage.dueFormatdateonly', {
+                formatDateOnly: formatDateOnly(req.dueDate, getServerLocale()),
+              })
+            : ''}
+        </>
+      }
     >
-      <div className="request-row-head">
-        <span className="row-key">
-          {req.kind === 'FIELD'
-            ? t.node('appAgency.appAgencyOrgidClientsPage.field')
-            : t.node('appAgency.appAgencyOrgidClientsPage.document')}
-          : {target}
-        </span>
-        <span className={`badge ${rb.tone}${req.status === 'RECEIVED' ? ' lift-pill-info' : ''}`}>
-          {rb.label}
-        </span>
-      </div>
-      <span className="muted u-fs-085">
-        {req.applicantName}
-        {req.dueDate
-          ? t.node('appAgency.appAgencyOrgidClientsPage.dueFormatdateonly', {
-              formatDateOnly: formatDateOnly(req.dueDate, getServerLocale()),
-            })
-          : ''}
-      </span>
       <ReferenceCode
         code={req.referenceCode}
         label={t('appAgency.appAgencyOrgidClientsPage.requestReference')}
@@ -499,6 +511,15 @@ function RequestRow({
           canDecide={!hasCopies || copies !== undefined}
         />
       ) : null}
-    </div>
+    </AgencyRow>
   );
+}
+
+/** The chip's colour for a request: Received is the brand blue (it waits for a person), the rest follow the status table. */
+function requestTone(status: string, badge: string): LiftTone {
+  if (status === 'RECEIVED') return 'info';
+  if (badge === 'badge-success') return 'success';
+  if (badge === 'badge-warning') return 'warning';
+  if (badge === 'badge-danger') return 'danger';
+  return 'neutral';
 }

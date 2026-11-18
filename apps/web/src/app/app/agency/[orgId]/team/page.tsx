@@ -1,5 +1,7 @@
 import { agencyCollectionRequestsEnabled } from '@visastack/services';
 import type { Metadata } from 'next';
+import { Icon } from '../../../../../components/icons';
+import { ExpandableSection } from '../../../../../components/ui-lift/expandable-section';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
@@ -9,6 +11,8 @@ import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../conso
 import { InvitationRevokeButton } from '../invitation-revoke-button';
 import { AddMemberForm } from '../member-form';
 import { MemberToggleButton } from '../member-toggle-button';
+import { FocusFirstFieldOnOpen } from '../u8-fold-focus';
+import { AgencyRow, AgencyRows, InitialsPicture } from '../u8-rows';
 import { DocumentRequestToggle } from './document-request-toggle';
 
 export const metadata: Metadata = { title: 'Agency Team' };
@@ -43,6 +47,9 @@ export default async function AgencyTeamPage({
   // UMPE G3: the permission exists only for document requests, so only while they are on.
   const documentRequests = agencyCollectionRequestsEnabled();
 
+  const canRequestToggle = (m: { active: boolean; role: string }) =>
+    m.active && m.role !== 'OWNER' && m.role !== 'ADMIN';
+
   if (!data.admin) {
     return (
       <article className="card">
@@ -66,78 +73,81 @@ export default async function AgencyTeamPage({
         </p>
       ) : null}
       {data.members.length > 0 ? (
-        <div className="rows u-mb-150">
+        <AgencyRows id="team-members" ariaLabel={t('appAgency.appAgencyOrgidTeamPage.members')}>
           {data.members.map((m) => (
-            <div className="row" key={m.membershipId}>
-              <span className="row-key">
-                {m.email}
-                <span
-                  className="muted"
-                  style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                >
-                  {membershipRoleLabel(m.role)}
-                </span>
-                {documentRequests && m.mayRequestDocuments ? (
-                  <span className="muted member-permission-note">
-                    {t.node('appAgency.appAgencyOrgidTeamPage.mayRequestDocuments')}
-                  </span>
-                ) : null}
-              </span>
-              <span className="row-end">
-                <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
+            <AgencyRow
+              key={m.membershipId}
+              title={m.email}
+              picture={<InitialsPicture name={m.email} />}
+              chip={{ label: membershipRoleLabel(m.role), tone: m.active ? 'info' : 'neutral' }}
+              meta={
+                <>
                   {m.active
                     ? t.node('appAgency.appAgencyOrgidTeamPage.active')
                     : t.node('appAgency.appAgencyOrgidTeamPage.inactive')}
-                </span>
-                {documentRequests && m.active && m.role !== 'OWNER' && m.role !== 'ADMIN' ? (
-                  <DocumentRequestToggle
-                    organizationId={orgId}
-                    membershipId={m.membershipId}
-                    allowed={m.mayRequestDocuments}
-                    memberLabel={m.email}
-                  />
-                ) : null}
-                {m.role !== 'OWNER' ? (
+                  {documentRequests && m.mayRequestDocuments
+                    ? ` · ${t('appAgency.appAgencyOrgidTeamPage.mayRequestDocuments')}`
+                    : ''}
+                </>
+              }
+            >
+              {m.role !== 'OWNER' ? (
+                <div className="u8-body-actions">
+                  {documentRequests && canRequestToggle(m) ? (
+                    <DocumentRequestToggle
+                      organizationId={orgId}
+                      membershipId={m.membershipId}
+                      allowed={m.mayRequestDocuments}
+                      memberLabel={m.email}
+                    />
+                  ) : null}
                   <MemberToggleButton
                     organizationId={orgId}
                     membershipId={m.membershipId}
                     active={m.active}
                   />
-                ) : null}
-              </span>
-            </div>
+                </div>
+              ) : undefined}
+            </AgencyRow>
           ))}
-        </div>
+        </AgencyRows>
       ) : null}
       {data.invitations.length > 0 ? (
-        <div className="rows u-mb-150">
+        <AgencyRows id="team-invitations">
           {data.invitations.map((invitation) => (
-            <div className="row" key={invitation.id}>
-              <span className="row-key">
-                {invitation.email}
-                <span
-                  className="muted"
-                  style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                >
-                  {membershipRoleLabel(invitation.role)}
-                </span>
-              </span>
-              <span className="row-end">
-                <span className="badge badge-warning">
-                  {t.node('appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate', {
-                    formatTimestampDate: formatTimestampDate(invitation.expiresAt, locale),
-                  })}
-                </span>
+            <AgencyRow
+              key={invitation.id}
+              title={invitation.email}
+              picture={<InitialsPicture name={invitation.email} />}
+              chip={{
+                label: t.node(
+                  'appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate',
+                  { formatTimestampDate: formatTimestampDate(invitation.expiresAt, locale) },
+                ),
+                tone: 'warning',
+              }}
+              meta={membershipRoleLabel(invitation.role)}
+            >
+              <div className="u8-body-actions">
                 <InvitationRevokeButton organizationId={orgId} invitationId={invitation.id} />
-              </span>
-            </div>
+              </div>
+            </AgencyRow>
           ))}
-        </div>
+        </AgencyRows>
       ) : null}
-      <AddMemberForm
-        organizationId={orgId}
-        pendingInvitationIds={data.invitations.map((invitation) => invitation.id)}
-      />
+      <ExpandableSection
+        className="u8-row u8-add"
+        title={t('appAgency.appAgencyOrgidU8.addMember')}
+        picture={<Icon name="plus" size={20} />}
+        headingLevel={3}
+        remember
+      >
+        <FocusFirstFieldOnOpen />
+        <AddMemberForm
+          organizationId={orgId}
+          pendingInvitationIds={data.invitations.map((invitation) => invitation.id)}
+        />
+      </ExpandableSection>
     </article>
   );
 }

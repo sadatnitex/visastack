@@ -1,9 +1,17 @@
 'use client';
 
-import { type ComponentProps, type ReactNode, useActionState, useId } from 'react';
+import { type ComponentProps, type ReactNode, useActionState, useEffect, useId } from 'react';
 import { useFormStatus } from 'react-dom';
 import { atLevel, revealAt } from '../../../../components/depth';
-import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
+import { Icon } from '../../../../components/icons';
+import { ExpandableSection } from '../../../../components/ui-lift/expandable-section';
+import './u8.css';
+import {
+  FormMessage,
+  NO_RESULT,
+  SubmitButton,
+  isFailure,
+} from '../../../../components/form-feedback';
 import { useT } from '../../../../components/i18n-provider';
 import { useLatestOf } from '../../../../components/latest-result';
 import { ReferenceCode } from '../../../../components/reference-code';
@@ -28,6 +36,7 @@ import { caseAnchorId } from './case-anchor';
 import type { CaseTriageView } from './case-triage';
 import { CaseTriageSummary } from './case-triage-summary';
 import { NeedsYouText } from './needs-you-text';
+import { FocusFirstFieldOnOpen } from './u8-fold-focus';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -142,6 +151,17 @@ interface MissionCollaborationProps {
   readonly ask?: ReactNode;
 }
 
+/** After a refused add, move focus to the message that says why, so it is read at once. */
+function useFocusOnFailure(state: ActionState, id: string): void {
+  useEffect(() => {
+    if (!isFailure(state)) return;
+    const message = document.getElementById(id);
+    if (!message) return;
+    message.setAttribute('tabindex', '-1');
+    message.focus();
+  }, [state, id]);
+}
+
 export function MissionCollaboration({
   organizationId,
   missionId,
@@ -209,6 +229,9 @@ export function MissionCollaboration({
   });
   // Each case on the page has its own copy of these forms, so every field id is made per copy.
   const uid = useId();
+  useFocusOnFailure(taskCreateState, `${uid}-task-error`);
+  useFocusOnFailure(apptCreateState, `${uid}-appt-error`);
+  useFocusOnFailure(noteState, `${uid}-note-error`);
   const assignedAccountIds = new Set(assignments.map((a) => a.memberAccountId));
   const assignableMembers = members.filter((m) => !assignedAccountIds.has(m.accountId));
   const memberEmailByAccountId = new Map(members.map((m) => [m.accountId, m.email] as const));
@@ -417,89 +440,103 @@ export function MissionCollaboration({
           </div>
         )}
         <FormMessage result={taskFrom === 'add' ? NO_RESULT : taskStatus} />
-        <form action={taskCreateAction} className="field-list form-narrow">
-          <input type="hidden" name="organizationId" value={organizationId} />
-          <input type="hidden" name="missionId" value={missionId} />
-          <div className="form-grid">
-            <div className="field-row field-wide">
-              <label className="field-label" htmlFor={`${uid}-task-description`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.taskDescription')}
-              </label>
-              <input
-                id={`${uid}-task-description`}
-                name="description"
-                type="text"
-                className="input"
-                placeholder={t('appAgency.appAgencyOrgidMissionCollaboration.addATask')}
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.taskDescription9f2652')}
-                required
-              />
-            </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-task-assignee`}>
-                {t.node('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
-              </label>
-              <select
-                id={`${uid}-task-assignee`}
-                name="assigneeAccountId"
-                className="input"
-                defaultValue=""
-                aria-label={t('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
-              >
-                <option
-                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.unassigned')}
-                  value=""
+        <ExpandableSection
+          className="u8-row u8-fold"
+          title={t('appAgency.appAgencyOrgidU8.addTask')}
+          picture={<Icon name="check" size={20} />}
+          headingLevel={4}
+          remember
+        >
+          <FocusFirstFieldOnOpen />
+          <form action={taskCreateAction} className="field-list form-narrow">
+            <input type="hidden" name="organizationId" value={organizationId} />
+            <input type="hidden" name="missionId" value={missionId} />
+            <div className="form-grid">
+              <div className="field-row field-wide">
+                <label className="field-label" htmlFor={`${uid}-task-description`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.taskDescription')}
+                </label>
+                <input
+                  id={`${uid}-task-description`}
+                  name="description"
+                  type="text"
+                  className="input"
+                  placeholder={t('appAgency.appAgencyOrgidMissionCollaboration.addATask')}
+                  aria-label={t(
+                    'appAgency.appAgencyOrgidMissionCollaboration.taskDescription9f2652',
+                  )}
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-task-assignee`}>
+                  {t.node('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
+                </label>
+                <select
+                  id={`${uid}-task-assignee`}
+                  name="assigneeAccountId"
+                  className="input"
+                  defaultValue=""
+                  aria-label={t('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
                 >
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.unassigned')}
-                </option>
-                {members.map((m) => (
-                  <option key={m.accountId} value={m.accountId}>
-                    {m.email}
+                  <option
+                    {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.unassigned')}
+                    value=""
+                  >
+                    {t('appAgency.appAgencyOrgidMissionCollaboration.unassigned')}
                   </option>
-                ))}
-              </select>
+                  {members.map((m) => (
+                    <option key={m.accountId} value={m.accountId}>
+                      {m.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-task-priority`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.priority')}
+                </label>
+                <select
+                  id={`${uid}-task-priority`}
+                  name="priority"
+                  className="input"
+                  defaultValue="NORMAL"
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.priority')}
+                >
+                  {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-task-due`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.dueDateOptional')}
+                </label>
+                <input
+                  id={`${uid}-task-due`}
+                  name="dueDate"
+                  type="date"
+                  className="input"
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.dueDateOptional')}
+                />
+              </div>
             </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-task-priority`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.priority')}
-              </label>
-              <select
-                id={`${uid}-task-priority`}
-                name="priority"
-                className="input"
-                defaultValue="NORMAL"
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.priority')}
-              >
-                {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-task-due`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.dueDateOptional')}
-              </label>
-              <input
-                id={`${uid}-task-due`}
-                name="dueDate"
-                type="date"
-                className="input"
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.dueDateOptional')}
+            <div>
+              <SubmitButton
+                pending={taskCreatePending}
+                idle="Add"
+                busy="Adding…"
+                className="btn btn-secondary u-btn-sm"
               />
             </div>
-          </div>
-          <div>
-            <SubmitButton
-              pending={taskCreatePending}
-              idle="Add"
-              busy="Adding…"
-              className="btn btn-secondary u-btn-sm"
-            />
-          </div>
-        </form>
-        <FormMessage result={taskFrom === 'add' ? taskStatus : NO_RESULT} />
+          </form>
+        </ExpandableSection>
+        <FormMessage
+          id={`${uid}-task-error`}
+          result={taskFrom === 'add' ? taskStatus : NO_RESULT}
+        />
       </div>
 
       <div
@@ -565,97 +602,109 @@ export function MissionCollaboration({
           </div>
         )}
         <FormMessage result={appointmentFrom === 'add' ? NO_RESULT : appointmentStatus} />
-        <form action={apptCreateAction} className="field-list form-narrow">
-          <input type="hidden" name="organizationId" value={organizationId} />
-          <input type="hidden" name="missionId" value={missionId} />
-          <div className="form-grid">
-            <div className="field-row field-wide">
-              <label className="field-label" htmlFor={`${uid}-appt-title`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.appointmentTitle')}
-              </label>
-              <input
-                id={`${uid}-appt-title`}
-                name="title"
-                type="text"
-                className="input"
-                placeholder={t(
-                  'appAgency.appAgencyOrgidMissionCollaboration.eGVisaInterviewPrepCall',
-                )}
-                aria-label={t(
-                  'appAgency.appAgencyOrgidMissionCollaboration.appointmentTitle1de530',
-                )}
-                required
+        <ExpandableSection
+          className="u8-row u8-fold"
+          title={t('appAgency.appAgencyOrgidU8.schedule')}
+          picture={<Icon name="calendar" size={20} />}
+          headingLevel={4}
+          remember
+        >
+          <FocusFirstFieldOnOpen />
+          <form action={apptCreateAction} className="field-list form-narrow">
+            <input type="hidden" name="organizationId" value={organizationId} />
+            <input type="hidden" name="missionId" value={missionId} />
+            <div className="form-grid">
+              <div className="field-row field-wide">
+                <label className="field-label" htmlFor={`${uid}-appt-title`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.appointmentTitle')}
+                </label>
+                <input
+                  id={`${uid}-appt-title`}
+                  name="title"
+                  type="text"
+                  className="input"
+                  placeholder={t(
+                    'appAgency.appAgencyOrgidMissionCollaboration.eGVisaInterviewPrepCall',
+                  )}
+                  aria-label={t(
+                    'appAgency.appAgencyOrgidMissionCollaboration.appointmentTitle1de530',
+                  )}
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-appt-date`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.date')}
+                </label>
+                <input
+                  id={`${uid}-appt-date`}
+                  name="localDate"
+                  type="date"
+                  className="input"
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.date')}
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-appt-time`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.time')}
+                </label>
+                <input
+                  id={`${uid}-appt-time`}
+                  name="localTime"
+                  type="time"
+                  className="input"
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.time')}
+                  required
+                />
+              </div>
+              <div className="field-row">
+                {/* The list carries its own name ("Time Zone") and its own id, so this caption is
+                    only seen, not read out a second time. */}
+                <label className="field-label" htmlFor={`${uid}-appt-timezone`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.timeZone')}
+                </label>
+                <TimeZoneSelect id={`${uid}-appt-timezone`} name="timezone" />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-appt-place`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.place')}
+                </label>
+                <input
+                  id={`${uid}-appt-place`}
+                  name="place"
+                  type="text"
+                  className="input"
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.place')}
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-appt-channel`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.channel')}
+                </label>
+                <input
+                  id={`${uid}-appt-channel`}
+                  name="channel"
+                  type="text"
+                  className="input"
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.channel')}
+                />
+              </div>
+            </div>
+            <div>
+              <SubmitButton
+                pending={apptCreatePending}
+                idle="Schedule"
+                busy="Scheduling…"
+                className="btn btn-secondary u-btn-sm"
               />
             </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-appt-date`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.date')}
-              </label>
-              <input
-                id={`${uid}-appt-date`}
-                name="localDate"
-                type="date"
-                className="input"
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.date')}
-                required
-              />
-            </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-appt-time`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.time')}
-              </label>
-              <input
-                id={`${uid}-appt-time`}
-                name="localTime"
-                type="time"
-                className="input"
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.time')}
-                required
-              />
-            </div>
-            <div className="field-row">
-              {/* The list carries its own name ("Time Zone") and its own id, so this caption is
-                  only seen, not read out a second time. */}
-              <label className="field-label" htmlFor={`${uid}-appt-timezone`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.timeZone')}
-              </label>
-              <TimeZoneSelect id={`${uid}-appt-timezone`} name="timezone" />
-            </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-appt-place`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.place')}
-              </label>
-              <input
-                id={`${uid}-appt-place`}
-                name="place"
-                type="text"
-                className="input"
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.place')}
-              />
-            </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-appt-channel`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.channel')}
-              </label>
-              <input
-                id={`${uid}-appt-channel`}
-                name="channel"
-                type="text"
-                className="input"
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.channel')}
-              />
-            </div>
-          </div>
-          <div>
-            <SubmitButton
-              pending={apptCreatePending}
-              idle="Schedule"
-              busy="Scheduling…"
-              className="btn btn-secondary u-btn-sm"
-            />
-          </div>
-        </form>
-        <FormMessage result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT} />
+          </form>
+        </ExpandableSection>
+        <FormMessage
+          id={`${uid}-appt-error`}
+          result={appointmentFrom === 'add' ? appointmentStatus : NO_RESULT}
+        />
       </div>
 
       <div id={`notes-${missionId}`} style={{ marginTop: '0.85rem' }} {...atLevel('everything')}>
@@ -694,68 +743,77 @@ export function MissionCollaboration({
           </div>
         )}
         {notesMore}
-        <form action={noteAction} className="field-list form-narrow">
-          <input type="hidden" name="organizationId" value={organizationId} />
-          <input type="hidden" name="missionId" value={missionId} />
-          <div className="form-grid">
-            <div className="field-row field-wide">
-              <label className="field-label" htmlFor={`${uid}-note-body`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.caseNote')}
-              </label>
-              <input
-                id={`${uid}-note-body`}
-                name="body"
-                type="text"
-                className="input"
-                placeholder={t('appAgency.appAgencyOrgidMissionCollaboration.addACaseNote')}
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.caseNotea939f0')}
-                required
+        <ExpandableSection
+          className="u8-row u8-fold"
+          title={t('appAgency.appAgencyOrgidU8.addNote')}
+          picture={<Icon name="file" size={20} />}
+          headingLevel={4}
+          remember
+        >
+          <FocusFirstFieldOnOpen />
+          <form action={noteAction} className="field-list form-narrow">
+            <input type="hidden" name="organizationId" value={organizationId} />
+            <input type="hidden" name="missionId" value={missionId} />
+            <div className="form-grid">
+              <div className="field-row field-wide">
+                <label className="field-label" htmlFor={`${uid}-note-body`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.caseNote')}
+                </label>
+                <input
+                  id={`${uid}-note-body`}
+                  name="body"
+                  type="text"
+                  className="input"
+                  placeholder={t('appAgency.appAgencyOrgidMissionCollaboration.addACaseNote')}
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.caseNotea939f0')}
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${uid}-note-visibility`}>
+                  {t.node('appAgency.appAgencyOrgidMissionCollaboration.visibility')}
+                </label>
+                <select
+                  id={`${uid}-note-visibility`}
+                  name="visibility"
+                  className="input"
+                  required
+                  defaultValue=""
+                  aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.noteVisibility')}
+                >
+                  <option
+                    {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.visibilityb5de1d')}
+                    value=""
+                    disabled
+                  >
+                    {t('appAgency.appAgencyOrgidMissionCollaboration.visibilityb5de1d')}
+                  </option>
+                  <option
+                    {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.internalThisOrgOnly')}
+                    value="AGENCY_INTERNAL"
+                  >
+                    {t('appAgency.appAgencyOrgidMissionCollaboration.internalThisOrgOnly')}
+                  </option>
+                  <option
+                    {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
+                    value="TRAVELLER_SHARED"
+                  >
+                    {t('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <SubmitButton
+                pending={notePending}
+                idle="Add"
+                busy="Adding…"
+                className="btn btn-secondary u-btn-sm"
               />
             </div>
-            <div className="field-row">
-              <label className="field-label" htmlFor={`${uid}-note-visibility`}>
-                {t.node('appAgency.appAgencyOrgidMissionCollaboration.visibility')}
-              </label>
-              <select
-                id={`${uid}-note-visibility`}
-                name="visibility"
-                className="input"
-                required
-                defaultValue=""
-                aria-label={t('appAgency.appAgencyOrgidMissionCollaboration.noteVisibility')}
-              >
-                <option
-                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.visibilityb5de1d')}
-                  value=""
-                  disabled
-                >
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.visibilityb5de1d')}
-                </option>
-                <option
-                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.internalThisOrgOnly')}
-                  value="AGENCY_INTERNAL"
-                >
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.internalThisOrgOnly')}
-                </option>
-                <option
-                  {...t.lang('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
-                  value="TRAVELLER_SHARED"
-                >
-                  {t('appAgency.appAgencyOrgidMissionCollaboration.sharedWithTraveller')}
-                </option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <SubmitButton
-              pending={notePending}
-              idle="Add"
-              busy="Adding…"
-              className="btn btn-secondary u-btn-sm"
-            />
-          </div>
-        </form>
-        <FormMessage result={noteState} />
+          </form>
+        </ExpandableSection>
+        <FormMessage id={`${uid}-note-error`} result={noteState} />
       </div>
 
       {requirements.length > 0 ? (
