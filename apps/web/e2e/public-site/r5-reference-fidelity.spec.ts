@@ -58,22 +58,24 @@ for (const screen of SCREENS) {
       await page.goto('/for-agencies');
       const hero = chapter(page, 'agencies-title');
       await expect(hero.locator('h1')).toHaveText(/Clients Arrive\s+Prepared\./);
-      const rows = hero.locator('.r5-cases-list > li');
+      const rows = hero.locator('figure.kit-cases li.kit-case');
       await expect(rows).toHaveCount(3);
       for (const row of await rows.all()) {
-        await expect(row.locator('img.r5-flag')).toHaveCount(1);
-        await expect(row.locator('.r5-ring-centre')).toHaveText(/^\d\/8$/);
-        await expect(row.locator('.r5-cases-state')).toContainText(/Missing|Complete/);
+        const flag = row.locator('img.kit-flag');
+        await expect(flag).toHaveCount(1);
+        expect(await flag.evaluate((img) => [img.clientWidth, img.clientHeight])).toEqual([28, 19]);
+        await expect(row.locator('svg text.kit-ring-num')).toHaveText(/^\d\/8$/);
+        await expect(row.locator('.kit-case-state')).toContainText(/missing|complete/i);
       }
       await expect(hero.locator('.pub-example')).toHaveCount(1);
       await expect(hero.getByText('Completeness only. Not an approval.')).toBeVisible();
       // The ring's centre is readable on its card (contrast at least 4.5:1).
       const pair = await hero
-        .locator('.r5-ring-centre')
+        .locator('svg text.kit-ring-num')
         .first()
         .evaluate((el) => {
-          const bg = getComputedStyle(el.closest('.r5-cases') as Element).backgroundColor;
-          return { fg: getComputedStyle(el).color, bg };
+          const bg = getComputedStyle(el.closest('figure.kit-cases') as Element).backgroundColor;
+          return { fg: getComputedStyle(el).fill, bg };
         });
       expect(pair.fg).toMatch(/^rgb\(/);
       expect(pair.bg).toMatch(/^rgb\(/);

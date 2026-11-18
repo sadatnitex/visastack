@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer } from '../../lib/next-mocks.test-support';
 
@@ -13,8 +14,13 @@ vi.mock('server-only', () => ({}));
 
 const { default: ForAgenciesPage, metadata } = await import('./page');
 const { homeCatalog } = await import('../../i18n/home');
+const { documentPicture } = await import('../../lib/document-picture');
+const { DESK_CARDS } = await import('./for-agencies-data');
 
 const render = () => renderServer(ForAgenciesPage());
+const parse = async () => new JSDOM(await render()).window.document;
+const words = (el: Element | null | undefined) =>
+  (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 beforeEach(() => {
   state.signedIn = false;
@@ -67,12 +73,8 @@ describe('the public For Agencies page', () => {
 
   it('follows the approved reference: hero, desk, Plans, closing band', async () => {
     const html = await render();
-    const h2 = [...html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map((m) =>
-      m[1]
-        ?.replace(/<[^>]+>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim(),
-    );
+    const doc = await parse();
+    const h2 = [...doc.querySelectorAll('h2')].map((el) => words(el));
     expect(h2).toEqual([
       'What Changes at Your Desk.',
       'Plans.',
@@ -102,19 +104,47 @@ describe('the public For Agencies page', () => {
   });
 
   it('tags the case list with Example and never claims approval', async () => {
-    const html = await render();
-    expect(html).toContain('Completeness only. Not an approval.');
-    expect(html).toMatch(
-      /class="r5-cases [^"]*"[^>]*><div class="r5-cases-head">[\s\S]{0,200}pub-example/,
+    const doc = await parse();
+    const table = doc.querySelector('figure.kit-cases');
+    expect(table).not.toBeNull();
+    expect(table?.querySelectorAll('.pub-example')).toHaveLength(1);
+    expect(table?.querySelectorAll('li.kit-case')).toHaveLength(3);
+    expect(words(table?.querySelector('.kit-note'))).toContain(
+      'Completeness only. Not an approval.',
     );
-    expect(html).not.toMatch(/approved|guarantee|accepted/i);
+    expect(words(doc.body)).not.toMatch(/approved|guarantee|accepted/i);
+  });
+
+  it('draws the desk cards with real pictures, never the generic fallback', async () => {
+    for (const card of DESK_CARDS) {
+      const choice = documentPicture(card.picture);
+      expect(choice.kind, card.title).toBe('picture');
+      expect(choice.kind === 'picture' && choice.picture).not.toBe('file');
+    }
+    const doc = await parse();
+    for (const article of doc.querySelectorAll('main article, article')) {
+      if (!article.querySelector('.r5-card-picture')) continue;
+      expect(article.querySelector('.r5-card-picture svg')).not.toBeNull();
+    }
+  });
+
+  it('keeps the closing band on the real Bangladesh passport cover and its heading id', async () => {
+    const doc = await parse();
+    const band = doc.querySelector('section[aria-labelledby="closing-band-title"]');
+    expect(band?.querySelector('#closing-band-title')?.tagName).toBe('H2');
+    expect(band?.querySelector('img')?.getAttribute('src') ?? '').toMatch(/passport-bd/);
+  });
+
+  it('needs no scroll scenes: the page has none and starts no scroll engine', async () => {
+    const html = await render();
+    expect(html).not.toContain('pub-scene');
   });
 
   it('alternates dark and light chapters, uses no inline style and no em dash', async () => {
     const html = await render();
-    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map(
-      (m) => m[1] as 'dark' | 'light',
-    );
+    const tones = [
+      ...(await parse()).querySelectorAll('main section[data-tone], section[data-tone]'),
+    ].map((el) => el.getAttribute('data-tone'));
     expect(tones).toEqual(['dark', 'light', 'light', 'dark']);
     // The reference shows the desk and Plans as two light bands; no dark chapter ever follows a dark one.
     expect(tones.some((tone, i) => i > 0 && tone === 'dark' && tones[i - 1] === 'dark')).toBe(

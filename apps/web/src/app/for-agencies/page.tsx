@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { DocumentPicture } from '../../components/pictures/document-picture';
+import { CasesTable, ClosingBand, RiseIn } from '../../components/public-site/kit';
 import { PublicButton } from '../../components/public-site/public-button';
 import { publicText } from '../../components/public-site/public-text';
 import { Chapter } from '../../components/public-site/scene';
-import { ScenesRuntime } from '../../components/public-site/scenes-runtime';
 import { HeadlineWords } from '../../components/public-site/story';
 import { homeCatalog } from '../../i18n/home';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
@@ -18,9 +18,6 @@ import {
   PLANS_LINE,
 } from './for-agencies-data';
 import './for-agencies.css';
-import { CasesTable } from './r5-kit/cases-table';
-import { ClosingBand } from './r5-kit/closing-band';
-import { RiseIn } from './r5-kit/rise-in';
 
 export const metadata: Metadata = { title: 'For Agencies' };
 
@@ -50,7 +47,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
         {startLabel}
       </PublicButton>
       <PublicButton href="/status" variant="secondary">
-        {say('See What Works Today')}
+        {t.node('home.page.seeWhatWorksToday')}
       </PublicButton>
     </>
   );
@@ -69,7 +66,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
             <p className="r5-lede">{say('Clients own their record. You see what they share.')}</p>
             <div className="r5-actions">{actions}</div>
           </div>
-          <CasesTable rows={EXAMPLE_CASES} pageLang={lang} title="Cases" />
+          <CasesTable rows={EXAMPLE_CASES} pageLang={lang} />
         </div>
       </Chapter>
 
@@ -109,6 +106,8 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
             {say('Bring Your Clients.')} <HeadlineWords>{say('Skip the Chasing.')}</HeadlineWords>
           </>
         }
+        titleId="closing-band-title"
+        pageLang={lang}
         sub={say('Start with what works today.')}
         actions={
           <>
@@ -119,7 +118,6 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
           </>
         }
       />
-      <ScenesRuntime />
     </>
   );
 }
