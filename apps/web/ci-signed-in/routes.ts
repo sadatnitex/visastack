@@ -491,22 +491,6 @@ export const EXCLUDED: readonly ExcludedPage[] = [
  */
 export const KNOWN_FAILING: readonly KnownFailing[] = [
   {
-    page: '/app/applicant/[id]/documents/add',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: ['Files to Import', 'Folder to Import'],
-    finding:
-      'The hidden file pickers (input.sr-only, 1 by 1 px) can be reached but have no drawn label tied to them.',
-  },
-  {
-    page: '/app/applicant/[id]/profile',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400', 'desktop 1280'],
-    controls: ['Photo File'],
-    finding:
-      'The hidden photo picker (input.sr-only, 1 by 1 px) can be reached but has no drawn label tied to it.',
-  },
-  {
     page: '/app/applicant/[id]/record',
     check: 'covered control',
     sizes: ['phone 390', 'phone 400'],
@@ -521,30 +505,6 @@ export const KNOWN_FAILING: readonly KnownFailing[] = [
     controls: ['Everything2', 'Previous Versions0'],
     finding:
       'The Record Filters buttons are painted over by their own fieldset.record-hub-filter-set.',
-  },
-  {
-    page: '/app/applicant/[id]/missions/prepare-again',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400'],
-    controls: ['Create Case'],
-    finding:
-      'Create Case, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
-  },
-  {
-    page: '/app/applicant/[id]/outputs',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400'],
-    controls: ['Preview'],
-    finding:
-      'Preview, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
-  },
-  {
-    page: '/app/mission/start',
-    check: 'covered control',
-    sizes: ['phone 390', 'phone 400'],
-    controls: ['Start Trip'],
-    finding:
-      'Start Trip, scrolled up from the bottom of the screen, sits under the phone bottom app bar (nav.app-shell-links, an icon svg); at 390 px this was its Notifications icon.',
   },
 ];
 

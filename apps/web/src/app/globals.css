@@ -23873,3 +23873,36 @@ a.passport-page-value:hover {
   width: 100%;
 }
 /* end WP-U8 */
+
+/* WP-FIX9 signed-in layout faults (18 Nov 2026). (1) On a phone the navigation bar is pinned to the bottom of the screen, 3.5rem tall plus its hairline and the home-indicator space. The pinned action bar of a form (Create Case, Preview, Start Trip) stuck at bottom 0 of the screen, so the navigation bar sat on top of its buttons. It now sticks just above the navigation bar. The navigation bar's own height is one place: --fix9-nav-height. The case page's own next-step bar keeps its rules. (2) A hidden file picker is a real field kept out of sight beside its drawn label: keyboard focus on the field draws the focus ring on the label. */
+@media (max-width: 1023px) {
+  :root {
+    --fix9-nav-height: calc(3.5rem + 1px + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(.app-shell-nav) .sticky-action-bar:not(.case-sticky-next .sticky-action-bar) {
+    bottom: var(--fix9-nav-height);
+    padding-bottom: var(--space-3);
+  }
+  html:has(.app-shell-nav):has(.sticky-action-bar) {
+    scroll-padding-bottom: calc(5.5rem + var(--fix9-nav-height));
+  }
+  /* A message strip stays above the lifted bar and the navigation bar under it. */
+  html:has(.app-shell-nav):has(.sticky-action-bar) .toast-region {
+    bottom: calc(9.5rem + var(--fix9-nav-height));
+  }
+}
+@media (max-width: 640px) {
+  /* On a phone the bar's note and full-width buttons stack, so the bar is taller (as in WP-SB0). */
+  html:has(.app-shell-nav):has(.sticky-action-bar) {
+    scroll-padding-bottom: calc(8rem + var(--fix9-nav-height));
+  }
+}
+.file-pick-input:focus-visible + .btn {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.file-pick-input:disabled + .btn {
+  cursor: default;
+  opacity: 0.6;
+}
+/* end WP-FIX9 */
