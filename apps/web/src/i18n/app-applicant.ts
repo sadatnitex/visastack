@@ -556,6 +556,22 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay':
       'Ended on {formatDateOnly}. Its details stay on file. Save a change below to make it current again.',
     'appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller': '✓ Entered by the traveller.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Cancel': 'Cancel',
+    'appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow':
+      'This detail could not be shown just now. Try again, or type a new value to replace it.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Details': 'Details',
+    'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'Edit',
+    'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'Hide',
+    'appApplicant.appApplicantIdProfileEditor.ess1LeftToAdd': '{count} left to add',
+    'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
+      'Only the essentials the passport page above does not show. This box goes away once they are added.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Show': 'Show',
+    'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'Show the Value Found',
+    'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
+      'Protected detail: the value is not shown until you choose Show. Accept saves the value the app suggested.',
+    'appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater': 'Try again in a little while.',
+    'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
+      'Your profile already holds a value for this detail. Which should it keep?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'Essentials First',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'Every essential is added. Add more from any section when a case needs it.',
@@ -1132,6 +1148,22 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay':
       '{formatDateOnly} তারিখে শেষ হয়েছে। এর তথ্য রেকর্ডে থেকে যায়। এটিকে আবার বর্তমান করতে নিচে একটি পরিবর্তন সংরক্ষণ করুন।',
     'appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller': '✓ ভ্রমণকারী নিজে দিয়েছেন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Cancel': 'বাতিল',
+    'appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow':
+      'এই তথ্যটি এখন দেখানো গেল না। আবার চেষ্টা করুন, অথবা বদলাতে নতুন মান লিখুন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Details': 'বিস্তারিত',
+    'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'সম্পাদনা',
+    'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'লুকান',
+    'appApplicant.appApplicantIdProfileEditor.ess1LeftToAdd': 'যোগ করা বাকি {count}টি',
+    'appApplicant.appApplicantIdProfileEditor.ess1OnlyNotOnThePassportPage':
+      'শুধু সেই প্রয়োজনীয় তথ্যগুলো, যা ওপরের পাসপোর্ট পাতায় দেখানো হয় না। এগুলো যোগ করা হলে এই অংশটি সরে যাবে।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Show': 'দেখান',
+    'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'পাওয়া মানটি দেখান',
+    'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
+      'সুরক্ষিত তথ্য: দেখান বেছে না নেওয়া পর্যন্ত মানটি দেখানো হয় না। গ্রহণ করলে অ্যাপের প্রস্তাবিত মানটি সংরক্ষিত হবে।',
+    'appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater': 'একটু পরে আবার চেষ্টা করুন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
+      'আপনার প্রোফাইলে এই তথ্যের একটি মান আগে থেকেই আছে। কোনটি রাখা হবে?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'আগে প্রয়োজনীয়গুলো',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'প্রতিটি জরুরি বিষয় যোগ করা হয়েছে। কোনো ভিসা ফাইলে দরকার হলে যেকোনো অংশ থেকে আরও যোগ করুন।',

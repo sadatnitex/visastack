@@ -6,6 +6,7 @@ import {
   type StatusKind,
   StatusPicture,
 } from '../../../../components/pictures/status-picture';
+import { isProtectedDetail } from './profile-protected';
 
 /**
  * Passport Page Card (WAL4, owner decision 17 Nov 2026, option B): a schematic passport data page
@@ -14,7 +15,8 @@ import {
  * Truthful on purpose. The drawing is flat and made up (no photo, no seal, no real document
  * image), the values come from the profile and never from reading the paper, and the card says it
  * does not verify identity. A protected value is masked until the person chooses Show, and its
- * real text is never put into the drawing, a label or a tooltip. A value that is saved but could
+ * real text is never put into the drawing, a label or a tooltip. ESS1: a protected value is not in
+ * the page at all until Show asks the editor to open it (`text` is null until then). A value that is saved but could
  * not be opened here shows the words the editor already uses, never the stand-in "[protected]".
  *
  * The card holds no form and no box. Tapping a line opens that detail's own edit row, so every
@@ -54,12 +56,9 @@ export const PASSPORT_PAGE_LABELS: Readonly<Record<PassportPageKey, string>> = {
   marital_status: 'Marital Status',
 };
 
-/** Always masked, whatever the catalogue says: the two details a stranger most often misuses. */
-const ALWAYS_MASKED: ReadonlySet<string> = new Set(['date_of_birth', 'passport_number']);
-
-/** Whether a detail's value is hidden until the person chooses Show. */
+/** Whether a detail's value is hidden until the person chooses Show (one rule: profile-protected). */
 export function isMaskedDetail(key: string, sensitivity: string | undefined): boolean {
-  return ALWAYS_MASKED.has(key) || (sensitivity !== undefined && sensitivity !== 'STANDARD');
+  return isProtectedDetail(key, sensitivity);
 }
 
 /** The dots drawn in place of a hidden value. Fixed length, so the mask says nothing about it. */
@@ -80,8 +79,11 @@ export function MaskedValue() {
 
 /** What one printed line holds. The editor works it out; the card only draws it. */
 export type PassportLineState =
-  /** A value to print. `masked` hides it until Show. */
-  | { readonly kind: 'value'; readonly text: string; readonly masked: boolean }
+  /**
+   * A value to print. `masked` hides it until Show. `text` is null for a protected value not
+   * opened yet: Show opens it through `onReveal` first.
+   */
+  | { readonly kind: 'value'; readonly text: string | null; readonly masked: boolean }
   /** Saved and protected, but not opened here, or a note such as Does Not Apply: words, never the value. */
   | { readonly kind: 'note'; readonly text: ReactNode }
   /** Nothing saved yet. */
@@ -98,12 +100,19 @@ export interface PassportLine {
    * view has no edit row for it (its section is not shown).
    */
   readonly href: string | null;
+  /**
+   * The saved version the line prints (fact and save time). Show holds for this version only: a
+   * new save starts masked again, never "Hide" over dots.
+   */
+  readonly version?: string;
 }
 
 export interface PassportPageCardProps {
   readonly lines: readonly PassportLine[];
   /** Opens the edit row of a detail and puts the focus in it. */
   readonly onEdit: (key: string) => void;
+  /** Opens a protected value that is not in the page; resolves true once it can be printed. */
+  readonly onReveal?: ((key: string) => Promise<boolean | 'slow'>) | undefined;
 }
 
 /** The id of a detail's edit row in the full list of sections. */
@@ -187,7 +196,7 @@ function LineContent({
       </>
     );
   }
-  const hidden = state.kind === 'value' && state.masked && !shown;
+  const hidden = state.kind === 'value' && (state.text === null || (state.masked && !shown));
   const printed = state.kind === 'note' ? state.text : hidden ? <MaskedValue /> : state.text;
   if (!href) {
     return (
@@ -209,16 +218,37 @@ function LineContent({
   );
 }
 
-export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
+export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardProps) {
   const headingId = useId();
-  const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
-  const toggle = (key: string) =>
+  const problemId = useId();
+  // Detail key to the version it was shown for.
+  const [shown, setShown] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const isShown = (line: PassportLine) => shown.get(line.key) === (line.version ?? '');
+  const [busy, setBusy] = useState<string | null>(null);
+  // The line Show failed for, and whether it was too many this hour.
+  const [problem, setProblem] = useState<{ key: string; slow: boolean } | null>(null);
+  const toggle = (line: PassportLine) =>
     setShown((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      const next = new Map(current);
+      if (current.get(line.key) === (line.version ?? '')) next.delete(line.key);
+      else next.set(line.key, line.version ?? '');
       return next;
     });
+  async function showOrHide(line: PassportLine) {
+    setProblem(null);
+    const closed = line.state.kind === 'value' && line.state.text === null;
+    if (!isShown(line) && closed) {
+      // Not in the page yet: the editor opens it for the owner, then it prints.
+      setBusy(line.key);
+      const ok = onReveal ? await onReveal(line.key) : false;
+      setBusy(null);
+      if (ok !== true) {
+        setProblem({ key: line.key, slow: ok === 'slow' });
+        return;
+      }
+    }
+    toggle(line);
+  }
   return (
     <section className="passport-page-card" aria-labelledby={headingId}>
       <div className="passport-page-head">
@@ -233,7 +263,7 @@ export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
         <dl className="passport-page-lines">
           {lines.map((line) => {
             const masked = line.state.kind === 'value' && line.state.masked;
-            const isShown = shown.has(line.key);
+            const lineShown = isShown(line);
             return (
               <div
                 key={line.key}
@@ -243,15 +273,17 @@ export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
               >
                 <dt className="passport-page-label">{line.label}</dt>
                 <dd className="passport-page-cell">
-                  <LineContent line={line} shown={isShown} onEdit={onEdit} />
+                  <LineContent line={line} shown={lineShown} onEdit={onEdit} />
                   {masked ? (
                     // The name says what a press does (Show or Hide), so no pressed state is added.
                     <button
                       type="button"
                       className="btn btn-secondary passport-page-show"
-                      onClick={() => toggle(line.key)}
+                      aria-busy={busy === line.key || undefined}
+                      aria-describedby={problem?.key === line.key ? problemId : undefined}
+                      onClick={() => showOrHide(line)}
                     >
-                      {isShown ? 'Hide' : 'Show'}
+                      {lineShown ? 'Hide' : 'Show'}
                       <span className="sr-only"> {line.label}</span>
                     </button>
                   ) : null}
@@ -269,6 +301,14 @@ export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
         </dl>
         <MachineZone />
       </div>
+      {/* Always in the page, so a screen reader announces the words when they arrive. */}
+      <output id={problemId} className="muted passport-page-problem">
+        {problem
+          ? problem.slow
+            ? 'Try again in a little while.'
+            : 'This detail could not be shown just now. Try again.'
+          : null}
+      </output>
     </section>
   );
 }

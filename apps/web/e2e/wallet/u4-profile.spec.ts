@@ -163,14 +163,14 @@ test.describe('WAL4 Passport Page Card', () => {
     await expect(line(page, 'given_name')).toContainText('EXAMPLE');
     await expect(card(page)).toContainText('This does not verify identity.');
     expect(await card(page).innerHTML()).not.toContain('X1234567');
+    // ESS1: the value is not in the page; Show asks the owner-only reveal action, whose stand-in
+    // here opens nothing, so the card says so in place and keeps the mask.
     const show = line(page, 'passport_number').getByRole('button', {
       name: 'Show Passport Number',
     });
     await show.click();
-    await expect(line(page, 'passport_number')).toContainText('X1234567');
-    await expect(
-      line(page, 'passport_number').getByRole('button', { name: 'Hide Passport Number' }),
-    ).toBeVisible();
+    await expect(card(page).locator('output')).toContainText('could not be shown just now');
+    await expect(line(page, 'passport_number').locator('[data-masked="true"]')).toBeVisible();
     // The status button names its detail, so a run of Tab stops is never a list of bare states.
     await expect(
       line(page, 'passport_number').getByRole('button', {
@@ -205,6 +205,11 @@ test.describe('WAL4 Passport Page Card', () => {
     await expect(page.locator('#f-passport_expiry')).toBeFocused();
     const row = page.locator('#profile-row-passport_expiry');
     await expect(row.getByRole('button', { name: 'Save' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Cancel Passport Expiry Date' })).toBeVisible();
+    // The history tools wait behind the row's one Details, closed at first (ESS1).
+    const details = row.locator('details.profile-row-details');
+    await expect(details).not.toHaveAttribute('open', '');
+    await details.locator('summary').click();
     await expect(row.getByText('Add the Date This Became True')).toBeVisible();
   });
 
@@ -220,7 +225,7 @@ test.describe('WAL4 Passport Page Card', () => {
     // Every control on screen (the rows of the area not chosen are hidden with their panel).
     const controls = page
       .locator(
-        '.passport-page-card a, .passport-page-card button, .profile-value-row > details > summary',
+        '.passport-page-card a, .passport-page-card button, .profile-value-row > details > summary, .profile-read-actions button, .profile-row-details > summary',
       )
       .filter({ visible: true });
     const count = await controls.count();
@@ -307,3 +312,67 @@ test('WAL4 works with script switched off, from the server markup', async ({ pag
     await context.close();
   }
 });
+
+/**
+ * ESS1 (owner approved the layout, 18 Nov 2026): the top of My Profile draws each detail once,
+ * a saved detail reads as a row with Edit, the history tools wait behind one Details, and a
+ * protected value is in no markup before Show. Phone and desktop, made-up values only.
+ */
+for (const width of [390, 1280] as const) {
+  test.describe(`ESS1 at ${width} px`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+    });
+
+    test('Essentials First lists only what the card does not show, each detail once', async ({
+      page,
+    }) => {
+      await open(page, { values: 'empty', essentials: true });
+      const essentials = page.locator('.profile-essentials');
+      await expect(essentials.locator('h3')).toHaveText('Essentials First');
+      await expect(essentials.locator('.profile-essentials-left')).toHaveText('1 left to add');
+      await expect(essentials.locator('[data-essential]')).toHaveCount(1);
+      for (const key of ['given_name', 'passport_number']) {
+        await expect(line(page, key)).toHaveCount(1);
+        await expect(page.locator(`[data-essential="${key}"]`)).toHaveCount(0);
+      }
+      await expectNoSidewaysScroll(page);
+      await expectNothingCoversControls(page);
+    });
+
+    test('a saved detail reads as a row; Edit opens the box and Cancel comes back', async ({
+      page,
+    }) => {
+      await open(page);
+      await page.locator('#profile-row-family_name > details > summary').click();
+      const row = page.locator('.profile-field-row[data-field="family_name"]');
+      await expect(row.locator('input[name="value"]')).toHaveCount(0);
+      const edit = row.getByRole('button', { name: 'Edit Family Name' });
+      await edit.click();
+      await expect(page.locator('#f-family_name')).toBeFocused();
+      await row.getByRole('button', { name: 'Cancel Family Name' }).click();
+      await expect(edit).toBeFocused();
+      await expect(row.locator('details.profile-row-details')).not.toHaveAttribute('open', '');
+      await expectNoSidewaysScroll(page);
+    });
+
+    test('a protected value is masked and in no markup before Show', async ({ page }) => {
+      await open(page);
+      await page.locator('#profile-row-date_of_birth > details > summary').click();
+      const row = page.locator('.profile-field-row[data-field="date_of_birth"]');
+      await expect(row.locator('[data-masked="true"]')).toBeVisible();
+      await expect(row.getByRole('button', { name: 'Show Date of Birth' })).toBeVisible();
+      const markup = await page.locator('main').innerHTML();
+      expect(markup).not.toContain('1990');
+      expect(markup).not.toContain('X1234567');
+    });
+
+    test('accessibility: the Everything view with essentials has no axe violations', async ({
+      page,
+    }) => {
+      await open(page, { values: 'empty', essentials: true });
+      const results = await new AxeBuilder({ page }).include('#profile-editor').analyze();
+      expect(results.violations.map((v) => `${v.id}: ${v.nodes[0]?.target}`)).toEqual([]);
+    });
+  });
+}

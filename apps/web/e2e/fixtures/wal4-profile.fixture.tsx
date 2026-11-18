@@ -7,6 +7,10 @@ import type { EditorFieldDef, EditorSection } from '../../src/lib/master-profile
  * stylesheet. The layout mirrors the live catalogue: seven identity details and the contact details
  * in Identity, four passport details in Travel Documents. Every value is made up. Used by
  * e2e/wallet/u4-profile.spec.ts (server actions are stand-ins that change nothing).
+ *
+ * ESS1: the protected details arrive as the page now sends them, withheld (no value), so neither
+ * this fixture nor the page it draws holds them. Show and Edit ask the reveal action, whose
+ * stand-in here opens nothing.
  */
 export interface Wal4FixtureProps {
   /** Which values the profile holds. */
@@ -59,12 +63,19 @@ const FULL = {
     value: 'SAMPLEWITHAVERYLONGFAMILYNAMETHATDOESNOTBREAK',
     status: 'DECLARED',
   },
-  date_of_birth: { factId: 'f3', value: '1990-04-12', status: 'APPLICANT_CONFIRMED' },
+  date_of_birth: { factId: 'f3', value: null, status: 'APPLICANT_CONFIRMED', withheld: true },
   nationality: { factId: 'f4', value: 'Testland', status: 'DECLARED' },
   marital_status: { factId: 'f5', value: 'Single', status: 'EXTRACTED_PENDING' },
   sex: { factId: 'f6', value: 'Unspecified', status: 'DECLARED' },
   place_of_birth: { factId: 'f7', value: LONG_PLACE, status: 'CONFLICTED' },
-  passport_number: { factId: 'f8', value: 'X1234567', status: 'DOCUMENT_SUPPORTED' },
+  passport_number: {
+    factId: 'f8',
+    value: null,
+    status: 'DOCUMENT_SUPPORTED',
+    withheld: true,
+    updatedAt: '2026-11-04T10:00:00.000Z',
+    sourceDocumentId: 'doc-1',
+  },
   passport_issuing_country: { factId: 'f9', value: 'Testland', status: 'DECLARED' },
   passport_issue_date: { factId: 'f10', value: '2020-01-15', status: 'DECLARED' },
   passport_expiry: { factId: 'f11', value: '2030-01-14', status: 'STALE' },

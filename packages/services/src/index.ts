@@ -2112,6 +2112,11 @@ export {
   aiSuggestionsInUse,
   listPendingAppSuggestions,
 } from './ai-suggestions';
+export {
+  PROFILE_VALUE_ACCESS,
+  openOwnProfileValue,
+  openPendingSuggestionValue,
+} from './profile-value-access';
 export { type TaskAddedBy, taskAddedByApps } from './ai-task-origins';
 export {
   CONNECTOR_MODEL_PREFIX,

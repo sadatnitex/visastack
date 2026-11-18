@@ -1026,18 +1026,45 @@ const DOCS: readonly Case[] = [
   },
 ];
 
+/**
+ * Essentials First as a new person sees it: ESS1 lists only the essentials the Passport Page Card
+ * does not show, so one of those (Email) is added here to keep a real labelled box in the list.
+ */
+function essentialsFirstView() {
+  const essentials = fixtureEssentials();
+  const email = {
+    key: 'email',
+    label: 'Email Address',
+    sectionKey: 'contact',
+    answered: false,
+    notApplicable: false,
+    field: { key: 'email', label: 'Email Address', sensitivity: 'STANDARD' as const },
+  };
+  return fixtureView({
+    essentials: {
+      ...essentials,
+      items: [...essentials.items, email],
+      total: essentials.total + 1,
+      done: false,
+    },
+  });
+}
+function EssentialsFirstEditor() {
+  return (
+    <ProfileEditor
+      applicantId="a1"
+      values={{}}
+      repeatingValues={{}}
+      assurance={new Map()}
+      view={essentialsFirstView()}
+    />
+  );
+}
+
 const PROFILE: readonly Case[] = [
   {
     name: 'profile editor (essentials first)',
-    element: () => (
-      <ProfileEditor
-        applicantId="a1"
-        values={{}}
-        repeatingValues={{}}
-        assurance={new Map()}
-        view={fixtureView({ essentials: fixtureEssentials() })}
-      />
-    ),
+    element: () => <EssentialsFirstEditor />,
     fields: ['value', 'effectiveFrom'],
   },
   {
@@ -3430,6 +3457,14 @@ describe('every form and action button', () => {
     },
     SCAN_TIMEOUT_MS,
   );
+
+  it('profile editor (essentials first) draws no box for a filled essential the card shows (ESS1)', () => {
+    const html = renderToStaticMarkup(<EssentialsFirstEditor />);
+    const list = html.slice(html.indexOf('class="profile-essentials"'));
+    // Passport Number is filled and printed on the card: no box for it in Essentials First.
+    expect(list).not.toContain('id="f-passport_number"');
+    expect(list).toContain('id="f-email"');
+  });
 
   it('speaks a failure through the alert region and not only by colour', () => {
     for (const item of CASES) {

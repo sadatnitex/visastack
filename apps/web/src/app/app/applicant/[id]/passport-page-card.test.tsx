@@ -13,7 +13,9 @@ import type { EditorFieldDef, EditorSection } from '../../../../lib/master-profi
  * Made-up values only.
  */
 
+const reveal = vi.hoisted(() => vi.fn());
 vi.mock('./actions', () => ({ saveFactAction: vi.fn() }));
+vi.mock('./profile-reveal-actions', () => ({ revealProfileValueAction: reveal }));
 vi.mock('./section-actions', () => ({
   markEndedAction: vi.fn(),
   markNotCurrentAction: vi.fn(),
@@ -121,6 +123,8 @@ type Value = {
   locked?: 'no_key' | 'unreadable' | 'lost' | null;
   sourceDocumentId?: string | null;
   updatedAt?: string | null;
+  effectiveFrom?: string | null;
+  withheld?: boolean;
 };
 
 const FULL: Record<string, Value> = {
@@ -198,6 +202,11 @@ const line = (key: string) => {
 const click = (element: Element | null | undefined) => {
   if (!element) throw new Error('Nothing to click');
   act(() => (element as HTMLElement).click());
+};
+/** A click whose work finishes after a promise (Edit opens its box once any value is opened). */
+const clickAndSettle = async (element: Element | null | undefined) => {
+  if (!element) throw new Error('Nothing to click');
+  await act(async () => (element as HTMLElement).click());
 };
 
 beforeEach(() => {
@@ -323,9 +332,9 @@ describe('the Passport Page Card', () => {
     expect(document.activeElement?.id).toBe('f-passport_expiry');
   });
 
-  it('a tap on a value in another area opens its row with every function there', () => {
+  it('a tap on a value in another area opens its row with every function there', async () => {
     render(FULL);
-    click(line('passport_number').querySelector('a.passport-page-value'));
+    await clickAndSettle(line('passport_number').querySelector('a.passport-page-value'));
     const row = container.querySelector<HTMLElement>('#profile-row-passport_number');
     expect(row?.querySelector('details')?.open).toBe(true);
     expect(container.querySelector('#profile-panel-travel_documents')?.hasAttribute('hidden')).toBe(
@@ -397,16 +406,19 @@ describe('the Passport Page Card', () => {
     ).toBeNull();
   });
 
-  it('in Essentials First, a tap on an essential goes to its own box', () => {
+  it('with only the essentials showing, a tap opens the detail in its own row (ESS1)', async () => {
     render({}, { essentials: true, startWithAll: false });
-    expect(line('given_name').querySelector('a')?.getAttribute('href')).toBe('#f-given_name');
-    // A detail that is not an essential reaches the full list.
+    // Essentials First does not repeat the card, so every line leads to the detail's own row.
+    expect(line('given_name').querySelector('a')?.getAttribute('href')).toBe(
+      '?view=all#profile-row-given_name',
+    );
     expect(line('passport_expiry').querySelector('a')?.getAttribute('href')).toBe(
       '?view=all#profile-row-passport_expiry',
     );
-    click(line('given_name').querySelector('a'));
+    expect(container.querySelector('.profile-essentials #f-given_name')).toBeNull();
+    await clickAndSettle(line('given_name').querySelector('a'));
     expect(document.activeElement?.id).toBe('f-given_name');
-    click(line('passport_expiry').querySelector('a'));
+    await clickAndSettle(line('passport_expiry').querySelector('a'));
     expect(document.activeElement?.id).toBe('f-passport_expiry');
   });
 
@@ -440,9 +452,10 @@ describe('value rows for every single detail', () => {
     expect(
       row?.querySelector('.expandable-section-status .explain-tip-trigger .sr-only')?.textContent,
     ).toBe('Email Address: Entered');
-    // Closed until opened; the edit box is inside.
+    // Closed until opened; inside, the saved value reads as a row with Edit, and no box (ESS1).
     expect(row?.querySelector('details')?.open).toBe(false);
-    expect(row?.querySelector('#f-email')).not.toBeNull();
+    expect(row?.querySelector('button[data-edit="email"]')?.textContent).toBe('Edit Email Address');
+    expect(row?.querySelector('#f-email')).toBeNull();
   });
 
   it('Add Information opens the first row and focuses its box', () => {
@@ -453,7 +466,408 @@ describe('value rows for every single detail', () => {
     });
     const first = container.querySelector('#profile-panel-identity .profile-value-row details');
     expect((first as HTMLDetailsElement | null)?.open).toBe(true);
-    expect(document.activeElement?.id).toBe('f-given_name');
+    // Every detail here is added, so the focus lands on the first one's Edit, not a box.
+    expect(document.activeElement?.getAttribute('data-edit')).toBe('given_name');
     window.location.hash = '';
+  });
+});
+
+describe('ESS1: read rows, one Details per row, one date style', () => {
+  const rowOf = (key: string) => {
+    const found = container.querySelector<HTMLElement>(`.profile-field-row[data-field="${key}"]`);
+    if (!found) throw new Error(`No row for ${key}`);
+    return found;
+  };
+
+  it('draws a saved detail as a read row: name, value and Edit, with no box', () => {
+    render(FULL);
+    const row = rowOf('given_name');
+    expect(row.querySelector('.field-label')?.textContent).toBe('Given Name');
+    expect(row.querySelector('.profile-read-value')?.textContent).toBe('EXAMPLE');
+    expect(row.querySelector('button[data-edit]')?.textContent).toBe('Edit Given Name');
+    expect(row.querySelector('input[name="value"], select[name="value"]')).toBeNull();
+    expect(container.querySelectorAll('form.field-row')).toHaveLength(0);
+  });
+
+  it('keeps every history tool behind one closed Details per row', () => {
+    render(FULL);
+    const row = rowOf('passport_number');
+    const details = row.querySelectorAll('details');
+    expect(details).toHaveLength(1);
+    const disclosure = details[0] as HTMLDetailsElement;
+    expect(disclosure.open).toBe(false);
+    expect(disclosure.querySelector('summary')?.textContent).toBe('Details Passport Number');
+    const inside = disclosure.textContent ?? '';
+    for (const words of [
+      'Last confirmed',
+      'Where This Came From',
+      'How This Was Checked',
+      'No Longer Current',
+    ]) {
+      expect(inside, words).toContain(words);
+    }
+    // Nothing of the history sits outside the disclosure.
+    const outside = [...row.children]
+      .filter((child) => child !== disclosure)
+      .map((child) => child.textContent ?? '')
+      .join(' ');
+    expect(outside).not.toMatch(/Last confirmed|Where This Came From|How This Was Checked/);
+    expect(outside).not.toContain('No Longer Current');
+  });
+
+  it('opens the box only on Edit, focuses it, and Cancel and a save go back to Edit', async () => {
+    const { saveFactAction } = await import('./actions');
+    render(FULL);
+    const edit = () => rowOf('family_name').querySelector<HTMLButtonElement>('button[data-edit]');
+    await clickAndSettle(edit());
+    const box = container.querySelector<HTMLInputElement>('#f-family_name');
+    expect(box?.value).toBe('SAMPLE');
+    expect(document.activeElement).toBe(box);
+    // The date it became true is in the row's Details, and goes with the same form.
+    const date = rowOf('family_name').querySelector<HTMLInputElement>(
+      'details input[name="effectiveFrom"]',
+    );
+    expect(date?.getAttribute('form')).toBe(box?.form?.id);
+    const cancel = [...rowOf('family_name').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Cancel Family Name',
+    );
+    click(cancel);
+    expect(container.querySelector('#f-family_name')).toBeNull();
+    expect(document.activeElement).toBe(edit());
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Family Name saved.' });
+    await clickAndSettle(edit());
+    const form = container.querySelector<HTMLInputElement>('#f-family_name')?.form;
+    await act(async () => {
+      form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+    });
+    expect(container.querySelector('#f-family_name')).toBeNull();
+    expect(document.activeElement).toBe(edit());
+    expect(rowOf('family_name').textContent).toContain('Family Name saved.');
+  });
+
+  it('opens a detail not added yet in its box at once, with no Cancel', () => {
+    render({});
+    const row = rowOf('given_name');
+    expect(row.querySelector('#f-given_name')).not.toBeNull();
+    expect([...row.querySelectorAll('button')].map((b) => b.textContent)).not.toContain(
+      'Cancel Given Name',
+    );
+    expect(row.querySelector('details')?.open).toBe(false);
+  });
+
+  it('prints every date on the page in one style', () => {
+    render({
+      ...FULL,
+      passport_issue_date: {
+        factId: 'f10',
+        value: '2020-01-15',
+        status: 'DECLARED',
+        effectiveFrom: '2020-01-10T00:00:00.000Z',
+        updatedAt: '2026-11-04T10:00:00.000Z',
+      },
+    });
+    expect(line('passport_expiry').textContent).toContain('14 Jan 2030');
+    expect(rowOf('passport_expiry').querySelector('.profile-read-value')?.textContent).toBe(
+      '14 Jan 2030',
+    );
+    expect(
+      container.querySelector('#profile-row-passport_expiry .expandable-section-summary')
+        ?.textContent,
+    ).toBe('14 Jan 2030');
+    const issue = rowOf('passport_issue_date').textContent ?? '';
+    expect(issue).toContain('15 Jan 2020');
+    expect(issue).toContain('Effective as of 10 Jan 2020');
+    expect(issue).toContain('Last confirmed 4 Nov 2026');
+    expect(rowOf('passport_number').textContent).toContain('Last confirmed 2 Jan 2026');
+    const text = container.textContent ?? '';
+    // No other style anywhere: no 04/17/1994, no Jan 14, 2030.
+    expect(text).not.toMatch(/\d{1,2}\/\d{1,2}\/\d{2,4}/);
+    expect(text).not.toMatch(/[A-Z][a-z]{2} \d{1,2}, \d{4}/);
+  });
+
+  it('opens a withheld value on the card only on Show, and says so when it cannot', async () => {
+    reveal.mockReset();
+    const withheld = {
+      ...FULL,
+      date_of_birth: {
+        factId: 'f3',
+        value: null,
+        status: 'APPLICANT_CONFIRMED',
+        withheld: true,
+      },
+    };
+    render(withheld);
+    expect(container.innerHTML).not.toContain('1990');
+    const show = () =>
+      [...line('date_of_birth').querySelectorAll('button')].find((b) =>
+        b.textContent?.startsWith('Show'),
+      );
+    reveal.mockResolvedValueOnce({ ok: false });
+    await clickAndSettle(show());
+    expect(card().querySelector('output')?.textContent).toMatch(/could not be shown/);
+    expect(line('date_of_birth').textContent).not.toContain('1990');
+    reveal.mockResolvedValueOnce({ ok: true, value: '1990-04-12' });
+    await clickAndSettle(show());
+    expect(reveal).toHaveBeenLastCalledWith('synthetic-person', 'f3');
+    expect(line('date_of_birth').textContent).toContain('12 Apr 1990');
+    // The region stays in place (so it is announced next time), now empty.
+    expect(card().querySelector('output')?.textContent).toBe('');
+  });
+});
+
+/**
+ * ESS1 parity: the new layout writes exactly what the old one wrote. Each form posts the same
+ * named fields (no more, no fewer) to the same action, so saves, Does Not Apply, No Longer Current
+ * and the date a value became true reach the server unchanged.
+ */
+describe('ESS1: the same writes as before', () => {
+  const entries = (data: unknown) =>
+    [...(data as FormData).entries()].map(([k, v]) => [k, String(v)]).sort();
+  const rowOf = (key: string) => {
+    const found = container.querySelector<HTMLElement>(`.profile-field-row[data-field="${key}"]`);
+    if (!found) throw new Error(`No row for ${key}`);
+    return found;
+  };
+  const setValue = (input: HTMLInputElement | null, value: string) => {
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+      input?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  it('a save posts applicant, field, value and the date it became true, as before', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    render(FULL);
+    await clickAndSettle(rowOf('family_name').querySelector('button[data-edit]'));
+    setValue(container.querySelector<HTMLInputElement>('#f-family_name'), 'NEWNAME');
+    setValue(
+      rowOf('family_name').querySelector<HTMLInputElement>('input[name="effectiveFrom"]'),
+      '2026-01-05',
+    );
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-family_name')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    expect(saveFactAction).toHaveBeenCalledTimes(1);
+    expect(entries(vi.mocked(saveFactAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['effectiveFrom', '2026-01-05'],
+      ['fieldKey', 'family_name'],
+      ['value', 'NEWNAME'],
+    ]);
+  });
+
+  it('a detail not added yet posts the same fields, with the date left blank', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    render({});
+    setValue(container.querySelector<HTMLInputElement>('#f-given_name'), 'FIRST');
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-given_name')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    expect(entries(vi.mocked(saveFactAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['effectiveFrom', ''],
+      ['fieldKey', 'given_name'],
+      ['value', 'FIRST'],
+    ]);
+  });
+
+  it('a protected value opened with Show is saved as itself, never as dots or a stand-in', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: true, value: '1990-04-12' });
+    render({
+      ...FULL,
+      date_of_birth: { factId: 'f3', value: null, status: 'APPLICANT_CONFIRMED', withheld: true },
+    });
+    const show = [...rowOf('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Show Date of Birth',
+    );
+    await clickAndSettle(show);
+    await clickAndSettle(rowOf('date_of_birth').querySelector('button[data-edit]'));
+    const box = container.querySelector<HTMLInputElement>('#f-date_of_birth');
+    expect(box?.value).toBe('1990-04-12');
+    expect(reveal).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      box?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+    });
+    const posted = vi.mocked(saveFactAction).mock.calls[0]?.[1] as FormData;
+    expect(posted.get('value')).toBe('1990-04-12');
+    expect(String(posted.get('value'))).not.toMatch(/•|protected/i);
+  });
+
+  it('Does Not Apply and No Longer Current post the same fields as before', async () => {
+    const { markNotCurrentAction, setExemptionAction } = await import('./section-actions');
+    vi.mocked(markNotCurrentAction).mockReset();
+    vi.mocked(setExemptionAction).mockReset();
+    vi.mocked(markNotCurrentAction).mockResolvedValue({ ok: true, message: '' });
+    vi.mocked(setExemptionAction).mockResolvedValue({ ok: true, message: '' });
+    render({ ...FULL, place_of_birth: { factId: 'f7', value: null, status: null } });
+    const exempt = rowOf('place_of_birth')
+      .closest('.profile-field-item')
+      ?.querySelector<HTMLInputElement>('.profile-exempt input[type="checkbox"]');
+    await act(async () => {
+      exempt?.click();
+    });
+    expect(entries(vi.mocked(setExemptionAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['kind', 'FIELD_NOT_APPLICABLE'],
+      ['on', 'true'],
+      ['targetKey', 'place_of_birth'],
+    ]);
+    const notCurrent = [...rowOf('family_name').querySelectorAll('button')].find(
+      (b) => b.textContent === 'No Longer Current',
+    );
+    await act(async () => {
+      notCurrent?.click();
+    });
+    expect(entries(vi.mocked(markNotCurrentAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['factId', 'f2'],
+    ]);
+  });
+});
+
+describe('ESS1 review fixes', () => {
+  const rowOf = (key: string) => {
+    const found = container.querySelector<HTMLElement>(`.profile-field-row[data-field="${key}"]`);
+    if (!found) throw new Error(`No row for ${key}`);
+    return found;
+  };
+  const withheldDob = (updatedAt: string) => ({
+    ...FULL,
+    date_of_birth: {
+      factId: 'f3',
+      value: null,
+      status: 'APPLICANT_CONFIRMED',
+      withheld: true,
+      updatedAt,
+    },
+  });
+  const cardShow = () =>
+    [...line('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent?.startsWith('Show') || b.textContent?.startsWith('Hide'),
+    );
+
+  it('keeps each "could not be shown" region in the page, empty, and fills it in place', async () => {
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: false });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    const cardRegion = card().querySelector('output');
+    const rowRegion = rowOf('date_of_birth').querySelector('output');
+    expect(cardRegion?.textContent).toBe('');
+    expect(rowRegion?.textContent).toBe('');
+    await clickAndSettle(cardShow());
+    expect(card().querySelector('output')).toBe(cardRegion);
+    expect(cardRegion?.textContent).toMatch(/could not be shown/);
+    const rowShow = [...rowOf('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Show Date of Birth',
+    );
+    await clickAndSettle(rowShow);
+    expect(rowOf('date_of_birth').querySelector('output')).toBe(rowRegion);
+    expect(rowRegion?.textContent).toMatch(/could not be shown/);
+  });
+
+  it('starts masked again on the card after a new save, never Hide over dots', async () => {
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: true, value: '1990-04-12' });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    await clickAndSettle(cardShow());
+    expect(cardShow()?.textContent).toBe('Hide Date of Birth');
+    render(withheldDob('2026-11-02T00:00:00.000Z'));
+    expect(cardShow()?.textContent).toBe('Show Date of Birth');
+    expect(line('date_of_birth').querySelector('[data-masked="true"]')).not.toBeNull();
+    expect(line('date_of_birth').textContent).not.toContain('1990');
+  });
+
+  it('never replaces typed text with a value opened later', async () => {
+    reveal.mockReset();
+    reveal.mockResolvedValueOnce({ ok: false });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    await clickAndSettle(rowOf('date_of_birth').querySelector('button[data-edit]'));
+    const box = container.querySelector<HTMLInputElement>('#f-date_of_birth');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+        box,
+        '1991-05-13',
+      );
+      box?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    reveal.mockResolvedValueOnce({ ok: true, value: '1990-04-12' });
+    await clickAndSettle(cardShow());
+    expect(line('date_of_birth').textContent).toContain('12 Apr 1990');
+    expect(container.querySelector('#f-date_of_birth')).toBe(box);
+    expect(box?.value).toBe('1991-05-13');
+  });
+
+  it('opens the Details and focuses the date when that date is what the save refused', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({
+      ok: false,
+      message: 'Invalid effective date.',
+      field: 'effectiveFrom',
+    });
+    render(FULL);
+    await clickAndSettle(rowOf('family_name').querySelector('button[data-edit]'));
+    const details = rowOf('family_name').querySelector<HTMLDetailsElement>('details');
+    expect(details?.open).toBe(false);
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-family_name')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    expect(details?.open).toBe(true);
+    expect(document.activeElement?.getAttribute('name')).toBe('effectiveFrom');
+    expect(document.activeElement?.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('prints a timestamp as its UTC day, the same on the server and in the browser', () => {
+    render({
+      ...FULL,
+      family_name: {
+        factId: 'f2',
+        value: 'SAMPLE',
+        status: 'DECLARED',
+        updatedAt: '2026-11-04T23:30:00-05:00',
+      },
+    });
+    expect(rowOf('family_name').textContent).toContain('Last confirmed 5 Nov 2026');
+  });
+
+  it('saves a value opened with Show and then Edit as itself, and returns the focus to Edit', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Date of Birth saved.' });
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: true, value: '1990-04-12' });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    const rowShow = [...rowOf('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Show Date of Birth',
+    );
+    await clickAndSettle(rowShow);
+    const edit = () => rowOf('date_of_birth').querySelector<HTMLButtonElement>('button[data-edit]');
+    await clickAndSettle(edit());
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-date_of_birth')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    const posted = vi.mocked(saveFactAction).mock.calls[0]?.[1] as FormData;
+    expect(posted.get('value')).toBe('1990-04-12');
+    expect(document.activeElement).toBe(edit());
   });
 });
