@@ -569,6 +569,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'Show the Value Found',
     'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
       'Protected detail: the value is not shown until you choose Show. Accept saves the value the app suggested.',
+    'appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater': 'Try again in a little while.',
     'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
       'Your profile already holds a value for this detail. Which should it keep?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'Essentials First',
@@ -1160,6 +1161,7 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.ess1ShowSuggestion': 'পাওয়া মানটি দেখান',
     'appApplicant.appApplicantIdProfileEditor.ess1SuggestionHidden':
       'সুরক্ষিত তথ্য: দেখান বেছে না নেওয়া পর্যন্ত মানটি দেখানো হয় না। গ্রহণ করলে অ্যাপের প্রস্তাবিত মানটি সংরক্ষিত হবে।',
+    'appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater': 'একটু পরে আবার চেষ্টা করুন।',
     'appApplicant.appApplicantIdProfileEditor.ess1UndisclosedDifference':
       'আপনার প্রোফাইলে এই তথ্যের একটি মান আগে থেকেই আছে। কোনটি রাখা হবে?',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'আগে প্রয়োজনীয়গুলো',

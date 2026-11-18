@@ -303,6 +303,15 @@ describe('withheld protected details (ESS1)', () => {
     expect(box?.placeholder).toBe('Saved and Protected');
   });
 
+  it('says to try again in a little while when too many were opened this hour', async () => {
+    reveal.mockResolvedValue({ ok: false, slowDown: true });
+    render(withheld());
+    await act(async () => button(/^Show Date of Birth$/).click());
+    expect(rowOf('date_of_birth')?.querySelector('output.profile-row-problem')?.textContent).toBe(
+      'Try again in a little while.',
+    );
+  });
+
   it('opens a newly saved version afresh, never the value opened before', async () => {
     reveal.mockResolvedValueOnce({ ok: true, value: DOB });
     render(withheld());

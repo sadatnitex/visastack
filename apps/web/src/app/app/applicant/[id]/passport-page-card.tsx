@@ -112,7 +112,7 @@ export interface PassportPageCardProps {
   /** Opens the edit row of a detail and puts the focus in it. */
   readonly onEdit: (key: string) => void;
   /** Opens a protected value that is not in the page; resolves true once it can be printed. */
-  readonly onReveal?: ((key: string) => Promise<boolean>) | undefined;
+  readonly onReveal?: ((key: string) => Promise<boolean | 'slow'>) | undefined;
 }
 
 /** The id of a detail's edit row in the full list of sections. */
@@ -225,7 +225,8 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
   const [shown, setShown] = useState<ReadonlyMap<string, string>>(() => new Map());
   const isShown = (line: PassportLine) => shown.get(line.key) === (line.version ?? '');
   const [busy, setBusy] = useState<string | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  // The line Show failed for, and whether it was too many this hour.
+  const [problem, setProblem] = useState<{ key: string; slow: boolean } | null>(null);
   const toggle = (line: PassportLine) =>
     setShown((current) => {
       const next = new Map(current);
@@ -241,8 +242,8 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
       setBusy(line.key);
       const ok = onReveal ? await onReveal(line.key) : false;
       setBusy(null);
-      if (!ok) {
-        setProblem(line.key);
+      if (ok !== true) {
+        setProblem({ key: line.key, slow: ok === 'slow' });
         return;
       }
     }
@@ -279,7 +280,7 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
                       type="button"
                       className="btn btn-secondary passport-page-show"
                       aria-busy={busy === line.key || undefined}
-                      aria-describedby={problem === line.key ? problemId : undefined}
+                      aria-describedby={problem?.key === line.key ? problemId : undefined}
                       onClick={() => showOrHide(line)}
                     >
                       {lineShown ? 'Hide' : 'Show'}
@@ -302,7 +303,11 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
       </div>
       {/* Always in the page, so a screen reader announces the words when they arrive. */}
       <output id={problemId} className="muted passport-page-problem">
-        {problem ? 'This detail could not be shown just now. Try again.' : null}
+        {problem
+          ? problem.slow
+            ? 'Try again in a little while.'
+            : 'This detail could not be shown just now. Try again.'
+          : null}
       </output>
     </section>
   );

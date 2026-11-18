@@ -234,7 +234,9 @@ describe('revealProfileValueAction', () => {
     await revealProfileValueAction(ownersPerson, ownersFact);
     const rows = await events();
     expect(rows.map((row) => row.result)).toEqual(['DENIED', 'DENIED']);
-    expect(rows.map((row) => row.reason)).toEqual(['not_owner', 'no_key']);
+    // One reason for a made-up record and someone else's (the prober reads their own rows).
+    expect(rows.map((row) => row.reason)).toEqual(['refused', 'no_key']);
+    expect(rows[0]?.actorAccountId).toBe(stranger);
     // The stranger's row names no record column, so it reads alike for a real and a made-up id.
     expect(rows[0]?.applicantId).toBeNull();
     expect(JSON.stringify(rows)).not.toContain('X1234567');
@@ -292,5 +294,15 @@ describe('revealProfileValueAction', () => {
     const rows = await events();
     expect(rows.every((row) => row.result === 'DENIED')).toBe(true);
     expect(rows.map((row) => row.resourceType)).toEqual(['ai_suggestion', 'ai_suggestion']);
+  });
+
+  it('words a refused row without saying whether the record exists', async () => {
+    ctx.accountId = stranger;
+    await revealProfileValueAction('00000000-0000-4000-8000-000000000000', ownersFact);
+    await revealProfileValueAction(ownersPerson, ownersFact);
+    await revealProfileValueAction('not-an-id', ownersFact);
+    const rows = await events();
+    expect(rows.map((row) => row.reason)).toEqual(['refused', 'refused', 'malformed_id']);
+    expect(rows.every((row) => row.applicantId === null)).toBe(true);
   });
 });

@@ -1,12 +1,14 @@
 'use server';
 
 import {
+  type AccessRefusal,
   type Db,
   PROFILE_VALUE_ACCESS,
   RATE_LIMITS,
   accountPrincipal,
   appendAuditEvent,
   checkRateLimit,
+  getApplicant,
   openOwnProfileValue,
   openPendingSuggestionValue,
   requireAccess,
@@ -22,7 +24,7 @@ import { withSession } from '../../../../lib/session';
  */
 export type RevealProfileValueResult =
   | { readonly ok: true; readonly value: string }
-  | { readonly ok: false };
+  | { readonly ok: false; readonly slowDown?: true };
 
 /** What Show gets back for one pending AI app suggestion about a protected detail. */
 export type RevealSuggestionResult =
@@ -32,7 +34,10 @@ export type RevealSuggestionResult =
       readonly rationale: string | null;
       readonly snippets: readonly string[];
     }
-  | { readonly ok: false };
+  | { readonly ok: false; readonly slowDown?: true };
+
+/** The owner asked too often this hour: they are told to wait a little (no one else sees this). */
+const SLOW_DOWN = { ok: false, slowDown: true } as const;
 
 const NOT_SHOWN = { ok: false } as const;
 
@@ -41,16 +46,19 @@ function wellFormed(...ids: readonly unknown[]): boolean {
 }
 
 /**
- * A signed-in account asked for a value of a record that is not theirs (or does not exist). One
- * PROFILE_VALUE_ACCESS DENIED row, written alike for a real and a made-up record (no applicant
- * column, ids only, never a value), bounded per account so a loop cannot flood the audit chain.
- * Writing can never change the answer: a failure here is swallowed.
+ * The gate refused. One PROFILE_VALUE_ACCESS DENIED row (ids only, no applicant column, never a
+ * value), bounded per account so a loop cannot flood the audit chain. Its reason says what can be
+ * said without telling a prober which ids are real (they can read their own rows in their data
+ * export): `malformed_id`, `policy` when the owner of the record was refused by policy, and
+ * otherwise `refused`, the same for a made-up record and someone else's. Writing can never change
+ * the answer: a failure here is swallowed.
  */
 async function recordRefused(
   db: Db,
   accountId: string,
   applicantRef: string,
   resource: { readonly type: 'profile_fact' | 'ai_suggestion'; readonly id: string },
+  reason: 'malformed_id' | 'policy' | 'refused',
 ): Promise<void> {
   try {
     const budget = await checkRateLimit(
@@ -68,12 +76,21 @@ async function recordRefused(
         method: 'API',
         resourceType: resource.type,
         resourceId: resource.id,
-        reason: 'not_owner',
+        reason,
         metadata: { applicantRef },
       });
     });
   } catch {
     // The answer never depends on the audit write.
+  }
+}
+
+/** Whether the signed-in account owns the named record (only to word an audit row). */
+async function ownsRecord(db: Db, accountId: string, applicantId: string): Promise<boolean> {
+  try {
+    return (await getApplicant(db, applicantId))?.ownerAccountId === accountId;
+  } catch {
+    return false;
   }
 }
 
@@ -85,7 +102,7 @@ async function ownerProof(
   resource: { readonly type: 'profile_fact' | 'ai_suggestion'; readonly id: string },
   purpose: 'profile_view' | 'ai_app_suggestions',
 ) {
-  let refused = false;
+  let refused: AccessRefusal | undefined;
   const gate = await requireAccess(
     db,
     accountPrincipal(accountId),
@@ -93,13 +110,21 @@ async function ownerProof(
     { applicantId },
     {
       purpose,
-      onRefused: () => {
-        refused = true;
+      onRefused: (heard) => {
+        refused = heard;
       },
     },
   );
   if (!gate.ok) {
-    if (refused) await recordRefused(db, accountId, applicantId, resource);
+    if (refused) {
+      const reason =
+        refused.reason === 'malformed_id'
+          ? 'malformed_id'
+          : (await ownsRecord(db, accountId, applicantId))
+            ? 'policy'
+            : 'refused';
+      await recordRefused(db, accountId, applicantId, resource, reason);
+    }
     return null;
   }
   return gate.value;
@@ -138,7 +163,8 @@ export async function revealProfileValueAction(
       encryption = undefined;
     }
     const opened = await openOwnProfileValue(proof, { factId, encryption });
-    return opened.ok ? { ok: true, value: opened.value.value } : NOT_SHOWN;
+    if (opened.ok) return { ok: true, value: opened.value.value };
+    return opened.error.code === 'rate_limited' ? SLOW_DOWN : NOT_SHOWN;
   });
 }
 
@@ -162,7 +188,7 @@ export async function revealSuggestionValueAction(
     );
     if (!proof) return NOT_SHOWN;
     const opened = await openPendingSuggestionValue(proof, { proposalId });
-    if (!opened.ok) return NOT_SHOWN;
+    if (!opened.ok) return opened.error.code === 'rate_limited' ? SLOW_DOWN : NOT_SHOWN;
     const { value, rationale, snippets } = opened.value;
     return { ok: true, value, rationale, snippets };
   });

@@ -286,7 +286,7 @@ export function AiProposalReview({
     readonly snippets: readonly string[];
   } | null>(null);
   const [opening, setOpening] = useState(false);
-  const [openProblem, setOpenProblem] = useState(false);
+  const [openProblem, setOpenProblem] = useState<false | 'failed' | 'slow'>(false);
   const withheld = given.withheld === true && opened === null;
   const proposal: AiProposalViewModel = opened
     ? {
@@ -308,10 +308,10 @@ export function AiProposalReview({
         const read = result.value ?? '';
         setEditedValue(given.editor?.kind === 'date' && !ISO_DAY.test(read) ? '' : read);
       } else {
-        setOpenProblem(true);
+        setOpenProblem(result.slowDown ? 'slow' : 'failed');
       }
     } catch {
-      setOpenProblem(true);
+      setOpenProblem('failed');
     } finally {
       setOpening(false);
     }
@@ -447,7 +447,11 @@ export function AiProposalReview({
         <span className="sr-only"> {findingLabel(given)}</span>
       </button>
       <output className="muted u-fs-085">
-        {openProblem ? t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow') : null}
+        {openProblem === 'slow'
+          ? t.node('appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater')
+          : openProblem
+            ? t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow')
+            : null}
       </output>
     </div>
   ) : (

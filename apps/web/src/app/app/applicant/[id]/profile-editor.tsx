@@ -246,7 +246,9 @@ function sameDay(a: string, b: string): boolean {
 }
 
 /** What opening a withheld value gives back. The value lives in component state only. */
-type RevealResult = { readonly ok: true; readonly value: string } | { readonly ok: false };
+type RevealResult =
+  | { readonly ok: true; readonly value: string }
+  | { readonly ok: false; readonly slowDown?: true };
 
 /**
  * ESS1: protected values are not in the page. The editor opens one when the person chooses Show
@@ -327,7 +329,8 @@ function FieldRow({
   const shown = shownVersion === version;
   const setShown = (on: boolean) => setShownVersion(on ? version : null);
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState(false);
+  // Why Show or Edit could not open the value: it would not open, or too many were opened this hour.
+  const [problem, setProblem] = useState<false | 'failed' | 'slow'>(false);
   // What the box starts with, fixed when Edit opens it: a value opened later (by the card's Show,
   // say) never replaces what the person typed.
   const [boxStart, setBoxStart] = useState<string | null>(null);
@@ -358,7 +361,7 @@ function FieldRow({
     setBusy(true);
     const result = await reveals.reveal(factId, updatedAt);
     setBusy(false);
-    setProblem(!result.ok);
+    setProblem(result.ok ? false : result.slowDown ? 'slow' : 'failed');
     return result.ok ? result.value : null;
   }
   async function startEdit(focus: 'box' | 'date' = 'box') {
@@ -575,7 +578,11 @@ function FieldRow({
       )}
       {/* Always in the page, so a screen reader announces the words when they arrive. */}
       <output id={problemId} className="muted u-fs-075-m0 profile-row-problem">
-        {problem ? t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow') : null}
+        {problem === 'slow'
+          ? t.node('appApplicant.appApplicantIdProfileEditor.ess1TryAgainLater')
+          : problem
+            ? t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow')
+            : null}
       </output>
       {/* One Details per row, closed at first, in the order of the approved layout. */}
       <details className="profile-row-details" ref={detailsRef}>
@@ -1917,7 +1924,7 @@ export function ProfileEditor({
       if (known !== undefined) return { ok: true, value: known };
       try {
         const result = await revealProfileValueAction(applicantId, factId);
-        if (!result.ok) return { ok: false };
+        if (!result.ok) return result.slowDown ? { ok: false, slowDown: true } : { ok: false };
         setOpened((current) => new Map(current).set(key, result.value));
         return { ok: true, value: result.value };
       } catch {
@@ -2061,10 +2068,11 @@ export function ProfileEditor({
     });
   }, [searching, places, values, showAll, t, locale, opened]);
   const revealCardLine = useCallback(
-    async (key: string): Promise<boolean> => {
+    async (key: string): Promise<boolean | 'slow'> => {
       const current = values[key];
       if (!current?.withheld) return false;
-      return (await reveal(current.factId, current.updatedAt)).ok;
+      const result = await reveal(current.factId, current.updatedAt);
+      return result.ok ? true : result.slowDown ? 'slow' : false;
     },
     [values, reveal],
   );

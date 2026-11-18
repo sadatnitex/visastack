@@ -4,11 +4,13 @@ import { AuthorizedApplicant } from './access/require-access';
 import { listPendingAppSuggestions } from './ai-suggestions';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
+import { documentAuditActor } from './document-access';
 import { type ServiceError, serviceError } from './errors';
 import { isUuid } from './invoice-ledger';
 import type { KeyManagementPort } from './ports';
 import { isProtectedPlaceholder } from './profile';
 import { buildFactVersionAad, revealValue } from './protected-fields';
+import { checkRateLimit } from './rate-limit';
 
 /**
  * ESS1: the profile page no longer carries protected values. When the owner chooses Show or Edit,
@@ -18,9 +20,16 @@ import { buildFactVersionAad, revealValue } from './protected-fields';
  */
 export const PROFILE_VALUE_ACCESS = 'PROFILE_VALUE_ACCESS';
 
-type Refusal = 'not_owner' | 'not_found' | 'no_key' | 'unreadable' | 'lost';
+type Refusal = 'not_owner' | 'not_found' | 'no_key' | 'unreadable' | 'lost' | 'rate_limited';
 
 const NOT_SHOWN: ServiceError = serviceError('not_found', 'This detail could not be shown.');
+const SLOW_DOWN: ServiceError = serviceError('rate_limited', 'Try again in a little while.');
+
+const HOUR_MS = 60 * 60 * 1000;
+/** Reveals per account per hour; beyond it nothing is opened and no row is written per call. */
+export const PROFILE_VALUE_REVEALS_PER_HOUR = { limit: 120, windowMs: HOUR_MS } as const;
+/** One DENIED rate_limited row per account per hour, so the audit trail says it happened. */
+const PROFILE_VALUE_REVEALS_CAPPED = { limit: 1, windowMs: HOUR_MS } as const;
 
 async function audit(
   db: Db,
@@ -33,12 +42,13 @@ async function audit(
     readonly reason: Refusal | null;
   },
 ): Promise<void> {
+  const who = documentAuditActor(proof);
   await db.transaction(async (tx) => {
     await appendAuditEvent(tx, {
       eventType: PROFILE_VALUE_ACCESS,
-      // As DOCUMENT_ACCESS: the owner is named by role and record, not by account id.
-      actorAccountId: null,
-      actorRole: proof.actor.kind,
+      // As DOCUMENT_ACCESS: the owner is named by role and record; anyone else by account id.
+      actorAccountId: who.actorAccountId,
+      actorRole: who.actorRole,
       action: 'VIEW_METADATA',
       result: input.allowed ? 'ALLOWED' : 'DENIED',
       method: 'API',
@@ -49,6 +59,39 @@ async function audit(
       metadata: input.fieldKey ? { fieldKey: input.fieldKey } : {},
     });
   });
+}
+
+/**
+ * The owner's hourly budget of reveals. Past it, one DENIED rate_limited row per hour and nothing
+ * opened, so a loop cannot grow the audit chain without bound.
+ */
+async function withinBudget(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  resourceType: 'profile_fact' | 'ai_suggestion',
+  resourceId: string,
+): Promise<boolean> {
+  const subjectId = proof.applicant.ownerAccountId;
+  const budget = await checkRateLimit(
+    proof.tx,
+    { subjectId, action: 'profile_value.reveal' },
+    PROFILE_VALUE_REVEALS_PER_HOUR,
+  );
+  if (budget.allowed) return true;
+  const marker = await checkRateLimit(
+    proof.tx,
+    { subjectId, action: 'profile_value.reveal_capped' },
+    PROFILE_VALUE_REVEALS_CAPPED,
+  );
+  if (marker.allowed) {
+    await audit(proof.tx, proof, {
+      allowed: false,
+      resourceType,
+      resourceId: resourceId.slice(0, 100),
+      fieldKey: null,
+      reason: 'rate_limited',
+    });
+  }
+  return false;
 }
 
 function isOwnerProof(proof: AuthorizedApplicant<'VIEW_METADATA'>): boolean {
@@ -80,6 +123,7 @@ export async function openOwnProfileValue(
     }
     return err(NOT_SHOWN);
   }
+  if (!(await withinBudget(proof, 'profile_fact', input.factId))) return err(SLOW_DOWN);
   const tx = proof.tx;
   const applicantId = proof.applicant.id;
   const refuse = async (reason: Refusal, fieldKey: string | null) => {
@@ -177,6 +221,7 @@ export async function openPendingSuggestionValue(
     }
     return err(NOT_SHOWN);
   }
+  if (!(await withinBudget(proof, 'ai_suggestion', input.proposalId))) return err(SLOW_DOWN);
   const pending = await listPendingAppSuggestions(proof);
   const found = pending.find((item) => item.proposal.id === input.proposalId);
   if (!found) {
