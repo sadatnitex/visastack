@@ -24261,11 +24261,11 @@ a.passport-page-value:hover {
    44 px targets (the rows overlap by the extra height, as the old footer links did). */
 @media (max-width: 760px) {
   .site-footer {
-    padding-top: 8px;
+    padding-top: 4px;
   }
   .site-footer-inner {
     grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
+    gap: 0;
   }
   .site-footer-brand {
     gap: 0;
@@ -24293,11 +24293,11 @@ a.passport-page-value:hover {
     white-space: nowrap;
   }
   .site-footer-group a {
-    margin-block: -8px;
+    margin-block: -9px;
   }
   .site-footer-base {
     margin-top: 0;
-    padding-block: 6px;
+    padding-block: 4px;
   }
 }
 /* The public header and footer never show inside the signed-in app or the sign-in frame (the rule near the top of the file, kept above the header's own display rules). */

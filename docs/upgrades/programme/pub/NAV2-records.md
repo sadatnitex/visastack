@@ -64,6 +64,11 @@ Everything else comes from existing keys (`home.layout.*`, `home.page.*`, `auth.
 
 NAV2 (18 Nov 2026): the public header and footer were rebuilt (branch `claude/nav2-header-footer`). Header: one row, every link and button one line at 320 to 1920 px in English and Bengali; the pages, language switch and quiet Sign In move into the existing menu below 1150 px (English) and 1230 px (Bengali), measured full-row widths 1132 and 1211 px; Get Started, or Sign In or Workspace, stays in the bar; current page has aria-current and a marker bar. Footer: Product, Trust and Account groups, one line about VisaStack, the page's own version line, the copyright; on a phone the group names are hidden visually and the links flow in rows to keep the page height budgets. New: `apps/web/e2e/public-site/nav2-header-footer.spec.ts` (32 tests), `apps/web/src/app/layout-header-footer.test.tsx`. Verified on a built page in Chromium, sign-up open and closed. Not verified: Safari and real phones, a screen reader pass, text sizes above 100 percent, a real signed-in session, the owner's reading of the design and words.
 
+## CI notes
+
+- The phone footer measured 244 px in Bengali on the CI machine (221 px here) against the 240 px guard, so the phone footer was tightened by about 17 px (top padding, gaps, base padding, link overlap 9 px) rather than raising the guard.
+- `e2e/wallet/fix9-sticky-bar.spec.ts` "each hidden file picker has one tab stop" timed out once under load here and passed alone, and passed on retry in CI. NAV2 does not touch the wallet pages or the file pickers; the only shared surface is the page frame, where the public header and footer are hidden inside the app by the rule at the end of the NAV2 block. Logged as a likely load flake, not a NAV2 effect.
+
 ## Not verified
 
 - Safari and real phones; a screen reader pass; a pass by a person on the design and the words.
