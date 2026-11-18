@@ -1,32 +1,3 @@
-/* WP-PUB3 public story: shared layout for How It Works and Privacy and Trust. Flat. Colours come only
-   from the --pub-* tone tokens of the chapter a part sits in; nothing here is a new hue and nothing
-   here moves: a scene's step is shown by [data-step] alone, so reduced motion, no script and a phone
-   all read the same finished story. */
-.p3-inner {
-  display: grid;
-  gap: var(--space-5);
-  width: 100%;
-  max-width: 72rem;
-  margin-inline: auto;
-  padding-inline: var(--space-5);
-  min-width: 0;
-}
-
-.p3-hero-title {
-  margin: 0;
-  font-size: clamp(2.25rem, 7vw, 4rem);
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-}
-
-.p3-lead {
-  margin: 0;
-  max-width: 40rem;
-  font-size: var(--text-lead);
-  color: var(--pub-ink-soft, var(--text-secondary));
-}
-
 .p3-eyebrow {
   margin: 0;
   font-size: var(--text-caption);
@@ -35,13 +6,6 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--pub-accent, var(--accent));
-}
-
-.p3-heading {
-  margin: 0;
-  font-size: var(--text-display);
-  line-height: 1.15;
-  text-wrap: balance;
 }
 
 .p3-text-link {
@@ -53,179 +17,10 @@
   color: var(--pub-accent, var(--accent));
 }
 
-/* WP-PUB3 public story: scene layout. One column on a phone; two columns where a scene can pin. */
-.p3-scene-grid {
-  display: grid;
-  gap: var(--space-5);
-  align-items: center;
-  min-width: 0;
-}
-
-@media (min-width: 760px) {
-  .p3-scene-grid {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-    gap: var(--space-7);
-  }
-}
-
-.p3-panel {
-  display: grid;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-5);
-  border: 1px solid var(--pub-edge, var(--edge-card));
-  border-radius: var(--radius-lg);
-  background-color: var(--pub-card, var(--bg-elevated));
-}
-
-.p3-panel-title {
-  margin: 0;
-  font-size: var(--text-lead);
-}
-
-/* WP-PUB3 public story: the case line. The fill and the nodes follow the scene's step; the finished
-   step (the last) is what the server writes, so a phone and no script see every stage reached. */
-.p3-bar {
-  height: 0.5rem;
-  border-radius: var(--radius-pill);
-  background-color: var(--pub-edge, var(--edge-card));
-  overflow: hidden;
-}
-
-.p3-fill {
-  display: block;
-  height: 100%;
-  width: 100%;
-  border-radius: var(--radius-pill);
-  background-color: var(--pub-accent, var(--accent));
-}
-
-.pub-scene[data-step="0"] .p3-fill {
-  width: 10%;
-}
-.pub-scene[data-step="1"] .p3-fill {
-  width: 30%;
-}
-.pub-scene[data-step="2"] .p3-fill {
-  width: 55%;
-}
-.pub-scene[data-step="3"] .p3-fill {
-  width: 80%;
-}
-
-.p3-stages {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.p3-stage {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
-  min-height: 44px;
-  color: var(--pub-ink-soft, var(--text-secondary));
-}
-
-.p3-node {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border: 2px solid var(--pub-edge-strong, var(--accent));
-  border-radius: var(--radius-pill);
-  font-size: var(--text-caption);
-  font-weight: 700;
-  color: var(--pub-ink, var(--text));
-}
-
-.p3-stage-word {
-  display: block;
-  font-weight: 700;
-  color: var(--pub-ink, var(--text));
-}
-
-.p3-stage-line {
-  display: block;
-}
-
-/* A reached stage has its node filled; the stage the scene is on is bold and its node larger. */
-.pub-scene[data-step="0"] .p3-stage:nth-child(-n + 1) .p3-node,
-.pub-scene[data-step="1"] .p3-stage:nth-child(-n + 2) .p3-node,
-.pub-scene[data-step="2"] .p3-stage:nth-child(-n + 3) .p3-node,
-.pub-scene[data-step="3"] .p3-stage:nth-child(-n + 4) .p3-node,
-.pub-scene[data-step="4"] .p3-stage:nth-child(-n + 5) .p3-node {
-  background-color: var(--pub-accent, var(--accent));
-  border-color: var(--pub-accent, var(--accent));
-  color: var(--pub-canvas, var(--bg));
-}
-
-.pub-scene[data-step="0"] .p3-stage:nth-child(1) .p3-stage-word,
-.pub-scene[data-step="1"] .p3-stage:nth-child(2) .p3-stage-word,
-.pub-scene[data-step="2"] .p3-stage:nth-child(3) .p3-stage-word,
-.pub-scene[data-step="3"] .p3-stage:nth-child(4) .p3-stage-word,
-.pub-scene[data-step="4"] .p3-stage:nth-child(5) .p3-stage-word {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
-/* The ring for each step; only the one for the scene's step shows. */
-.p3-at {
-  display: none;
-}
-.pub-scene[data-step="0"] .p3-at[data-at="0"],
-.pub-scene[data-step="1"] .p3-at[data-at="1"],
-.pub-scene[data-step="2"] .p3-at[data-at="2"],
-.pub-scene[data-step="3"] .p3-at[data-at="3"],
-.pub-scene[data-step="4"] .p3-at[data-at="4"] {
-  display: block;
-}
-
-.p3-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: var(--space-4);
-}
-
-.p3-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.p3-bottom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-/* WP-PUB3 public story: the opening chapter fills the first screen, so the next chapter starts below
-   the fold and the first screen stays short and calm. */
-.pub-chapter.p3-hero {
-  display: grid;
-  align-items: center;
-  min-height: min(calc(100svh - 12rem), 28rem);
-}
-
-/* A little tighter than the shared chapter, so the story stays within the page length it is held to. */
-.pub-chapter.p3-ch {
-  padding-block: var(--space-6);
-}
-
-@media (min-width: 760px) {
-  .pub-chapter.p3-ch {
-    padding-block: var(--space-7);
-  }
-}
-
 /* R3: the route list as compact rows, inside the Where We Are Today chapter. One column on a phone,
    two from 900 px; every row stays a 44 px target and shows its country and route, name and a short
    summary. */
+
 .tr-catalog .grid {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
@@ -251,13 +46,10 @@
   overflow: hidden;
 }
 
-figure.p3-panel {
-  margin: 0;
-}
-
 /* R3 Privacy and Trust (owner, 18 Nov 2026): the page as the approved reference tells it. Flat; every
    colour comes from the --pub-* tokens of the chapter a part sits in. Nothing here moves except the
-   shared kit parts (rise-in, the timed share sheet, which has its own pause button). */
+   shared rise-in and the hero share picture, which has its own pause button). */
+
 .pub-chapter.tr-chapter {
   padding-block: 0;
 }
@@ -513,6 +305,7 @@ figure.p3-panel {
   }
 
   /* The same link sits in the Where We Are Today chapter; a phone opens on the one start button. */
+
   .tr-hero-more {
     display: none;
   }
@@ -556,6 +349,7 @@ figure.p3-panel {
   }
 
   /* Twelve route cards must not run the page past its six screens on a phone. */
+
   .tr-catalog .card-kicker,
   .tr-catalog .card-title {
     margin-bottom: 2px;

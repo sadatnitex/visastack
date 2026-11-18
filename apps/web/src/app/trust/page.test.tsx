@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import type { PublicTrustRoute } from '@visastack/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
@@ -41,6 +42,7 @@ function route(n: number): PublicTrustRoute {
 const routes = (count: number) => Array.from({ length: count }, (_, n) => route(n));
 const render = (params: Record<string, string> = {}) =>
   renderServer(PublicTrustCatalogPage({ searchParams: Promise.resolve(params) }));
+const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html');
 const cards = (html: string) => html.match(/<a href="\/trust\/route-\d+" class="card"/g) ?? [];
 
 beforeEach(() => {
@@ -56,8 +58,10 @@ describe('the public route list', () => {
     expect(html).toContain('href="/trust?show=24#trust-route-12"');
     expect(html).toContain('id="trust-route-11"');
     // More than 12 routes, so the search is offered, as a plain form that needs no script.
-    expect(html).toMatch(/<form class="trust-search" action="\/trust#today" method="get">/);
-    expect(html).toContain('name="q"');
+    const form = parse(html).querySelector('form.trust-search');
+    expect(form?.getAttribute('action')).toBe('/trust#today');
+    expect(form?.getAttribute('method')).toBe('get');
+    expect(form?.querySelector('input[name="q"]')).not.toBeNull();
   });
 
   it('reaches every route by Show More alone, past the 100 a capped list would stop at', async () => {
@@ -113,7 +117,7 @@ describe('the Privacy and Trust story', () => {
     expect(metadata.title).toBe('Privacy and Trust');
     listPublicTrustPublished.mockResolvedValue(routes(3));
     const html = await render();
-    expect(html.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(parse(html).querySelectorAll('h1')).toHaveLength(1);
     expect(html).toContain('id="trust-story-title"');
   });
 
@@ -123,13 +127,15 @@ describe('the Privacy and Trust story', () => {
     expect(html).toContain('Share with Agency');
     expect(textOf(html)).toContain('Access Ended');
     expect(textOf(html)).toContain('Not Shared');
-    expect(html.match(/class="pub-example"/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(parse(html).querySelectorAll('.pub-example').length).toBeGreaterThanOrEqual(1);
   });
 
   it('runs the chapters in the order of tones the reference shows', async () => {
     listPublicTrustPublished.mockResolvedValue(routes(3));
     const html = await render();
-    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map((m) => m[1]);
+    const tones = [...parse(html).querySelectorAll('.pub-chapter')].map((chapter) =>
+      chapter.getAttribute('data-tone'),
+    );
     // The reference runs dark, dark, dark, light, light, dark (R3 records): never light then dark then light.
     expect(tones).toEqual(['dark', 'dark', 'dark', 'light', 'light', 'dark']);
   });

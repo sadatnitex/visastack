@@ -22,6 +22,7 @@ vi.mock('../../lib/public-db', () => ({
 const { default: Page } = await import('./page');
 const { ShareHero } = await import('./share-hero');
 const { ShareSheetBody } = await import('../../components/public-site/kit/share-sheet-body');
+const { renderToStaticMarkup } = await import('react-dom/server');
 
 function route(n: number): PublicTrustRoute {
   return {
@@ -116,6 +117,30 @@ describe('the Privacy and Trust chapters', () => {
     const doc = await page([route(1)]);
     expect(doc.querySelectorAll('[style]')).toHaveLength(0);
     expect(doc.querySelectorAll('script')).toHaveLength(0);
+  });
+});
+
+describe('the hero makes no part-of-document sharing claim', () => {
+  // Sharing part of a document does not exist yet (sharing.ts, Milestone 2): no step of the
+  // picture, and nothing else in the hero, may say a part of a paper is shared.
+  const CLAIMS = ['Photo page only', 'Visa size', 'photo page'];
+
+  it('draws no such words at any of the five steps', () => {
+    for (const step of [0, 1, 2, 3, 4] as const) {
+      const doc = new DOMParser().parseFromString(
+        renderToStaticMarkup(<ShareSheetBody step={step} pageLang="en" />),
+        'text/html',
+      );
+      expect(doc.querySelector('figure')).not.toBeNull();
+      for (const claim of CLAIMS) {
+        expect(doc.body.textContent ?? '', `step ${step}`).not.toContain(claim);
+      }
+    }
+  });
+
+  it('keeps the whole page free of them too', async () => {
+    const doc = await page([route(1)]);
+    for (const claim of CLAIMS) expect(doc.body.textContent ?? '').not.toContain(claim);
   });
 });
 

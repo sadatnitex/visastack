@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 import type { PublicTrustRoute } from '@visastack/services';
 import { describe, expect, it, vi } from 'vitest';
-import { renderServer, textOf } from '../../lib/next-mocks.test-support';
+import { renderServer } from '../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
 // The locale is set here directly, as the auth screens' test does.
@@ -74,7 +75,10 @@ async function render(locale: 'en' | 'bn', which: 'catalog' | 'pack') {
     which === 'catalog'
       ? CatalogPage({ searchParams: Promise.resolve({}) })
       : PackPage({ params: Promise.resolve({ packKey: 'uk.standard-visitor' }) });
-  return textOf(await renderServer(element));
+  // The words a reader gets: the parsed page's text, with a line break read as a space.
+  const doc = new DOMParser().parseFromString(await renderServer(element), 'text/html');
+  for (const br of doc.querySelectorAll('br')) br.replaceWith(' ');
+  return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
 describe('the public trust pages under Bengali', () => {

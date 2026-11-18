@@ -35,7 +35,7 @@ const PROMISES = [
   {
     type: 'NATIONAL_ID',
     title: 'Turn Off Any Time',
-    body: 'Every share has an end date you set, and you can end it sooner. Copies already downloaded cannot be recalled.',
+    body: 'Every share ends on a date, and you can end it sooner. Copies already downloaded cannot be recalled.',
   },
   {
     type: 'TAX_RETURN',
