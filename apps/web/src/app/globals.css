@@ -758,13 +758,6 @@ main {
   font-size: var(--text-small);
   background: var(--bg-elevated);
 }
-.footer-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
 
 /* App shell: the signed-in product. On a laptop or larger it is a sidebar listing every
    destination, with the switch controls underneath. On a phone or tablet it is a bar at the
@@ -1988,15 +1981,6 @@ a.checklist-item:hover .checklist-label {
 }
 
 /* Public footer and the home page's promises, with a tick beside each. */
-.footer-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
-}
-.footer-links a {
-  color: var(--text-secondary);
-  padding: 0.25rem 0;
-}
 .promise-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
@@ -2045,406 +2029,6 @@ a.checklist-item:hover .checklist-label {
   text-underline-offset: 0.2em;
 }
 
-/* Public page geometry follows the authoritative ten-screen reference. Navy is confined to intentional accent panels. */
-.land {
-  --land-wrap: 1448px;
-  overflow-x: clip;
-}
-.land-wrap {
-  max-width: var(--land-wrap);
-  margin: 0 auto;
-  padding: 0;
-  width: calc(100% - clamp(40px, 9.5vw, 152px));
-}
-.land-section {
-  padding-block: clamp(3.5rem, 9vw, 6.5rem);
-}
-.land-tint {
-  background: var(--bg-subtle);
-  border-block: 1px solid var(--hairline-soft);
-}
-.land-head {
-  max-width: 44rem;
-  margin-bottom: clamp(2rem, 5vw, 3.25rem);
-}
-.land-kicker {
-  margin: 0 0 0.75rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--brand) 70%, var(--text));
-}
-.land-h2 {
-  margin: 0 0 0.9rem;
-  font-size: clamp(1.9rem, 4.4vw, 3rem);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  font-weight: 750;
-  text-wrap: balance;
-}
-.land-h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.15rem;
-  line-height: 1.3;
-  letter-spacing: -0.015em;
-  font-weight: 650;
-  text-wrap: balance;
-}
-.land-sub {
-  margin: 0;
-  max-width: 54ch;
-  font-size: clamp(1.02rem, 1.8vw, 1.2rem);
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-.land-body {
-  margin: 0;
-  font-size: var(--text-body);
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-.land-btn {
-  padding: 0 21px;
-  font-size: var(--text-small);
-  border-radius: 24px;
-  min-height: 52px;
-}
-.land-btn .icon {
-  transition: transform var(--motion-state) var(--motion-ease);
-}
-.land-btn:hover .icon {
-  transform: translateX(3px);
-}
-
-/* Hero */
-.land-hero {
-  position: relative;
-  overflow: clip;
-  padding-block: 0;
-  background: var(--bg);
-}
-
-/* Before and after */
-.land-versus {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-.land-versus-col {
-  padding: clamp(1.4rem, 3vw, 2rem);
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  background: var(--bg-elevated);
-}
-.land-versus-after {
-  background: var(--bg-elevated);
-  border-color: color-mix(in srgb, var(--brand) 45%, var(--hairline));
-}
-.land-versus-label {
-  margin: 0 0 1.1rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.land-versus-after .land-versus-label {
-  color: var(--brand);
-}
-.land-versus ul {
-  display: grid;
-  gap: 0.95rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-versus li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
-  font-size: var(--text-body);
-  line-height: 1.45;
-}
-.land-versus .icon {
-  flex: none;
-  margin-top: 0.15rem;
-}
-.land-versus-before .icon {
-  color: var(--danger);
-}
-.land-versus-before li {
-  color: var(--text-secondary);
-}
-.land-versus-after .icon {
-  color: var(--brand);
-}
-
-/* Steps joined by a line */
-.land-steps {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: none;
-}
-.land-step {
-  position: relative;
-  padding: 1.75rem 1.5rem 1.6rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  overflow: hidden;
-}
-.land-step-icon,
-.land-tile-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  margin-bottom: 1.1rem;
-  border-radius: 12px;
-  background: var(--brand-bg);
-  color: var(--brand);
-}
-.land-step-kicker {
-  margin: 0 0 0.35rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-/* Feature bento */
-
-.land-tile {
-  grid-column: span 2;
-  padding: 1.6rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  transition: border-color var(--motion-press) var(--motion-ease);
-}
-
-.land-tile:hover {
-  border-color: color-mix(in srgb, var(--brand) 40%, var(--hairline));
-}
-
-/* Audiences */
-.land-who {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
-}
-.land-who-card {
-  padding: clamp(1.6rem, 3vw, 2.25rem);
-  background: var(--bg-elevated);
-  border: 1px solid var(--hairline);
-  border-radius: 24px;
-}
-.land-who-card:first-child {
-  background: var(--bg-elevated);
-}
-.land-who-card .land-h3 {
-  font-size: clamp(1.3rem, 2.4vw, 1.6rem);
-  margin-bottom: 1.25rem;
-}
-.land-ticks {
-  display: grid;
-  gap: 0.8rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-ticks li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-.land-ticks .icon {
-  flex: none;
-  margin-top: 0.2rem;
-  color: var(--brand);
-}
-
-/* Trust content retains the reference public paper surface. */
-.land-trust {
-  background: var(--bg);
-  color: var(--text);
-}
-.land-trust .land-kicker {
-  color: var(--accent);
-}
-.land-trust .land-sub {
-  color: var(--text-secondary);
-}
-.land-promises {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-promises li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.9rem;
-  padding: 1.15rem 1.2rem;
-  border: 1px solid var(--hairline-soft);
-  border-radius: 16px;
-  background: #ffffff;
-  font-size: var(--text-small);
-  line-height: 1.45;
-}
-.land-promise-icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 10px;
-  background: var(--brand-bg);
-  color: var(--accent);
-}
-.land-trust-link {
-  margin: 1.75rem 0 0;
-}
-.land-trust-link a {
-  color: var(--accent);
-  font-weight: 650;
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-.land-trust-link a:hover {
-  color: var(--accent-hover);
-}
-
-/* Where we are going */
-.land-horizons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-horizon {
-  position: relative;
-  padding: 1.6rem 1.5rem;
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  background: var(--bg-elevated);
-}
-.land-horizon::before {
-  content: "";
-  position: absolute;
-  left: 1.5rem;
-  right: 1.5rem;
-  top: 0;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: var(--hairline);
-}
-.land-horizon-now::before {
-  background: var(--brand);
-}
-.land-horizon-next::before {
-  background: var(--bg-elevated);
-}
-.land-horizon-later {
-  border-style: dashed;
-}
-.land-horizon-label {
-  margin: 0 0 0.6rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.land-horizon-now .land-horizon-label {
-  color: var(--brand);
-}
-
-/* Closing call to action */
-.land-final {
-  padding-block: 0 clamp(3.5rem, 9vw, 6.5rem);
-}
-.land-final-card {
-  padding: clamp(2.5rem, 7vw, 5rem) clamp(1.5rem, 5vw, 4rem);
-  border-radius: 24px;
-  text-align: center;
-  color: var(--text);
-  background: var(--brand-bg);
-}
-.land-final-title {
-  margin: 0 0 0.8rem;
-  font-size: clamp(2.2rem, 6vw, 3.8rem);
-  line-height: 1.04;
-  letter-spacing: -0.04em;
-  font-weight: 800;
-}
-.land-final-sub {
-  margin: 0 auto 2rem;
-  max-width: 40ch;
-  font-size: clamp(1.05rem, 2vw, 1.25rem);
-  color: var(--text-secondary);
-}
-.land-final-cta {
-  justify-content: center;
-}
-.land-btn-light {
-  background: #ffffff;
-  color: var(--text);
-}
-.land-btn-light:hover {
-  background: var(--brand-bg);
-}
-.land-btn-ghost {
-  background: #ffffff;
-  color: var(--accent);
-  border-color: var(--hairline);
-}
-.land-btn-ghost:hover {
-  background: var(--brand-bg);
-}
-
-@media (max-width: 960px) {
-  .land-steps,
-  .land-horizons,
-  .land-promises {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .land-tile {
-    grid-column: span 1;
-  }
-}
-@media (max-width: 640px) {
-  .land-versus,
-  .land-who {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .land-btn {
-    width: 100%;
-  }
-}
-@media print {
-  .land-trust,
-  .land-final-card {
-    background: #fff;
-    color: #000;
-  }
-}
-
 /* Shared geometry for public, identity and authorized workspaces. */
 
 .auth-introduction em {
@@ -2453,19 +2037,6 @@ a.checklist-item:hover .checklist-label {
   font-weight: inherit;
   font-style: normal;
   letter-spacing: -0.04em;
-}
-
-.land-trust-link a {
-  color: var(--accent);
-}
-.land-final-sub {
-  color: var(--text-secondary);
-}
-.land-trust .land-kicker {
-  color: var(--accent);
-}
-.land-final-card .land-kicker {
-  color: var(--selected-text);
 }
 .nav-links .btn-primary {
   color: #ffffff;
@@ -4975,26 +4546,6 @@ body:has(.auth-shell) > .footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-
-.profile-read-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem 2rem;
-  margin: 1.25rem 0;
-}
-.profile-read-summary dt {
-  color: var(--text-tertiary);
-  font-size: var(--text-caption);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.profile-read-summary dd {
-  margin: 0.3rem 0 0;
-  font-size: var(--text-small);
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
 .profile-edit-section {
   border-top: 1px solid var(--hairline-soft);
   margin-top: 1rem;
@@ -5005,11 +4556,6 @@ body:has(.auth-shell) > .footer {
   cursor: pointer;
   padding: 0.85rem 0;
   min-height: 44px;
-}
-@media (max-width: 479px) {
-  .profile-read-summary {
-    gap: 1rem;
-  }
 }
 
 .case-manual-notice {
@@ -9723,20 +9269,6 @@ summary.visa-photo-title {
 .ai-connection-name .ai-consent-host {
   color: var(--text-secondary);
   font-size: var(--text-small);
-}
-.ai-connection-facts {
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: var(--space-2) var(--space-4);
-}
-.ai-connection-facts dt {
-  color: var(--text-secondary);
-  font-size: var(--text-small);
-}
-.ai-connection-facts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 .ai-connection-actions {
   align-items: flex-start;
@@ -19425,14 +18957,6 @@ article.card:has(> .trip-start-form) {
 }
 /* end WP-PLAIN-SCREENS */
 
-/* WP-PLAIN-DECIDED Owner decisions of 6 Nov 2026 that need a style: the landing proof line sits under the audience cards, in ink, one line of weight, no number. */
-.land-proof {
-  margin-top: var(--space-4);
-  color: var(--text);
-  font-weight: 600;
-}
-/* end WP-PLAIN-DECIDED */
-
 /* WP-LP1 One list pattern: the row, the folder, and the side panel that is a full screen on a narrow screen. Flat, tokens only, 44 px targets, rows at least 56 px tall on every width. */
 .lp-root {
   display: contents;
@@ -21087,20 +20611,6 @@ body:lang(bn),
 [data-locale="bn"] .data-table thead th,
 .data-table thead th:lang(bn),
 [data-locale="bn"] .data-table td::before,
-[data-locale="bn"] .land-kicker,
-.land-kicker:lang(bn),
-[data-locale="bn"] .land-h2,
-.land-h2:lang(bn),
-[data-locale="bn"] .land-h3,
-.land-h3:lang(bn),
-[data-locale="bn"] .land-versus-label,
-.land-versus-label:lang(bn),
-[data-locale="bn"] .land-step-kicker,
-.land-step-kicker:lang(bn),
-[data-locale="bn"] .land-horizon-label,
-.land-horizon-label:lang(bn),
-[data-locale="bn"] .land-final-title,
-.land-final-title:lang(bn),
 [data-locale="bn"] .auth-introduction em,
 .auth-introduction em:lang(bn),
 [data-locale="bn"] .auth-introduction h2,
@@ -21125,8 +20635,6 @@ body:lang(bn),
 .trust-story .card-title:lang(bn),
 [data-locale="bn"] .profile-area-picker-label,
 .profile-area-picker-label:lang(bn),
-[data-locale="bn"] .profile-read-summary dt,
-.profile-read-summary dt:lang(bn),
 [data-locale="bn"] .agency-mark-letters,
 .agency-mark-letters:lang(bn),
 [data-locale="bn"] .agency-preview-name,
@@ -21259,88 +20767,6 @@ body:lang(bn),
   border-bottom: 0;
 }
 /* end WP-RT2 */
-
-/* WP-P18 Bengali type for the home page headings (13 Nov 2026). The Harbor sizes are drawn for short Latin words; Bengali words are longer and taller, so at those sizes the hero headline broke onto four very large lines with wide gaps. For a visitor who chose Bangla (data-locale on the html element) the hero headline, the dark section heading and the closing title, which are Bengali, get a Bengali size and a taller line, so vowel signs above and below the letters never clip, and the lines balance. The product card titles and the phone heading sit next to English fallbacks, so only the Bengali ones (marked lang="bn") change; an English card keeps its English look. The landing styles set tight or wide letter spacing and capitals for Latin; Bengali letters are never spaced apart (see WP-P17), so Bengali text in these places is reset, and English fallback text keeps its spacing. English pages are untouched. */
-.c1
-  :is(
-    .c1-nudge,
-    .c1-headline,
-    .c1-subline,
-    .c1-tinycap,
-    .c1-phonename,
-    .c1-fileinfo b,
-    .c1-next-title,
-    .c1-sectionhead,
-    .c1-feature h3,
-    .c1-small-label
-  ):lang(bn),
-.c1
-  :is(
-    .c1-nudge,
-    .c1-headline,
-    .c1-subline,
-    .c1-tinycap,
-    .c1-phonename,
-    .c1-fileinfo b,
-    .c1-next-title,
-    .c1-sectionhead,
-    .c1-feature h3,
-    .c1-small-label
-  )
-  :lang(bn) {
-  letter-spacing: normal;
-  text-transform: none;
-}
-/* A Bengali part inside a heading is a span marked lang="bn"; the general :lang(bn) line height
-   (1.75, made for body text) would stretch each heading line, so the span follows its heading. */
-.c1 :is(.c1-headline, .c1-sectionhead, .c1-feature h3, .c1-phonename) [lang],
-.land-final-title [lang] {
-  line-height: inherit;
-}
-[data-locale="bn"] .c1 .c1-headline {
-  font-size: clamp(40px, 4.6vw, 64px);
-  line-height: 1.3;
-  font-weight: 760;
-  text-wrap: balance;
-  overflow-wrap: break-word;
-}
-[data-locale="bn"] .c1 .c1-sectionhead {
-  font-size: clamp(34px, 3.6vw, 48px);
-  line-height: 1.3;
-  text-wrap: balance;
-}
-.c1 .c1-feature h3:lang(bn) {
-  font-size: 28px;
-  line-height: 1.35;
-  text-wrap: balance;
-}
-.c1 .c1-phonename:lang(bn) {
-  font-size: 24px;
-  line-height: 1.3;
-}
-[data-locale="bn"] .land-final-title {
-  font-size: clamp(1.8rem, 4.4vw, 3rem);
-  line-height: 1.3;
-  text-wrap: balance;
-}
-@media (max-width: 760px) {
-  /* On a phone the two halves of the headline wrap anyway, so the set break goes and the whole
-     sentence balances over three lines instead of four. */
-  [data-locale="bn"] .c1 .c1-headline {
-    font-size: clamp(28px, 9vw, 40px);
-    line-height: 1.35;
-  }
-  [data-locale="bn"] .c1 .c1-headline br {
-    display: none;
-  }
-  [data-locale="bn"] .c1 .c1-sectionhead {
-    font-size: 32px;
-  }
-  .c1 .c1-feature h3:lang(bn) {
-    font-size: 24px;
-  }
-}
-/* end WP-P18 */
 
 /* WP-CI What This Change Affects */
 /* The review a traveller reads when a document is replaced or a confirmed detail changes, its short notice under a saved detail, and the state shown when it did not load. A list to read, with links to the screens that own each step. Flat: 1px edges, no shadow, gradient or translucency; tokens only; every link and the fold are 44 px or taller; nothing can push a phone screen wider. */
@@ -22853,13 +22279,6 @@ button.wallet-stack-card {
     min-width: 44px;
     justify-content: center;
   }
-}
-.footer-links a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding-block: 0;
-  margin-block: -0.5rem;
 }
 .pilot-banner:not(.pilot-banner-slim) {
   min-height: 44px;
