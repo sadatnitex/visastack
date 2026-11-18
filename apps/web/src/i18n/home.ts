@@ -54,6 +54,7 @@ export const homeCatalog = defineCatalog({
     'home.layout.status': 'Status',
     'home.layout.terms': 'Terms',
     'home.layout.workspace': 'Workspace',
+    'home.page.aCleanFile': 'A clean file',
     'home.page.createYourFreeAccount': 'Create your free account',
     'home.page.forAgencies': 'For Agencies',
     'home.page.freePublicBeta': 'Free Public Beta',
@@ -72,6 +73,7 @@ export const homeCatalog = defineCatalog({
     'home.page.signInToGetStarted': 'Sign in to get started',
     'home.page.thisIsAPrivatePilotFor':
       'This is a private pilot for invited users, and some features are not switched on yet.',
+    'home.page.whatWorksToday': 'What Works Today',
   },
   bn: {
     'home.countryChecklistPicker.forExampleJapan': 'যেমন: জাপান',
@@ -102,6 +104,7 @@ export const homeCatalog = defineCatalog({
     'home.layout.skipToContent': 'মূল বিষয়বস্তুতে যান',
     'home.layout.terms': 'শর্তাবলি',
     'home.layout.workspace': 'ওয়ার্কস্পেস',
+    'home.page.aCleanFile': 'একটি গোছানো ভিসা ফাইল',
     'home.page.forAgencies': 'এজেন্সির জন্য',
     'home.page.howItWorks': 'এটি যেভাবে কাজ করে',
     'home.page.inviteOnlyPilot': 'শুধু আমন্ত্রিতদের জন্য পাইলট',
@@ -111,5 +114,6 @@ export const homeCatalog = defineCatalog({
       'অনুগ্রহ করে বানানো তথ্য ব্যবহার করুন, অথবা এমন ডকুমেন্ট ব্যবহার করুন যাতে সব ব্যক্তিগত তথ্য স্থায়ীভাবে কালো করে ঢেকে দেওয়া হয়েছে। আসল আবেদনকারীর তথ্য এখনো গ্রহণ করা হয় না।',
     'home.page.seeWhatWorksToday': 'আজ কী কাজ করছে তা দেখুন',
     'home.page.signInToGetStarted': 'শুরু করতে সাইন ইন করুন',
+    'home.page.whatWorksToday': 'আজ যা কাজ করছে',
   },
 });
