@@ -610,7 +610,8 @@ describe('ESS1: read rows, one Details per row, one date style', () => {
     await clickAndSettle(show());
     expect(reveal).toHaveBeenLastCalledWith('synthetic-person', 'f3');
     expect(line('date_of_birth').textContent).toContain('12 Apr 1990');
-    expect(card().querySelector('output')).toBeNull();
+    // The region stays in place (so it is announced next time), now empty.
+    expect(card().querySelector('output')?.textContent).toBe('');
   });
 });
 
@@ -735,5 +736,138 @@ describe('ESS1: the same writes as before', () => {
       ['applicantId', 'synthetic-person'],
       ['factId', 'f2'],
     ]);
+  });
+});
+
+describe('ESS1 review fixes', () => {
+  const rowOf = (key: string) => {
+    const found = container.querySelector<HTMLElement>(`.profile-field-row[data-field="${key}"]`);
+    if (!found) throw new Error(`No row for ${key}`);
+    return found;
+  };
+  const withheldDob = (updatedAt: string) => ({
+    ...FULL,
+    date_of_birth: {
+      factId: 'f3',
+      value: null,
+      status: 'APPLICANT_CONFIRMED',
+      withheld: true,
+      updatedAt,
+    },
+  });
+  const cardShow = () =>
+    [...line('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent?.startsWith('Show') || b.textContent?.startsWith('Hide'),
+    );
+
+  it('keeps each "could not be shown" region in the page, empty, and fills it in place', async () => {
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: false });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    const cardRegion = card().querySelector('output');
+    const rowRegion = rowOf('date_of_birth').querySelector('output');
+    expect(cardRegion?.textContent).toBe('');
+    expect(rowRegion?.textContent).toBe('');
+    await clickAndSettle(cardShow());
+    expect(card().querySelector('output')).toBe(cardRegion);
+    expect(cardRegion?.textContent).toMatch(/could not be shown/);
+    const rowShow = [...rowOf('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Show Date of Birth',
+    );
+    await clickAndSettle(rowShow);
+    expect(rowOf('date_of_birth').querySelector('output')).toBe(rowRegion);
+    expect(rowRegion?.textContent).toMatch(/could not be shown/);
+  });
+
+  it('starts masked again on the card after a new save, never Hide over dots', async () => {
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: true, value: '1990-04-12' });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    await clickAndSettle(cardShow());
+    expect(cardShow()?.textContent).toBe('Hide Date of Birth');
+    render(withheldDob('2026-11-02T00:00:00.000Z'));
+    expect(cardShow()?.textContent).toBe('Show Date of Birth');
+    expect(line('date_of_birth').querySelector('[data-masked="true"]')).not.toBeNull();
+    expect(line('date_of_birth').textContent).not.toContain('1990');
+  });
+
+  it('never replaces typed text with a value opened later', async () => {
+    reveal.mockReset();
+    reveal.mockResolvedValueOnce({ ok: false });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    await clickAndSettle(rowOf('date_of_birth').querySelector('button[data-edit]'));
+    const box = container.querySelector<HTMLInputElement>('#f-date_of_birth');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+        box,
+        '1991-05-13',
+      );
+      box?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    reveal.mockResolvedValueOnce({ ok: true, value: '1990-04-12' });
+    await clickAndSettle(cardShow());
+    expect(line('date_of_birth').textContent).toContain('12 Apr 1990');
+    expect(container.querySelector('#f-date_of_birth')).toBe(box);
+    expect(box?.value).toBe('1991-05-13');
+  });
+
+  it('opens the Details and focuses the date when that date is what the save refused', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({
+      ok: false,
+      message: 'Invalid effective date.',
+      field: 'effectiveFrom',
+    });
+    render(FULL);
+    await clickAndSettle(rowOf('family_name').querySelector('button[data-edit]'));
+    const details = rowOf('family_name').querySelector<HTMLDetailsElement>('details');
+    expect(details?.open).toBe(false);
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-family_name')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    expect(details?.open).toBe(true);
+    expect(document.activeElement?.getAttribute('name')).toBe('effectiveFrom');
+    expect(document.activeElement?.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('prints a timestamp as its UTC day, the same on the server and in the browser', () => {
+    render({
+      ...FULL,
+      family_name: {
+        factId: 'f2',
+        value: 'SAMPLE',
+        status: 'DECLARED',
+        updatedAt: '2026-11-04T23:30:00-05:00',
+      },
+    });
+    expect(rowOf('family_name').textContent).toContain('Last confirmed 5 Nov 2026');
+  });
+
+  it('saves a value opened with Show and then Edit as itself, and returns the focus to Edit', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Date of Birth saved.' });
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: true, value: '1990-04-12' });
+    render(withheldDob('2026-11-01T00:00:00.000Z'));
+    const rowShow = [...rowOf('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Show Date of Birth',
+    );
+    await clickAndSettle(rowShow);
+    const edit = () => rowOf('date_of_birth').querySelector<HTMLButtonElement>('button[data-edit]');
+    await clickAndSettle(edit());
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-date_of_birth')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    const posted = vi.mocked(saveFactAction).mock.calls[0]?.[1] as FormData;
+    expect(posted.get('value')).toBe('1990-04-12');
+    expect(document.activeElement).toBe(edit());
   });
 });

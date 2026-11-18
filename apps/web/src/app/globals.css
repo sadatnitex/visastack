@@ -23832,9 +23832,19 @@ a.passport-page-value:hover {
   gap: 0.4rem;
 }
 .profile-read-actions .btn,
-.profile-field-row .field-control .btn,
-.passport-page-problem {
+.profile-field-row .field-control .btn {
   min-height: 44px;
+}
+/* The "could not be shown" regions stay in the page empty, so their words are announced when they
+   arrive; empty, they take no room (kept in the accessibility tree, out of the layout). */
+.profile-row-problem:empty,
+.passport-page-problem:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .profile-row-details > summary {
   display: flex;
@@ -23879,9 +23889,10 @@ a.passport-page-value:hover {
 .profile-essentials-bar > p {
   margin: 0;
 }
-.passport-page-problem {
+.passport-page-problem:not(:empty) {
   display: flex;
   align-items: center;
+  min-height: 44px;
   margin: 0.5rem 0 0;
   font-size: var(--text-small);
 }

@@ -32,7 +32,6 @@ import { ExpandableSection } from '../../../../components/ui-lift/expandable-sec
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../i18n/change-impact';
 import { fieldStatusWords } from '../../../../lib/field-state-words';
-import { formatTimestampDate } from '../../../../lib/format-date';
 import type {
   EditorFieldDef,
   EditorGroup,
@@ -79,9 +78,9 @@ const SENSITIVITY_LABELS: Record<string, string> = {
 /**
  * A date-only value (a birth date, an expiry, the day something became true or ended) as one
  * unambiguous day, the same for every viewer: "17 Dec 2024", or in Bengali digits and month names.
- * Read in UTC, so a viewer west of UTC never sees the day before (finding #25). Timestamps (when a
- * value was saved or checked) use formatTimestampDate, which prints the same style (ESS1: one date
- * style on the page). A value that is not a date is shown as it was typed.
+ * Read in UTC, so a viewer west of UTC never sees the day before (finding #25). Timestamps (last
+ * confirmed, checks) use the same UTC day (ESS1: one date style on the page), so the server and
+ * the browser always print the same text. A value that is not a date is shown as it was typed.
  */
 const DAY_ONLY = { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' } as const;
 function dayText(iso: string, locale: Locale): string {
@@ -155,7 +154,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
         </p>
         {assurance.machineChecks.map((c) => (
           <p key={`${c.name}-${c.performedAt}`} className="muted profile-row-assurance-item">
-            {c.passed ? '✓' : '✗'} {c.name}, {formatTimestampDate(c.performedAt, locale)}
+            {c.passed ? '✓' : '✗'} {c.name}, {dayText(c.performedAt, locale)}
             {c.detail ? `: ${c.detail}` : ''}
           </p>
         ))}
@@ -166,8 +165,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
         </p>
         {assurance.agencyReviews.map((r) => (
           <p key={`${r.missionTitle}-${r.decidedAt}`} className="muted profile-row-assurance-item">
-            {r.outcome === 'ACCEPTED' ? '✓' : '✗'} {r.missionTitle},{' '}
-            {formatTimestampDate(r.decidedAt, locale)}
+            {r.outcome === 'ACCEPTED' ? '✓' : '✗'} {r.missionTitle}, {dayText(r.decidedAt, locale)}
             {r.reason ? `: ${r.reason}` : ''}
           </p>
         ))}
@@ -183,7 +181,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
             className="muted profile-row-assurance-item"
           >
             {c.expired ? '✗ (expired)' : '✓'} {c.issuerIdentity}: "{c.exactClaim}", response:{' '}
-            {c.response}, valid until {formatTimestampDate(c.validUntil, locale)}
+            {c.response}, valid until {dayText(c.validUntil, locale)}
           </p>
         ))}
       </div>
@@ -303,6 +301,13 @@ function FieldRow({
   const dateId = useId();
   const dateHintId = useId();
   const problemId = useId();
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    // The date it became true sits in the closed Details: open it, so the focus can reach it.
+    if (!state.ok && state.field === 'effectiveFrom' && detailsRef.current) {
+      detailsRef.current.open = true;
+    }
+  }, [state]);
   useFocusInvalidField(formRef, state);
   const inputId = repeatingRecordKey ? `f-${field.key}-${repeatingRecordKey}` : `f-${field.key}`;
   const sensitivityLabel = SENSITIVITY_LABELS[field.sensitivity];
@@ -323,6 +328,9 @@ function FieldRow({
   const setShown = (on: boolean) => setShownVersion(on ? version : null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(false);
+  // What the box starts with, fixed when Edit opens it: a value opened later (by the card's Show,
+  // say) never replaces what the person typed.
+  const [boxStart, setBoxStart] = useState<string | null>(null);
   const focusNext = useRef<'box' | 'date' | 'edit' | null>(null);
   useEffect(() => {
     // The value went away (marked No Longer Current): the box is how a new one is added.
@@ -343,18 +351,19 @@ function FieldRow({
     else document.getElementById(target === 'date' ? dateId : inputId)?.focus();
   }, [editing, inputId, dateId]);
 
-  /** Opens a withheld value once; true when it is now in memory. */
-  async function open(): Promise<boolean> {
-    if (!canOpen || opened !== undefined) return true;
+  /** Opens a withheld value once: its text, or null when it would not open. */
+  async function open(): Promise<string | null> {
+    if (!canOpen) return shownValue;
+    if (opened !== undefined) return opened;
     setBusy(true);
     const result = await reveals.reveal(factId, updatedAt);
     setBusy(false);
     setProblem(!result.ok);
-    return result.ok;
+    return result.ok ? result.value : null;
   }
   async function startEdit(focus: 'box' | 'date' = 'box') {
     // A value that would not open still leaves the box: typing a new value replaces it.
-    await open();
+    setBoxStart(await open());
     focusNext.current = focus;
     setEditing(true);
   }
@@ -367,7 +376,7 @@ function FieldRow({
       setShown(false);
       return;
     }
-    if (await open()) setShown(true);
+    if ((await open()) !== null) setShown(true);
   }
 
   const labelWithName = (key: Parameters<typeof t.node>[0]) => (
@@ -397,18 +406,14 @@ function FieldRow({
    * browser with script switched off: it never holds a protected value.
    */
   function editForm(live: boolean) {
-    const boxValue = live
-      ? canOpen
-        ? (opened ?? null)
-        : shownValue
-      : withheld
-        ? null
-        : shownValue;
+    const boxValue = live ? (canOpen ? boxStart : shownValue) : withheld ? null : shownValue;
+    // Remount only when the stored value changes (a save), so typing is never replaced.
+    const boxKey = `${currentValue ?? ''}@${updatedAt ?? ''}`;
     const describedBy = [...(lock ? [hintId] : []), ...(live && problem ? [problemId] : [])];
     const control = field.options ? (
       <select
         // Remount when the stored value changes, so a save shows what was stored, not old typing.
-        key={boxValue ?? ''}
+        key={boxKey}
         id={inputId}
         name="value"
         defaultValue={boxValue ?? ''}
@@ -428,7 +433,7 @@ function FieldRow({
     ) : (
       <input
         // Remount when the stored value changes, so a save shows what was stored, not old typing.
-        key={boxValue ?? ''}
+        key={boxKey}
         id={inputId}
         name="value"
         type={field.type === 'date' ? 'date' : 'text'}
@@ -568,13 +573,12 @@ function FieldRow({
           <noscript>{editForm(false)}</noscript>
         </div>
       )}
-      {problem ? (
-        <output id={problemId} className="muted u-fs-075-m0 profile-row-problem">
-          {t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow')}
-        </output>
-      ) : null}
+      {/* Always in the page, so a screen reader announces the words when they arrive. */}
+      <output id={problemId} className="muted u-fs-075-m0 profile-row-problem">
+        {problem ? t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow') : null}
+      </output>
       {/* One Details per row, closed at first, in the order of the approved layout. */}
-      <details className="profile-row-details">
+      <details className="profile-row-details" ref={detailsRef}>
         <summary className="muted">
           {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Details')}
         </summary>
@@ -583,7 +587,7 @@ function FieldRow({
           {updatedAt ? (
             <p className="muted u-fs-075-m0">
               {t.node('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
-                formatDate: formatTimestampDate(updatedAt, locale),
+                formatDate: dayText(updatedAt, locale),
               })}
             </p>
           ) : null}
@@ -2049,6 +2053,7 @@ export function ProfileEditor({
           current ? opened.get(revealKey(current.factId, current.updatedAt)) : undefined,
         ),
         status: statusKindOf(current),
+        ...(current ? { version: revealKey(current.factId, current.updatedAt) } : {}),
         // Every detail on the card is edited in its own row (ESS1: Essentials First no longer
         // repeats the card's details), so without script the link opens every section on it.
         href: !place ? null : showAll ? `#${valueRowId(key)}` : `?view=all#${valueRowId(key)}`,

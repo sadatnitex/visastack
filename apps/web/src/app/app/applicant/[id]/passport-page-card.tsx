@@ -100,6 +100,11 @@ export interface PassportLine {
    * view has no edit row for it (its section is not shown).
    */
   readonly href: string | null;
+  /**
+   * The saved version the line prints (fact and save time). Show holds for this version only: a
+   * new save starts masked again, never "Hide" over dots.
+   */
+  readonly version?: string;
 }
 
 export interface PassportPageCardProps {
@@ -216,20 +221,22 @@ function LineContent({
 export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardProps) {
   const headingId = useId();
   const problemId = useId();
-  const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
+  // Detail key to the version it was shown for.
+  const [shown, setShown] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const isShown = (line: PassportLine) => shown.get(line.key) === (line.version ?? '');
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const toggle = (key: string) =>
+  const toggle = (line: PassportLine) =>
     setShown((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      const next = new Map(current);
+      if (current.get(line.key) === (line.version ?? '')) next.delete(line.key);
+      else next.set(line.key, line.version ?? '');
       return next;
     });
   async function showOrHide(line: PassportLine) {
     setProblem(null);
     const closed = line.state.kind === 'value' && line.state.text === null;
-    if (!shown.has(line.key) && closed) {
+    if (!isShown(line) && closed) {
       // Not in the page yet: the editor opens it for the owner, then it prints.
       setBusy(line.key);
       const ok = onReveal ? await onReveal(line.key) : false;
@@ -239,7 +246,7 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
         return;
       }
     }
-    toggle(line.key);
+    toggle(line);
   }
   return (
     <section className="passport-page-card" aria-labelledby={headingId}>
@@ -255,7 +262,7 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
         <dl className="passport-page-lines">
           {lines.map((line) => {
             const masked = line.state.kind === 'value' && line.state.masked;
-            const isShown = shown.has(line.key);
+            const lineShown = isShown(line);
             return (
               <div
                 key={line.key}
@@ -265,7 +272,7 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
               >
                 <dt className="passport-page-label">{line.label}</dt>
                 <dd className="passport-page-cell">
-                  <LineContent line={line} shown={isShown} onEdit={onEdit} />
+                  <LineContent line={line} shown={lineShown} onEdit={onEdit} />
                   {masked ? (
                     // The name says what a press does (Show or Hide), so no pressed state is added.
                     <button
@@ -275,7 +282,7 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
                       aria-describedby={problem === line.key ? problemId : undefined}
                       onClick={() => showOrHide(line)}
                     >
-                      {isShown ? 'Hide' : 'Show'}
+                      {lineShown ? 'Hide' : 'Show'}
                       <span className="sr-only"> {line.label}</span>
                     </button>
                   ) : null}
@@ -293,11 +300,10 @@ export function PassportPageCard({ lines, onEdit, onReveal }: PassportPageCardPr
         </dl>
         <MachineZone />
       </div>
-      {problem ? (
-        <output id={problemId} className="muted passport-page-problem">
-          This detail could not be shown just now. Try again.
-        </output>
-      ) : null}
+      {/* Always in the page, so a screen reader announces the words when they arrive. */}
+      <output id={problemId} className="muted passport-page-problem">
+        {problem ? 'This detail could not be shown just now. Try again.' : null}
+      </output>
     </section>
   );
 }
