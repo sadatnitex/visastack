@@ -161,10 +161,9 @@ describe('the public site frame (WP-PUB1)', () => {
         PUBLIC_NAV.map((entry) => entry.label.replace(/\s+/g, '')).join(''),
       );
       expect(nav).toContain(signedIn ? 'href="/app">Workspace</a>' : 'href="/app">Sign In</a>');
-      // The home page's country picker is only drawn for visitors.
-      expect(nav).toContain(
-        signedIn ? 'href="/app/countries">Countries</a>' : 'href="/#start">Countries</a>',
-      );
+      // WP-PUB4: the public Countries page is live, so everyone's header opens it (a signed-in person
+      // starts a country from there straight into the app).
+      expect(nav).toContain('href="/countries">Countries</a>');
     }
   });
 

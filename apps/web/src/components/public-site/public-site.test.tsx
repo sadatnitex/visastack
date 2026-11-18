@@ -236,8 +236,10 @@ describe('public nav list', () => {
     }
   });
   it('sends a signed-in person to the full country list, since the home picker is for visitors', () => {
+    // While /countries is not live (the fallback the header used before PUB4 shipped it).
+    const beforePub4 = new Set(['/', '/how-it-works', '/trust']);
     const countries = (signedIn: boolean) =>
-      publicNavLinks(undefined, { signedIn }).find((link) => link.label === 'Countries')?.href;
+      publicNavLinks(beforePub4, { signedIn }).find((link) => link.label === 'Countries')?.href;
     expect(countries(false)).toBe('/#start');
     expect(countries(true)).toBe('/app/countries');
     expect(existsSync(join(APP, 'app', 'countries', '(list)', 'page.tsx'))).toBe(true);
@@ -260,8 +262,8 @@ describe('public nav list', () => {
       '/',
       '/how-it-works',
       '/trust',
-      '/#start',
-      '/#for-agencies',
+      '/countries',
+      '/for-agencies',
     ]);
   });
 });
