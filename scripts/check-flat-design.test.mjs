@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   EFFECTS_EXCEPTIONS,
-  LANDING_EFFECTS_EXCEPTION,
   checkCss,
   checkInline,
   checkStylesheet,
@@ -41,24 +40,24 @@ test('rejects automatic dark substitution while allowing designed navy surfaces'
   assert.deepEqual(checkCss('.intentional-accent { background: #102937; color: #ffffff }'), []);
 });
 
-test('allows Harbor effects only in the one landing stylesheet (owner decision D1)', () => {
+test('allows effects only in the listed depth stylesheets, never in a look-alike path', () => {
   const effects =
     '.phone { box-shadow: 0 42px 90px #0002 } .feature { background: radial-gradient(circle, #1d4c98 0, transparent 47%) } .glass { background: rgba(255, 255, 255, 0.5) }';
-  assert.deepEqual(checkStylesheet(effects, LANDING_EFFECTS_EXCEPTION), []);
+  assert.deepEqual(checkStylesheet(effects, PICTURES_DEPTH), []);
   for (const elsewhere of [
     'apps/web/src/app/globals.css',
-    'apps/web/src/app/other/landing-c1.css',
-    'apps/web/src/app/landing-c1.css.bak',
-    'apps/web/src/components/landing-c1.css',
+    'apps/web/src/app/other/pictures-depth.css',
+    'apps/web/src/components/pictures/pictures-depth.css.bak',
+    'apps/web/src/app/landing-c1.css',
   ])
     assert.ok(checkStylesheet(effects, elsewhere).length >= 3, elsewhere);
 });
 
-test('the landing exception never allows automatic dark appearance', () => {
+test('an exempt stylesheet never allows automatic dark appearance', () => {
   assert.ok(
     checkStylesheet(
       '@media (prefers-color-scheme: dark) { .c1 { background: #000 } }',
-      LANDING_EFFECTS_EXCEPTION,
+      PICTURES_DEPTH,
     ).length > 0,
   );
 });
@@ -69,9 +68,8 @@ const PICTURES_DEPTH = 'apps/web/src/components/pictures/pictures-depth.css';
 // site's scroll scenes. An approved guard correction: the list grows from two entries to three.
 const PUBLIC_SCENES = 'apps/web/src/components/public-site/public-scenes.css';
 
-test('the exception list names exactly the landing, picture and public scene stylesheets (ADR 0027, ADR 0029)', () => {
-  assert.deepEqual(EFFECTS_EXCEPTIONS, [LANDING_EFFECTS_EXCEPTION, PICTURES_DEPTH, PUBLIC_SCENES]);
-  assert.equal(LANDING_EFFECTS_EXCEPTION, 'apps/web/src/app/landing-c1.css');
+test('the exception list names exactly the picture and public scene stylesheets (ADR 0027, ADR 0029)', () => {
+  assert.deepEqual(EFFECTS_EXCEPTIONS, [PICTURES_DEPTH, PUBLIC_SCENES]);
   assert.ok(Object.isFrozen(EFFECTS_EXCEPTIONS));
 });
 
