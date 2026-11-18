@@ -65,3 +65,33 @@ If the installed Playwright browser does not match, set `CI_SIGNED_IN_CHROMIUM` 
 4. Need more made-up records? Add them to `seed.ts` through `@visastack/services` only, and add their ids to `SeededIds`.
 
 The full route list and the layout guard over every route are the next step (U1b-2).
+
+Superseded, replaced by the route guard below (WAL1B-2, 18 Nov 2026): to cover a new signed-in page, add it to `routes.ts` instead of writing a test for it.
+
+## The route guard (WAL1B-2)
+
+`apps/web/ci-signed-in/route-guard.guard.ts` opens every page in `routes.ts` as its made-up person at the three guard sizes of `apps/web/e2e/support/layout-guards.ts` (phone 390, phone 400, desktop 1280). Each page must:
+
+1. answer 200 and still be on its own address (path and query) after it has drawn, so a sign-in, not-found, error or redirected page never passes;
+2. finish loading (the route's loading screen, `output.loading`, is gone) and show its `mustShow` text in the page body: the content column without the workspace toolbar (which shows the signed-in person's name on every page) and without the agency name banner (which a non-member also sees);
+3. offer at least one control or link of its own (the agency name banner and the record section tabs are shared navigation and do not count, and they never count as body text either);
+4. need no sideways scroll, and have no control painted over (the shared WAL1 checks).
+
+Each person's browser runs with reduced motion, and the cover check waits for web fonts first. A page the other made-up person may not open (`deniedTo`: the traveller's profile and case pages for the agency admin, the agency's pages and the shared record for the traveller) is also opened as that person: once it has loaded, the page must refuse them (an error status, a move to another address, or the agency's "You don't have a role" card) and must not show the `mustShow` text. That proves the text comes from the page body.
+
+### The lists in routes.ts
+
+| List | Holds | Rule (scripts/ci-signed-in.test.mjs) |
+|---|---|---|
+| `ROUTES` | 50 pages the guard opens: role, address with `{seededId}` placeholders, body text | Every page file under `apps/web/src/app/app` is in `ROUTES` or `EXCLUDED`, never both, and every listed page has a file. The body text is never the person's own name. |
+| `EXCLUDED` | 43 pages it cannot open here, each with its reason: staff pages, one-time invitation links, switched-off features (passkeys, traveller billing, agency collection requests), pages needing records the seed does not make yet (rule pack, receipt, snapshot, group trip) | A reason is required. The list may only shrink: the test pins the 43 pages it held on 18 Nov 2026, so a page can leave it (seeded and guarded) but none can join it. |
+| `KNOWN_FAILING` | Today's real findings (WAL1B-2 records): page, check (`covered control` or `no control`), sizes and, for a covered control, exactly which controls | The guard requires each to fail exactly as listed, matching only the covered control's own exact name (never the element over it): a newly covered control on the same page, even one covered by a listed control, still fails, and a fixed one fails with "fixed? remove from KNOWN_FAILING". The list may only shrink: the test pins every page, check, size and control it held on 18 Nov 2026, and any new one fails. |
+
+### Add a page
+
+1. New page file under `apps/web/src/app/app`: the list test fails until it is in `ROUTES` or `EXCLUDED`.
+2. In `ROUTES`: the role, the address (use `{applicantId}`, `{caseId}`, `{organizationId}`, `{grantId}` or `{documentId}`; the test checks the address opens that page), body text only that page shows once loaded (a phrase of at least 12 characters, read from the page body, never a word its tabs, the agency banner or the toolbar repeat), and `deniedTo` when the other person may not open it.
+3. Needs records the seed lacks: add them in `seed.ts` through `@visastack/services` only, with their ids in `SeededIds` and `RouteId`, and move the page from `EXCLUDED` to `ROUTES`.
+4. Never add to `KNOWN_FAILING` to make a new page pass: fix the page.
+
+Time: about one minute for the 50 routes on a local machine (2 workers); the GitHub run time is recorded in the WAL1B-2 records.
