@@ -549,7 +549,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.doesNotApply': 'Does not apply',
     'appApplicant.appApplicantIdProfileEditor.eGPassportAddressEmployer':
       'e.g. passport, address, employer',
-    'appApplicant.appApplicantIdProfileEditor.editTheseDetails': 'Edit These Details',
     'appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly':
       'Effective as of {formatDateOnly}',
     'appApplicant.appApplicantIdProfileEditor.ended': 'Ended',
@@ -700,8 +699,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdRecordPage.allRecords': 'All Records',
     'appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe':
       'Current Version means this is the newest copy you saved. It does not mean anyone has checked that it is genuine, or that it suits every application. Files still being checked, refused, expired or replaced are never shown as ready to use.',
-    'appApplicant.appApplicantIdRecordPage.everythingSavedForDisplaynameInOne':
-      'Everything saved for {displayName}, in one place. Find a detail or a document, see which copy is current, then use it in a case or share it.',
     'appApplicant.appApplicantIdRecordPage.updateYourProfile': 'Update Your Profile',
     'appApplicant.appApplicantIdRecordPage.youHaveNotAddedADocument':
       'You have not added a document yet. You can still fill in your details by hand now, and add a passport or other document whenever you have it.',
@@ -1141,7 +1138,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.detailsFilled': 'তথ্য পূরণ হয়েছে',
     'appApplicant.appApplicantIdProfileEditor.documentsForThisSection': 'এই অংশের ডকুমেন্ট',
     'appApplicant.appApplicantIdProfileEditor.doesNotApply': 'প্রযোজ্য নয়',
-    'appApplicant.appApplicantIdProfileEditor.editTheseDetails': 'এই তথ্য সম্পাদনা করুন',
     'appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly':
       '{formatDateOnly} থেকে কার্যকর',
     'appApplicant.appApplicantIdProfileEditor.ended': 'শেষ হয়েছে',
@@ -1249,8 +1245,6 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdRecordBrowser.rowcountItemsMatch': '{rowCount}টি আইটেম মিলেছে।',
     'appApplicant.appApplicantIdRecordPage.addADocument': 'ডকুমেন্ট যোগ করুন',
     'appApplicant.appApplicantIdRecordPage.allRecords': 'সব রেকর্ড',
-    'appApplicant.appApplicantIdRecordPage.everythingSavedForDisplaynameInOne':
-      '{displayName}-এর জন্য সংরক্ষিত সবকিছু এক জায়গায়। একটি তথ্য বা ডকুমেন্ট খুঁজুন, কোন কপিটি বর্তমান তা দেখুন, তারপর ভিসা ফাইলে ব্যবহার করুন বা শেয়ার করুন।',
     'appApplicant.appApplicantIdRecordPage.updateYourProfile': 'আপনার প্রোফাইল আপডেট করুন',
     'appApplicant.appApplicantIdRecordPage.youHaveNotAddedADocument':
       'আপনি এখনো কোনো ডকুমেন্ট যোগ করেননি। এখনই হাতে লিখে আপনার তথ্য পূরণ করতে পারেন, আর পাসপোর্ট বা অন্য ডকুমেন্ট হাতে এলে যেকোনো সময় যোগ করতে পারেন।',

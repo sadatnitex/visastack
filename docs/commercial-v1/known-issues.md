@@ -8725,3 +8725,10 @@ NAV2 header and footer
 - Docs brought up to date, older lines marked superseded: `docs/SESSION-START.md` section 7, `docs/public-beta/CURRENT-STATE.md`, `docs/upgrades/programme/SESSION-HANDOFF-2026-11-18.md` (MOT1 #651 `769e43ea`, DOC1 #652 `9dead1fa`, NAV2 #653 `5f39fd6d` and ESS1 #654 `19416e1e` merged and checked live; main then `19416e1e`, now `c04eefa9` after PUB5 #655; next migration 0138); rows for the Wallet units, U6 to U8, NAV2, MOT1 and ESS1 added to `docs/uiux/ccd/PARITY-LEDGER.md` and to section M of `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md`, from their records only.
 - Checks on head `94b360b6` before the merge of main: full local check green (install, audit, lint, typecheck, all tests, build, Playwright, smoke), `node --test scripts/*.test.mjs` 83 pass, em dash sweep 0.
 - NOT verified: the live site after deploy (this unit changes no behaviour); Bengali reading of the pages after the key removal beyond the existing locale tests.
+
+## TAIL1: two unused applicant wording keys removed (2026-11-18)
+- Removed `appApplicant.appApplicantIdProfileEditor.editTheseDetails` and `appApplicant.appApplicantIdRecordPage.everythingSavedForDisplaynameInOne` (English, Bengali and `app-applicant.sources.json`). Nothing read them (git grep on main `cecca4c6`). No visible change.
+- The hold in `docs/upgrades/programme/SESSION-HANDOFF-2026-11-18.md` (follow-up 7, "wait for #581") is lifted: Guardian 16 recorded that draft PR #581 is superseded by merged #582 and will not merge.
+- Translation register and review queue rows for SG-7edc4f46 and SG-0e7ceaa1 are left as they are, as TIDY1 #656 did for the removed Home keys.
+- Checks: lint, typecheck, `vitest run src/i18n src/lib` 3319 pass, `node --test scripts/*.test.mjs` 83 pass, em dash sweep 0.
+- NOT verified: full build, Playwright and smoke (left to CI).
