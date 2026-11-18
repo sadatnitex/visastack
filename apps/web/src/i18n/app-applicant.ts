@@ -556,6 +556,13 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay':
       'Ended on {formatDateOnly}. Its details stay on file. Save a change below to make it current again.',
     'appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller': '✓ Entered by the traveller.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Cancel': 'Cancel',
+    'appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow':
+      'This detail could not be shown just now. Try again, or type a new value to replace it.',
+    'appApplicant.appApplicantIdProfileEditor.ess1Details': 'Details',
+    'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'Edit',
+    'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'Hide',
+    'appApplicant.appApplicantIdProfileEditor.ess1Show': 'Show',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'Essentials First',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'Every essential is added. Add more from any section when a case needs it.',
@@ -1132,6 +1139,13 @@ export const appApplicantCatalog = defineCatalog({
     'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay':
       '{formatDateOnly} তারিখে শেষ হয়েছে। এর তথ্য রেকর্ডে থেকে যায়। এটিকে আবার বর্তমান করতে নিচে একটি পরিবর্তন সংরক্ষণ করুন।',
     'appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller': '✓ ভ্রমণকারী নিজে দিয়েছেন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Cancel': 'বাতিল',
+    'appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow':
+      'এই তথ্যটি এখন দেখানো গেল না। আবার চেষ্টা করুন, অথবা বদলাতে নতুন মান লিখুন।',
+    'appApplicant.appApplicantIdProfileEditor.ess1Details': 'বিস্তারিত',
+    'appApplicant.appApplicantIdProfileEditor.ess1Edit': 'সম্পাদনা',
+    'appApplicant.appApplicantIdProfileEditor.ess1Hide': 'লুকান',
+    'appApplicant.appApplicantIdProfileEditor.ess1Show': 'দেখান',
     'appApplicant.appApplicantIdProfileEditor.essentialsFirst': 'আগে প্রয়োজনীয়গুলো',
     'appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore':
       'প্রতিটি জরুরি বিষয় যোগ করা হয়েছে। কোনো ভিসা ফাইলে দরকার হলে যেকোনো অংশ থেকে আরও যোগ করুন।',

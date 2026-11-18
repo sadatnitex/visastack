@@ -23798,3 +23798,91 @@ a.passport-page-value:hover {
   opacity: 0.6;
 }
 /* end WP-FIX9 */
+/* WP-ESS1 Profile read rows (18 Nov 2026, owner question on Essentials First): a saved detail reads as one row (name, value, Show for a protected one, Edit) and its box opens only on Edit; the history tools (the date it became true, last confirmed, where it came from, how it was checked, No Longer Current) sit behind one closed Details per row. Essentials First lists only the essentials the Passport Page Card does not show, so the top of the page draws each detail once. Flat: tokens and a hairline only, no shadow, no gradient, no motion. Every control is at least 44 px. */
+.profile-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.profile-read-row {
+  gap: 0.25rem;
+}
+.profile-read-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.profile-read-value {
+  flex: 1 1 10rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--text);
+}
+.profile-read-value[data-masked="true"] {
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.profile-read-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.profile-read-actions .btn,
+.profile-field-row .field-control .btn,
+.passport-page-problem {
+  min-height: 44px;
+}
+.profile-row-details > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+.profile-row-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.25rem 0 0.5rem 0.75rem;
+  border-left: 2px solid var(--hairline-soft);
+}
+.profile-row-details-body .field-backdate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0;
+}
+.profile-row-details-title {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.profile-row-assurance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.profile-row-assurance-item {
+  margin: 0 0 0 0.75rem;
+  font-size: var(--text-caption);
+}
+.profile-essentials-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+.profile-essentials-bar > p {
+  margin: 0;
+}
+.passport-page-problem {
+  display: flex;
+  align-items: center;
+  margin: 0.5rem 0 0;
+  font-size: var(--text-small);
+}
+/* end WP-ESS1 */

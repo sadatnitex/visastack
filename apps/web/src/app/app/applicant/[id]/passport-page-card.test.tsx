@@ -13,7 +13,9 @@ import type { EditorFieldDef, EditorSection } from '../../../../lib/master-profi
  * Made-up values only.
  */
 
+const reveal = vi.hoisted(() => vi.fn());
 vi.mock('./actions', () => ({ saveFactAction: vi.fn() }));
+vi.mock('./profile-reveal-actions', () => ({ revealProfileValueAction: reveal }));
 vi.mock('./section-actions', () => ({
   markEndedAction: vi.fn(),
   markNotCurrentAction: vi.fn(),
@@ -121,6 +123,8 @@ type Value = {
   locked?: 'no_key' | 'unreadable' | 'lost' | null;
   sourceDocumentId?: string | null;
   updatedAt?: string | null;
+  effectiveFrom?: string | null;
+  withheld?: boolean;
 };
 
 const FULL: Record<string, Value> = {
@@ -198,6 +202,11 @@ const line = (key: string) => {
 const click = (element: Element | null | undefined) => {
   if (!element) throw new Error('Nothing to click');
   act(() => (element as HTMLElement).click());
+};
+/** A click whose work finishes after a promise (Edit opens its box once any value is opened). */
+const clickAndSettle = async (element: Element | null | undefined) => {
+  if (!element) throw new Error('Nothing to click');
+  await act(async () => (element as HTMLElement).click());
 };
 
 beforeEach(() => {
@@ -323,9 +332,9 @@ describe('the Passport Page Card', () => {
     expect(document.activeElement?.id).toBe('f-passport_expiry');
   });
 
-  it('a tap on a value in another area opens its row with every function there', () => {
+  it('a tap on a value in another area opens its row with every function there', async () => {
     render(FULL);
-    click(line('passport_number').querySelector('a.passport-page-value'));
+    await clickAndSettle(line('passport_number').querySelector('a.passport-page-value'));
     const row = container.querySelector<HTMLElement>('#profile-row-passport_number');
     expect(row?.querySelector('details')?.open).toBe(true);
     expect(container.querySelector('#profile-panel-travel_documents')?.hasAttribute('hidden')).toBe(
@@ -397,16 +406,19 @@ describe('the Passport Page Card', () => {
     ).toBeNull();
   });
 
-  it('in Essentials First, a tap on an essential goes to its own box', () => {
+  it('with only the essentials showing, a tap opens the detail in its own row (ESS1)', async () => {
     render({}, { essentials: true, startWithAll: false });
-    expect(line('given_name').querySelector('a')?.getAttribute('href')).toBe('#f-given_name');
-    // A detail that is not an essential reaches the full list.
+    // Essentials First does not repeat the card, so every line leads to the detail's own row.
+    expect(line('given_name').querySelector('a')?.getAttribute('href')).toBe(
+      '?view=all#profile-row-given_name',
+    );
     expect(line('passport_expiry').querySelector('a')?.getAttribute('href')).toBe(
       '?view=all#profile-row-passport_expiry',
     );
-    click(line('given_name').querySelector('a'));
+    expect(container.querySelector('.profile-essentials #f-given_name')).toBeNull();
+    await clickAndSettle(line('given_name').querySelector('a'));
     expect(document.activeElement?.id).toBe('f-given_name');
-    click(line('passport_expiry').querySelector('a'));
+    await clickAndSettle(line('passport_expiry').querySelector('a'));
     expect(document.activeElement?.id).toBe('f-passport_expiry');
   });
 
@@ -440,9 +452,10 @@ describe('value rows for every single detail', () => {
     expect(
       row?.querySelector('.expandable-section-status .explain-tip-trigger .sr-only')?.textContent,
     ).toBe('Email Address: Entered');
-    // Closed until opened; the edit box is inside.
+    // Closed until opened; inside, the saved value reads as a row with Edit, and no box (ESS1).
     expect(row?.querySelector('details')?.open).toBe(false);
-    expect(row?.querySelector('#f-email')).not.toBeNull();
+    expect(row?.querySelector('button[data-edit="email"]')?.textContent).toBe('Edit Email Address');
+    expect(row?.querySelector('#f-email')).toBeNull();
   });
 
   it('Add Information opens the first row and focuses its box', () => {
@@ -453,7 +466,150 @@ describe('value rows for every single detail', () => {
     });
     const first = container.querySelector('#profile-panel-identity .profile-value-row details');
     expect((first as HTMLDetailsElement | null)?.open).toBe(true);
-    expect(document.activeElement?.id).toBe('f-given_name');
+    // Every detail here is added, so the focus lands on the first one's Edit, not a box.
+    expect(document.activeElement?.getAttribute('data-edit')).toBe('given_name');
     window.location.hash = '';
+  });
+});
+
+describe('ESS1: read rows, one Details per row, one date style', () => {
+  const rowOf = (key: string) => {
+    const found = container.querySelector<HTMLElement>(`.profile-field-row[data-field="${key}"]`);
+    if (!found) throw new Error(`No row for ${key}`);
+    return found;
+  };
+
+  it('draws a saved detail as a read row: name, value and Edit, with no box', () => {
+    render(FULL);
+    const row = rowOf('given_name');
+    expect(row.querySelector('.field-label')?.textContent).toBe('Given Name');
+    expect(row.querySelector('.profile-read-value')?.textContent).toBe('EXAMPLE');
+    expect(row.querySelector('button[data-edit]')?.textContent).toBe('Edit Given Name');
+    expect(row.querySelector('input[name="value"], select[name="value"]')).toBeNull();
+    expect(container.querySelectorAll('form.field-row')).toHaveLength(0);
+  });
+
+  it('keeps every history tool behind one closed Details per row', () => {
+    render(FULL);
+    const row = rowOf('passport_number');
+    const details = row.querySelectorAll('details');
+    expect(details).toHaveLength(1);
+    const disclosure = details[0] as HTMLDetailsElement;
+    expect(disclosure.open).toBe(false);
+    expect(disclosure.querySelector('summary')?.textContent).toBe('Details Passport Number');
+    const inside = disclosure.textContent ?? '';
+    for (const words of [
+      'Last confirmed',
+      'Where This Came From',
+      'How This Was Checked',
+      'No Longer Current',
+    ]) {
+      expect(inside, words).toContain(words);
+    }
+    // Nothing of the history sits outside the disclosure.
+    const outside = [...row.children]
+      .filter((child) => child !== disclosure)
+      .map((child) => child.textContent ?? '')
+      .join(' ');
+    expect(outside).not.toMatch(/Last confirmed|Where This Came From|How This Was Checked/);
+    expect(outside).not.toContain('No Longer Current');
+  });
+
+  it('opens the box only on Edit, focuses it, and Cancel and a save go back to Edit', async () => {
+    const { saveFactAction } = await import('./actions');
+    render(FULL);
+    const edit = () => rowOf('family_name').querySelector<HTMLButtonElement>('button[data-edit]');
+    await clickAndSettle(edit());
+    const box = container.querySelector<HTMLInputElement>('#f-family_name');
+    expect(box?.value).toBe('SAMPLE');
+    expect(document.activeElement).toBe(box);
+    // The date it became true is in the row's Details, and goes with the same form.
+    const date = rowOf('family_name').querySelector<HTMLInputElement>(
+      'details input[name="effectiveFrom"]',
+    );
+    expect(date?.getAttribute('form')).toBe(box?.form?.id);
+    const cancel = [...rowOf('family_name').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Cancel Family Name',
+    );
+    click(cancel);
+    expect(container.querySelector('#f-family_name')).toBeNull();
+    expect(document.activeElement).toBe(edit());
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Family Name saved.' });
+    await clickAndSettle(edit());
+    const form = container.querySelector<HTMLFormElement>('#f-family_name')?.form;
+    await act(async () => {
+      form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+    });
+    expect(container.querySelector('#f-family_name')).toBeNull();
+    expect(document.activeElement).toBe(edit());
+    expect(rowOf('family_name').textContent).toContain('Family Name saved.');
+  });
+
+  it('opens a detail not added yet in its box at once, with no Cancel', () => {
+    render({});
+    const row = rowOf('given_name');
+    expect(row.querySelector('#f-given_name')).not.toBeNull();
+    expect([...row.querySelectorAll('button')].map((b) => b.textContent)).not.toContain(
+      'Cancel Given Name',
+    );
+    expect(row.querySelector('details')?.open).toBe(false);
+  });
+
+  it('prints every date on the page in one style', () => {
+    render({
+      ...FULL,
+      passport_issue_date: {
+        factId: 'f10',
+        value: '2020-01-15',
+        status: 'DECLARED',
+        effectiveFrom: '2020-01-10T00:00:00.000Z',
+        updatedAt: '2026-11-04T10:00:00.000Z',
+      },
+    });
+    expect(line('passport_expiry').textContent).toContain('14 Jan 2030');
+    expect(rowOf('passport_expiry').querySelector('.profile-read-value')?.textContent).toBe(
+      '14 Jan 2030',
+    );
+    expect(
+      container.querySelector('#profile-row-passport_expiry .expandable-section-summary')
+        ?.textContent,
+    ).toBe('14 Jan 2030');
+    const issue = rowOf('passport_issue_date').textContent ?? '';
+    expect(issue).toContain('15 Jan 2020');
+    expect(issue).toContain('Effective as of 10 Jan 2020');
+    expect(issue).toContain('Last confirmed 4 Nov 2026');
+    expect(rowOf('passport_number').textContent).toContain('Last confirmed 2 Jan 2026');
+    const text = container.textContent ?? '';
+    // No other style anywhere: no 04/17/1994, no Jan 14, 2030.
+    expect(text).not.toMatch(/\d{1,2}\/\d{1,2}\/\d{2,4}/);
+    expect(text).not.toMatch(/[A-Z][a-z]{2} \d{1,2}, \d{4}/);
+  });
+
+  it('opens a withheld value on the card only on Show, and says so when it cannot', async () => {
+    reveal.mockReset();
+    const withheld = {
+      ...FULL,
+      date_of_birth: {
+        factId: 'f3',
+        value: null,
+        status: 'APPLICANT_CONFIRMED',
+        withheld: true,
+      },
+    };
+    render(withheld);
+    expect(container.innerHTML).not.toContain('1990');
+    const show = () =>
+      [...line('date_of_birth').querySelectorAll('button')].find((b) =>
+        b.textContent?.startsWith('Show'),
+      );
+    reveal.mockResolvedValueOnce({ ok: false });
+    await clickAndSettle(show());
+    expect(card().querySelector('[role="status"]')?.textContent).toMatch(/could not be shown/);
+    expect(line('date_of_birth').textContent).not.toContain('1990');
+    reveal.mockResolvedValueOnce({ ok: true, value: '1990-04-12' });
+    await clickAndSettle(show());
+    expect(reveal).toHaveBeenLastCalledWith('synthetic-person', 'f3');
+    expect(line('date_of_birth').textContent).toContain('12 Apr 1990');
+    expect(card().querySelector('[role="status"]')).toBeNull();
   });
 });

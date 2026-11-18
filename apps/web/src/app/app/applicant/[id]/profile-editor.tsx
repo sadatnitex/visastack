@@ -6,6 +6,7 @@ import {
   type ReactNode,
   createContext,
   useActionState,
+  useCallback,
   useContext,
   useEffect,
   useId,
@@ -31,7 +32,7 @@ import { ExpandableSection } from '../../../../components/ui-lift/expandable-sec
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../i18n/change-impact';
 import { fieldStatusWords } from '../../../../lib/field-state-words';
-import { formatDateOnly } from '../../../../lib/format-date';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import type {
   EditorFieldDef,
   EditorGroup,
@@ -54,6 +55,7 @@ import {
   isMaskedDetail,
   valueRowId,
 } from './passport-page-card';
+import { revealProfileValueAction } from './profile-reveal-actions';
 import {
   markEndedAction,
   markNotCurrentAction,
@@ -74,15 +76,22 @@ const SENSITIVITY_LABELS: Record<string, string> = {
 };
 
 /**
- * For genuine timestamps only (e.g. `updatedAt` — when a fact was last
- * confirmed) — local-time rendering is correct here, unlike the date-only
- * `effectiveFrom` value below (finding #25, post-programme defect
- * register), which uses the timezone-stable `formatDateOnly` instead.
+ * A date-only value (a birth date, an expiry, the day something became true or ended) as one
+ * unambiguous day, the same for every viewer: "17 Dec 2024", or in Bengali digits and month names.
+ * Read in UTC, so a viewer west of UTC never sees the day before (finding #25). Timestamps (when a
+ * value was saved or checked) use formatTimestampDate, which prints the same style (ESS1: one date
+ * style on the page). A value that is not a date is shown as it was typed.
  */
-function formatDate(iso: string, locale: Locale = 'en'): string {
-  const options = { year: 'numeric', month: 'short', day: 'numeric' } as const;
-  if (locale === 'bn') return formatLocaleDate(new Date(iso), locale, options);
-  return new Date(iso).toLocaleDateString(undefined, options);
+const DAY_ONLY = { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' } as const;
+function dayText(iso: string, locale: Locale): string {
+  const day = new Date(iso);
+  if (Number.isNaN(day.getTime())) return iso;
+  return formatLocaleDate(day, locale, DAY_ONLY);
+}
+
+/** A saved value as the page prints it: a date as a day, anything else as it is. */
+function readText(field: EditorFieldDef, value: string, locale: Locale): string {
+  return field.type === 'date' ? dayText(value, locale) : value;
 }
 
 /**
@@ -120,81 +129,64 @@ export interface FieldAssurance {
   readonly tier: 'E0' | 'E1' | 'E2' | 'E3';
 }
 
+/** How a detail was checked, as plain lines inside its row's Details (one disclosure per row). */
 function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) {
   const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   return (
-    <details style={{ marginTop: '0.3rem' }}>
-      <summary className="muted" style={{ fontSize: 'var(--text-caption)', cursor: 'pointer' }}>
+    <div className="profile-row-assurance">
+      <p className="profile-row-details-title">
         {t.node('appApplicant.appApplicantIdProfileEditor.howThisWasChecked')}
-      </summary>
-      <div
-        style={{
-          marginTop: '0.4rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.3rem',
-          paddingLeft: '0.75rem',
-          borderLeft: '2px solid var(--hairline-soft)',
-        }}
-      >
+      </p>
+      <p className="muted u-fs-075-m0">
+        {assurance.applicantDeclared
+          ? t.node('appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller')
+          : t.node('appApplicant.appApplicantIdProfileEditor.notYetEntered')}
+      </p>
+      <p className="muted u-fs-075-m0">
+        {assurance.documentSupplied
+          ? t.node('appApplicant.appApplicantIdProfileEditor.backedByASuppliedDocument')
+          : t.node('appApplicant.appApplicantIdProfileEditor.noSupportingDocumentSupplied')}
+      </p>
+      <div>
         <p className="muted u-fs-075-m0">
-          {assurance.applicantDeclared
-            ? t.node('appApplicant.appApplicantIdProfileEditor.enteredByTheTraveller')
-            : t.node('appApplicant.appApplicantIdProfileEditor.notYetEntered')}
+          Automatic checks: {assurance.machineChecks.length === 0 ? 'none done.' : ''}
         </p>
-        <p className="muted u-fs-075-m0">
-          {assurance.documentSupplied
-            ? t.node('appApplicant.appApplicantIdProfileEditor.backedByASuppliedDocument')
-            : t.node('appApplicant.appApplicantIdProfileEditor.noSupportingDocumentSupplied')}
-        </p>
-        <div>
-          <p className="muted u-fs-075-m0">
-            Automatic checks: {assurance.machineChecks.length === 0 ? 'none done.' : ''}
+        {assurance.machineChecks.map((c) => (
+          <p key={`${c.name}-${c.performedAt}`} className="muted profile-row-assurance-item">
+            {c.passed ? '✓' : '✗'} {c.name}, {formatTimestampDate(c.performedAt, locale)}
+            {c.detail ? `: ${c.detail}` : ''}
           </p>
-          {assurance.machineChecks.map((c) => (
-            <p
-              key={`${c.name}-${c.performedAt}`}
-              className="muted"
-              style={{ fontSize: 'var(--text-caption)', margin: '0 0 0 0.75rem' }}
-            >
-              {c.passed ? '✓' : '✗'} {c.name}, {formatDate(c.performedAt)}
-              {c.detail ? `: ${c.detail}` : ''}
-            </p>
-          ))}
-        </div>
-        <div>
-          <p className="muted u-fs-075-m0">
-            Agency reviewed: {assurance.agencyReviews.length === 0 ? 'not yet.' : ''}
-          </p>
-          {assurance.agencyReviews.map((r) => (
-            <p
-              key={`${r.missionTitle}-${r.decidedAt}`}
-              className="muted"
-              style={{ fontSize: 'var(--text-caption)', margin: '0 0 0 0.75rem' }}
-            >
-              {r.outcome === 'ACCEPTED' ? '✓' : '✗'} {r.missionTitle}, {formatDate(r.decidedAt)}
-              {r.reason ? `: ${r.reason}` : ''}
-            </p>
-          ))}
-        </div>
-        <div>
-          <p className="muted u-fs-075-m0">
-            Issuer confirmed:{' '}
-            {assurance.issuerConfirmations.length === 0 ? 'no evidence supports this yet.' : ''}
-          </p>
-          {assurance.issuerConfirmations.map((c) => (
-            <p
-              key={`${c.issuerIdentity}-${c.validUntil}`}
-              className="muted"
-              style={{ fontSize: 'var(--text-caption)', margin: '0 0 0 0.75rem' }}
-            >
-              {c.expired ? '✗ (expired)' : '✓'} {c.issuerIdentity}: "{c.exactClaim}", response:{' '}
-              {c.response}, valid until {formatDate(c.validUntil)}
-            </p>
-          ))}
-        </div>
+        ))}
       </div>
-    </details>
+      <div>
+        <p className="muted u-fs-075-m0">
+          Agency reviewed: {assurance.agencyReviews.length === 0 ? 'not yet.' : ''}
+        </p>
+        {assurance.agencyReviews.map((r) => (
+          <p key={`${r.missionTitle}-${r.decidedAt}`} className="muted profile-row-assurance-item">
+            {r.outcome === 'ACCEPTED' ? '✓' : '✗'} {r.missionTitle},{' '}
+            {formatTimestampDate(r.decidedAt, locale)}
+            {r.reason ? `: ${r.reason}` : ''}
+          </p>
+        ))}
+      </div>
+      <div>
+        <p className="muted u-fs-075-m0">
+          Issuer confirmed:{' '}
+          {assurance.issuerConfirmations.length === 0 ? 'no evidence supports this yet.' : ''}
+        </p>
+        {assurance.issuerConfirmations.map((c) => (
+          <p
+            key={`${c.issuerIdentity}-${c.validUntil}`}
+            className="muted profile-row-assurance-item"
+          >
+            {c.expired ? '✗ (expired)' : '✓'} {c.issuerIdentity}: "{c.exactClaim}", response:{' '}
+            {c.response}, valid until {formatTimestampDate(c.validUntil, locale)}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -202,6 +194,8 @@ interface FieldRowProps {
   readonly applicantId: string;
   readonly field: EditorFieldDef;
   readonly repeatingRecordKey?: string;
+  /** The saved fact, when there is one: needed to open a withheld value. */
+  readonly factId?: string | undefined;
   readonly currentValue: string | null;
   readonly status: string | null;
   readonly updatedAt?: string | null | undefined;
@@ -213,6 +207,10 @@ interface FieldRowProps {
   readonly onChoice?: ((choice: string) => void) | undefined;
   /** A protected value that is saved but could not be shown here (WALD2). */
   readonly locked?: ProtectedLock | undefined;
+  /** Saved and protected, and not in the page: Show or Edit opens it (ESS1). */
+  readonly withheld?: boolean | undefined;
+  /** More history tools for this detail (No Longer Current), placed inside its Details. */
+  readonly extra?: ReactNode;
 }
 
 /**
@@ -248,10 +246,39 @@ function sameDay(a: string, b: string): boolean {
   return a.slice(0, 10) === b.slice(0, 10);
 }
 
+/** What opening a withheld value gives back. The value lives in component state only. */
+type RevealResult = { readonly ok: true; readonly value: string } | { readonly ok: false };
+
+/**
+ * ESS1: protected values are not in the page. The editor opens one when the person chooses Show
+ * or Edit, once per saved version, and keeps it in memory only (never the address or storage).
+ */
+interface Reveals {
+  /** The opened value of a withheld detail, or undefined while it is not opened. */
+  readonly valueOf: (factId: string, updatedAt: string | null | undefined) => string | undefined;
+  readonly reveal: (factId: string, updatedAt: string | null | undefined) => Promise<RevealResult>;
+}
+const RevealContext = createContext<Reveals>({
+  valueOf: () => undefined,
+  reveal: async () => ({ ok: false }),
+});
+function revealKey(factId: string, updatedAt: string | null | undefined): string {
+  // A new save makes a new version: its value is opened afresh, never the one opened before.
+  return `${factId}@${updatedAt ?? ''}`;
+}
+
+/**
+ * One detail (ESS1). A saved value is a read row: its name, its value (a protected one masked,
+ * with Show) and Edit. The box appears only after Edit, or at once for a detail not added yet.
+ * The history tools (the date it became true, where it came from, how it was checked, No Longer
+ * Current) sit behind one Details disclosure, closed at first. Without script the box is still
+ * there, as plain server markup, empty for a protected value.
+ */
 function FieldRow({
   applicantId,
   field,
   repeatingRecordKey,
+  factId,
   currentValue,
   status,
   updatedAt,
@@ -260,13 +287,20 @@ function FieldRow({
   sourceDocumentId,
   onChoice,
   locked,
+  withheld = false,
+  extra,
 }: FieldRowProps) {
   const t = useT(appApplicantCatalog);
   const impactT = useT(changeImpactCatalog);
   const locale = useLocale();
+  const reveals = useContext(RevealContext);
   const [state, formAction, pending] = useActionState(saveFactAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
+  const editRef = useRef<HTMLButtonElement>(null);
   const messageId = useId();
+  const formId = useId();
+  const dateId = useId();
+  const problemId = useId();
   useFocusInvalidField(formRef, state);
   const inputId = repeatingRecordKey ? `f-${field.key}-${repeatingRecordKey}` : `f-${field.key}`;
   const sensitivityLabel = SENSITIVITY_LABELS[field.sensitivity];
@@ -275,126 +309,339 @@ function FieldRow({
   const shownValue = standIn ? null : currentValue;
   const lock = locked ?? standIn;
   const hintId = `${inputId}-locked`;
+  const canOpen = withheld && factId !== undefined;
+  const opened = canOpen ? reveals.valueOf(factId, updatedAt) : undefined;
+  // Saved, so it reads as a row first. A value to add again ("lost") opens straight in its box.
+  const filled = Boolean(shownValue) || withheld || lock === 'no_key' || lock === 'unreadable';
+  const [editing, setEditing] = useState(!filled);
+  // Shown for one saved version only: a new save starts masked again.
+  const version = `${factId ?? ''}@${updatedAt ?? ''}@${currentValue ?? ''}`;
+  const [shownVersion, setShownVersion] = useState<string | null>(null);
+  const shown = shownVersion === version;
+  const setShown = (on: boolean) => setShownVersion(on ? version : null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState(false);
+  const focusNext = useRef<'box' | 'edit' | null>(null);
+  useEffect(() => {
+    // The value went away (marked No Longer Current): the box is how a new one is added.
+    if (!filled) setEditing(true);
+  }, [filled]);
+  useEffect(() => {
+    if (!state.ok || state.message === '') return;
+    // Saved: back to the read row, with the focus on Edit, so the saved message is read in place.
+    focusNext.current = 'edit';
+    setEditing(false);
+    setShown(false);
+  }, [state]);
+  useEffect(() => {
+    const target = focusNext.current;
+    if (!target || editing !== (target === 'box')) return;
+    focusNext.current = null;
+    if (target === 'edit') editRef.current?.focus();
+    else document.getElementById(inputId)?.focus();
+  }, [editing, inputId]);
+
+  /** Opens a withheld value once; true when it is now in memory. */
+  async function open(): Promise<boolean> {
+    if (!canOpen || opened !== undefined) return true;
+    setBusy(true);
+    const result = await reveals.reveal(factId, updatedAt);
+    setBusy(false);
+    setProblem(!result.ok);
+    return result.ok;
+  }
+  async function startEdit() {
+    // A value that would not open still leaves the box: typing a new value replaces it.
+    await open();
+    focusNext.current = 'box';
+    setEditing(true);
+  }
+  function cancelEdit() {
+    focusNext.current = 'edit';
+    setEditing(false);
+  }
+  async function toggleShow() {
+    if (shown) {
+      setShown(false);
+      return;
+    }
+    if (await open()) setShown(true);
+  }
+
+  const labelWithName = (key: Parameters<typeof t.node>[0]) => (
+    <>
+      {t.node(key)}
+      <span className="sr-only"> {field.label}</span>
+    </>
+  );
+  const badges = (
+    <span className="field-badges">
+      {sensitivityLabel ? (
+        <span
+          className={`badge ${field.sensitivity === 'RESTRICTED' ? 'badge-danger' : 'badge-warning'}`}
+          title={t('appApplicant.appApplicantIdProfileEditor.thisFieldIsMarkedTolowercaseIn', {
+            toLowerCase: sensitivityLabel.toLowerCase(),
+          })}
+        >
+          {sensitivityLabel}
+        </span>
+      ) : null}
+      {status ? <span className="badge badge-neutral">{fieldStatusWords(status)}</span> : null}
+    </span>
+  );
+
+  /**
+   * The edit form. `live` is the one on the page; the other is the copy inside <noscript>, for a
+   * browser with script switched off: it never holds a protected value.
+   */
+  function editForm(live: boolean) {
+    const boxValue = live
+      ? canOpen
+        ? (opened ?? null)
+        : shownValue
+      : withheld
+        ? null
+        : shownValue;
+    const describedBy = [...(lock ? [hintId] : []), ...(live && problem ? [problemId] : [])];
+    const control = field.options ? (
+      <select
+        // Remount when the stored value changes, so a save shows what was stored, not old typing.
+        key={boxValue ?? ''}
+        id={inputId}
+        name="value"
+        defaultValue={boxValue ?? ''}
+        className="input"
+        onChange={(event) => onChoice?.(event.target.value)}
+        {...fieldProblem(state, 'value', messageId, ...describedBy)}
+      >
+        <option {...t.lang('appApplicant.appApplicantIdProfileEditor.select')} value="">
+          {t('appApplicant.appApplicantIdProfileEditor.select')}
+        </option>
+        {field.options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <input
+        // Remount when the stored value changes, so a save shows what was stored, not old typing.
+        key={boxValue ?? ''}
+        id={inputId}
+        name="value"
+        type={field.type === 'date' ? 'date' : 'text'}
+        defaultValue={boxValue ?? ''}
+        placeholder={
+          (lock && lock !== 'lost') || (withheld && boxValue === null)
+            ? 'Saved and Protected'
+            : (field.placeholder ?? '')
+        }
+        className="input"
+        {...fieldProblem(state, 'value', messageId, ...describedBy)}
+      />
+    );
+    return (
+      <form
+        ref={live ? formRef : undefined}
+        id={live ? formId : undefined}
+        action={formAction}
+        className="field-row"
+      >
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="fieldKey" value={field.key} />
+        {repeatingRecordKey ? (
+          <input type="hidden" name="repeatingRecordKey" value={repeatingRecordKey} />
+        ) : null}
+        <div className="field-head">
+          <label className="field-label" htmlFor={inputId}>
+            {field.label}
+          </label>
+          {badges}
+        </div>
+        <div className="field-control">
+          {control}
+          <SubmitButton
+            pending={pending}
+            idle="Save"
+            busy="Saving…"
+            className="btn btn-secondary"
+          />
+          {live && filled ? (
+            <button type="button" className="btn btn-secondary" onClick={cancelEdit}>
+              {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Cancel')}
+            </button>
+          ) : null}
+        </div>
+        {lock ? (
+          <p id={hintId} className="muted u-fs-075-m0" data-protected-lock={lock}>
+            {LOCKED_HINT[lock]}
+          </p>
+        ) : null}
+        {live ? null : (
+          <p className="field-control">
+            <input
+              type="date"
+              name="effectiveFrom"
+              className="input"
+              aria-label={t(
+                'appApplicant.appApplicantIdProfileEditor.whenTolowercaseBecameTrueLeaveBlank',
+                { toLowerCase: field.label.toLowerCase() },
+              )}
+            />
+          </p>
+        )}
+      </form>
+    );
+  }
+
+  // The read row's value: masked while protected and not shown, the words for a value that is
+  // saved but cannot be opened here, never the stand-in.
+  const masked =
+    !lock && (withheld || (shownValue !== null && isMaskedDetail(field.key, field.sensitivity)));
+  const plain = canOpen ? opened : shownValue;
+  const readValue: ReactNode =
+    lock === 'no_key' || lock === 'unreadable' ? (
+      displayValue(field, { factId: factId ?? '', value: null, status, locked: lock }, locale)
+    ) : masked && !(shown && plain) ? (
+      <MaskedValue />
+    ) : plain ? (
+      readText(field, plain, locale)
+    ) : (
+      NOT_ADDED_YET
+    );
+
+  const effectiveLine =
+    effectiveFrom && updatedAt && !sameDay(effectiveFrom, updatedAt)
+      ? t.node('appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly', {
+          formatDateOnly: dayText(effectiveFrom, locale),
+        })
+      : null;
+  const hasDetails =
+    editing ||
+    effectiveLine !== null ||
+    Boolean(updatedAt) ||
+    Boolean(sourceDocumentId) ||
+    assurance !== undefined ||
+    extra !== undefined;
 
   return (
-    <form ref={formRef} action={formAction} className="field-row">
-      <input type="hidden" name="applicantId" value={applicantId} />
-      <input type="hidden" name="fieldKey" value={field.key} />
-      {repeatingRecordKey ? (
-        <input type="hidden" name="repeatingRecordKey" value={repeatingRecordKey} />
-      ) : null}
-      <div className="field-head">
-        <label className="field-label" htmlFor={inputId}>
-          {field.label}
-        </label>
-        <span className="field-badges">
-          {sensitivityLabel ? (
+    <div className="profile-field-row" data-field={field.key} data-editing={editing || undefined}>
+      {editing ? (
+        editForm(true)
+      ) : (
+        <div className="field-row profile-read-row">
+          <div className="field-head">
+            <span className="field-label">{field.label}</span>
+            {badges}
+          </div>
+          <div className="profile-read-line">
             <span
-              className={`badge ${field.sensitivity === 'RESTRICTED' ? 'badge-danger' : 'badge-warning'}`}
-              title={t('appApplicant.appApplicantIdProfileEditor.thisFieldIsMarkedTolowercaseIn', {
-                toLowerCase: sensitivityLabel.toLowerCase(),
-              })}
+              className="profile-read-value"
+              data-value
+              data-masked={masked && !(shown && plain) ? 'true' : undefined}
             >
-              {sensitivityLabel}
+              {readValue}
             </span>
+            <span className="profile-read-actions">
+              {masked ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-compact"
+                  aria-busy={busy || undefined}
+                  aria-describedby={problem ? problemId : undefined}
+                  onClick={toggleShow}
+                >
+                  {labelWithName(
+                    shown
+                      ? 'appApplicant.appApplicantIdProfileEditor.ess1Hide'
+                      : 'appApplicant.appApplicantIdProfileEditor.ess1Show',
+                  )}
+                </button>
+              ) : null}
+              <button
+                ref={editRef}
+                type="button"
+                className="btn btn-secondary btn-compact"
+                data-edit={field.key}
+                aria-busy={busy || undefined}
+                onClick={startEdit}
+              >
+                {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Edit')}
+              </button>
+            </span>
+          </div>
+          {lock ? (
+            <p id={hintId} className="muted u-fs-075-m0" data-protected-lock={lock}>
+              {LOCKED_HINT[lock]}
+            </p>
           ) : null}
-          {status ? <span className="badge badge-neutral">{fieldStatusWords(status)}</span> : null}
-        </span>
-      </div>
-      <div className="field-control">
-        {field.options ? (
-          <select
-            // Remount when the stored value changes, so a save shows what was stored, not old typing.
-            key={shownValue ?? ''}
-            id={inputId}
-            name="value"
-            defaultValue={shownValue ?? ''}
-            className="input"
-            onChange={(event) => onChoice?.(event.target.value)}
-            {...fieldProblem(state, 'value', messageId, ...(lock ? [hintId] : []))}
-          >
-            <option {...t.lang('appApplicant.appApplicantIdProfileEditor.select')} value="">
-              {t('appApplicant.appApplicantIdProfileEditor.select')}
-            </option>
-            {field.options.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input
-            // Remount when the stored value changes, so a save shows what was stored, not old typing.
-            key={shownValue ?? ''}
-            id={inputId}
-            name="value"
-            type={field.type === 'date' ? 'date' : 'text'}
-            defaultValue={shownValue ?? ''}
-            placeholder={
-              lock && lock !== 'lost' ? 'Saved and Protected' : (field.placeholder ?? '')
-            }
-            className="input"
-            {...fieldProblem(state, 'value', messageId, ...(lock ? [hintId] : []))}
-          />
-        )}
-        <SubmitButton pending={pending} idle="Save" busy="Saving…" className="btn btn-secondary" />
-      </div>
-      {lock ? (
-        <p id={hintId} className="muted u-fs-075-m0" data-protected-lock={lock}>
-          {LOCKED_HINT[lock]}
-        </p>
-      ) : null}
-      <details className="field-backdate">
-        <summary className="muted">
-          {t.node('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
-        </summary>
-        <div className="field-control">
-          <input
-            type="date"
-            name="effectiveFrom"
-            className="input"
-            aria-label={t(
-              'appApplicant.appApplicantIdProfileEditor.whenTolowercaseBecameTrueLeaveBlank',
-              { toLowerCase: field.label.toLowerCase() },
-            )}
-            {...fieldProblem(state, 'effectiveFrom', messageId)}
-          />
+          {/* Without script, Edit cannot run: the form is there instead (empty when protected). */}
+          <noscript>{editForm(false)}</noscript>
         </div>
-      </details>
-      {effectiveFrom && updatedAt && !sameDay(effectiveFrom, updatedAt) ? (
-        <p className="muted u-fs-075-m0">
-          {t.node('appApplicant.appApplicantIdProfileEditor.effectiveAsOfFormatdateonly', {
-            formatDateOnly: formatDateOnly(effectiveFrom, locale),
-          })}
+      )}
+      {problem ? (
+        <p id={problemId} className="muted u-fs-075-m0" role="status">
+          {t.node('appApplicant.appApplicantIdProfileEditor.ess1CouldNotShow')}
         </p>
       ) : null}
-      {updatedAt ? (
-        <p className="muted u-fs-075-m0">
-          {t.node('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
-            formatDate: formatDate(updatedAt, locale),
-          })}
-        </p>
+      {hasDetails ? (
+        <details className="profile-row-details">
+          <summary className="muted">
+            {labelWithName('appApplicant.appApplicantIdProfileEditor.ess1Details')}
+          </summary>
+          <div className="profile-row-details-body">
+            {editing ? (
+              <div className="field-backdate">
+                <label className="field-label" htmlFor={dateId}>
+                  {t.node('appApplicant.appApplicantIdProfileEditor.addTheDateThisBecameTrue')}
+                </label>
+                <input
+                  id={dateId}
+                  type="date"
+                  name="effectiveFrom"
+                  form={formId}
+                  className="input"
+                  aria-label={t(
+                    'appApplicant.appApplicantIdProfileEditor.whenTolowercaseBecameTrueLeaveBlank',
+                    { toLowerCase: field.label.toLowerCase() },
+                  )}
+                  {...fieldProblem(state, 'effectiveFrom', messageId)}
+                />
+              </div>
+            ) : null}
+            {effectiveLine ? <p className="muted u-fs-075-m0">{effectiveLine}</p> : null}
+            {updatedAt ? (
+              <p className="muted u-fs-075-m0">
+                {t.node('appApplicant.appApplicantIdProfileEditor.lastConfirmedFormatdate', {
+                  formatDate: formatTimestampDate(updatedAt, locale),
+                })}
+              </p>
+            ) : null}
+            {sourceDocumentId ? (
+              <p className="u-fs-075-m0">
+                <Link
+                  href={`/app/applicant/${applicantId}/documents?document=${encodeURIComponent(sourceDocumentId)}`}
+                  aria-label={t(
+                    'appApplicant.appApplicantIdProfileEditor.whereThisCameFromTheDocument',
+                    { label: field.label },
+                  )}
+                >
+                  {t.node('appApplicant.appApplicantIdProfileEditor.whereThisCameFrom')}
+                </Link>
+              </p>
+            ) : null}
+            {assurance ? <AssuranceDetail assurance={assurance} /> : null}
+            {extra}
+          </div>
+        </details>
       ) : null}
-      {sourceDocumentId ? (
-        <p className="u-fs-075-m0">
-          <Link
-            href={`/app/applicant/${applicantId}/documents?document=${encodeURIComponent(sourceDocumentId)}`}
-            aria-label={t('appApplicant.appApplicantIdProfileEditor.whereThisCameFromTheDocument', {
-              label: field.label,
-            })}
-          >
-            {t.node('appApplicant.appApplicantIdProfileEditor.whereThisCameFrom')}
-          </Link>
-        </p>
-      ) : null}
-      {assurance ? <AssuranceDetail assurance={assurance} /> : null}
       <FormMessage id={messageId} result={state} />
       <ChangeImpactNotice
         summary={state.changeImpact}
         unavailable={state.changeImpactUnavailable}
         t={impactT}
       />
-    </form>
+    </div>
   );
 }
 
@@ -408,6 +655,11 @@ export interface ProfileValue {
   readonly sourceDocumentId?: string | null;
   /** Saved and protected, but its value is not shown here (`value` is then null). */
   readonly locked?: ProtectedLock | null;
+  /**
+   * ESS1: saved and protected, and left out of the page on purpose (`value` is then null). Show
+   * or Edit opens it through the owner-only reveal action.
+   */
+  readonly withheld?: boolean;
 }
 
 type RepeatingValues = Readonly<Record<string, Readonly<Record<string, ProfileValue>>>>;
@@ -419,12 +671,15 @@ function FieldWithOther({
   repeatingRecordKey,
   lookup,
   assurance,
+  extra,
 }: {
   readonly applicantId: string;
   readonly field: EditorFieldDef;
   readonly repeatingRecordKey?: string;
   readonly lookup: (fieldKey: string) => ProfileValue | undefined;
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
+  /** More history tools for the detail itself, placed inside its Details. */
+  readonly extra?: ReactNode;
 }) {
   const current = lookup(field.key);
   const [choice, setChoice] = useState(current?.value ?? '');
@@ -436,6 +691,7 @@ function FieldWithOther({
         applicantId={applicantId}
         field={field}
         {...(repeatingRecordKey ? { repeatingRecordKey } : {})}
+        factId={current?.factId}
         currentValue={current?.value ?? null}
         status={current?.status ?? null}
         updatedAt={current?.updatedAt}
@@ -444,13 +700,21 @@ function FieldWithOther({
         sourceDocumentId={current?.sourceDocumentId}
         onChoice={detail ? setChoice : undefined}
         locked={current?.locked ?? undefined}
+        withheld={current?.withheld}
+        extra={extra}
       />
       {/* A saved Other text stays visible when it is protected and not shown here (WALD2). */}
-      {detail && (choice === OTHER_CHOICE || detailCurrent?.value || detailCurrent?.locked) ? (
+      {detail &&
+      (choice === OTHER_CHOICE ||
+        detailCurrent?.value ||
+        detailCurrent?.locked ||
+        detailCurrent?.withheld) ? (
         <FieldRow
           applicantId={applicantId}
           field={detail}
           {...(repeatingRecordKey ? { repeatingRecordKey } : {})}
+          factId={detailCurrent?.factId}
+          withheld={detailCurrent?.withheld}
           currentValue={detailCurrent?.value ?? null}
           status={detailCurrent?.status ?? null}
           updatedAt={detailCurrent?.updatedAt}
@@ -514,8 +778,8 @@ const EndedRecordsContext = createContext<ReadonlyMap<string, string>>(new Map()
 /** A saved value that is still current: something is on file and it was not marked no longer current. */
 function isCurrentValue(current: ProfileValue | undefined): boolean {
   if (!current) return false;
-  if (current.status === 'STALE' && !current.value) return false;
-  return Boolean(current.value || current.status);
+  if (current.status === 'STALE' && !current.value && !current.withheld) return false;
+  return Boolean(current.value || current.withheld || current.status);
 }
 
 /** Today as YYYY-MM-DD in the viewer's own time zone, the latest day an entry can have ended. */
@@ -545,7 +809,7 @@ function NotCurrentControl({
   useEffect(() => {
     if (state.ok && state.message !== '') document.getElementById(`f-${field.key}`)?.focus();
   }, [state, field.key]);
-  const marked = current.status === 'STALE' && !current.value;
+  const marked = current.status === 'STALE' && !current.value && !current.withheld;
   return (
     <div className="profile-lifecycle-mark">
       {marked ? (
@@ -613,7 +877,7 @@ function RecordEndState({
             {t.node(
               'appApplicant.appApplicantIdProfileEditor.endedOnFormatdateonlyItsDetailsStay',
               {
-                formatDateOnly: formatDateOnly(endedOn, locale),
+                formatDateOnly: dayText(endedOn, locale),
               },
             )}
           </p>
@@ -744,7 +1008,11 @@ function matchesSearch(label: string, search: string): boolean {
   return search.trim() === '' || label.toLowerCase().includes(search.trim().toLowerCase());
 }
 
-function displayValue(field: EditorFieldDef, current: ProfileValue | undefined): string {
+function displayValue(
+  field: EditorFieldDef,
+  current: ProfileValue | undefined,
+  locale: Locale,
+): string {
   const value = current?.value;
   const lock = current?.locked ?? protectedStandIn(value);
   if (lock === 'unreadable') return 'Could not read this detail';
@@ -756,7 +1024,7 @@ function displayValue(field: EditorFieldDef, current: ProfileValue | undefined):
       ? 'Protected detail'
       : 'Not recorded';
   }
-  return field.type === 'date' ? formatDateOnly(value) : value;
+  return readText(field, value, locale);
 }
 
 /**
@@ -771,11 +1039,22 @@ function detailState(
   otherText: string | null | undefined,
   doesNotApply: ReactNode,
   otherWords: (otherText: string) => string,
+  locale: Locale,
+  /** The value of a withheld detail, once the person opened it with Show or Edit. */
+  opened: string | undefined,
 ): PassportLineState {
   if (!applies) return { kind: 'note', text: doesNotApply };
   const value = current?.value ?? null;
   if (current?.locked || protectedStandIn(value)) {
-    return { kind: 'note', text: displayValue(field, current) };
+    return { kind: 'note', text: displayValue(field, current, locale) };
+  }
+  if (current?.withheld) {
+    // Not in the page: masked, and printed only after Show opens it.
+    return {
+      kind: 'value',
+      text: opened === undefined ? null : readText(field, opened, locale),
+      masked: true,
+    };
   }
   if (value) {
     if (value === OTHER_CHOICE && otherText) {
@@ -783,12 +1062,12 @@ function detailState(
     }
     return {
       kind: 'value',
-      text: field.type === 'date' ? formatDateOnly(value) : value,
+      text: readText(field, value, locale),
       masked: isMaskedDetail(field.key, field.sensitivity),
     };
   }
   if (current?.status === 'STALE' || (current?.status && field.sensitivity !== 'STANDARD')) {
-    return { kind: 'note', text: displayValue(field, current) };
+    return { kind: 'note', text: displayValue(field, current, locale) };
   }
   return { kind: 'empty' };
 }
@@ -812,6 +1091,8 @@ function ValueSummary({
   readonly otherText: string | null;
 }) {
   const t = useT(appApplicantCatalog);
+  const locale = useLocale();
+  // The summary stays masked: Show is on the row inside, so the summary never prints the value.
   const state = detailState(
     field,
     current,
@@ -819,6 +1100,8 @@ function ValueSummary({
     otherText,
     t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply'),
     (text) => t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText: text }),
+    locale,
+    undefined,
   );
   return (
     <>
@@ -1061,6 +1344,11 @@ function SingleField({
           field={field}
           lookup={(fieldKey) => values[fieldKey]}
           assurance={assurance}
+          extra={
+            current && (hasValue || current.status === 'STALE') ? (
+              <NotCurrentControl applicantId={applicantId} field={field} current={current} />
+            ) : undefined
+          }
         />
       ) : (
         <p className="muted">
@@ -1069,9 +1357,6 @@ function SingleField({
           })}
         </p>
       )}
-      {applies && current && (hasValue || current.status === 'STALE') ? (
-        <NotCurrentControl applicantId={applicantId} field={field} current={current} />
-      ) : null}
       {(hasValue && applies) || field.optional ? null : (
         <ExemptionToggle
           applicantId={applicantId}
@@ -1431,32 +1716,28 @@ function essentialStatus(item: EssentialItem): { readonly label: string; readonl
 }
 
 /**
- * Essentials First: a short list of the details most visa forms ask for first, with its own
- * progress, shown before everything else. The full set of sections sits behind "Show All Sections";
- * each essential is also in its own section there, so nothing is only reachable from here.
+ * Essentials First: the essentials the Passport Page Card does not show (ESS1), still to add, as
+ * a short list before everything else. The card already prints the passport ones, with Add on
+ * each, so no detail is listed twice. An item added here stays until the page is next opened, so
+ * the saved message and the focus are not lost. When nothing is left, the block is not drawn;
+ * its count stays in the banner ("x of 12"). Each essential is also in its own section, behind
+ * Show All Sections, so nothing is only reachable from here.
  */
 function EssentialsFirst({
   applicantId,
-  view,
+  items,
   values,
   repeatingValues,
   assurance,
-  showAll,
-  onToggle,
 }: {
   readonly applicantId: string;
-  readonly view: MasterProfileView;
+  readonly items: readonly EssentialItem[];
   readonly values: Readonly<Record<string, ProfileValue>>;
   readonly repeatingValues: RepeatingValues;
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
-  readonly showAll: boolean;
-  readonly onToggle: () => void;
 }) {
   const t = useT(appApplicantCatalog);
   const headingId = useId();
-  const { essentials } = view;
-  // The count and bar sit in the banner above; this block only says what to do.
-  const complete = essentials.done;
   return (
     <section className="profile-essentials" aria-labelledby={headingId}>
       <div className="profile-essentials-head">
@@ -1465,12 +1746,66 @@ function EssentialsFirst({
             {t.node('appApplicant.appApplicantIdProfileEditor.essentialsFirst')}
           </h3>
           <p className="muted">
-            {complete
-              ? t.node('appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore')
-              : t.node('appApplicant.appApplicantIdProfileEditor.startWithTheDetailsMostVisa')}
+            {t.node('appApplicant.appApplicantIdProfileEditor.startWithTheDetailsMostVisa')}
           </p>
         </div>
       </div>
+      <ol className="profile-essentials-list">
+        {items.map((item) => {
+          const status = essentialStatus(item);
+          return (
+            <li
+              key={item.key}
+              className={`profile-essential ${item.answered ? 'is-done' : 'is-missing'}`}
+              data-essential={item.key}
+            >
+              <div className="profile-essential-status">
+                {item.group ? <strong>{item.label}</strong> : null}
+                <span className={`badge ${status.tone}`}>{status.label}</span>
+                {item.hint ? <span className="muted">{item.hint}</span> : null}
+              </div>
+              {item.field ? (
+                <SingleField
+                  applicantId={applicantId}
+                  field={item.field}
+                  applies={!item.notApplicable}
+                  values={values}
+                  assurance={assurance}
+                />
+              ) : item.group ? (
+                <RepeatingGroup
+                  applicantId={applicantId}
+                  group={item.group}
+                  repeatingValues={repeatingValues}
+                  assurance={assurance}
+                />
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/** Show All Sections (or back), with the full count while every section shows. */
+function EssentialsToggle({
+  view,
+  showAll,
+  onToggle,
+}: {
+  readonly view: MasterProfileView;
+  readonly showAll: boolean;
+  readonly onToggle: () => void;
+}) {
+  const t = useT(appApplicantCatalog);
+  return (
+    <div className="profile-essentials-bar">
+      {view.essentials.done ? (
+        <p className="muted">
+          {t.node('appApplicant.appApplicantIdProfileEditor.everyEssentialIsAddedAddMore')}
+        </p>
+      ) : null}
       {showAll ? (
         <p className="muted">
           {t.node('appApplicant.appApplicantIdProfileEditor.fullProfileAnsweredOfTotalDetails', {
@@ -1480,41 +1815,7 @@ function EssentialsFirst({
             percent: view.percent,
           })}
         </p>
-      ) : (
-        <ol className="profile-essentials-list">
-          {essentials.items.map((item) => {
-            const status = essentialStatus(item);
-            return (
-              <li
-                key={item.key}
-                className={`profile-essential ${item.answered ? 'is-done' : 'is-missing'}`}
-              >
-                <div className="profile-essential-status">
-                  {item.group ? <strong>{item.label}</strong> : null}
-                  <span className={`badge ${status.tone}`}>{status.label}</span>
-                  {item.hint ? <span className="muted">{item.hint}</span> : null}
-                </div>
-                {item.field ? (
-                  <SingleField
-                    applicantId={applicantId}
-                    field={item.field}
-                    applies={!item.notApplicable}
-                    values={values}
-                    assurance={assurance}
-                  />
-                ) : item.group ? (
-                  <RepeatingGroup
-                    applicantId={applicantId}
-                    group={item.group}
-                    repeatingValues={repeatingValues}
-                    assurance={assurance}
-                  />
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
-      )}
+      ) : null}
       <div className="profile-essentials-actions">
         <button type="button" className="btn btn-secondary" onClick={onToggle}>
           {showAll
@@ -1527,7 +1828,7 @@ function EssentialsFirst({
           </span>
         )}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -1546,18 +1847,28 @@ interface ProfileEditorProps {
   readonly endedRecords?: Readonly<Record<string, string>>;
 }
 
-/** Opens the first visible detail's row and focuses its first box. False when none is shown. */
+/**
+ * Opens the first visible detail still to add and focuses its box; when every one is added, opens
+ * the first detail and focuses its Edit. False when no detail is shown.
+ */
 function openFirstSection(root: HTMLElement | null): boolean {
-  const details = root?.querySelector<HTMLDetailsElement>(
-    '[id^="profile-panel-"]:not([hidden]) .profile-value-row > .expandable-section-details',
-  );
+  const rows = [
+    ...(root?.querySelectorAll<HTMLDetailsElement>(
+      '[id^="profile-panel-"]:not([hidden]) .profile-value-row > .expandable-section-details',
+    ) ?? []),
+  ];
+  const box = 'input[name="value"], select[name="value"]';
+  const details = rows.find((row) => row.querySelector(box)) ?? rows[0];
   if (!details) return false;
   let parent: HTMLElement | null = details;
   while (parent && parent !== root) {
     if (parent instanceof HTMLDetailsElement) parent.open = true;
     parent = parent.parentElement;
   }
-  details.querySelector<HTMLElement>('input:not([type="hidden"]), select')?.focus();
+  (
+    details.querySelector<HTMLElement>(box) ??
+    details.querySelector<HTMLElement>('button[data-edit]')
+  )?.focus();
   return true;
 }
 
@@ -1571,6 +1882,7 @@ export function ProfileEditor({
   endedRecords,
 }: ProfileEditorProps) {
   const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const editor = useRef<HTMLDivElement>(null);
   // Essentials First leads until every essential is added; a profile with no essentials list
   // (nothing to show) opens on all sections. A link to one section always opens all sections.
@@ -1578,34 +1890,42 @@ export function ProfileEditor({
   const [showAll, setShowAll] = useState(
     !hasEssentials || view.essentials.done || view.suggestedFamily !== null || startWithAll,
   );
+  // ESS1: protected values opened with Show or Edit, by saved version, in memory only.
+  const [opened, setOpened] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const openedRef = useRef(opened);
+  openedRef.current = opened;
+  const reveal = useCallback(
+    async (factId: string, updatedAt: string | null | undefined): Promise<RevealResult> => {
+      const key = revealKey(factId, updatedAt);
+      const known = openedRef.current.get(key);
+      if (known !== undefined) return { ok: true, value: known };
+      try {
+        const result = await revealProfileValueAction(applicantId, factId);
+        if (!result.ok) return { ok: false };
+        setOpened((current) => new Map(current).set(key, result.value));
+        return { ok: true, value: result.value };
+      } catch {
+        return { ok: false };
+      }
+    },
+    [applicantId],
+  );
+  const reveals = useMemo<Reveals>(
+    () => ({ valueOf: (factId, updatedAt) => opened.get(revealKey(factId, updatedAt)), reveal }),
+    [opened, reveal],
+  );
   // "Add Information" while only the essentials show and all of them are added: open every
   // section, then go to the first one.
   const openAfterShowingAll = useRef(false);
+  // Read through a ref, so the listeners added once always use this render's view.
+  const openEditorRef = useRef<() => void>(() => undefined);
   useEffect(() => {
-    const openEditor = () => {
-      // "Add Information" goes to the first essential still to add while that list is showing.
-      const essential = editor.current?.querySelector<HTMLElement>(
-        [
-          '.profile-essential.is-missing input:not([type="hidden"]):not([type="checkbox"])',
-          '.profile-essential.is-missing select',
-          '.profile-essential.is-missing button',
-        ].join(', '),
-      );
-      if (essential) {
-        essential.focus();
-        return;
-      }
-      if (!openFirstSection(editor.current)) {
-        openAfterShowingAll.current = true;
-        setShowAll(true);
-      }
-    };
     const hash = () => {
-      if (window.location.hash === '#profile-editor') openEditor();
+      if (window.location.hash === '#profile-editor') openEditorRef.current();
     };
     const click = (event: MouseEvent) => {
       if (event.target instanceof Element && event.target.closest('a[href="#profile-editor"]'))
-        openEditor();
+        openEditorRef.current();
     };
     window.addEventListener('hashchange', hash);
     document.addEventListener('click', click);
@@ -1698,7 +2018,6 @@ export function ProfileEditor({
   const places = useMemo(() => passportPlaces(view), [view]);
   const passportLines = useMemo((): readonly PassportLine[] => {
     if (searching) return [];
-    const essentialKeys = new Set(view.essentials.items.flatMap((item) => item.field?.key ?? []));
     return PASSPORT_PAGE_KEYS.map((key) => {
       const place = places.get(key);
       const field = place?.field ?? fallbackField(key);
@@ -1714,29 +2033,41 @@ export function ProfileEditor({
           t.node('appApplicant.appApplicantIdProfileEditor.doesNotApply'),
           (otherText) =>
             t('appApplicant.appApplicantIdProfileEditor.otherOthertext', { otherText }),
+          locale,
+          current ? opened.get(revealKey(current.factId, current.updatedAt)) : undefined,
         ),
         status: statusKindOf(current),
-        href: !place
-          ? null
-          : showAll
-            ? `#${valueRowId(key)}`
-            : essentialKeys.has(key)
-              ? `#f-${key}`
-              : `?view=all#${valueRowId(key)}`,
+        // Every detail on the card is edited in its own row (ESS1: Essentials First no longer
+        // repeats the card's details), so without script the link opens every section on it.
+        href: !place ? null : showAll ? `#${valueRowId(key)}` : `?view=all#${valueRowId(key)}`,
       };
     });
-  }, [searching, view, places, values, showAll, t]);
+  }, [searching, places, values, showAll, t, locale, opened]);
+  const revealCardLine = useCallback(
+    async (key: string): Promise<boolean> => {
+      const current = values[key];
+      if (!current?.withheld) return false;
+      return (await reveal(current.factId, current.updatedAt)).ok;
+    },
+    [values, reveal],
+  );
+  // ESS1: Essentials First lists only the essentials the card does not show, still to add. One
+  // added here stays listed until the page is next opened (the saved message and focus stay put).
+  const cardKeys = useMemo(
+    () => (searching ? new Set<string>() : new Set(places.keys())),
+    [searching, places],
+  );
+  const firstPending = useRef<ReadonlySet<string> | null>(null);
+  const offCard = view.essentials.items.filter(
+    (item) => !(item.field && cardKeys.has(item.field.key)),
+  );
+  if (firstPending.current === null) {
+    firstPending.current = new Set(offCard.filter((item) => !item.answered).map((i) => i.key));
+  }
+  const keptPending = firstPending.current;
+  const essentialsToList = offCard.filter((item) => !item.answered || keptPending.has(item.key));
   const [rowTarget, setRowTarget] = useState<string | null>(null);
   function editPassportDetail(key: string) {
-    // While only the essentials show, an essential's own box is already on the page.
-    if (!showAll) {
-      const box = editor.current?.querySelector<HTMLElement>(`.profile-essential #f-${key}`);
-      if (box) {
-        box.scrollIntoView?.({ block: 'center' });
-        box.focus();
-        return;
-      }
-    }
     const place = places.get(key);
     if (!place) return;
     setShowAll(true);
@@ -1752,6 +2083,12 @@ export function ProfileEditor({
     if (!row || !details) return;
     details.open = true;
     row.scrollIntoView?.({ block: 'start' });
+    // A saved value opens in its box through its own Edit (which also opens a protected one).
+    const edit = details.querySelector<HTMLButtonElement>(`button[data-edit="${rowTarget}"]`);
+    if (edit) {
+      edit.click();
+      return;
+    }
     // The value box first; a detail that does not apply has only its switch back.
     const target =
       details.querySelector<HTMLElement>(
@@ -1761,147 +2098,187 @@ export function ProfileEditor({
       details.querySelector<HTMLElement>(':scope > summary');
     target?.focus();
   }, [rowTarget]);
+  openEditorRef.current = () => {
+    // "Add Information" goes to the first essential still to add, in the list's order: its own
+    // row for one the card shows, or its box in Essentials First.
+    const next = view.essentials.items.find((item) => !item.answered);
+    if (next?.field && places.has(next.field.key) && !searching) {
+      editPassportDetail(next.field.key);
+      return;
+    }
+    const listed = next
+      ? editor.current?.querySelector<HTMLElement>(`[data-essential="${next.key}"]`)
+      : null;
+    const essential = listed?.querySelector<HTMLElement>(
+      [
+        'input:not([type="hidden"]):not([type="checkbox"])',
+        'select',
+        'button:not([data-edit])',
+      ].join(', '),
+    );
+    if (essential) {
+      essential.focus();
+      return;
+    }
+    if (!openFirstSection(editor.current)) {
+      openAfterShowingAll.current = true;
+      setShowAll(true);
+    }
+  };
   return (
     <EndedRecordsContext.Provider value={ended}>
-      <div ref={editor} id="profile-editor" tabIndex={-1}>
-        {searching ? null : <PassportPageCard lines={passportLines} onEdit={editPassportDetail} />}
-        {hasEssentials ? (
-          <EssentialsFirst
-            applicantId={applicantId}
-            view={view}
-            values={values}
-            repeatingValues={repeatingValues}
-            assurance={assurance}
-            showAll={showAll}
-            onToggle={() => setShowAll((shown) => !shown)}
-          />
-        ) : null}
-        {showAll ? (
-          <>
-            <SuggestionBar applicantId={applicantId} view={view} />
-            <div className="profile-areas">
-              <div className="profile-area-nav">
-                <div
-                  className="profile-area-rail"
-                  role={searching ? undefined : 'tablist'}
-                  aria-orientation={searching ? undefined : 'vertical'}
-                  aria-label={t('appApplicant.appApplicantIdProfileEditor.profileAreas')}
-                >
-                  {view.layers.map((layer, index) => (
-                    <button
-                      key={layer.key}
-                      type="button"
-                      role={searching ? undefined : 'tab'}
-                      id={`profile-tab-${layer.key}`}
-                      aria-selected={searching ? undefined : selected === layer.key}
-                      aria-controls={`profile-panel-${layer.key}`}
-                      tabIndex={searching || selected === layer.key ? 0 : -1}
-                      onClick={() => selectLayer(layer.key)}
-                      onKeyDown={(event) => moveBetweenAreas(event, index)}
-                    >
-                      <span className="profile-area-name">{layer.label}</span>
-                      <AreaCount layer={layer} />
-                    </button>
-                  ))}
-                </div>
-                <details
-                  className="profile-area-picker"
-                  open={pickerOpen}
-                  onToggle={(event) => setPickerOpen(event.currentTarget.open)}
-                >
-                  <summary>
-                    <span className="profile-area-picker-label">
-                      {t.node('appApplicant.appApplicantIdProfileEditor.area')}
-                    </span>
-                    <span className="profile-area-name">{current?.label}</span>
-                    {current ? <AreaCount layer={current} /> : null}
-                  </summary>
-                  <div className="profile-area-picker-list">
-                    {view.layers.map((layer) => (
+      <RevealContext.Provider value={reveals}>
+        <div ref={editor} id="profile-editor" tabIndex={-1}>
+          {searching ? null : (
+            <PassportPageCard
+              lines={passportLines}
+              onEdit={editPassportDetail}
+              onReveal={revealCardLine}
+            />
+          )}
+          {hasEssentials && !showAll && essentialsToList.length > 0 ? (
+            <EssentialsFirst
+              applicantId={applicantId}
+              items={essentialsToList}
+              values={values}
+              repeatingValues={repeatingValues}
+              assurance={assurance}
+            />
+          ) : null}
+          {hasEssentials ? (
+            <EssentialsToggle
+              view={view}
+              showAll={showAll}
+              onToggle={() => setShowAll((shown) => !shown)}
+            />
+          ) : null}
+          {showAll ? (
+            <>
+              <SuggestionBar applicantId={applicantId} view={view} />
+              <div className="profile-areas">
+                <div className="profile-area-nav">
+                  <div
+                    className="profile-area-rail"
+                    role={searching ? undefined : 'tablist'}
+                    aria-orientation={searching ? undefined : 'vertical'}
+                    aria-label={t('appApplicant.appApplicantIdProfileEditor.profileAreas')}
+                  >
+                    {view.layers.map((layer, index) => (
                       <button
                         key={layer.key}
                         type="button"
-                        aria-current={!searching && selected === layer.key ? 'true' : undefined}
-                        onClick={() => chooseFromPicker(layer.key)}
+                        role={searching ? undefined : 'tab'}
+                        id={`profile-tab-${layer.key}`}
+                        aria-selected={searching ? undefined : selected === layer.key}
+                        aria-controls={`profile-panel-${layer.key}`}
+                        tabIndex={searching || selected === layer.key ? 0 : -1}
+                        onClick={() => selectLayer(layer.key)}
+                        onKeyDown={(event) => moveBetweenAreas(event, index)}
                       >
                         <span className="profile-area-name">{layer.label}</span>
                         <AreaCount layer={layer} />
                       </button>
                     ))}
                   </div>
-                </details>
-              </div>
-              <div className="profile-area-content">
-                <Link
-                  href={`/app/applicant/${applicantId}/history`}
-                  className="profile-history-link"
-                >
-                  {t.node('appApplicant.appApplicantIdProfileEditor.history')}
-                </Link>
-                <div className="profile-field-search">
-                  <label className="field-label" htmlFor="profile-search">
-                    {t.node('appApplicant.appApplicantIdProfileEditor.searchAllProfileFields')}
-                  </label>
-                  <input
-                    id="profile-search"
-                    type="search"
-                    className="input"
-                    placeholder={t(
-                      'appApplicant.appApplicantIdProfileEditor.eGPassportAddressEmployer',
-                    )}
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                  />
+                  <details
+                    className="profile-area-picker"
+                    open={pickerOpen}
+                    onToggle={(event) => setPickerOpen(event.currentTarget.open)}
+                  >
+                    <summary>
+                      <span className="profile-area-picker-label">
+                        {t.node('appApplicant.appApplicantIdProfileEditor.area')}
+                      </span>
+                      <span className="profile-area-name">{current?.label}</span>
+                      {current ? <AreaCount layer={current} /> : null}
+                    </summary>
+                    <div className="profile-area-picker-list">
+                      {view.layers.map((layer) => (
+                        <button
+                          key={layer.key}
+                          type="button"
+                          aria-current={!searching && selected === layer.key ? 'true' : undefined}
+                          onClick={() => chooseFromPicker(layer.key)}
+                        >
+                          <span className="profile-area-name">{layer.label}</span>
+                          <AreaCount layer={layer} />
+                        </button>
+                      ))}
+                    </div>
+                  </details>
                 </div>
-                {searching && visibleLayers.length === 0 ? (
-                  <output className="muted">
-                    {t.node(
-                      'appApplicant.appApplicantIdProfileEditor.noFieldsMatchTryAnotherField',
-                    )}
-                  </output>
-                ) : null}
-                {view.layers.map((layer) => {
-                  const visible = visibleLayers.some((item) => item.key === layer.key);
-                  return (
-                    <section
-                      key={layer.key}
-                      id={`profile-panel-${layer.key}`}
-                      role={searching ? undefined : 'tabpanel'}
-                      aria-labelledby={`profile-tab-${layer.key}`}
-                      hidden={!visible}
-                    >
-                      <h3>{layer.label}</h3>
-                      <p className="muted">
-                        {t.node(
-                          'appApplicant.appApplicantIdProfileEditor.descriptionOpencountOfLengthSectionsOpen',
-                          {
-                            description: layer.description,
-                            openCount: layer.openCount,
-                            length: layer.sections.length,
-                          },
-                        )}
-                      </p>
-                      {layer.sections
-                        .filter((section) => sectionMatches(section, search))
-                        .map((section) => (
-                          <SectionCard
-                            key={section.key}
-                            applicantId={applicantId}
-                            section={section}
-                            values={values}
-                            repeatingValues={repeatingValues}
-                            assurance={assurance}
-                            search={search}
-                          />
-                        ))}
-                    </section>
-                  );
-                })}
+                <div className="profile-area-content">
+                  <Link
+                    href={`/app/applicant/${applicantId}/history`}
+                    className="profile-history-link"
+                  >
+                    {t.node('appApplicant.appApplicantIdProfileEditor.history')}
+                  </Link>
+                  <div className="profile-field-search">
+                    <label className="field-label" htmlFor="profile-search">
+                      {t.node('appApplicant.appApplicantIdProfileEditor.searchAllProfileFields')}
+                    </label>
+                    <input
+                      id="profile-search"
+                      type="search"
+                      className="input"
+                      placeholder={t(
+                        'appApplicant.appApplicantIdProfileEditor.eGPassportAddressEmployer',
+                      )}
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </div>
+                  {searching && visibleLayers.length === 0 ? (
+                    <output className="muted">
+                      {t.node(
+                        'appApplicant.appApplicantIdProfileEditor.noFieldsMatchTryAnotherField',
+                      )}
+                    </output>
+                  ) : null}
+                  {view.layers.map((layer) => {
+                    const visible = visibleLayers.some((item) => item.key === layer.key);
+                    return (
+                      <section
+                        key={layer.key}
+                        id={`profile-panel-${layer.key}`}
+                        role={searching ? undefined : 'tabpanel'}
+                        aria-labelledby={`profile-tab-${layer.key}`}
+                        hidden={!visible}
+                      >
+                        <h3>{layer.label}</h3>
+                        <p className="muted">
+                          {t.node(
+                            'appApplicant.appApplicantIdProfileEditor.descriptionOpencountOfLengthSectionsOpen',
+                            {
+                              description: layer.description,
+                              openCount: layer.openCount,
+                              length: layer.sections.length,
+                            },
+                          )}
+                        </p>
+                        {layer.sections
+                          .filter((section) => sectionMatches(section, search))
+                          .map((section) => (
+                            <SectionCard
+                              key={section.key}
+                              applicantId={applicantId}
+                              section={section}
+                              values={values}
+                              repeatingValues={repeatingValues}
+                              assurance={assurance}
+                              search={search}
+                            />
+                          ))}
+                      </section>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </>
-        ) : null}
-      </div>
+            </>
+          ) : null}
+        </div>
+      </RevealContext.Provider>
     </EndedRecordsContext.Provider>
   );
 }

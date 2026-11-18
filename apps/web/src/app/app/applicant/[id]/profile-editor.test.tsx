@@ -76,6 +76,24 @@ function tab(label: string) {
   if (!button) throw new Error(`Missing profile tab ${label}`);
   return button;
 }
+/**
+ * The box of a saved detail. ESS1: a saved detail is a read row first; its Edit opens the box.
+ * `id` is the box's id (`f-<key>` or `f-<key>-<record>`).
+ */
+async function editBox(id: string): Promise<HTMLInputElement> {
+  if (!container.querySelector(`#${id}`)) {
+    const row = [...container.querySelectorAll<HTMLElement>('.profile-field-row')].find(
+      (r) => r.querySelector(`[data-edit]`) && id.startsWith(`f-${r.dataset['field']}`),
+    );
+    const edit = [...container.querySelectorAll<HTMLButtonElement>('button[data-edit]')].find(
+      (b) => b.closest('.profile-field-row') === row,
+    );
+    if (edit) await act(async () => edit.click());
+  }
+  const input = container.querySelector<HTMLInputElement>(`#${id}`);
+  if (!input) throw new Error(`Missing box ${id}`);
+  return input;
+}
 function typeInto(input: HTMLInputElement | HTMLSelectElement, value: string) {
   act(() => {
     const prototype =
@@ -169,11 +187,9 @@ describe('section cards keep every real editing path', () => {
     expect(document.activeElement).toBe(tab('Identity and Civil Status'));
   });
 
-  it('retains applicant, canonical field and repeating-record identity in versioned edit forms', () => {
+  it('retains applicant, canonical field and repeating-record identity in versioned edit forms', async () => {
     act(() => tab('Travel Documents').click());
-    const input = container.querySelector<HTMLInputElement>(
-      '#f-historical_passport_number-existing-record',
-    );
+    const input = await editBox('f-historical_passport_number-existing-record');
     expect(input?.value).toBe('SYNTHETIC');
     const form = input?.closest('form');
     if (!form) throw new Error('Missing versioned form');
@@ -181,7 +197,8 @@ describe('section cards keep every real editing path', () => {
     expect(data.get('applicantId')).toBe('synthetic-person');
     expect(data.get('fieldKey')).toBe('historical_passport_number');
     expect(data.get('repeatingRecordKey')).toBe('existing-record');
-    expect(form.querySelector('[name="effectiveFrom"]')).not.toBeNull();
+    // The date it became true sits in the row's Details and belongs to the same form.
+    expect(data.has('effectiveFrom')).toBe(true);
   });
 
   it('links a value read from a document back to that document, and not a typed one', () => {
@@ -427,7 +444,7 @@ describe('section cards keep every real editing path', () => {
     expect(form.querySelector('[name="date"]')).not.toBeNull();
   });
 
-  it('shows saved something-else items beside the section they were filed under', () => {
+  it('shows saved something-else items beside the section they were filed under', async () => {
     render({
       repeatingValues: {
         other_item_universal_section: {
@@ -441,9 +458,7 @@ describe('section cards keep every real editing path', () => {
       },
     });
     const text = container.querySelector('#section-identity_basics')?.textContent ?? '';
-    expect(
-      container.querySelector<HTMLInputElement>('#f-other_item_universal_title-one')?.value,
-    ).toBe('Village certificate');
+    expect((await editBox('f-other_item_universal_title-one')).value).toBe('Village certificate');
     expect(text).not.toContain('Old permit');
   });
 
@@ -596,15 +611,25 @@ describe('Essentials First (owner finding 5)', () => {
     window.location.hash = '';
   });
 
-  it('opens on the short list with its own progress, before any section or overall count', () => {
+  it('lists only the essentials the Passport Page Card does not show, before any section (ESS1)', () => {
     arrive();
     const text = container.textContent ?? '';
     expect(container.querySelector('.profile-essentials h3')?.textContent).toBe('Essentials First');
     // The count and bar sit once, in the page banner above this block.
     expect(text).not.toContain('essentials added');
-    expect(badges()).toEqual(['Not Added Yet', 'Added', 'Not Added Yet']);
-    // Each essential is edited right here: a single detail, and the home address record.
-    expect(container.querySelector('#f-given_name')).not.toBeNull();
+    // Given Name and Passport Number are on the card, so the list holds the home address only.
+    expect(badges()).toEqual(['Not Added Yet']);
+    expect(container.querySelector('.profile-essentials #f-given_name')).toBeNull();
+    expect(container.querySelector('.profile-essentials [data-essential="given_name"]')).toBeNull();
+    expect(
+      container.querySelector('.passport-page-card [data-detail="given_name"]')?.textContent,
+    ).toContain('Not Added Yet');
+    // Every detail is drawn once in this top area: one line on the card, or one list item.
+    for (const key of ['given_name', 'passport_number', 'address']) {
+      const onCard = container.querySelectorAll(`.passport-page-card [data-detail="${key}"]`);
+      const listed = container.querySelectorAll(`[data-essential="${key}"]`);
+      expect(onCard.length + listed.length, key).toBe(1);
+    }
     expect(text).toContain('Home Address');
     expect(text).toContain('Add Address');
     // Everything else waits behind the control, including the full count and the area list.
@@ -630,7 +655,17 @@ describe('Essentials First (owner finding 5)', () => {
     expect(toggle().textContent).toBe('Show Essentials Only');
     act(() => toggle().click());
     expect(container.querySelector('[role="tablist"]')).toBeNull();
-    expect(container.querySelectorAll('#f-given_name')).toHaveLength(1);
+    expect(container.querySelector('.profile-essentials-list')).not.toBeNull();
+    // Given Name is edited from its card line, so its box is not on the page here.
+    expect(container.querySelectorAll('#f-given_name')).toHaveLength(0);
+  });
+
+  it('draws no Essentials First once every essential is on the card or added, and keeps the control (ESS1)', () => {
+    arrive(fixtureView({ essentials: fixtureEssentials({ address: true }) }));
+    expect(container.querySelector('.profile-essentials')).toBeNull();
+    expect(container.querySelector('.profile-essentials-list')).toBeNull();
+    expect(toggle().textContent).toBe('Show All Sections');
+    expect(container.querySelector('.passport-page-card')).not.toBeNull();
   });
 
   it('opens on all sections once every essential is added, with the list one click away', () => {
@@ -656,7 +691,7 @@ describe('Essentials First (owner finding 5)', () => {
     expect(container.querySelector('#section-passport')).not.toBeNull();
   });
 
-  it('sends Add Information to the first essential still to add', () => {
+  it('sends Add Information to the first essential still to add, in its own row for one on the card', () => {
     arrive();
     const link = document.createElement('a');
     link.href = '#profile-editor';
@@ -671,20 +706,34 @@ describe('Essentials First (owner finding 5)', () => {
 
   it('says plainly when an essential was marked as not applying, and lets it be undone', () => {
     const essentials = fixtureEssentials();
-    arrive(
-      fixtureView({
-        essentials: {
-          ...essentials,
-          answered: 2,
-          items: essentials.items.map((item) =>
-            item.key === 'given_name' ? { ...item, answered: true, notApplicable: true } : item,
-          ),
-        },
-      }),
-    );
-    expect(badges()[0]).toBe('Does Not Apply');
+    const view = fixtureView({
+      essentials: {
+        ...essentials,
+        answered: 2,
+        items: essentials.items.map((item) =>
+          item.key === 'given_name' ? { ...item, answered: true, notApplicable: true } : item,
+        ),
+      },
+    });
+    arrive({
+      ...view,
+      layers: view.layers.map((layer) => ({
+        ...layer,
+        sections: layer.sections.map((section) =>
+          section.singles.some((field) => field.key === 'given_name')
+            ? { ...section, notApplicable: [...section.notApplicable, 'given_name'] }
+            : section,
+        ),
+      })),
+    });
+    // Given Name is on the card, so the card says it, and its own row (one tap away) undoes it.
+    expect(badges()).toEqual(['Not Added Yet']);
+    expect(
+      container.querySelector('.passport-page-card [data-detail="given_name"]')?.textContent,
+    ).toContain('Does not apply.');
+    act(() => toggle().click());
     expect(container.textContent).toContain('Given Name: marked as not applying to you.');
-    const undo = [...container.querySelectorAll('.profile-essential label')].find((node) =>
+    const undo = [...container.querySelectorAll('#profile-row-given_name label')].find((node) =>
       node.textContent?.includes('This does not apply to me'),
     );
     expect(undo?.querySelector<HTMLInputElement>('input')?.checked).toBe(true);
@@ -762,7 +811,7 @@ describe('No Longer Current and Ended (LC-G1)', () => {
     ).toHaveLength(1);
   });
 
-  it('shows an ended entry as Ended with its date, keeps its details editable, and offers no second end', () => {
+  it('shows an ended entry as Ended with its date, keeps its details editable, and offers no second end', async () => {
     render({
       repeatingValues: {
         historical_passport_number: {
@@ -777,10 +826,7 @@ describe('No Longer Current and Ended (LC-G1)', () => {
     expect(panel?.textContent).toMatch(/Ended on [^.]*2025\./);
     expect(panel?.textContent).toContain('Save a change below to make it current again.');
     expect(panel?.querySelector('.profile-record-end')).toBeNull();
-    expect(
-      panel?.querySelector<HTMLInputElement>('#f-historical_passport_number-existing-record')
-        ?.value,
-    ).toBe('SYNTHETIC');
+    expect((await editBox('f-historical_passport_number-existing-record')).value).toBe('SYNTHETIC');
   });
 });
 
