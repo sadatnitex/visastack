@@ -85,7 +85,7 @@ English only until the localization lane writes Bengali. Catalogue keys (one mar
 ## Not verified
 
 - Playwright wallet, scroll-budget and ux-public on one fresh build: 576 passed, 2 failed (`WP-SB2` real case page, phone Browse 3480 against a 3470 ceiling). The same two failed on U8's run and no file of this unit draws that page; not checked against main here.
-- The signed-in guard itself (`apps/web/ci-signed-in/run.sh`) was not run here: this container has no Postgres. The seed sequence was proved on PGlite (notices through the worker, Mark Read, a trip through its real proof) in a throwaway test that is not kept; CI runs the real guard.
+- The signed-in guard: the first CI run failed on `/app/applicant/[id]` and `/missions` (a trip opens a case of its own for the person it starts for, so the traveller's own page had two cases and the first "Japan Tourist Visa" on it was in a closed row). The seed now starts the trip for a second made-up person (CI Test Companion). Reproduced and fixed against a real Postgres 16 in this container with the exact `run.sh` command: 54 passed (CI uses Postgres 18).
 - The pages with real signed-in data in a real browser (only the shared pieces on the fixture, and the pages in unit render).
 - Safari and Firefox (Chromium only).
 - Bengali for the new words (draft list above).

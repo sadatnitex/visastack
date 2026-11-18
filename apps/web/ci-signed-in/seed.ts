@@ -226,13 +226,25 @@ export async function seed(env = process.env): Promise<SeededIds> {
         notificationId: readOne.id,
       }),
     );
+    // The trip is started for a second made-up person, so the traveller's own record keeps its
+    // single case (a trip opens a case of its own for whoever it is started for).
+    const companion = must(
+      'trip companion',
+      await createApplicant(db, {
+        actorAccountId: traveller.id,
+        ownerAccountId: traveller.id,
+        displayName: 'CI Test Companion',
+        relationship: 'FAMILY_MEMBER',
+        authorityConfirmed: true,
+      }),
+    );
     const tripProof = must(
       'trip access',
       await requireAccess(
         db,
         accountPrincipal(traveller.id),
         'MANAGE',
-        { applicantId: applicant.id },
+        { applicantId: companion.id },
         { purpose: 'owner_trip' },
       ),
     );
