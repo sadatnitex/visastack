@@ -78,18 +78,18 @@ export default async function AgencyTeamPage({
               key={m.membershipId}
               title={m.email}
               picture={<InitialsPicture name={m.email} />}
-              chip={{ label: membershipRoleLabel(m.role), tone: 'info' }}
+              chip={{ label: membershipRoleLabel(m.role), tone: m.active ? 'info' : 'neutral' }}
               meta={
-                m.active
-                  ? t.node('appAgency.appAgencyOrgidTeamPage.active')
-                  : t.node('appAgency.appAgencyOrgidTeamPage.inactive')
+                <>
+                  {m.active
+                    ? t.node('appAgency.appAgencyOrgidTeamPage.active')
+                    : t.node('appAgency.appAgencyOrgidTeamPage.inactive')}
+                  {documentRequests && m.mayRequestDocuments
+                    ? ` · ${t('appAgency.appAgencyOrgidTeamPage.mayRequestDocuments')}`
+                    : ''}
+                </>
               }
             >
-              {documentRequests && m.mayRequestDocuments ? (
-                <p className="muted member-permission-note">
-                  {t.node('appAgency.appAgencyOrgidTeamPage.mayRequestDocuments')}
-                </p>
-              ) : null}
               {m.role !== 'OWNER' ? (
                 <div className="u8-body-actions">
                   {documentRequests && canRequestToggle(m) ? (
@@ -107,7 +107,7 @@ export default async function AgencyTeamPage({
                   />
                 </div>
               ) : (
-                <p className="muted u8-limit-note">{m.email}</p>
+                <p className="muted u8-note">{m.email}</p>
               )}
             </AgencyRow>
           ))}

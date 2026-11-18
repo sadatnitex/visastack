@@ -30,9 +30,6 @@ export interface AgencyRowProps {
   readonly chip?: { readonly label: ReactNode; readonly tone: LiftTone } | undefined;
   /** One short line after the chip (a date, an address, a code). */
   readonly meta?: ReactNode;
-  /** A status picture at the end of the row (the Explain button is its own control). */
-  readonly status?: ReactNode;
-  readonly statusDescription?: ReactNode;
   readonly id?: string | undefined;
   readonly defaultOpen?: boolean | undefined;
   /** Keep the row as the person left it across a page refresh (for a row with a form). */
@@ -48,8 +45,6 @@ export function AgencyRow({
   picture,
   chip,
   meta,
-  status,
-  statusDescription,
   id,
   defaultOpen,
   remember,
@@ -70,8 +65,6 @@ export function AgencyRow({
       picture={picture}
       headingLevel={headingLevel}
       {...(summary ? { summary } : {})}
-      {...(status ? { status } : {})}
-      {...(statusDescription ? { statusDescription } : {})}
       {...(id ? { id } : {})}
       {...(defaultOpen ? { defaultOpen } : {})}
       {...(remember ? { remember } : {})}
@@ -119,7 +112,8 @@ export function LimitRing({
   readonly allowed: number;
   readonly tone: '' | 'meter-warn' | 'meter-full';
 }) {
-  const share = allowed > 0 ? Math.min(1, Math.max(0, used / allowed)) : 0;
+  // A limit of none that is used (or any full limit) draws the whole ring.
+  const share = allowed > 0 ? Math.min(1, Math.max(0, used / allowed)) : used > 0 ? 1 : 0;
   return (
     <svg
       className={`u8-ring${tone ? ` u8-ring-${tone === 'meter-full' ? 'full' : 'warn'}` : ''}`}
@@ -148,7 +142,7 @@ export function LimitRing({
 export function UnlimitedPicture() {
   return (
     <svg
-      className="u8-ring u8-ring-open"
+      className="u8-ring"
       viewBox="0 0 40 40"
       width="40"
       height="40"

@@ -117,4 +117,19 @@ describe('Plan and Usage (S29)', () => {
     const section = html.slice(html.indexOf('>AI Features<'));
     expect(section).toContain('Agency AI Tools');
   });
+
+  it('U8: a limit of none that is in use draws a full ring, and an informational meter opens at first', async () => {
+    const base = usage({});
+    base.value.meters = [
+      { ...meter('seats', 'seats', 'Team Members', 0), used: 2 },
+      meter('aiAllowanceUnits', 'ai_allowance_units', 'AI Allowance', 5),
+    ];
+    mocks.usage.mockResolvedValue(base);
+    const html = await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) }));
+    const rows = html.split('class="expandable-section u8-row u8-limit"').slice(1);
+    expect(rows[0]).toContain('u8-ring-arc');
+    expect(rows[0]).toContain('u8-ring-full');
+    expect(rows[0]).not.toContain('<details class="expandable-section-details" open');
+    expect(rows[1]).toContain('<details class="expandable-section-details" open');
+  });
 });

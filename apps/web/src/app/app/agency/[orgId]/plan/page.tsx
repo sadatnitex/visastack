@@ -200,6 +200,8 @@ export default async function OrgPlanPage({
                         />
                       )
                     }
+                    // An informational meter opens at first so its "does not limit" note is never hidden.
+                    defaultOpen={meter.shownOnly}
                     summary={
                       unlimited ? (
                         <>

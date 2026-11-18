@@ -27,7 +27,6 @@ export function openRequestAddress(
   return `${pathname}?${params.toString()}#request-${id}`;
 }
 
-/** Shows a linked request that is not on this page of the list. */
 /**
  * A request row is a closed section until opened; a link to one (`#request-<id>`) scrolls to it,
  * so the section is opened here, where the person lands. A hash that is not a request is left alone.
@@ -38,9 +37,12 @@ export function openRequestRow(hash: string, root: Document = document): boolean
   const details = row?.querySelector<HTMLDetailsElement>(':scope > details');
   if (!details) return false;
   if (!details.open) details.open = true;
+  // Opening grows the row after the browser has scrolled to it: scroll again so the person lands on it.
+  row?.scrollIntoView?.({ block: 'start' });
   return true;
 }
 
+/** Shows a linked request that is not on this page of the list. */
 export function OpenRequestFromLink() {
   const router = useRouter();
   const pathname = usePathname();
