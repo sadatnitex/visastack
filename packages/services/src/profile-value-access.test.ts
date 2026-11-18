@@ -5,7 +5,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
+import { EACH_GRANT, type RequireAccessOptions, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -68,7 +68,7 @@ describe('openOwnProfileValue', () => {
       .from(schema.auditEvents)
       .where(eq(schema.auditEvents.eventType, PROFILE_VALUE_ACCESS));
 
-  async function proofFor(accountId: string, purpose: string) {
+  async function proofFor(accountId: string, purpose: RequireAccessOptions['purpose']) {
     const gate = await requireAccess(
       db,
       accountPrincipal(accountId),
