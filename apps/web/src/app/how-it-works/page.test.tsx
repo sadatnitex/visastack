@@ -75,8 +75,9 @@ describe('the How It Works page (R2)', () => {
     // Sharing cannot be limited to part of a document today (packages/services/src/sharing.ts): no
     // part, page or size is promised on the sheet.
     const sheet = words(art[3] as Element);
-    expect(sheet).toContain('Passport See Document Details');
-    expect(sheet).toContain('Photo See Document Details');
+    expect(sheet.match(/See Document Details/g)).toHaveLength(2);
+    expect(sheet).toContain('Passport, details');
+    expect(sheet).toContain('Photo, details');
     expect(sheet).not.toMatch(/photo page|visa size/i);
   });
 
