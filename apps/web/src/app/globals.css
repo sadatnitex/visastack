@@ -22980,3 +22980,841 @@ button.wallet-stack-card {
   margin-block: -0.75rem;
 }
 /* end WP-PUBFIX */
+
+/* WP-WAL5 AI connection tiles (18 Nov 2026, owner decision 17 Nov 2026, Wallet board Pattern 4 option A): one tile per AI connection on the traveller Sharing page and the agency AI Connections page (components/ai-connection-tile.tsx). Who, Connected, what it can read as small pictures that explain themselves, a clock ring for the time left with the end date, Last Used, and the existing Change Access and Turn Off. Flat: tokens only, a hairline, no shadow, no gradient. The ring is drawn at its final state and nothing moves, so reduced motion has nothing to switch off. Every picture is a full 44 px row item (the shared WAL1 key), so wrapped rows never overlap. */
+.ai-tile {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ai-tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ai-tile-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.ai-tile-name {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.ai-tile-name .ai-consent-host {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 400;
+}
+.ai-tile-reads {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ai-tile-term {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-tile-read-none {
+  margin: 0;
+  color: var(--text-secondary);
+}
+/* The list is the shared WAL1 key of pictures (.status-picture-key: full 44 px rows, the Explain
+   button's reach past the line turned off); the tile adds a row gap and a hairline per item. */
+.ai-tile-read-list {
+  row-gap: var(--space-1);
+  min-width: 0;
+}
+.ai-tile-read {
+  min-width: 0;
+  max-width: 100%;
+  padding-inline-end: var(--space-2);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.ai-tile-read .explain-tip {
+  flex: none;
+  color: var(--brand);
+}
+.ai-tile-read-word {
+  min-width: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ai-tile-read-value {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.ai-tile-clock {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.ai-tile-ring {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--brand);
+}
+.ai-tile-ring svg:first-child {
+  position: absolute;
+  inset: 0;
+}
+.ai-tile-ring-track {
+  stroke: var(--hairline-soft);
+  stroke-width: 4;
+}
+.ai-tile-ring-fill {
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.ai-tile-ring[data-state="open"] {
+  color: var(--success);
+}
+.ai-tile-ring[data-state="ending_soon"] {
+  color: var(--warning);
+}
+.ai-tile-ring[data-state="ended"] {
+  color: var(--text-tertiary);
+}
+/* Without colour the ring still reads: ending soon draws a thicker arc, ended a dashed track. */
+.ai-tile-ring[data-state="ending_soon"] .ai-tile-ring-fill {
+  stroke-width: 6;
+}
+.ai-tile-ring[data-state="ended"] .ai-tile-ring-track {
+  stroke: currentColor;
+  stroke-dasharray: 3 4;
+}
+.ai-tile-when {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+.ai-tile-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 650;
+}
+.ai-tile-soon {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px var(--space-2);
+  border-radius: 980px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.ai-tile-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-1) var(--space-4);
+}
+.ai-tile-facts dt {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-tile-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ai-tile-actions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ai-tile-actions .btn {
+  min-height: 44px;
+}
+@media (forced-colors: active) {
+  .ai-tile-ring-fill,
+  .ai-tile-ring[data-state="ended"] .ai-tile-ring-track {
+    stroke: CanvasText;
+  }
+  .ai-tile-ring-track {
+    stroke: GrayText;
+  }
+}
+/* end WP-WAL5 */
+
+/* WP-WAL4 Passport Page Card and value rows (18 Nov 2026, owner decision option B): My Profile prints the profile's own values for the eleven passport details on a schematic, flat data page (never a photo or a real document), and every other single detail is one value row (Expandable Section: name, value, one status picture). Brand tokens only, no shadow, no gradient, no motion. Every control is at least 44 px. */
+.passport-page-card {
+  min-width: 0;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.passport-page-head h3 {
+  margin: 0;
+}
+.passport-page-head p {
+  margin: var(--space-1) 0 var(--space-3);
+  font-size: var(--text-small);
+}
+.passport-page-sheet {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-areas:
+    "art lines"
+    "zone zone";
+  gap: var(--space-3) var(--space-4);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+}
+.passport-page-art {
+  grid-area: art;
+  display: block;
+  width: 96px;
+  height: 120px;
+}
+.passport-page-art-paper {
+  fill: var(--bg-elevated);
+  stroke: var(--edge-card);
+  stroke-width: 1.5;
+}
+.passport-page-art-band {
+  fill: var(--brand);
+}
+.passport-page-art-line {
+  fill: none;
+  stroke: var(--bg-elevated);
+  stroke-width: 1.5;
+}
+.passport-page-art-ink {
+  fill: var(--brand-tint-4);
+}
+.passport-page-art-band + .passport-page-art-line + .passport-page-art-ink {
+  fill: var(--bg-elevated);
+}
+.passport-page-art-frame {
+  fill: var(--brand-tint-2);
+  stroke: var(--hairline);
+  stroke-width: 1.5;
+}
+.passport-page-lines {
+  grid-area: lines;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  column-gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+}
+.passport-page-line {
+  min-width: 0;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--hairline-soft);
+}
+.passport-page-label {
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.passport-page-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+}
+.passport-page-value {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-decoration-color: var(--text-tertiary);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+a.passport-page-value {
+  min-inline-size: 44px;
+}
+a.passport-page-value:hover {
+  text-decoration-color: var(--accent);
+}
+.passport-page-value:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.passport-page-line[data-state="note"] .passport-page-value,
+.passport-page-empty {
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.passport-page-add,
+.passport-page-show {
+  min-height: 44px;
+}
+.passport-page-status {
+  margin-inline-start: auto;
+}
+.passport-page-zone {
+  grid-area: zone;
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+.passport-page-zone-mark {
+  fill: none;
+  stroke: var(--brand-tint-5);
+  stroke-width: 1.5;
+}
+@media (max-width: 560px) {
+  .passport-page-card {
+    padding: var(--space-3);
+  }
+  .passport-page-sheet {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "art"
+      "lines"
+      "zone";
+  }
+  .passport-page-art {
+    width: 64px;
+    height: 80px;
+  }
+}
+@media (forced-colors: active) {
+  .passport-page-art-paper,
+  .passport-page-art-frame {
+    fill: Canvas;
+  }
+  .passport-page-art-paper,
+  .passport-page-art-frame,
+  .passport-page-zone-mark {
+    stroke: CanvasText;
+  }
+  .passport-page-art-band,
+  .passport-page-art-ink {
+    fill: CanvasText;
+  }
+}
+.profile-value-rows {
+  margin-block: var(--space-3);
+}
+/* end WP-WAL4 */
+
+/* WP-WAL2 Document detail and Check What We Found (18 Nov 2026, owner decision: Preview Card First, no tabs). Layout of the document's pass front (its dark look is in components/pictures/pictures-depth.css), the details and dates as Expandable Section rows, the compact review rows, the one-at-a-time review, large choice tiles for a difference, and the accept bar that rests at the bottom of a phone screen while the details are in view (the Add button is already gone while a document is open, WP-WAL0). Flat: tokens only, no shadow or gradient here. Every target is at least 44 px. Nothing moves. */
+.doc-hero {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+.doc-hero-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.doc-hero-art {
+  flex: none;
+}
+.doc-hero-text {
+  min-width: 0;
+}
+.doc-hero-name {
+  margin: 0;
+  font-size: var(--text-lead);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.doc-hero-kind,
+.doc-hero-facts {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.doc-hero-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-hero-mark {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.doc-hero-mark .ci-step {
+  margin-left: var(--space-2);
+}
+.doc-hero-glyph {
+  display: block;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.doc-hero-glyph[data-tone="ok"] .doc-hero-glyph-ring {
+  fill: var(--success-bg);
+  stroke: var(--success);
+}
+.doc-hero-glyph[data-tone="ok"] .doc-hero-glyph-mark {
+  stroke: var(--success);
+}
+.doc-hero-glyph[data-tone="warn"] .doc-hero-glyph-ring {
+  fill: var(--warning-bg);
+  stroke: var(--warning);
+}
+.doc-hero-glyph[data-tone="warn"] .doc-hero-glyph-mark {
+  stroke: var(--warning);
+}
+.doc-hero-glyph[data-tone="bad"] .doc-hero-glyph-ring {
+  fill: var(--danger-bg);
+  stroke: var(--danger);
+  stroke-dasharray: 3 2.4;
+}
+.doc-hero-glyph[data-tone="bad"] .doc-hero-glyph-mark {
+  stroke: var(--danger);
+}
+.doc-hero-glyph[data-tone="neutral"] .doc-hero-glyph-ring {
+  fill: var(--bg-elevated);
+  stroke: var(--edge-control);
+  stroke-dasharray: 3 2.4;
+}
+.doc-hero-glyph[data-tone="neutral"] .doc-hero-glyph-mark {
+  stroke: var(--text-secondary);
+}
+.doc-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.doc-hero-actions .btn {
+  min-height: 44px;
+}
+.doc-detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.doc-detail-section .field-inline {
+  flex-wrap: wrap;
+}
+.doc-detail-issuer {
+  margin: 0 0 var(--space-1);
+}
+
+/* Check What We Found */
+.document-findings-metric {
+  margin: 0;
+  font-weight: 600;
+}
+.finding-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.finding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+.finding-row[data-quick="true"] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.finding-row-accept {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: 6px;
+}
+.finding-row-accept .btn {
+  min-height: 44px;
+}
+/* An opened row shows its card, whose Accept is the one to use: the row's own Accept steps aside, so one detail is never sent twice. */
+.finding-row:has(> .expandable-section details[open]) > .finding-row-accept {
+  display: none;
+}
+.finding-row-check {
+  display: block;
+  color: var(--warning);
+  font-weight: 600;
+}
+.finding-steps {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.finding-steps-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.finding-steps-head h4 {
+  margin: 0;
+}
+.finding-steps-count {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.finding-steps-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.finding-steps-list > li:focus {
+  outline: none;
+}
+.finding-steps-list > li:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.finding-steps-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.finding-steps-nav .btn {
+  min-height: 44px;
+}
+.finding-steps-nav .btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.finding-masked {
+  margin-block: var(--space-2);
+}
+.finding-choice-tiles {
+  display: grid;
+  gap: var(--space-2);
+}
+.finding-choice-tiles > label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border: 1.5px solid var(--edge-control);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-weight: 600;
+  cursor: pointer;
+}
+.finding-choice-tiles > label:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.finding-choice-tiles > label input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0;
+}
+.finding-choice-tiles > .finding-value {
+  padding-inline: var(--space-2);
+}
+.finding-accept-bar {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--edge-card);
+  background: var(--bg);
+}
+.finding-accept-bar .btn {
+  min-height: 44px;
+}
+/* On a phone the open document fills the screen (over the bottom bar), so the accept bar rests at the bottom edge of the screen, clear of the phone's own bottom edge, while the details are in view; anything scrolled to stops above it. */
+@media (max-width: 760px) {
+  .wallet-selected-document[data-sheet="open"] .finding-accept-bar {
+    position: sticky;
+    /* A sticky item stops above its scroll box's bottom padding (WP-WAL0 gives the open sheet 61 px plus the safe area plus one space): this offset takes it back to the screen's edge. */
+    bottom: calc(-1 * (61px + env(safe-area-inset-bottom, 0px) + var(--space-4)));
+    z-index: 2;
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .wallet-selected-document[data-sheet="open"] {
+    scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 9rem);
+  }
+}
+/* end WP-WAL2 */
+
+/* WP-WAL3 Trip Package as a journey line with gaps (18 Nov 2026, owner decision 17 Nov, Trip Package "-A"): what the trip needs is a line of stones (solid ring and tick is ready, dashed ring and cross is a gap), at most five visible and the rest scroll inside the card, one line and one button for each gap, the four Outside VisaStack steps as pictures with an Explain popup, and Case Details and Trip Date Checks as Expandable Sections that stay open on a wide screen. Flat: hairlines and brand tokens only, no shadow, no gradient. Ring style, tick or cross and a word say each state, never colour alone. Nothing here animates. */
+.trip-journey {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.trip-journey-count {
+  margin: 0 0 var(--space-2);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.trip-journey-list {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.trip-journey-list:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.trip-stone {
+  position: relative;
+  display: flex;
+  flex: 0 0 20%;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding-inline: 2px;
+  text-align: center;
+}
+.trip-stone:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 22px;
+  inset-inline-start: calc(50% + 24px);
+  inset-inline-end: calc(-50% + 24px);
+  height: 0;
+  border-top: 3px solid var(--success);
+}
+.trip-stone-gap:not(:last-child)::after {
+  border-top: 3px dashed var(--danger);
+}
+.trip-stone-todo:not(:last-child)::after {
+  border-top: 3px dotted var(--edge-strong, var(--edge-card));
+}
+.trip-stone-ring {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  background: var(--success-bg);
+  color: var(--success);
+}
+.trip-stone-gap .trip-stone-ring {
+  border: 2px dashed var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.trip-stone-todo .trip-stone-ring {
+  border: 2px dotted var(--text-secondary);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+.trip-stone-name {
+  max-width: 100%;
+  hyphens: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.trip-stone-word {
+  max-width: 100%;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.trip-gaps {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 7.5rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.trip-gaps:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.trip-gap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px dashed var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+}
+.trip-gap-line {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.trip-gap-action {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+}
+.trip-package-head,
+.trip-outside-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.trip-package-start {
+  min-height: 44px;
+  margin-inline-start: auto;
+}
+.trip-outside-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0;
+}
+.trip-outside-row > .trip-outside-extra {
+  flex: 1 0 100%;
+}
+.trip-outside-head .package-subheading {
+  margin: 0;
+}
+.trip-outside {
+  display: flex;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.trip-outside-tile {
+  display: flex;
+  min-width: 44px;
+}
+.trip-outside-extra {
+  margin: var(--space-2) 0 0;
+}
+.rail-section-body {
+  min-width: 0;
+  scroll-margin-top: 6rem;
+}
+.rail-section .expandable-section-body {
+  padding: 0;
+}
+/* The row keeps its 56px height: the summary is one line that ends in an ellipsis, as the rail's own rows do. */
+.rail-section .expandable-section-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-section-body .lift-card {
+  position: relative;
+  border: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: transparent;
+}
+.rail-section-body .lift-card-head {
+  display: none;
+}
+@supports selector(::details-content) {
+  @media (min-width: 761px) {
+    .rail-section .expandable-section {
+      border: none;
+      border-radius: 0;
+      background: transparent;
+    }
+    .rail-section .expandable-section-details > summary {
+      display: none;
+    }
+    .rail-section .expandable-section-details::details-content {
+      content-visibility: visible;
+    }
+    .rail-section .expandable-section-body {
+      border-top: none;
+    }
+    .rail-section-body .lift-card {
+      position: static;
+      border: 1px solid var(--edge-card);
+      border-radius: var(--radius-lg);
+      background: var(--bg-elevated);
+    }
+    .rail-section-body .lift-card-head {
+      display: block;
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0 0 var(--space-4);
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+    }
+  }
+}
+/* end WP-WAL3 */

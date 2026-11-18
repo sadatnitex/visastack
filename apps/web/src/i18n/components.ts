@@ -40,6 +40,14 @@ export const componentsCatalog = defineCatalog({
     'components.aiAccessChoices.sensitiveTheWordsReadFromDocuments':
       'Sensitive: the words read from documents in the parts you allow above. Protected document types are never included.',
     'components.aiAccessChoices.whatAppnameCanRead': 'What {appName} Can Read',
+    'components.aiConnectionTile.daysLeft':
+      '{count, plural, =1 {1 Day Left} other {{count} Days Left}}',
+    'components.aiConnectionTile.endingSoon': 'Ending Soon',
+    'components.aiConnectionTile.ended': 'Ended',
+    'components.aiConnectionTile.endedOn': 'Ended {date}',
+    'components.aiConnectionTile.hoursLeft':
+      '{count, plural, =1 {1 Hour Left} other {{count} Hours Left}}',
+    'components.aiConnectionTile.lessThanOneHourLeft': 'Less Than 1 Hour Left',
     'components.capturePreview.checkYourPhoto': 'Check Your Photo',
     'components.capturePreview.isTheWholeCardOrPage':
       'Is the whole card or page inside the outline, and is the writing easy to read? If not, retake it.',
