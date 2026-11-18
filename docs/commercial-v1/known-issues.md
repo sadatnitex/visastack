@@ -8489,3 +8489,11 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Baseline, not fixed: /trust, /privacy, /terms show no overlaps, clipped text or sideways scroll at the five sizes.
 - NOT verified: real devices, Safari, Bangla page, 320 px with text-spacing overrides, production.
 - HOT1 follow-up (18 Nov 2026): the first push failed Build and Typecheck because the guard set reduced motion with an option the test types do not have; it now uses contextOptions and each run asserts matchMedia agrees, and the web typecheck passes. The earlier local runs had not typechecked the spec.
+
+## 18 Nov 2026: WAL1 Wallet Foundation (#631)
+
+- What: the Wallet upgrade foundation (U1a, ADR 0030). One Expandable Section (`apps/web/src/components/ui-lift/expandable-section.tsx`, native details and summary, picture, name, one-line summary, status and chevron in the row, 44 px, works without script), six status pictures for the field states with names read from `FIELD_STATUS_WORDS` (`apps/web/src/components/pictures/status-picture.tsx`), a fourth ui-ratchet counter `folds` (open-and-close sections built outside the Expandable Section, baseline 194 in 106 files, totals pinned), and a shared layout guard (`apps/web/e2e/support/layout-guards.ts`: no sideways scroll, nothing painted over a control at 390, 400 and 1280 px). Nothing on screen changes yet; later Wallet units swap screens onto these pieces.
+- Proof: each guard red on broken real code, then green; e2e/wallet/u1-foundation.spec.ts on the fixture and the public pages; full check green before the TURN; TURN checks green after merging main cb5e1ba. Details: docs/upgrades/programme/wal/WAL1-records.md.
+- Found by the new guard on its first run and fixed: stacked Explain buttons overlapped (ExplainTip's negative margin), now `.status-picture-key` rows of 44 px.
+- Dropped for U4: a Sensitive picture (no vocabulary word yet).
+- NOT verified: signed-in routes (U1b), Safari and Firefox, VoiceOver and NVDA, forced colours and right to left in a real browser, Bengali wording of the six sentences, production.
