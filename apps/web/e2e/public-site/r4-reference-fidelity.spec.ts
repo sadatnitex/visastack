@@ -28,6 +28,13 @@ const closing = (page: Page) =>
 async function shot(locator: Locator, name: string, tag: string): Promise<void> {
   const dir = env('R4_SHOTS_DIR');
   await locator.scrollIntoViewIfNeeded();
+  // The pinned header would sit on top of a tall chapter's picture, so it is hidden for the photograph only.
+  await locator.page().evaluate(() => {
+    for (const el of document.querySelectorAll<HTMLElement>('body *')) {
+      const position = getComputedStyle(el).position;
+      if (position === 'fixed' || position === 'sticky') el.style.visibility = 'hidden';
+    }
+  });
   const path = dir ? `${dir}/${name}-${tag}.png` : test.info().outputPath(`${name}-${tag}.png`);
   await locator.screenshot({ path });
 }
@@ -59,6 +66,8 @@ for (const size of SIZES) {
     });
 
     test('chapter 1: dark hero, headline, real search, ribbon', async ({ page }) => {
+      // Photographed at rest (reduced motion) so the picture always shows the finished demo.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto('/countries');
       await expect(hero(page)).toHaveAttribute('data-tone', 'dark');
       await expect(page.locator('main h1')).toHaveText(/Every Country\.\s*With Its Sources\./);
