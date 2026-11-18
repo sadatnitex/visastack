@@ -7,18 +7,18 @@ import {
   type PackagePhrase,
 } from '@visastack/services';
 import Link from 'next/link';
+import { ExplainTip } from '../../../../components/explain-tip';
+import { Icon } from '../../../../components/icons';
 import { appMissionCatalog } from '../../../../i18n/app-mission';
-import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { getServerT } from '../../../../lib/i18n-server';
-import { documentKindLabel } from '../../../../lib/item-names';
-import { fieldLabel } from '../../../../lib/master-profile';
 import {
   PackageChangeReviewedForm,
   PackageHandoffForm,
   PackageItemChoiceForm,
 } from './package-forms';
 import { choiceOptions, usingLine } from './package-item-model';
+import { OutsideVisaStackRow, itemDisplayName } from './trip-journey-line';
 
 /**
  * UMPE P4: the case's trip package. One plain phrase (Needs Attention, Ready for Final Review,
@@ -57,12 +57,6 @@ const CAVEAT_WORDS: Readonly<Record<FreshnessCaveat, string>> = {
   SOURCES_NOT_CHECKED: 'Official pages have not been checked for this checklist yet.',
 };
 
-function itemName(item: { readonly kind: 'FIELD' | 'DOCUMENT'; readonly key: string }): string {
-  return item.kind === 'FIELD'
-    ? (fieldLabel(item.key) ?? humanizeCode(item.key))
-    : documentKindLabel(item.key);
-}
-
 export function PackagePanel({
   pkg,
   listedIds = new Set<string>(),
@@ -83,20 +77,33 @@ export function PackagePanel({
   const caveats = pkg.freshness?.caveats ?? [];
   return (
     <div className="package-panel">
-      <h2 className="card-title">{t.node('appMission.appMissionIdPackagePanel.tripPackage')}</h2>
+      <div className="trip-package-head">
+        <h2 className="card-title">{t.node('appMission.appMissionIdPackagePanel.tripPackage')}</h2>
+        <ExplainTip
+          label="About This Package"
+          text={
+            <>
+              {t.node('appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady')}{' '}
+              {editable && listedIds.size > 0 ? (
+                <>{t.node('appMission.appMissionIdPackagePanel.toChooseWhichFileAnItem')} </>
+              ) : null}
+              {t.node('appMission.appMissionIdPackagePanel.visastackDoesNotDoTheseFor')} Travelling
+              with others? Start a Trip gives each traveller their own case.
+            </>
+          }
+        >
+          <Icon name="ask" size={20} />
+        </ExplainTip>
+        <Link className="btn btn-secondary trip-package-start" href="/app/mission/start">
+          Start a Trip
+        </Link>
+      </div>
       <p>
         <span className={`badge ${PHRASE_TONE[pkg.phrase]}`}>
           {PACKAGE_PHRASE_LABELS[pkg.phrase]}
         </span>
       </p>
-      <p className="muted u-fs-085">
-        {t.node('appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady')}
-      </p>
-      {editable && listedIds.size > 0 ? (
-        <p className="muted u-fs-085">
-          {t.node('appMission.appMissionIdPackagePanel.toChooseWhichFileAnItem')}
-        </p>
-      ) : null}
+      <p className="muted u-fs-085">Nothing is sent until you share it yourself.</p>
       {pkg.reasons.length > 0 ? (
         <ul className="package-reasons">
           {pkg.reasons.map((reason) => (
@@ -126,7 +133,7 @@ export function PackagePanel({
               ) : (
                 <li key={q.fieldKey ?? ''}>
                   {t.node('appMission.appMissionIdPackagePanel.addAndConfirmYourItemnameIn', {
-                    itemName: itemName({ kind: 'FIELD', key: q.fieldKey ?? '' }),
+                    itemName: itemDisplayName({ kind: 'FIELD', key: q.fieldKey ?? '' }),
                   })}
                 </li>
               ),
@@ -142,7 +149,7 @@ export function PackagePanel({
           </h3>
           <ul className="package-items">
             {items.map((item) => {
-              const name = itemName(item);
+              const name = itemDisplayName(item);
               const { options, current } = choiceOptions(item);
               return (
                 <li key={item.packRequirementId} className="package-item">
@@ -181,19 +188,7 @@ export function PackagePanel({
         </section>
       ) : null}
 
-      <section aria-labelledby="package-outside-heading">
-        <h3 id="package-outside-heading" className="package-subheading">
-          {t.node('appMission.appMissionIdPackagePanel.outsideVisastack')}
-        </h3>
-        <p className="muted u-fs-085">
-          {t.node('appMission.appMissionIdPackagePanel.visastackDoesNotDoTheseFor')}
-        </p>
-        <ul>
-          {pkg.outsideSteps.map((step) => (
-            <li key={step.kind}>{step.label}</li>
-          ))}
-        </ul>
-      </section>
+      <OutsideVisaStackRow steps={pkg.outsideSteps} />
 
       {pkg.latestHandoff ? (
         <p className="muted u-fs-085">
@@ -210,10 +205,6 @@ export function PackagePanel({
               )}
         </p>
       ) : null}
-      <p className="muted u-fs-085">
-        Travelling with others? <Link href="/app/mission/start">Start a Trip</Link> gives each
-        traveller their own case.
-      </p>
       {editable && pkg.phrase === 'READY_FOR_FINAL_REVIEW' ? (
         <PackageHandoffForm missionId={pkg.missionId} />
       ) : null}

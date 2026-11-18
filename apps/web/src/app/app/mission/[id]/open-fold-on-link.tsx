@@ -2,14 +2,17 @@
 
 import { useEffect } from 'react';
 
+/** A rail fold or a rail Expandable Section (WAL3). */
+const FOLD = 'details.lift-fold, details.expandable-section-details';
+
 /** Opens every closed rail fold around the element with this id; does nothing without one. */
 function openFoldsAround(id: string): void {
   const target = id ? document.getElementById(id) : null;
   if (!target) return;
   for (
-    let fold = target.closest<HTMLDetailsElement>('details.lift-fold');
+    let fold = target.closest<HTMLDetailsElement>(FOLD);
     fold;
-    fold = fold.parentElement?.closest<HTMLDetailsElement>('details.lift-fold') ?? null
+    fold = fold.parentElement?.closest<HTMLDetailsElement>(FOLD) ?? null
   ) {
     if (!fold.open) fold.open = true;
   }
