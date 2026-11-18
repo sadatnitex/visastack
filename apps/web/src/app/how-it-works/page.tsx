@@ -27,7 +27,11 @@ export const metadata: Metadata = { title: 'How It Works' };
 const STAGES = [
   { word: CASE_STATUS.DRAFT.word, line: 'You pick a country and a route.', ready: 0 },
   { word: CASE_STATUS.INTAKE.word, line: 'Documents join the case from your vault.', ready: 2 },
-  { word: CASE_STATUS.IN_REVIEW.word, line: 'A person looks over the case.', ready: 5 },
+  {
+    word: CASE_STATUS.IN_REVIEW.word,
+    line: 'You look over the case before it moves on.',
+    ready: 5,
+  },
   {
     word: CASE_STATUS.AWAITING_APPLICANT.word,
     line: 'If something is missing, the case comes back to you.',
