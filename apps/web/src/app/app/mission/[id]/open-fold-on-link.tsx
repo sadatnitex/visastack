@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 /** A rail fold or a rail Expandable Section (WAL3). */
-const FOLD = 'details.lift-fold, details.expandable-section-details';
+const FOLD = 'details.lift-fold, [data-rail-section] details.expandable-section-details';
 
 /** Opens every closed rail fold around the element with this id; does nothing without one. */
 function openFoldsAround(id: string): void {

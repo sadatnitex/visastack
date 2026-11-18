@@ -25,7 +25,7 @@ export function RailSection({
   readonly children: ReactNode;
 }) {
   return (
-    <div className="lift-rail-slot rail-section" {...atLevel(level)}>
+    <div className="lift-rail-slot rail-section" data-rail-section="" {...atLevel(level)}>
       <ExpandableSection
         title={title}
         summary={summary}

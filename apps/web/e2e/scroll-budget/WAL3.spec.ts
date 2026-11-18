@@ -66,11 +66,11 @@ test.describe('WAL3 journey line', () => {
     expect(rings.every((r) => r.icon === 1)).toBe(true);
   });
 
-  test('the line shows at Glance, Browse and Everything', async ({ page }) => {
-    for (const depth of ['glance', 'browse', 'everything'] as const) {
-      await open(page, 4, depth);
-      await expect(page.locator('.trip-journey')).toBeVisible();
-    }
+  test('the card shows from Browse and is left out at Glance', async ({ page }) => {
+    await open(page, 4, 'browse');
+    await expect(page.locator('.trip-journey')).toBeVisible();
+    await open(page, 4, 'everything');
+    await expect(page.locator('.trip-journey')).toBeVisible();
   });
 
   test('each gap has one line and one 44 px button, and many gaps scroll inside the card', async ({

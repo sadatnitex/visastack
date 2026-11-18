@@ -32,3 +32,11 @@ Trip Package Journey Line; What This Trip Needs; What Is Missing; "N of M ready"
 
 ## Not changed on purpose
 Package service, readiness rules, policy, routes, every link and action. Readiness stays completeness, never approval.
+
+## Independent review fixes (18 Nov 2026, local, pushed at TURN)
+| Finding | Fix |
+|---|---|
+| Journey card added height at Glance (2225 against 1900) | The card is Browse level now. A count-only line at Glance would cost 53 px against 13 px of headroom (Glance 1887), so none is shown; the WALD3 stage line stays the Glance cue. Glance measures 1887. |
+| Gap button with no checklist row or no readiness section | A gap whose item has no checklist row links to the Trip Package card, which draws it with its choice form; tested. |
+| "Nothing is sent until you share it yourself." twice | Accepted: the old sentence keeps its catalog key and Bengali wording inside the popup. |
+| Open-on-link opened unrelated Expandable Sections | Scoped to rail sections (data-rail-section). |

@@ -1105,7 +1105,11 @@ export default async function MissionPage({
                 <CaseExpiringDocuments documents={data.expiringDocuments} />
               ) : null}
               {data.casePackage ? (
-                <TripJourneyLine pkg={data.casePackage} itemHref={itemHref} />
+                <TripJourneyLine
+                  pkg={data.casePackage}
+                  itemHref={itemHref}
+                  listedIds={checklistIds}
+                />
               ) : null}
               {data.casePackage ? (
                 <article className="card" id="trip-package" {...atLevel('browse')}>

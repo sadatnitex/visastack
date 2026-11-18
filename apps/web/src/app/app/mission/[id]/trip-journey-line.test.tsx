@@ -144,6 +144,24 @@ describe('the journey line', () => {
     expect(html).toContain('href="?item=00000000-0000-4000-8000-000000000002#readiness"');
   });
 
+  it('sends a gap with no checklist row to the Trip Package card, which draws it', () => {
+    const html = renderToStaticMarkup(
+      <TripJourneyLine
+        pkg={MIXED}
+        itemHref={(id: string) => `?item=${id}#readiness`}
+        listedIds={new Set(['00000000-0000-4000-8000-000000000002'])}
+      />,
+    );
+    expect(html).toContain('href="?item=00000000-0000-4000-8000-000000000002#readiness"');
+    expect(html.match(/href="#trip-package"/g)).toHaveLength(2);
+  });
+
+  it('is a Browse level card, so Glance keeps its page height', () => {
+    const html = renderToStaticMarkup(<TripJourneyLine pkg={MIXED} />);
+    expect(html).toMatch(/<section class="trip-journey"[^>]*data-level="browse"/);
+    expect(html).not.toContain('trip-journey-glance');
+  });
+
   it('keeps every gap row inside one named scroll area in the card, so a long list never lengthens the page', () => {
     const many = pkg(Array.from({ length: 7 }, (_, i) => item(i + 1, `doc_${i}`, 'CRITICAL_GAP')));
     const html = renderToStaticMarkup(<TripJourneyLine pkg={many} />);
@@ -189,6 +207,7 @@ describe('the journey line', () => {
       <div>
         <h1>Case</h1>
         <div id="readiness" />
+        <div id="trip-package" />
         <TripJourneyLine pkg={MIXED} />
         <h2>Trip Package</h2>
         <OutsideVisaStackRow steps={OUTSIDE} />

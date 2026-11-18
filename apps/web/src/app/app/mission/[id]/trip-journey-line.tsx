@@ -1,5 +1,6 @@
 import type { CasePackage, PackageItem, RequirementResultState } from '@visastack/services';
 import Link from 'next/link';
+import { atLevel } from '../../../../components/depth';
 import { ExplainTip } from '../../../../components/explain-tip';
 import { Icon, type IconName } from '../../../../components/icons';
 import { appMissionCatalog } from '../../../../i18n/app-mission';
@@ -75,8 +76,11 @@ const STONE_ICON: Readonly<Record<StoneKind, IconName>> = {
 export function TripJourneyLine({
   pkg,
   itemHref,
+  listedIds,
 }: {
   readonly pkg: CasePackage;
+  /** The checklist rows on the page. A gap with no row leads to the Trip Package card, which draws it. */
+  readonly listedIds?: ReadonlySet<string> | undefined;
   /** Where an item's own panel is on the case page; the button of each gap row goes there. */
   readonly itemHref?: ((id: string) => string) | undefined;
 }) {
@@ -85,7 +89,7 @@ export function TripJourneyLine({
   const ready = stones.filter((s) => s.kind === 'ready').length;
   const gaps = stones.filter((s) => s.kind === 'gap');
   return (
-    <section className="trip-journey" aria-label="Trip Package Journey Line">
+    <section className="trip-journey" aria-label="Trip Package Journey Line" {...atLevel('browse')}>
       <p className="trip-journey-count">
         {ready} of {stones.length} ready
       </p>
@@ -123,7 +127,9 @@ export function TripJourneyLine({
               </span>
               <Link
                 className="btn btn-secondary trip-gap-action"
-                href={itemHref ? itemHref(gap.id) : '#readiness'}
+                href={
+                  itemHref && (listedIds?.has(gap.id) ?? true) ? itemHref(gap.id) : '#trip-package'
+                }
                 aria-label={`${gap.state === 'CRITICAL_GAP' ? 'Add' : 'Fix'} ${gap.name}`}
               >
                 {gap.state === 'CRITICAL_GAP' ? 'Add' : 'Fix'}
