@@ -86,7 +86,7 @@ describe('ExpandableSection', () => {
         .map((id) => container.querySelector(`[id="${id}"]`)?.textContent);
       expect(described).toEqual([
         '3 of 5 added',
-        'Backed by a Document. A file you uploaded shows the same value, which alone does not mean anyone has checked it.',
+        'Backed by a Document. A file in this record shows the same value, which alone does not mean anyone has checked it.',
       ]);
     }
   });

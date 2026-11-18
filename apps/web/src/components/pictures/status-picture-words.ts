@@ -69,7 +69,7 @@ const PICTURES: Readonly<Record<StatusKind, Omit<StatusMeaning, 'name'>>> = {
   },
   DOCUMENT_SUPPORTED: {
     sentence:
-      'A file you uploaded shows the same value, which alone does not mean anyone has checked it.',
+      'A file in this record shows the same value, which alone does not mean anyone has checked it.',
     tone: 'ok',
     ring: 'thick',
   },

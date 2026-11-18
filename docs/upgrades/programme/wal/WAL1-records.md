@@ -27,7 +27,7 @@ New sentences (the Explain notes):
 - Entered: "Saved in this record with no confirmation and no file behind it yet."
 - Suggested: "Offered by reading one of your files or by a connected app, and not confirmed yet."
 - Confirmed: "Confirmed by a person with access to this record, but not checked against a file."
-- Backed by a Document: "A file you uploaded shows the same value, which alone does not mean anyone has checked it."
+- Backed by a Document: "A file in this record shows the same value, which alone does not mean anyone has checked it."
 - Does Not Match: "A file or a suggestion disagrees with the saved value, and the details show both."
 - No Longer Current: "Marked as no longer current, so it is not used as the value for today."
 
