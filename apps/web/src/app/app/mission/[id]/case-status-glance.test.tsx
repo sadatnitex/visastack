@@ -90,7 +90,9 @@ describe('the compact stage line of the case status panel', () => {
   it('says the same position as the step bar, for every stage', async () => {
     for (const state of Object.keys(CASE_STATE_LABELS) as (keyof typeof CASE_STATE_LABELS)[]) {
       const html = await panel(false, state);
-      const [compact, full] = [...html.matchAll(/lift-steps-position">([^<]*)</g)].map((m) => m[1]);
+      const [compact, full] = [...html.matchAll(/lift-steps-position[^"]*">([^<]*)</g)].map(
+        (m) => m[1],
+      );
       expect(compact, state).toBe(full);
     }
   });

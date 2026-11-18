@@ -27,6 +27,14 @@ existing assertion without a DECISION. So a traveller-managed case shows the com
 at Browse, and the full track at Everything. Moving the traveller's full track to Browse needs those
 two assertions changed: open DECISION.
 
+## Found by the full check, fixed
+- ui-lift.test.tsx allows only named later blocks after the last Lift block, so a block appended at the
+  end of globals.css fails it. The WP-WALD3 block therefore sits just before WP-LIFT-A (none of its
+  rules depend on source order: each is one class more specific than the rule it adjusts). Editing that
+  test's list of block names would be the alternative; it is not this unit's file. WAL0 will meet the same test.
+- The 30-word rule counted the compact line (35 words, limit 30). Its two lines are labels (a stage name
+  and a position), so they carry the label class lift-glance-label and are not counted as explanation.
+
 ## Red evidence on main (spec run against the unchanged build)
 39 failed, 4 passed. Failures: compact Now line hidden at Glance (both kinds), traveller full track
 at Browse, and every spill case (dt +5, +9, +17 px; p.lift-next-title +184, +440, +696, +730, +760,
