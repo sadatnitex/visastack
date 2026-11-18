@@ -52,7 +52,7 @@ export const PUBLIC_NAV: readonly PublicNavEntry[] = Object.freeze([
  * The public pages that exist today. PUB3 adds '/how-it-works'; PUB4 adds '/countries' and
  * '/for-agencies'. A test checks every path here has a page file.
  */
-export const LIVE_ROUTES: ReadonlySet<string> = new Set(['/', '/trust']);
+export const LIVE_ROUTES: ReadonlySet<string> = new Set(['/', '/how-it-works', '/trust']);
 
 export interface PublicNavLink {
   readonly href: string;
