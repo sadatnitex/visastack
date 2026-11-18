@@ -37,7 +37,7 @@ export function AgencyConnectionTile({
           key: 'each_case',
           icon: 'users',
           label: t.node('appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowed'),
-          note: t.node('appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase'),
+          note: t.node('appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowedNote'),
         },
       ]}
       facts={[
@@ -51,13 +51,16 @@ export function AgencyConnectionTile({
           term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.connectedBy'),
           value: connection.connectedBy,
         },
-        {
-          key: 'ends',
-          term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.ends'),
-          value: connection.live
-            ? formatMomentIn(connection.endsAt, undefined)
-            : t.node('appAgency.appAgencyOrgidAiConnectionsPage.ended'),
-        },
+        // Once ended, the clock already says Ended; the stored end is not when it stopped.
+        ...(connection.live
+          ? [
+              {
+                key: 'ends',
+                term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.ends'),
+                value: formatMomentIn(connection.endsAt, undefined),
+              },
+            ]
+          : []),
         {
           key: 'last_used',
           term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.lastUsed'),

@@ -95,14 +95,17 @@ export function aiConnectionTimeLeft({
  */
 export function formatMomentIn(value: Date, timeZone: string | null | undefined): string {
   if (timeZone === undefined) return formatTimestamp(value);
-  return value.toLocaleString('en-GB', {
+  const zone = displayTimeZone(timeZone);
+  const moment = value.toLocaleString('en-GB', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: displayTimeZone(timeZone),
+    timeZone: zone,
   });
+  // A time shown in UTC only because the person's zone is unknown says so.
+  return zone === 'UTC' && timeZone !== 'UTC' ? `${moment} UTC` : moment;
 }
 
 /** A day ("6 Oct 2026") in the person's zone; without a zone, the shared formatter (UTC day). */

@@ -33,13 +33,14 @@ export const appAgencyCatalog = defineCatalog({
       'An owner or admin can connect one from the AI app, once AI Connections for This Agency is on in Settings.',
     'appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase':
       'Each app reads, for each case its owner or admin can see, only what that case’s traveller allowed this agency’s AI tools to read. It works for at most 30 days.',
-    'appAgency.appAgencyOrgidAiConnectionsPage.ended': 'Ended',
     'appAgency.appAgencyOrgidAiConnectionsPage.ends': 'Ends',
     'appAgency.appAgencyOrgidAiConnectionsPage.lastUsed': 'Last Used',
     'appAgency.appAgencyOrgidAiConnectionsPage.noAiAppsConnected': 'No AI Apps Connected',
     'appAgency.appAgencyOrgidAiConnectionsPage.notUsedYet': 'Not Used Yet',
     'appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowed':
       'What Each Traveller Allowed',
+    'appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowedNote':
+      'For each case its owner or admin can see, the app reads only what that case’s traveller allowed this agency’s AI tools to read.',
     'appAgency.appAgencyOrgidBrandingForm.087a68': '#087a68',
     'appAgency.appAgencyOrgidBrandingForm.accentColour': 'Accent Colour',
     'appAgency.appAgencyOrgidBrandingForm.accentColourAsASixDigit':

@@ -76,7 +76,8 @@ describe('the time an AI connection has left', () => {
     expect(displayTimeZone('Asia/Dhaka')).toBe('Asia/Dhaka');
     expect(displayTimeZone('Not/AZone')).toBe('UTC');
     expect(displayTimeZone(null)).toBe('UTC');
-    expect(formatMomentIn(at(8 * HOUR), 'Not/AZone')).toBe('15 Jan 2030, 20:00');
+    expect(formatMomentIn(at(8 * HOUR), 'Not/AZone')).toBe('15 Jan 2030, 20:00 UTC');
+    expect(formatMomentIn(at(8 * HOUR), null)).toBe('15 Jan 2030, 20:00 UTC');
   });
 
   it('writes moments and days in the person zone', () => {

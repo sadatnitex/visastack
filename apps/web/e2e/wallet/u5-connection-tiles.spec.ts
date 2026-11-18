@@ -67,8 +67,15 @@ test.describe('WAL5 one tile per connection', () => {
       'Ends',
       'Last Used',
     ]);
-    // Each tile is a region named by its app.
-    await expect(page.getByRole('region', { name: 'Claude claude.ai' }).first()).toBeVisible();
+    // Each tile is found by its heading, with no landmark per connection.
+    await expect(page.locator('[data-ai-tile] h3').first()).toHaveText('Claude claude.ai');
+    await expect(page.locator('[data-ai-tile][role], section[data-ai-tile]')).toHaveCount(0);
+    // An ended agency connection says Ended once, with no stale end date.
+    await expect(agency.nth(1).locator('dt')).toHaveText([
+      'Connected',
+      'Connected By',
+      'Last Used',
+    ]);
   });
 
   test('what an app can read is pictures that explain themselves, in the consent words', async ({

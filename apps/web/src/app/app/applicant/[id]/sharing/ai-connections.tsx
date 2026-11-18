@@ -5,7 +5,11 @@ import {
   aiFeatureOffHint,
 } from '@visastack/core/ai-features';
 import type { AiConnectionList, AiConnectionSummary } from '@visastack/services';
-import { AiConnectionTile, type AiTileRead } from '../../../../../components/ai-connection-tile';
+import {
+  AiConnectionTile,
+  type AiConnectionTileProps,
+  type AiTileRead,
+} from '../../../../../components/ai-connection-tile';
 import type { IconName } from '../../../../../components/icons';
 import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { componentsCatalog } from '../../../../../i18n/components';
@@ -194,7 +198,6 @@ const LAYER_ICONS: Readonly<Record<AiConnectionLayer, IconName>> = {
  */
 export function connectionReads(
   item: AiConnectionSummary,
-  suggestionsAvailable: boolean,
   files: AiConnectionFiles | undefined,
 ): AiTileRead[] {
   const t = getServerT(applicantSharingCatalog);
@@ -256,18 +259,33 @@ export function connectionReads(
       note: AI_ORIGINAL_FILES_NOTE,
     });
   }
-  if (aiAllowsSuggestions(item.scopes)) {
-    reads.push({
-      key: 'suggest_changes',
-      icon: 'clipboard',
-      label: AI_SUGGEST_CHANGES_LABEL,
-      value: suggestionsAvailable
-        ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
-        : t.node('applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow'),
-      note: AI_SUGGEST_CHANGES_NOTE,
-    });
-  }
   return reads;
+}
+
+/** What else a connection can do besides reading: Suggest Changes, under the consent screen's own term. */
+function connectionAlso(
+  item: AiConnectionSummary,
+  suggestionsAvailable: boolean,
+): { also?: NonNullable<AiConnectionTileProps['also']> } {
+  if (!aiAllowsSuggestions(item.scopes)) return {};
+  const t = getServerT(applicantSharingCatalog);
+  const tc = getServerT(componentsCatalog);
+  return {
+    also: {
+      term: tc.node('components.aiAccessChoices.changes'),
+      reads: [
+        {
+          key: 'suggest_changes',
+          icon: 'clipboard' as const,
+          label: AI_SUGGEST_CHANGES_LABEL,
+          value: suggestionsAvailable
+            ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
+            : t.node('applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow'),
+          note: AI_SUGGEST_CHANGES_NOTE,
+        },
+      ],
+    },
+  };
 }
 
 /** True when the app can read nothing from the record itself (no part and no documents). */
@@ -407,7 +425,7 @@ export function AiConnectionsSection({
                 appName={item.clientName}
                 appHost={item.clientHost}
                 readsTerm={t.node('applicantSharing.appApplicantIdSharingAiConnections.canRead')}
-                reads={connectionReads(item, suggestionsAvailable, files)}
+                reads={connectionReads(item, files)}
                 {...(readsNothing(item)
                   ? {
                       readsEmpty: t.node(
@@ -415,6 +433,7 @@ export function AiConnectionsSection({
                       ),
                     }
                   : {})}
+                {...connectionAlso(item, suggestionsAvailable)}
                 facts={connectionFacts(item, timeZone)}
                 timeLeft={aiConnectionTimeLeft({
                   start: item.connectedAt,

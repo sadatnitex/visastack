@@ -48,6 +48,8 @@ export interface AiConnectionTileProps {
   readonly reads: readonly AiTileRead[];
   /** A line shown above the pictures when the app can read nothing from the record itself. */
   readonly readsEmpty?: ReactNode;
+  /** What else the app can do, under its own term (Suggest Changes is not reading). */
+  readonly also?: { readonly term: ReactNode; readonly reads: readonly AiTileRead[] };
   /** Facts beside the clock, in order (Connected, Ends, Last Used, and any the screen adds). */
   readonly facts: readonly AiTileFact[];
   readonly timeLeft: AiTimeLeft;
@@ -105,9 +107,48 @@ function TimeLeftWords({ timeLeft }: { readonly timeLeft: AiTimeLeft }) {
     <span className="ai-tile-left">
       {left}
       {timeLeft.state === 'ending_soon' ? (
-        <span className="ai-tile-soon">{t.node('components.aiConnectionTile.endingSoon')}</span>
+        <>
+          {/* A pause for screen readers between the time left and the warning. */}
+          <span className="sr-only">, </span>
+          <span className="ai-tile-soon">{t.node('components.aiConnectionTile.endingSoon')}</span>
+        </>
       ) : null}
     </span>
+  );
+}
+
+function ReadList({ reads }: { readonly reads: readonly AiTileRead[] }) {
+  return (
+    <ul className="ai-tile-read-list">
+      {reads.map((read) => (
+        <li className="ai-tile-read" key={read.key}>
+          <ExplainTip
+            label={
+              read.value === undefined ? (
+                read.label
+              ) : (
+                <>
+                  {read.label}: {read.value}
+                </>
+              )
+            }
+            text={read.note}
+          >
+            <Icon name={read.icon} size={20} />
+          </ExplainTip>
+          {/* The button above already carries the name; the visible words are for the eye. */}
+          <span className="ai-tile-read-word" aria-hidden="true">
+            {read.label}
+            {read.value === undefined ? null : (
+              <>
+                {' '}
+                <span className="ai-tile-read-value">{read.value}</span>
+              </>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -118,6 +159,7 @@ export function AiConnectionTile({
   readsTerm,
   reads,
   readsEmpty,
+  also,
   facts,
   timeLeft,
   actions,
@@ -128,7 +170,9 @@ export function AiConnectionTile({
   const name = aiAppName(appName);
   const host = aiAppHost(appHost);
   return (
-    <section className="ai-tile" aria-labelledby={titleId} data-ai-tile="">
+    // A plain group, not a landmark: the card around the tiles is the page section, and each
+    // tile is found by its heading.
+    <div className="ai-tile" data-ai-tile="">
       <div className="ai-tile-head">
         <span className="ai-tile-mark" aria-hidden="true">
           <Icon name="key" size={22} />
@@ -140,39 +184,14 @@ export function AiConnectionTile({
       <div className="ai-tile-reads">
         <p className="ai-tile-term">{readsTerm}</p>
         {readsEmpty ? <p className="ai-tile-read-none">{readsEmpty}</p> : null}
-        {reads.length > 0 ? (
-          <ul className="ai-tile-read-list">
-            {reads.map((read) => (
-              <li className="ai-tile-read" key={read.key}>
-                <ExplainTip
-                  label={
-                    read.value === undefined ? (
-                      read.label
-                    ) : (
-                      <>
-                        {read.label}: {read.value}
-                      </>
-                    )
-                  }
-                  text={read.note}
-                >
-                  <Icon name={read.icon} size={20} />
-                </ExplainTip>
-                {/* The button above already carries the name; the visible words are for the eye. */}
-                <span className="ai-tile-read-word" aria-hidden="true">
-                  {read.label}
-                  {read.value === undefined ? null : (
-                    <>
-                      {' '}
-                      <span className="ai-tile-read-value">{read.value}</span>
-                    </>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        {reads.length > 0 ? <ReadList reads={reads} /> : null}
       </div>
+      {also && also.reads.length > 0 ? (
+        <div className="ai-tile-reads">
+          <p className="ai-tile-term">{also.term}</p>
+          <ReadList reads={also.reads} />
+        </div>
+      ) : null}
       <div className="ai-tile-clock" data-state={timeLeft.state}>
         <ClockRing timeLeft={timeLeft} />
         <div className="ai-tile-when">
@@ -188,6 +207,6 @@ export function AiConnectionTile({
         </div>
       </div>
       {actions ? <div className="ai-tile-actions">{actions}</div> : null}
-    </section>
+    </div>
   );
 }

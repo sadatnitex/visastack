@@ -557,6 +557,22 @@ describe('one tile per AI connection (WAL5)', () => {
     expect(await axeViolations(html)).toEqual([]);
   });
 
+  it('keeps Suggest Changes apart from what the app can read, under Changes', () => {
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      now: NOW,
+      suggestionsAvailable: true,
+      list: list({ active: [connection({ scopes: ['identity', 'suggest_changes'] })] }),
+    });
+    const groups = html.split('<p class="ai-tile-term">').slice(1);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toMatch(/^Can Read/);
+    expect(groups[0]).not.toContain('Suggest Changes');
+    expect(groups[1]).toMatch(/^Changes<\/p>/);
+    expect(groups[1]).toContain('<span class="sr-only">Suggest Changes: Yes</span></button>');
+  });
+
   it('still says when an app reads nothing from the record', () => {
     const text = textOf(
       render({

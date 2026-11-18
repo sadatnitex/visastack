@@ -50,7 +50,9 @@ describe('the AI connection tile (WAL5)', () => {
     expect(html).toMatch(
       /<h3 class="ai-tile-name" id="ai-tile-one">Claude <span[^>]*>claude\.ai<\/span><\/h3>/,
     );
-    expect(html).toContain('aria-labelledby="ai-tile-one"');
+    // A plain group found by its heading, not one landmark per connection.
+    expect(html).not.toContain('<section');
+    expect(html).not.toContain('aria-labelledby="ai-tile-one"');
     // Each picture is a 44 px Explain button named by the consent label (and its value).
     expect(html).toContain('<span class="sr-only">Personal Details</span></button>');
     expect(html).toContain('<span class="sr-only">Full Document Numbers: No</span></button>');

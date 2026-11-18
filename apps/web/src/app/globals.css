@@ -23069,7 +23069,7 @@ button.wallet-stack-card {
 .ai-tile-ring[data-state="ended"] {
   color: var(--text-tertiary);
 }
-/* Without colour the ring still reads: ending soon draws a thicker track, ended a dashed one. */
+/* Without colour the ring still reads: ending soon draws a thicker arc, ended a dashed track. */
 .ai-tile-ring[data-state="ending_soon"] .ai-tile-ring-fill {
   stroke-width: 6;
 }
