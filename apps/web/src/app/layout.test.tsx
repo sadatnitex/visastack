@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   noticeSeen: false,
   locale: 'en',
   pathname: null as string | null,
+  beta: true,
+  nonce: null as string | null,
 }));
 vi.mock('../lib/page-language', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/page-language')>();
@@ -17,7 +19,11 @@ vi.mock('../lib/page-language', async (importOriginal) => {
   };
 });
 vi.mock('next/headers', () => ({
-  headers: async () => new Headers(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
+  headers: async () =>
+    new Headers({
+      ...(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
+      ...(state.nonce ? { 'x-nonce': state.nonce } : {}),
+    }),
 }));
 vi.mock('../lib/version-notice-state', () => ({
   hasSeenVersionNotice: async () => state.noticeSeen,
@@ -31,7 +37,7 @@ vi.mock('../lib/language-choice', () => ({
   },
 }));
 vi.mock('../lib/deployment-mode', () => ({ getDeploymentMode: () => 'controlled_pilot' }));
-vi.mock('../lib/public-beta', () => ({ isPublicBetaOpen: () => true }));
+vi.mock('../lib/public-beta', () => ({ isPublicBetaOpen: () => state.beta }));
 vi.mock('./actions', () => ({ setLocaleAction: async () => undefined }));
 const { default: RootLayout } = await import('./layout');
 describe('public beta notice audience', () => {
@@ -130,5 +136,98 @@ describe('the page language (WCAG 3.1.2)', () => {
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('bn');
     state.pathname = '/status';
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
+  });
+});
+
+const { PILOT_BANNER_COPY } = await import('../components/pilot-banner');
+const { PUBLIC_NAV } = await import('../components/public-site/public-nav');
+
+describe('the public site frame (WP-PUB1)', () => {
+  afterEach(() => {
+    state.signedIn = false;
+    state.noticeSeen = false;
+    state.beta = true;
+    state.pathname = null;
+  });
+  const header = (html: string) => html.slice(html.indexOf('<header'), html.indexOf('</header>'));
+  const footer = (html: string) => html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+
+  it('lists the five public pages in the header, for visitors and signed-in people alike', async () => {
+    for (const signedIn of [false, true]) {
+      state.signedIn = signedIn;
+      const nav = header(await renderServer(RootLayout({ children: <p>Page</p> })));
+      const labels = [...nav.matchAll(/<div class="site-nav-pages">(.*?)<\/div>/g)][0]?.[1] ?? '';
+      expect(textOf(labels).replace(/\s+/g, '')).toBe(
+        PUBLIC_NAV.map((entry) => entry.label.replace(/\s+/g, '')).join(''),
+      );
+      expect(nav).toContain(signedIn ? 'href="/app">Workspace</a>' : 'href="/app">Sign In</a>');
+      // The home page's country picker is only drawn for visitors.
+      expect(nav).toContain(
+        signedIn ? 'href="/app/countries">Countries</a>' : 'href="/#start">Countries</a>',
+      );
+    }
+  });
+
+  it('keeps every footer link it had before', async () => {
+    const foot = footer(await renderServer(RootLayout({ children: <p>Page</p> })));
+    for (const fragment of [
+      'href="/#capabilities">Features</a>',
+      'href="/trust">Public Trust</a>',
+      'href="/status">Status</a>',
+      'href="/status#about-this-version">About This Version</a>',
+      'href="/privacy">Privacy</a>',
+      'href="/terms">Terms</a>',
+      'href="/app">Sign In</a>',
+    ])
+      expect(foot, fragment).toContain(fragment);
+  });
+
+  // Every public route that exists today, plus the pages the new header adds later.
+  const PUBLIC_ROUTES = [
+    '/',
+    '/trust',
+    '/privacy',
+    '/terms',
+    '/status',
+    '/invitation',
+    '/auth/sign-in',
+    '/auth/sign-up',
+    '/pilot-access-denied',
+  ];
+  it('shows the pilot notice with its exact words on every public route', async () => {
+    const pilot = PILOT_BANNER_COPY.controlled_pilot;
+    for (const pathname of PUBLIC_ROUTES) {
+      state.pathname = pathname;
+      state.beta = false;
+      const text = textOf(await renderServer(RootLayout({ children: <p>Page</p> })));
+      expect(text, pathname).toContain(pilot.label);
+      expect(text, pathname).toContain(pilot.detail);
+      state.beta = true;
+      const beta = textOf(await renderServer(RootLayout({ children: <p>Page</p> })));
+      expect(beta, pathname).toContain('VisaStack Public Beta');
+      expect(beta, pathname).toContain(
+        'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
+      );
+    }
+    expect(pilot.detail).toBe(
+      'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',
+    );
+  });
+});
+
+describe('the early scenes mark (WP-PUB1, ADR 0029)', () => {
+  afterEach(() => {
+    state.nonce = null;
+  });
+  it("runs before the first paint with this request's nonce", async () => {
+    state.nonce = 'bm9uY2Utb25lLXR3by10aHJlZQ==';
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    const head = html.slice(html.indexOf('<head>'), html.indexOf('</head>'));
+    // A same-site file, nonce'd, and synchronous (no async or defer) so it runs before paint.
+    expect(head).toContain(`<script src="/scenes-boot.js" nonce="${state.nonce}"></script>`);
+  });
+  it('is left out when the request carries no nonce, so it is never blocked by the policy', async () => {
+    const html = await renderServer(RootLayout({ children: <p>Page</p> }));
+    expect(html).not.toContain('scenes-boot.js');
   });
 });

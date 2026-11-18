@@ -8,6 +8,9 @@ import { I18nProvider } from '../components/i18n-provider';
 import { SaveDataFlag } from '../components/pictures/save-data-flag';
 import { requestSavesData } from '../components/pictures/save-data-request';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
+import { publicNavLinks } from '../components/public-site/public-nav';
+import { publicText } from '../components/public-site/public-text';
+import { ScenesBoot, requestNonce } from '../components/public-site/scenes-boot';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
@@ -94,9 +97,15 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // Data saver from the request (Save-Data: on) keeps picture motion still from the first paint.
   const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};
   const fonts = `${inter.variable} ${bengali.variable}`;
+  // This request's script nonce, for the early scenes mark in the head (none outside a request).
+  const scenesNonce = await requestNonce();
 
   return (
     <html lang={htmlLang} data-locale={locale} className={fonts} {...saveDataMark}>
+      <head>
+        {/* WP-PUB1 (ADR 0029): the early scenes mark, nonce'd; see scenes-boot.tsx. */}
+        <ScenesBoot nonce={scenesNonce} />
+      </head>
       <body>
         <I18nProvider locale={locale} pageLang={htmlLang}>
           <a className="skip-link" href="#main">
@@ -116,10 +125,13 @@ export default async function RootLayout({ children }: { readonly children: Reac
             </Link>
             <SiteNavigation>
               <div className="site-nav-pages">
-                <Link href="/#product">{t.node('home.layout.product')}</Link>
-                <Link href="/#for-agencies">{t.node('home.page.forAgencies')}</Link>
-                <Link href="/trust">{t.node('home.layout.privacyAndControl')}</Link>
-                <Link href="/#how-it-works">{t.node('home.page.howItWorks')}</Link>
+                {/* The five public pages, in one list (WP-PUB1). Words with a translation come from
+                  the catalogue; the others are marked English on a Bangla page. */}
+                {publicNavLinks(undefined, { signedIn }).map((link) => (
+                  <Link key={link.label} href={link.href}>
+                    {link.key ? t.node(link.key) : publicText(link.label, htmlLang)}
+                  </Link>
+                ))}
               </div>
               <div className="site-nav-actions">
                 {/* Shown while language choice is on (see LANGUAGE_CHOICE_ENABLED). */}

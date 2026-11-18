@@ -65,9 +65,12 @@ test('the landing exception never allows automatic dark appearance', () => {
 
 // ADR 0027 (owner decision D2, 17 Nov 2026): visual depth for illustrations and hero cards.
 const PICTURES_DEPTH = 'apps/web/src/components/pictures/pictures-depth.css';
+// ADR 0029 (amends ADR 0027, owner decision 17 Nov 2026): ONE depth stylesheet for the public
+// site's scroll scenes. An approved guard correction: the list grows from two entries to three.
+const PUBLIC_SCENES = 'apps/web/src/components/public-site/public-scenes.css';
 
-test('the exception list names exactly the landing and the picture stylesheets (ADR 0027)', () => {
-  assert.deepEqual(EFFECTS_EXCEPTIONS, [LANDING_EFFECTS_EXCEPTION, PICTURES_DEPTH]);
+test('the exception list names exactly the landing, picture and public scene stylesheets (ADR 0027, ADR 0029)', () => {
+  assert.deepEqual(EFFECTS_EXCEPTIONS, [LANDING_EFFECTS_EXCEPTION, PICTURES_DEPTH, PUBLIC_SCENES]);
   assert.equal(LANDING_EFFECTS_EXCEPTION, 'apps/web/src/app/landing-c1.css');
   assert.ok(Object.isFrozen(EFFECTS_EXCEPTIONS));
 });
@@ -84,6 +87,10 @@ test('allows soft shadows, glow and blur in each exempt stylesheet only (ADR 002
     'apps/web/src/components/pictures-depth.css',
     'apps/web/src/components/pictures/pictures-depth.css.bak',
     'apps/web/src/components/Pictures/pictures-depth.css',
+    'apps/web/src/components/public-site/public-site.css',
+    'apps/web/src/components/public-site/public-scenes.css.bak',
+    'apps/web/src/components/public-site/nested/public-scenes.css',
+    'apps/web/src/components/public-scenes.css',
   ])
     assert.ok(checkStylesheet(depth, elsewhere).length >= 3, elsewhere);
   assert.deepEqual(checkStylesheet(depth, PICTURES_DEPTH.split('/').join('\\')), []);

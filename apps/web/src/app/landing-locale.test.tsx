@@ -155,16 +155,18 @@ describe('the "what works today" sentence, one message per state', () => {
 });
 
 describe('the site header', () => {
-  it('reads exactly as before under en, signed out and in public beta', async () => {
+  it('lists the five public pages under en, signed out and in public beta (WP-PUB1)', async () => {
     const html = await shell('en', { beta: true });
     expect(html).toContain('<a class="skip-link" href="#main">Skip to Content</a>');
     const nav = header(html);
+    // Owner, 17 Nov 2026: one list of five pages; /trust is named Privacy and Trust. Pages that
+    // have no address yet point at the part of the home page that tells their story.
+    expect(nav).toContain(
+      '<div class="site-nav-pages"><a href="/">Home</a><a href="/#how-it-works">How It Works</a><a href="/trust">Privacy and Trust</a><a href="/#start">Countries</a><a href="/#for-agencies">For Agencies</a></div>',
+    );
+    expect(nav).not.toContain('Product');
     for (const fragment of [
       '</svg>VisaStack</a>',
-      'href="/#product">Product</a>',
-      'href="/#for-agencies">For Agencies</a>',
-      'href="/trust">Privacy and Control</a>',
-      'href="/#how-it-works">How It Works</a>',
       'aria-label="Language"',
       'lang="bn">বাংলা</button>',
       'href="/app">Sign In</a>',
@@ -184,7 +186,6 @@ describe('the site header', () => {
     );
     const nav = header(html);
     for (const [href, key] of [
-      ['/#product', 'home.layout.product'],
       ['/#for-agencies', 'home.page.forAgencies'],
       ['/#how-it-works', 'home.page.howItWorks'],
     ] as const)
@@ -197,6 +198,9 @@ describe('the site header', () => {
     expect(bn['home.layout.getStarted']).toBe('শুরু করুন');
     expect(bn['home.layout.skipToContent']).toBe('মূল বিষয়বস্তুতে যান');
     expect(nav).not.toMatch(/home\.(layout|page)\./);
+    // Words with no catalogue entry yet stay English on this English page.
+    for (const fragment of ['href="/">Home</a>', 'href="/#start">Countries</a>'])
+      expect(nav, fragment).toContain(fragment);
   });
 
   it('keeps the undrafted form name in English under bn', async () => {
@@ -205,11 +209,12 @@ describe('the site header', () => {
     expect(nav).toContain('aria-label="Language"');
   });
 
-  it('shows the released privacy link in Bengali under bn (owner sign-off of the privacy queue)', async () => {
+  it('names /trust Privacy and Trust, in English until the catalogue has those words (WP-PUB1)', async () => {
+    const nav = header(await shell('bn'));
+    expect(nav).toContain('href="/trust">Privacy and Trust</a>');
+    // The released Bengali for the old name stays in the catalogue for the page that still uses it.
     expect(bn['home.layout.privacyAndControl']).toBe('গোপনীয়তা ও নিয়ন্ত্রণ');
-    expect(header(await shell('bn'))).toContain(
-      `href="/trust"><span lang="bn">${bn['home.layout.privacyAndControl']}</span></a>`,
-    );
+    expect(nav).not.toContain(bn['home.layout.privacyAndControl']);
   });
 
   it('names Sign In exactly as the sign-in screen does under bn', async () => {
@@ -232,7 +237,13 @@ describe('the site header', () => {
     const html = await shell('bn', { pathname: '/auth/sign-in' });
     expect(footer(html)).toContain('href="/status"><span lang="en">Status</span></a>');
     expect(footer(html)).toContain('href="/trust"><span lang="en">Public Trust</span></a>');
-    expect(header(html)).toContain(`href="/#product">${bn['home.layout.product']}</a>`);
+    expect(header(html)).toContain(`href="/#how-it-works">${bn['home.page.howItWorks']}</a>`);
+    for (const [href, label] of [
+      ['/', 'Home'],
+      ['/trust', 'Privacy and Trust'],
+      ['/#start', 'Countries'],
+    ] as const)
+      expect(header(html), label).toContain(`href="${href}"><span lang="en">${label}</span></a>`);
     expect(header(html)).toContain(`href="/app">${SIGN_IN_BN}</a>`);
   });
 });

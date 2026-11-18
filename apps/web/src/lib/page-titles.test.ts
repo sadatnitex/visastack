@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { PUBLIC_NAV } from '../components/public-site/public-nav';
 
 /**
  * WCAG 2.4.2 (Page Titled, level A): every page names itself, so a person with a
@@ -78,15 +79,17 @@ describe('page titles', () => {
     // D3: the page is "Notifications", as the menu and the finder name it (CCD-7).
     expect(titleOf('app/notifications/page.tsx')).toBe('Notifications');
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
-    // VS-010: /trust opens on the privacy and control story, and the footer link names it so.
+    // VS-010: /trust opens on the privacy and control story; its title stays until PUB3 renames it.
     expect(titleOf('trust/page.tsx')).toBe('Privacy and Control');
-    // The footer link's words come from the message catalogue; its English text is still "Privacy and Control".
-    expect(readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8')).toContain(
-      '<Link href="/trust">{t.node(\'home.layout.privacyAndControl\')}</Link>',
-    );
     expect(readFileSync(join(APP_DIR, '../i18n/home.ts'), 'utf8')).toContain(
       "'home.layout.privacyAndControl': 'Privacy and Control'",
     );
+    // WP-PUB1 (owner, 17 Nov 2026; approved guard correction): the header names /trust
+    // "Privacy and Trust" from the one public list, and the footer keeps its own /trust link.
+    expect(PUBLIC_NAV.find((entry) => entry.route === '/trust')?.label).toBe('Privacy and Trust');
+    const layout = readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8');
+    expect(layout).toContain('publicNavLinks(');
+    expect(layout).toContain('<Link href="/trust">{t.node(\'home.layout.publicTrust\')}</Link>');
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');
   });
