@@ -8630,6 +8630,16 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Follow-ups: Bengali for the new words (refill); remove the unused everythingSavedForDisplaynameInOne key after #581.
 - NOT verified: the real signed-in /record page with real data (CI route guard), real devices, a person using a keyboard or screen reader, Bangla layout, CI and CodeQL on the pushed head.
 
+## 18 Nov 2026: FIX9 signed-in layout faults and the /status picture test
+
+- What: the signed-in route guard (WAL1B-2) listed real faults. Five are fixed at their cause and their pins removed, so the guard's known list is now empty (the two /record pins went with U6).
+- Shared cause, three pages: the pinned action bar of a form (Create Case, Preview, Start Trip) stuck at the very bottom of the screen, under the fixed phone navigation bar. It now sticks above it (one block, WP-FIX9, end of globals.css); the message strip and scroll padding rise with it; the case page's own next-step bar is untouched. The Start a Case form, the calendar bar and the consent screen are proven at 390 and 1280 px.
+- File pickers (Add Documents, My Profile): the hidden pickers had no drawn label. Each is now a real field with a drawn button label tied by id (one tab stop, Enter opens it, the name is the label's words). Visible words unchanged. Three unused catalogue keys retired (filesToImport, folderToImport, photoFile).
+- Intermittent /status picture test: failed under CPU load (4 to 7 of 30), never on an idle machine. Every failing pair differed in the same 21 pixels by one level on a card's rounded edge: a partial repaint versus a full paint after the page paints in steps. Both captures are now fresh pages with a forced full repaint; the comparison is still byte for byte. 70 of 70 passes under the same load afterwards.
+- Gate: apps/web/e2e/wallet/fix9-sticky-bar.spec.ts (red on the old stylesheet for Start a Case and the calendar bar at 390 px). Full record: docs/upgrades/programme/wal/FIX9-records.md.
+- Pre-existing, not from this unit: the WP-SB2 case page is 3480 px against a 3470 px limit with main's stylesheet too.
+- NOT verified: Safari and Firefox, real phones (the home-indicator space), long Bengali labels in the navigation bar, the GitHub run time.
+
 ## 18 Nov 2026: R3 Privacy and Trust rebuilt on the approved reference
 
 - Behaviour: /trust is rebuilt, not extended. Six chapters in the reference order: dark "You decide / who sees what." with the share picture on a 2.2 s loop and a visible Pause the Animation button (shown only where the picture moves; paused rests on Access Ended), dark "Five promises." (five cards, each with a document drawing), dark "Your history, / in plain view." (three made-up rows, each tagged Example), light "What we do. / What we do not.", light "Where we are / today." and the closing band. The empty "No routes are currently published here." block is gone: the country rules list sits inside "Where we are today", is drawn only when it has entries, and its search, Show More and /trust/[packKey] links work as before (search and Clear Search land on the list).
