@@ -20,6 +20,8 @@ const STATUS_LABELS: Record<string, { label: string; tone: string }> = {
   PENDING: { label: 'Pending', tone: 'badge-warning' },
   SUBMITTED: { label: 'Submitted', tone: 'badge-success' },
   REVOKED: { label: 'Revoked', tone: 'badge-neutral' },
+  // DECL1: the person asked said no on the request screen.
+  DECLINED: { label: 'Declined', tone: 'badge-neutral' },
 };
 
 export interface ContributorRequestRow {

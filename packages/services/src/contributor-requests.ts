@@ -4,6 +4,11 @@ import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, keyedError, serviceError } from './errors';
+import {
+  declineMayProceed,
+  recordDeclineRefused,
+  unusableInvitationTokenHash,
+} from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
@@ -404,6 +409,68 @@ export async function abandonContributorSubmission(
         isNull(schema.contributorRequests.submittedDocumentId),
       ),
     );
+}
+
+/**
+ * DECL1: the person asked for a document says no. Only the person the request was sent to (their
+ * own signed-in email) may do it, while it is pending and unexpired and no upload has started;
+ * every other case is the same one answer. One conditional update ends it, so a decline racing an
+ * upload or a withdrawal ends one way only. No upload right is left, and the link stops matching
+ * anything at once.
+ */
+export async function declineContributorRequest(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly actorEmail: string;
+    readonly rawToken: string;
+  },
+): Promise<Result<{ readonly declined: true }, ServiceError>> {
+  const unavailable = () => err(keyedError('not_found', 'contributor_requests.request_not_found'));
+  if (!(await declineMayProceed(db, input.actorAccountId))) return unavailable();
+  const tokenHash = hashInvitationToken(input.rawToken);
+  const requests = schema.contributorRequests;
+  const declined = await db.transaction(async (tx) => {
+    const changed = first(
+      await tx
+        .update(requests)
+        .set({
+          status: 'DECLINED',
+          tokenHash: unusableInvitationTokenHash(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(requests.tokenHash, tokenHash),
+            eq(requests.contributorEmail, input.actorEmail.trim().toLowerCase()),
+            eq(requests.status, 'PENDING'),
+            gt(requests.expiresAt, new Date()),
+          ),
+        )
+        .returning({
+          id: requests.id,
+          applicantId: requests.applicantId,
+          missionId: requests.missionId,
+        }),
+    );
+    if (!changed) return false;
+    await appendAuditEvent(tx, {
+      eventType: 'CONTRIBUTOR_REQUEST_DECLINED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: changed.applicantId,
+      missionId: changed.missionId,
+      resourceType: 'contributor_request',
+      resourceId: changed.id,
+    });
+    return true;
+  });
+  if (!declined) {
+    await recordDeclineRefused(db, { kind: 'contributor', actorAccountId: input.actorAccountId });
+    return unavailable();
+  }
+  return ok({ declined: true as const });
 }
 
 /** Revoke a still-pending request (mission owner only). */

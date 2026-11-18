@@ -6,6 +6,7 @@ import {
   abandonContributorSubmission,
   beginContributorSubmission,
   completeContributorSubmission,
+  declineContributorRequest,
   enqueueIntakeJob,
   failUpload,
   finalizeUpload,
@@ -14,6 +15,7 @@ import {
   registerDocumentWithVersion,
   reserveUpload,
 } from '@visastack/services';
+import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
@@ -175,4 +177,17 @@ export async function submitContributorEvidenceAction(
       message: 'Thank you - your document was submitted and is waiting to be checked.',
     } satisfies ActionState;
   });
+}
+
+/** DECL1: say no to the request. Refused the same way for every reason; nothing is uploaded. */
+export async function declineContributorRequestAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const rawToken = String(formData.get('token') ?? '');
+  const result = await withSession(({ db, accountId, email }) =>
+    declineContributorRequest(db, { actorAccountId: accountId, actorEmail: email, rawToken }),
+  );
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
+  redirect('/app/invitations/declined');
 }

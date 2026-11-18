@@ -13,6 +13,17 @@ export const appInvitationsCatalog = defineCatalog({
       'This invitation link is missing its token.',
     'appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsNotValid':
       'This invitation link is not valid.',
+    // DECL1: saying no on the accept screen (Bengali through the register only).
+    'appInvitations.appInvitationsDecl1.decline': 'Decline',
+    'appInvitations.appInvitationsDecl1.explain':
+      'Say no to joining? You will not become a member, and this link stops working.',
+    'appInvitations.appInvitationsDecl1.confirm': 'Decline Invitation',
+    'appInvitations.appInvitationsDecl1.busy': 'Declining…',
+    'appInvitations.appInvitationsDecl1.declinedTitle': 'Invitation Declined',
+    'appInvitations.appInvitationsDecl1.declinedBody':
+      'You said no. No access was given, and the link no longer works.',
+    'appInvitations.appInvitationsDecl1.returnToYourWorkspace': 'Return to Your Workspace',
+    // end DECL1
   },
   bn: {
     'appInvitations.appInvitationsAcceptPage.invitation': 'আমন্ত্রণ',

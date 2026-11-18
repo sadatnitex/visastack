@@ -23,7 +23,7 @@ describe('the words on a sharing row', () => {
       ['ACTIVE', 'EXPIRED', 'PAUSED', 'PENDING_ACCEPTANCE', 'REVOKED'].sort(),
     );
     expect(Object.keys(INVITATION_STATUS).sort()).toEqual(
-      ['ACCEPTED', 'EXPIRED', 'PENDING', 'REVOKED'].sort(),
+      ['ACCEPTED', 'DECLINED', 'EXPIRED', 'PENDING', 'REVOKED'].sort(),
     );
   });
 });

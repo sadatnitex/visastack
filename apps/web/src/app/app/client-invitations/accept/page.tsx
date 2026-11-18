@@ -3,10 +3,12 @@ import {
   aiAssistAvailable,
   getConsents,
   getOrganizationBrandingForDisplay,
+  invitationDeclineAvailable,
   listApplicants,
   previewClientInvitation,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { DeclineInvitation } from '../../../../components/decline-invitation';
 import { InvitingAgency } from '../../../../components/inviting-agency';
 import { appClientInvitationsCatalog } from '../../../../i18n/app-client-invitations';
 import {
@@ -18,6 +20,7 @@ import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
 import { AcceptFold } from '../../u7-rows';
 import { AcceptClientInvitationForm } from './accept-form';
+import { declineClientInvitationAction } from './actions';
 import { ConsentGate } from './consent-gate';
 
 export const metadata: Metadata = {
@@ -67,13 +70,15 @@ export default async function AcceptClientInvitationPage({
   const data = await withSession(async ({ db, accountId }) => {
     const preview = await previewClientInvitation(db, token, accountId);
     if (!preview.ok) return { preview, consents: null, applicants: [], branding: undefined };
-    const [consents, applicants, branding, aiReady] = await Promise.all([
+    // DECL1: Decline is offered only once the update that stores it is in place.
+    const [consents, applicants, branding, aiReady, declineReady] = await Promise.all([
       getConsents(db, accountId),
       listApplicants(db, accountId),
       getOrganizationBrandingForDisplay(db, preview.value.organizationId),
       aiAssistAvailable(db),
+      invitationDeclineAvailable(db),
     ]);
-    return { preview, consents, applicants, branding, aiReady };
+    return { preview, consents, applicants, branding, aiReady, declineReady };
   });
 
   // The same sentences the public page showed before sign-in, from the same real access.
@@ -165,6 +170,18 @@ export default async function AcceptClientInvitationPage({
                   : {})}
               />
             )}
+            {'declineReady' in data && data.declineReady ? (
+              <DeclineInvitation
+                token={token}
+                action={declineClientInvitationAction}
+                labels={{
+                  decline: t.node('appClientInvitations.appClientInvitationsDecl1.decline'),
+                  explain: t.node('appClientInvitations.appClientInvitationsDecl1.explain'),
+                  confirm: t.node('appClientInvitations.appClientInvitationsDecl1.confirm'),
+                  busy: t.node('appClientInvitations.appClientInvitationsDecl1.busy'),
+                }}
+              />
+            ) : null}
           </>
         )}
       </article>

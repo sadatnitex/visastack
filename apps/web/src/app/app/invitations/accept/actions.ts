@@ -1,6 +1,6 @@
 'use server';
 
-import { acceptOrganizationInvitation } from '@visastack/services';
+import { acceptOrganizationInvitation, declineOrganizationInvitation } from '@visastack/services';
 import { redirect } from 'next/navigation';
 import { serviceErrorMessage } from '../../../../lib/service-error-message';
 import { withSession } from '../../../../lib/session';
@@ -32,4 +32,17 @@ export async function acceptInvitationAction(
 
   if (result.organizationId) redirect(`/app/agency/${result.organizationId}`);
   return { ok: false, message: result.message };
+}
+
+/** DECL1: say no to joining. Refused the same way for every reason; no membership is made. */
+export async function declineInvitationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const rawToken = String(formData.get('token') ?? '');
+  const result = await withSession(({ db, accountId, email }) =>
+    declineOrganizationInvitation(db, { actorAccountId: accountId, actorEmail: email, rawToken }),
+  );
+  if (!result.ok) return { ok: false, message: await serviceErrorMessage(result.error) };
+  redirect('/app/invitations/declined');
 }
