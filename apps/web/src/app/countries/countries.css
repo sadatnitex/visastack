@@ -132,3 +132,11 @@ html[data-scenes="live"] .pub-scene[data-step="2"] .pub4c-read-grid > .pub-card:
     justify-self: start;
   }
 }
+
+.pub4c-notes {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--pub-ink, var(--text));
+  font-size: 0.9375rem;
+  font-weight: 600;
+}

@@ -1,11 +1,11 @@
 import {
   DESTINATIONS,
   type Destination,
+  type DestinationSource,
   destinationByIso2,
-  lastCheckedOn,
 } from '@visastack/core/destinations';
 import { AVAILABLE_FLAG_CODES } from '../../components/flags/available-flags';
-import { ENTRY_SHORT_LABEL } from '../../lib/country-view';
+import { ENTRY_SHORT_LABEL, trustNotes } from '../../lib/country-view';
 import { type SearchParamsRecord, nextShow, parseShow } from '../../lib/paging';
 
 /** WP-PUB4: what the public Countries page shows, built only from the sourced destination catalogue. */
@@ -24,7 +24,8 @@ export const RING_CODES: readonly string[] = RING_CHOICE.filter(
 const FLAGS = new Set(AVAILABLE_FLAG_CODES);
 
 export const NOT_RESEARCHED_WORDS = 'Not Researched Yet';
-export const NO_DATE_WORDS = 'Check Date Not Given';
+export const NO_DATE_WORDS = 'Date Not Recorded';
+export const NO_SOURCE_WORDS = 'No Source Given';
 
 export interface CountryRow {
   readonly iso2: string;
@@ -34,10 +35,24 @@ export interface CountryRow {
   readonly researched: boolean;
   /** For example "E-Visa"; null while nothing is stated. */
   readonly entry: string | null;
-  /** The page's publisher or title; null when none is given. */
+  /** The shown source's publisher, title or, failing both, the host of its address; null when there is no source address. */
   readonly source: string | null;
-  /** "Checked On 14 Oct 2026", or the no-date words; null for a country not researched yet. */
+  /** "Checked On 14 Oct 2026" (the date of the source shown), or the no-date words; null for a country not researched yet. */
   readonly checked: string | null;
+  /** The same warnings the signed-in list shows ("Not from an official page.", "Needs checking before you rely on it."). */
+  readonly notes: readonly string[];
+}
+
+/** A name for a source page: its publisher, else its title, else its address's host name; null when it has none. */
+export function sourceLabel(source: DestinationSource | null): string | null {
+  if (source === null) return null;
+  if (source.publisher) return source.publisher;
+  if (source.title) return source.title;
+  try {
+    return new URL(source.url).hostname.replace(/^www\./, '') || null;
+  } catch {
+    return null;
+  }
 }
 
 /** "Checked On 14 Oct 2026". The same words for everyone, whatever their device language. */
@@ -59,14 +74,18 @@ export function countryRow(destination: Destination): CountryRow {
     flag: FLAGS.has(code) ? code : null,
     researched: destination.researched,
   };
-  if (!destination.researched) return { ...base, entry: null, source: null, checked: null };
-  const when = lastCheckedOn(destination.country);
+  if (!destination.researched)
+    return { ...base, entry: null, source: null, checked: null, notes: [] };
+  const shown = destination.source;
+  const when = shown?.checkedOn ?? null;
   return {
     ...base,
     entry:
       destination.entryStatus === 'NOT_FOUND' ? null : ENTRY_SHORT_LABEL[destination.entryStatus],
-    source: destination.source?.publisher ?? destination.source?.title ?? null,
+    source: sourceLabel(shown),
     checked: when === null ? NO_DATE_WORDS : checkedOnWords(when),
+    // A fact with no source gets "No Source Given" on its own line, so only a real source adds the warnings.
+    notes: shown === null ? [] : trustNotes(shown),
   };
 }
 

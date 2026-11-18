@@ -57,10 +57,11 @@ describe('the public For Agencies page', () => {
   it('tags every illustrative figure with Example and never claims approval', async () => {
     const html = await render();
     expect(html).toContain('Completeness only. Not an approval.');
-    const sections = html.split('<section').slice(1);
-    for (const section of sections) {
-      if (/pub-readiness|pub-chip/.test(section)) expect(section).toContain('pub-example');
-    }
+    // Every illustrative block (the case board, each card) carries its own Example tag.
+    const blocks = html.split(/(?=<article|<div class="pub4a-board)/).slice(1);
+    const figures = blocks.filter((block) => /pub-readiness|pub-chip/.test(block));
+    expect(figures.length).toBeGreaterThanOrEqual(2);
+    for (const block of figures) expect(block.slice(0, 400)).toContain('pub-example');
     expect(html).not.toMatch(/approved|guarantee|accepted/i);
   });
 

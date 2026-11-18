@@ -47,19 +47,27 @@ for (const route of PAGES) {
     });
   }
 
-  test(`${route}: at most 30 words of prose in the first phone screen`, async ({ page }) => {
+  test(`${route}: at most 30 words of text in the first phone screen`, async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto(route);
+    // Every visible word inside main that is in the first screen: headings, buttons, links and lists too.
     const words = await page.evaluate(() => {
       let count = 0;
-      for (const el of document.querySelectorAll('main p, main li, main output, main figcaption')) {
-        const box = el.getBoundingClientRect();
-        if (box.width === 0 || box.height === 0 || box.top >= innerHeight || box.bottom <= 0)
-          continue;
-        if (el.closest('li') && el !== el.closest('li') && el.tagName === 'LI') continue;
-        // List rows are data (names and sources), not explanatory prose.
-        if (el.closest('[data-country-row], ul[aria-label]')) continue;
-        count += (el.textContent ?? '').trim().split(/\s+/).filter(Boolean).length;
+      const walker = document.createTreeWalker(
+        document.querySelector('main') as HTMLElement,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent?.trim();
+        const parent = node.parentElement;
+        if (!text || !parent || parent.closest('.sr-only, script, style, noscript')) continue;
+        if (!parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const seen = [...range.getClientRects()].some(
+          (box) => box.width > 0 && box.height > 0 && box.top < innerHeight && box.bottom > 0,
+        );
+        if (seen) count += text.split(/\s+/).length;
       }
       return count;
     });
@@ -181,7 +189,7 @@ async function titleOf(page: Page, route: string): Promise<string> {
   return page.title();
 }
 
-test('page titles are Countries and For Agencies', async ({ page }) => {
-  expect(await titleOf(page, '/countries')).toMatch(/^Countries\b/);
+test('page titles are Countries and Sources, and For Agencies', async ({ page }) => {
+  expect(await titleOf(page, '/countries')).toMatch(/^Countries and Sources\b/);
   expect(await titleOf(page, '/for-agencies')).toMatch(/^For Agencies\b/);
 });

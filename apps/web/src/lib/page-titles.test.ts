@@ -90,6 +90,9 @@ describe('page titles', () => {
     const layout = readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8');
     expect(layout).toContain('publicNavLinks(');
     expect(layout).toContain('<Link href="/trust">{t.node(\'home.layout.publicTrust\')}</Link>');
+    // WP-PUB4 (Guardian, 18 Nov 2026): the public page is told apart from the signed-in "Countries" by its tab title.
+    expect(titleOf('countries/page.tsx')).toBe('Countries and Sources');
+    expect(titleOf('for-agencies/page.tsx')).toBe('For Agencies');
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');
   });

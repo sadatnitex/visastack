@@ -78,7 +78,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
             </h2>
             <div className="pub4a-board">
               <ExampleTag />
-              <ReadinessRing done={1} total={3} size="lg" countLabel="Documents Complete" />
+              <ReadinessRing done={1} total={3} size="lg" countLabel="Items Complete" />
               <ol className="pub4a-steps">
                 {EXAMPLE_LINE.map((row) => (
                   <li key={row.status} className="pub4a-step">

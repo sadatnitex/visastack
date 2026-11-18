@@ -12,6 +12,7 @@ import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
 import {
   NOT_RESEARCHED_WORDS,
+  NO_SOURCE_WORDS,
   RING_CODES,
   countriesWindow,
   firstNewRowId,
@@ -19,14 +20,8 @@ import {
 } from './countries-data';
 import './countries.css';
 
-/**
- * A function, not a fixed `metadata` value: the signed-in list at /app/countries is also titled
- * "Countries" (owner's page title for this public page), and the title check forbids two fixed
- * titles that match. The two pages are told apart by their address and their frame.
- */
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: 'Countries' };
-}
+// The signed-in list at /app/countries is titled "Countries"; the public page's tab says what it adds.
+export const metadata: Metadata = { title: 'Countries and Sources' };
 
 const COUNTRY_NOUN = { one: 'country', other: 'countries' } as const;
 
@@ -98,11 +93,20 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
                 <div className="pub4c-row-text">
                   <strong className="pub4c-name">{row.name}</strong>
                   {row.researched ? (
-                    <span className="pub4c-facts">
-                      {row.entry ? <span>{row.entry}</span> : null}
-                      <span>{row.source ? `Source: ${row.source}` : 'No Source Given'}</span>
-                      <span>{row.checked}</span>
-                    </span>
+                    <>
+                      <span className="pub4c-facts">
+                        {row.entry ? <span>{row.entry}</span> : null}
+                        <span>{row.source ? `Source: ${row.source}` : NO_SOURCE_WORDS}</span>
+                        <span>{row.checked}</span>
+                      </span>
+                      {row.notes.length > 0 ? (
+                        <span className="pub4c-notes">
+                          {row.notes.map((note) => (
+                            <span key={note}>{note}</span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </>
                   ) : (
                     <span className="pub4c-facts">
                       <span>{NOT_RESEARCHED_WORDS}</span>
