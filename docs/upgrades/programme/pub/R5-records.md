@@ -30,3 +30,7 @@ Checked by `apps/web/e2e/public-site/r5-reference-fidelity.spec.ts` (15 checks, 
 - Desk drawings: the types `flight_ticket`, `travel_insurance` and `passport` resolve to real drawings (a unit test fails if one falls back to the generic paper).
 - Button words: "See What Works Today" reads the catalogue key `home.page.seeWhatWorksToday` (it has Bengali); the start button reads the same Home keys as before.
 - English-only words on this page (through `publicText`, no new Bengali entries): Clients Arrive, Prepared., Clients own their record. You see what they share., What Changes, at Your Desk., One List of Cases, Each row shows its ring and what is missing., Only What Is Shared, Clients choose what you see, and can end it., Completeness, Not Approval, The ring counts what is complete. It never promises a visa., Plans., Pricing is shown here when selling opens., Agency access is by invitation while we test with practice records., Accounts are free during the public beta., Bring Your Clients., Skip the Chasing., Start with what works today., Countries.
+
+## Final state (TURN, 18 Nov 2026)
+
+Main `0054091` merged by merge commit with no conflict. The page uses the real kit; the checks listed in the known-issues entry of the same date ran on the final tree. Open follow-ups: Bengali for the English-only words above; the 5rem hero gap on phones exists only to keep the first phone screen under 30 words with the real table (a kit table with fewer words per row would let it return to the normal gap).
