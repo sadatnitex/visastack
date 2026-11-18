@@ -23819,7 +23819,7 @@ a.passport-page-value:hover {
 }
 /* end WP-WAL3 */
 
-/* WP-WAL10 Home People photo and Needs Attention rows (18 Nov 2026, owner request): the account's own photo fills the round Home avatar (initials stay for everyone else and when the photo cannot load), and each Needs Attention item is one Expandable Section row (picture, title, the sentence and date inside) with the urgency word and person under it and the item's one action. Flat: tokens only, a hairline, no shadow, no gradient, no motion. Every control is at least 44 px. */
+/* WP-WAL10 Home People photo and Needs Attention rows (18 Nov 2026, owner request): the account's own photo fills the round Home avatar (initials stay for everyone else and when the photo cannot load), and each Needs Attention item is one Expandable Section row (picture, title, the reason as one clamped line, the full sentence inside) with the urgency word, person and date under it and the item's one action. Flat: tokens only, a hairline, no shadow, no gradient, no motion. Every control is at least 44 px. */
 .home-avatar[data-photo="true"] {
   overflow: hidden;
   background: var(--brand-bg);
