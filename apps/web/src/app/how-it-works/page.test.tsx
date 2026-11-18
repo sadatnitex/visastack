@@ -72,6 +72,12 @@ describe('the How It Works page (R2)', () => {
     expect(art[1]?.querySelectorAll('.pub-chip-confirmed').length).toBeGreaterThan(0);
     expect(words(art[2] as Element)).toContain('Germany: 3 of 8 Ready');
     expect(words(art[3] as Element)).toContain('Turn Off');
+    // Sharing cannot be limited to part of a document today (packages/services/src/sharing.ts): no
+    // part, page or size is promised on the sheet.
+    const sheet = words(art[3] as Element);
+    expect(sheet).toContain('Passport See Document Details');
+    expect(sheet).toContain('Photo See Document Details');
+    expect(sheet).not.toMatch(/photo page|visa size/i);
   });
 
   it('removes the old case story chapters', async () => {
