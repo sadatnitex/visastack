@@ -176,17 +176,13 @@ test.describe('R3 phone page length', () => {
   for (const locale of ['en', 'bn'] as const) {
     test(`the page fits six phone screens in ${locale === 'en' ? 'English' : 'Bengali'}`, async ({
       page,
-      context,
-      baseURL,
     }) => {
       await page.setViewportSize({ width: 390, height: 844 });
-      if (locale === 'bn') {
-        // The visitor's saved language choice, the same preference cookie ux-public.spec.ts uses.
-        await context.addCookies([
-          { name: 'visastack_locale', value: 'bn', url: baseURL ?? 'http://localhost:3100' },
-        ]);
-      }
       await page.goto('/trust');
+      if (locale === 'bn') {
+        // The visitor's own choice through the language switch, never a cookie set by the test.
+        await page.locator('.lang-switch').click();
+      }
       await expect(page.locator('html')).toHaveAttribute('data-locale', locale);
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
       expect(height, `${locale} page height`).toBeLessThanOrEqual(BUDGET);
