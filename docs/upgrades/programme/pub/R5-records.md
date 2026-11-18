@@ -34,3 +34,16 @@ Checked by `apps/web/e2e/public-site/r5-reference-fidelity.spec.ts` (15 checks, 
 ## Final state (TURN, 18 Nov 2026)
 
 Main `0054091` merged by merge commit with no conflict. The page uses the real kit; the checks listed in the known-issues entry of the same date ran on the final tree. Open follow-ups: Bengali for the English-only words above; the 5rem hero gap on phones exists only to keep the first phone screen under 30 words with the real table (a kit table with fewer words per row would let it return to the normal gap).
+
+## Known-issues chunk (to append)
+
+To be appended to `docs/commercial-v1/known-issues.md` by U6 at its TURN (owner: avoid two appends to one file in the same bundle).
+
+## 18 Nov 2026: R5 For Agencies rebuilt on the approved reference
+
+- What: the owner saw the live For Agencies page as the old Harbor page ("Stop Chasing Documents by Message", "What an Agency Gets", a pinned "One Case, One Clear Line", "You See Only What Is Shared") with an unreadable dark 33% ring on navy. It is now the four chapters of the approved reference: a dark hero "Clients Arrive Prepared." beside a case list of three Example rows, "What Changes at Your Desk." with three cards that each carry a drawing, "Plans." and the closing band "Bring Your Clients. Skip the Chasing." with the Bangladesh passport cover.
+- Behaviour: invite-only wording, button labels and sign-in flow are today's (the Home catalogue keys, including See What Works Today with Bengali). Plans states only what is true: no price and no tier, "Pricing is shown here when selling opens.", then "Agency access is by invitation while we test with practice records." while the pilot is invite-only or "Accounts are free during the public beta." when the beta is open, from the same switch the site already uses. The reference's "Talk to us" is not used because no contact path exists. The page has no scroll scenes and loads no scroll engine. The hero grid gap is 5rem on phones so the real case table starts below the first phone screen (guard: at most 30 words there).
+- Gate: apps/web/e2e/public-site/r5-reference-fidelity.spec.ts (15 checks) with chapter pictures at 1440x900 and 390x844 beside the reference in docs/upgrades/programme/pub/r5-shots/, per-chapter table in R5-records.md; unit tests read parsed markup and were shown red when the feature is removed.
+- Proof: typecheck, lint with UI ratchet, full web unit tests, scripts tests, full-check.sh (all steps exit 0), Playwright public-site, ux-public, WP-SB8 and browser-security on one fresh build, check-public-budget, em dash 0.
+- Follow-ups: Bengali for the new English words (list in R5-records.md); the phone gap above can return to normal if the kit table gets fewer words per row.
+- NOT verified: real devices and visitors, a person using a keyboard or screen reader, Bangla layout beyond the page-length budget, CI and CodeQL on the pushed head.
