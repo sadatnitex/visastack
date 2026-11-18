@@ -22946,7 +22946,7 @@ button.wallet-stack-card {
 }
 /* end WP-WAL1 */
 
-/* WP-WAL5 AI connection tiles (18 Nov 2026, owner decision 17 Nov 2026, Wallet board Pattern 4 option A): one tile per AI connection on the traveller Sharing page and the agency AI Connections page (components/ai-connection-tile.tsx). Who, Connected, what it can read as small pictures that explain themselves, a clock ring for the time left with the end date, Last Used, and the existing Change Access and Turn Off. Flat: tokens only, a hairline, no shadow, no gradient. The ring is drawn at its final state and nothing moves, so reduced motion has nothing to switch off. Every picture is a full 44 px row item, so wrapped rows never overlap. */
+/* WP-WAL5 AI connection tiles (18 Nov 2026, owner decision 17 Nov 2026, Wallet board Pattern 4 option A): one tile per AI connection on the traveller Sharing page and the agency AI Connections page (components/ai-connection-tile.tsx). Who, Connected, what it can read as small pictures that explain themselves, a clock ring for the time left with the end date, Last Used, and the existing Change Access and Turn Off. Flat: tokens only, a hairline, no shadow, no gradient. The ring is drawn at its final state and nothing moves, so reduced motion has nothing to switch off. Every picture is a full 44 px row item (the shared WAL1 key), so wrapped rows never overlap. */
 .ai-tile {
   display: grid;
   gap: var(--space-3);
@@ -22994,19 +22994,13 @@ button.wallet-stack-card {
   margin: 0;
   color: var(--text-secondary);
 }
+/* The list is the shared WAL1 key of pictures (.status-picture-key: full 44 px rows, the Explain
+   button's reach past the line turned off); the tile adds a row gap and a hairline per item. */
 .ai-tile-read-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
+  row-gap: var(--space-1);
   min-width: 0;
 }
 .ai-tile-read {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
   min-width: 0;
   max-width: 100%;
   padding-inline-end: var(--space-2);
@@ -23014,9 +23008,7 @@ button.wallet-stack-card {
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
 }
-/* A full 44 px target inside its own row item: no reach past the line, so wrapped items never overlap. */
 .ai-tile-read .explain-tip {
-  margin-block: 0;
   flex: none;
   color: var(--brand);
 }

@@ -6,8 +6,8 @@ Unit WAL5 (Wallet upgrade U5, Sharing and AI Connections), Class A (access), FUL
 
 | Where | Change |
 |---|---|
-| components/ai-connection-tile.tsx | New. `AiConnectionTile`: a region named by the app (name and site), "Can Read" as small pictures (each a 44 px Explain button named by the consent label, with the consent screen's own sentence as its note; the visible word beside it is for the eye only), a clock ring for the time left (drawn at its final state, hidden from screen readers because the same words sit beside it), a facts list (Connected, Ends, Last Used, and Connected By on the agency side) and the connection's own actions passed in untouched. |
-| lib/ai-connection-time-left.ts | New. `aiConnectionTimeLeft` (open, running, ending soon, ended; share left; calendar days left in the person's zone; hours left under a day), `aiEndingSoonWindowMs`, `displayTimeZone` (UTC only when the zone is unknown), `formatMomentIn` and `formatDayIn` (the shared formatters' exact behaviour when no zone is given). |
+| components/ai-connection-tile.tsx | New. `AiConnectionTile`: a plain group with the app's name and site as its heading (not a landmark), the pictures in groups ("Can Read"; Cases and Full Document Numbers, each naming itself; "Changes" for Suggest Changes) as small pictures (each a 44 px Explain button named by the consent label, with the consent screen's own sentence as its note; the visible word beside it is for the eye only), a clock ring for the time left (drawn at its final state, hidden from screen readers because the same words sit beside it), a facts list from one shared builder `aiConnectionFacts` (Connected, Connected By on the agency side, Ends while live, Last Used; an ended tile says "Ended <date>" on its clock instead of Ends) and the connection's own actions passed in untouched. |
+| lib/ai-connection-time-left.ts | New. `aiConnectionTimeLeft` (open, running, ending soon, ended; share left; whole 24-hour days left, never rounded up; whole hours in the last day), `aiCurrentPeriodStart`, `aiEndingSoonWindowMs`, `displayTimeZone` (UTC only when the zone is unknown), `formatMomentIn` and `formatDayIn` (the shared formatters' exact behaviour when no zone is given). |
 | app/app/applicant/[id]/sharing/ai-connections.tsx | Each live connection is one tile. The facts list and the comma-joined "Can Read" line became the tile; Change Access (its `details`, form and action) and Turn Off are the same components, moved into the tile's action slot. New props `timeZone` and `now`. `connectionReads` builds the pictures from `AI_LAYER_LABELS`, `AI_LAYER_NOTES` and the consent labels verbatim. |
 | app/app/applicant/[id]/sharing/page.tsx | Passes the traveller's stored time zone (`applicants.timezone`) to the section. Nothing else. |
 | app/app/agency/[orgId]/ai-connections/page.tsx, agency-connection-tile.tsx (new) | Each agency connection is one tile (one component, also used by the browser fixture), with its existing Turn Off. |
@@ -26,8 +26,8 @@ Unit WAL5 (Wallet upgrade U5, Sharing and AI Connections), Class A (access), FUL
 ## New visible words for the localization list
 
 Names and short words:
-- "{count} Days Left" (one: "1 Day Left"), "{count} Hours Left" (one: "1 Hour Left"), "Less Than 1 Hour Left", "Ending Soon", "Ended" (components catalog `components.aiConnectionTile.*`)
-- Agency page: "Can Read", "Connected", "Connected By", "Ends", "Last Used", "Not Used Yet", "What Each Traveller Allowed" (`appAgency.appAgencyOrgidAiConnectionsPage.*`; all but "Connected By" and "What Each Traveller Allowed" already exist in Bengali on the traveller side)
+- "{count} Days Left" (one: "1 Day Left"), "{count} Hours Left" (one: "1 Hour Left"), "Less Than 1 Hour Left", "Ending Soon", "Ended", "Ended {date}" (components catalog `components.aiConnectionTile.*`)
+- Agency page: "Connected By", "What Each Traveller Allowed" (`appAgency.appAgencyOrgidAiConnectionsPage.*`). Connected, Ends, Last Used, Not Used Yet and Can Read reuse the traveller page's keys, which already have Bengali.
 - "UTC" after a time shown in UTC because the person's zone is unknown
 
 New sentences (Explain notes):
@@ -37,6 +37,19 @@ New sentences (Explain notes):
 - Agency picture note: "For each case its owner or admin can see, the app reads only what that case’s traveller allowed this agency’s AI tools to read." (`...whatEachTravellerAllowedNote`)
 
 Reused verbatim, not new: the term "Changes" (`components.aiAccessChoices.changes`), every consent label and layer note (`lib/ai-consent-labels.ts`), the document list, document text and full numbers notes (`components.aiAccessChoices.*`).
+
+## Guardian fix round (two independent reviews of 72f6447)
+
+- The ring after Change Access: the stored data has no field for when the current end was set (the connection keeps when it was made and when it ends; the `AI_CONNECTION_CHANGED` audit entry records it, but the Sharing page's audit list returns no resource id or metadata, so reading it would be a service change). No dated period is longer than 30 days, so the period is measured from the later of the connection's making and 30 days before its end (`aiCurrentPeriodStart`). A renewal for 30 days reads as a full period; a renewal for a shorter period reads as its share of 30 days, so the ending-soon window can open early, never late. Agency connections are never renewed and run from when they were made.
+- Personal Details with Full Document Numbers: Yes takes the note's first sentence and the consent screen's full numbers sentence, verbatim (no claim that numbers are shortened).
+- "Nothing from this record" is its own line under "Can Read", as before; Cases and Full Document Numbers are a separate group.
+- One ended behaviour on both pages: "Ended <date>" on the clock when the end has passed, no Ends fact; an agency connection turned off before its end says "Ended" (the page has no date for it).
+- One facts builder for both tiles, in the traveller page's existing words; the agency catalog keeps only its two new keys ("Connected By", "What Each Traveller Allowed" and its note).
+- The picture list reuses the WAL1 key class `.status-picture-key` (44 px rows, no reach past the line) instead of repeating it.
+- The 44 px browser check fails on a visible control without a box.
+- Red then green for this round: the five new tests (period start, ring after a renewal, the matching note, Ended with its date, the separate line) failed on 72f6447's code and pass now.
+
+ADR 0030 note: the time ring is a small custom SVG, not the progress ring (`components/progress-ring.tsx`): the progress ring always says "N of M items ready" and is a readiness count, while this ring is time left with its own words beside it, and its shape (full for no end, never full or empty while dated, dashed when ended) carries meaning without colour. It follows the progress ring's drawing (pathLength 100, a dash array attribute, no inline style, no motion).
 
 ## Review round (fresh context)
 
@@ -63,7 +76,8 @@ Green: unit and guard suites for the touched areas (106 files, 1834 tests), full
 
 ## Follow-up
 
-- `.ai-connection-facts` rules in the WP-S15 block of globals.css have no markup left; remove them in a CSS tidy unit.
+- CSS tidy unit: `.ai-connection-facts` rules in the WP-S15 block of globals.css have no markup left.
+- When the current end was set: a stored "period started" time (or the change audit's time on the page) would let the ring measure a renewed short period exactly; needs a service change.
 - Agency staff have no stored time zone; agency dates keep the server formatter. A staff time zone would need its own decision.
 
 ## Not verified

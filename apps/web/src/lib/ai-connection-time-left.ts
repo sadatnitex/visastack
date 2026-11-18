@@ -33,6 +33,23 @@ export interface AiTimeLeft {
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
+/** No dated period is longer than 30 days (the longest choice, traveller and agency alike). */
+export const AI_LONGEST_DATED_PERIOD_MS = 30 * DAY_MS;
+
+/**
+ * Where the current period began, as closely as the stored data allows. Change Access with a new
+ * length ("7 Days from Now") starts a new period, but the connection stores only when it was made
+ * and when it ends, not when the end was last set. No dated period is longer than 30 days, so the
+ * period began no earlier than 30 days before its end: the later of that and the connection's
+ * making. For a renewed shorter period the ring then reads its share of 30 days and the ending
+ * soon window can open early, never late.
+ */
+export function aiCurrentPeriodStart(connectedAt: Date, end: Date | null): Date {
+  if (end === null) return connectedAt;
+  const earliest = end.getTime() - AI_LONGEST_DATED_PERIOD_MS;
+  return new Date(Math.max(connectedAt.getTime(), earliest));
+}
+
 /** The ending-soon window never exceeds this, however long the connection is. */
 export const AI_ENDING_SOON_MAX_MS = 7 * DAY_MS;
 /** ...and is a quarter of the connection's length for shorter ones. */

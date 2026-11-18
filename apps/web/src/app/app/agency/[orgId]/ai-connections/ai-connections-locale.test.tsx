@@ -104,6 +104,9 @@ describe('AI connections under Bengali', () => {
     // Ended by the services (turned off before its end): the tile says Ended, whatever the end says.
     expect(ended).toContain('data-state="ended"');
     expect(ended).not.toContain('Days Left');
+    // Turned off before its end: Ended, with no Ends and no date the page cannot know.
+    expect(ended).not.toContain('<dt>Ends</dt>');
+    expect(ended).toMatch(/<span class="ai-tile-left">Ended<\/span>/);
     expect(ended).toContain('admin@example.com');
     const bn = await draw('bn');
     expect(bn).not.toMatch(/appAgency\./);

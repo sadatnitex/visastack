@@ -44,6 +44,7 @@ export const componentsCatalog = defineCatalog({
       '{count, plural, =1 {1 Day Left} other {{count} Days Left}}',
     'components.aiConnectionTile.endingSoon': 'Ending Soon',
     'components.aiConnectionTile.ended': 'Ended',
+    'components.aiConnectionTile.endedOn': 'Ended {date}',
     'components.aiConnectionTile.hoursLeft':
       '{count, plural, =1 {1 Hour Left} other {{count} Hours Left}}',
     'components.aiConnectionTile.lessThanOneHourLeft': 'Less Than 1 Hour Left',

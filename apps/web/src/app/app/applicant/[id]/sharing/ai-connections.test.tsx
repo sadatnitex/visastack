@@ -573,6 +573,75 @@ describe('one tile per AI connection (WAL5)', () => {
     expect(groups[1]).toContain('<span class="sr-only">Suggest Changes: Yes</span></button>');
   });
 
+  it('measures the ring from the current period after Change Access renewed it', () => {
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      now: NOW,
+      timeZone: 'UTC',
+      list: list({
+        active: [
+          connection({
+            connectedAt: new Date(NOW.getTime() - 60 * 86_400_000),
+            expiresAt: new Date(NOW.getTime() + 29 * 86_400_000),
+          }),
+        ],
+      }),
+    });
+    // 29 of the last 30 days left, not 29 of 89.
+    expect(html).toContain('stroke-dasharray="97 3"');
+  });
+
+  it('gives Personal Details the note that matches Full Document Numbers', () => {
+    const shown = (revealIdentifiers: boolean) =>
+      render({
+        applicantId: APPLICANT,
+        connectorOn: true,
+        now: NOW,
+        list: list({ active: [connection({ revealIdentifiers })] }),
+      });
+    const note = (html: string) =>
+      html.match(
+        /<span class="explain-tip-title">Personal Details<\/span><span class="explain-tip-text"[^>]*>([^<]*)</,
+      )?.[1] ?? '';
+    expect(note(shown(false))).toBe(
+      'Name, date of birth, nationality and contact details. Numbers show only their last three characters.',
+    );
+    const full = note(shown(true));
+    expect(full).toMatch(
+      /^Name, date of birth, nationality and contact details\. Sensitive: shows whole passport and ID numbers/,
+    );
+    expect(full).not.toContain('Numbers show only their last three characters');
+  });
+
+  it('shows an ended connection as Ended with its date, and no Ends', () => {
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      now: NOW,
+      timeZone: 'Asia/Dhaka',
+      list: list({ active: [connection({ expiresAt: new Date(NOW.getTime() - 3_600_000) })] }),
+    });
+    expect(textOf(html)).toContain('Ended 15 Jan 2030, 17:00');
+    expect(html).not.toContain('<dt>Ends</dt>');
+    expect(html).toContain('data-state="ended"');
+  });
+
+  it('puts Nothing From This Record on its own line, apart from Cases and Full Numbers', () => {
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      now: NOW,
+      list: list({ active: [connection({ scopes: [] })] }),
+    });
+    const reads = html.split('data-group="reads"')[1]?.split('data-group=')[0] ?? '';
+    expect(reads).toContain(
+      '<p class="ai-tile-term">Can Read</p><p class="ai-tile-read-none">Nothing from this record</p></div>',
+    );
+    expect(reads).not.toContain('Cases');
+    expect(html).toContain('data-group="limits"');
+  });
+
   it('still says when an app reads nothing from the record', () => {
     const text = textOf(
       render({

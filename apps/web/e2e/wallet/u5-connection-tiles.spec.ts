@@ -112,12 +112,16 @@ test.describe('WAL5 one tile per connection', () => {
   });
 
   test('every picture button and action is at least 44 px', async ({ page }) => {
-    const controls = page.locator('[data-ai-tile] :is(.explain-tip-trigger, .btn, summary)');
+    const controls = page.locator(
+      '[data-ai-tile] :is(.explain-tip-trigger, .btn, summary):visible',
+    );
     const count = await controls.count();
     expect(count).toBeGreaterThan(10);
     for (let i = 0; i < count; i += 1) {
       const box = await controls.nth(i).boundingBox();
-      if (!box) continue;
+      // A visible control with no box is a failure, never skipped.
+      expect(box, `control ${i} has no box`).not.toBeNull();
+      if (!box) return;
       expect(box.height, `control ${i}`).toBeGreaterThanOrEqual(44);
       expect(box.width, `control ${i}`).toBeGreaterThanOrEqual(44);
     }

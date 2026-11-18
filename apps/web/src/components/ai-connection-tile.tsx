@@ -1,7 +1,8 @@
 import { aiAppHost, aiAppName } from '@visastack/core/ai-features';
 import type { ReactNode } from 'react';
+import { applicantSharingCatalog } from '../i18n/applicant-sharing';
 import { componentsCatalog } from '../i18n/components';
-import type { AiTimeLeft } from '../lib/ai-connection-time-left';
+import { type AiTimeLeft, formatDayIn, formatMomentIn } from '../lib/ai-connection-time-left';
 import { getServerT } from '../lib/i18n-server';
 import { ExplainTip } from './explain-tip';
 import { Icon, type IconName } from './icons';
@@ -37,24 +38,89 @@ export interface AiTileFact {
   readonly value: ReactNode;
 }
 
+/** One group of pictures, under its own term (or none, when each picture names itself). */
+export interface AiTileGroup {
+  readonly key: string;
+  readonly term?: ReactNode;
+  readonly reads: readonly AiTileRead[];
+  /** A line of its own, shown when the group has nothing to draw ("Nothing from this record"). */
+  readonly empty?: ReactNode;
+}
+
 export interface AiConnectionTileProps {
   /** For the tile's heading id; unique on the page. */
   readonly id: string;
   readonly appName: string;
   /** The app's site (claude.ai), or null when unknown. Both are cleaned here, as stored by the app. */
   readonly appHost: string | null;
-  /** The term above the pictures ("Can Read"). */
-  readonly readsTerm: ReactNode;
-  readonly reads: readonly AiTileRead[];
-  /** A line shown above the pictures when the app can read nothing from the record itself. */
-  readonly readsEmpty?: ReactNode;
-  /** What else the app can do, under its own term (Suggest Changes is not reading). */
-  readonly also?: { readonly term: ReactNode; readonly reads: readonly AiTileRead[] };
-  /** Facts beside the clock, in order (Connected, Ends, Last Used, and any the screen adds). */
+  /** What the app can read and do, group by group, in order. */
+  readonly groups: readonly AiTileGroup[];
+  /** Facts beside the clock, in order (from `aiConnectionFacts`). */
   readonly facts: readonly AiTileFact[];
   readonly timeLeft: AiTimeLeft;
+  /** When an ended connection ended, already written in the person's zone, when it is known. */
+  readonly endedOn?: string | undefined;
   /** The connection's actions, unchanged (Change Access, Turn Off). */
   readonly actions?: ReactNode;
+}
+
+/**
+ * Connected, (Connected By,) Ends and Last Used: one builder for every tile, in the traveller
+ * Sharing page's own words (one translation for both views). An ended connection has no Ends
+ * fact; the clock says when it ended.
+ */
+export function aiConnectionFacts({
+  connectedAt,
+  end,
+  lastUsedAt,
+  timeLeft,
+  timeZone,
+  connectedBy,
+}: {
+  readonly connectedAt: Date;
+  readonly end: Date | null;
+  readonly lastUsedAt: Date | null;
+  readonly timeLeft: AiTimeLeft;
+  /** The person's zone; `undefined` keeps the shared formatters (staff have no stored zone). */
+  readonly timeZone: string | null | undefined;
+  readonly connectedBy?: AiTileFact | undefined;
+}): AiTileFact[] {
+  const t = getServerT(applicantSharingCatalog);
+  return [
+    {
+      key: 'connected',
+      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.connected'),
+      value: formatDayIn(connectedAt, timeZone),
+    },
+    ...(connectedBy ? [connectedBy] : []),
+    ...(timeLeft.state === 'ended'
+      ? []
+      : [
+          {
+            key: 'ends',
+            term: t.node('applicantSharing.appApplicantIdSharingAiConnections.ends'),
+            value: end
+              ? formatMomentIn(end, timeZone)
+              : t.node('applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff'),
+          },
+        ]),
+    {
+      key: 'last_used',
+      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.lastUsed'),
+      value: lastUsedAt
+        ? formatMomentIn(lastUsedAt, timeZone)
+        : t.node('applicantSharing.appApplicantIdSharingAiConnections.notUsedYet'),
+    },
+  ];
+}
+
+/** When an ended connection ended, if its end has passed (an early Turn Off has no date here). */
+export function aiConnectionEndedOn(
+  end: Date | null,
+  now: Date,
+  timeZone: string | null | undefined,
+): string | undefined {
+  return end && end.getTime() <= now.getTime() ? formatMomentIn(end, timeZone) : undefined;
 }
 
 /** The ring's share drawn, in hundredths (pathLength 100). */
@@ -91,11 +157,23 @@ function ClockRing({ timeLeft }: { readonly timeLeft: AiTimeLeft }) {
 }
 
 /** The time left in words, the same words beside the ring for everyone. */
-function TimeLeftWords({ timeLeft }: { readonly timeLeft: AiTimeLeft }) {
+function TimeLeftWords({
+  timeLeft,
+  endedOn,
+}: {
+  readonly timeLeft: AiTimeLeft;
+  readonly endedOn: string | undefined;
+}) {
   const t = getServerT(componentsCatalog);
   if (timeLeft.state === 'open') return null;
   if (timeLeft.state === 'ended') {
-    return <span className="ai-tile-left">{t.node('components.aiConnectionTile.ended')}</span>;
+    return (
+      <span className="ai-tile-left">
+        {endedOn
+          ? t.node('components.aiConnectionTile.endedOn', { date: endedOn })
+          : t.node('components.aiConnectionTile.ended')}
+      </span>
+    );
   }
   const left =
     timeLeft.hoursLeft === null
@@ -119,7 +197,7 @@ function TimeLeftWords({ timeLeft }: { readonly timeLeft: AiTimeLeft }) {
 
 function ReadList({ reads }: { readonly reads: readonly AiTileRead[] }) {
   return (
-    <ul className="ai-tile-read-list">
+    <ul className="status-picture-key ai-tile-read-list">
       {reads.map((read) => (
         <li className="ai-tile-read" key={read.key}>
           <ExplainTip
@@ -156,12 +234,10 @@ export function AiConnectionTile({
   id,
   appName,
   appHost,
-  readsTerm,
-  reads,
-  readsEmpty,
-  also,
+  groups,
   facts,
   timeLeft,
+  endedOn,
   actions,
 }: AiConnectionTileProps) {
   const titleId = `ai-tile-${id}`;
@@ -181,21 +257,22 @@ export function AiConnectionTile({
           {name} {host ? <span className="ai-consent-host">{host}</span> : null}
         </h3>
       </div>
-      <div className="ai-tile-reads">
-        <p className="ai-tile-term">{readsTerm}</p>
-        {readsEmpty ? <p className="ai-tile-read-none">{readsEmpty}</p> : null}
-        {reads.length > 0 ? <ReadList reads={reads} /> : null}
-      </div>
-      {also && also.reads.length > 0 ? (
-        <div className="ai-tile-reads">
-          <p className="ai-tile-term">{also.term}</p>
-          <ReadList reads={also.reads} />
-        </div>
-      ) : null}
+      {groups.map((group) =>
+        group.reads.length > 0 || group.empty ? (
+          <div className="ai-tile-reads" key={group.key} data-group={group.key}>
+            {group.term ? <p className="ai-tile-term">{group.term}</p> : null}
+            {group.reads.length > 0 ? (
+              <ReadList reads={group.reads} />
+            ) : (
+              <p className="ai-tile-read-none">{group.empty}</p>
+            )}
+          </div>
+        ) : null,
+      )}
       <div className="ai-tile-clock" data-state={timeLeft.state}>
         <ClockRing timeLeft={timeLeft} />
         <div className="ai-tile-when">
-          <TimeLeftWords timeLeft={timeLeft} />
+          <TimeLeftWords timeLeft={timeLeft} endedOn={endedOn} />
           <dl className="ai-tile-facts">
             {facts.map((fact) => (
               <div key={fact.key}>

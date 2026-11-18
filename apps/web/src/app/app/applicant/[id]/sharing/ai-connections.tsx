@@ -7,15 +7,17 @@ import {
 import type { AiConnectionList, AiConnectionSummary } from '@visastack/services';
 import {
   AiConnectionTile,
-  type AiConnectionTileProps,
+  type AiTileGroup,
   type AiTileRead,
+  aiConnectionEndedOn,
+  aiConnectionFacts,
 } from '../../../../../components/ai-connection-tile';
 import type { IconName } from '../../../../../components/icons';
 import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { componentsCatalog } from '../../../../../i18n/components';
 import {
   aiConnectionTimeLeft,
-  formatDayIn,
+  aiCurrentPeriodStart,
   formatMomentIn,
 } from '../../../../../lib/ai-connection-time-left';
 import {
@@ -39,7 +41,6 @@ import {
   AI_ORIGINAL_FILES_NOTE,
   AI_SUGGEST_CHANGES_LABEL,
   AI_SUGGEST_CHANGES_NOTE,
-  aiAccessLabels,
   aiAllowsSuggestions,
   aiFilesLine,
 } from '../../../../../lib/ai-consent-labels';
@@ -193,15 +194,27 @@ const LAYER_ICONS: Readonly<Record<AiConnectionLayer, IconName>> = {
 };
 
 /**
- * What a connection can read, as the tile's pictures: the consent screen's labels verbatim, each
- * with the consent screen's own sentence as its Explain note, in the consent screen's order.
+ * The first sentence of the Personal Details note ("Name, date of birth, nationality and contact
+ * details."), read from the consent note itself. Its second sentence (numbers show only their last
+ * three characters) is true only without Full Document Numbers.
  */
-export function connectionReads(
+export const IDENTITY_NOTE_WHAT = `${AI_LAYER_NOTES.identity.split('. ')[0] ?? ''}.`;
+
+/**
+ * What a connection can read and do, as the tile's groups of pictures: the consent screen's labels
+ * verbatim, each with the consent screen's own sentence as its Explain note, in its order.
+ * 1. "Can Read": the parts of the record and the documents (or "Nothing from this record", a
+ *    line of its own); 2. Cases and Full Document Numbers, each naming itself; 3. "Changes":
+ *    Suggest Changes, which is not reading.
+ */
+export function connectionGroups(
   item: AiConnectionSummary,
   files: AiConnectionFiles | undefined,
-): AiTileRead[] {
+  suggestionsAvailable: boolean,
+): AiTileGroup[] {
   const t = getServerT(applicantSharingCatalog);
   const tc = getServerT(componentsCatalog);
+  const fullNumbersNote = tc.node('components.aiAccessChoices.sensitiveShowsWholePassportAndId');
   const ticked = files?.byConnection[item.id] ?? [];
   const reads: AiTileRead[] = AI_CONNECTION_LAYERS.filter((layer) =>
     item.scopes.includes(layer),
@@ -209,7 +222,14 @@ export function connectionReads(
     key: layer,
     icon: LAYER_ICONS[layer],
     label: AI_LAYER_LABELS[layer],
-    note: AI_LAYER_NOTES[layer],
+    note:
+      layer === 'identity' && item.revealIdentifiers ? (
+        <>
+          {IDENTITY_NOTE_WHAT} {fullNumbersNote}
+        </>
+      ) : (
+        AI_LAYER_NOTES[layer]
+      ),
   }));
   if (item.scopes.includes('document_list')) {
     reads.push({
@@ -227,24 +247,6 @@ export function connectionReads(
       note: tc.node('components.aiAccessChoices.sensitiveTheWordsReadFromDocuments'),
     });
   }
-  reads.push({
-    key: 'cases',
-    icon: 'briefcase',
-    label: t.node('applicantSharing.appApplicantIdSharingAiConnections.cases'),
-    value: aiCaseLine(item),
-    note: t.node('applicantSharing.appApplicantIdSharingAiConnections.casesNote'),
-  });
-  reads.push({
-    key: 'full_numbers',
-    icon: item.revealIdentifiers ? 'key' : 'lock',
-    label: AI_FULL_NUMBERS_LABEL,
-    value: item.revealIdentifiers
-      ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
-      : t.node('applicantSharing.appApplicantIdSharingAiConnections.no'),
-    note: item.revealIdentifiers
-      ? tc.node('components.aiAccessChoices.sensitiveShowsWholePassportAndId')
-      : t.node('applicantSharing.appApplicantIdSharingAiConnections.numbersShowOnlyTheirLastThree'),
-  });
   if (ticked.length > 0) {
     reads.push({
       key: 'original_files',
@@ -259,64 +261,71 @@ export function connectionReads(
       note: AI_ORIGINAL_FILES_NOTE,
     });
   }
-  return reads;
-}
-
-/** What else a connection can do besides reading: Suggest Changes, under the consent screen's own term. */
-function connectionAlso(
-  item: AiConnectionSummary,
-  suggestionsAvailable: boolean,
-): { also?: NonNullable<AiConnectionTileProps['also']> } {
-  if (!aiAllowsSuggestions(item.scopes)) return {};
-  const t = getServerT(applicantSharingCatalog);
-  const tc = getServerT(componentsCatalog);
-  return {
-    also: {
-      term: tc.node('components.aiAccessChoices.changes'),
-      reads: [
+  const limits: AiTileRead[] = [
+    {
+      key: 'cases',
+      icon: 'briefcase',
+      label: t.node('applicantSharing.appApplicantIdSharingAiConnections.cases'),
+      value: aiCaseLine(item),
+      note: t.node('applicantSharing.appApplicantIdSharingAiConnections.casesNote'),
+    },
+    {
+      key: 'full_numbers',
+      icon: item.revealIdentifiers ? 'key' : 'lock',
+      label: AI_FULL_NUMBERS_LABEL,
+      value: item.revealIdentifiers
+        ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
+        : t.node('applicantSharing.appApplicantIdSharingAiConnections.no'),
+      note: item.revealIdentifiers
+        ? fullNumbersNote
+        : t.node(
+            'applicantSharing.appApplicantIdSharingAiConnections.numbersShowOnlyTheirLastThree',
+          ),
+    },
+  ];
+  const changes: AiTileRead[] = aiAllowsSuggestions(item.scopes)
+    ? [
         {
           key: 'suggest_changes',
-          icon: 'clipboard' as const,
+          icon: 'clipboard',
           label: AI_SUGGEST_CHANGES_LABEL,
           value: suggestionsAvailable
             ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
             : t.node('applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow'),
           note: AI_SUGGEST_CHANGES_NOTE,
         },
-      ],
-    },
-  };
-}
-
-/** True when the app can read nothing from the record itself (no part and no documents). */
-function readsNothing(item: AiConnectionSummary): boolean {
-  return aiAccessLabels(item.scopes).length === 0;
-}
-
-/** Connected, Ends and Last Used, in the person's time zone (UTC only when it is unknown). */
-function connectionFacts(item: AiConnectionSummary, timeZone: string | null | undefined) {
-  const t = getServerT(applicantSharingCatalog);
+      ]
+    : [];
   return [
     {
-      key: 'connected',
-      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.connected'),
-      value: formatDayIn(item.connectedAt, timeZone),
+      key: 'reads',
+      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.canRead'),
+      reads,
+      empty: t.node('applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord'),
     },
-    {
-      key: 'ends',
-      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.ends'),
-      value: item.expiresAt
-        ? formatMomentIn(item.expiresAt, timeZone)
-        : t.node('applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff'),
-    },
-    {
-      key: 'last_used',
-      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.lastUsed'),
-      value: item.lastUsedAt
-        ? formatMomentIn(item.lastUsedAt, timeZone)
-        : t.node('applicantSharing.appApplicantIdSharingAiConnections.notUsedYet'),
-    },
+    { key: 'limits', reads: limits },
+    { key: 'changes', term: tc.node('components.aiAccessChoices.changes'), reads: changes },
   ];
+}
+
+/** The clock, the facts and the ended date of one traveller tile, from one time-left reading. */
+function tileClock(item: AiConnectionSummary, now: Date, timeZone: string | null | undefined) {
+  const timeLeft = aiConnectionTimeLeft({
+    start: aiCurrentPeriodStart(item.connectedAt, item.expiresAt),
+    end: item.expiresAt,
+    now,
+  });
+  return {
+    timeLeft,
+    facts: aiConnectionFacts({
+      connectedAt: item.connectedAt,
+      end: item.expiresAt,
+      lastUsedAt: item.lastUsedAt,
+      timeLeft,
+      timeZone,
+    }),
+    endedOn: aiConnectionEndedOn(item.expiresAt, now, timeZone),
+  };
 }
 
 function endedLine(item: AiConnectionSummary, timeZone: string | null | undefined): string {
@@ -424,22 +433,8 @@ export function AiConnectionsSection({
                 id={item.id}
                 appName={item.clientName}
                 appHost={item.clientHost}
-                readsTerm={t.node('applicantSharing.appApplicantIdSharingAiConnections.canRead')}
-                reads={connectionReads(item, files)}
-                {...(readsNothing(item)
-                  ? {
-                      readsEmpty: t.node(
-                        'applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord',
-                      ),
-                    }
-                  : {})}
-                {...connectionAlso(item, suggestionsAvailable)}
-                facts={connectionFacts(item, timeZone)}
-                timeLeft={aiConnectionTimeLeft({
-                  start: item.connectedAt,
-                  end: item.expiresAt,
-                  now,
-                })}
+                groups={connectionGroups(item, files, suggestionsAvailable)}
+                {...tileClock(item, now, timeZone)}
                 actions={
                   <>
                     {connectorOn ? (

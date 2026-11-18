@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   AI_ENDING_SOON_MAX_MS,
+  AI_LONGEST_DATED_PERIOD_MS,
   aiConnectionTimeLeft,
+  aiCurrentPeriodStart,
   aiEndingSoonWindowMs,
   displayTimeZone,
   formatDayIn,
@@ -86,5 +88,23 @@ describe('the time an AI connection has left', () => {
     expect(formatMomentIn(end, 'UTC')).toBe('15 Jan 2030, 20:00');
     expect(formatDayIn(end, 'Asia/Dhaka')).toBe('16 Jan 2030');
     expect(formatDayIn(end, 'America/Los_Angeles')).toBe('15 Jan 2030');
+  });
+
+  it('starts the current period no earlier than 30 days before its end, after a renewal too', () => {
+    // Made 60 days ago, renewed today for 30 days: the period is the last 30 days, not 90.
+    const made = at(-60 * DAY);
+    expect(aiCurrentPeriodStart(made, at(30 * DAY)).getTime()).toBe(NOW.getTime());
+    expect(AI_LONGEST_DATED_PERIOD_MS).toBe(30 * DAY);
+    // A connection younger than its end allows starts when it was made.
+    expect(aiCurrentPeriodStart(at(-DAY), at(29 * DAY)).getTime()).toBe(at(-DAY).getTime());
+    // No end: from when it was made.
+    expect(aiCurrentPeriodStart(made, null).getTime()).toBe(made.getTime());
+    const renewed = aiConnectionTimeLeft({
+      start: aiCurrentPeriodStart(made, at(30 * DAY)),
+      end: at(30 * DAY),
+      now: NOW,
+    });
+    expect(renewed.fraction).toBe(1);
+    expect(renewed.state).toBe('running');
   });
 });

@@ -18,15 +18,30 @@ function tile(overrides: Partial<AiConnectionTileProps> = {}): string {
           id="one"
           appName="Claude"
           appHost="claude.ai"
-          readsTerm="Can Read"
-          reads={[
-            { key: 'identity', icon: 'user', label: 'Personal Details', note: 'Name and dates.' },
+          groups={[
             {
-              key: 'full',
-              icon: 'lock',
-              label: 'Full Document Numbers',
-              value: 'No',
-              note: 'Numbers show only their last three characters.',
+              key: 'reads',
+              term: 'Can Read',
+              reads: [
+                {
+                  key: 'identity',
+                  icon: 'user',
+                  label: 'Personal Details',
+                  note: 'Name and dates.',
+                },
+              ],
+            },
+            {
+              key: 'limits',
+              reads: [
+                {
+                  key: 'full',
+                  icon: 'lock',
+                  label: 'Full Document Numbers',
+                  value: 'No',
+                  note: 'Numbers show only their last three characters.',
+                },
+              ],
             },
           ]}
           facts={[
@@ -104,6 +119,11 @@ describe('the AI connection tile (WAL5)', () => {
     expect(ended).toContain('data-state="ended"');
     expect(ended).not.toContain('ai-tile-ring-fill');
     expect(textOf(ended)).toContain('Ended');
+    const endedOn = tile({
+      timeLeft: aiConnectionTimeLeft({ start: at(-DAY), end: at(-HOUR), now: NOW }),
+      endedOn: '15 Jan 2030, 11:00',
+    });
+    expect(textOf(endedOn)).toContain('Ended 15 Jan 2030, 11:00');
     const open = tile({ timeLeft: aiConnectionTimeLeft({ start: at(-DAY), end: null, now: NOW }) });
     expect(open).toContain('data-state="open"');
     expect(open).toContain('stroke-dasharray="100 0"');
@@ -118,9 +138,19 @@ describe('the AI connection tile (WAL5)', () => {
   });
 
   it('says plainly when the app reads nothing from the record, and leaves out empty parts', async () => {
-    const html = tile({ reads: [], readsEmpty: 'Nothing from this record', actions: undefined });
-    expect(textOf(html)).toContain('Nothing from this record');
+    const html = tile({
+      groups: [
+        { key: 'reads', term: 'Can Read', reads: [], empty: 'Nothing from this record' },
+        { key: 'changes', term: 'Changes', reads: [] },
+      ],
+      actions: undefined,
+    });
+    // Its own line under its term, as before; a group with nothing and no line is left out.
+    expect(html).toContain(
+      '<p class="ai-tile-term">Can Read</p><p class="ai-tile-read-none">Nothing from this record</p>',
+    );
     expect(html).not.toContain('ai-tile-read-list');
+    expect(html).not.toContain('Changes');
     expect(html).not.toContain('ai-tile-actions');
     expect(await axeViolations(html)).toEqual([]);
   });
