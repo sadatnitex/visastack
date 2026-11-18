@@ -119,8 +119,7 @@ for (const size of SIZES.filter((s) => s.width >= 900)) {
     await page.setViewportSize({ width: size.width, height: size.height });
     await wait(page);
     await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-    // The two long scenes pin; the closing scene is as tall as its content and rests in the flow.
-    for (const name of ['intake', 'ready']) {
+    for (const name of SCENES) {
       const stage = page.locator(`[data-scene="${name}"] .pub-scene-stage`);
       await expect(stage).toHaveCSS('position', 'sticky');
     }
@@ -202,4 +201,20 @@ test('the scenes move while scrolling on a computer: the step changes, the page 
     steps.add((await scene.getAttribute('data-step')) ?? '');
   }
   expect(steps.size).toBeGreaterThanOrEqual(3);
+});
+
+test('no pinned scene clips its words on a short computer screen (1024x600)', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await wait(page);
+  await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
+  const clipped = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        '[data-scene="intake"] .pub-scene-stage, [data-scene="ready"] .pub-scene-stage',
+      ),
+    ]
+      .filter((stage) => stage.scrollHeight > stage.clientHeight + 1)
+      .map((stage) => stage.closest('[data-scene]')?.getAttribute('data-scene')),
+  );
+  expect(clipped).toEqual([]);
 });

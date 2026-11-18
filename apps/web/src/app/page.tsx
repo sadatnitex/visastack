@@ -306,10 +306,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         <p className="c1-subline c1-subline-long">
           {t.node('home.page.onePrivateFileForYourPassport')}
         </p>
-        {/* WP-PUB2: on a small phone the first screen holds 30 words or fewer, so a short line takes the long one's place there. */}
-        <p className="c1-subline c1-subline-short">
-          {publicText('One private file for every visa application.', getPageLanguage())}
-        </p>
+        {/* WP-PUB2: a small English phone's first screen holds 30 words or fewer, so a short line takes the long one's place there (landing-c1.css). Other languages keep the long line. */}
+        {getPageLanguage() === 'en' ? (
+          <p className="c1-subline c1-subline-short">
+            {publicText('One private file for every visa application.', 'en')}
+          </p>
+        ) : null}
         <div className="c1-cta">
           <a className="c1-pill" href={startHref}>
             {startLabel}{' '}

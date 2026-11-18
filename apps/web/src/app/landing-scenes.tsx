@@ -21,6 +21,11 @@ import { getPageLanguage } from '../lib/i18n-server';
 export const INTAKE_STEPS = 4;
 export const READY_STEPS = 2;
 
+/** The names and labels drawn in a picture are English for now: mark them so on a Bangla page (WCAG 3.1.2). */
+function englishOn(lang: string): { lang?: string } {
+  return lang === 'en' ? {} : { lang: 'en' };
+}
+
 function Heading({ id, children }: { readonly id: string; readonly children: ReactNode }) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: an h2 would change the page's tested outline; the role gives the same heading level to a reader
@@ -37,10 +42,10 @@ export function IntakeScene() {
   const lang = getPageLanguage();
   const say = (text: string) => publicText(text, lang);
   return (
-    <Chapter tone="dark" className="land-chapter" labelledBy="pub-intake-title">
+    <Chapter tone="dark" className="land-chapter">
       <Scene
         name="intake"
-        len={3}
+        len={2}
         steps={INTAKE_STEPS}
         finalStep={INTAKE_STEPS - 1}
         labelledBy="pub-intake-title"
@@ -114,7 +119,7 @@ export function ReadyScene() {
   const say = (text: string) => publicText(text, lang);
   const done = CASE_LINE.filter((item) => item.ready).length;
   return (
-    <Chapter tone="light" className="land-chapter" labelledBy="pub-ready-title">
+    <Chapter tone="light" className="land-chapter">
       <Scene
         name="ready"
         len={2}
@@ -133,7 +138,11 @@ export function ReadyScene() {
               {say('Completeness is how much of the list is in your file.')}
             </p>
           </div>
-          <figure className="land-draw land-ready-figure" aria-label="Example of a file filling up">
+          <figure
+            className="land-draw land-ready-figure"
+            aria-label="Example of a file filling up"
+            {...englishOn(lang)}
+          >
             <ExampleTag pageLang={lang} />
             <ol className="land-case-line">
               {CASE_LINE.map((item, index) => (
@@ -157,6 +166,9 @@ export function ReadyScene() {
                 pageLang={lang}
               />
             </div>
+            <span className="land-case-bar" aria-hidden="true">
+              <i />
+            </span>
             <figcaption className="land-caption">
               {say('Illustration with a sample case.')}
             </figcaption>
@@ -173,9 +185,9 @@ export function ClosingScene({ children }: { readonly children: ReactNode }) {
   const say = (text: string) => publicText(text, lang);
   return (
     <Chapter tone="dark" className="land-chapter">
-      <Scene name="closing" len={1} steps={1} finalStep={0} className="land-scene land-scene-open">
+      <Scene name="closing" len={2} steps={1} finalStep={0} className="land-scene land-scene-open">
         <div className="land-stage land-closing">
-          <figure className="land-draw land-passport-figure">
+          <figure className="land-draw land-passport-figure" {...englishOn(lang)}>
             <div className="land-passport-frame">
               <DepthGlow />
               <PassportTilt width={180} label="Bangladesh Passport Cover" />
