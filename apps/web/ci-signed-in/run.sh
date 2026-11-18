@@ -65,7 +65,7 @@ STAND_IN_URL="$(node -p "require(process.argv[1]).baseUrl" "$RUN_DIR/stand-in.js
   export NODE_EXTRA_CA_CERTS="$RUN_DIR/cert.pem"
   export CI_DB_PRELOAD_START=1
   export CI_DB_BRIDGE_PORT="$BRIDGE_PORT"
-  export NODE_OPTIONS="--require ./ci-signed-in/db-preload.cjs"
+  export NODE_OPTIONS="--require $PWD/ci-signed-in/db-preload.cjs"
   exec ./node_modules/.bin/next start -p "$PORT"
 ) > "$RUN_DIR/next.log" 2>&1 &
 server_pid="$!"

@@ -39,7 +39,10 @@ No product code changes. Sign-in middleware, the account mapping, session age, p
 
 ## Known limits (v1)
 
+- The database preload starts only in the one `next start` process the runner launched: its start marker (`CI_DB_PRELOAD_START`) is used up on first load, so a child process that inherits `NODE_OPTIONS` never opens a second bridge (guard test).
 - Seeded documents have no stored file, so they show no previews. `/api/blob` and the readiness check use Neon's HTTP driver, which the loopback bridge does not serve.
+- Two more places use Neon's HTTP driver and so cannot work here: the readiness panel on `/app/admin` (`lib/readiness.ts`) and the sign-up action (`lib/signup-account.ts`). The route list in U1b-2 leaves them out or notes them.
+- The job tests the pull request's own head commit (`github.event.pull_request.head.sha`), not its merge with main, on purpose: it matches the other pull request checks, and a branch is brought up to date with main at its merge turn.
 - The stand-in answers only the session check. Signing in through the form, sign-out, password and email flows still run only on the real Neon Auth (live signed-in check after deployment).
 - When the Neon Auth SDK is upgraded, the pin test fails first: re-read the SDK's `fetchSessionWithCookie` and `getSession`, update the stand-in, then the pin.
 

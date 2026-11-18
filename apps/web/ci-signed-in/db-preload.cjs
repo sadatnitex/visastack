@@ -96,8 +96,11 @@ function start(env) {
 module.exports = { assertLoopbackDatabase, bridgePort, start, LOOPBACK };
 
 // Starts only when the runner asks (run.sh sets CI_DB_PRELOAD_START for `next start`); the seed
-// and the test import this file for its checks alone.
+// and the test import this file for its checks alone. The marker is used up on first load, so a
+// child process that inherits NODE_OPTIONS (and so loads this file again) never opens a second
+// bridge: only the one `next start` process the runner started does.
 if (process.env.CI_DB_PRELOAD_START === '1') {
+  Reflect.deleteProperty(process.env, 'CI_DB_PRELOAD_START');
   if (!globalThis.__visastackCiDbBridge) {
     // Refuses (throws) synchronously, before the server can start serving anything.
     globalThis.__visastackCiDbBridge = start(process.env).catch((error) => {

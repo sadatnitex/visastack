@@ -76,7 +76,7 @@ test('only the separate, non-required pull request workflow runs it, with no sec
   assert.match(flow, /^on:\n {2}pull_request:\n/m);
   assert.doesNotMatch(flow, /guard-run\/\*\.(pem|json)|tokens\.json|key\.pem/);
   assert.match(flow, /^permissions:\n {2}contents: read\n/m);
-  assert.match(flow, /^ {4}timeout-minutes: 20$/m);
+  assert.match(flow, /^ {4}timeout-minutes: 30$/m);
   assert.doesNotMatch(flow, /secrets\./);
   const steps = flow
     .split('\n')
@@ -239,6 +239,8 @@ test('the database preload refuses a database off this machine and refuses Verce
       cwd: web,
       env: { PATH: process.env.PATH, CI_DB_PRELOAD_START: '1', ...env },
       encoding: 'utf8',
+      // A preload that hangs (for example a second bridge waiting on a busy port) fails, not hangs.
+      timeout: 30_000,
     });
   for (const env of [
     { DATABASE_URL: 'postgres://u@remote-db.example.com/db', CI_DB_BRIDGE_PORT: '45433' },
@@ -259,6 +261,23 @@ test('the database preload refuses a database off this machine and refuses Verce
      });`,
   );
   assert.equal(both.status, 0, both.stderr);
+
+  // A child that inherits NODE_OPTIONS loads the preload again but opens no second bridge (the
+  // start marker was used up by the parent), so it neither fails on the busy port nor bridges.
+  const child = run(
+    { DATABASE_URL: local, CI_DB_BRIDGE_PORT: '45435', NODE_OPTIONS: `--require ${preload}` },
+    `const { spawnSync } = require('node:child_process');
+     const r = spawnSync(process.execPath, ['-e', 'console.log(JSON.stringify([Boolean(globalThis.__visastackCiDbBridge), process.env.CI_DB_PRELOAD_START ?? null]))'], { encoding: 'utf8', timeout: 10000 });
+     console.log(JSON.stringify([Boolean(globalThis.__visastackCiDbBridge), process.env.CI_DB_PRELOAD_START ?? null, r.status, r.stdout.trim()]));
+     process.exit(0);`,
+  );
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout.trim().split('\n').at(-1)), [
+    true,
+    null,
+    0,
+    JSON.stringify([false, null]),
+  ]);
   assert.deepEqual(JSON.parse(both.stdout.trim().split('\n').at(-1)), [
     '127.0.0.1:45434',
     '127.0.0.1:45434',

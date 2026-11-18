@@ -52,10 +52,21 @@ test('a session token the stand-in does not know goes to sign-in', async ({
 
 test('the made-up agency admin sees their agency page', async ({ context, page, baseURL }) => {
   await signInAs(context, 'agencyAdmin', base(baseURL));
-  const { organizationId, organizationName } = seeded();
+  const { organizationId, organizationName, caseTitle } = seeded();
   const response = await page.goto(`/app/agency/${organizationId}`);
   expect(response?.status()).toBe(200);
   expect(new URL(page.url()).pathname).toBe(`/app/agency/${organizationId}`);
   await expect(page.locator('.app-frame')).toBeVisible();
   await expect(page.getByText(organizationName).first()).toBeVisible();
+  // The layout alone shows the agency name; the page body must show the traveller who shared.
+  const clients = await page.goto(`/app/agency/${organizationId}/clients`);
+  expect(clients?.status()).toBe(200);
+  expect(new URL(page.url()).pathname).toBe(`/app/agency/${organizationId}/clients`);
+  // The shared traveller's case is offered in the page's evidence request form (a list option,
+  // which is never "visible" on its own, so it is checked as present).
+  await expect(
+    page
+      .locator('main')
+      .getByRole('option', { name: `${identity('traveller').name}: ${caseTitle}` }),
+  ).toBeAttached();
 });
