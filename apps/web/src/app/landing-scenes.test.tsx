@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { tonesAlternate } from '../components/public-site/scene';
 import { renderServer, textOf } from '../lib/next-mocks.test-support';
@@ -120,13 +119,5 @@ describe('the home page scroll story (WP-PUB2)', () => {
     for (const banned of ['testimonial', 'rated', 'stars', 'trusted by', 'customers']) {
       expect(text, banned).not.toContain(banned);
     }
-  });
-
-  it('lays the case line out one item to a row below 900 px (WP-HOT1)', () => {
-    const css = readFileSync(new URL('./landing-c1.css', import.meta.url), 'utf8');
-    const block = css.slice(css.indexOf('/* WP-HOT1'));
-    expect(block).toMatch(/@media \(max-width: 899px\)/);
-    expect(block).toMatch(/\.land-case-line \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
-    expect(block).toMatch(/\.land-case-name \{[^}]*overflow-wrap: break-word/);
   });
 });

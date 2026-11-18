@@ -11,6 +11,8 @@ const SIZES = [
   { width: 360, height: 740 },
   { width: 390, height: 844 },
   { width: 768, height: 1024 },
+  { width: 899, height: 800 },
+  { width: 900, height: 800 },
   { width: 1024, height: 768 },
   { width: 1440, height: 900 },
 ] as const;
@@ -54,7 +56,9 @@ async function measure(page: Page): Promise<Problem[]> {
           const style = getComputedStyle(node);
           if (style.display === 'none' || style.visibility === 'hidden') return false;
           // Words read aloud but not drawn (1 px clipped) are not on screen.
-          if (style.clipPath !== 'none' && style.clipPath.startsWith('inset(50%')) return false;
+          if (style.clipPath.startsWith('inset(50%') || style.clip === 'rect(0px, 0px, 0px, 0px)') {
+            return false;
+          }
         }
         return true;
       }

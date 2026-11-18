@@ -976,7 +976,7 @@
 }
 
 /* WP-PUB2 home scenes: ready. The case line, its marks, the bar that fills, and the ring. The case
-   line is two columns on a phone, with the In file and Missing words read aloud but not drawn. */
+   line is one column of rows, with the In file and Missing words read aloud but not drawn on a phone. */
 .land-ready-figure {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -990,8 +990,8 @@
 
 .land-case-line {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-1) var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1285,22 +1285,13 @@
   }
 }
 
-/* WP-HOT1 home phone layout: below 900 px the case line is one list, one item to a row, with the
-   mark and the words side by side and never over each other (long words wrap inside their own
-   row), and the ring keeps its own column beside the list. The page's phone height budget (6
+/* WP-HOT1 home phone layout: the case line is one list, one item to a row (base rule above), with
+   the mark and the words side by side and never over each other (long words wrap inside their own
+   row), and below 900 px the ring keeps its own column beside the list. The page's phone height budget (6
    screens) leaves no room to stack them. A computer (900 px and wider) is unchanged. */
 @media (max-width: 899px) {
   .land-ready-figure {
     gap: var(--space-1) var(--space-2);
-  }
-
-  .land-case-line {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-1);
-  }
-
-  .land-case-item {
-    min-height: 24px;
   }
 
   .land-case-name {
@@ -1311,5 +1302,10 @@
   .land-ring {
     justify-self: end;
     max-width: 8.5rem;
+  }
+
+  /* The 5.5 rem ring is too small for display-size digits: they touch the stroke. */
+  .land-ring .progress-ring-lg .progress-ring-centre {
+    font-size: var(--text-lead);
   }
 }
