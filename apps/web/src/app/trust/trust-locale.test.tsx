@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 import type { PublicTrustRoute } from '@visastack/services';
 import { describe, expect, it, vi } from 'vitest';
-import { renderServer, textOf } from '../../lib/next-mocks.test-support';
+import { renderServer } from '../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
 // The locale is set here directly, as the auth screens' test does.
@@ -74,14 +75,16 @@ async function render(locale: 'en' | 'bn', which: 'catalog' | 'pack') {
     which === 'catalog'
       ? CatalogPage({ searchParams: Promise.resolve({}) })
       : PackPage({ params: Promise.resolve({ packKey: 'uk.standard-visitor' }) });
-  return textOf(await renderServer(element));
+  // The words a reader gets: the parsed page's text, with a line break read as a space.
+  const doc = new DOMParser().parseFromString(await renderServer(element), 'text/html');
+  for (const br of doc.querySelectorAll('br')) br.replaceWith(' ');
+  return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
 describe('the public trust pages under Bengali', () => {
   it('shows Bengali for the trust story and the pack chrome, never a raw key or placeholder', async () => {
     const catalog = await render('bn', 'catalog');
-    expect(catalog).toContain(trustCatalog.bn['trust.publicTrustStory.theTrustModel']);
-    expect(catalog).toContain(trustCatalog.bn['trust.publicTrustStory.yourRecords']);
+    expect(catalog).toContain(trustCatalog.bn['trust.publicTrustStory.aHistoryYouCanReview']);
     const pack = await render('bn', 'pack');
     expect(pack).toMatch(BENGALI);
     expect(pack).toContain(trustCatalog.bn['trust.trustPackkeyPage.route']);
@@ -99,7 +102,7 @@ describe('the public trust pages under Bengali', () => {
     const pack = await render('bn', 'pack');
     for (const key of [
       'trust.publicTrustStory.clearBoundariesHumanControlNoApproval',
-      'trust.publicTrustStory.privateByDesign',
+      'trust.publicTrustStory.aHistoryYouCanReview',
     ] as const) {
       expect(key in trustCatalog.bn, key).toBe(true);
       expect(catalog, key).toContain(trustCatalog.bn[key]);
@@ -176,7 +179,7 @@ describe('the public trust pages under Bengali', () => {
 describe('the public trust pages under English', () => {
   it('render the original English with no Bengali', async () => {
     const catalog = await render('en', 'catalog');
-    expect(catalog).toContain('The Trust Model');
+    expect(catalog).toContain('A History You Can Review');
     expect(catalog).not.toMatch(BENGALI);
     const pack = await render('en', 'pack');
     expect(pack).toContain('Scam Awareness');

@@ -1,5 +1,7 @@
 import type { PublicTrustRoute } from '@visastack/services';
 import pub3 from '../../src/components/public-pub3-story.css?inline';
+import kitSteps from '../../src/components/public-site/kit/kit-steps.css?inline';
+import kit from '../../src/components/public-site/kit/kit.css?inline';
 import pubScenes from '../../src/components/public-site/public-scenes.css?inline';
 import pubSite from '../../src/components/public-site/public-site.css?inline';
 import { TrustCatalogSection } from '../../src/components/public-trust-routes';
@@ -35,10 +37,9 @@ const ROUTES = Array.from({ length: 156 }, (_, n) => route(n));
 export default function Pub3TrustFixture() {
   return (
     <>
-      <PublicTrustStory />
-      <TrustCatalogSection routes={ROUTES} params={{}} />
+      <PublicTrustStory catalog={<TrustCatalogSection routes={ROUTES} params={{}} />} />
       {/* The page's own stylesheets, last so the first thing in the page is visible content. */}
-      <style>{`${pubSite}\n${pubScenes}\n${pub3}`}</style>
+      <style>{`${pubSite}\n${pubScenes}\n${kit}\n${kitSteps}\n${pub3}`}</style>
     </>
   );
 }

@@ -17,7 +17,7 @@ const VIEWPORTS = [
 ] as const;
 const FIRST_SCREEN_WORDS = 30;
 
-/** Words a visitor reads in the first screen of the page's own content (the pilot notice and the
+/** Words a visitor reads in the first screen of the page's own content, the share-sheet picture excluded (the pilot notice and the
  *  shared header are the same on every page and are counted by their own checks). */
 async function firstScreenWords(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -32,6 +32,8 @@ async function firstScreenWords(page: Page): Promise<number> {
       if (!parent) continue;
       const style = getComputedStyle(parent);
       if (style.visibility === 'hidden' || style.display === 'none') continue;
+      // Words drawn inside the share-sheet picture belong to the drawing, not to the copy a visitor reads.
+      if (parent.closest('.kit-sheet')) continue;
       const range = document.createRange();
       range.selectNodeContents(node);
       const box = range.getBoundingClientRect();
@@ -81,23 +83,15 @@ for (const { name, width, height } of VIEWPORTS) {
 }
 
 for (const route of PAGES) {
-  // R2: the rebuilt How It Works page has no pinned scene (it rises in on scroll), so only the
-  // pages that have scenes are held to the one-screen scene check.
-  const pinsScenes = route === '/trust';
-  if (pinsScenes)
-    test(`${route} pins each scene to one screen at 760 x 600 and every step fits`, async ({
-      page,
-    }) => {
+  // R2: the rebuilt How It Works page has no pinned scene (it rises in on scroll). R3: nor has the
+  // Privacy and Trust page (its hero is a picture on a timer with its own pause button), so it must
+  // stay that way: nothing to pin, nothing to overflow.
+  if (route === '/trust')
+    test(`${route} has no pinned scene at 760 x 600`, async ({ page }) => {
       await page.setViewportSize({ width: 760, height: 600 });
       await page.goto(route);
-      await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-      const stages = page.locator('.pub-scene-stage');
-      const count = await stages.count();
-      expect(count).toBeGreaterThan(0);
-      for (let at = 0; at < count; at++) {
-        const fits = await stages.nth(at).evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
-        expect(fits, `stage ${at}`).toBe(true);
-      }
+      await expect(page.locator('main h1')).toHaveCount(1);
+      await expect(page.locator('.pub-scene-stage')).toHaveCount(0);
     });
 
   test(`${route} with reduced motion shows every scene finished and still`, async ({ page }) => {
