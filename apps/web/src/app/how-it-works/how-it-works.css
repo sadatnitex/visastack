@@ -1,0 +1,590 @@
+/* R2 How It Works rebuild. Flat: solid surfaces, edges by tone, colours from globals.css tokens only.
+   Every class starts with hk-. The kit stand-ins (hk-phone, hk-panel, hk-sheet, hk-ring) follow the
+   R1 kit contract and are replaced by the real kit at the turn. */
+.hk-inner {
+  display: grid;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: var(--space-5);
+  min-width: 0;
+}
+
+.hk-chapter {
+  padding-block: var(--space-8);
+}
+
+.hk-h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 9vw, 5.4rem);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.hk-h2 {
+  margin: 0;
+  font-size: clamp(1.9rem, 5vw, 3.2rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.hk-lead {
+  margin: 0;
+  max-width: 34ch;
+  font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+  line-height: 1.4;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.hk-center {
+  text-align: center;
+  margin-inline: auto;
+}
+
+/* Chapter 1: the dark opening with the four numbered chips. */
+.hk-hero {
+  padding-block: var(--space-8) var(--space-7);
+}
+
+.hk-hero .hk-inner {
+  justify-items: start;
+}
+
+.hk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hk-step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4) 0 var(--space-2);
+  border: 1px solid var(--pub-edge, var(--edge-card));
+  border-radius: var(--radius-pill);
+  color: var(--pub-ink, var(--text));
+  font-weight: 700;
+}
+
+.hk-step-num,
+.hk-num {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  color: var(--bg-elevated);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+/* Chapter 2: four rows, text on one side and the picture on the other, swapping sides. */
+.hk-rows .hk-inner {
+  gap: var(--space-8);
+}
+
+.hk-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+  align-items: center;
+}
+
+.hk-row > * {
+  min-width: 0;
+}
+
+.hk-row-text {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.hk-num {
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+}
+
+.hk-body {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.hk-row-art {
+  display: grid;
+  justify-items: center;
+}
+
+@media (min-width: 900px) {
+  .hk-row {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-7);
+  }
+
+  .hk-row:nth-child(even) > :first-child {
+    order: 2;
+  }
+}
+
+/* Rise-in on scroll: hidden only while the scroll engine is live (motion welcome, a wide screen). */
+html[data-scenes="live"] .hk-rise:not([data-in]) {
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+html[data-scenes="live"] .hk-rise {
+  transition: opacity 0.6s ease var(--hk-delay, 0s), transform 0.6s ease var(--hk-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-scenes="live"] .hk-rise:not([data-in]) {
+    opacity: 1;
+    transform: none;
+  }
+
+  .hk-rise,
+  .hk-flip,
+  .hk-flip * {
+    transition: none !important;
+  }
+}
+
+/* Kit stand-in: the phone. */
+.hk-phone {
+  margin: 0;
+  width: min(280px, 100%);
+  padding: 10px;
+  border-radius: 36px;
+  background-color: var(--chapter-bg);
+}
+
+.hk-phone-screen {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: 28px;
+  background-color: var(--bg-elevated);
+  color: var(--text);
+}
+
+.hk-phone-title {
+  font-size: 1.05rem;
+}
+
+.hk-phone-cam {
+  display: grid;
+  place-items: center;
+  padding-block: var(--space-3);
+  border-radius: var(--radius);
+  background-color: var(--chapter-bg);
+}
+
+.hk-fields {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hk-fields li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--edge-card);
+}
+
+.hk-field-label {
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.hk-field-value {
+  font-size: 0.95rem;
+}
+
+.hk-fields .pub-chip {
+  font-style: normal;
+  min-height: 24px;
+}
+
+.hk-example-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Kit stand-in: the ring. */
+.hk-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hk-arc {
+  fill: none;
+  stroke-width: 7;
+  stroke: var(--brand-tint-4);
+}
+
+.hk-arc-on {
+  stroke: var(--accent);
+}
+
+.hk-ring-text {
+  font-size: 21px;
+  font-weight: 800;
+  fill: var(--text);
+}
+
+/* Kit stand-in: the country checklist. */
+.hk-panel {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  width: min(520px, 100%);
+  padding: var(--space-5);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  color: var(--text);
+}
+
+.hk-tabs {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.hk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--edge-card);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.hk-tab-on {
+  border-color: var(--accent);
+  background-color: var(--brand-bg);
+  color: var(--accent);
+}
+
+.hk-tab:not(.hk-tab-on) .hk-tab-name {
+  display: none;
+}
+
+@media (min-width: 520px) {
+  .hk-tab:not(.hk-tab-on) .hk-tab-name {
+    display: inline;
+  }
+}
+
+.hk-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.hk-panel-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hk-panel-head span {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.hk-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hk-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  border-top: 1px solid var(--bg-subtle);
+  font-weight: 600;
+}
+
+.hk-list-art {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  flex: none;
+}
+
+.hk-list-no .hk-list-art {
+  opacity: 0.4;
+}
+
+.hk-list-no {
+  color: var(--text-secondary);
+}
+
+.hk-list-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.hk-list-tag {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.hk-list-yes .hk-list-tag {
+  color: var(--success);
+}
+
+/* Kit stand-in: the share sheet. */
+.hk-sheet {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  width: min(350px, 100%);
+  padding: var(--space-5);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  color: var(--text);
+}
+
+.hk-sheet-title {
+  font-size: 1.2rem;
+}
+
+.hk-sheet-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hk-sheet-rows li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 60px;
+  border-bottom: 1px solid var(--bg-subtle);
+}
+
+.hk-sheet-art {
+  width: 32px;
+  flex: none;
+}
+
+.hk-sheet-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.hk-sheet-name span {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.hk-switch {
+  position: relative;
+  flex: none;
+  width: 50px;
+  height: 30px;
+  border-radius: 15px;
+  background-color: var(--edge-control);
+}
+
+.hk-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--bg-elevated);
+}
+
+.hk-switch-on {
+  background-color: var(--success);
+}
+
+.hk-switch-on::after {
+  left: 23px;
+}
+
+.hk-sheet-sees {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  min-height: 34px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.hk-sheet-sees .pub-chip {
+  font-style: normal;
+}
+
+.hk-sheet-ends {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.hk-sheet-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent);
+  color: var(--bg-elevated);
+  font-weight: 700;
+}
+
+/* Chapter 3: the words band and its flip tiles. */
+.hk-hint {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.hk-flip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 900px) {
+  .hk-flip-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.hk-flip-grid > li {
+  min-width: 0;
+}
+
+.hk-flip {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 150px;
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.hk-flip-front {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.hk-flip-back {
+  display: grid;
+  gap: 2px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.hk-flip-not {
+  font-weight: 700;
+}
+
+.hk-flip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  color: var(--bg-elevated);
+}
+
+.hk-flip[aria-pressed="true"] .hk-flip-back {
+  color: var(--bg-elevated);
+}
+
+/* While the scroll engine is live the meaning is folded away until the tile is turned (it stays in
+   the page for a screen reader; without script, motion or on phones it is always shown). */
+html[data-scenes="live"] .hk-flip[aria-pressed="false"] .hk-flip-means {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+html[data-scenes="live"] .hk-flip .hk-flip-means {
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  max-height: 6em;
+}
+
+/* Chapter 4: the dark closing. */
+.hk-closing {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+
+.hk-closing .hk-lead {
+  margin-inline: auto;
+}
+
+.hk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+@media (max-width: 480px) {
+  .hk-chapter {
+    padding-block: var(--space-7);
+  }
+
+  .hk-actions .pub-button {
+    white-space: normal;
+    text-align: center;
+  }
+}

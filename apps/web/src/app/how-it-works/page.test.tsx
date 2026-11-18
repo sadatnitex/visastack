@@ -1,98 +1,102 @@
-import { CANONICAL_CASE_STATES, LEGACY_ONLY_MISSION_STATES } from '@visastack/core';
 import { describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
-import { CASE_STATUS } from '../../lib/status-words';
 
 /**
- * WP-PUB3: the How It Works page tells the case story as one scroll story. Every stage word is the
- * product's own (status-words.ts), every drawn figure is tagged Example, and the page reads
- * complete without script.
+ * R2: the How It Works page rebuilt to the approved reference. Four chapters in a fixed order, the
+ * old case story left out, every made-up figure tagged Example, readiness never an approval.
  */
 
 vi.mock('server-only', () => ({}));
 
 const { default: HowItWorksPage, metadata } = await import('./page');
-const { tonesAlternate } = await import('../../components/public-site/scene');
-
 const render = async () => renderServer(await HowItWorksPage());
-const STAGES = [
-  'Getting Started',
-  'Gathering Documents',
-  'Being Checked',
-  'Needs You',
-  'Ready to Submit',
-];
 
-describe('the How It Works page', () => {
-  it('does not promise a check by someone else (only the case owner moves a case on)', async () => {
-    const html = await render();
-    expect(html).toContain('You look over the case before it moves on.');
-    expect(html).not.toContain('A person looks over the case.');
-  });
-
+describe('the How It Works page (R2)', () => {
   it('is named How It Works and has one top heading', async () => {
     expect(metadata.title).toBe('How It Works');
     const html = await render();
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
   });
 
-  it('reads the case stage words from the product, in order, never an invented stage', async () => {
-    const product = new Set(Object.values(CASE_STATUS).map((status) => status.word));
-    for (const word of STAGES) expect(product.has(word), word).toBe(true);
+  it('opens with the four numbered steps in order', async () => {
     const html = await render();
-    const text = textOf(html);
+    const first = html.split('</section>')[0] ?? '';
+    const text = textOf(first);
+    expect(text).toContain('How It Works.');
     let at = -1;
-    for (const word of STAGES) {
+    for (const word of ['Add', 'Check', 'Prepare', 'Share']) {
       const next = text.indexOf(word, at + 1);
       expect(next, word).toBeGreaterThan(at);
       at = next;
     }
+    expect(first.match(/class="hk-step-chip"/g)).toHaveLength(4);
   });
 
-  it('draws only stages a new case can reach: each is in the core stage list, none is Submitted', () => {
-    const reachable = CANONICAL_CASE_STATES.filter((state) => state !== 'SUBMITTED');
-    const words = reachable.map((state) => CASE_STATUS[state].word);
-    for (const word of STAGES) expect(words, word).toContain(word);
-    expect(LEGACY_ONLY_MISSION_STATES).not.toContain('SUBMISSION_READY');
-    expect(STAGES).not.toContain(CASE_STATUS.SUBMITTED.word);
-  });
-
-  it('puts the case line in one scene that already shows its finished step without script', async () => {
+  it('runs four chapters: dark opening, light rows, light words band, dark closing', async () => {
     const html = await render();
-    expect(html).toMatch(/data-scene="case"[^>]*data-len="3"/);
-    expect(html).toMatch(/data-scene="case"[^>]*data-steps="5"/);
-    expect(html).toMatch(/data-scene="case"[^>]*data-step="4"/);
-    expect(html).toContain('class="p3-stages"');
+    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map((m) => m[1]);
+    expect(tones).toEqual(['dark', 'light', 'light', 'dark']);
   });
 
-  it('tags every drawn case and figure as an Example and says readiness is not approval', async () => {
+  it('draws one row per step with the picture each step needs', async () => {
     const html = await render();
-    expect(html.match(/class="pub-example"/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(html.match(/class="hk-row"/g)).toHaveLength(4);
+    expect(html).toContain('three suggested fields');
+    expect(html).toContain('three confirmed fields');
+    expect(html).toContain('A Germany checklist with 3 of 8 items ready');
+    expect(html).toContain('3 of 8 Ready');
+    expect(html).toContain('Share With Agency');
+  });
+
+  it('removes the old case story chapters', async () => {
+    const text = textOf(await render());
+    for (const gone of [
+      'Your Case,',
+      'Step by Step',
+      'You Stay in Charge',
+      'Ready When You Are',
+      'Follow a Case',
+    ]) {
+      expect(text, gone).not.toContain(gone);
+    }
+  });
+
+  it('turns each word tile on a button that tells its state, with the meaning in the page', async () => {
+    const html = await render();
+    expect(html.match(/<button[^>]*class="hk-flip"[^>]*aria-pressed="false"/g)).toHaveLength(4);
     const text = textOf(html);
-    expect(text).toContain('Completeness only. Not an approval.');
-    expect(text).toContain('Suggested');
-    expect(text).toContain('Confirmed');
-    // Submitted is not a stage a case can reach yet, so it is not drawn.
-    expect(text).not.toContain('Submitted');
-    expect(text).not.toMatch(/\bApproved\b/);
+    for (const part of [
+      'Received',
+      'is not Reviewed',
+      'Suggested',
+      'is not Confirmed',
+      'Saved',
+      'is not Shared',
+      'Ready',
+      'is not Approved',
+      'No one has checked it yet.',
+    ]) {
+      expect(text, part).toContain(part);
+    }
   });
 
-  it("alternates dark and light chapters and keeps today's button label and sign-in link", async () => {
+  it('tags every drawn figure as an Example and says readiness is not approval', async () => {
     const html = await render();
-    const tones = [...html.matchAll(/data-tone="(dark|light)"/g)].map(
-      (m) => m[1] as 'dark' | 'light',
-    );
-    expect(tones.length).toBeGreaterThanOrEqual(3);
-    expect(tonesAlternate(tones)).toBe(true);
+    expect(html.match(/class="pub-example"/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+    expect(textOf(html)).toContain('Completeness only. Not an approval.');
+  });
+
+  it('keeps the sign-in and trust links and the button label', async () => {
+    const html = await render();
     expect(html).toMatch(
       /<a class="pub-button pub-button-primary" href="\/app">[^<]*Start with Your Own Profile/,
     );
+    expect(html).toMatch(/href="\/trust"[^>]*>[^<]*Privacy and Trust/);
   });
 
-  it('keeps the first screen short: the opening chapter holds at most 30 words', async () => {
-    const html = await render();
-    const first = html.split('</section>')[0] ?? '';
-    expect(textOf(first).split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(30);
+  it('keeps the scroll runtime on the page', async () => {
+    const { ScenesRuntime } = await import('../../components/public-site/scenes-runtime');
+    expect(ScenesRuntime).toBeTypeOf('function');
   });
 
   it('has no em dash', async () => {
