@@ -1,40 +1,5 @@
-/* WP-PUB4 countries page. Flat: tokens only, no gradient, no shadow, no new hue. Every colour reads a
+/* WP-PUB4 countries page rows (the hero, scene and cards moved to the R4 block below). Flat: tokens only, no gradient, no shadow, no new hue. Every colour reads a
    --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
-.pub4c-hero-grid {
-  display: grid;
-  gap: var(--space-6);
-  align-items: center;
-}
-
-.pub4c-hero-copy {
-  display: grid;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.pub4c-title {
-  margin: 0;
-  font-size: clamp(2rem, 6vw, 3.5rem);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-  color: var(--pub-ink, var(--text));
-  overflow-wrap: anywhere;
-}
-
-.pub4c-lede {
-  margin: 0;
-  max-width: 34rem;
-  font-size: 1.125rem;
-  line-height: 1.5;
-  color: var(--pub-ink-soft, var(--text-secondary));
-}
-
-.pub4c-h2 {
-  margin: 0 0 var(--space-5);
-  font-size: clamp(1.5rem, 4vw, 2.25rem);
-  line-height: 1.15;
-  color: var(--pub-ink, var(--text));
-}
 
 .pub4c-rows {
   display: grid;
@@ -93,35 +58,6 @@
   margin-inline-end: var(--space-2);
 }
 
-.pub4c-read {
-  display: grid;
-  gap: var(--space-4);
-  justify-items: start;
-}
-
-.pub4c-read-grid {
-  width: 100%;
-  display: grid;
-  gap: var(--space-4);
-}
-
-/* While the scroll engine runs, the card for the current step gets the strong edge; text never dims. */
-html[data-scenes="live"] .pub-scene[data-step="0"] .pub4c-read-grid > .pub-card:nth-child(1),
-html[data-scenes="live"] .pub-scene[data-step="1"] .pub4c-read-grid > .pub-card:nth-child(2),
-html[data-scenes="live"] .pub-scene[data-step="2"] .pub4c-read-grid > .pub-card:nth-child(3) {
-  border-color: var(--pub-edge-strong, var(--accent));
-}
-
-@media (min-width: 760px) {
-  .pub4c-hero-grid {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  }
-
-  .pub4c-read-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 400px) {
   .pub4c-row {
     grid-template-columns: auto minmax(0, 1fr);
@@ -144,10 +80,6 @@ html[data-scenes="live"] .pub-scene[data-step="2"] .pub4c-read-grid > .pub-card:
 /* WP-PUBFIX phone length: Bengali words wrap to more lines, so the phone rows sit closer (still 44 px
    buttons, same words) to keep the page 2 percent under the 6-screen limit in both languages. */
 @media (max-width: 759px) {
-  .pub4c-hero-grid {
-    gap: var(--space-4);
-  }
-
   .pub4c-rows {
     gap: var(--space-2);
   }
@@ -156,8 +88,343 @@ html[data-scenes="live"] .pub-scene[data-step="2"] .pub4c-read-grid > .pub-card:
     row-gap: var(--space-2);
     padding-block: var(--space-2);
   }
+}
 
-  .pub4c-h2 {
+/* WP-R4 countries rework: reference order is hero with a self-typing search, a ribbon of flags,
+   the real list, "Rules, Not Guesses", a closing band. Flat, tokens only, no inline style. */
+.r4-hero {
+  padding-block: calc(var(--space-8) + var(--space-4)) var(--space-8);
+}
+
+.r4-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  justify-items: center;
+  text-align: center;
+}
+
+.r4-title {
+  margin: 0;
+  max-width: 14ch;
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.r4-title .pub-words,
+.r4-h2 .pub-words {
+  display: block;
+}
+
+.r4-lede {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r4-h2 {
+  margin: 0 0 var(--space-5);
+  font-size: clamp(2rem, 6vw, 3.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  color: var(--pub-ink, var(--text));
+}
+
+/* The search pill and its results. The results area keeps its height so nothing moves while the demo types. */
+.r4-search {
+  width: min(560px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-2);
+  /* Room for the form and three results, so nothing below moves while the demo types. */
+  min-height: calc(60px + 3 * var(--space-2) + 3 * 48px + 12px + 2.5em + 44px);
+  text-align: start;
+}
+
+.r4-search-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 60px;
+  padding: 6px 6px 6px var(--space-4);
+  border: 1px solid var(--chapter-stroke-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--chapter-bg);
+}
+
+.r4-search-form:focus-within {
+  border-color: var(--brand-tint-5);
+  outline: 3px solid var(--brand-tint-5);
+  outline-offset: 2px;
+}
+
+.r4-search-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--brand-tint-5);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.r4-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--bg-elevated);
+  font: inherit;
+  font-size: 1.125rem;
+  font-weight: 600;
+  caret-color: var(--brand-tint-5);
+  outline: none;
+}
+
+.r4-search-input::placeholder {
+  color: var(--chapter-text);
+}
+
+.r4-search-go {
+  flex: none;
+}
+
+.r4-results {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+}
+
+.r4-search-status {
+  margin: 0;
+  min-height: 2.5em;
+  padding-inline: var(--space-3);
+  color: var(--chapter-text);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.r4-results:empty,
+.r4-results[data-count="0"] {
+  background-color: transparent;
+}
+
+.r4-result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-md, var(--radius-lg));
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.r4-results > li:first-child .r4-result,
+.r4-result:hover {
+  background-color: var(--brand-tint-2);
+}
+
+.r4-result img {
+  width: 30px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.r4-result-flag-none {
+  width: 30px;
+  height: 22px;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+}
+
+.r4-search[data-demo="on"] .r4-search-input {
+  caret-color: var(--brand-tint-5);
+}
+
+/* The ribbon of flags: drifts sideways, pauses under a pointer or focus, stands still without motion. */
+.r4-ribbon {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  margin-bottom: var(--space-6);
+}
+
+.r4-ribbon-view {
+  width: 100%;
+  overflow: hidden;
+  padding-block: var(--space-4);
+  border-block: 1px solid var(--edge-card);
+}
+
+.r4-ribbon-track {
+  display: flex;
+  gap: var(--space-3);
+  width: max-content;
+  animation: r4-drift 38s linear infinite;
+}
+
+.r4-ribbon:hover .r4-ribbon-track,
+.r4-ribbon:focus-within .r4-ribbon-track {
+  animation-play-state: paused;
+}
+
+.r4-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-elevated);
+  color: var(--text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.r4-pill img {
+  width: 32px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+@keyframes r4-drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .r4-ribbon-track {
+    animation: none;
+    width: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .r4-pill[data-copy="b"] {
+    display: none;
+  }
+
+  .r4-search-input {
+    caret-color: auto;
+  }
+}
+
+.r4-list-chapter {
+  padding-top: 0;
+}
+
+.r4-list-chapter .r4-h2 {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+}
+
+.r4-rules-chapter {
+  background-color: var(--brand-tint-1);
+}
+
+.r4-rules {
+  display: grid;
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.r4-rules-copy {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.r4-rules-copy .r4-h2 {
+  margin-bottom: 0;
+}
+
+.r4-source-chip {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background-color: var(--brand-tint-3);
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+@media (min-width: 900px) {
+  .r4-rules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-8);
+  }
+}
+
+/* Phone length (WP-SB8): the page stays 2 percent under 6 screens in English and Bengali. Same words,
+   44 px buttons; only spacing and the flag band shrink. */
+@media (max-width: 759px) {
+  .r4-hero {
+    padding-block: var(--space-6) var(--space-5);
+  }
+
+  .r4-title {
+    font-size: 2.25rem;
+  }
+
+  .r4-pill-late {
+    display: none;
+  }
+
+  .r4-ribbon {
     margin-bottom: var(--space-4);
   }
+
+  .r4-ribbon-view {
+    padding-block: var(--space-2);
+  }
+
+  .pub4c-row {
+    padding: var(--space-2) var(--space-3);
+    column-gap: var(--space-3);
+    row-gap: var(--space-2);
+  }
+
+  .pub4c-row-text {
+    gap: 2px;
+  }
+
+  .pub4c-facts,
+  .pub4c-notes {
+    font-size: 0.8125rem;
+    line-height: 1.3;
+  }
+
+  .r4-rules-chapter {
+    padding-block: var(--space-6);
+  }
+
+  .r4-rules {
+    gap: var(--space-4);
+  }
+}
+
+/* R4: the page's one Pause or Play button (WCAG 2.2.2) and what it stops. */
+.r4-motion-toggle {
+  justify-self: center;
+}
+
+html[data-r4-motion="paused"] .r4-ribbon-track {
+  animation-play-state: paused;
 }

@@ -5,6 +5,7 @@ import {
   destinationByIso2,
 } from '@visastack/core/destinations';
 import { AVAILABLE_FLAG_CODES } from '../../components/flags/available-flags';
+import { SEARCH_MAX, type SearchEntry } from '../../components/public-countries/search-match';
 import { ENTRY_SHORT_LABEL, trustNotes } from '../../lib/country-view';
 import { type SearchParamsRecord, nextShow, parseShow } from '../../lib/paging';
 
@@ -14,14 +15,30 @@ import { type SearchParamsRecord, nextShow, parseShow } from '../../lib/paging';
 export const COUNTRIES_STEP = 12;
 const SHOW_KEY = 'show';
 
-/** Places the ring of flags in the hero; only those the catalogue holds and a flag file exists for. */
-const RING_CHOICE = ['jp', 'gb', 'us', 'de', 'fr', 'sg', 'ae', 'ca', 'au', 'it', 'nl', 'my'];
-
-export const RING_CODES: readonly string[] = RING_CHOICE.filter(
-  (code) => destinationByIso2(code) !== undefined,
-);
-
 const FLAGS = new Set(AVAILABLE_FLAG_CODES);
+
+/** The flags in the drifting band under the hero; only those the catalogue holds and a flag file exists for. */
+const RIBBON_CHOICE = [
+  'de',
+  'it',
+  'jp',
+  'fr',
+  'sg',
+  'tw',
+  'gb',
+  'us',
+  'ae',
+  'ca',
+  'au',
+  'nl',
+  'my',
+  'ch',
+  'se',
+];
+
+export const RIBBON_CODES: readonly string[] = RIBBON_CHOICE.filter(
+  (code) => destinationByIso2(code) !== undefined && FLAGS.has(code),
+);
 
 export const NOT_RESEARCHED_WORDS = 'Not Researched Yet';
 export const NO_DATE_WORDS = 'Date Not Recorded';
@@ -124,3 +141,26 @@ export function firstNewRowId(window: CountriesWindow): string | null {
   const row = SORTED[window.shown];
   return window.next === null || row === undefined ? null : rowId(row.iso2);
 }
+
+const SEARCH_KEY = 'q';
+
+/** What `?q=` asked for: its first value, cut to a sensible length, or empty. */
+export function searchQueryOf(params: SearchParamsRecord): string {
+  const raw = params[SEARCH_KEY];
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  return typeof first === 'string' ? first.trim().slice(0, SEARCH_MAX) : '';
+}
+
+/** Every country the hero search can offer: code, English name and flag file. Small, so the browser can search it. */
+export const SEARCH_INDEX: readonly SearchEntry[] = SORTED.map((destination) => ({
+  c: destination.iso2,
+  n: destination.country,
+  f: FLAGS.has(destination.iso2.toLowerCase()) ? destination.iso2.toLowerCase() : null,
+}));
+
+/** The ribbon's flags with their English names. */
+export const RIBBON_FLAGS: readonly { readonly code: string; readonly name: string }[] =
+  RIBBON_CODES.flatMap((code) => {
+    const destination = destinationByIso2(code);
+    return destination ? [{ code, name: destination.country }] : [];
+  });
