@@ -12,6 +12,7 @@ import { publicNavLinks } from '../components/public-site/public-nav';
 import { publicText } from '../components/public-site/public-text';
 import { ScenesBoot, requestNonce } from '../components/public-site/scenes-boot';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
+import { SiteFooter } from '../components/site-footer';
 import { SiteNavigation } from '../components/site-navigation';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getT, primePage } from '../lib/i18n-server';
@@ -93,7 +94,54 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // slim label with the link, and the full words stay under About This Version (footer). A
   // signed-in person never sees the notice, so their cookie is not read.
   const noticeSeen = signedIn || (await hasSeenVersionNotice());
-  const hasNotice = versionNoticeCopy(deploymentMode) !== null;
+  const registrationOpen = isPublicBetaOpen();
+  // The words of this version's notice, so the footer says the same and nothing more.
+  const notice = versionNoticeCopy(deploymentMode, registrationOpen);
+  const links = publicNavLinks(undefined, { signedIn });
+  // The sign-up button shows to a visitor while registration is open; it is the bar's one filled
+  // action, and Sign In turns quiet beside it. Otherwise Sign In (or Workspace) is the action.
+  const showGetStarted = !signedIn && registrationOpen;
+  // The switch names the language it switches to, in that language's own words (WCAG 3.1.2). It is
+  // drawn in the bar on a wide screen and in the menu on a narrow one: one is hidden by the stylesheet.
+  // Only the bar's form carries the landmark name, so the two never share one.
+  const languageForm = (className: string, named = true) =>
+    LANGUAGE_CHOICE_ENABLED ? (
+      <form
+        className="lang-form"
+        action={setLocaleAction}
+        aria-label={named ? t('home.layout.language') : undefined}
+      >
+        {/* The menu's copy sends the language with the button itself, so the page has one hidden
+          language field, the bar's. */}
+        {named ? <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} /> : null}
+        {named ? (
+          <button type="submit" className={className} lang={locale === 'en' ? 'bn' : 'en'}>
+            {LANGUAGE_NAME[locale === 'en' ? 'bn' : 'en']}
+          </button>
+        ) : (
+          // The menu's copy names its language only where it differs from the page's own (a part
+          // in the page's own language needs no mark), and carries its own value.
+          <button
+            type="submit"
+            className={className}
+            name="locale"
+            value={locale === 'en' ? 'bn' : 'en'}
+            {...(htmlLang !== (locale === 'en' ? 'bn' : 'en')
+              ? { lang: locale === 'en' ? 'bn' : 'en' }
+              : {})}
+          >
+            {LANGUAGE_NAME[locale === 'en' ? 'bn' : 'en']}
+          </button>
+        )}
+      </form>
+    ) : null;
+  // "Sign In" is the same action the sign-in screen names; a plain link, because `/app` sends a
+  // visitor on to the sign-in provider and a prefetch of it would be a blocked cross-origin request.
+  const signInLink = (className: string) => (
+    <a className={className} href="/app">
+      {signedIn ? t.node('home.layout.workspace') : tAuth.node('auth.authSignInPage.signIn')}
+    </a>
+  );
   // Data saver from the request (Save-Data: on) keeps picture motion still from the first paint.
   const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};
   const fonts = `${inter.variable} ${bengali.variable}`;
@@ -114,7 +162,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
           {!signedIn ? (
             <PilotBanner
               mode={deploymentMode}
-              registrationOpen={isPublicBetaOpen()}
+              registrationOpen={registrationOpen}
               seen={noticeSeen}
             />
           ) : null}
@@ -123,69 +171,50 @@ export default async function RootLayout({ children }: { readonly children: Reac
               <BrandMark />
               {PRODUCT_NAME}
             </Link>
-            <SiteNavigation>
-              <div className="site-nav-pages">
-                {/* The five public pages, in one list (WP-PUB1). Words with a translation come from
-                  the catalogue; the others are marked English on a Bangla page. */}
-                {publicNavLinks(undefined, { signedIn }).map((link) => (
-                  <Link key={link.label} href={link.href}>
-                    {link.key ? t.node(link.key) : publicText(link.label, htmlLang)}
-                  </Link>
-                ))}
-              </div>
-              <div className="site-nav-actions">
-                {/* Shown while language choice is on (see LANGUAGE_CHOICE_ENABLED). */}
-                {LANGUAGE_CHOICE_ENABLED ? (
-                  <form action={setLocaleAction} aria-label={t('home.layout.language')}>
-                    <input type="hidden" name="locale" value={locale === 'en' ? 'bn' : 'en'} />
-                    {/* The label is written in the language it switches to, so say so (WCAG 3.1.2). */}
-                    <button
-                      type="submit"
-                      className="lang-switch"
-                      lang={locale === 'en' ? 'bn' : 'en'}
-                    >
-                      {LANGUAGE_NAME[locale === 'en' ? 'bn' : 'en']}
-                    </button>
-                  </form>
-                ) : null}
-                <a className="btn btn-secondary nav-cta" href="/app">
-                  {signedIn
-                    ? t.node('home.layout.workspace')
-                    : tAuth.node('auth.authSignInPage.signIn')}
-                </a>
-                {!signedIn && isPublicBetaOpen() ? (
-                  <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
-                    {t.node('home.layout.getStarted')}
-                  </Link>
-                ) : null}
-              </div>
-            </SiteNavigation>
+            {/* The five public pages in one list (WP-PUB1), then the actions (NAV2). Words with a
+              translation come from the catalogue; the others are marked English on a Bangla page.
+              A narrow screen moves the pages, the language switch and the quiet sign-in into the
+              menu; the single action that matters stays in the bar. */}
+            <SiteNavigation
+              pages={links.map((link) => ({
+                href: link.href,
+                route: link.route,
+                label: link.key ? t.node(link.key) : publicText(link.label, htmlLang),
+              }))}
+              menuExtras={
+                <>
+                  {languageForm('menu-lang', false)}
+                  {showGetStarted ? signInLink('menu-signin') : null}
+                </>
+              }
+              actions={
+                <>
+                  {languageForm('lang-switch')}
+                  {showGetStarted
+                    ? signInLink('btn btn-secondary nav-cta nav-signin site-bar-only')
+                    : null}
+                  {showGetStarted ? (
+                    <Link className="btn btn-primary nav-cta" href="/auth/sign-up">
+                      {t.node('home.layout.getStarted')}
+                    </Link>
+                  ) : (
+                    signInLink('btn btn-primary nav-cta')
+                  )}
+                </>
+              }
+            />
           </header>
           <main id="main">{children}</main>
-          <footer className="footer">
-            <div className="container footer-inner">
-              <span>{t.node(COPYRIGHT_KEY, { getFullYear: copyrightYear })}</span>
-              <nav className="footer-links" aria-label={t('home.layout.footer')}>
-                <Link href="/#capabilities">{t.node('home.layout.features')}</Link>
-                <Link href="/trust">{t.node('home.layout.publicTrust')}</Link>
-                <Link href="/status">{t.node('home.layout.status')}</Link>
-                {hasNotice ? (
-                  <Link href="/status#about-this-version">
-                    {t.node('home.layout.aboutThisVersion')}
-                  </Link>
-                ) : null}
-                <Link href="/privacy">{t.node('home.layout.privacy')}</Link>
-                <Link href="/terms">{t.node('home.layout.terms')}</Link>
-                {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in provider, and a
-                  prefetch of it would be a blocked cross-origin request. */}
-                <a href="/app">
-                  {signedIn
-                    ? t.node('home.layout.workspace')
-                    : tAuth.node('auth.authSignInPage.signIn')}
-                </a>
-              </nav>
-            </div>
-          </footer>
+          <SiteFooter
+            t={t}
+            tAuth={tAuth}
+            pageLang={htmlLang}
+            pages={links}
+            signedIn={signedIn}
+            registrationOpen={registrationOpen}
+            notice={notice ? { label: notice.label, short: notice.short } : null}
+            copyright={t.node(COPYRIGHT_KEY, { getFullYear: copyrightYear })}
+          />
           <PwaRuntime enabled={serviceWorker} />
           <SaveDataFlag />
         </I18nProvider>
