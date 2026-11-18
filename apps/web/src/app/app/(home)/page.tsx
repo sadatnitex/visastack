@@ -62,6 +62,7 @@ import {
   readPackageNotices,
 } from '../../../lib/package-notices';
 import { plural } from '../../../lib/plural';
+import { loadOwnPhoto } from '../../../lib/profile-photos';
 import {
   RECENT_ACTIVITY_LIMIT,
   type RecentActivityEntry,
@@ -88,7 +89,8 @@ import {
   SETUP_LATER_HREF,
 } from '../first-run';
 import { HeldFilesLine, readHeldFileCount } from '../held-files-line';
-import { CaseCard, PersonCard, StartCaseTile } from './home-cards';
+import { AttentionRow } from './attention-row';
+import { CaseCard, PersonCard, StartCaseTile, ownPhotoFor } from './home-cards';
 import { RecentActivity } from './recent-activity';
 import { TidyUpCard, tidyUpLine, tidyUpShortLine } from './tidy-up';
 
@@ -330,7 +332,9 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     readable: perApplicant.length === 0 || readable.length > 0,
   };
 
-  const [heldFiles, recentActivity] = await Promise.all([
+  // The photo the sidebar account card shows: the same memoized read, so no new query. Never fails
+  // Home; without it every card keeps initials.
+  const [heldFiles, recentActivity, ownPhoto] = await Promise.all([
     readHeldFileCount(db, accountId, perApplicant[0]?.applicant.id),
     loadRecentActivity(
       db,
@@ -339,6 +343,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       perApplicant.map((row) => row.applicant),
       Boolean(consents.CORE_PROCESSING),
     ),
+    loadOwnPhoto(db, accountId),
   ]);
 
   return {
@@ -350,6 +355,8 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     // UMPE G4: family files waiting for Which Person? (never throws; a failed read counts none).
     heldFiles,
     recentActivity,
+    ownPhoto: ownPhoto?.self ?? null,
+    accountId,
     clock,
     readinessByCase,
     unreadableCases,
@@ -780,31 +787,19 @@ export default async function AppPage({
                 const when = attentionWhen(item);
                 const context = attentionContext(item);
                 return (
-                  <li key={item.key} className={`do-next-item do-next-tier-${item.tier}`}>
-                    <div className="do-next-item-head">
-                      <span className="do-next-tier">
-                        {data.noticeKeys.has(item.key)
-                          ? PACKAGE_NOTICE_TIER_LABEL
-                          : ATTENTION_TIER_LABELS[item.tier]}
-                      </span>
-                      <h3 className="do-next-title">{heading}</h3>
-                    </div>
-                    {context ? <p className="do-next-context">{context}</p> : null}
-                    <p className="home-attention-why">{item.why}</p>
-                    {when ? (
-                      <p className="home-attention-when">{when}</p>
-                    ) : item.dueState === 'unknown' ? (
-                      <p className="home-attention-when">
-                        <StatusBadge tone="neutral">Date Unknown</StatusBadge>
-                      </p>
-                    ) : null}
-                    <div className="do-next-action">
-                      <Link href={item.href} className="btn btn-secondary do-next-link">
-                        {attentionActionLabel(item)}
-                        <span className="sr-only">: {heading}</span>
-                      </Link>
-                    </div>
-                  </li>
+                  <AttentionRow
+                    key={item.key}
+                    item={item}
+                    heading={heading}
+                    context={context}
+                    when={when}
+                    tierLabel={
+                      data.noticeKeys.has(item.key)
+                        ? PACKAGE_NOTICE_TIER_LABEL
+                        : ATTENTION_TIER_LABELS[item.tier]
+                    }
+                    actionLabel={attentionActionLabel(item)}
+                  />
                 );
               })}
             </ol>
@@ -880,6 +875,7 @@ export default async function AppPage({
                     cases={row.activeMissions}
                     requests={row.waitingRequests}
                     actionNeeded={row.itemCount > 0}
+                    photoUrl={ownPhotoFor(row.applicant, data.accountId, data.ownPhoto)}
                   />
                 ))}
               </ul>
