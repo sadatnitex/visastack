@@ -27,7 +27,11 @@ const data = vi.hoisted(() => ({
   readinessError: 'invalid',
   /** UMPE P13: package changes and checklist updates for every applicant; 'fail' throws. */
   notices: [] as AttentionItem[] | 'fail',
+  /** WAL10: what the sidebar's own-photo read returns (the memoized account photo). */
+  ownPhoto: null as { self: { id: string; name: string; photoUrl: string | null } | null } | null,
 }));
+
+vi.mock('../../lib/profile-photos', () => ({ loadOwnPhoto: async () => data.ownPhoto }));
 
 vi.mock('../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -207,6 +211,7 @@ beforeEach(() => {
   data.deadlines = [];
   data.deadlineFails = [];
   data.notices = [];
+  data.ownPhoto = null;
 });
 
 describe('home (characterization before WP-V3)', () => {
@@ -1321,5 +1326,104 @@ describe('home under Bengali', () => {
       expect(text, key).toContain(bn[key]);
     expect(text).not.toContain('Add Dates to My Calendar');
     expect(text).not.toMatch(/appHome\.app[A-Z]/);
+  });
+});
+
+describe('WAL10: People photo and Needs Attention rows on Home', () => {
+  const PHOTO = '/api/photos/applicant/10000000-0000-4000-8000-000000000001?v=1';
+  const own = (id: string, relationship: string, ownerAccountId = 'acct-1') => ({
+    ...SELF,
+    id,
+    displayName: id === SELF.id ? 'Synthetic Self' : 'Synthetic Other',
+    relationship,
+    ownerAccountId,
+  });
+  const peopleHtml = async () => {
+    data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
+    return new JSDOM(await renderServer(Page({}))).window.document;
+  };
+
+  it('shows the account photo on the own Myself card only, and initials on everyone else', async () => {
+    data.applicants = [
+      own(SELF.id, 'SELF'),
+      own('10000000-0000-4000-8000-000000000002', 'FAMILY_MEMBER'),
+    ] as never;
+    data.ownPhoto = { self: { id: SELF.id, name: 'Synthetic Self', photoUrl: PHOTO } };
+    const doc = await peopleHtml();
+    const cards = [...doc.querySelectorAll('.home-person')];
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.querySelector('img')?.getAttribute('src')).toBe(PHOTO);
+    expect(cards[0]?.querySelector('img')?.getAttribute('alt')).toBe('');
+    expect(cards[1]?.querySelector('img')).toBeNull();
+    expect(cards[1]?.querySelector('.home-avatar')?.textContent).toBe('SO');
+  });
+
+  it('gives no photo to a record another account owns, even labelled Myself', async () => {
+    data.applicants = [own(SELF.id, 'SELF', 'agency-acct')] as never;
+    data.ownPhoto = { self: { id: SELF.id, name: 'Synthetic Self', photoUrl: PHOTO } };
+    const doc = await peopleHtml();
+    expect(doc.querySelector('.home-person img')).toBeNull();
+  });
+
+  it('keeps initials when the photo read fails', async () => {
+    data.applicants = [own(SELF.id, 'SELF')] as never;
+    data.ownPhoto = null;
+    const doc = await peopleHtml();
+    expect(doc.querySelector('.home-person img')).toBeNull();
+    expect(doc.querySelector('.home-person .home-avatar')?.textContent).toBe('SS');
+  });
+
+  it('draws each Needs Attention item as one row with its own action and the urgency word', async () => {
+    data.applicants = [own(SELF.id, 'SELF')] as never;
+    data.items = [
+      attentionItem({
+        key: 'task:a',
+        kind: 'task',
+        title: 'Book the Visa Appointment',
+        applicantId: SELF.id,
+        applicantName: 'Synthetic Self',
+        dueDate: '2026-10-20',
+        dueState: 'overdue',
+        daysUntilDue: -6,
+        href: '/app/mission/a',
+      }),
+      attentionItem({
+        key: 'case_changed:b',
+        kind: 'case_changed',
+        title: 'Changed Since You Confirmed It',
+        applicantId: SELF.id,
+        dueState: 'none',
+        href: '/app/mission/b',
+      }),
+      attentionItem({
+        key: 'document_expiry:c',
+        kind: 'document_expiry',
+        title: 'Document Expiring',
+        applicantId: SELF.id,
+        subject: { kind: 'document', docType: 'PASSPORT' },
+        dueState: 'later',
+        href: '/app/applicant/x/documents',
+      }),
+      attentionItem({
+        key: 'suggestions:d',
+        kind: 'suggestions',
+        title: 'Suggested Details Waiting for Your Decision',
+        why: 'Nothing is added to the profile until you approve it.',
+        applicantId: SELF.id,
+        count: 2,
+        dueState: 'none',
+        href: '/app/applicant/x/review',
+      }),
+    ];
+    data.proposals = 0;
+    const doc = await peopleHtml();
+    const rows = [...doc.querySelectorAll('.home-attention-row')];
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+    for (const row of rows) {
+      expect(row.querySelectorAll('a.do-next-link')).toHaveLength(1);
+      expect(row.querySelector('.expandable-section-picture')).not.toBeNull();
+      expect(row.querySelector('.do-next-tier')?.textContent).toBeTruthy();
+    }
+    expect(doc.body.textContent).toContain('Nothing is added to the profile until you approve it.');
   });
 });
