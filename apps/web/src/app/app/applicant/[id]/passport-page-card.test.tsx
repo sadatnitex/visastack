@@ -257,12 +257,18 @@ describe('the Passport Page Card', () => {
     const rowSummary = container.querySelector('#profile-row-passport_number summary');
     expect(rowSummary?.textContent).not.toContain('X1234567');
 
-    const show = line('passport_number').querySelector<HTMLButtonElement>('button[aria-pressed]');
+    const show = line('passport_number').querySelector<HTMLButtonElement>(
+      'button.passport-page-show',
+    );
     expect(show?.textContent).toBe('Show Passport Number');
-    expect(show?.getAttribute('aria-pressed')).toBe('false');
+    // The name says what a press does; a pressed state on top would read as a double negative.
+    expect(show?.hasAttribute('aria-pressed')).toBe(false);
+    // The status button names its detail.
+    expect(
+      line('passport_number').querySelector('.explain-tip-trigger .sr-only')?.textContent,
+    ).toBe('Passport Number: Backed by a Document');
     click(show);
     expect(line('passport_number').textContent).toContain('X1234567');
-    expect(show?.getAttribute('aria-pressed')).toBe('true');
     expect(show?.textContent).toBe('Hide Passport Number');
     // Only the chosen detail is shown.
     expect(line('date_of_birth').innerHTML).not.toContain('1990');
@@ -284,7 +290,7 @@ describe('the Passport Page Card', () => {
         passport_number: { factId: 'f8', value: standIn, status: 'APPLICANT_CONFIRMED' },
       });
       expect(container.innerHTML.toLowerCase()).not.toContain('[protected');
-      expect(line('passport_number').querySelector('button[aria-pressed]')).toBeNull();
+      expect(line('passport_number').querySelector('button.passport-page-show')).toBeNull();
       expect(line('passport_number').textContent).toMatch(
         /Protected detail|Could not read this detail/,
       );
@@ -301,7 +307,7 @@ describe('the Passport Page Card', () => {
       passport_number: { factId: 'f8', value: null, status: 'DECLARED', locked },
     });
     expect(line('passport_number').textContent).toContain(words);
-    expect(line('passport_number').querySelector('button[aria-pressed]')).toBeNull();
+    expect(line('passport_number').querySelector('button.passport-page-show')).toBeNull();
   });
 
   it('says Not Added Yet with Add for empty details, and Add opens the detail to edit', () => {

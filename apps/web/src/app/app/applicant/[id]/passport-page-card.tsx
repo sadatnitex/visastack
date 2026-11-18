@@ -1,7 +1,11 @@
 'use client';
 
 import { type MouseEvent, type ReactNode, useId, useState } from 'react';
-import { type StatusKind, StatusPicture } from '../../../../components/pictures/status-picture';
+import {
+  STATUS_MEANINGS,
+  type StatusKind,
+  StatusPicture,
+} from '../../../../components/pictures/status-picture';
 
 /**
  * Passport Page Card (WAL4, owner decision 17 Nov 2026, option B): a schematic passport data page
@@ -241,10 +245,10 @@ export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
                 <dd className="passport-page-cell">
                   <LineContent line={line} shown={isShown} onEdit={onEdit} />
                   {masked ? (
+                    // The name says what a press does (Show or Hide), so no pressed state is added.
                     <button
                       type="button"
                       className="btn btn-secondary passport-page-show"
-                      aria-pressed={isShown}
                       onClick={() => toggle(line.key)}
                     >
                       {isShown ? 'Hide' : 'Show'}
@@ -252,7 +256,11 @@ export function PassportPageCard({ lines, onEdit }: PassportPageCardProps) {
                     </button>
                   ) : null}
                   {line.status ? (
-                    <StatusPicture kind={line.status} className="passport-page-status" />
+                    <StatusPicture
+                      kind={line.status}
+                      label={`${line.label}: ${STATUS_MEANINGS[line.status].name}`}
+                      className="passport-page-status"
+                    />
                   ) : null}
                 </dd>
               </div>

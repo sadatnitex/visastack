@@ -170,7 +170,13 @@ test.describe('WAL4 Passport Page Card', () => {
     await expect(line(page, 'passport_number')).toContainText('X1234567');
     await expect(
       line(page, 'passport_number').getByRole('button', { name: 'Hide Passport Number' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    ).toBeVisible();
+    // The status button names its detail, so a run of Tab stops is never a list of bare states.
+    await expect(
+      line(page, 'passport_number').getByRole('button', {
+        name: 'Passport Number: Backed by a Document',
+      }),
+    ).toBeVisible();
     // The page's own markup (the test page also carries the fixture's script, whose code holds the word).
     expect((await page.locator('main').innerHTML()).toLowerCase()).not.toContain('[protected');
   });

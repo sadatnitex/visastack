@@ -23043,9 +23043,12 @@ button.wallet-stack-card {
   font-weight: 650;
   letter-spacing: 0.02em;
   text-decoration: underline;
-  text-decoration-color: var(--hairline);
+  text-decoration-color: var(--text-tertiary);
   text-underline-offset: 3px;
   overflow-wrap: anywhere;
+}
+a.passport-page-value {
+  min-inline-size: 44px;
 }
 a.passport-page-value:hover {
   text-decoration-color: var(--accent);
@@ -23096,6 +23099,10 @@ a.passport-page-value:hover {
   }
 }
 @media (forced-colors: active) {
+  .passport-page-art-paper,
+  .passport-page-art-frame {
+    fill: Canvas;
+  }
   .passport-page-art-paper,
   .passport-page-art-frame,
   .passport-page-zone-mark {
