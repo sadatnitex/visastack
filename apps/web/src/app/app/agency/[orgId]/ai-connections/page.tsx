@@ -1,10 +1,15 @@
 import { aiAppLabel } from '@visastack/core/ai-features';
 import { listAgencyAiConnections } from '@visastack/services';
 import type { Metadata } from 'next';
+import { AiConnectionTile } from '../../../../../components/ai-connection-tile';
 import { EmptyState } from '../../../../../components/ui';
 import { appAgencyCatalog } from '../../../../../i18n/app-agency';
 import { AGENCY_AI_ADMINS_ONLY, AGENCY_AI_NOT_YET } from '../../../../../lib/agency-ai';
-import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import {
+  aiConnectionTimeLeft,
+  formatDayIn,
+  formatMomentIn,
+} from '../../../../../lib/ai-connection-time-left';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
 import { AgencyAiTurnOff } from '../agency-ai-turn-off';
@@ -34,6 +39,7 @@ export default async function AgencyAiConnectionsPage({
     return listed.ok ? { allowed: true as const, list: listed.value } : { allowed: false as const };
   });
   if (!data) return null;
+  const now = new Date();
 
   return (
     <article className="card" aria-labelledby="agency-ai-connections-title">
@@ -56,29 +62,68 @@ export default async function AgencyAiConnectionsPage({
           {t.node('appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect')}
         </EmptyState>
       ) : (
-        <ul className="rows">
+        <ul className="ai-connection-list">
           {data.list.connections.map((connection) => {
             const label = aiAppLabel({ name: connection.clientName, host: connection.clientHost });
             return (
-              <li className="row" key={connection.id}>
-                <span className="row-key">
-                  {label}
-                  <span className="scope-row-note">
-                    Connected by {connection.connectedBy} on{' '}
-                    {formatTimestampDate(connection.createdAt.toISOString())}.{' '}
-                    {connection.live
-                      ? `Ends ${formatTimestampDate(connection.endsAt.toISOString())}.`
-                      : 'Ended.'}{' '}
-                    {connection.lastUsedAt
-                      ? `Last read ${formatTimestamp(connection.lastUsedAt.toISOString())}.`
-                      : 'Not used yet.'}
-                  </span>
-                </span>
-                <AgencyAiTurnOff
-                  organizationId={orgId}
-                  connectionId={connection.id}
-                  appLabel={label}
-                  live={connection.live}
+              <li className="ai-connection" key={connection.id}>
+                <AiConnectionTile
+                  id={connection.id}
+                  appName={connection.clientName}
+                  appHost={connection.clientHost}
+                  readsTerm={t.node('appAgency.appAgencyOrgidAiConnectionsPage.canRead')}
+                  reads={[
+                    {
+                      key: 'each_case',
+                      icon: 'users',
+                      label: t.node(
+                        'appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowed',
+                      ),
+                      note: t.node(
+                        'appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase',
+                      ),
+                    },
+                  ]}
+                  facts={[
+                    {
+                      key: 'connected',
+                      term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.connected'),
+                      value: formatDayIn(connection.createdAt, undefined),
+                    },
+                    {
+                      key: 'connected_by',
+                      term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.connectedBy'),
+                      value: connection.connectedBy,
+                    },
+                    {
+                      key: 'ends',
+                      term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.ends'),
+                      value: connection.live
+                        ? formatMomentIn(connection.endsAt, undefined)
+                        : t.node('appAgency.appAgencyOrgidAiConnectionsPage.ended'),
+                    },
+                    {
+                      key: 'last_used',
+                      term: t.node('appAgency.appAgencyOrgidAiConnectionsPage.lastUsed'),
+                      value: connection.lastUsedAt
+                        ? formatMomentIn(connection.lastUsedAt, undefined)
+                        : t.node('appAgency.appAgencyOrgidAiConnectionsPage.notUsedYet'),
+                    },
+                  ]}
+                  timeLeft={aiConnectionTimeLeft({
+                    start: connection.createdAt,
+                    end: connection.endsAt,
+                    live: connection.live,
+                    now,
+                  })}
+                  actions={
+                    <AgencyAiTurnOff
+                      organizationId={orgId}
+                      connectionId={connection.id}
+                      appLabel={label}
+                      live={connection.live}
+                    />
+                  }
                 />
               </li>
             );

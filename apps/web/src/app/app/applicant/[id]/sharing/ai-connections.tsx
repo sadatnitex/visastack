@@ -1,25 +1,40 @@
 import { type AiFeatureOffReason, aiFeatureOffHint } from '@visastack/core/ai-features';
 import type { AiConnectionList, AiConnectionSummary } from '@visastack/services';
+import { AiConnectionTile, type AiTileRead } from '../../../../../components/ai-connection-tile';
+import type { IconName } from '../../../../../components/icons';
 import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
+import { componentsCatalog } from '../../../../../i18n/components';
+import {
+  aiConnectionTimeLeft,
+  formatDayIn,
+  formatMomentIn,
+} from '../../../../../lib/ai-connection-time-left';
 import {
   AI_CONNECTION_DURATIONS,
   AI_CONNECTION_LAYERS,
   AI_KEEP_END,
   type AiChangeDuration,
+  type AiConnectionLayer,
   type AiFileChoice,
   type AiFilesView,
   type ConsentInitial,
 } from '../../../../../lib/ai-consent-choices';
 import {
+  AI_DOCUMENT_LIST_LABEL,
+  AI_DOCUMENT_TEXT_LABEL,
   AI_DURATION_LABELS,
   AI_FULL_NUMBERS_LABEL,
+  AI_LAYER_LABELS,
+  AI_LAYER_NOTES,
   AI_ORIGINAL_FILES_LABEL,
+  AI_ORIGINAL_FILES_NOTE,
   AI_SUGGEST_CHANGES_LABEL,
+  AI_SUGGEST_CHANGES_NOTE,
   aiAccessLabels,
   aiAllowsSuggestions,
   aiFilesLine,
 } from '../../../../../lib/ai-consent-labels';
-import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import { formatTimestamp } from '../../../../../lib/format-date';
 import { getServerT } from '../../../../../lib/i18n-server';
 import { ChangeAccessForm } from './ai-connection-change';
 import { AiConnectionTurnOff } from './ai-connection-turn-off';
@@ -155,87 +170,129 @@ export function aiCaseLine(item: Pick<AiConnectionSummary, 'caseMode' | 'caseTit
   return item.caseTitle ? `Only ${item.caseTitle}` : 'No Cases. The chosen case was removed.';
 }
 
-function Details({
-  item,
-  suggestionsAvailable,
-  files,
-}: {
-  readonly item: AiConnectionSummary;
-  readonly suggestionsAvailable: boolean;
-  readonly files: AiConnectionFiles | undefined;
-}) {
+/** The picture for each thing an app can read (WAL5 tiles); the words are the consent screen's own. */
+const LAYER_ICONS: Readonly<Record<AiConnectionLayer, IconName>> = {
+  identity: 'user',
+  travel_documents: 'docPassport',
+  timelines: 'plane',
+  money: 'docBank',
+  people: 'users',
+  qualifications: 'docCertificate',
+  declarations: 'alert',
+  health: 'activity',
+};
+
+/**
+ * What a connection can read, as the tile's pictures: the consent screen's labels verbatim, each
+ * with the consent screen's own sentence as its Explain note, in the consent screen's order.
+ */
+export function connectionReads(
+  item: AiConnectionSummary,
+  suggestionsAvailable: boolean,
+  files: AiConnectionFiles | undefined,
+): AiTileRead[] {
   const t = getServerT(applicantSharingCatalog);
-  const access = aiAccessLabels(item.scopes);
+  const tc = getServerT(componentsCatalog);
   const ticked = files?.byConnection[item.id] ?? [];
-  return (
-    <dl className="ai-connection-facts">
-      <div>
-        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.connected')}</dt>
-        <dd>{formatTimestampDate(item.connectedAt)}</dd>
-      </div>
-      <div>
-        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.canRead')}</dt>
-        <dd>
-          {access.length > 0
-            ? access.join(', ')
-            : t.node('applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord')}
-        </dd>
-      </div>
-      <div>
-        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.cases')}</dt>
-        <dd>{aiCaseLine(item)}</dd>
-      </div>
-      <div>
-        <dt>{AI_FULL_NUMBERS_LABEL}</dt>
-        <dd>
-          {item.revealIdentifiers
-            ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
-            : t.node('applicantSharing.appApplicantIdSharingAiConnections.no')}
-        </dd>
-      </div>
-      {ticked.length > 0 ? (
-        <div>
-          <dt>{AI_ORIGINAL_FILES_LABEL}</dt>
-          <dd>
-            {files?.view.available
-              ? aiFilesLine(ticked)
-              : t.node(
-                  'applicantSharing.appApplicantIdSharingAiConnections.aifileslineButTurnedOffRightNow',
-                  { aiFilesLine: aiFilesLine(ticked) },
-                )}
-          </dd>
-        </div>
-      ) : null}
-      {aiAllowsSuggestions(item.scopes) ? (
-        <div>
-          <dt>{AI_SUGGEST_CHANGES_LABEL}</dt>
-          <dd>
-            {suggestionsAvailable
-              ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
-              : t.node(
-                  'applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow',
-                )}
-          </dd>
-        </div>
-      ) : null}
-      <div>
-        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.ends')}</dt>
-        <dd>
-          {item.expiresAt
-            ? formatTimestamp(item.expiresAt)
-            : t.node('applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff')}
-        </dd>
-      </div>
-      <div>
-        <dt>{t.node('applicantSharing.appApplicantIdSharingAiConnections.lastUsed')}</dt>
-        <dd>
-          {item.lastUsedAt
-            ? formatTimestamp(item.lastUsedAt)
-            : t.node('applicantSharing.appApplicantIdSharingAiConnections.notUsedYet')}
-        </dd>
-      </div>
-    </dl>
-  );
+  const reads: AiTileRead[] = AI_CONNECTION_LAYERS.filter((layer) =>
+    item.scopes.includes(layer),
+  ).map((layer) => ({
+    key: layer,
+    icon: LAYER_ICONS[layer],
+    label: AI_LAYER_LABELS[layer],
+    note: AI_LAYER_NOTES[layer],
+  }));
+  if (item.scopes.includes('document_list')) {
+    reads.push({
+      key: 'document_list',
+      icon: 'folder',
+      label: AI_DOCUMENT_LIST_LABEL,
+      note: tc.node('components.aiAccessChoices.kindDatesAndStatusOnlyNo'),
+    });
+  }
+  if (item.scopes.includes('document_text')) {
+    reads.push({
+      key: 'document_text',
+      icon: 'file',
+      label: AI_DOCUMENT_TEXT_LABEL,
+      note: tc.node('components.aiAccessChoices.sensitiveTheWordsReadFromDocuments'),
+    });
+  }
+  reads.push({
+    key: 'cases',
+    icon: 'briefcase',
+    label: t.node('applicantSharing.appApplicantIdSharingAiConnections.cases'),
+    value: aiCaseLine(item),
+    note: t.node('applicantSharing.appApplicantIdSharingAiConnections.casesNote'),
+  });
+  reads.push({
+    key: 'full_numbers',
+    icon: item.revealIdentifiers ? 'key' : 'lock',
+    label: AI_FULL_NUMBERS_LABEL,
+    value: item.revealIdentifiers
+      ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
+      : t.node('applicantSharing.appApplicantIdSharingAiConnections.no'),
+    note: item.revealIdentifiers
+      ? tc.node('components.aiAccessChoices.sensitiveShowsWholePassportAndId')
+      : t.node('applicantSharing.appApplicantIdSharingAiConnections.numbersShowOnlyTheirLastThree'),
+  });
+  if (ticked.length > 0) {
+    reads.push({
+      key: 'original_files',
+      icon: 'docPhoto',
+      label: AI_ORIGINAL_FILES_LABEL,
+      value: files?.view.available
+        ? aiFilesLine(ticked)
+        : t.node(
+            'applicantSharing.appApplicantIdSharingAiConnections.aifileslineButTurnedOffRightNow',
+            { aiFilesLine: aiFilesLine(ticked) },
+          ),
+      note: AI_ORIGINAL_FILES_NOTE,
+    });
+  }
+  if (aiAllowsSuggestions(item.scopes)) {
+    reads.push({
+      key: 'suggest_changes',
+      icon: 'clipboard',
+      label: AI_SUGGEST_CHANGES_LABEL,
+      value: suggestionsAvailable
+        ? t.node('applicantSharing.appApplicantIdSharingAiConnections.yes')
+        : t.node('applicantSharing.appApplicantIdSharingAiConnections.yesButTurnedOffRightNow'),
+      note: AI_SUGGEST_CHANGES_NOTE,
+    });
+  }
+  return reads;
+}
+
+/** True when the app can read nothing from the record itself (no part and no documents). */
+function readsNothing(item: AiConnectionSummary): boolean {
+  return aiAccessLabels(item.scopes).length === 0;
+}
+
+/** Connected, Ends and Last Used, in the person's time zone (UTC only when it is unknown). */
+function connectionFacts(item: AiConnectionSummary, timeZone: string | null | undefined) {
+  const t = getServerT(applicantSharingCatalog);
+  return [
+    {
+      key: 'connected',
+      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.connected'),
+      value: formatDayIn(item.connectedAt, timeZone),
+    },
+    {
+      key: 'ends',
+      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.ends'),
+      value: item.expiresAt
+        ? formatMomentIn(item.expiresAt, timeZone)
+        : t.node('applicantSharing.appApplicantIdSharingAiConnections.untilYouTurnItOff'),
+    },
+    {
+      key: 'last_used',
+      term: t.node('applicantSharing.appApplicantIdSharingAiConnections.lastUsed'),
+      value: item.lastUsedAt
+        ? formatMomentIn(item.lastUsedAt, timeZone)
+        : t.node('applicantSharing.appApplicantIdSharingAiConnections.notUsedYet'),
+    },
+  ];
 }
 
 function endedLine(item: AiConnectionSummary): string {
@@ -260,6 +317,8 @@ export function AiConnectionsSection({
   suggestionsAvailable = false,
   files,
   accessOff,
+  timeZone,
+  now = new Date(),
 }: {
   readonly applicantId: string;
   readonly list: AiConnectionList;
@@ -279,6 +338,10 @@ export function AiConnectionsSection({
    * connections stay listed so each one can still be changed or turned off.
    */
   readonly accessOff?: AiFeatureOffReason | null;
+  /** The person's time zone for dates and days left (UTC only when it is unknown). */
+  readonly timeZone?: string | null;
+  /** The moment the page is drawn, for the time left. */
+  readonly now?: Date;
 }) {
   const t = getServerT(applicantSharingCatalog);
   // While connecting is off the card shows only what can still be acted on, or what just happened.
@@ -333,27 +396,48 @@ export function AiConnectionsSection({
         <ul className="ai-connection-list">
           {list.active.map((item) => (
             <li key={item.id} className="ai-connection">
-              <h3 className="ai-connection-name">
-                {item.clientName} <span className="ai-consent-host">{item.clientHost}</span>
-              </h3>
-              <Details item={item} suggestionsAvailable={suggestionsAvailable} files={files} />
-              {connectorOn ? (
-                <ChangeAccess
-                  applicantId={applicantId}
-                  item={item}
-                  cases={cases}
-                  returning={returning}
-                  suggestionsAvailable={suggestionsAvailable}
-                  files={files}
-                />
-              ) : null}
-              <div className="page-actions ai-connection-actions">
-                <AiConnectionTurnOff
-                  applicantId={applicantId}
-                  connectionId={item.id}
-                  appName={item.clientName}
-                />
-              </div>
+              <AiConnectionTile
+                id={item.id}
+                appName={item.clientName}
+                appHost={item.clientHost}
+                readsTerm={t.node('applicantSharing.appApplicantIdSharingAiConnections.canRead')}
+                reads={connectionReads(item, suggestionsAvailable, files)}
+                {...(readsNothing(item)
+                  ? {
+                      readsEmpty: t.node(
+                        'applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord',
+                      ),
+                    }
+                  : {})}
+                facts={connectionFacts(item, timeZone)}
+                timeLeft={aiConnectionTimeLeft({
+                  start: item.connectedAt,
+                  end: item.expiresAt,
+                  now,
+                  timeZone,
+                })}
+                actions={
+                  <>
+                    {connectorOn ? (
+                      <ChangeAccess
+                        applicantId={applicantId}
+                        item={item}
+                        cases={cases}
+                        returning={returning}
+                        suggestionsAvailable={suggestionsAvailable}
+                        files={files}
+                      />
+                    ) : null}
+                    <div className="page-actions ai-connection-actions">
+                      <AiConnectionTurnOff
+                        applicantId={applicantId}
+                        connectionId={item.id}
+                        appName={item.clientName}
+                      />
+                    </div>
+                  </>
+                }
+              />
             </li>
           ))}
         </ul>

@@ -40,6 +40,16 @@ const list = (overrides: Partial<AiConnectionList> = {}): AiConnectionList => ({
   ...overrides,
 });
 
+/** The names of each tile's pictures, tile by tile, as a screen reader hears the buttons. */
+function tileReads(html: string): string[][] {
+  return html
+    .split('data-ai-tile=""')
+    .slice(1)
+    .map((tile) =>
+      [...tile.matchAll(/<span class="sr-only">([^<]*)<\/span><\/button>/g)].map((m) => m[1] ?? ''),
+    );
+}
+
 const render = (props: Parameters<typeof AiConnectionsSection>[0]) =>
   renderToStaticMarkup(<AiConnectionsSection {...props} />);
 
@@ -71,10 +81,24 @@ describe('the AI Connections section', () => {
     expect(text).toContain('claude.ai');
     expect(text).toContain('Connected');
     expect(text).toContain('6 Oct 2026');
-    expect(text).toContain(
-      'Personal Details, Passports and Travel Documents, List of My Documents',
-    );
-    expect(text).toContain('Money, Health, Text Read From My Documents');
+    // WAL5: what each app can read is one picture per thing, in the consent screen's words and
+    // order, each a button named by its label.
+    expect(tileReads(html)).toEqual([
+      [
+        'Personal Details',
+        'Passports and Travel Documents',
+        'List of My Documents',
+        'Cases: All Current Cases',
+        'Full Document Numbers: No',
+      ],
+      [
+        'Money',
+        'Health',
+        'Text Read From My Documents',
+        'Cases: Only UK Visit',
+        'Full Document Numbers: Yes',
+      ],
+    ]);
     expect(text).toContain('All Current Cases');
     expect(text).toContain('Only UK Visit');
     expect(text).toContain('Until You Turn It Off');
@@ -280,14 +304,14 @@ describe('Suggest Changes on AI Connections (S21)', () => {
       'This AI feature is turned off right now. Everything else works as usual.',
     );
     expect(text).not.toContain('Your choice is kept');
-    expect(before).not.toContain('<dt>Suggest Changes</dt>');
+    expect(before).not.toContain('<span class="sr-only">Suggest Changes: ');
   });
 
   it('keeps an app’s choice while the feature is off, and the person can still untick it', () => {
     const html = render({
       list: list({ active: [connection({ scopes: ['identity', 'suggest_changes'] })] }),
     });
-    expect(html).toContain('<dt>Suggest Changes</dt>');
+    expect(html).toContain('<span class="sr-only">Suggest Changes: ');
     expect(textOf(html)).toContain('Yes, but turned off right now');
     // Ticked and enabled, so it can be unticked; nothing hidden carries it.
     const box = html.match(/<input[^>]*name="suggest_changes"[^>]*>/)?.[0] ?? '';
@@ -433,5 +457,112 @@ describe('the AI Connections section while AI App Access is off (S28)', () => {
       list: list({ active: [connection()] }),
     });
     expect(count(html)).toBe(count(on) + 1);
+  });
+});
+
+describe('one tile per AI connection (WAL5)', () => {
+  // A fixed clock far from the real today.
+  const NOW = new Date(Date.UTC(2030, 0, 15, 12, 0));
+
+  it('draws one tile per live connection, each with its own clock and both actions', () => {
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      now: NOW,
+      timeZone: 'Asia/Dhaka',
+      list: list({
+        active: [
+          connection({
+            connectedAt: new Date(Date.UTC(2030, 0, 14, 12)),
+            expiresAt: new Date(Date.UTC(2030, 1, 13, 12)),
+          }),
+          connection({
+            id: '33333333-3333-4333-8333-333333333333',
+            clientName: 'ChatGPT',
+            clientHost: 'chatgpt.com',
+            connectedAt: new Date(Date.UTC(2030, 0, 14, 16)),
+            expiresAt: new Date(Date.UTC(2030, 0, 15, 16)),
+          }),
+        ],
+      }),
+    });
+    expect(html.match(/data-ai-tile=""/g)).toHaveLength(2);
+    expect(html.match(/aria-label="Change Access for (Claude|ChatGPT)"/g)).toHaveLength(2);
+    expect(html.match(/aria-label="Turn Off (Claude|ChatGPT)"/g)).toHaveLength(2);
+    const [first = '', second = ''] = html.split('data-ai-tile=""').slice(1);
+    expect(textOf(first)).toContain('29 Days Left');
+    expect(first).toContain('data-state="running"');
+    // 24 hours, 4 left: ending soon, in hours.
+    expect(second).toContain('data-state="ending_soon"');
+    expect(textOf(second)).toContain('4 Hours Left');
+    expect(textOf(second)).toContain('Ending Soon');
+  });
+
+  it('writes Connected, Ends and Last Used in the person time zone', () => {
+    const late = connection({
+      connectedAt: new Date(Date.UTC(2030, 0, 14, 20)),
+      expiresAt: new Date(Date.UTC(2030, 0, 20, 20)),
+      lastUsedAt: new Date(Date.UTC(2030, 0, 15, 1)),
+    });
+    const dhaka = textOf(
+      render({
+        applicantId: APPLICANT,
+        connectorOn: true,
+        now: NOW,
+        timeZone: 'Asia/Dhaka',
+        list: list({ active: [late] }),
+      }),
+    );
+    // 20:00 UTC is 02:00 the next day in Dhaka.
+    expect(dhaka).toMatch(/Connected\s*15 Jan 2030/);
+    expect(dhaka).toMatch(/Ends\s*21 Jan 2030, 02:00/);
+    expect(dhaka).toMatch(/Last Used\s*15 Jan 2030, 07:00/);
+    expect(dhaka).toContain('6 Days Left');
+    const unknown = textOf(
+      render({
+        applicantId: APPLICANT,
+        connectorOn: true,
+        now: NOW,
+        timeZone: 'Not/AZone',
+        list: list({ active: [late] }),
+      }),
+    );
+    expect(unknown).toMatch(/Connected\s*14 Jan 2030/);
+    expect(unknown).toMatch(/Ends\s*20 Jan 2030, 20:00/);
+    expect(unknown).toContain('5 Days Left');
+  });
+
+  it('says what each picture means, in the consent screen sentences', async () => {
+    const html = render({
+      applicantId: APPLICANT,
+      connectorOn: true,
+      now: NOW,
+      timeZone: 'UTC',
+      list: list({
+        active: [connection({ revealIdentifiers: true, scopes: ['identity', 'document_text'] })],
+      }),
+    });
+    const text = textOf(html);
+    expect(text).toContain('Name, date of birth, nationality and contact details.');
+    expect(text).toContain(
+      'Sensitive: the words read from documents in the parts you allow above.',
+    );
+    expect(text).toContain(
+      'Sensitive: shows whole passport and ID numbers instead of the last three characters.',
+    );
+    expect(text).toContain('Which of your cases this app can read.');
+    expect(await axeViolations(html)).toEqual([]);
+  });
+
+  it('still says when an app reads nothing from the record', () => {
+    const text = textOf(
+      render({
+        applicantId: APPLICANT,
+        connectorOn: true,
+        now: NOW,
+        list: list({ active: [connection({ scopes: [] })] }),
+      }),
+    );
+    expect(text).toContain('Nothing from this record');
   });
 });

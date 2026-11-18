@@ -22945,3 +22945,191 @@ button.wallet-stack-card {
   margin-block: 0;
 }
 /* end WP-WAL1 */
+
+/* WP-WAL5 AI connection tiles (18 Nov 2026, owner decision 17 Nov 2026, Wallet board Pattern 4 option A): one tile per AI connection on the traveller Sharing page and the agency AI Connections page (components/ai-connection-tile.tsx). Who, Connected, what it can read as small pictures that explain themselves, a clock ring for the time left with the end date, Last Used, and the existing Change Access and Turn Off. Flat: tokens only, a hairline, no shadow, no gradient. The ring is drawn at its final state and nothing moves, so reduced motion has nothing to switch off. Every picture is a full 44 px row item, so wrapped rows never overlap. */
+.ai-tile {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ai-tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ai-tile-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.ai-tile-name {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.ai-tile-name .ai-consent-host {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 400;
+}
+.ai-tile-reads {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ai-tile-term {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-tile-read-none {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.ai-tile-read-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+.ai-tile-read {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
+  padding-inline-end: var(--space-2);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+/* A full 44 px target inside its own row item: no reach past the line, so wrapped items never overlap. */
+.ai-tile-read .explain-tip {
+  margin-block: 0;
+  flex: none;
+  color: var(--brand);
+}
+.ai-tile-read-word {
+  min-width: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ai-tile-read-value {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.ai-tile-clock {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.ai-tile-ring {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--brand);
+}
+.ai-tile-ring svg:first-child {
+  position: absolute;
+  inset: 0;
+}
+.ai-tile-ring-track {
+  stroke: var(--hairline-soft);
+  stroke-width: 4;
+}
+.ai-tile-ring-fill {
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.ai-tile-ring[data-state="open"] {
+  color: var(--success);
+}
+.ai-tile-ring[data-state="ending_soon"] {
+  color: var(--warning);
+}
+.ai-tile-ring[data-state="ended"] {
+  color: var(--text-tertiary);
+}
+/* Without colour the ring still reads: ending soon draws a thicker track, ended a dashed one. */
+.ai-tile-ring[data-state="ending_soon"] .ai-tile-ring-fill {
+  stroke-width: 6;
+}
+.ai-tile-ring[data-state="ended"] .ai-tile-ring-track {
+  stroke: currentColor;
+  stroke-dasharray: 3 4;
+}
+.ai-tile-when {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+.ai-tile-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 650;
+}
+.ai-tile-soon {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px var(--space-2);
+  border-radius: 980px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.ai-tile-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-1) var(--space-4);
+}
+.ai-tile-facts dt {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-tile-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ai-tile-actions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ai-tile-actions .btn {
+  min-height: 44px;
+}
+@media (forced-colors: active) {
+  .ai-tile-ring-fill,
+  .ai-tile-ring[data-state="ended"] .ai-tile-ring-track {
+    stroke: CanvasText;
+  }
+  .ai-tile-ring-track {
+    stroke: GrayText;
+  }
+}
+/* end WP-WAL5 */

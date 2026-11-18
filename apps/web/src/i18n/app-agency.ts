@@ -26,11 +26,20 @@ export const appAgencyCatalog = defineCatalog({
     'appAgency.appAgencyOrgidAgencyAiTurnOff.turnOffApplabel': 'Turn Off {appLabel}',
     'appAgency.appAgencyOrgidAiConnectionsPage.aiConnections': 'AI Connections',
     'appAgency.appAgencyOrgidAiConnectionsPage.aiTools': 'AI Tools',
+    'appAgency.appAgencyOrgidAiConnectionsPage.canRead': 'Can Read',
+    'appAgency.appAgencyOrgidAiConnectionsPage.connected': 'Connected',
+    'appAgency.appAgencyOrgidAiConnectionsPage.connectedBy': 'Connected By',
     'appAgency.appAgencyOrgidAiConnectionsPage.anOwnerOrAdminCanConnect':
       'An owner or admin can connect one from the AI app, once AI Connections for This Agency is on in Settings.',
     'appAgency.appAgencyOrgidAiConnectionsPage.eachAppReadsForEachCase':
       'Each app reads, for each case its owner or admin can see, only what that case’s traveller allowed this agency’s AI tools to read. It works for at most 30 days.',
+    'appAgency.appAgencyOrgidAiConnectionsPage.ended': 'Ended',
+    'appAgency.appAgencyOrgidAiConnectionsPage.ends': 'Ends',
+    'appAgency.appAgencyOrgidAiConnectionsPage.lastUsed': 'Last Used',
     'appAgency.appAgencyOrgidAiConnectionsPage.noAiAppsConnected': 'No AI Apps Connected',
+    'appAgency.appAgencyOrgidAiConnectionsPage.notUsedYet': 'Not Used Yet',
+    'appAgency.appAgencyOrgidAiConnectionsPage.whatEachTravellerAllowed':
+      'What Each Traveller Allowed',
     'appAgency.appAgencyOrgidBrandingForm.087a68': '#087a68',
     'appAgency.appAgencyOrgidBrandingForm.accentColour': 'Accent Colour',
     'appAgency.appAgencyOrgidBrandingForm.accentColourAsASixDigit':
