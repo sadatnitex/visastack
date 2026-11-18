@@ -6,6 +6,7 @@ import {
   type StatusKind,
   StatusPicture,
 } from '../../../../components/pictures/status-picture';
+import { isProtectedDetail } from './profile-protected';
 
 /**
  * Passport Page Card (WAL4, owner decision 17 Nov 2026, option B): a schematic passport data page
@@ -55,12 +56,9 @@ export const PASSPORT_PAGE_LABELS: Readonly<Record<PassportPageKey, string>> = {
   marital_status: 'Marital Status',
 };
 
-/** Always masked, whatever the catalogue says: the two details a stranger most often misuses. */
-const ALWAYS_MASKED: ReadonlySet<string> = new Set(['date_of_birth', 'passport_number']);
-
-/** Whether a detail's value is hidden until the person chooses Show. */
+/** Whether a detail's value is hidden until the person chooses Show (one rule: profile-protected). */
 export function isMaskedDetail(key: string, sensitivity: string | undefined): boolean {
-  return ALWAYS_MASKED.has(key) || (sensitivity !== undefined && sensitivity !== 'STANDARD');
+  return isProtectedDetail(key, sensitivity);
 }
 
 /** The dots drawn in place of a hidden value. Fixed length, so the mask says nothing about it. */

@@ -33,7 +33,11 @@ import { confirmedValues, findingViewModel } from '../../../../../lib/document-f
 import { fieldMethodWords } from '../../../../../lib/field-state-words';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
-import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
+import {
+  buildMasterProfileView,
+  fieldLabel,
+  savableField,
+} from '../../../../../lib/master-profile';
 import { agree, plural } from '../../../../../lib/plural';
 import { ownedPhotoUrl } from '../../../../../lib/profile-photos';
 import { createKeyManagementPort } from '../../../../../lib/providers';
@@ -42,6 +46,7 @@ import { withSession } from '../../../../../lib/session';
 import { AppSuggestionsSection } from '../app-suggestions';
 import { numberText } from '../number-text';
 import { type FieldAssurance, ProfileEditor, type ProtectedLock } from '../profile-editor';
+import { isProtectedDetail } from '../profile-protected';
 
 export const metadata: Metadata = { title: 'My Profile' };
 
@@ -101,9 +106,10 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    // WALD2: the owner's own profile is read once with the key, after the owner check above, so a
-    // protected detail (date of birth, passport number) shows its real value in its own box. With
-    // no key here, or a value that cannot be opened, the box stays empty and says why.
+    // WALD2: the owner's own profile is read once with the key, after the owner check above, to
+    // tell a value that opens from one that would not or was lost, and to compare app suggestions.
+    // ESS1: a protected value read here never leaves the server: the page hands the editor
+    // `withheld` instead, and Show or Edit opens it through the owner-only reveal action.
     let encryption: ReturnType<typeof createKeyManagementPort>;
     try {
       encryption = createKeyManagementPort();
@@ -218,6 +224,7 @@ export default async function ApplicantProfilePage({
     readonly effectiveFrom: string | null;
     readonly sourceDocumentId: string | null;
     readonly locked: ProtectedLock | null;
+    readonly withheld?: true;
   }
   const values: Record<string, EntryValue> = {};
   const repeatingValues: Record<string, Record<string, EntryValue>> = {};
@@ -230,10 +237,17 @@ export default async function ApplicantProfilePage({
         ? lockOf(entry.value, data.keyed)
         : null;
     if (locked === 'lost') lostFactIds.add(entry.factId);
-    const v = {
+    // ESS1: a protected value that did open is left out of the page all the same.
+    const withheld =
+      locked === null &&
+      entry.value !== null &&
+      (entry.isProtected ||
+        isProtectedDetail(entry.fieldKey, savableField(entry.fieldKey)?.sensitivity));
+    const v: EntryValue = {
       factId: entry.factId,
-      value: locked ? null : entry.value,
+      value: locked || withheld ? null : entry.value,
       locked,
+      ...(withheld ? { withheld: true as const } : {}),
       // A lost value carries no status badge: "Confirmed" would claim a value that is not there.
       status: locked === 'lost' ? null : entry.status,
       updatedAt: entry.updatedAt,

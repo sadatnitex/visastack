@@ -613,3 +613,127 @@ describe('ESS1: read rows, one Details per row, one date style', () => {
     expect(card().querySelector('output')).toBeNull();
   });
 });
+
+/**
+ * ESS1 parity: the new layout writes exactly what the old one wrote. Each form posts the same
+ * named fields (no more, no fewer) to the same action, so saves, Does Not Apply, No Longer Current
+ * and the date a value became true reach the server unchanged.
+ */
+describe('ESS1: the same writes as before', () => {
+  const entries = (data: unknown) =>
+    [...(data as FormData).entries()].map(([k, v]) => [k, String(v)]).sort();
+  const rowOf = (key: string) => {
+    const found = container.querySelector<HTMLElement>(`.profile-field-row[data-field="${key}"]`);
+    if (!found) throw new Error(`No row for ${key}`);
+    return found;
+  };
+  const setValue = (input: HTMLInputElement | null, value: string) => {
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+      input?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  it('a save posts applicant, field, value and the date it became true, as before', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    render(FULL);
+    await clickAndSettle(rowOf('family_name').querySelector('button[data-edit]'));
+    setValue(container.querySelector<HTMLInputElement>('#f-family_name'), 'NEWNAME');
+    setValue(
+      rowOf('family_name').querySelector<HTMLInputElement>('input[name="effectiveFrom"]'),
+      '2026-01-05',
+    );
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-family_name')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    expect(saveFactAction).toHaveBeenCalledTimes(1);
+    expect(entries(vi.mocked(saveFactAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['effectiveFrom', '2026-01-05'],
+      ['fieldKey', 'family_name'],
+      ['value', 'NEWNAME'],
+    ]);
+  });
+
+  it('a detail not added yet posts the same fields, with the date left blank', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    render({});
+    setValue(container.querySelector<HTMLInputElement>('#f-given_name'), 'FIRST');
+    await act(async () => {
+      container
+        .querySelector<HTMLInputElement>('#f-given_name')
+        ?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')
+        ?.click();
+    });
+    expect(entries(vi.mocked(saveFactAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['effectiveFrom', ''],
+      ['fieldKey', 'given_name'],
+      ['value', 'FIRST'],
+    ]);
+  });
+
+  it('a protected value opened with Show is saved as itself, never as dots or a stand-in', async () => {
+    const { saveFactAction } = await import('./actions');
+    vi.mocked(saveFactAction).mockReset();
+    vi.mocked(saveFactAction).mockResolvedValue({ ok: true, message: 'Saved.' });
+    reveal.mockReset();
+    reveal.mockResolvedValue({ ok: true, value: '1990-04-12' });
+    render({
+      ...FULL,
+      date_of_birth: { factId: 'f3', value: null, status: 'APPLICANT_CONFIRMED', withheld: true },
+    });
+    const show = [...rowOf('date_of_birth').querySelectorAll('button')].find(
+      (b) => b.textContent === 'Show Date of Birth',
+    );
+    await clickAndSettle(show);
+    await clickAndSettle(rowOf('date_of_birth').querySelector('button[data-edit]'));
+    const box = container.querySelector<HTMLInputElement>('#f-date_of_birth');
+    expect(box?.value).toBe('1990-04-12');
+    expect(reveal).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      box?.form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+    });
+    const posted = vi.mocked(saveFactAction).mock.calls[0]?.[1] as FormData;
+    expect(posted.get('value')).toBe('1990-04-12');
+    expect(String(posted.get('value'))).not.toMatch(/•|protected/i);
+  });
+
+  it('Does Not Apply and No Longer Current post the same fields as before', async () => {
+    const { markNotCurrentAction, setExemptionAction } = await import('./section-actions');
+    vi.mocked(markNotCurrentAction).mockReset();
+    vi.mocked(setExemptionAction).mockReset();
+    vi.mocked(markNotCurrentAction).mockResolvedValue({ ok: true, message: '' });
+    vi.mocked(setExemptionAction).mockResolvedValue({ ok: true, message: '' });
+    render({ ...FULL, place_of_birth: { factId: 'f7', value: null, status: null } });
+    const exempt = rowOf('place_of_birth')
+      .closest('.profile-field-item')
+      ?.querySelector<HTMLInputElement>('.profile-exempt input[type="checkbox"]');
+    await act(async () => {
+      exempt?.click();
+    });
+    expect(entries(vi.mocked(setExemptionAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['kind', 'FIELD_NOT_APPLICABLE'],
+      ['on', 'true'],
+      ['targetKey', 'place_of_birth'],
+    ]);
+    const notCurrent = [...rowOf('family_name').querySelectorAll('button')].find(
+      (b) => b.textContent === 'No Longer Current',
+    );
+    await act(async () => {
+      notCurrent?.click();
+    });
+    expect(entries(vi.mocked(markNotCurrentAction).mock.calls[0]?.[1])).toEqual([
+      ['applicantId', 'synthetic-person'],
+      ['factId', 'f2'],
+    ]);
+  });
+});

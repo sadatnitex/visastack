@@ -39,7 +39,8 @@ vi.mock('../../../../lib/providers', () => ({
     return ctx.port;
   },
 }));
-vi.mock('../../../../lib/server-error', () => ({ reportServerError: vi.fn() }));
+const reportServerError = vi.hoisted(() => vi.fn());
+vi.mock('../../../../lib/server-error', () => ({ reportServerError }));
 
 const { revealProfileValueAction } = await import('./profile-reveal-actions');
 
@@ -165,5 +166,29 @@ describe('revealProfileValueAction', () => {
     const result = await revealProfileValueAction(ownersPerson, ownersFact);
     expect(result).toEqual({ ok: false });
     expect(JSON.stringify(result)).not.toContain('protected');
+  });
+
+  it('never writes the value to any log, on success or failure', async () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((name) =>
+      vi.spyOn(console, name).mockImplementation(() => undefined),
+    );
+    try {
+      reportServerError.mockClear();
+      await revealProfileValueAction(ownersPerson, ownersFact);
+      ctx.accountId = stranger;
+      await revealProfileValueAction(ownersPerson, ownersFact);
+      ctx.accountId = owner;
+      ctx.port = fakeKeyManagementPort('other-version');
+      resetProtectedFieldKeyCacheForTests();
+      await revealProfileValueAction(ownersPerson, ownersFact);
+      const logged = JSON.stringify([
+        ...spies.flatMap((spy) => spy.mock.calls),
+        ...reportServerError.mock.calls.map((call) => String(call[1])),
+      ]);
+      expect(logged).not.toContain('X1234567');
+      expect(logged).not.toContain('Z7654321');
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
   });
 });
