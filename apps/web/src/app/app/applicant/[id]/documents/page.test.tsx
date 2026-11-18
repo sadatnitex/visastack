@@ -48,6 +48,8 @@ const mocks = vi.hoisted(() => ({
   registry: {} as Record<string, { label: string; Component: () => null }>,
   /** What was really done to each latest file, by version id (document-scan-evidence.ts). */
   scanEvidence: new Map<string, { kind: string; scannedAt: string | null }>(),
+  /** Issuer confirmations per document (WAL2): none unless a test adds some. */
+  issuerVerifications: vi.fn(async (_documentId: string): Promise<unknown[]> => []),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -69,7 +71,8 @@ vi.mock('@visastack/services', async (importOriginal) => ({
     personBytes: config.maxApplicantEvidenceBytes,
   }),
   getLatestOcrRun: async () => undefined,
-  listIssuerVerificationsForDocument: async () => [],
+  listIssuerVerificationsForDocument: (_db: unknown, documentId: string) =>
+    mocks.issuerVerifications(documentId),
   listPendingDocumentTypeProposals: async () => [],
   listPendingInconsistencyFlags: async () => [],
   listPendingProposals: mocks.listPendingProposals,
@@ -1204,5 +1207,107 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     const html = await render();
     expect(html).toContain('href="/app/applicant/a1/removal-records"');
     expect(textOf(html)).toContain('Removal Records');
+  });
+});
+
+describe('WAL2: the opened document leads with its card, and details sit in sections', () => {
+  const heroOf = (html: string) => {
+    const start = html.indexOf('<section class="doc-hero pic-pass"');
+    return start < 0 ? '' : html.slice(start, html.indexOf('</section>', start));
+  };
+  const sectionTitles = (html: string) =>
+    [...html.matchAll(/class="expandable-section-title"[^>]*>([^<]*)</g)].map((m) => m[1]);
+  const sectionBody = (html: string, title: string) => {
+    const start = html.indexOf(`>${title}</h3>`);
+    return start < 0 ? '' : html.slice(start, html.indexOf('</details>', start));
+  };
+
+  it('puts the name, the state of its checks and Preview and Download Original on the card', async () => {
+    vi.stubEnv('BLOB_SIGNING_SECRET', 'test-only');
+    vi.stubEnv('STEP_UP_SIGNING_SECRET', 'test-only');
+    try {
+      mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d', 'APPROVED')] });
+      mocks.getWalletView.mockResolvedValue({
+        ok: true,
+        value: [{ document: { id: 'd' }, status: 'UNKNOWN', usedInMissions: [], accessibleTo: [] }],
+      });
+      const html = await render('d');
+      const hero = heroOf(html);
+      expect(hero).toContain('d.pdf');
+      expect(hero).toContain('>Preview</button>');
+      expect(hero).toContain('>Download Original</button>');
+      expect(hero).toContain('Expiry Not Confirmed');
+      expect(hero).toContain('class="explain-tip-trigger"');
+      expect(html).not.toContain('document-preview-placeholder');
+      // One Preview button on the page: it moved, it was not copied.
+      expect(html.split('>Preview</button>')).toHaveLength(2);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('keeps Preview and Download Original off the card of a file that cannot be opened', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('held', 'APPROVED'), safetyStatus: 'QUARANTINED' }],
+    });
+    const html = await render('held');
+    expect(heroOf(html)).not.toContain('>Preview</button>');
+    expect(heroOf(html)).not.toContain('>Download Original</button>');
+    expect(heroOf(html)).not.toContain('doc-hero-actions');
+    expect(textOf(html)).toContain('Preview is blocked');
+  });
+
+  it('puts dates, name and kind, safe copy and reading in closed sections, with every form kept', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d', 'APPROVED')] });
+    const html = await render('d');
+    expect(sectionTitles(html)).toEqual(
+      expect.arrayContaining(['Dates', 'Name and Kind', 'Safe Copy', 'Reading and Checks']),
+    );
+    const dates = sectionBody(html, 'Dates');
+    expect(dates).toContain('Document Date');
+    expect(dates).toMatch(/<input[^>]*type="date"/);
+    expect(dates).toContain('>Save</button>');
+    expect(stubProps(sectionBody(html, 'Name and Kind'), 'DocumentRenameForm')).toHaveLength(1);
+    expect(sectionBody(html, 'Reading and Checks')).toContain('Check the File Again');
+  });
+
+  it('opens Dates when a date could not be saved, so the message and the field meet', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d', 'APPROVED')] });
+    const html = await render('d', { date_error: '1' });
+    expect(html).toMatch(
+      /<details class="expandable-section-details" open="">(?:(?!<\/details>)[\s\S])*>Dates<\/h3>/,
+    );
+  });
+
+  it('shows no Safe Copy section for a file still being checked', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d', 'SCANNING')] });
+    const html = await render('d');
+    expect(sectionTitles(html)).not.toContain('Safe Copy');
+  });
+
+  it('lists issuer confirmations in a section, never a plain fold', async () => {
+    mocks.issuerVerifications.mockImplementation(async (documentId: string) =>
+      documentId === 'd'
+        ? [
+            {
+              id: 'v1',
+              issuerIdentity: 'Example Bank',
+              exactClaim: 'Account open',
+              response: 'CONFIRMED',
+              validUntil: new Date(Date.now() + 90 * 86_400_000),
+            },
+          ]
+        : [],
+    );
+    try {
+      mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d', 'APPROVED')] });
+      const html = await render('d');
+      expect(sectionTitles(html)).toContain('Issuer Confirmations');
+      expect(sectionBody(html, 'Issuer Confirmations')).toContain('Example Bank');
+      expect(html).not.toContain('<details class="u-fs-075">');
+    } finally {
+      mocks.issuerVerifications.mockImplementation(async () => []);
+    }
   });
 });
