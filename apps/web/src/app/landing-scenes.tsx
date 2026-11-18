@@ -66,6 +66,7 @@ export function IntakeScene() {
           <figure
             className="land-draw land-intake-figure"
             aria-label="Example of a document being read"
+            {...englishOn(lang)}
           >
             <ExampleTag pageLang={lang} />
             <div className="land-docs" aria-hidden="true">
@@ -162,7 +163,7 @@ export function ReadyScene() {
                 done={done}
                 total={CASE_LINE.length}
                 size="lg"
-                countLabel="Documents Ready"
+                countLabel="Items Ready"
                 pageLang={lang}
               />
             </div>

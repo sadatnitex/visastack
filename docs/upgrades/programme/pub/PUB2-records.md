@@ -34,7 +34,7 @@ Shown in English, marked lang="en" on a Bangla page, until the catalogue has the
 | Illustration with a sample case. | ready caption | home.scene.readyCaption |
 | The type of cover, not anyone's own passport. | closing caption | home.scene.passportCaption |
 
-Also English for now, set in the shared parts: Example, Received, Suggested, Confirmed, "Completeness only. Not an approval.". Picture names in the scenes (Passport, Bank Statement, Employment Letter, Photo, Travel Plan, Documents Ready) are example names; Passport and Bank Statement and Employment Letter already exist in the home catalogue.
+Also English for now, set in the shared parts: Example, Received, Suggested, Confirmed, "Completeness only. Not an approval.". Picture names in the scenes (Passport, Bank Statement, Employment Letter, Photo, Travel Plan, Items Ready) are example names; Passport and Bank Statement and Employment Letter already exist in the home catalogue.
 
 ## Red then green proof (PUB2)
 
