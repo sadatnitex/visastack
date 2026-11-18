@@ -186,3 +186,13 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+/* The arrow at the end of a pressable row, as on the other lists. Decorative. */
+.u7-go {
+  margin-inline-start: var(--space-2);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+[dir="rtl"] .u7-go {
+  display: inline-block;
+  transform: scaleX(-1);
+}

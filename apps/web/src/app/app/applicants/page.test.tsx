@@ -148,7 +148,10 @@ describe('People on Your Account as compact rows (U7)', () => {
       '/app/applicant/a',
       '/app/applicant/b',
     ]);
-    expect(links.map((link) => link.textContent)).toEqual(['Synthetic a', 'Synthetic b']);
+    expect(links.map((link) => link.firstChild?.textContent)).toEqual([
+      'Synthetic a',
+      'Synthetic b',
+    ]);
     for (const row of doc.querySelectorAll('.u7-plain')) {
       expect(row.querySelector('.u7-initials')).not.toBeNull();
       expect(row.querySelectorAll('.badge')).toHaveLength(1);

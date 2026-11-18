@@ -99,6 +99,9 @@ export function TravellerRow({
           {href ? (
             <Link href={href} className="u7-plain-link">
               {title}
+              <span className="u7-go" aria-hidden="true">
+                {'\u2192'}
+              </span>
             </Link>
           ) : (
             title

@@ -194,9 +194,8 @@ export default async function PrivacyPage({
           </TravellerRow>
 
           {/* A deletion already on its way is never hidden: cancelling it must stay one look away. */}
-          <div {...(data.scheduledFor ? {} : atLevel('everything'))}>
+          <div id="delete-account" {...(data.scheduledFor ? {} : atLevel('everything'))}>
             <TravellerRow
-              id="delete-account"
               headingLevel={2}
               title={t.node('appPrivacy.appPrivacyPage.deleteYourAccount')}
               picture={<AreaPicture mark={{ icon: 'alert', tone: 'red' }} />}
@@ -221,9 +220,8 @@ export default async function PrivacyPage({
           </div>
         </TravellerRows>
 
-        <div className="u7-rows-gap" {...atLevel('browse')}>
+        <div id="consent-history" className="u7-rows-gap" {...atLevel('browse')}>
           <TravellerRow
-            id="consent-history"
             headingLevel={2}
             title={t.node('appPrivacy.appPrivacyPage.consentHistory')}
             picture={<AreaPicture mark={{ icon: 'activity', tone: 'teal' }} />}
@@ -275,9 +273,8 @@ export default async function PrivacyPage({
         </div>
 
         {data.aiUsage ? (
-          <div className="u7-rows-gap" {...atLevel('browse')}>
+          <div id="ai-use-today" className="u7-rows-gap" {...atLevel('browse')}>
             <TravellerRow
-              id="ai-use-today"
               headingLevel={2}
               title={t.node('appPrivacy.appPrivacyPage.aiUseToday')}
               picture={<AreaPicture mark={{ icon: 'eye', tone: 'violet' }} />}
