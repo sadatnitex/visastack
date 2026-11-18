@@ -81,6 +81,8 @@ interface Tracked {
   readonly element: HTMLElement;
   readonly stage: HTMLElement | null;
   readonly steps: number;
+  /** The narrowest screen on which this scene moves (data-min-width); below it, it rests finished. */
+  readonly minWidth: number;
   readonly finished: string | null;
   /** What the engine last wrote, so an unchanged value is never written again. */
   p: string;
@@ -108,6 +110,7 @@ export function startScenes(root: Document | Element, options: SceneOptions): Sc
       element,
       stage: element.querySelector<HTMLElement>('.pub-scene-stage'),
       steps: Number(element.getAttribute('data-steps') ?? '1') || 1,
+      minWidth: Number(element.getAttribute('data-min-width') ?? '0') || 0,
       finished: element.getAttribute('data-step'),
       p: '',
       step: element.getAttribute('data-step') ?? '',
@@ -129,6 +132,16 @@ export function startScenes(root: Document | Element, options: SceneOptions): Sc
     const batch = [...list];
     const boxes = batch.map((scene) => scene.element.getBoundingClientRect());
     batch.forEach((scene, index) => {
+      if (scene.minWidth > win.innerWidth) {
+        // Too narrow for this scene to move: leave it finished and still.
+        if (scene.p !== '') {
+          scene.element.style.removeProperty('--p');
+          if (scene.finished !== null) scene.element.setAttribute('data-step', scene.finished);
+        }
+        scene.p = '';
+        scene.step = scene.finished ?? '';
+        return;
+      }
       const box = boxes[index] as DOMRect;
       const progress = progressFor({ top: box.top, height: box.height }, viewport, line);
       const p = progress.toFixed(4);

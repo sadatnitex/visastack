@@ -185,27 +185,31 @@ describe('the public home page with its scroll story (WP-PUB2)', () => {
     const { default: Home } = await import('./page');
     const document = dom(renderToStaticMarkup(await Home(SEARCH())));
     expect(document.querySelectorAll('h1')).toHaveLength(1);
-    for (const id of ['how-it-works', 'for-agencies', 'start']) {
+    for (const id of ['how-it-works', 'for-agencies', 'start', 'capabilities']) {
       expect(document.querySelectorAll(`[id="${id}"]`), id).toHaveLength(1);
     }
-    expect(document.querySelector('a.c1-pill[href="/app"]')?.textContent).toContain(
+    expect(document.querySelector('a.pub-button[href="/app"]')?.textContent).toContain(
       'Sign in to get started',
     );
     expect(document.body.textContent).toContain('Invite-Only Pilot');
   });
 
-  it('runs three scenes in order, each with a finished step the server already wrote', async () => {
+  it('runs five scenes in order, each with a finished step the server already wrote', async () => {
     const { default: Home } = await import('./page');
     const document = dom(renderToStaticMarkup(await Home(SEARCH())));
     const scenes = [...document.querySelectorAll('[data-scene]')];
     expect(scenes.map((scene) => scene.getAttribute('data-scene'))).toEqual([
-      'intake',
+      'hero',
+      'add',
       'ready',
-      'closing',
+      'journey',
+      'share',
     ]);
+    // The finished step is the last, except the sharing scene, which rests before `Access Ended`.
     for (const scene of scenes) {
       const last = Number(scene.getAttribute('data-steps')) - 1;
-      expect(Number(scene.getAttribute('data-step'))).toBe(last);
+      const finished = scene.getAttribute('data-scene') === 'share' ? last - 1 : last;
+      expect(Number(scene.getAttribute('data-step'))).toBe(finished);
     }
   });
 });

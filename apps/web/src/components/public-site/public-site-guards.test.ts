@@ -15,10 +15,12 @@ const SITE = readFileSync(join(HERE, 'public-site.css'), 'utf8');
 const SCENES = readFileSync(join(HERE, 'public-scenes.css'), 'utf8');
 const SITE_PATH = 'apps/web/src/components/public-site/public-site.css';
 const SCENES_PATH = 'apps/web/src/components/public-site/public-scenes.css';
-const FILES = readdirSync(HERE).map((name) => ({
-  name,
-  text: readFileSync(join(HERE, name), 'utf8'),
-}));
+const FILES = readdirSync(HERE, { recursive: true, withFileTypes: true })
+  .filter((entry) => entry.isFile())
+  .map((entry) => ({
+    name: join(entry.parentPath, entry.name).slice(HERE.length + 1),
+    text: readFileSync(join(entry.parentPath, entry.name), 'utf8'),
+  }));
 
 /** The first :root block of globals.css: the product's own colour tokens. */
 function rootTokens(css: string): Map<string, string> {
@@ -208,6 +210,8 @@ describe('public site sources', () => {
     for (const [name, css] of [
       ['public-site.css', SITE],
       ['public-scenes.css', SCENES],
+      ['kit/kit.css', readFileSync(join(HERE, 'kit', 'kit.css'), 'utf8')],
+      ['kit/kit-steps.css', readFileSync(join(HERE, 'kit', 'kit-steps.css'), 'utf8')],
     ] as const) {
       postcss.parse(css).walkDecls((decl) => {
         expect(LITERAL.test(decl.value), `${name}: ${decl.prop}: ${decl.value}`).toBe(false);
