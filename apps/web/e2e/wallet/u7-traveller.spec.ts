@@ -54,7 +54,11 @@ test.describe('U7 rows', () => {
     const box = await row.boundingBox();
     if (!box) throw new Error('row has no box');
     const hitHref = await page.evaluate(
-      ([x, y]) => document.elementFromPoint(x ?? 0, y ?? 0)?.closest('a')?.getAttribute('href'),
+      ([x, y]) =>
+        document
+          .elementFromPoint(x ?? 0, y ?? 0)
+          ?.closest('a')
+          ?.getAttribute('href'),
       [box.x + box.width - 12, box.y + box.height / 2],
     );
     expect(hitHref).toBe('#me');
