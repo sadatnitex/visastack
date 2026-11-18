@@ -125,7 +125,7 @@ export const appApplicantCatalog = defineCatalog({
       'Drop your files or a whole folder here. We check each one, read what we can, and you approve every detail.',
     'appApplicant.appApplicantIdDocumentsAddPage.dropYourFilesOrAWhole088508':
       'Drop your files or a whole folder here. We check each one and keep it for you.',
-    'appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments': 'Open My Documents',
+    'appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments': 'Open My Record',
     'appApplicant.appApplicantIdDocumentsAddPage.pluralOneAnswer': '{plural} One Answer',
     'appApplicant.appApplicantIdDocumentsAddPage.takeAPhotoOrSayWhat':
       'Take a Photo, or Say What Kind of Document It Is',

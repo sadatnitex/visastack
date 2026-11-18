@@ -17,7 +17,14 @@ Bengali register rows to update: SG-fe32af9d (My Documents), SG-f1e29103 (hint).
 - Consent scope wording (Let AI Read Details from My Documents, List of My Documents, Text Read From My Documents, Review My Documents, Include the List of My Documents): these name data a person agreed to share, not the tab.
 - Page headings inside the documents area: none literally named the tab.
 
-## Held by other live lanes (SERIALIZE), to be changed by their owners
+## Also changed (Guardian approved 18 Nov 2026)
 
-- apps/web/src/i18n/app-applicant.ts line 128: "Open My Documents" (key appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments). Source text only; it names the tab, so it should become "Open My Record". SG-afd7a3f5.
-- apps/web/e2e/ux-public.spec.ts: tab-name assertions at lines 1475, 1531 to 1566, 2277, 2300 to 2315.
+| Where | Old | New |
+|---|---|---|
+| apps/web/src/i18n/app-applicant.ts, key appApplicant.appApplicantIdDocumentsAddPage.openMyDocuments (English source only) | Open My Documents | Open My Record |
+
+Bengali register row to update: SG-afd7a3f5.
+
+## Still to do at the TURN (after PUB3 merges)
+
+- apps/web/e2e/ux-public.spec.ts: tab-name assertions at lines 1475, 1531 to 1566, 2277, 2300 to 2315. Until changed these go red against the new tab name.
