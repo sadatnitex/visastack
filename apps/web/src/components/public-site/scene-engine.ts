@@ -142,8 +142,13 @@ export function startScenes(root: Document | Element, options: SceneOptions): Sc
     html.removeAttribute(SCENE_MODE_ATTRIBUTE);
   };
   if (!win) return { stop() {} };
-  if (scenes.length === 0) return { stop() {} };
   const mode = options.mode ?? 'pinned';
+  if (scenes.length === 0 && mode === 'pinned') {
+    // No scenes here, but the page's other parts (rises, timed pictures) read the mode marks.
+    html.setAttribute(SCENES_ATTRIBUTE, 'live');
+    html.setAttribute(SCENE_MODE_ATTRIBUTE, 'pinned');
+    return { stop: clearMarks };
+  }
   if (mode !== 'pinned')
     return startReveal(win, scenes, options.animate !== false, mode === 'gentle', {
       set() {

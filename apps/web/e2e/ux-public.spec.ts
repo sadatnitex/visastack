@@ -810,6 +810,46 @@ test.describe('flat UI reference geometry and interaction', () => {
   });
 });
 
+/**
+ * MOT1 (owner, 18 Nov 2026): reduced motion is the gentle mode, so a scene in view plays once and a
+ * rise fades in. Wait (on attributes, never a fixed time) until everything in view rests, so a
+ * capture never lands mid-fade.
+ */
+async function motionRests(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const share = (el: Element) => {
+      const box = el.getBoundingClientRect();
+      const shown = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0);
+      return box.height > 0 ? Math.max(0, shown) / box.height : 0;
+    };
+    // A rise starts once 12 percent of it shows (RiseIn), so only those must have risen.
+    const rises = [...document.querySelectorAll('.kit-rise:not(.is-in)')].filter(
+      (el) => share(el) >= 0.12,
+    );
+    // A scene near the screen is armed (ready, at its first step); once a quarter of it (or 40
+    // percent of the screen height) shows, it plays, then rests on done or snapped. A scene that
+    // is playing, not yet armed, or ready but already showing enough to play is still moving.
+    const moving = [...document.querySelectorAll('[data-scene]')].filter((el) => {
+      if (share(el) === 0) return false;
+      const state = el.getAttribute('data-reveal');
+      if (state === null || state === 'playing') return true;
+      if (state === 'ready') {
+        const box = el.getBoundingClientRect();
+        const shown = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0);
+        return share(el) >= 0.25 || shown >= window.innerHeight * 0.4;
+      }
+      return el.getAttribute('data-step') !== el.getAttribute('data-rest');
+    });
+    return rises.length === 0 && moving.length === 0;
+  });
+  // A page with a looping picture (the Privacy and Trust hero) is stopped on its finished step
+  // with its own Pause button, so both captures show the same frame.
+  if ((await page.locator('.tr-share').count()) > 0) {
+    await page.locator('.tr-share .tr-pause').click();
+    await expect(page.locator('.tr-share .kit-fixed')).toHaveAttribute('data-kit-step', '4');
+  }
+}
+
 /** The approved appearance is independent of the device preference. */
 test.describe('authoritative appearance on public routes', () => {
   for (const width of [1600, 390]) {
@@ -875,6 +915,7 @@ test.describe('authoritative appearance on public routes', () => {
             expect(
               await fresh.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
             ).toBe('light');
+            await motionRests(fresh);
             return await fresh.screenshot({
               path: test.info().outputPath(file),
               animations: 'disabled',
@@ -894,6 +935,7 @@ test.describe('authoritative appearance on public routes', () => {
             : await (async () => {
                 await page.goto(route);
                 await page.evaluate(() => document.fonts.ready);
+                await motionRests(page);
                 return page.screenshot({
                   path: test.info().outputPath('appearance-light.png'),
                   animations: 'disabled',

@@ -2,7 +2,7 @@
 import type { PublicTrustRoute } from '@visastack/services';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer } from '../../lib/next-mocks.test-support';
 
 /**
@@ -20,7 +20,7 @@ vi.mock('../../lib/public-db', () => ({
 }));
 
 const { default: Page } = await import('./page');
-const { ShareHero } = await import('./share-hero');
+const { SHARE_HERO_TICK_MS, ShareHero } = await import('./share-hero');
 const { ShareSheetBody } = await import('../../components/public-site/kit/share-sheet-body');
 const { renderToStaticMarkup } = await import('react-dom/server');
 
@@ -182,9 +182,119 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
     act(() => root.unmount());
   });
 
-  it('shows no dead control when nothing moves (reduced motion)', () => {
+  it('plays for visitors who asked for less motion too (gentle fades), so the Pause button shows', () => {
     const { host, root } = mount(true);
-    expect(host.querySelector('button')).toBeNull();
+    expect(host.querySelector('button')?.textContent).toContain('Pause the Animation');
+    expect(host.querySelector('.kit-fixed')?.getAttribute('data-kit-step')).toBe('0');
     act(() => root.unmount());
+  });
+
+  it('shows no dead control without script or before hydration: the finished step and no button', () => {
+    const out = renderToStaticMarkup(
+      <ShareHero
+        steps={([0, 1, 2, 3, 4] as const).map((step) => (
+          <ShareSheetBody key={step} step={step} pageLang="en" />
+        ))}
+        pauseFace="Pause the Animation"
+        playFace="Play the Animation"
+      />,
+    );
+    expect(out).toContain('data-kit-step="4"');
+    expect(out).not.toContain('<button');
+  });
+
+  describe('plays only while it should', () => {
+    const steps = ([0, 1, 2, 3, 4] as const).map((step) => (
+      <ShareSheetBody key={step} step={step} pageLang="en" />
+    ));
+    let notify: (entries: Array<{ isIntersecting: boolean }>) => void = () => undefined;
+    function play() {
+      vi.useFakeTimers();
+      vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {} }));
+      vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+          constructor(callback: typeof notify) {
+            notify = callback;
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+      act(() =>
+        root.render(<ShareHero steps={steps} pauseFace="Pause the Animation" playFace="Play" />),
+      );
+      const step = () => host.querySelector('.kit-fixed')?.getAttribute('data-kit-step');
+      return { host, root, step };
+    }
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      Reflect.deleteProperty(document, 'hidden');
+    });
+
+    it('stops while it is off screen and carries on when it is back', () => {
+      const { root, step } = play();
+      act(() => notify([{ isIntersecting: true }]));
+      act(() => {
+        vi.advanceTimersByTime(SHARE_HERO_TICK_MS);
+      });
+      expect(step()).toBe('1');
+      act(() => notify([{ isIntersecting: false }]));
+      act(() => {
+        vi.advanceTimersByTime(SHARE_HERO_TICK_MS * 6);
+      });
+      expect(step()).toBe('1');
+      act(() => notify([{ isIntersecting: true }]));
+      act(() => {
+        vi.advanceTimersByTime(SHARE_HERO_TICK_MS);
+      });
+      expect(step()).toBe('2');
+      act(() => root.unmount());
+    });
+
+    it('stops while the tab is hidden and carries on when it shows again', () => {
+      const { root, step } = play();
+      let hidden = true;
+      Object.defineProperty(document, 'hidden', { get: () => hidden, configurable: true });
+      act(() => document.dispatchEvent(new Event('visibilitychange')));
+      act(() => {
+        vi.advanceTimersByTime(SHARE_HERO_TICK_MS * 6);
+      });
+      expect(step()).toBe('0');
+      hidden = false;
+      act(() => document.dispatchEvent(new Event('visibilitychange')));
+      act(() => {
+        vi.advanceTimersByTime(SHARE_HERO_TICK_MS);
+      });
+      expect(step()).toBe('1');
+      act(() => root.unmount());
+    });
+
+    it('changes the picture at most three times a second', () => {
+      const { root, step } = play();
+      expect(SHARE_HERO_TICK_MS).toBeGreaterThanOrEqual(334);
+      // Sample every 100 ms for ten steps and note when the picture changes.
+      const changes: number[] = [];
+      let last = step();
+      const start = Date.now();
+      for (let tick = 0; tick < (SHARE_HERO_TICK_MS * 10) / 100; tick++) {
+        act(() => {
+          vi.advanceTimersByTime(100);
+        });
+        if (step() !== last) {
+          changes.push(Date.now() - start);
+          last = step();
+        }
+      }
+      expect(changes.length).toBeGreaterThanOrEqual(9);
+      for (let at = 0; at + 3 < changes.length; at++)
+        expect((changes[at + 3] ?? 0) - (changes[at] ?? 0)).toBeGreaterThanOrEqual(1000);
+      act(() => root.unmount());
+    });
   });
 });

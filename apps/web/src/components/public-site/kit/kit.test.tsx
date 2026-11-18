@@ -257,14 +257,14 @@ describe('ShareSheet timed clock', () => {
     const step = () => host.querySelector('.kit-sheet')?.getAttribute('data-kit-step');
     const button = host.querySelector('button.kit-pause') as HTMLButtonElement;
     expect(button.type).toBe('button');
-    expect(button.textContent).toBe('Pause Animation');
+    expect(button.textContent).toBe('Pause the Animation');
     expect(button.hasAttribute('data-idle')).toBe(false);
     act(() => {
       vi.advanceTimersByTime(SHARE_TICK_MS);
     });
     expect(step()).toBe('1');
     act(() => button.click());
-    expect(button.textContent).toBe('Play Animation');
+    expect(button.textContent).toBe('Play the Animation');
     act(() => {
       vi.advanceTimersByTime(SHARE_TICK_MS * 6);
     });

@@ -167,10 +167,17 @@ describe('startScenes', () => {
     expect(element.getAttribute('data-step')).toBe('2');
   });
 
-  it('does nothing on a page without scenes', () => {
+  it('on a page without scenes still marks the mode, for the rises and timed pictures, and clears it again', () => {
     const handle = startScenes(document, {});
-    expect(document.documentElement.hasAttribute(SCENES_ATTRIBUTE)).toBe(false);
+    expect(document.documentElement.getAttribute(SCENES_ATTRIBUTE)).toBe('live');
+    expect(document.documentElement.getAttribute(SCENE_MODE_ATTRIBUTE)).toBe('pinned');
     handle.stop();
+    expect(document.documentElement.hasAttribute(SCENES_ATTRIBUTE)).toBe(false);
+    expect(document.documentElement.hasAttribute(SCENE_MODE_ATTRIBUTE)).toBe(false);
+    const gentle = startScenes(document, { mode: 'gentle' });
+    expect(document.documentElement.getAttribute(SCENES_ATTRIBUTE)).toBe('gentle');
+    gentle.stop();
+    expect(document.documentElement.hasAttribute(SCENES_ATTRIBUTE)).toBe(false);
   });
 
   it('measures only scenes the observer reports near, and settles one that leaves', () => {

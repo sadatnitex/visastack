@@ -287,9 +287,18 @@ test('switching between pinned and reveal on resize or rotation needs no reload 
   await expect(html(page)).toHaveAttribute('data-scenes', 'reveal');
   for (const name of SCENES) {
     const scene = page.locator(`[data-scene="${name}"]`);
-    // Scenes already on screen or passed rest finished and never replay; scenes still below wait
-    // untouched, finished, until they come into view. None is ever left part way.
-    await expect(scene, name).toHaveAttribute('data-step', FINAL[name]);
+    // Scenes already on screen or passed rest finished and never replay. A scene still below the
+    // screen is finished, or waits at its first step ("ready", off screen) until it comes into
+    // view. None is ever left part way.
+    const state = await scene.evaluate((el) => ({
+      step: el.getAttribute('data-step'),
+      reveal: el.getAttribute('data-reveal'),
+      onScreen: el.getBoundingClientRect().top < window.innerHeight,
+    }));
+    if (state.reveal === 'ready') {
+      expect(state.step, `${name} waiting`).toBe('0');
+      expect(state.onScreen, `${name} waiting on screen`).toBe(false);
+    } else expect(state.step, name).toBe(FINAL[name]);
     await expect(scene.locator('.pub-scene-stage'), name).not.toHaveCSS('position', 'sticky');
   }
   await page.setViewportSize({ width: 1280, height: 800 });

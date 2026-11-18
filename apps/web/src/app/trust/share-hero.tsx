@@ -1,6 +1,7 @@
 'use client';
 
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { useOnScreen } from '../../components/public-site/kit/use-on-screen';
 
 /** How long each step rests, in milliseconds (the same pace as the kit's timed share sheet). */
 export const SHARE_HERO_TICK_MS = 2200;
@@ -8,8 +9,10 @@ export const SHARE_HERO_TICK_MS = 2200;
 /**
  * The hero's share picture on its own clock, with the pause control WCAG 2.2.2 asks for: the five
  * steps loop every 2.2 s with no end, so a visible button stops them. It rests on the finished step
- * (Access Ended) with no script, reduced motion or data saver, and the button then never appears,
- * so there is never a dead control. Paused shows the finished step too; Play restarts from step 0.
+ * (Access Ended) with no script. With script it plays for every visitor and on every screen (MOT1,
+ * owner 18 Nov 2026: motion is always on, gentle fades with reduced motion, see kit/kit.css), but
+ * only while it is on screen and the tab is showing. Paused shows the finished step too; Play
+ * restarts from step 0.
  *
  * The five pictures (the kit's `ShareSheet` pinned to step 0 to 4) and the two button faces are
  * drawn on the server and handed in, so this client part carries no picture or icon code of its own
@@ -29,30 +32,30 @@ export function ShareHero({
   const [moves, setMoves] = useState(false);
   const [paused, setPaused] = useState(false);
   const [step, setStep] = useState(last);
+  const box = useRef<HTMLDivElement>(null);
+  const visible = useOnScreen(box, moves);
+
   useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const read = () =>
-      setMoves(!(reduced.matches || document.documentElement.hasAttribute('data-save-data')));
-    read();
-    // A visitor who turns reduced motion on while the page is open gets stillness at once.
-    reduced.addEventListener?.('change', read);
-    return () => reduced.removeEventListener?.('change', read);
+    setMoves(true);
   }, []);
+
+  // Starting, or pressing Play, begins at step 0; Pause shows the finished step.
   useEffect(() => {
-    if (!moves || paused) {
-      setStep(last);
-      return;
-    }
-    setStep(0);
+    setStep(moves && !paused ? 0 : last);
+  }, [moves, paused, last]);
+
+  const running = moves && !paused && visible;
+  useEffect(() => {
+    if (!running) return;
     const timer = window.setInterval(
       () => setStep((value) => (value + 1) % steps.length),
       SHARE_HERO_TICK_MS,
     );
     return () => window.clearInterval(timer);
-  }, [moves, paused, last, steps.length]);
+  }, [running, steps.length]);
+
   return (
-    <div className="tr-share">
+    <div className="tr-share" ref={box}>
       {steps[step]}
       {moves ? (
         <button type="button" className="tr-pause" onClick={() => setPaused((value) => !value)}>

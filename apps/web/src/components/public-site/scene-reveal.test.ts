@@ -171,6 +171,20 @@ describe('reveal mode', () => {
     handle.stop();
   });
 
+  it('keeps playing a scene that dips below the threshold while it is still partly on screen', () => {
+    const element = scene(4, 3);
+    const handle = start();
+    near(element);
+    see(element, 'yes');
+    vi.advanceTimersByTime(REVEAL_STEP_MS + 10);
+    expect(step(element)).toBe('1');
+    see(element, 'barely');
+    vi.advanceTimersByTime(REVEAL_STEP_MS * 2 + 10);
+    expect(step(element)).toBe('3');
+    expect(element.getAttribute('data-reveal')).toBe('done');
+    handle.stop();
+  });
+
   it('rests a scene finished when it was scrolled past before it ever played', () => {
     const element = scene(4, 3);
     const handle = start();

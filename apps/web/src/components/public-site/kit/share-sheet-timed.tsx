@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { publicText } from '../public-text';
 import { SHARE_STEPS, ShareSheetBody, type ShareStep } from './share-sheet-body';
+import { useOnScreen } from './use-on-screen';
 
 /** How long each step rests, in milliseconds. */
 export const SHARE_TICK_MS = 2200;
@@ -18,34 +20,15 @@ export function ShareSheetTimed({ pageLang = 'en' }: { readonly pageLang?: strin
   const [step, setStep] = useState<ShareStep>(4);
   const [moves, setMoves] = useState(false);
   const [paused, setPaused] = useState(false);
-  // Without an observer the picture counts as on screen (older browsers keep the plain loop).
-  const [onScreen, setOnScreen] = useState(true);
-  const [shown, setShown] = useState(true);
   const box = useRef<HTMLDivElement>(null);
+  const visible = useOnScreen(box, moves);
 
   useEffect(() => {
     setStep(0);
     setMoves(true);
   }, []);
 
-  useEffect(() => {
-    if (!moves) return;
-    const element = box.current;
-    const watcher =
-      element && typeof IntersectionObserver === 'function'
-        ? new IntersectionObserver(([entry]) => setOnScreen(entry?.isIntersecting ?? false))
-        : null;
-    if (element) watcher?.observe(element);
-    const visibility = () => setShown(!document.hidden);
-    visibility();
-    document.addEventListener('visibilitychange', visibility);
-    return () => {
-      watcher?.disconnect();
-      document.removeEventListener('visibilitychange', visibility);
-    };
-  }, [moves]);
-
-  const running = moves && onScreen && shown && !paused;
+  const running = moves && visible && !paused;
   useEffect(() => {
     if (!running) return;
     const timer = window.setInterval(
@@ -66,7 +49,7 @@ export function ShareSheetTimed({ pageLang = 'en' }: { readonly pageLang?: strin
         {...(moves ? {} : { 'data-idle': '', 'aria-hidden': true, tabIndex: -1 })}
         onClick={() => setPaused((value) => !value)}
       >
-        {paused ? 'Play Animation' : 'Pause Animation'}
+        {publicText(paused ? 'Play the Animation' : 'Pause the Animation', pageLang)}
       </button>
     </div>
   );

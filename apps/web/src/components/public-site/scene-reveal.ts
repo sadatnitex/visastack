@@ -177,10 +177,12 @@ export function startReveal(
             item.wants = meaningful(entry);
             if (item.wants) {
               if (!doc.hidden) play(item);
-            } else if (item.state === 'playing' || entry.boundingClientRect.bottom <= 0) {
-              // Left the screen mid-play, or was scrolled past before it ever played.
-              rest(item, true);
-            } else if (item.state === 'ready') timers(item);
+            } else if (!entry.isIntersecting) {
+              // Left the screen mid-play, or was scrolled past before it ever played. A scene still
+              // partly on screen that dips below the threshold keeps playing.
+              if (item.state === 'playing' || entry.boundingClientRect.bottom <= 0)
+                rest(item, true);
+            }
           }
         },
         { threshold: REVEAL_THRESHOLDS },
