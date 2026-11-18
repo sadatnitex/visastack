@@ -25,9 +25,9 @@ e2e/public-site/home-layout-overlap.spec.ts now measures Home, How It Works, Tru
 - apps/web/e2e/ux-public.spec.ts: eyebrow line height 15 px (was 12 px)
 - apps/web/src/app/for-agencies/page.test.tsx, countries/page.test.tsx, how-it-works/page.test.tsx (own tests)
 
-## Bengali word list
+## PUB5 report files
 
-docs/upgrades/programme/pub/PUB-bn-words.csv is not on main yet (it lands with #632). Change to apply there: the how-it-works row "A person looks over the case." becomes "You look over the case before it moves on." (Bengali wording by the translator).
+PUB5-verification.md and PUB-bn-words.csv are brought in unchanged from PR #632 (to be closed in favour of this one), except the D1 row of the word list and a new section 8 "Fixed in PUBFIX" in the report.
 
 ## Not verified
 
