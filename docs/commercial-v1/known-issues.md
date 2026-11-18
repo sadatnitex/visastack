@@ -8497,3 +8497,4 @@ Correction and follow-up tests, 2026-11-10 (UX P8, after review and merge of #50
 - Found by the new guard on its first run and fixed: stacked Explain buttons overlapped (ExplainTip's negative margin), now `.status-picture-key` rows of 44 px.
 - Dropped for U4: a Sensitive picture (no vocabulary word yet).
 - NOT verified: signed-in routes (U1b), Safari and Firefox, VoiceOver and NVDA, forced colours and right to left in a real browser, Bengali wording of the six sentences, production.
+- CodeQL follow-up (18 Nov 2026): the first PR head failed CodeQL (two high alerts: regex removal of script tags in the no-script test). The test now builds its page from the site's own stylesheet links and the server markup, with no HTML filtering, and opens it with script switched off; spec 25 of 25 run twice, typecheck, lint and the full web suite green before the push.
