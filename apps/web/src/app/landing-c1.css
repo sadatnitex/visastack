@@ -841,3 +841,470 @@
     padding: 1.25rem 1.25rem 1.2rem;
   }
 }
+
+/* WP-PUB2 home scenes: layout shared by the three scenes. Colours come from the chapter tone
+   (--pub-*, with the light tone as fallback); nothing here is a new hue. */
+.land-chapter {
+  padding-block: 0;
+}
+
+.land-stage {
+  display: grid;
+  gap: var(--space-5);
+  align-content: center;
+  min-width: 0;
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+.land-copy {
+  display: grid;
+  gap: var(--space-3);
+  align-content: center;
+  min-width: 0;
+}
+
+.land-scene-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 4.5vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  color: var(--pub-ink, var(--text));
+}
+
+.land-lead {
+  margin: 0;
+  max-width: 44ch;
+  font-size: var(--text-lead);
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.land-draw {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+}
+
+.land-caption {
+  font-size: var(--text-caption);
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+@media (min-width: 900px) {
+  .land-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: center;
+    gap: var(--space-7);
+    padding: var(--space-6);
+  }
+}
+
+/* WP-PUB2 home scenes: intake. Documents, the scan line, and the three states in order. */
+.land-docs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.land-doc {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--space-3);
+  border: 1px solid var(--pub-edge, var(--edge-card));
+  border-radius: var(--radius-lg);
+  background-color: color-mix(
+    in srgb,
+    var(--pub-ink, var(--text)) 7%,
+    var(--pub-canvas, var(--bg))
+  );
+}
+
+.land-doc-name {
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pub-ink, var(--text));
+}
+
+.land-doc-lines {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.land-doc-lines i {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--pub-edge-strong, var(--accent));
+  opacity: 0.55;
+}
+
+.land-doc-lines i:nth-child(2) {
+  width: 80%;
+}
+
+.land-doc-lines i:nth-child(3) {
+  width: 55%;
+}
+
+.land-scan {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background-color: var(--pub-accent, var(--accent));
+  opacity: 0;
+}
+
+.land-states {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.land-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 3px solid transparent;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+/* WP-PUB2 home scenes: ready. The case line, its filled marks, the bar and the ring. */
+.land-ready-figure {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.land-case-line {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.land-case-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 32px;
+  color: var(--pub-ink, var(--text));
+}
+
+.land-case-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--pub-edge-strong, var(--accent));
+  border-radius: 50%;
+}
+
+.land-case-item.is-ready .land-case-mark {
+  border-color: var(--ok);
+  background-color: var(--ok);
+}
+
+.land-case-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.land-case-state {
+  font-size: var(--text-caption);
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.land-ring {
+  justify-self: start;
+}
+
+/* WP-PUB2 home scenes: closing. The passport above the closing call, which keeps its own card. */
+.land-passport-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+}
+
+.land-passport-figure {
+  justify-items: center;
+  text-align: center;
+}
+
+.land-closing .land-final {
+  padding-block: 0;
+}
+
+.land-closing .land-final-card {
+  padding: var(--space-6) var(--space-5);
+}
+
+.land-closing .land-final-title {
+  font-size: clamp(1.9rem, 5vw, 3rem);
+}
+
+.land-closing .land-final-sub {
+  margin-bottom: var(--space-4);
+}
+
+/* WP-PUB2 home scenes: the closing scene is as tall as its content, never clipped or pinned. */
+.land-scene-open .pub-scene-stage {
+  overflow: visible;
+}
+
+/* WP-PUB2 home scenes: below 900 px a scene is an unpinned still picture showing its finished
+   step, whatever the engine does (it starts at 760 px; the page's rule is 900). */
+@media (max-width: 899px) {
+  html[data-scenes="live"] .pub-scene[data-scene][data-len] {
+    height: auto;
+  }
+
+  html[data-scenes="live"] .pub-scene[data-scene] .pub-scene-stage {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+}
+
+html[data-scenes="live"] .pub-scene.land-scene-open[data-scene][data-len] {
+  height: auto;
+}
+
+html[data-scenes="live"] .pub-scene.land-scene-open[data-scene] .pub-scene-stage {
+  position: static;
+  height: auto;
+  overflow: visible;
+}
+
+/* WP-PUB2 home scenes: motion. Only while the engine runs on a big screen with motion welcome:
+   documents fly in, the scan line sweeps, the current state is marked, the case line fills. Each
+   uses transform or the --p the engine writes; no timed transition. Without the engine
+   everything rests finished (--p falls back to 1). Nothing is hidden with opacity, so a
+   scene's words stay readable at any scroll position. */
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  html[data-scenes="live"]:not([data-save-data]) .land-stage {
+    min-height: calc(100svh - var(--pub-nav-offset));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-intake {
+    --fly-1: clamp(0, calc(var(--p, 1) * 5), 1);
+    --fly-2: clamp(0, calc(var(--p, 1) * 5 - 0.2), 1);
+    --fly-3: clamp(0, calc(var(--p, 1) * 5 - 0.4), 1);
+    --scan: clamp(0, calc((var(--p, 1) - 0.25) * 4), 1);
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-doc-1 {
+    transform: translate(calc((1 - var(--fly-1)) * 60%), calc((1 - var(--fly-1)) * 240%));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-doc-2 {
+    transform: translate(calc((1 - var(--fly-2)) * 10%), calc((1 - var(--fly-2)) * 260%));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-doc-3 {
+    transform: translate(calc((1 - var(--fly-3)) * -40%), calc((1 - var(--fly-3)) * 280%));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="1"] .land-scan {
+    opacity: 1;
+    transform: translateY(calc(var(--scan) * 5.5rem));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="0"] .land-state-1,
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="1"] .land-state-1,
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="2"] .land-state-2,
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="intake"][data-step="3"] .land-state-3 {
+    border-inline-start-color: var(--pub-accent, var(--accent));
+    color: var(--pub-ink, var(--text));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="ready"][data-step="0"] .land-case-item[data-index="3"] .land-case-mark,
+  html[data-scenes="live"]:not([data-save-data]) [data-scene="ready"][data-step="0"] .land-case-item[data-index="4"] .land-case-mark {
+    background-color: transparent;
+    border-color: var(--pub-edge-strong, var(--accent));
+  }
+
+  html[data-scenes="live"]:not([data-save-data]) .land-ring {
+    transform: scale(calc(0.88 + 0.12 * var(--p, 1)));
+    transform-origin: left center;
+  }
+}
+
+/* WP-PUB2 home hero: a small phone's first screen holds 30 words or fewer. The long supporting line
+   and the three-word summary wait for a wider screen; a short line stands in. The words stay in the
+   page for search and the tests; display none keeps them out of a screen reader's way too. */
+.c1 .c1-subline-short {
+  display: none;
+}
+
+@media (max-width: 479px) {
+  .c1 .c1-subline-long,
+  .c1 .c1-meta {
+    display: none;
+  }
+
+  .c1 .c1-subline-short {
+    display: block;
+  }
+}
+
+/* WP-PUB2 home scenes: closing call. The card stays light inside the dark chapter, so its words
+   take the page's dark ink instead of the chapter's light ink. */
+.land-closing .land-final-card .land-final-title {
+  color: var(--text);
+}
+
+/* WP-PUB2 home scenes: a phone shows each scene as a compact still picture. */
+@media (max-width: 899px) {
+  .land-stage {
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .land-scene-title {
+    font-size: clamp(1.5rem, 7vw, 2rem);
+  }
+
+  .land-lead {
+    font-size: var(--text-body, 1rem);
+  }
+
+  .land-doc {
+    padding: var(--space-2);
+  }
+
+  .land-doc-lines {
+    display: none;
+  }
+
+  .land-state {
+    padding-block: var(--space-1);
+  }
+
+  .land-case-item {
+    min-height: 24px;
+  }
+
+  .land-ready-figure {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .land-ready-figure > .pub-example,
+  .land-ready-figure > .land-caption {
+    grid-column: 1 / -1;
+  }
+
+  .land-passport-frame {
+    min-height: 110px;
+  }
+
+  .land-closing .land-final-card {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .land-closing .land-final-title {
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+  }
+}
+
+/* WP-PUB2 home scenes: the cover is smaller on a phone, with its proportions kept. */
+@media (max-width: 899px) {
+  .land-passport-frame .pic-cover {
+    width: 96px;
+    height: auto;
+  }
+}
+
+/* WP-PUB2 home scenes: phone budget (6 screens). Tighter padding, the caption left to the Example
+   tag, a smaller ring, and one line of supporting text per scene. */
+@media (max-width: 899px) {
+  .land-stage {
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .land-scene-title {
+    font-size: clamp(1.4rem, 6.4vw, 1.75rem);
+  }
+
+  .land-lead {
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+
+  .land-copy {
+    gap: var(--space-2);
+  }
+
+  .land-draw {
+    gap: var(--space-2);
+  }
+
+  .land-caption {
+    display: none;
+  }
+
+  .land-ring .progress-ring-lg .progress-ring-graphic {
+    width: 5.5rem;
+  }
+
+  .land-closing .land-final-card {
+    padding: var(--space-4);
+  }
+
+  .land-closing .land-final-sub {
+    margin-bottom: var(--space-3);
+  }
+
+  .land-passport-frame {
+    min-height: 0;
+  }
+}
+
+/* WP-PUB2 home scenes: phone budget, second pass. A state is one row (chip, then its words); the
+   case line is two columns with the In file and Missing words read aloud but not drawn. */
+@media (max-width: 899px) {
+  .land-state {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .land-state .pub-chip {
+    flex: none;
+  }
+
+  .land-case-line {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .land-case-state {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .land-case-item {
+    position: relative;
+  }
+}
