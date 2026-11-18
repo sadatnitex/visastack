@@ -24,6 +24,12 @@ const STAGES = [
 ];
 
 describe('the How It Works page', () => {
+  it('does not promise a check by someone else (only the case owner moves a case on)', async () => {
+    const html = await render();
+    expect(html).toContain('You look over the case before it moves on.');
+    expect(html).not.toContain('A person looks over the case.');
+  });
+
   it('is named How It Works and has one top heading', async () => {
     expect(metadata.title).toBe('How It Works');
     const html = await render();

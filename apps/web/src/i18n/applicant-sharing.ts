@@ -27,6 +27,8 @@ export const applicantSharingCatalog = defineCatalog({
       '{aiFilesLine}, but turned off right now',
     'applicantSharing.appApplicantIdSharingAiConnections.canRead': 'Can Read',
     'applicantSharing.appApplicantIdSharingAiConnections.cases': 'Cases',
+    'applicantSharing.appApplicantIdSharingAiConnections.casesNote':
+      'Which of your cases this app can read.',
     'applicantSharing.appApplicantIdSharingAiConnections.changeAccess': 'Change Access',
     'applicantSharing.appApplicantIdSharingAiConnections.changeAccessForClientname':
       'Change Access for {clientName}',
@@ -37,6 +39,8 @@ export const applicantSharingCatalog = defineCatalog({
     'applicantSharing.appApplicantIdSharingAiConnections.noAiAppsAreConnectedTo':
       'No AI apps are connected to this record. When you connect one from your AI app, it appears here with what it can read.',
     'applicantSharing.appApplicantIdSharingAiConnections.notUsedYet': 'Not Used Yet',
+    'applicantSharing.appApplicantIdSharingAiConnections.numbersShowOnlyTheirLastThree':
+      'Numbers show only their last three characters.',
     'applicantSharing.appApplicantIdSharingAiConnections.nothingFromThisRecord':
       'Nothing from this record',
     'applicantSharing.appApplicantIdSharingAiConnections.recentlyTurnedOffLength':
