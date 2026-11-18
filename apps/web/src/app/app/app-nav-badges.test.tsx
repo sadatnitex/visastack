@@ -19,7 +19,7 @@ const { AppNav, badgeFor } = await import('./app-nav');
 
 const LINKS: readonly NavLink[] = [
   { href: '/app/applicant/p1', label: 'Home', exact: true },
-  { href: '/app/applicant/p1/documents', label: 'My Documents' },
+  { href: '/app/applicant/p1/documents', label: 'My Record' },
   { href: '/app/applicant/p1/missions', label: 'My Trips' },
   { href: '/app/applicant/p1/sharing', label: 'Sharing & Requests' },
 ];
@@ -86,7 +86,7 @@ describe('the count on a tab', () => {
   it('leaves a tab with a zero alone', () => {
     mount({ '/app/applicant/p1/sharing': 0, '/app/applicant/p1/documents': 2 });
     expect(tab('Sharing & Requests')?.querySelector('.app-tab-badge')).toBeNull();
-    expect(tab('My Documents')?.getAttribute('aria-label')).toBe('My Documents, 2 new');
+    expect(tab('My Record')?.getAttribute('aria-label')).toBe('My Record, 2 new');
   });
 
   it('has no accessibility violations with counts showing', async () => {

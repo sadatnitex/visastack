@@ -1,41 +1,20 @@
 import { type PublicTrustRoute, listPublicTrustPublished } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import type { ReactElement } from 'react';
+import { Chapter } from '../../components/public-site/scene';
+import { TrustCatalogSection } from '../../components/public-trust-routes';
 import { PublicTrustStory } from '../../components/public-trust-story';
-import { ShowMore } from '../../components/show-more';
 import { TrustUnavailable } from '../../components/trust-unavailable';
 import { primeLocale } from '../../lib/i18n-server';
-import { type SearchParamsRecord, firstParam, nextShow, parseShow } from '../../lib/paging';
+import type { SearchParamsRecord } from '../../lib/paging';
 import { withPublicDb } from '../../lib/public-db';
 import { reportServerError } from '../../lib/server-error';
 
-// The page opens on the trust story (privacy, sharing and control), so its tab is named as the
-// footer link to it is: "Privacy and Control". The route list below it keeps its own heading.
-export const metadata: Metadata = { title: 'Privacy and Control' };
+// WP-PUB3 (owner, 17 Nov 2026): the tab is named as the menu names the page. The footer link keeps
+// its own catalogue words. The route list below the story keeps its own heading.
+export const metadata: Metadata = { title: 'Privacy and Trust' };
 
 export const dynamic = 'force-dynamic';
-
-/** Routes shown at first, and how many more each Show More adds (WP-SB8 scroll budget). */
-const TRUST_ROUTE_STEP = 12;
-const ROUTE_NOUN = { one: 'route', other: 'routes' } as const;
-const MAX_QUERY = 80;
-const QUERY_KEY = 'q';
-const SHOW_KEY = 'show';
-
-/** The search words from `?q=`, trimmed and capped; empty when there are none. */
-function searchWords(params: SearchParamsRecord): string {
-  return (firstParam(params[QUERY_KEY]) ?? '').trim().slice(0, MAX_QUERY);
-}
-
-/** A route matches when its name, country, route type or description holds the search words. */
-function matchesSearch(route: PublicTrustRoute, words: string): boolean {
-  if (words === '') return true;
-  const needle = words.toLocaleLowerCase();
-  return [route.packName, route.jurisdiction, route.route, route.routeDescription].some((field) =>
-    (field ?? '').toLocaleLowerCase().includes(needle),
-  );
-}
 
 /**
  * Public Trust Lite catalog (RUL-06, directive §9). Lists routes, never
@@ -69,7 +48,9 @@ export default async function PublicTrustCatalogPage(
     return (
       <>
         <PublicTrustStory />
-        <TrustUnavailable withinPage />
+        <Chapter tone="light" className="p3-ch p3-catalog-chapter">
+          <TrustUnavailable withinPage />
+        </Chapter>
       </>
     );
   }
@@ -77,106 +58,7 @@ export default async function PublicTrustCatalogPage(
   return (
     <>
       <PublicTrustStory />
-      <section
-        className="section container trust-catalog"
-        aria-label="Maintained Route Information"
-      >
-        <div className="section-head" style={{ marginBottom: '2rem' }}>
-          <span className="eyebrow">Public Trust</span>
-          <h2 className="section-title" style={{ margin: '0.25rem 0 0.5rem' }}>
-            Maintained Route Information
-          </h2>
-          <p className="section-sub">
-            Source-backed official fees, application channels, and scam-warning guidance for
-            maintained visa routes - never an approval guarantee, an embassy endorsement, or an
-            agency ranking.
-          </p>
-        </div>
-
-        {routes.length === 0 ? (
-          <article className="card">
-            <p className="card-body">No routes are currently published here.</p>
-          </article>
-        ) : (
-          <RouteList routes={routes} params={params} />
-        )}
-      </section>
-    </>
-  );
-}
-
-function RouteList({
-  routes,
-  params,
-}: {
-  readonly routes: readonly PublicTrustRoute[];
-  readonly params: SearchParamsRecord;
-}) {
-  const words = searchWords(params);
-  const matches = routes.filter((route) => matchesSearch(route, words));
-  // The ceiling is the whole list, rounded up to a step, so Show More can always reach the end.
-  const max = Math.max(1, Math.ceil(matches.length / TRUST_ROUTE_STEP)) * TRUST_ROUTE_STEP;
-  const shown = parseShow(params[SHOW_KEY], { step: TRUST_ROUTE_STEP, max });
-  const visible = matches.slice(0, shown);
-  const following =
-    matches.length > visible.length ? nextShow(shown, { step: TRUST_ROUTE_STEP, max }) : null;
-  const searchable = routes.length > TRUST_ROUTE_STEP || words !== '';
-
-  return (
-    <>
-      {searchable ? (
-        <form className="trust-search" action="/trust" method="get">
-          <label className="field">
-            <span className="label">Search Routes</span>
-            <input
-              className="input"
-              type="search"
-              name={QUERY_KEY}
-              defaultValue={words}
-              maxLength={MAX_QUERY}
-              placeholder="For example: Japan"
-            />
-          </label>
-          <button className="btn btn-secondary" type="submit">
-            Search
-          </button>
-          {words !== '' ? <Link href="/trust">Clear Search</Link> : null}
-        </form>
-      ) : null}
-      {visible.length === 0 ? (
-        <article className="card">
-          <p className="card-body">No routes match your search. Try another country or route.</p>
-        </article>
-      ) : (
-        <>
-          <div className="grid">
-            {visible.map((route, index) => (
-              <Link
-                className="card"
-                key={route.packKey}
-                id={`trust-route-${index}`}
-                href={`/trust/${route.packKey}`}
-              >
-                <p className="card-kicker">
-                  {[route.jurisdiction, route.route].filter(Boolean).join(' · ') || 'Route'}
-                </p>
-                <h2 className="card-title">{route.packName}</h2>
-                <p className="card-body">{route.routeDescription}</p>
-              </Link>
-            ))}
-          </div>
-          <ShowMore
-            id="trust-routes-more"
-            pathname="/trust"
-            searchParams={words === '' ? {} : { q: words }}
-            next={following === null ? null : { show: following }}
-            shown={visible.length}
-            total={matches.length}
-            noun={ROUTE_NOUN}
-            landOn={`trust-route-${visible.length}`}
-          />
-        </>
-      )}
+      <TrustCatalogSection routes={routes} params={params} />
     </>
   );
 }

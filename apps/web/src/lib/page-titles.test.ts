@@ -79,8 +79,8 @@ describe('page titles', () => {
     // D3: the page is "Notifications", as the menu and the finder name it (CCD-7).
     expect(titleOf('app/notifications/page.tsx')).toBe('Notifications');
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
-    // VS-010: /trust opens on the privacy and control story; its title stays until PUB3 renames it.
-    expect(titleOf('trust/page.tsx')).toBe('Privacy and Control');
+    // WP-PUB3 (owner, 17 Nov 2026; approved guard correction): the tab is named as the menu names it.
+    expect(titleOf('trust/page.tsx')).toBe('Privacy and Trust');
     expect(readFileSync(join(APP_DIR, '../i18n/home.ts'), 'utf8')).toContain(
       "'home.layout.privacyAndControl': 'Privacy and Control'",
     );
@@ -90,6 +90,9 @@ describe('page titles', () => {
     const layout = readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8');
     expect(layout).toContain('publicNavLinks(');
     expect(layout).toContain('<Link href="/trust">{t.node(\'home.layout.publicTrust\')}</Link>');
+    // WP-PUB4 (Guardian, 18 Nov 2026): the public page is told apart from the signed-in "Countries" by its tab title.
+    expect(titleOf('countries/page.tsx')).toBe('Countries and Sources');
+    expect(titleOf('for-agencies/page.tsx')).toBe('For Agencies');
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');
   });
