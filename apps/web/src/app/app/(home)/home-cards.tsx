@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../../../components/icons';
+import { PersonAvatar } from '../../../components/profile-photo/person-avatar';
 import { StatusBadge } from '../../../components/ui';
 import { appHomeCatalog } from '../../../i18n/app-home';
 import { getServerT } from '../../../lib/i18n-server';
@@ -19,6 +20,26 @@ export function initialsOf(name: string): string {
   return `${first ?? '?'}${last ?? ''}`.toUpperCase();
 }
 
+/**
+ * The account photo for one person's card: only the account's own Myself record, owned by this
+ * account, gets it (the same photo the sidebar account card shows). Every other person, and every
+ * record another account owns, keeps their initials. A missing photo is also initials.
+ */
+export function ownPhotoFor(
+  applicant: {
+    readonly id: string;
+    readonly relationship: string;
+    readonly ownerAccountId: string;
+  },
+  accountId: string,
+  own: { readonly id: string; readonly photoUrl: string | null } | null,
+): string | null {
+  if (!own?.photoUrl) return null;
+  if (applicant.relationship !== 'SELF') return null;
+  if (applicant.ownerAccountId !== accountId) return null;
+  return applicant.id === own.id ? own.photoUrl : null;
+}
+
 const stat = (count: number, one: string, many: string) => (
   <span className="home-stat">
     <b>{count}</b> {count === 1 ? one : many}
@@ -32,6 +53,7 @@ export function PersonCard({
   cases,
   requests,
   actionNeeded,
+  photoUrl,
 }: {
   readonly href: string;
   readonly name: string;
@@ -39,14 +61,14 @@ export function PersonCard({
   readonly cases: number;
   readonly requests: number;
   readonly actionNeeded: boolean;
+  /** The account photo, for the account's own Myself record only (see `ownPhotoFor`). */
+  readonly photoUrl?: string | null | undefined;
 }) {
   const t = getServerT(appHomeCatalog);
   return (
     <li className="home-person">
       <Link className="home-person-link plain-link" href={href}>
-        <span className="home-avatar" aria-hidden="true">
-          {initialsOf(name)}
-        </span>
+        <PersonAvatar className="home-avatar" initials={initialsOf(name)} photoUrl={photoUrl} />
         <span className="home-person-body">
           <span className="home-person-head">
             <span className="home-person-name">{name}</span>
