@@ -424,6 +424,20 @@ describe.each(KINDS)('declining a %s invitation (DECL1)', (_name, make) => {
     ).toHaveLength(0);
   }, 60_000);
 
+  it('leaves the row PENDING for a signed-in account whose address differs, with nothing given back', async () => {
+    const kind = await make();
+    const { id, token } = await kind.invite(INVITED);
+    const before = await kind.status(id);
+    const other = await account('other@example.test');
+    const refused = await kind.decline(other, 'other@example.test', token);
+    expect(messageKey(refused)).toBe(kind.answer);
+    expect(JSON.stringify(refused)).not.toContain(INVITED);
+    expect(await kind.status(id)).toEqual(before);
+    // The invited person can still answer it afterwards.
+    const invited = await account(INVITED);
+    expect(isOk(await kind.decline(invited, INVITED, token))).toBe(true);
+  }, 60_000);
+
   it('ends one way only when it races an accept, in either order', async () => {
     const kind = await make();
     const acceptedFirst = await kind.invite(INVITED);

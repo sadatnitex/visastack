@@ -15,7 +15,7 @@ import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError } from './errors';
 import {
   declineMayProceed,
-  recordDeclineRefused,
+  declineRefusedEvent,
   unusableInvitationTokenHash,
 } from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
@@ -362,6 +362,17 @@ class SharingAcceptanceError extends Error {
   }
 }
 
+/** DECL1: records a refused decline (kind and who tried only); a failure never changes the refusal. */
+async function recordDeclineRefused(db: Db, actorAccountId: string): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, declineRefusedEvent('sharing', actorAccountId));
+    });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
+}
+
 /**
  * DECL1: the invited person says no. Only the person the invitation was sent to may do it, while it
  * is pending and unexpired; every other case (unknown or malformed link, someone else's, used,
@@ -377,7 +388,7 @@ export async function declineSharingInvitation(
   const unavailable = () => err(keyedError('not_found', 'sharing.inviteUnavailable'));
   if (!(await declineMayProceed(db, input.actorAccountId))) return unavailable();
   const refuse = async () => {
-    await recordDeclineRefused(db, { kind: 'sharing', actorAccountId: input.actorAccountId });
+    await recordDeclineRefused(db, input.actorAccountId);
     return unavailable();
   };
   if (!/^[A-Za-z0-9_-]{43}$/.test(input.rawToken)) return refuse();

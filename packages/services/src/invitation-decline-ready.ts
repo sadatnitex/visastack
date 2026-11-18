@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { appendAuditEvent } from './audit';
+import type { AuditEventInput } from './audit';
 import type { Db } from './db';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
@@ -79,30 +79,22 @@ export function unusableInvitationTokenHash(): string {
 }
 
 /**
- * Records a refused decline: the kind and who tried, nothing else. Never the invitation, an
- * applicant, an address or a name, so the record says nothing about an invitation that was not
- * theirs. A failure to record never changes the refusal.
+ * The audit record of a refused decline: the kind and who tried, nothing else. Never the invitation,
+ * an applicant, an address or a name, so it says nothing about an invitation that was not theirs.
+ * Each invitation module writes it with its own private recorder (not exported), so a refusal
+ * cannot be recorded from anywhere else.
  */
-export async function recordDeclineRefused(
-  db: Db,
-  input: {
-    readonly kind: DeclinableInvitationKind;
-    readonly actorAccountId: string;
-  },
-): Promise<void> {
-  const names = INVITATION_DECLINE_EVENTS[input.kind];
-  try {
-    await db.transaction(async (tx) => {
-      await appendAuditEvent(tx, {
-        eventType: names.eventType,
-        actorAccountId: input.actorAccountId,
-        method: 'MANUAL',
-        result: 'DENIED',
-        resourceType: names.resourceType,
-        reason: 'not_available',
-      });
-    });
-  } catch {
-    // The refusal stands either way; only the record of it is missing.
-  }
+export function declineRefusedEvent(
+  kind: DeclinableInvitationKind,
+  actorAccountId: string,
+): AuditEventInput {
+  const names = INVITATION_DECLINE_EVENTS[kind];
+  return {
+    eventType: names.eventType,
+    actorAccountId,
+    method: 'MANUAL',
+    result: 'DENIED',
+    resourceType: names.resourceType,
+    reason: 'not_available',
+  };
 }

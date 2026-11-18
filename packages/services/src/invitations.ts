@@ -14,7 +14,7 @@ import {
 import { type ServiceError, keyedError, refusal, serviceError } from './errors';
 import {
   declineMayProceed,
-  recordDeclineRefused,
+  declineRefusedEvent,
   unusableInvitationTokenHash,
 } from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
@@ -503,6 +503,17 @@ export async function acceptOrganizationInvitation(
   });
 }
 
+/** DECL1: records a refused decline (kind and who tried only); a failure never changes the refusal. */
+async function recordDeclineRefused(db: Db, actorAccountId: string): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, declineRefusedEvent('organization', actorAccountId));
+    });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
+}
+
 /**
  * DECL1: the invited person says no to joining an agency. Only the account whose own signed-in
  * email the invitation was sent to may do it, while it is pending and unexpired; every other case
@@ -551,7 +562,7 @@ export async function declineOrganizationInvitation(
     return true;
   });
   if (!declined) {
-    await recordDeclineRefused(db, { kind: 'organization', actorAccountId: input.actorAccountId });
+    await recordDeclineRefused(db, input.actorAccountId);
     return unavailable();
   }
   return ok({ declined: true as const });

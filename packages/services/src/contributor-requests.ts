@@ -6,7 +6,7 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, keyedError, serviceError } from './errors';
 import {
   declineMayProceed,
-  recordDeclineRefused,
+  declineRefusedEvent,
   unusableInvitationTokenHash,
 } from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
@@ -411,6 +411,17 @@ export async function abandonContributorSubmission(
     );
 }
 
+/** DECL1: records a refused decline (kind and who tried only); a failure never changes the refusal. */
+async function recordDeclineRefused(db: Db, actorAccountId: string): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, declineRefusedEvent('contributor', actorAccountId));
+    });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
+}
+
 /**
  * DECL1: the person asked for a document says no. Only the person the request was sent to (their
  * own signed-in email) may do it, while it is pending and unexpired and no upload has started;
@@ -467,7 +478,7 @@ export async function declineContributorRequest(
     return true;
   });
   if (!declined) {
-    await recordDeclineRefused(db, { kind: 'contributor', actorAccountId: input.actorAccountId });
+    await recordDeclineRefused(db, input.actorAccountId);
     return unavailable();
   }
   return ok({ declined: true as const });
