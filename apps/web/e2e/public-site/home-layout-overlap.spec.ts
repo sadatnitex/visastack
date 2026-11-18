@@ -22,20 +22,25 @@ const MOTION = ['live', 'reduced'] as const;
 type Problem = { kind: string; detail: string };
 
 /**
- * Pictures whose layers are drawn to overlap or to be cropped by a rotated frame. The page marks
- * none of them aria-hidden (each is a labelled figure), so they are named here, one by one, never
- * by size: the hero phone (a tilted, cropped screen, frozen Harbor C1 art) and the pictures inside
- * the feature cards (cropped by their card on purpose).
+ * Pictures whose layers are drawn to overlap or to be cropped by their own frame. The page marks
+ * none of them aria-hidden (each is a labelled figure), so they are named here, never by size: the
+ * hero phone (a tilted, cropped screen, frozen Harbor C1 art). The exclusion is narrow: words
+ * inside the figure may overlap or be cropped only by parts of the same figure. Its words must
+ * never overlap words outside it, nothing outside may crop them, and it never scrolls the page.
  */
-const LAYERED_PICTURES = ['.c1-devices', '.c1-feature > [class*="c1-card-art"], .c1-shot'] as const;
+const LAYERED_PICTURES = ['.c1-devices'] as const;
+
+/** The hero phone runs off the bottom edge of the hero on purpose; that edge may crop it, no other box. */
+const BLEED_FRAMES = ['.c1-hero'] as const;
 
 /** Runs in the page: returns every overlap, clipped line and sideways overflow it finds. */
 async function measure(page: Page): Promise<Problem[]> {
   return page.evaluate(
-    (layered) => {
+    ({ layered, bleed }) => {
       const TOLERANCE = 1;
       const problems: { kind: string; detail: string }[] = [];
-      const boxes: { el: Element; text: string; r: DOMRect }[] = [];
+      const boxes: { el: Element; text: string; r: DOMRect; fig: Element | null }[] = [];
+      const layeredSelector = layered.join(',');
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const label = (el: Element) =>
         `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? `.${el.className.trim().split(/\s+/).join('.')}` : ''}`;
@@ -52,7 +57,7 @@ async function measure(page: Page): Promise<Problem[]> {
           return false;
         }
         for (let node: Element | null = el; node; node = node.parentElement) {
-          if (node.closest('[aria-hidden="true"]') || node.closest(layered.join(','))) return false;
+          if (node.closest('[aria-hidden="true"]')) return false;
           const style = getComputedStyle(node);
           if (style.display === 'none' || style.visibility === 'hidden') return false;
           // Words read aloud but not drawn (1 px clipped) are not on screen.
@@ -72,7 +77,7 @@ async function measure(page: Page): Promise<Problem[]> {
         range.selectNodeContents(n);
         for (const r of Array.from(range.getClientRects())) {
           if (r.width < 1 || r.height < 1) continue;
-          boxes.push({ el, text, r });
+          boxes.push({ el, text, r, fig: el.closest(layeredSelector) });
         }
       }
 
@@ -82,6 +87,8 @@ async function measure(page: Page): Promise<Problem[]> {
           const a = boxes[i];
           const b = boxes[j];
           if (!a || !b || a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+          // Layers of one excluded picture may overlap each other, nothing else may.
+          if (a.fig && a.fig === b.fig) continue;
           const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
           const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
           if (w > TOLERANCE && h > TOLERANCE) {
@@ -94,12 +101,14 @@ async function measure(page: Page): Promise<Problem[]> {
       }
 
       // 2. No line may be cut off by an ancestor that clips (hidden or clip), unless it scrolls.
-      for (const { el, text, r } of boxes) {
+      for (const { el, text, r, fig } of boxes) {
         for (
           let node = el.parentElement;
           node && node !== document.documentElement;
           node = node.parentElement
         ) {
+          // The crop of an excluded picture by a part of itself is by design.
+          if (fig && (fig.contains(node) || node.matches(bleed.join(',')))) continue;
           const style = getComputedStyle(node);
           // A box the person scrolls (a swipe row) holds its words: what lies beyond is reachable.
           if (['auto', 'scroll'].includes(style.overflowX)) break;
@@ -129,7 +138,7 @@ async function measure(page: Page): Promise<Problem[]> {
       }
       return problems;
     },
-    [...LAYERED_PICTURES],
+    { layered: [...LAYERED_PICTURES], bleed: [...BLEED_FRAMES] },
   );
 }
 
