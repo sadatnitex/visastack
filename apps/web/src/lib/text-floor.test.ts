@@ -10,24 +10,11 @@ import { describe, expect, it } from 'vitest';
  */
 const APP = join(__dirname, '..', 'app');
 const globals = readFileSync(join(APP, 'globals.css'), 'utf8');
-const landing = readFileSync(join(APP, 'landing-c1.css'), 'utf8');
-
-/**
- * The picture of a phone on the landing page shows the product at a phone's real scale, so its
- * sample words are part of a drawing (the figure is labelled "Illustrative interface with sample
- * information"), not text a visitor has to read. Its own caption is real text and is not listed.
- */
-const ILLUSTRATION = new Set([
-  '.c1 .c1-tinycap',
-  '.c1 .c1-segment span',
-  '.c1 .c1-fileinfo small',
-  '.c1 .c1-tag',
-  '.c1 .c1-next-label',
-  '.c1 .c1-capsule',
-  '.c1 .c1-bottomnav',
-  '.c1 .c1-floatcard small',
-  '.c1 .c1-floatcard b',
-]);
+const KIT = join(__dirname, '..', 'components', 'public-site', 'kit');
+const homeSheets = [
+  readFileSync(join(APP, 'home-story.css'), 'utf8'),
+  readFileSync(join(KIT, 'kit.css'), 'utf8'),
+].join('\n');
 
 interface SizedRule {
   readonly selector: string;
@@ -88,8 +75,8 @@ describe('no visible text below 12px (owner list item 14)', () => {
     expect(tooSmall(globals)).toEqual([]);
   });
 
-  it('the landing sets none either, outside the drawing of a phone', () => {
-    expect(tooSmall(landing, ILLUSTRATION)).toEqual([]);
+  it('the Home page and its picture kit set none either', () => {
+    expect(tooSmall(homeSheets)).toEqual([]);
   });
 
   it('reads the shared scale, whose smallest size is the 12px caption', () => {

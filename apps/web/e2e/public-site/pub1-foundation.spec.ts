@@ -74,17 +74,14 @@ test('public pages load nothing from another site', async ({ page, baseURL }) =>
  */
 test('the flat check catches a shadow on a chip inside a dark chapter', async ({ page }) => {
   const spec = readFileSync(join(__dirname, '..', 'ux-public.spec.ts'), 'utf8');
-  expect(spec).toContain(
-    "element.closest('.c1-hero, .c1-darkstage') ||\n                element.hasAttribute('data-pub-depth')",
-  );
+  expect(spec).toContain("if (element.hasAttribute('data-pub-depth')) return false;");
   await page.setContent(
     '<section class="pub-chapter-dark" data-pub-depth style="background-image: radial-gradient(#1d4c98, #0b1a30)"><h2>Chapter</h2><span class="pub-chip" style="box-shadow: 0 1px 2px #000">Saved</span></section>',
   );
   const flagged = await page.locator('body').evaluate((body) =>
     [...body.querySelectorAll('*')]
       .filter((element) => {
-        if (element.closest('.c1-hero, .c1-darkstage') || element.hasAttribute('data-pub-depth'))
-          return false;
+        if (element.hasAttribute('data-pub-depth')) return false;
         const css = getComputedStyle(element);
         return (
           css.boxShadow !== 'none' ||

@@ -74,8 +74,16 @@ html[data-scenes="live"] .pub-scene[data-len="1"] {
   height: 100svh;
 }
 
+html[data-scenes="live"] .pub-scene[data-len="1.5"] {
+  height: 150svh;
+}
+
 html[data-scenes="live"] .pub-scene[data-len="2"] {
   height: 200svh;
+}
+
+html[data-scenes="live"] .pub-scene[data-len="2.5"] {
+  height: 250svh;
 }
 
 html[data-scenes="live"] .pub-scene[data-len="3"] {
@@ -91,6 +99,35 @@ html[data-scenes="live"] .pub-scene-stage {
   top: var(--pub-nav-offset);
   height: calc(100svh - var(--pub-nav-offset));
   overflow: clip;
+}
+
+/* R1: a scene opts in with data-kit-stage (the Scene prop kitStage): its pinned stage is a grid that
+   centres what it shows, so a short scene never opens with an empty stretch. "safe" keeps the top in
+   view when a scene is taller than the screen. Scenes that do not opt in are unchanged. */
+html[data-scenes="live"] .pub-scene[data-kit-stage] .pub-scene-stage {
+  display: grid;
+  align-content: start;
+  align-content: safe center;
+}
+
+html[data-scenes="live"] .pub-scene[data-kit-stage] .pub-scene-stage > * {
+  min-width: 0;
+}
+
+/* R1: a scene marked data-min-width is pinned only from 900 px; between the engine's own floor and
+   that width it is an ordinary finished section (the engine leaves it finished). */
+@media (max-width: 899px) {
+  html[data-scenes="live"] .pub-scene[data-min-width="900"][data-len] {
+    height: auto;
+  }
+
+  html[data-scenes="live"] .pub-scene[data-min-width="900"] .pub-scene-stage {
+    position: static;
+    height: auto;
+    overflow-x: clip;
+    overflow-y: visible;
+    display: block;
+  }
 }
 
 /* WP-PUB1 public site: buttons. Every target is at least 44 px high. */

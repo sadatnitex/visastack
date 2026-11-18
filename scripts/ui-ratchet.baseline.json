@@ -153,7 +153,6 @@
     "apps/web/src/app/collect/fold.tsx": 1,
     "apps/web/src/app/collect/guest-desk-files.tsx": 3,
     "apps/web/src/app/collect/page.tsx": 1,
-    "apps/web/src/app/page.tsx": 1,
     "apps/web/src/components/activity-log.tsx": 1,
     "apps/web/src/components/ai-file-choices.tsx": 1,
     "apps/web/src/components/case-preparation-summary.tsx": 2,
