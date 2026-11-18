@@ -21,6 +21,7 @@ Checked by `apps/web/e2e/public-site/r5-reference-fidelity.spec.ts` (15 checks, 
 - Buttons keep today's labels (the reference's "Talk to Us" and "See How It Works" are not used).
 - Chapter tones are dark, light, light, dark, as in the reference (its Plans band is a second light band). No dark chapter follows a dark one.
 - Headings are Title Case ("Clients Arrive Prepared.") by the interface rule; the reference writes them in sentence case.
-- On a phone narrower than 640 px the lede shows its first sentence only, to keep the first phone screen under 30 words (the PUB4 guard). The full sentence is on wider screens and the table beneath shows what each case is missing.
+- The lede is shortened to "Clients keep their own record. You see only what they share." so the first phone screen stays under 30 words (the PUB4 guard) without hiding any copy. What each case is missing is shown by the table beside it.
+- The closing line reads "Start with what works today." The reference's "Talk to us about the pilot." is not used: the product has no contact or request path, and none of today's buttons leads to one.
 - Removed: Stop Chasing Documents by Message, What an Agency Gets, the pinned One Case One Clear Line, You See Only What Is Shared, One Traveller Profile Fewer Repeat Requests. The unreadable dark 33% ring on navy is gone: the ring sits on a light card and its centre is real text with contrast checked at 4.5:1.
 - Shared kit: R1's contract is on its branch but the parts are not merged. Local stand-ins live in `apps/web/src/app/for-agencies/r5-kit/` with the contract's props; at the TURN the imports switch to the real kit and the folder is deleted.

@@ -67,10 +67,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
               {say('Clients Arrive')} <HeadlineWords>{say('Prepared.')}</HeadlineWords>
             </h1>
             <p className="r5-lede">
-              {say('Clients keep their own record.')}{' '}
-              <span className="r5-lede-more">
-                {say('You see only what they share and what each case is missing.')}
-              </span>
+              {say('Clients keep their own record. You see only what they share.')}
             </p>
             <div className="r5-actions">{actions}</div>
           </div>
@@ -114,7 +111,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
             {say('Bring Your Clients.')} <HeadlineWords>{say('Skip the Chasing.')}</HeadlineWords>
           </>
         }
-        sub={say('Talk to us about the pilot.')}
+        sub={say('Start with what works today.')}
         actions={
           <>
             {actions}

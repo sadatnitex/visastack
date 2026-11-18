@@ -26,7 +26,7 @@ export function CasesTable({
   readonly title: string;
 }): ReactElement {
   return (
-    <div className="r5-cases pub-chapter-light" lang="en">
+    <div className="r5-cases pub-chapter-light" {...(pageLang !== 'en' ? { lang: 'en' } : {})}>
       <div className="r5-cases-head">
         <p className="r5-cases-title">{publicText(title, pageLang)}</p>
         <ExampleTag pageLang={pageLang} />
@@ -40,7 +40,7 @@ export function CasesTable({
               alt=""
               width={28}
               height={28}
-              loading="lazy"
+              loading="eager"
               decoding="async"
             />
             <span className="r5-cases-who">

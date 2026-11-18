@@ -104,7 +104,9 @@ describe('the public For Agencies page', () => {
   it('tags the case list with Example and never claims approval', async () => {
     const html = await render();
     expect(html).toContain('Completeness only. Not an approval.');
-    expect(html).toMatch(/r5-cases[\s\S]{0,400}pub-example/);
+    expect(html).toMatch(
+      /class="r5-cases [^"]*"[^>]*><div class="r5-cases-head">[\s\S]{0,200}pub-example/,
+    );
     expect(html).not.toMatch(/approved|guarantee|accepted/i);
   });
 

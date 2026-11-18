@@ -6,7 +6,7 @@ import { type Page, expect, test } from '@playwright/test';
  * R5: the public For Agencies page matches the owner-approved reference, chapter by chapter, at a
  * computer (1440x900) and a phone (390x844). The reference chapters were captured once from the
  * approved artifact into docs/upgrades/programme/pub/r5-shots/ref-<chapter>-<d|m>.png; this spec
- * checks the page against what those pictures and the reference text show, and and
+ * checks the page against what those pictures and the reference text show, and
  * writes the page's own chapter pictures into the test output folder (new-<chapter>-<d|m>.png); the
  * small copies kept in the records were made from them.
  */
@@ -75,6 +75,8 @@ for (const screen of SCREENS) {
           const bg = getComputedStyle(el.closest('.r5-cases') as Element).backgroundColor;
           return { fg: getComputedStyle(el).color, bg };
         });
+      expect(pair.fg).toMatch(/^rgb\(/);
+      expect(pair.bg).toMatch(/^rgb\(/);
       const [a, b] = [luminance(pair.fg), luminance(pair.bg)].sort((x, y) => y - x) as [
         number,
         number,

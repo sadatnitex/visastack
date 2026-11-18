@@ -11,6 +11,7 @@ export interface SegmentRingProps {
   readonly total?: number;
   readonly label?: string;
   readonly tone?: 'light' | 'dark';
+  /** Below 80 a small ring (46 px), from 80 the large one (96 px); the sizes themselves live in kit.css. */
   readonly size?: number;
   readonly pageLang?: string;
 }

@@ -101,17 +101,6 @@
   color: var(--pub-ink-soft, var(--text-secondary));
 }
 
-/* The first phone screen keeps to 30 words (WP-PUB4 guard): the second sentence waits for a wider screen. */
-.r5-lede-more {
-  display: none;
-}
-
-@media (min-width: 640px) {
-  .r5-lede-more {
-    display: inline;
-  }
-}
-
 @media (min-width: 860px) {
   .r5-hero-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
