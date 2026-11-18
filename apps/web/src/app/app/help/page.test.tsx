@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
@@ -50,8 +51,9 @@ describe('Help and Support', () => {
 
   it('names each contact route in Title Case, under one heading', async () => {
     const html = await renderServer(HelpPage());
-    const headings = [...html.matchAll(/<h3 id="help-contact-[a-z]+">([^<]+)<\/h3>/g)].map(
-      (match) => match[1],
+    const doc = new JSDOM(html).window.document;
+    const headings = [...doc.querySelectorAll('#contact h3')].map((heading) =>
+      heading.textContent?.trim(),
     );
     expect(headings).toEqual([
       'A Problem with a Case or an Agency',
@@ -67,5 +69,26 @@ describe('Help and Support', () => {
     expect(html).toContain('href="mailto:help@vs.example.test"');
     vi.stubEnv('SUPPORT_EMAIL', 'not an address');
     expect(await renderServer(HelpPage())).not.toContain('mailto:');
+  });
+});
+
+describe('Help and Support as compact rows (U7)', () => {
+  it('draws every question and route as one folded row with its answer inside', async () => {
+    const doc = new JSDOM(await renderServer(HelpPage())).window.document;
+    const questions = [...doc.querySelectorAll('.u7-help-questions .expandable-section')];
+    expect(questions).toHaveLength(5);
+    for (const row of questions) {
+      expect(row.querySelector('details')?.hasAttribute('open')).toBe(false);
+      expect(row.querySelector('.expandable-section-body p')?.textContent?.length).toBeGreaterThan(
+        40,
+      );
+    }
+    expect(doc.querySelectorAll('#contact .expandable-section')).toHaveLength(4);
+    // The resend links sit inside their question, not loose on the page.
+    expect(
+      doc
+        .querySelector('.u7-help-questions a[href="/auth/verify-email"]')
+        ?.closest('.expandable-section-body'),
+    ).not.toBeNull();
   });
 });
