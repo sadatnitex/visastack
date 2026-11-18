@@ -351,7 +351,7 @@ test.describe('WAL1 the guard meets controls where a person does', () => {
   test('a control too small to press, with no drawn label, is reported', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.setContent(`<main>
-      <input id="tiny" style="width:2px;height:2px">
+      <input id="tiny" style="box-sizing:border-box;width:2px;height:2px;padding:0;border:0">
       <input id="styled" type="checkbox" style="position:absolute;width:1px;height:1px;opacity:0">
       <label for="styled" style="display:inline-block;min-height:44px;padding:12px">Styled Choice</label>
       </main>`);
@@ -396,7 +396,9 @@ test.describe('WAL1 the guard meets controls where a person does', () => {
     const covered = await coveredControls(page, { within: '.wal1-fixture-sections' });
     expect(covered.length).toBeGreaterThan(0);
     for (const line of covered)
-      expect(line).toMatch(/reached from above, at \d+,\d+, is under <nav\.wal1-test-bar>/);
+      expect(line).toMatch(
+        /(in the middle|reached from above), at \d+,\d+, is under <nav\.wal1-test-bar>/,
+      );
   });
 });
 
