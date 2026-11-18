@@ -28,7 +28,7 @@ type Value = {
   factId: string;
   value: string | null;
   status: string | null;
-  locked?: 'no_key' | 'unreadable' | null;
+  locked?: 'no_key' | 'unreadable' | 'lost' | null;
 };
 
 let root: Root;

@@ -141,7 +141,9 @@ describe('profile page keyed read for the owner', () => {
     const page = await ApplicantProfilePage({ params: Promise.resolve({ id: 'person-1' }) });
     const props = editorProps(page);
     if (!props) throw new Error('profile editor not rendered');
-    return props.values as Record<string, { value: string | null; locked: string | null }>;
+    type Box = { value: string | null; locked: string | null; status: string | null };
+    type Keys = 'date_of_birth' | 'passport_number' | 'given_name';
+    return (props as { values: Partial<Record<Keys, Box>> }).values;
   }
 
   it('reads once with the key and gives each box its real value', async () => {
