@@ -14,6 +14,7 @@ import { type Db, first, required, schema } from './db';
 import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError } from './errors';
 import {
+  INVITATION_DECLINE_EVENTS,
   declineMayProceed,
   declineRefusedEvent,
   unusableInvitationTokenHash,
@@ -424,10 +425,10 @@ export async function declineSharingInvitation(
     );
     if (!changed) return null;
     await appendAuditEvent(tx, {
-      eventType: 'SHARING_INVITATION_DECLINED',
+      eventType: INVITATION_DECLINE_EVENTS.sharing.eventType,
       actorAccountId: input.actorAccountId,
       applicantId: changed.applicantId,
-      resourceType: 'sharing_invitation',
+      resourceType: INVITATION_DECLINE_EVENTS.sharing.resourceType,
       resourceId: changed.id,
       method: 'MANUAL',
       result: 'ALLOWED',

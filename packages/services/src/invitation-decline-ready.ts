@@ -18,12 +18,14 @@ const READY = new WeakSet<object>();
 export const INVITATION_DECLINE_PRESENT = sql<boolean>`(
   (select count(*) from pg_enum e join pg_type t on t.oid = e.enumtypid
     where e.enumlabel = 'DECLINED'
+      and t.typnamespace = 'public'::regnamespace
       and t.typname in (
         'client_invitation_status', 'contributor_request_status', 'organization_invitation_status'
       )) = 3
   and exists (
     select 1 from pg_constraint
     where conname = 'sharing_invitations_status_check'
+      and conrelid = 'public.sharing_invitations'::regclass
       and pg_get_constraintdef(oid) like '%''DECLINED''%'
   )
 )`;

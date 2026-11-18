@@ -413,7 +413,15 @@ describe.each(KINDS)('declining a %s invitation (DECL1)', (_name, make) => {
 
     // Each refusal is recorded as a kind and who tried, never which invitation, person or address.
     const denied = (await auditRows(kind.eventType)).filter((row) => row.result === 'DENIED');
-    expect(denied).toHaveLength(5);
+    // A client invitation tried by someone else is recorded the way a refused preview or accept is.
+    expect(denied).toHaveLength(kind.name === 'client' ? 4 : 5);
+    if (kind.name === 'client') {
+      const wrong = await auditRows('CLIENT_INVITATION_WRONG_RECIPIENT');
+      expect(wrong.map((row) => (row.metadata as { stage?: string } | null)?.stage)).toEqual([
+        'decline',
+      ]);
+      expect(JSON.stringify(wrong)).not.toContain(INVITED);
+    }
     for (const row of denied) {
       expect(row.resourceId).toBeNull();
       expect(row.applicantId).toBeNull();
@@ -513,6 +521,35 @@ describe('before migration 0138 is in place (DECL1)', () => {
 });
 
 describe('retention sweeps include declined invitations (DECL1)', () => {
+  it('still sweeps before migration 0138, leaving declined rows for later', async () => {
+    const kind = await clientKind();
+    const invited = await account(INVITED);
+    const declined = await kind.invite(INVITED);
+    const lapsed = await kind.invite(INVITED);
+    value(await declineClientInvitation(db, { actorAccountId: invited, rawToken: declined.token }));
+    const longAgo = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
+    await db
+      .update(schema.clientInvitations)
+      .set({ updatedAt: longAgo })
+      .where(eq(schema.clientInvitations.id, declined.id));
+    await db
+      .update(schema.clientInvitations)
+      .set({ expiresAt: longAgo })
+      .where(eq(schema.clientInvitations.id, lapsed.id));
+    await client.exec(`
+      alter table sharing_invitations drop constraint sharing_invitations_status_check;
+      alter table sharing_invitations add constraint sharing_invitations_status_check
+        check (status in ('PENDING', 'ACCEPTED', 'REVOKED'));
+    `);
+    // A fresh handle, so the earlier "ready" answer is not reused.
+    const before0138 = drizzle(client, { schema }) as unknown as Db;
+    expect(await invitationDeclineAvailable(before0138)).toBe(false);
+    const swept = await sweepAbandonedClientInvitations(before0138);
+    expect(swept.deleted).toBe(1);
+    expect((await kind.status(lapsed.id)).status).toBe('');
+    expect((await kind.status(declined.id)).status).toBe('DECLINED');
+  }, 60_000);
+
   const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
 
   it('deletes a client invitation declined long ago and keeps a recent one', async () => {

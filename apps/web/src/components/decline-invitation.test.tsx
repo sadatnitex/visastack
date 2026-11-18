@@ -34,7 +34,10 @@ describe('the Decline control (DECL1)', () => {
     const form = details?.querySelector('form');
     const submit = form?.querySelector('button[type="submit"]');
     expect(submit?.textContent).toBe('Decline Invitation');
-    expect(form?.textContent).toContain('Say no to this invitation?');
+    // The question names the group the button sits in, so it is read out with it.
+    expect(submit?.closest('fieldset')?.querySelector('legend')?.textContent).toBe(
+      'Say no to this invitation?',
+    );
   });
 
   it('is a form that carries the link token itself, so the post needs no script', async () => {

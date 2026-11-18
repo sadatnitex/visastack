@@ -10,8 +10,10 @@ import { isEmailAddress } from './email-address';
 import { type ServiceError, keyedError, serviceError } from './errors';
 import type { ServiceMessageKey } from './i18n';
 import {
+  INVITATION_DECLINE_EVENTS,
   declineMayProceed,
   declineRefusedEvent,
+  invitationDeclineAvailable,
   unusableInvitationTokenHash,
 } from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
@@ -137,7 +139,7 @@ async function recordWrongRecipient(
   actorAccountId: string,
   invitationId: string,
   organizationId: string,
-  stage: 'preview' | 'accept',
+  stage: 'preview' | 'accept' | 'decline',
   reason: 'wrong_recipient' | 'phone_invitation',
 ): Promise<void> {
   try {
@@ -837,14 +839,29 @@ export async function declineClientInvitation(
         id: schema.clientInvitations.id,
         organizationId: schema.clientInvitations.organizationId,
         contactDestination: schema.clientInvitations.contactDestination,
+        status: schema.clientInvitations.status,
       })
       .from(schema.clientInvitations)
       .where(eq(schema.clientInvitations.tokenHash, tokenHash))
       .limit(1),
   );
+  // Someone else's link is recorded like a refused preview or accept (ids and reason only).
+  if (
+    invitation &&
+    !(await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId))
+  ) {
+    await recordWrongRecipient(
+      db,
+      input.actorAccountId,
+      invitation.id,
+      invitation.organizationId,
+      'decline',
+      refusalOf(invitation).reason,
+    );
+    return unavailable();
+  }
   const declined =
     invitation &&
-    (await isIntendedRecipient(db, invitation.contactDestination, input.actorAccountId)) &&
     (await db.transaction(async (tx) => {
       const changed = await tx
         .update(schema.clientInvitations)
@@ -864,11 +881,11 @@ export async function declineClientInvitation(
         .returning({ id: schema.clientInvitations.id });
       if (changed.length === 0) return false;
       await appendAuditEvent(tx, {
-        eventType: 'CLIENT_INVITATION_DECLINED',
+        eventType: INVITATION_DECLINE_EVENTS.client.eventType,
         actorAccountId: input.actorAccountId,
         method: 'MANUAL',
         result: 'ALLOWED',
-        resourceType: 'client_invitation',
+        resourceType: INVITATION_DECLINE_EVENTS.client.resourceType,
         resourceId: invitation.id,
         metadata: { organizationId: invitation.organizationId },
       });
@@ -984,6 +1001,7 @@ export async function sweepAbandonedClientInvitations(
   limit = DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT,
 ): Promise<AbandonedClientInvitationSweepResult> {
   const cutoff = new Date(Date.now() - ABANDONED_INVITATION_AGE_MS);
+  const declineReady = await invitationDeclineAvailable(db);
   const stale = await db
     .select({ id: schema.clientInvitations.id })
     .from(schema.clientInvitations)
@@ -998,10 +1016,13 @@ export async function sweepAbandonedClientInvitations(
           lt(schema.clientInvitations.revokedAt, cutoff),
         ),
         // DECL1: a declined invitation has no revokedAt; the day it was declined is its updatedAt.
-        and(
-          eq(schema.clientInvitations.status, 'DECLINED'),
-          lt(schema.clientInvitations.updatedAt, cutoff),
-        ),
+        // Before migration 0138 the value does not exist (comparing with it would fail the query).
+        declineReady
+          ? and(
+              eq(schema.clientInvitations.status, 'DECLINED'),
+              lt(schema.clientInvitations.updatedAt, cutoff),
+            )
+          : undefined,
       ),
     )
     .limit(limit);

@@ -5,6 +5,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, keyedError, serviceError } from './errors';
 import {
+  INVITATION_DECLINE_EVENTS,
   declineMayProceed,
   declineRefusedEvent,
   unusableInvitationTokenHash,
@@ -466,13 +467,13 @@ export async function declineContributorRequest(
     );
     if (!changed) return false;
     await appendAuditEvent(tx, {
-      eventType: 'CONTRIBUTOR_REQUEST_DECLINED',
+      eventType: INVITATION_DECLINE_EVENTS.contributor.eventType,
       actorAccountId: input.actorAccountId,
       method: 'MANUAL',
       result: 'ALLOWED',
       applicantId: changed.applicantId,
       missionId: changed.missionId,
-      resourceType: 'contributor_request',
+      resourceType: INVITATION_DECLINE_EVENTS.contributor.resourceType,
       resourceId: changed.id,
     });
     return true;

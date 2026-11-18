@@ -43,13 +43,16 @@ export function DeclineInvitation({
       <summary className="btn btn-secondary">{labels.decline}</summary>
       <form action={formAction} className="lc-g3-confirm">
         <input type="hidden" name="token" value={token} />
-        <p className="lc-g3-confirm-text">{labels.explain}</p>
-        <SubmitButton
-          pending={pending}
-          idle={labels.confirm}
-          busy={labels.busy}
-          className="btn btn-danger"
-        />
+        {/* The question is the group's name, so a screen reader says it with the button. */}
+        <fieldset className="fieldset">
+          <legend className="lc-g3-confirm-text">{labels.explain}</legend>
+          <SubmitButton
+            pending={pending}
+            idle={labels.confirm}
+            busy={labels.busy}
+            className="btn btn-danger"
+          />
+        </fieldset>
         <FormMessage result={state} />
       </form>
     </details>

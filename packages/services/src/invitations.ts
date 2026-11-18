@@ -13,8 +13,10 @@ import {
 } from './entitlement-enforcement';
 import { type ServiceError, keyedError, refusal, serviceError } from './errors';
 import {
+  INVITATION_DECLINE_EVENTS,
   declineMayProceed,
   declineRefusedEvent,
+  invitationDeclineAvailable,
   unusableInvitationTokenHash,
 } from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
@@ -551,11 +553,11 @@ export async function declineOrganizationInvitation(
     );
     if (!changed) return false;
     await appendAuditEvent(tx, {
-      eventType: 'ORGANIZATION_INVITATION_DECLINED',
+      eventType: INVITATION_DECLINE_EVENTS.organization.eventType,
       actorAccountId: input.actorAccountId,
       method: 'MANUAL',
       result: 'ALLOWED',
-      resourceType: 'organization_invitation',
+      resourceType: INVITATION_DECLINE_EVENTS.organization.resourceType,
       resourceId: changed.id,
       metadata: { organizationId: changed.organizationId },
     });
@@ -647,6 +649,7 @@ export async function sweepAbandonedOrganizationInvitations(
   limit = DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT,
 ): Promise<AbandonedOrganizationInvitationSweepResult> {
   const cutoff = new Date(Date.now() - ABANDONED_INVITATION_AGE_MS);
+  const declineReady = await invitationDeclineAvailable(db);
   const stale = await db
     .select({ id: schema.organizationInvitations.id })
     .from(schema.organizationInvitations)
@@ -661,10 +664,13 @@ export async function sweepAbandonedOrganizationInvitations(
           lt(schema.organizationInvitations.revokedAt, cutoff),
         ),
         // DECL1: a declined invitation has no revokedAt; the day it was declined is its updatedAt.
-        and(
-          eq(schema.organizationInvitations.status, 'DECLINED'),
-          lt(schema.organizationInvitations.updatedAt, cutoff),
-        ),
+        // Before migration 0138 the value does not exist (comparing with it would fail the query).
+        declineReady
+          ? and(
+              eq(schema.organizationInvitations.status, 'DECLINED'),
+              lt(schema.organizationInvitations.updatedAt, cutoff),
+            )
+          : undefined,
       ),
     )
     .limit(limit);
