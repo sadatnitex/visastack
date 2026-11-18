@@ -196,11 +196,14 @@ const MARGIN_SCREENS = 5.88;
 for (const language of ['en', 'bn'] as const) {
   for (const path of ['/', '/countries'] as const) {
     test.describe(`WP-PUBFIX ${path} in ${language === 'bn' ? 'Bengali' : 'English'}`, () => {
-      test('fits 2 percent under 6 screens on a phone', async ({ page, context, baseURL }) => {
+      test('fits 2 percent under 6 screens on a phone', async ({ page }) => {
         if (language === 'bn') {
-          await context.addCookies([
-            { name: 'visastack_locale', value: 'bn', url: baseURL ?? 'http://localhost:3100' },
-          ]);
+          // Bengali is chosen through the real header switch (on a computer, where it is always
+          // visible); the choice then stays for the phone-size load below.
+          await page.setViewportSize(VIEWPORTS.desktop);
+          await page.goto('/');
+          await page.locator('.lang-switch').click();
+          await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
         }
         await page.setViewportSize(VIEWPORTS.phone);
         const response = await page.goto(path);
