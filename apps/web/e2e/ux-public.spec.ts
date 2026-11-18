@@ -1505,7 +1505,7 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
     expect(scroll.page).toBe(0);
     expect(scroll.rail).toBeLessThanOrEqual(1);
     // Every destination is still there by name, the words are gone, and the footer note is hidden.
-    await expect(page.getByRole('link', { name: 'My Documents' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'My Record' })).toBeVisible();
     await expect(page.getByText('You Control Access')).toBeHidden();
     await expect(page.locator('.app-shell-nav .app-link-label').first()).toBeHidden();
     // Keyboard: every control reached by Tab inside the rail really is inside the rail.
@@ -1561,14 +1561,14 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
   test('Escape puts a rail label away until another control is reached', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
-    const record = page.getByRole('link', { name: 'My Documents' });
+    const record = page.getByRole('link', { name: 'My Record' });
     const cases = page.getByRole('link', { name: 'My Trips' });
     const label = (link: typeof record) =>
       link.evaluate((el) => getComputedStyle(el, '::after').content);
     await record.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    expect(await label(record)).toBe('"My Documents"');
+    expect(await label(record)).toBe('"My Record"');
     await page.keyboard.press('Escape');
     expect(await label(record)).toBe('none');
     await page.keyboard.press('Tab');
@@ -1581,7 +1581,7 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
   }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
-    const link = page.getByRole('link', { name: 'My Documents' });
+    const link = page.getByRole('link', { name: 'My Record' });
     const label = () =>
       link.evaluate((element) => {
         const style = getComputedStyle(element, '::after');
@@ -1590,13 +1590,13 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
     expect((await label()).content).toBe('none');
     await link.hover();
     const hovered = await label();
-    expect(hovered.content).toBe('"My Documents"');
+    expect(hovered.content).toBe('"My Record"');
     expect(hovered.position).toBe('fixed');
     await page.mouse.move(800, 500);
     await link.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    expect((await label()).content).toBe('"My Documents"');
+    expect((await label()).content).toBe('"My Record"');
   });
 
   test('beside the rail, the workspace list and More Tools open inside the screen', async ({
@@ -2307,7 +2307,7 @@ test.describe('public invitation page on a phone (UX-G)', () => {
 });
 
 test.describe('the three traveller entry points (UMPE P13)', () => {
-  const ENTRY = ['My Documents', 'My Trips', 'Sharing & Requests'] as const;
+  const ENTRY = ['My Record', 'My Trips', 'Sharing & Requests'] as const;
   // Home carries a count of new notices when there are any ("Home, 2 new").
   const HOME_TAB = /^Home(, \d+ new)?$/;
 
@@ -2330,7 +2330,7 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
       }
       // The phone copy of the tasks stays out of the sidebar.
       await expect(page.getByRole('navigation', { name: 'Quick actions' })).toBeHidden();
-      // Keyboard: Tab walks Home, My Documents, Add Documents, My Trips, Start a Trip, Sharing.
+      // Keyboard: Tab walks Home, My Record, Add Documents, My Trips, Start a Trip, Sharing.
       await sidebar.getByRole('link', { name: HOME_TAB }).focus();
       const names: string[] = [];
       for (let step = 0; step < 5; step++) {
@@ -2345,7 +2345,7 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
         );
       }
       expect(names).toEqual([
-        'My Documents',
+        'My Record',
         'Add Documents',
         'My Trips',
         'Start a Trip',
@@ -2358,7 +2358,7 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
     });
   }
 
-  for (const width of [390, 768] as const) {
+  for (const width of [320, 360, 390, 768] as const) {
     test(`the bottom bar holds Home and the three entry points; the tasks lead More, at ${width}px`, async ({
       page,
     }) => {
