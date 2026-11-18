@@ -226,7 +226,8 @@ for (const run of RUNS) {
       await expect(page.locator('#hs-hero-title')).toBeVisible();
       if (run.motion === 'on')
         await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-      else await expect(page.locator('html')).not.toHaveAttribute('data-scenes', /.*/);
+      // Reduced motion is the gentle mode (owner, 18 Nov 2026): the steps play as fades, nothing pins.
+      else await expect(page.locator('html')).toHaveAttribute('data-scenes', 'gentle');
     });
 
     test('has the eight chapters in the reference order, dark and light as approved', async ({
@@ -244,6 +245,17 @@ for (const run of RUNS) {
       test(`chapter ${chapter.key} matches`, async ({ page }) => {
         const live = run.motion === 'on';
         await showChapterEnd(page, chapter, live);
+        // Gentle mode plays a scene once when it comes into view: wait until it rests finished
+        // (its step equals its finished step), never a fixed time.
+        if (!live)
+          await page.waitForFunction((root) => {
+            const scenes = [
+              ...document.querySelectorAll(`${root}[data-scene], ${root} [data-scene]`),
+            ];
+            return scenes.every(
+              (el) => el.getAttribute('data-step') === el.getAttribute('data-rest'),
+            );
+          }, chapter.root);
         const heading = page.locator(chapter.heading);
         await expect(heading).toHaveText(chapter.headline);
         const viewport = page.viewportSize();

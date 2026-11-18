@@ -154,15 +154,60 @@ test.describe('R3 hero motion', () => {
     const sheet = page.locator('.tr-share .kit-sheet');
     await expect(sheet).toHaveAttribute('data-kit-step', '4');
     // Still stopped after more than two full ticks of the loop.
+    // This proves something does NOT change, so it waits a fixed time: more than two loop ticks.
     await page.waitForTimeout(2600);
     await expect(sheet).toHaveAttribute('data-kit-step', '4');
     await expect(page.getByRole('button', { name: 'Play the Animation' })).toBeVisible();
   });
 
-  test('with reduced motion nothing loops and there is no dead control', async ({ page }) => {
+  test('with reduced motion the hero plays gently: Pause exists, stops it on the finished step, Play resumes', async ({
+    page,
+  }) => {
+    // Owner, 18 Nov 2026: reduced motion gets gentle fading, not stillness (ADR 0029 amendment).
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    // Note when the shown step changes (every 50 ms is far finer than the 2.2 s pace).
+    await page.addInitScript(() => {
+      const w = window as unknown as { __changes: number[] };
+      w.__changes = [];
+      let last = '';
+      setInterval(() => {
+        const now =
+          document.querySelector('.tr-share .kit-sheet')?.getAttribute('data-kit-step') ?? '';
+        if (now !== '' && now !== last) {
+          if (last !== '') w.__changes.push(Date.now());
+          last = now;
+        }
+      }, 50);
+    });
     await page.goto('/trust');
-    await expect(page.getByRole('button', { name: /the Animation$/ })).toHaveCount(0);
+    const pause = page.getByRole('button', { name: 'Pause the Animation' });
+    await expect(pause).toBeVisible();
+    const box = await pause.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    const sheet = page.locator('.tr-share .kit-sheet');
+    // It plays: the step moves on by itself (an attribute condition, never a fixed time).
+    await expect(sheet).not.toHaveAttribute('data-kit-step', '0', { timeout: 6000 });
+    // No more than three changes in any second.
+    await expect
+      .poll(
+        async () =>
+          (await page.evaluate(() => (window as unknown as { __changes: number[] }).__changes))
+            .length,
+        { timeout: 8000 },
+      )
+      .toBeGreaterThanOrEqual(3);
+    const changes = await page.evaluate(
+      () => (window as unknown as { __changes: number[] }).__changes,
+    );
+    for (let at = 0; at + 3 < changes.length; at++)
+      expect((changes[at + 3] ?? 0) - (changes[at] ?? 0)).toBeGreaterThanOrEqual(1000);
+    await pause.click();
+    await expect(sheet).toHaveAttribute('data-kit-step', '4');
+    const play = page.getByRole('button', { name: 'Play the Animation' });
+    await expect(play).toBeVisible();
+    await play.click();
+    await expect(sheet).toHaveAttribute('data-kit-step', '0');
+    await expect(page.getByRole('button', { name: 'Pause the Animation' })).toBeVisible();
   });
 });
 
