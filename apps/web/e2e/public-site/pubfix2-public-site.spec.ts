@@ -43,6 +43,8 @@ for (const size of [
   { width: 1440, height: 900 },
   { width: 1280, height: 720 },
   { width: 1920, height: 1080 },
+  { width: 1024, height: 768 },
+  { width: 1100, height: 700 },
 ]) {
   test(`P2-2 Home first screen ${size.width}x${size.height}: every picture and the readiness note sit inside the screen`, async ({
     page,
