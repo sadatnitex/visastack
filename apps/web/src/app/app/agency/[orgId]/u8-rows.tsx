@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { PersonAvatar } from '../../../../components/profile-photo/person-avatar';
 import { StatusPill } from '../../../../components/ui-lift';
 import { ExpandableSection } from '../../../../components/ui-lift/expandable-section';
 import type { LiftHeadingLevel, LiftTone } from '../../../../components/ui-lift/types';
@@ -12,13 +13,9 @@ import './u8.css';
  * only: every word, action and permission stays with the page that draws the row.
  */
 
-/** A person or client as initials in a flat disc. Decorative: the name is always written beside it. */
+/** A person or client as initials in a flat disc: the app's own avatar piece (no photo here). Decorative. */
 export function InitialsPicture({ name }: { readonly name: string }) {
-  return (
-    <span className="u8-initials" aria-hidden="true">
-      {initialsOf(name)}
-    </span>
-  );
+  return <PersonAvatar className="u8-initials" initials={initialsOf(name)} />;
 }
 
 export interface AgencyRowProps {
