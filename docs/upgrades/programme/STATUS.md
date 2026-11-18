@@ -2,18 +2,16 @@
 
 Keep this file between 250 and 400 words. Memory between sessions; evidence lives in `COVERAGE-LEDGER.csv`. Overwritten each time; history stays in git.
 
-- Last updated: 1 November 2026 (documentation handover): Scroll Budget complete, WP-SB0 to WP-SB11 merged and live
-- Current main: `b8bb2df4` (#405); main CI, CodeQL and the Vercel status succeeded on `b665fd4e` (#404)
-- Merged this run: WP-SB0 (#378), SB1 (#387), SB2 (#383), SB3 (#385), SB4 (#384), SB5 (#392), SB6 (#394), SB7 (#390), SB8 (#391), SB9 (#386), SB10 (#397, every check enforces), SB11 (#402, three exceptions fixed). Earlier: CCD-0 to CCD-7 and WP-C2 (#325 to #335)
-- WP-C2: sidebar and page, card edges, control edges and the text tiers separate by tone and edges only; status words and two text tiers are darker than Harbor on purpose (`colour-map.md`, section WP-C2)
-- Migrations: Scroll Budget added none. Production has every migration through 0114 applied; none pending (readiness `ready`, 1 Nov)
-- CCD-7 widths: 824 rendered pages at 390, 768 and 1280 show no sideways scroll. WP-C2 layout findings (empty sections, one primary button per region, a quieter Turn Off, visible disclosure markers) go to the Record and Cases depth work
-- Scroll Budget: every browser check enforces and runs in CI. No known exception remains: lane Z (#403) fixed the last one, Documents on a phone, with 6 rows a page (2.40 screens against 3). Heights and the triage list of 27 test files: `docs/uiux/SCROLL-BUDGET.md`
-- Owner steps still open: O16 AWS account for the key service; turn on staff codes when staff have enrolled; keep click and open tracking off for the sending domain in the email service (invitation links carry one-time codes)
-- Known weakness: the live pixel-identity browser test failed once and passed on re-run on two deploys
-- Not verified live: signed-in pages at phone and desktop widths (CCD, WP-C2, every Scroll Budget page); the platform admin console; hover, pressed and disabled states; any real AWS, payment or AI provider call
+- Last updated: 18 November 2026 (documentation sync). Replaces the 1 Nov view (Scroll Budget WP-SB0 to WP-SB11, CCD and WP-C2, all merged and live; history in git)
+- Current main: `00c01849` (U7, #650); deploy verified (Vercel, Deploy Smoke, Playwright Deploy Smoke, live signed-in check, CI, CodeQL)
+- Wallet upgrade, merged and live: WAL1 (#631), WAL9 (#633), WAL1B-1 (#634), WAL1B-2 (#638), WAL5 (#636), WAL4 (#637), WAL2 (#639), WAL3 (#640), WAL10 (#643), U8 (#644), U6 (#647), FIX9 (#648), U7 (#650). Records: `wal/`. Foundation: ADR 0030
+- Public site, merged and live: PUB1 (#623), PUB2 (#626), PUB3 (#628), HOT1 (#629), PUB4 (#630), PUBFIX (#635), R1 (#641), R4 (#642), R5 (#645), R2 (#646), R3 (#649). Records: `pub/`. ADR 0029
+- Running now: MOT1 (`claude/mot1-phone-motion`), NAV2 (`claude/nav2-header-footer`); PUB5 verification lane idle; PR #581 (Bengali refill 7) stale
+- Owner decisions in force: Profile "B Passport Page Card"; Document detail A+B; Trip Package "-A"; AI Connections "- A"; tab name "My Record"; gentle fades for reduced motion, full motion for everyone else
+- Migrations: none added by these units; next free number 0138
+- Not verified: real-device checks of the switched-off features; a human signed-in click-through (CI guard covers made-up people only)
 - Blockers: none
-- Next action: no Programme X package is open. Next engineering item is the faster-tests work in `docs/SESSION-START.md` section 7; the Scroll Budget triage list stays available
+- Next action: MOT1 and NAV2 merge, then the public-site verification pass; follow-up list in `SESSION-HANDOFF-2026-11-18.md`
 
 ## How to update
 
