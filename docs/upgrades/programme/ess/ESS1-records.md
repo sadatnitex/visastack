@@ -51,7 +51,7 @@ Fixed: (1) AI App Suggestions no longer carry protected words or an equality sig
 ## Review round 2 (Guardian 14, 43e5e413)
 
 - The audit row names who acted as DOCUMENT_ACCESS does (`documentAuditActor`): the owner by role, anyone else (an agency member, a person the record is shared with, support) by account id; a shared viewer refused as not_owner leaves a DENIED row with their account id (`profile-value-access.test.ts`).
-- A refused stranger's row records `malformed_id`, `policy` (the owner of the record refused by policy) or `refused`, one word for a made-up record and someone else's, so the prober's own data export cannot tell which ids are real (DECISION sent, recommended option taken). The answer to the caller is the same in every case.
+- A refused stranger's row records `malformed_id`, `policy` (the owner of the record refused by policy) or `refused`, one word for a made-up record and someone else's, so the prober's own data export cannot tell which ids are real (DECISION answered by Guardian 14, option 1: the 13 Nov "one answer for every refusal" rule wins; a test proves a stranger's rows for a real and a made-up id are identical). The answer to the caller is the same in every case.
 - Owner reveals are bounded at 120 an hour per account (`PROFILE_VALUE_REVEALS_PER_HOUR`); past it nothing is opened, no row is written per call, one DENIED rate_limited row is written per hour, and the page says "Try again in a little while." (new key ess1TryAgainLater, Bengali "একটু পরে আবার চেষ্টা করুন।").
 
 ## Tests that assert changed layout (updated)
