@@ -185,3 +185,32 @@ test.describe('WP-SB8 country list', () => {
     ).rejects.toThrow(/page height at phone/);
   });
 });
+
+/**
+ * WP-PUBFIX: the home page and the public country list stay at least 2 percent under the 6-screen
+ * phone limit in English and in Bengali (the language choice is the visastack_locale cookie), so a
+ * longer line or a longer language never breaks the budget. 6 screens x 0.98 = 5.88 screens.
+ */
+const MARGIN_SCREENS = 5.88;
+
+for (const language of ['en', 'bn'] as const) {
+  for (const path of ['/', '/countries'] as const) {
+    test.describe(`WP-PUBFIX ${path} in ${language === 'bn' ? 'Bengali' : 'English'}`, () => {
+      test('fits 2 percent under 6 screens on a phone', async ({ page }) => {
+        if (language === 'bn') {
+          // Bengali is chosen through the real header switch (on a computer, where it is always
+          // visible); the choice then stays for the phone-size load below.
+          await page.setViewportSize(VIEWPORTS.desktop);
+          await page.goto('/');
+          await page.locator('.lang-switch').click();
+          await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
+        }
+        await page.setViewportSize(VIEWPORTS.phone);
+        const response = await page.goto(path);
+        expect(response?.status()).toBe(200);
+        await expect(page.locator('html')).toHaveAttribute('data-locale', language);
+        await expectWithinBudget(page, { screens: MARGIN_SCREENS, viewport: 'phone' });
+      });
+    });
+  }
+}

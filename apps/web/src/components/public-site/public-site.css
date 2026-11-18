@@ -67,6 +67,7 @@
 .pub-scene-stage {
   position: relative;
   overflow-x: clip;
+  padding-top: 0.5rem;
 }
 
 html[data-scenes="live"] .pub-scene[data-len="1"] {

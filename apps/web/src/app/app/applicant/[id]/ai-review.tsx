@@ -3,12 +3,14 @@
 import type { IssueDateReading } from '@visastack/core/catalogue';
 import type { ReadingSource } from '@visastack/services';
 import Link from 'next/link';
-import { useActionState, useCallback, useId, useState } from 'react';
+import { useActionState, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ExplainTip } from '../../../../components/explain-tip';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { useLocale, useT } from '../../../../components/i18n-provider';
 import { Icon } from '../../../../components/icons';
+import { StatusPicture, statusPictureWords } from '../../../../components/pictures/status-picture';
 import { StatusBadge } from '../../../../components/ui';
+import { ExpandableSection } from '../../../../components/ui-lift/expandable-section';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { changeImpactCatalog } from '../../../../i18n/change-impact';
 import { humanizeFieldKey } from '../../../../lib/field-key-label';
@@ -27,6 +29,7 @@ import {
 } from './actions';
 import { ChangeImpactBatchNotice } from './change-impact/change-impact-batch-notice';
 import { ChangeImpactNotice } from './change-impact/change-impact-notice';
+import { FindingRowAccept, FindingSteps } from './finding-review-parts';
 import { ReadingSourceNote } from './reading-status';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -216,6 +219,16 @@ function realDay(value: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
+/** The plain name of a reading's detail, as its card and its row both say it. */
+function findingLabel(proposal: AiProposalViewModel): string {
+  const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
+  return mappable
+    ? (proposal.fieldLabel ??
+        profileField(proposal.fieldKey as string)?.label ??
+        humanizeFieldKey(proposal.fieldKey as string))
+    : 'Detail We Could Not Place';
+}
+
 /** A reading still waiting for the person: accept, change, settle a difference, or skip. */
 export function AiProposalReview({
   applicantId,
@@ -225,11 +238,18 @@ export function AiProposalReview({
   onResult,
   locked = false,
   headingLevel = 'h4',
+  masked = false,
 }: {
   readonly applicantId: string;
   readonly proposal: AiProposalViewModel;
   /** The card's heading, one level below the list it sits in. */
-  readonly headingLevel?: 'h3' | 'h4';
+  readonly headingLevel?: 'h3' | 'h4' | 'h5';
+  /**
+   * Keep what was read out of sight until the person opens "Value Found" (WAL2, for a Sensitive
+   * detail). It hides the value on screen from someone looking over a shoulder; the value is still
+   * in the page, as it always was, so this is not a security boundary.
+   */
+  readonly masked?: boolean;
   /** Accepting all clear details is running: this card's buttons refuse clicks until it finishes (focus stays put). */
   readonly locked?: boolean;
   /** Tells the list when the value was changed, so it is no longer accepted in bulk as read. */
@@ -305,35 +325,21 @@ export function AiProposalReview({
           )
         : null;
   const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
-  const label = mappable
-    ? (proposal.fieldLabel ??
-      profileField(proposal.fieldKey as string)?.label ??
-      humanizeFieldKey(proposal.fieldKey as string))
-    : 'Detail We Could Not Place';
+  const label = findingLabel(proposal);
   const quote = proposal.evidence[0];
   const unverified = quote?.verified === false;
   const clear = proposal.clear === true && !unverified;
   const difference = canApprove && mappable ? proposal.difference : undefined;
-
-  return (
-    <article
-      className="finding-card"
-      data-clarity={clear ? 'clear' : 'check'}
-      aria-labelledby={headingId}
-    >
-      <header className="finding-card-head">
-        {headingLevel === 'h3' ? <h3 id={headingId}>{label}</h3> : <h4 id={headingId}>{label}</h4>}
-        <StatusBadge tone={clear ? 'success' : 'warning'}>
-          {clear
-            ? t.node('appApplicant.appApplicantIdAiReview.clear')
-            : t.node('appApplicant.appApplicantIdAiReview.pleaseCheck')}
-        </StatusBadge>
-        {proposal.sensitive ? (
-          <StatusBadge tone="neutral">
-            {t.node('appApplicant.appApplicantIdAiReview.sensitive')}
-          </StatusBadge>
-        ) : null}
-      </header>
+  // What was read, and where from. For a masked detail it all sits inside "Value Found".
+  // Why there is no Accept without consent. For a masked detail it stays in view, without the value.
+  const consentNote = (
+    <>
+      Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
+      <Link href="/app#permissions">Home</Link> to save details to your profile.
+    </>
+  );
+  const found = (
+    <>
       {quote ? (
         <p className="finding-source">
           {t.node('appApplicant.appApplicantIdAiReview.foundAs')} <q>{quote.snippet}</q>
@@ -370,62 +376,112 @@ export function AiProposalReview({
       ) : null}
       {mappable && !canApprove ? (
         <p className="muted u-fs-085">
-          Found: <q>{proposal.value ?? ''}</q>. Turn on{' '}
-          <strong>Let VisaStack Process My Details</strong> on{' '}
-          <Link href="/app#permissions">Home</Link> to save details to your profile.
+          Found: <q>{proposal.value ?? ''}</q>.{masked ? null : <> {consentNote}</>}
         </p>
       ) : null}
+    </>
+  );
+  const editor = (
+    <>
+      {mappable && canApprove ? (
+        <div className="finding-value">
+          <label className="field-label" htmlFor={valueId}>
+            {t.node('appApplicant.appApplicantIdAiReview.valueToSave')}
+          </label>
+          {proposal.editor?.kind === 'choice' ? (
+            <select
+              id={valueId}
+              name="correctedValue"
+              className="input"
+              value={editedValue}
+              onChange={(event) => {
+                setEditedValue(event.target.value);
+                onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
+              }}
+            >
+              {proposal.editor.options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id={valueId}
+              type={proposal.editor?.kind === 'date' ? 'date' : 'text'}
+              name="correctedValue"
+              className="input"
+              value={editedValue}
+              onChange={(event) => {
+                setEditedValue(event.target.value);
+                onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
+              }}
+            />
+          )}
+          <small className="muted">
+            {readAsWritten
+              ? t.node('appApplicant.appApplicantIdAiReview.weReadReadaswrittenPickTheDate', {
+                  readAsWritten,
+                })
+              : t.node('appApplicant.appApplicantIdAiReview.changeItIfItIsNot')}
+          </small>
+        </div>
+      ) : null}
+    </>
+  );
+
+  return (
+    <article
+      className="finding-card"
+      data-clarity={clear ? 'clear' : 'check'}
+      aria-labelledby={headingId}
+    >
+      <header className="finding-card-head">
+        {headingLevel === 'h3' ? (
+          <h3 id={headingId}>{label}</h3>
+        ) : headingLevel === 'h5' ? (
+          <h5 id={headingId}>{label}</h5>
+        ) : (
+          <h4 id={headingId}>{label}</h4>
+        )}
+        <StatusBadge tone={clear ? 'success' : 'warning'}>
+          {clear
+            ? t.node('appApplicant.appApplicantIdAiReview.clear')
+            : t.node('appApplicant.appApplicantIdAiReview.pleaseCheck')}
+        </StatusBadge>
+        {proposal.sensitive ? (
+          <StatusBadge tone="neutral">
+            {t.node('appApplicant.appApplicantIdAiReview.sensitive')}
+          </StatusBadge>
+        ) : null}
+      </header>
+      {masked ? null : found}
+      {masked && mappable && !canApprove ? <p className="muted u-fs-085">{consentNote}</p> : null}
       <form action={formAction} className="finding-form">
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="proposalId" value={proposal.id} />
-        {mappable && canApprove ? (
-          <div className="finding-value">
-            <label className="field-label" htmlFor={valueId}>
-              {t.node('appApplicant.appApplicantIdAiReview.valueToSave')}
-            </label>
-            {proposal.editor?.kind === 'choice' ? (
-              <select
-                id={valueId}
-                name="correctedValue"
-                className="input"
-                value={editedValue}
-                onChange={(event) => {
-                  setEditedValue(event.target.value);
-                  onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
-                }}
-              >
-                {proposal.editor.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                id={valueId}
-                type={proposal.editor?.kind === 'date' ? 'date' : 'text'}
-                name="correctedValue"
-                className="input"
-                value={editedValue}
-                onChange={(event) => {
-                  setEditedValue(event.target.value);
-                  onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
-                }}
-              />
-            )}
-            <small className="muted">
-              {readAsWritten
-                ? t.node('appApplicant.appApplicantIdAiReview.weReadReadaswrittenPickTheDate', {
-                    readAsWritten,
-                  })
-                : t.node('appApplicant.appApplicantIdAiReview.changeItIfItIsNot')}
-            </small>
-          </div>
-        ) : null}
+        {masked ? (
+          <ExpandableSection
+            title="Value Found"
+            summary={
+              <span data-value="masked">
+                <span aria-hidden="true">••••••••</span>
+                <span className="sr-only">Hidden</span>
+              </span>
+            }
+            headingLevel={5}
+            className="finding-masked"
+          >
+            {found}
+            {editor}
+          </ExpandableSection>
+        ) : (
+          editor
+        )}
         {difference ? (
-          <fieldset className="finding-difference">
+          <fieldset className="finding-difference finding-choice-tiles">
             <legend>
-              {difference.current === null ? (
+              {difference.current === null || masked ? (
                 t.node('appApplicant.appApplicantIdAiReview.yourProfileAlreadyHasADifferent')
               ) : (
                 <>
@@ -543,6 +599,22 @@ export function DocumentFindings({
   const impactT = useT(changeImpactCatalog);
   // The latest outcome, kept here: a card disappears once decided, and its message with it.
   const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
+  // WAL2: a decided detail leaves the list with the button that had focus. Focus then moves to the
+  // next row, or to the heading (or this box) when no row is left, never to the top of the page.
+  // The one-at-a-time view moves focus itself first while it still has a detail to show.
+  const box = useRef<HTMLDivElement>(null);
+  const shownCount = useRef(proposals.length);
+  useEffect(() => {
+    const before = shownCount.current;
+    shownCount.current = proposals.length;
+    if (proposals.length >= before) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    const target =
+      box.current?.querySelector<HTMLElement>('.finding-row summary') ??
+      box.current?.querySelector<HTMLElement>(':scope > h3') ??
+      box.current;
+    target?.focus();
+  }, [proposals.length]);
   const [edited, setEdited] = useState<ReadonlySet<string>>(new Set());
   const [, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
@@ -563,7 +635,7 @@ export function DocumentFindings({
   }, []);
   if (proposals.length === 0) {
     return lastResult === INITIAL ? null : (
-      <div className="document-findings">
+      <div className="document-findings" ref={box} tabIndex={-1}>
         <FormMessage result={lastResult} />
         <ChangeImpactNotice
           summary={lastResult.changeImpact}
@@ -575,12 +647,12 @@ export function DocumentFindings({
     );
   }
   const rank = (proposal: AiProposalViewModel) =>
-    proposal.difference ? 0 : proposal.clear ? 2 : 1;
+    proposal.difference ? 0 : isClear(proposal) ? 2 : 1;
   const ordered = [...proposals].sort((a, b) => rank(a) - rank(b));
   const clearIds = proposals
     .filter(
       (proposal) =>
-        proposal.clear &&
+        isClear(proposal) &&
         !proposal.sensitive &&
         !proposal.difference &&
         !proposal.repeating &&
@@ -588,16 +660,92 @@ export function DocumentFindings({
     )
     .map((proposal) => proposal.id);
   const count = proposals.length;
+  const clearCount = proposals.filter((proposal) => isClear(proposal)).length;
+  // WAL2: a Sensitive detail, or one that differs from the profile, needs a person to decide, so
+  // those are taken one at a time; every other detail is one compact row.
+  const decide = ordered.filter((proposal) => proposal.sensitive || proposal.difference);
+  const rows = ordered.filter((proposal) => !(proposal.sensitive || proposal.difference));
+  const card = (proposal: AiProposalViewModel, headingLevel: 'h4' | 'h5') => (
+    <AiProposalReview
+      applicantId={applicantId}
+      proposal={proposal}
+      canApprove={canApprove}
+      onEditedChange={markEdited}
+      onResult={setLastResult}
+      locked={pending}
+      headingLevel={headingLevel}
+      masked={proposal.sensitive === true}
+    />
+  );
   return (
     // Not a landmark: several documents on one page each have one, all with this heading.
-    <div className="document-findings">
-      <h3>{t.node('appApplicant.appApplicantIdAiReview.checkWhatWeFound')}</h3>
-      <p className="muted">
-        We read this document and found {count === 1 ? 'one detail' : `${count} details`}. Nothing
-        is saved to your profile until you accept it.
+    <div className="document-findings" ref={box}>
+      <h3 tabIndex={-1}>{t.node('appApplicant.appApplicantIdAiReview.checkWhatWeFound')}</h3>
+      <p className="document-findings-metric" data-value="count">
+        {count === 1 ? '1 detail' : `${count} details`}, {clearCount} clear, {count - clearCount} to
+        check
       </p>
+      <p className="muted">Nothing is saved to your profile until you accept it.</p>
+      <FormMessage result={lastResult} />
+      <ChangeImpactNotice
+        summary={lastResult.changeImpact}
+        unavailable={lastResult.changeImpactUnavailable}
+        t={impactT}
+      />
+      <ChangeImpactBatchNotice batch={lastResult.changeImpactBatch} t={impactT} />
+      <FindingSteps
+        steps={decide.map((proposal) => ({ key: proposal.id, node: card(proposal, 'h5') }))}
+      />
+      {rows.length > 0 ? (
+        <ul className="finding-rows">
+          {rows.map((proposal) => {
+            const label = findingLabel(proposal);
+            const mappable = proposal.type !== 'UNMAPPED' && Boolean(proposal.fieldKey);
+            const quick =
+              canApprove &&
+              mappable &&
+              isClear(proposal) &&
+              !proposal.repeating &&
+              !edited.has(proposal.id);
+            return (
+              <li key={proposal.id} className="finding-row" data-quick={quick ? 'true' : undefined}>
+                <ExpandableSection
+                  title={label}
+                  summary={
+                    <>
+                      <span data-value="value">{proposal.value ?? ''}</span>
+                      {isClear(proposal) ? null : (
+                        <span className="finding-row-check">
+                          {t.node('appApplicant.appApplicantIdAiReview.pleaseCheck')}
+                        </span>
+                      )}
+                    </>
+                  }
+                  status={<StatusPicture kind="EXTRACTED_PENDING" />}
+                  statusDescription={statusPictureWords('EXTRACTED_PENDING')}
+                  headingLevel={4}
+                  className="finding-row-section"
+                >
+                  {card(proposal, 'h5')}
+                </ExpandableSection>
+                {quick ? (
+                  <FindingRowAccept
+                    applicantId={applicantId}
+                    proposalId={proposal.id}
+                    label={label}
+                    locked={pending}
+                    onResult={setLastResult}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
       {canApprove && clearIds.length >= 2 ? (
-        <form action={formAction} className="document-findings-bulk">
+        // WAL2: the accept bar. It rests at the bottom of the screen while these details are in
+        // view, in the place the Add button leaves while a document is open.
+        <form action={formAction} className="document-findings-bulk finding-accept-bar">
           <input type="hidden" name="applicantId" value={applicantId} />
           {clearIds.map((id) => (
             <input key={id} type="hidden" name="proposalId" value={id} />
@@ -613,26 +761,13 @@ export function DocumentFindings({
           </small>
         </form>
       ) : null}
-      <FormMessage result={lastResult} />
-      <ChangeImpactNotice
-        summary={lastResult.changeImpact}
-        unavailable={lastResult.changeImpactUnavailable}
-        t={impactT}
-      />
-      <ChangeImpactBatchNotice batch={lastResult.changeImpactBatch} t={impactT} />
-      {ordered.map((proposal) => (
-        <AiProposalReview
-          key={proposal.id}
-          applicantId={applicantId}
-          proposal={proposal}
-          canApprove={canApprove}
-          onEditedChange={markEdited}
-          onResult={setLastResult}
-          locked={pending}
-        />
-      ))}
     </div>
   );
+}
+
+/** Clear as the card judges it: confident, and the quoted words were found in the document. */
+function isClear(proposal: AiProposalViewModel): boolean {
+  return proposal.clear === true && proposal.evidence[0]?.verified !== false;
 }
 
 /** Manually trigger AI document-type classification (Part 8 AI-01 item 2) -- shown only when the deterministic classifier itself left a genuine gap. */
