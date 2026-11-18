@@ -12,9 +12,9 @@ export type ShareStep = 0 | 1 | 2 | 3 | 4;
 export const SHARE_STEPS = 5;
 
 const ROWS = [
-  { kind: 'passport', name: 'Passport', part: 'Photo page only', from: 1 },
-  { kind: 'photo', name: 'Photo', part: 'Visa size', from: 2 },
-  { kind: 'bank', name: 'Bank', part: 'Visa size', from: 99 },
+  { kind: 'passport', name: 'Passport', part: 'See Document Details', from: 1 },
+  { kind: 'photo', name: 'Photo', part: 'See Document Details', from: 2 },
+  { kind: 'bank', name: 'Bank', part: 'Not Shared', from: 99 },
 ] as const;
 
 /**
@@ -70,10 +70,10 @@ export function ShareSheetBody({
             {say('Agency can see:')}
           </span>
           <em className="kit-sw kit-see-chip" data-from="1">
-            {say('Passport, photo page')}
+            {say('Passport, details')}
           </em>
           <em className="kit-sw kit-see-chip" data-from="2">
-            {say('Photo')}
+            {say('Photo, details')}
           </em>
         </div>
         <div className="kit-sw kit-fine" data-from="3">
