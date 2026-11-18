@@ -946,8 +946,9 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
     await page.getByRole('link', { name: 'How It Works', exact: true }).click();
-    await expect(menu).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#how-it-works')).toBeInViewport();
+    // WP-PUB3 (approved guard correction): the menu link opens the How It Works page.
+    await expect(page).toHaveURL(/\/how-it-works$/);
+    await expect(page.locator('main h1')).toHaveCount(1);
   });
   test('homepage anchors resolve and desktop header follows the reference geometry', async ({
     page,

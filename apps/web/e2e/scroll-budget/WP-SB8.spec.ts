@@ -71,6 +71,13 @@ test.describe('WP-SB8 landing page', () => {
     const menu = page.getByRole('button', { name: 'Menu', exact: true });
     await menu.click();
     await page.getByRole('link', { name: 'How It Works', exact: true }).click();
+    // WP-PUB3 (approved guard correction): the link opens the How It Works page, not a home group.
+    await expect(page).toHaveURL(/\/how-it-works$/);
+    await expect(page.locator('main h1')).toHaveCount(1);
+    // The groups below are on the home page.
+    await page.goto('/');
+    await page.locator('#how-it-works > summary').focus();
+    await page.keyboard.press('Enter');
     await expect(page.locator('#how-it-works')).toHaveAttribute('open', '');
     await expect(page.getByText('Add Your Details Once')).toBeInViewport();
     // The keyboard opens any other group; groups open independently.
