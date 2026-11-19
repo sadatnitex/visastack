@@ -23743,6 +23743,7 @@ html body:has(.auth-shell) > .footer {
     column-gap: 8px;
     padding: 0 10px 0 16px;
     height: 64px;
+    margin-top: 16px;
   }
   .nav .brand {
     font-size: 1.125rem;
