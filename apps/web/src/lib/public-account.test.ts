@@ -31,6 +31,15 @@ describe('publicPerson (NAV3)', () => {
   });
 });
 
+describe('what leaves the server (NAV3)', () => {
+  it('has no last name and no address in it', () => {
+    const out = JSON.stringify(publicPerson('Amina Rahman Chowdhury asha@example.test'));
+    expect(out).not.toContain('Rahman');
+    expect(out).not.toContain('Chowdhury');
+    expect(out).not.toContain('@');
+  });
+});
+
 describe('signedInPerson (NAV3)', () => {
   it('reads the display name, never the email', async () => {
     const person = await signedInPerson({
@@ -47,6 +56,19 @@ describe('signedInPerson (NAV3)', () => {
       }),
     ).toBeNull();
   });
+  it('keeps a thrown redirect and notFound travelling', async () => {
+    const { redirect, notFound } = await import('next/navigation');
+    for (const raise of [() => redirect('/auth/sign-in'), () => notFound()]) {
+      await expect(
+        signedInPerson({
+          currentIdentity: async () => {
+            raise();
+          },
+        }),
+      ).rejects.toBeDefined();
+    }
+  });
+
   it("hands Next's own signals back to Next instead of hiding them", async () => {
     const signal = Object.assign(new Error('NEXT_REDIRECT'), {
       digest: 'NEXT_REDIRECT;replace;/x',
