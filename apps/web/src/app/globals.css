@@ -24070,6 +24070,25 @@ html body:has(.auth-shell) > .footer {
 .menu-account .menu-signout .icon {
   display: none;
 }
+/* Signed in, the full row starts at 900 px (PUBW1) with the round account button in it: from 900 to 925 px
+   the row was up to 19 px too wide, so the page links and the Workspace pill give back a few pixels. */
+@media (min-width: 900px) and (max-width: 925.98px) {
+  .site-navigation:has(.nav-account) .nav-links a:not(.btn) {
+    padding: 0 4px;
+  }
+  .site-navigation:has(.nav-account) .nav-links a[aria-current="page"]::after {
+    inset: auto 4px 6px;
+  }
+  html[data-locale="bn"] .site-navigation:has(.nav-account) .nav-links a:not(.btn) {
+    padding: 0 2px;
+  }
+  html[data-locale="bn"] .site-navigation:has(.nav-account) .nav-links a[aria-current="page"]::after {
+    inset: auto 2px 6px;
+  }
+  .site-navigation:has(.nav-account) .site-nav-actions .nav-cta {
+    padding: 0 10px;
+  }
+}
 /* Footer: spread edge to edge (owner: justified, not left leaning). */
 @media (min-width: 1025px) {
   .site-footer-inner {

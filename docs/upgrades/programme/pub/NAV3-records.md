@@ -22,3 +22,7 @@ See the PR for the exact results. Signed-in browser run (local, a build with a t
 ## Not covered by a CI test
 
 The signed-in header in a real browser needs a session; the unit tests cover its markup, and the signed-in guard (`ci-signed-in`) has no NAV3 check yet (outside this unit's files). Suggested follow-up: one guard test that opens `/` as the made-up traveller and signs out from the account button.
+
+## Added scope (owner, 19 Nov 2026, "2-Do")
+
+The Status page's About This Version card said "Some features are still being switched on. This page shows what works today." in English only. It now goes through `components.versionNotice.publicBetaDetail` (`PUBLIC_BETA_DETAIL` in `pilot-banner.tsx`, looked up by `status-view.tsx`; the card's version name also reads from the home catalogue, so it matches the footer). Bengali, written at the owner's word as a draft that needs the owner's later review (not marked reviewed or released): "কিছু ফিচার এখনো চালু করা হচ্ছে। আজ কী কাজ করছে, তা এই পাতায় দেখা যায়।" Register row SG-856e3570 (id minted from the English words, not by the census tool) in `VISASTACK_TRANSLATION_REGISTER.csv`; `PUB-bn-words.csv` row updated.
