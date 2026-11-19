@@ -811,6 +811,26 @@ test.describe('flat UI reference geometry and interaction', () => {
 });
 
 /**
+ * Invalidates the whole page and draws it again, so a capture is a full paint (see the /status note
+ * in the appearance test). The Privacy and Trust page needs it too since PUBFIX2 made its hero keep
+ * one height: a page that no longer shifts while the picture plays keeps the raster of its first
+ * paint, and a page resized after it opened (the light capture) and one opened at the final size
+ * (the dark capture) then differ by one level on a card edge. Both are exact pixel captures still.
+ */
+async function paintWhole(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
+    const body = document.body;
+    body.style.backgroundColor = 'rgb(1, 2, 3)';
+    await frame();
+    await frame();
+    body.style.backgroundColor = '';
+    await frame();
+    await frame();
+  });
+}
+
+/**
  * MOT1 (owner, 18 Nov 2026): reduced motion is the gentle mode, so a scene in view plays once and a
  * rise fades in. Wait (on attributes, never a fixed time) until everything in view rests, so a
  * capture never lands mid-fade.
@@ -846,7 +866,7 @@ async function motionRests(page: Page): Promise<void> {
   // with its own Pause button, so both captures show the same frame.
   if ((await page.locator('.tr-share').count()) > 0) {
     await page.locator('.tr-share .tr-pause').click();
-    await expect(page.locator('.tr-share .kit-fixed')).toHaveAttribute('data-kit-step', '4');
+    await expect(page.locator('.tr-share-live .kit-fixed')).toHaveAttribute('data-kit-step', '4');
   }
 }
 
@@ -916,6 +936,7 @@ test.describe('authoritative appearance on public routes', () => {
               await fresh.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
             ).toBe('light');
             await motionRests(fresh);
+            if (route === '/trust') await paintWhole(fresh);
             return await fresh.screenshot({
               path: test.info().outputPath(file),
               animations: 'disabled',
@@ -936,6 +957,7 @@ test.describe('authoritative appearance on public routes', () => {
                 await page.goto(route);
                 await page.evaluate(() => document.fonts.ready);
                 await motionRests(page);
+                if (route === '/trust') await paintWhole(page);
                 return page.screenshot({
                   path: test.info().outputPath('appearance-light.png'),
                   animations: 'disabled',

@@ -151,7 +151,7 @@ test.describe('R3 hero motion', () => {
     const box = await pause.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     await pause.click();
-    const sheet = page.locator('.tr-share .kit-sheet');
+    const sheet = page.locator('.tr-share-live .kit-sheet');
     await expect(sheet).toHaveAttribute('data-kit-step', '4');
     // Still stopped after more than two full ticks of the loop.
     // This proves something does NOT change, so it waits a fixed time: more than two loop ticks.
@@ -172,7 +172,7 @@ test.describe('R3 hero motion', () => {
       let last = '';
       setInterval(() => {
         const now =
-          document.querySelector('.tr-share .kit-sheet')?.getAttribute('data-kit-step') ?? '';
+          document.querySelector('.tr-share-live .kit-sheet')?.getAttribute('data-kit-step') ?? '';
         if (now !== '' && now !== last) {
           if (last !== '') w.__changes.push(Date.now());
           last = now;
@@ -184,7 +184,7 @@ test.describe('R3 hero motion', () => {
     await expect(pause).toBeVisible();
     const box = await pause.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-    const sheet = page.locator('.tr-share .kit-sheet');
+    const sheet = page.locator('.tr-share-live .kit-sheet');
     // It plays: the step moves on by itself (an attribute condition, never a fixed time).
     await expect(sheet).not.toHaveAttribute('data-kit-step', '0', { timeout: 6000 });
     // No more than three changes in any second.

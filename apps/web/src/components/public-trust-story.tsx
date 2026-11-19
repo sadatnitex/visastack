@@ -241,18 +241,18 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
       >
         <div className="tr-wrap">
           <p className="p3-eyebrow">{say('Controlled Pilot')}</p>
-          <RiseIn>
+          <RiseIn className="tr-today-copy">
             <h2 className="kit-h2" id="trust-today-title">
               {say('Where we are')}
               <br />
               <HeadlineWords>{say('today.')}</HeadlineWords>
             </h2>
+            <p className="kit-sub tr-today-text">
+              {say(
+                'VisaStack is in a controlled pilot. Only practice records are used. Virus scanning of uploads is not switched on yet. Independent checks will be listed here as they are completed, and nothing before.',
+              )}
+            </p>
           </RiseIn>
-          <p className="kit-sub tr-today-text">
-            {say(
-              'VisaStack is in a controlled pilot. Only practice records are used. Virus scanning of uploads is not switched on yet. Independent checks will be listed here as they are completed, and nothing before.',
-            )}
-          </p>
           <div className="tr-today-links">
             <Link className="p3-text-link" href="/how-it-works">
               {say('How It Works')} <Icon name="arrow" size={16} />

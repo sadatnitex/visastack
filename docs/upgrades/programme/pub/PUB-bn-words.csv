@@ -117,3 +117,8 @@ PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.closing,"One Traveller
 PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.freeBeta,"Free Public Beta",eyebrow while public beta is open (check catalogue: may already exist on Home)
 PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.invitePilot,"Invite-Only Pilot",eyebrow in pilot (check catalogue: may already exist on Home)
 HOT1,apps/web/src/app/landing-c1.css,none,(no new words),layout only
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.home,"Home",header and footer link still English on Bengali pages (PUB5 pass 2, P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.privacyAndTrust,"Privacy and Trust",header and footer link still English on Bengali pages (P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.countries,"Countries",header and footer link still English on Bengali pages (P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.status,"Status",footer Trust group link still English on Bengali pages (P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.noticePilotShort,"Test version. Made-up details only.","Bengali base line ends the pilot sentence with a Latin full stop; it needs the danda (P2-8). No catalogue Bengali edited by PUBFIX2"

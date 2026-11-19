@@ -260,12 +260,16 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
         </Scene>
       </Chapter>
 
+      {/* PUBFIX2 P2-7: the case starts on its first stage (Getting Started, You), as the approved
+          reference does. Without script and with reduced motion it rests there; on a phone it then
+          plays through the stages as it comes into view (playTo) and the card follows (home-story.css). */}
       <Chapter tone="light" className="hs-chapter hs-chapter-soft">
         <Scene
           name="journey"
           len={1.5}
           steps={FIXTURE_STAGES.length}
-          finalStep={FIXTURE_STAGES.length - 1}
+          finalStep={0}
+          playTo={FIXTURE_STAGES.length - 1}
           minWidth={900}
           kitStage
           labelledBy="hs-journey-title"

@@ -14,9 +14,11 @@ const FINAL: Record<(typeof SCENES)[number], string> = {
   hero: '5',
   add: '2',
   ready: '2',
-  journey: '6',
+  journey: '0',
   share: '3',
 };
+/** Where each scene ends after playing in reveal mode: the journey plays on to its last stage (PUBFIX2 P2-7). */
+const PLAYED_TO: Record<(typeof SCENES)[number], string> = { ...FINAL, journey: '6' };
 
 const html = (page: Page) => page.locator('html');
 
@@ -108,7 +110,7 @@ test.describe('phone, 390 x 844, motion welcome', () => {
     for (const name of SCENES) {
       const scene = page.locator(`[data-scene="${name}"]`);
       await expect(scene, name).toHaveAttribute('data-reveal', /^(done|snapped)$/);
-      await expect(scene, name).toHaveAttribute('data-step', FINAL[name]);
+      await expect(scene, name).toHaveAttribute('data-step', PLAYED_TO[name]);
       expect(await scene.evaluate((el) => (el as HTMLElement).style.getPropertyValue('--p'))).toBe(
         '',
       );
@@ -372,9 +374,13 @@ for (const [width, height] of [
     const pause = page.getByRole('button', { name: 'Pause the Animation' });
     await expect(pause).toBeVisible();
     // The loop moves on by itself (a step change, never a fixed time).
-    await expect(page.locator('.tr-share .kit-sheet')).not.toHaveAttribute('data-kit-step', '0', {
-      timeout: 6000,
-    });
+    await expect(page.locator('.tr-share-live .kit-sheet')).not.toHaveAttribute(
+      'data-kit-step',
+      '0',
+      {
+        timeout: 6000,
+      },
+    );
     await scrollThrough(page);
     await frames(page);
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);

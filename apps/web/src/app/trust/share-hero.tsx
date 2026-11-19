@@ -64,8 +64,12 @@ export function ShareHero({
   }, [running, steps.length]);
 
   return (
-    <div className="tr-share" ref={box}>
-      {sheet(steps[step])}
+    <div className="tr-share">
+      {/* PUBFIX2 P2-6: the picture's box keeps the height of its tallest step (public-pub3-story.css),
+          so the hero never grows or shrinks while the steps change. */}
+      <div className="tr-share-art" ref={box}>
+        <div className="tr-share-live">{sheet(steps[step])}</div>
+      </div>
       {/* Always in the markup so its space is reserved before hydration (no layout shift); idle,
           invisible and out of the tab order until the picture really moves. */}
       <button

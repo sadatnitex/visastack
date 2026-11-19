@@ -205,10 +205,12 @@ describe('the public home page with its scroll story (WP-PUB2)', () => {
       'journey',
       'share',
     ]);
-    // The finished step is the last, except the sharing scene, which rests before `Access Ended`.
+    // The finished step is the last, except the sharing scene, which rests before `Access Ended`,
+    // and the journey, which rests on its first stage like the approved reference (PUBFIX2 P2-7).
     for (const scene of scenes) {
       const last = Number(scene.getAttribute('data-steps')) - 1;
-      const finished = scene.getAttribute('data-scene') === 'share' ? last - 1 : last;
+      const name = scene.getAttribute('data-scene');
+      const finished = name === 'share' ? last - 1 : name === 'journey' ? 0 : last;
       expect(Number(scene.getAttribute('data-step'))).toBe(finished);
     }
   });

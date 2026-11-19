@@ -146,6 +146,16 @@
 }
 
 @media (min-width: 900px) {
+  /* PUBFIX2 P2-5: a computer shows the page in 6 screens or fewer in both languages (it was 6.05
+     in English and 6.13 in Bengali at 1280 x 800): a little less air between the rows and chapters. */
+  .hk-rows .hk-inner {
+    gap: var(--space-7);
+  }
+
+  .hk-chapter:not(.hk-hero) {
+    padding-block: 3rem;
+  }
+
   .hk-row {
     grid-template-columns: 1fr 1fr;
     gap: var(--space-7);

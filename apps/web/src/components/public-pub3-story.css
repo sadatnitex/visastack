@@ -93,6 +93,45 @@
   min-width: 0;
 }
 
+/* PUBFIX2 P2-6: the picture's box is as tall as its tallest step (Access Ended: 390 px on a phone, 422 px
+   from 760 px up, measured), so the hero never changes height while the five steps play (it grew and
+   shrank by 66 px and shifted the page by 0.04). The picture rests at the top of its box. */
+.tr-share-art {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-width: 0;
+  width: 100%;
+  min-height: 390px;
+}
+
+@media (min-width: 760px) {
+  .tr-share-art {
+    min-height: 422px;
+  }
+}
+
+/* The live picture keeps the box's full width, so it never changes width (and slides sideways) as the
+   steps change; the sheet inside is centred in it. */
+.tr-share-live {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/* PUBFIX2: the Where We Are Today heading and its paragraph rise together, so the heading never
+   passes over the paragraph while it settles. */
+.tr-today-copy {
+  display: grid;
+  gap: inherit;
+}
+
+/* PUBFIX2 P2-6: the wrapper keeps the column's full width, so it does not change width (and slide) with the step. */
+.tr-share {
+  width: 100%;
+}
+
 .tr-pause {
   display: inline-flex;
   align-items: center;
@@ -308,6 +347,37 @@
 
   .tr-hero-more {
     display: none;
+  }
+
+  /* PUBFIX2 P2-3: the first phone screen holds 30 words or fewer. The line under the headline moves
+     below the share picture and above its Pause button (every word stays, and the hero keeps its
+     height and the Pause button its place), so a phone opens on the headline, the start button and
+     the picture. The boxes around them stop drawing, so each part is a row of the hero grid. */
+  .tr-hero-copy,
+  .tr-hero-visual,
+  .tr-share {
+    display: contents;
+  }
+
+  .tr-hero .kit-h1 {
+    order: 0;
+  }
+
+  .tr-hero .kit-actions {
+    order: 1;
+  }
+
+  .tr-share-art {
+    order: 2;
+  }
+
+  .tr-hero .kit-sub {
+    order: 3;
+  }
+
+  .tr-pause {
+    order: 4;
+    justify-self: center;
   }
 
   .tr-hero-grid,

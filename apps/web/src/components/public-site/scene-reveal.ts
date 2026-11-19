@@ -26,6 +26,8 @@ export interface RevealScene {
   readonly steps: number;
   /** The finished step the server wrote, or null when the scene had none. */
   readonly finished: string | null;
+  /** Reveal mode only: the step to play up to and rest on, when it is not the finished step. */
+  readonly playTo?: number | null;
 }
 
 /** How the engine marks and unmarks the page, so the attribute names live in one place (scene-engine.ts). */
@@ -76,9 +78,18 @@ interface Playing {
   wants: boolean;
 }
 
-function lastStep(scene: RevealScene): number {
-  const finished = Number(scene.finished);
+function lastStep(scene: RevealScene, gentle: boolean): number {
   const top = Math.max(0, Math.floor(scene.steps) - 1);
+  // A scene with its own end (data-play-to) plays to it in reveal mode; gentle mode, with its
+  // fades only, keeps the finished step the server wrote.
+  if (
+    !gentle &&
+    scene.playTo !== undefined &&
+    scene.playTo !== null &&
+    Number.isFinite(scene.playTo)
+  )
+    return Math.min(top, Math.max(0, Math.floor(scene.playTo)));
+  const finished = Number(scene.finished);
   return scene.finished !== null && Number.isFinite(finished)
     ? Math.min(top, Math.max(0, finished))
     : top;
@@ -109,10 +120,12 @@ export function startReveal(
   const rest = (item: Playing, snap = false) => {
     timers(item);
     item.state = 'done';
-    const { element, finished } = item.scene;
+    const { element } = item.scene;
+    // The scene's own end (its last played step), else the finished step the server wrote.
+    const end = !gentle && item.scene.playTo != null ? String(item.last) : item.scene.finished;
     element.style.removeProperty('--p');
-    if (finished === null) element.removeAttribute('data-step');
-    else element.setAttribute('data-step', finished);
+    if (end === null) element.removeAttribute('data-step');
+    else element.setAttribute('data-step', end);
     element.setAttribute(REVEAL_ATTRIBUTE, snap ? 'snapped' : 'done');
     arming?.unobserve(element);
     observer?.unobserve(element);
@@ -190,7 +203,7 @@ export function startReveal(
     : null;
 
   for (const scene of scenes) {
-    const last = lastStep(scene);
+    const last = lastStep(scene, gentle);
     const item: Playing = {
       scene,
       last,
