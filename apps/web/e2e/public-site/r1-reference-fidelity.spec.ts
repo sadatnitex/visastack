@@ -34,6 +34,13 @@ interface Chapter {
   /** The picture or part that must be whole on screen. */
   readonly visual: string;
   readonly parts: (page: Page) => Promise<void>;
+  /**
+   * MOB1 (19 Nov 2026, owner approved the phone mock "phn mock okay for now"): below 760 px the page
+   * shows a leaner chapter. Where it does, these replace `visual` and `parts` on a phone only;
+   * a computer is still measured by `visual` and `parts`.
+   */
+  readonly phoneVisual?: string;
+  readonly phoneParts?: (page: Page) => Promise<void>;
 }
 
 const CHAPTERS: readonly Chapter[] = [
@@ -57,6 +64,19 @@ const CHAPTERS: readonly Chapter[] = [
         page.locator('.hs-hero').getByText('Example. Completeness only. Not an approval.'),
       ).toBeVisible();
     },
+    phoneVisual: '.hs-phone-passport',
+    phoneParts: async (page) => {
+      // A phone shows the passport cover alone with one Example tag: no fan, no ring, no note. The
+      // approved mock keeps "Completeness only. Not an approval." once, in the checklist chapter.
+      await expect(page.locator('.hs-hero .pub-button')).toHaveCount(2);
+      await expect(page.locator('.hs-phone-passport img')).toHaveAttribute(
+        'src',
+        '/pictures/passport-bd.png',
+      );
+      await expect(page.locator('.hs-phone-passport .pub-example')).toBeVisible();
+      await expect(page.locator('.hs-hero .kit-deck')).toBeHidden();
+      await expect(page.locator('.hs-hero .hs-hero-cap')).toBeHidden();
+    },
   },
   {
     key: 'add',
@@ -74,6 +94,21 @@ const CHAPTERS: readonly Chapter[] = [
       for (const field of ['Surname', 'Passport Ends', 'Nationality'])
         await expect(page.locator('.kit-phone').getByText(field, { exact: true })).toBeVisible();
       await expect(page.locator('.kit-phone').getByText('Example record.')).toBeVisible();
+    },
+    phoneVisual: '.kit-phone',
+    phoneParts: async (page) => {
+      for (const step of ['Add', 'Read', 'Confirm'])
+        await expect(
+          page.locator('.hs-step-text b', { hasText: new RegExp(`^${step}$`) }),
+        ).toBeVisible();
+      // Two fields and the Example tag alone: the third field and "Example record." are for larger screens.
+      for (const field of ['Surname', 'Passport Ends'])
+        await expect(page.locator('.kit-phone').getByText(field, { exact: true })).toBeVisible();
+      await expect(
+        page.locator('.kit-phone').getByText('Nationality', { exact: true }),
+      ).toBeHidden();
+      await expect(page.locator('.kit-phone .pub-example')).toBeVisible();
+      await expect(page.locator('.kit-phone').getByText('Example record.')).toBeHidden();
     },
   },
   {
@@ -144,6 +179,24 @@ const CHAPTERS: readonly Chapter[] = [
       for (const title of ['Source Shown', 'Checked Date', 'Changes Flagged'])
         await expect(page.locator('.hs-card-title', { hasText: title })).toBeVisible();
     },
+    phoneVisual: '.hs-swipe',
+    phoneParts: async (page) => {
+      // The three cards sit in one swipe row: the row fits the screen, every card is whole inside
+      // its scroll box (the row scrolls to the others), and the section carries its Example tag.
+      await expect(page.locator('.hs-card')).toHaveCount(3);
+      for (const title of ['Source Shown', 'Checked Date', 'Changes Flagged'])
+        await expect(page.locator('.hs-card-title', { hasText: title })).toBeVisible();
+      const row = await page.locator('.hs-swipe').evaluate((el) => ({
+        scroll: el.scrollWidth,
+        client: el.clientWidth,
+      }));
+      expect(row.scroll, 'the row scrolls sideways').toBeGreaterThan(row.client);
+      const cards = await page
+        .locator('.hs-card')
+        .evaluateAll((els) => els.map((el) => (el as HTMLElement).offsetWidth));
+      for (const width of cards) expect(width).toBeLessThanOrEqual(row.client);
+      await expect(page.locator('#sources .pub-example')).toBeVisible();
+    },
   },
   {
     key: 'agencies',
@@ -156,6 +209,18 @@ const CHAPTERS: readonly Chapter[] = [
     parts: async (page) => {
       await expect(page.locator('.kit-case')).toHaveCount(3);
       await expect(page.locator('.kit-cases .pub-example')).toBeVisible();
+      await expect(page.locator('#for-agencies a[href="/for-agencies"]')).toBeVisible();
+    },
+    phoneVisual: '#for-agencies .hs-copy',
+    phoneParts: async (page) => {
+      // One line and the button: the cases list (and so its Example tag, there is no picture left
+      // to label) is for larger screens.
+      await expect(page.locator('#for-agencies .kit-cases')).toBeHidden();
+      await expect(page.locator('#for-agencies .pub-example')).toBeHidden();
+      await expect(page.locator('#for-agencies .kit-sub')).toHaveText(
+        'Clients keep their own record.',
+        { useInnerText: true },
+      );
       await expect(page.locator('#for-agencies a[href="/for-agencies"]')).toBeVisible();
     },
   },
@@ -267,12 +332,13 @@ for (const run of RUNS) {
         expect(h?.y ?? -1).toBeGreaterThanOrEqual(0);
         expect((h?.y ?? 0) + (h?.height ?? 0)).toBeLessThanOrEqual(height);
         // The chapter's picture is whole across the width: nothing cut off on either side.
-        const visual = page.locator(chapter.visual).first();
+        const phone = width < 760;
+        const visual = page.locator((phone && chapter.phoneVisual) || chapter.visual).first();
         const v = await visual.boundingBox();
         expect(v, 'picture box').not.toBeNull();
         expect(v?.x ?? -1).toBeGreaterThanOrEqual(-1);
         expect((v?.x ?? 0) + (v?.width ?? 0)).toBeLessThanOrEqual(width + 1);
-        await chapter.parts(page);
+        await ((phone && chapter.phoneParts) || chapter.parts)(page);
         // A pinned chapter on a computer is centred and sized by what it shows: no empty half.
         if (chapter.pinned && live) {
           const gaps = await page.evaluate((root) => {
