@@ -23742,12 +23742,20 @@ html body:has(.auth-shell) > .footer {
   .nav {
     column-gap: 8px;
     padding: 0 10px 0 16px;
+    height: 64px;
   }
   .nav .brand {
     font-size: 1.125rem;
   }
   .nav-links a:not(.btn) {
     padding: 0 7px;
+  }
+  html[data-locale="bn"] .nav-links a:not(.btn),
+  html[data-locale="bn"] .site-navigation .nav-links a:not(.btn) {
+    padding: 0 4px;
+  }
+  html[data-locale="bn"] .nav-links a[aria-current="page"]::after {
+    inset: auto 4px 6px;
   }
   .nav-links a[aria-current="page"]::after {
     inset: auto 7px 6px;
