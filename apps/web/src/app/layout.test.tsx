@@ -208,9 +208,7 @@ describe('the public site frame (WP-PUB1)', () => {
       state.beta = true;
       const beta = textOf(await renderServer(RootLayout({ children: <p>Page</p> })));
       expect(beta, pathname).toContain('VisaStack Public Beta');
-      expect(beta, pathname).toContain(
-        'Some features are still being switched on.',
-      );
+      expect(beta, pathname).toContain('Some features are still being switched on.');
     }
     expect(pilot.detail).toBe(
       'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',

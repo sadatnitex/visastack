@@ -182,9 +182,7 @@ describe('the footer (NAV2)', () => {
     expect(doc.querySelector('.site-footer-about')?.textContent).toBe(
       'One private profile for every visa.',
     );
-    expect(doc.querySelector('.site-footer-beta')?.textContent).toBe(
-      'VisaStack Public Beta',
-    );
+    expect(doc.querySelector('.site-footer-beta')?.textContent).toBe('VisaStack Public Beta');
     state.beta = false;
     expect((await page()).querySelector('.site-footer-beta')?.textContent).toBe(
       'VisaStack Private Pilot. Test version. Made-up details only.',

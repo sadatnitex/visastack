@@ -77,7 +77,14 @@ describe('words about file checks', () => {
     const terms = read(SURFACES.terms).replace(/\s+/g, ' ');
     expect(terms).toContain('virus scanning of uploads');
     expect(terms).toContain('not switched on yet');
-    for (const name of ['pilotBanner', 'signUp', 'privacy', 'home', 'trustStory', 'footer'] as const) {
+    for (const name of [
+      'pilotBanner',
+      'signUp',
+      'privacy',
+      'home',
+      'trustStory',
+      'footer',
+    ] as const) {
       const text = read(SURFACES[name]).replace(/\s+/g, ' ');
       expect(text, name).not.toMatch(/own risk|virus scanning/i);
     }
