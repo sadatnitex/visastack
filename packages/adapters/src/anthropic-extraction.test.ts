@@ -105,7 +105,7 @@ describe('AnthropicExtractionAdapter', () => {
     expect(outcome.result.usage.costUnits).toBe(42);
     expect(outcome.result.usage.inputUnits).toBe(30);
     expect(outcome.result.usage.outputUnits).toBe(12);
-    expect(outcome.result.usage.modelVersion).toBe('claude-sonnet-5');
+    expect(outcome.result.usage.modelVersion).toBe('claude-sonnet-5-5');
     expect(outcome.result.usage.provider).toBe('anthropic');
     expect(outcome.result.usage.providerRequestId).toBe('msg_abc123');
 
@@ -114,7 +114,7 @@ describe('AnthropicExtractionAdapter', () => {
     expect(url).toBe('https://api.anthropic.com/v1/messages');
     const body = JSON.parse(requestInit.body as string);
     expect(JSON.stringify(body)).toContain('L898902C3');
-    expect(body.model).toBe('claude-sonnet-5');
+    expect(body.model).toBe('claude-sonnet-5-5');
     expect(body.output_config.format.type).toBe('json_schema');
     expect(body.output_config.format.schema.required).toEqual(['proposals']);
     expect((requestInit.headers as Record<string, string>)['x-api-key']).toBe('sk-ant-test');
@@ -141,6 +141,53 @@ describe('AnthropicExtractionAdapter', () => {
         expect(body.output_config.format.type).toBe('json_schema');
       }
     }
+  });
+
+  it('caches only the fixed instruction: every task sends a byte-identical system block for two different documents', async () => {
+    const firstCall = vi.fn().mockImplementation(async () => answerResponse({}));
+    const secondCall = vi.fn().mockImplementation(async () => answerResponse({}));
+    await runEveryTask(
+      new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl: firstCall }),
+    );
+    const other = new AnthropicExtractionAdapter({ apiKey: 'sk-ant-test', fetchImpl: secondCall });
+    await other.extract({
+      documentVersionId: 'doc-version-2',
+      text: 'Name: Rahim Uddin. Passport BX0091234.',
+      allowedFieldKeys: ['passport.number'],
+    });
+    await other.classify({
+      documentVersionId: 'doc-version-2',
+      text: 'salary certificate, employer stamp',
+      allowedTypes: ['EMPLOYMENT_CERTIFICATE'],
+    });
+    await other.explain({ ...EXPLAIN_INPUT, requirementKey: 'PASSPORT', citation: 'Rule 7.1.' });
+    await other.checkConsistency({
+      documentVersionId: 'doc-version-2',
+      text: 'Name: Rahim Uddin.',
+      profileFacts: [{ fieldKey: 'applicant.familyName', value: 'Uddin' }],
+    });
+
+    const perRequest = [
+      ['doc-version-1', 'L898902C3', 'Eriksson'],
+      ['statement of account'],
+      ['BANK_STATEMENT', 'Route guide'],
+      ['Anna Marie', 'Anna Maria'],
+    ];
+    for (let call = 0; call < 4; call++) {
+      const first = sentBody(firstCall, call);
+      const second = sentBody(secondCall, call);
+      expect(JSON.stringify(first.system)).toBe(JSON.stringify(second.system));
+      expect(first.system.at(-1).cache_control).toEqual({ type: 'ephemeral' });
+      expect(first.cache_control).toBeUndefined();
+      expect(JSON.stringify(first.messages)).not.toContain('cache_control');
+      for (const personal of [...(perRequest[call] ?? []), 'Rahim', 'BX0091234', 'doc-version-2']) {
+        expect(JSON.stringify(first.system)).not.toContain(personal);
+        expect(JSON.stringify(second.system)).not.toContain(personal);
+      }
+    }
+    // The four tasks keep their own distinct instructions.
+    const systems = [0, 1, 2, 3].map((call) => JSON.stringify(sentBody(firstCall, call).system));
+    expect(new Set(systems).size).toBe(4);
   });
 
   it('sends a closed schema for every task: each object sets additionalProperties to false', async () => {
@@ -418,7 +465,12 @@ describe('AnthropicExtractionAdapter', () => {
         { proposals: [] },
         {
           id: 'msg_xyz789',
-          usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 20 },
+          usage: {
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_input_tokens: 20,
+            cache_creation_input_tokens: 30,
+          },
         },
       ),
     );
@@ -428,10 +480,12 @@ describe('AnthropicExtractionAdapter', () => {
     if (!outcome.ok) return;
     expect(outcome.result.usage.provider).toBe('anthropic');
     expect(outcome.result.usage.providerRequestId).toBe('msg_xyz789');
-    expect(outcome.result.usage.inputUnits).toBe(100);
+    // Anthropic's input_tokens leaves out tokens read from or written to the cache; the usage
+    // record counts every input token, with the cache reads as a part of it (as OpenAI and Gemini do).
+    expect(outcome.result.usage.inputUnits).toBe(150);
     expect(outcome.result.usage.outputUnits).toBe(50);
     expect(outcome.result.usage.cachedUnits).toBe(20);
-    expect(outcome.result.usage.costUnits).toBe(150);
+    expect(outcome.result.usage.costUnits).toBe(200);
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
   });
 });
