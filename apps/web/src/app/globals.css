@@ -24121,6 +24121,9 @@ html body:has(.auth-shell) > .footer {
   }
 }
 @media (max-width: 760px) {
+  .footer-signout {
+    margin-block: -9px;
+  }
   .site-footer-brand {
     align-items: center;
     text-align: center;

@@ -5,13 +5,20 @@ import { renderServer, textOf } from '../lib/next-mocks.test-support';
 const state = vi.hoisted(() => ({
   signedIn: false,
   name: 'Asha' as string | null,
+  initials: 'AR',
+  pathname: null as string | null,
   locale: 'en',
 }));
-vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(state.pathname ? { 'x-vs-pathname': state.pathname } : {}),
+}));
 vi.mock('../lib/version-notice-state', () => ({ hasSeenVersionNotice: async () => true }));
 vi.mock('next/font/local', () => ({ default: () => ({ variable: 'synthetic-font' }) }));
 vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
-vi.mock('../lib/public-account', () => ({ signedInFirstName: async () => state.name }));
+vi.mock('../lib/public-account', () => ({
+  signedInPerson: async () =>
+    state.name === null ? null : { firstName: state.name, initials: state.initials },
+}));
 vi.mock('../lib/locale', () => ({ getLocale: async () => state.locale }));
 vi.mock('../lib/language-choice', () => ({ LANGUAGE_CHOICE_ENABLED: true }));
 vi.mock('../lib/deployment-mode', () => ({ getDeploymentMode: () => 'controlled_pilot' }));
@@ -27,7 +34,35 @@ describe('the signed-in public header (NAV3)', () => {
   afterEach(() => {
     state.signedIn = false;
     state.name = 'Asha';
+    state.initials = 'AR';
+    state.pathname = null;
     state.locale = 'en';
+  });
+
+  it('draws the button with two letters (the workspace rule) while the label is the first name', async () => {
+    state.signedIn = true;
+    const nav = header(await render());
+    expect(nav).toMatch(/account-public-avatar[^>]*>AR</);
+    expect(nav).not.toContain('Rahman');
+  });
+
+  it.each(['/app', '/app/account', '/collect/account/answers'])(
+    'draws no second account menu or Sign Out where the workspace frames the page (%s)',
+    async (path) => {
+      state.signedIn = true;
+      state.pathname = path;
+      const html = await render();
+      expect(html).not.toContain('record-account-public');
+      expect(html).not.toContain('menu-account');
+      expect(textOf(footer(html))).not.toContain('Sign Out');
+      expect(html).not.toContain('account-signout-form');
+    },
+  );
+
+  it('keeps the account menu on a public page', async () => {
+    state.signedIn = true;
+    state.pathname = '/how-it-works';
+    expect(header(await render())).toContain('record-account-public');
   });
 
   it('shows a named round account button and its menu rows, beside the Workspace pill', async () => {

@@ -26,3 +26,10 @@ The signed-in header in a real browser needs a session; the unit tests cover its
 ## Added scope (owner, 19 Nov 2026, "2-Do")
 
 The Status page's About This Version card said "Some features are still being switched on. This page shows what works today." in English only. It now goes through `status.statusStatusView.publicBetaDetail` (`PUBLIC_BETA_DETAIL` in `pilot-banner.tsx`, looked up by `status-view.tsx`; the card's version name also reads from the home catalogue, so it matches the footer). Bengali, written at the owner's word as a draft that needs the owner's later review (not marked reviewed or released): "কিছু ফিচার এখনো চালু করা হচ্ছে। আজ কী কাজ করছে, তা এই পাতায় দেখা যায়।" Register row SG-856e3570 (id minted from the English words, not by the census tool) in `VISASTACK_TRANSLATION_REGISTER.csv`; `PUB-bn-words.csv` row updated.
+
+## Review fixes (Guardian review, 19 Nov 2026)
+
+- The round button shows two letters (the workspace rule, `lib/account-initials.ts`, now shared with the account menu) while the label stays the first name; the letters are worked out on the server, so the rest of the name is not in the page.
+- `lib/public-account.ts` hands Next's own control-flow signals back to Next (as `isSignedIn` does) and fails quiet on any other error.
+- On pages the workspace frames (`/app`, the signed-in answers page) the public header draws no account menu, phone block or Sign Out, and the footer draws no Sign Out, so those pages do not carry a second copy (the stylesheet already hides the public header and footer there).
+- Phone footer: the Sign Out row takes the same negative margin as the other link rows. Measured at 360 and 390 px, signed in and out, English and Bengali: 3 rows, every row 44 px tall, Sign Out on the same row line as its neighbours, footer 219 px (English) and 228 px (Bengali), inside the 4 rows and 240 px budget.

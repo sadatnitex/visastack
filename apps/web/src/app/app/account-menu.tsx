@@ -15,6 +15,7 @@ import {
 import { useT } from '../../components/i18n-provider';
 import { Icon, type IconName } from '../../components/icons';
 import { appHomeCatalog } from '../../i18n/app-home';
+import { accountInitials } from '../../lib/account-initials';
 import { placePopover } from '../../lib/popover-placement';
 import { useCloseOnOutsidePress } from '../../lib/use-popover';
 
@@ -56,16 +57,7 @@ export const ACCOUNT_MENU_GROUPS: readonly AccountMenuGroup[] = [
   },
 ];
 
-/** Up to two letters, the same rule as the workspace selector, so a person reads the same everywhere. */
-export function accountInitials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0))
-    .join('')
-    .toUpperCase();
-}
+export { accountInitials };
 
 const stripSlash = (path: string) => (path.length > 1 ? path.replace(/\/+$/, '') : path);
 
@@ -80,6 +72,7 @@ export function AccountMenu({
   signOut,
   variant = 'app',
   links,
+  initials: initialsOverride,
 }: {
   readonly name: string;
   /** The signed-in address, already held by the session; shown only when present. */
@@ -97,6 +90,8 @@ export function AccountMenu({
   readonly variant?: 'app' | 'public';
   /** The rows of the public form; the workspace's full menu draws its own groups. */
   readonly links?: readonly AccountMenuLink[] | undefined;
+  /** The letters for the round button when the shown name is shorter than the full name (public form). */
+  readonly initials?: string | undefined;
 }) {
   const isPublic = variant === 'public';
   const t = useT(appHomeCatalog);
@@ -105,7 +100,7 @@ export function AccountMenu({
   const panel = useRef<HTMLElement>(null);
   const panelId = useId();
   const groupId = useId();
-  const initials = accountInitials(name);
+  const initials = initialsOverride ?? accountInitials(name);
   const current = stripSlash(pathname.split(/[?#]/)[0] ?? pathname);
 
   const close = useCallback((returnFocus: boolean) => {
