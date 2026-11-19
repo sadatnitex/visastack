@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BrandMark } from '../components/brand-mark';
 import { I18nProvider } from '../components/i18n-provider';
+import { Icon } from '../components/icons';
 import { SaveDataFlag } from '../components/pictures/save-data-flag';
 import { requestSavesData } from '../components/pictures/save-data-request';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
@@ -14,14 +15,20 @@ import { ScenesBoot, requestNonce } from '../components/public-site/scenes-boot'
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
 import { SiteFooter } from '../components/site-footer';
 import { SiteNavigation } from '../components/site-navigation';
+import { appHomeCatalog } from '../i18n/app-home';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getT, primePage } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
+import { signedInFirstName } from '../lib/public-account';
 import { isPublicBetaOpen } from '../lib/public-beta';
+import { ClearShareInboxOnSubmit } from '../lib/pwa/clear-share-inbox-on-submit';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
+import { signOutCurrentUser } from '../lib/sign-out';
 import { isSignedIn } from '../lib/signed-in';
 import { hasSeenVersionNotice } from '../lib/version-notice-state';
 import { setLocaleAction } from './actions';
+import { AccountMenu } from './app/account-menu';
+import { TurnOffPushOnSubmit } from './app/account/push-card';
 import './globals.css';
 import { authCatalog } from '../i18n/auth';
 import { homeCatalog } from '../i18n/home';
@@ -141,6 +148,42 @@ export default async function RootLayout({ children }: { readonly children: Reac
       {signedIn ? t.node('home.layout.workspace') : tAuth.node('auth.authSignInPage.signIn')}
     </a>
   );
+  // NAV3: a signed-in visitor's own controls on the public pages. The first name only (never the
+  // address), from the session read the page already made; the words are the workspace's own, so
+  // the two places never drift. Sign Out is the workspace menu's own server action form, a POST.
+  const account = signedIn
+    ? {
+        firstName: (await signedInFirstName()) ?? '',
+        tApp: await getT(appHomeCatalog),
+      }
+    : null;
+  const signOutForm = (className: string) =>
+    account ? (
+      <form
+        className="account-signout-form"
+        action={async (form: FormData) => {
+          'use server';
+          await signOutCurrentUser('/', form);
+        }}
+      >
+        <ClearShareInboxOnSubmit />
+        <TurnOffPushOnSubmit />
+        <button type="submit" className={className}>
+          <Icon name="logout" size={18} />
+          {account.tApp.node('appHome.appWorkspaceFrame.signOut')}
+        </button>
+      </form>
+    ) : null;
+  const accountLinks = account
+    ? [
+        { href: '/app', label: t('home.layout.workspace'), icon: 'home' as const },
+        {
+          href: '/app/account',
+          label: account.tApp('appHome.appAppNav.yourAccount'),
+          icon: 'user' as const,
+        },
+      ]
+    : [];
   // Data saver from the request (Save-Data: on) keeps picture motion still from the first paint.
   const saveDataMark = (await requestSavesData()) ? { 'data-save-data': '' } : {};
   const fonts = `${inter.variable} ${bengali.variable}`;
@@ -184,6 +227,17 @@ export default async function RootLayout({ children }: { readonly children: Reac
                 <>
                   {languageForm('menu-lang', false)}
                   {showGetStarted ? signInLink('menu-signin') : null}
+                  {account ? (
+                    <div className="menu-account">
+                      <a className="menu-signin" href="/app">
+                        {t.node('home.layout.workspace')}
+                      </a>
+                      <Link className="menu-signin" href="/app/account">
+                        {account.tApp.node('appHome.appAppNav.yourAccount')}
+                      </Link>
+                      {signOutForm('menu-signin menu-signout')}
+                    </div>
+                  ) : null}
                 </>
               }
               actions={
@@ -199,6 +253,16 @@ export default async function RootLayout({ children }: { readonly children: Reac
                   ) : (
                     signInLink('btn btn-primary nav-cta')
                   )}
+                  {account ? (
+                    <div className="nav-account">
+                      <AccountMenu
+                        variant="public"
+                        name={account.firstName}
+                        links={accountLinks}
+                        signOut={signOutForm('btn btn-secondary nav-cta')}
+                      />
+                    </div>
+                  ) : null}
                 </>
               }
             />
@@ -210,6 +274,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             pageLang={htmlLang}
             pages={links}
             signedIn={signedIn}
+            signOut={signOutForm('footer-signout')}
             registrationOpen={registrationOpen}
             notice={notice ? { label: notice.label, short: notice.short } : null}
             copyright={t.node(COPYRIGHT_KEY, { getFullYear: copyrightYear })}
