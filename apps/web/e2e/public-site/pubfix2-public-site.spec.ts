@@ -120,10 +120,10 @@ test('P2-3 Privacy and Trust first screen 360x640 holds 30 visible words or fewe
 
 // P2-4: the Menu button is 44 px tall wherever it shows.
 for (const [lang, width] of [
-  ['en', 1024],
-  ['en', 1150],
-  ['bn', 1024],
-  ['bn', 1230],
+  ['en', 768],
+  ['en', 899],
+  ['bn', 768],
+  ['bn', 899],
 ] as const) {
   test(`P2-4 Menu button is 44 px tall at ${width} px (${lang})`, async ({ page, baseURL }) => {
     await open(page, baseURL, '/', { width, height: 900 }, lang);

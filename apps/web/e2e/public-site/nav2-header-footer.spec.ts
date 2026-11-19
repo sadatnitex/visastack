@@ -19,10 +19,11 @@ type Lang = 'en' | 'bn';
 const WIDTHS = [320, 390, 768, 1024, 1180, 1280, 1344, 1440, 1920] as const;
 /**
  * The first viewport width at which the whole row fits on one line, measured on the built page
- * (docs/upgrades/programme/pub/NAV2-records.md). Below it the pages, the language switch and the
+ * (docs/upgrades/programme/pub/NAV2-records.md; PUBW1, 19 Nov 2026: owner decision, from 900 px in both
+ * languages, the row is compacted between 900 and 1230 px). Below it the pages, the language switch and the
  * quiet sign-in live in the menu. Bengali words are wider, so its row needs more room.
  */
-const FULL_ROW_FROM: Record<Lang, number> = { en: 1151, bn: 1231 };
+const FULL_ROW_FROM: Record<Lang, number> = { en: 900, bn: 900 };
 const LANGS: Lang[] = ['en', 'bn'];
 
 async function settle(page: Page) {
@@ -191,6 +192,40 @@ for (const lang of LANGS) {
     });
   });
 }
+
+test.describe('tablet header (PUBW1)', () => {
+  for (const lang of LANGS) {
+    for (const width of [900, 960, 1024, 1150, 1151, 1180, 1230, 1231]) {
+      test(`${lang} at ${width} px: full links on one line, 44 px targets, no overlap`, async ({
+        page,
+      }) => {
+        await openPage(page, width, lang);
+        const bar = await measureHeader(page);
+        expectOneLine(bar, `${lang} ${width}`);
+        expect(bar.toggle, 'no menu button on a tablet').toBe(false);
+        await expect(page.locator('header .site-nav-pages a')).toHaveCount(5);
+        for (const link of await page.locator('header .site-nav-pages a').all()) {
+          await expect(link).toBeVisible();
+          expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+        }
+        const boxes = bar.items.slice().sort((a, b) => a.left - b.left);
+        for (let i = 1; i < boxes.length; i += 1) {
+          const prev = boxes[i - 1];
+          const next = boxes[i];
+          if (!prev || !next) continue;
+          expect(
+            next.left,
+            `${lang} ${width}: "${next.name}" does not overlap "${prev.name}"`,
+          ).toBeGreaterThanOrEqual(prev.right - 0.5);
+        }
+      });
+    }
+    test(`${lang} at 899 px: still the menu button`, async ({ page }) => {
+      await openPage(page, 899, lang);
+      expect((await measureHeader(page)).toggle).toBe(true);
+    });
+  }
+});
 
 test.describe('header behaviour', () => {
   test('the menu keeps its button name, expanded state, focus order and Escape', async ({

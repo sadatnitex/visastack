@@ -11,7 +11,12 @@ afterEach(() => {
 it('in public beta mode keeps the own-risk wording and not the made-up-details rule', () => {
   beta.open = true;
   const html = renderToStaticMarkup(<TermsPage />);
+  expect(html).toContain('<h2>Free Public Beta</h2>');
+  // /terms is the one place that keeps the full disclaimer (owner decision, 19 Nov 2026).
   expect(html).toContain('You may use your own details and documents, at your own risk');
+  expect(html.replace(/\s+/g, ' ')).toContain(
+    'some protections, such as virus scanning of uploads, are not switched on yet',
+  );
   expect(html).not.toContain('Real applicant details are not accepted yet');
 });
 

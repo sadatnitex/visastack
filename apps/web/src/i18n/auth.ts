@@ -63,8 +63,6 @@ export const authCatalog = defineCatalog({
     'auth.authSignUpPage.theThreeSteps': 'The three steps',
     'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing':
       'This acknowledgement does not enable marketing, AI processing or sharing with an agency.',
-    'auth.authSignUpPage.visastackIsAFreePublicBeta':
-      'VisaStack is a free public beta. If you add real details or documents, you do so at your own risk: some protections, such as virus scanning of uploads, are not switched on yet.',
     'auth.authSignUpPage.weWillEmailYouALink':
       'We will email you a link to confirm your address before you can sign in.',
     'auth.authSignUpPage.yourNameOptional': 'Your Name (Optional)',
@@ -132,8 +130,6 @@ export const authCatalog = defineCatalog({
     'auth.authSignUpPage.theThreeSteps': 'তিনটি ধাপ',
     'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing':
       'এই স্বীকৃতি মার্কেটিং, এআই দিয়ে প্রক্রিয়াকরণ বা এজেন্সির সঙ্গে শেয়ার করার অনুমতি দেয় না।',
-    'auth.authSignUpPage.visastackIsAFreePublicBeta':
-      'VisaStack একটি বিনা মূল্যের পাবলিক বিটা। আপনি আসল তথ্য বা ডকুমেন্ট যোগ করলে তা আপনার নিজের ঝুঁকিতে করছেন: আপলোডে ভাইরাস স্ক্যানের মতো কিছু সুরক্ষা এখনো চালু করা হয়নি।',
     'auth.authSignUpPage.weWillEmailYouALink':
       'সাইন ইন করার আগে আপনার ঠিকানা নিশ্চিত করতে আমরা আপনাকে একটি লিংক ইমেইল করব।',
     'auth.authSignUpPage.yourNameOptional': 'আপনার নাম (ঐচ্ছিক)',

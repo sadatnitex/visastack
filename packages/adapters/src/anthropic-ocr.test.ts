@@ -43,7 +43,7 @@ describe('AnthropicOcrAdapter', () => {
     expect(outcome.result.usage.costUnits).toBe(42);
     expect(outcome.result.usage.inputUnits).toBe(30);
     expect(outcome.result.usage.outputUnits).toBe(12);
-    expect(outcome.result.usage.modelVersion).toBe('claude-sonnet-5');
+    expect(outcome.result.usage.modelVersion).toBe('claude-sonnet-5-5');
     expect(outcome.result.usage.provider).toBe('anthropic');
     expect(outcome.result.usage.providerRequestId).toBe('msg_abc123');
 
@@ -53,7 +53,7 @@ describe('AnthropicOcrAdapter', () => {
     const [url, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.anthropic.com/v1/messages');
     const body = JSON.parse(requestInit.body as string);
-    expect(body.model).toBe('claude-sonnet-5');
+    expect(body.model).toBe('claude-sonnet-5-5');
     expect(body.tool_choice).toBeUndefined();
     expect(body.tools).toBeUndefined();
     expect(body.max_tokens).toBe(16_000);
@@ -280,6 +280,58 @@ describe('AnthropicOcrAdapter', () => {
     expect(outcome.result.usage.outputUnits).toBe(50);
     expect(outcome.result.usage.costUnits).toBe(150);
     expect(outcome.result.usage.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('counts tokens read from and written to the prompt cache as input', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ text: 'hello', reviewIssues: [] }) }],
+        usage: {
+          input_tokens: 1200,
+          output_tokens: 50,
+          cache_read_input_tokens: 600,
+          cache_creation_input_tokens: 300,
+        },
+      }),
+    );
+    const outcome = await new AnthropicOcrAdapter({ apiKey: 'sk-ant-test', fetchImpl }).performOcr(
+      VALID_INPUT,
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.usage.inputUnits).toBe(2100);
+    expect(outcome.result.usage.costUnits).toBe(2150);
+  });
+
+  it('caches only the fixed instruction: two different pages send a byte-identical system block', async () => {
+    const answer = () =>
+      jsonResponse(200, {
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ text: 'x', reviewIssues: [] }) }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      });
+    const fetchImpl = vi.fn().mockImplementation(async () => answer());
+    const adapter = new AnthropicOcrAdapter({ apiKey: 'sk-ant-test', fetchImpl });
+    await adapter.performOcr(VALID_INPUT);
+    await adapter.performOcr({
+      documentVersionId: 'doc-version-2',
+      imageBytes: new Uint8Array([9, 8, 7, 6, 5]),
+      contentType: 'image/jpeg',
+    });
+    const bodies = [0, 1].map((call) => {
+      const [, init] = fetchImpl.mock.calls[call] as [string, RequestInit];
+      return JSON.parse(init.body as string);
+    });
+    expect(JSON.stringify(bodies[0].system)).toBe(JSON.stringify(bodies[1].system));
+    expect(bodies[0].system.at(-1).cache_control).toEqual({ type: 'ephemeral' });
+    for (const body of bodies) {
+      expect(body.cache_control).toBeUndefined();
+      expect(JSON.stringify(body.messages)).not.toContain('cache_control');
+      for (const perPage of ['AQIDBA==', 'CQgHBgU=', 'doc-version', 'image/']) {
+        expect(JSON.stringify(body.system)).not.toContain(perPage);
+      }
+    }
   });
 
   it('cacheKeyComponents reports the provider, configured model and prompt version', () => {

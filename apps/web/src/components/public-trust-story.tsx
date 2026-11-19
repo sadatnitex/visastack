@@ -249,7 +249,7 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
             </h2>
             <p className="kit-sub tr-today-text">
               {say(
-                'VisaStack is in a controlled pilot. Only practice records are used. Virus scanning of uploads is not switched on yet. Independent checks will be listed here as they are completed, and nothing before.',
+                'VisaStack is in a controlled pilot. Only practice records are used. Independent checks will be listed here as they are completed, and nothing before.',
               )}
             </p>
           </RiseIn>
