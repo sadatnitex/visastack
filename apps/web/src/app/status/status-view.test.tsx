@@ -142,13 +142,15 @@ describe('the notice about this version stays reachable here (owner list item 17
     const html = render({
       versionNotice: {
         label: 'VisaStack Public Beta',
-        detail: 'Free to use at your own risk.',
-        short: 'Free, at your own risk.',
+        detail: 'Some features are still being switched on. This page shows what works today.',
+        short: '',
       },
     });
     expect(html).toContain('id="about-this-version"');
     expect(textOf(html)).toContain('About This Version');
-    expect(textOf(html)).toContain('VisaStack Public Beta. Free to use at your own risk.');
+    expect(textOf(html)).toContain(
+      'VisaStack Public Beta. Some features are still being switched on. This page shows what works today.',
+    );
   });
 
   it('shows no such section when there is no notice (commercial mode)', () => {

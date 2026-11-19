@@ -177,6 +177,16 @@ describe('the footer (NAV2)', () => {
     }
   });
 
+  it('adds one quiet line that links Terms and Status in the public beta only', async () => {
+    const doc = await page();
+    const line = doc.querySelector('.site-footer-asis');
+    expect(line?.textContent).toContain('Provided as is during the public beta.');
+    expect(line?.querySelector('a[href="/terms"]')?.textContent).toBe('Terms');
+    expect(line?.querySelector('a[href="/status"]')?.textContent).toBe('Status');
+    state.beta = false;
+    expect((await page()).querySelector('.site-footer-asis')).toBeNull();
+  });
+
   it('says what VisaStack is in one line and shows the version line from the page notice, word for word', async () => {
     const doc = await page();
     expect(doc.querySelector('.site-footer-about')?.textContent).toBe(

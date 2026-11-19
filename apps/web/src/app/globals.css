@@ -23737,8 +23737,8 @@ html body:has(.auth-shell) > .footer {
     background: Highlight;
   }
 }
-/* PUBW1 (inside the NAV2 block) public header from 900 px and the quiet footer line (19 Nov 2026). The full link row now starts at 900 px in both languages (the menu rules above apply below 900 px). Between 900 and 1230 px the row is compacted so every link stays on one line with a 44 px target: less padding, a smaller gap, a smaller brand. From 1231 px the NAV2 spacing is unchanged. */
-@media (min-width: 56.25em) and (max-width: 76.9375em) {
+/* PUBW1 (inside the NAV2 block) public header from 900 px, the quiet footer line (19 Nov 2026). The full link row starts at 900 px in both languages (the menu rules above apply below 900 px, written as 899.98px because the build rounds em values). English had a full row from 1151 px and keeps its NAV2 spacing from there; Bengali had one from 1231 px. So the compaction (less padding, a smaller gap and brand, the same 64 px bar and 16 px top margin the menu bar had, so the Home first screen still fits) covers 900 to 1150 px in English and Bengali, and 1151 to 1230 px in Bengali only. */
+@media (min-width: 900px) and (max-width: 1150.98px) {
   .nav {
     column-gap: 8px;
     padding: 0 10px 0 16px;
@@ -23750,13 +23750,6 @@ html body:has(.auth-shell) > .footer {
   }
   .nav-links a:not(.btn) {
     padding: 0 7px;
-  }
-  html[data-locale="bn"] .nav-links a:not(.btn),
-  html[data-locale="bn"] .site-navigation .nav-links a:not(.btn) {
-    padding: 0 4px;
-  }
-  html[data-locale="bn"] .nav-links a[aria-current="page"]::after {
-    inset: auto 4px 6px;
   }
   .nav-links a[aria-current="page"]::after {
     inset: auto 7px 6px;
@@ -23773,16 +23766,67 @@ html body:has(.auth-shell) > .footer {
   .site-nav-actions .nav-cta {
     padding: 0 14px;
   }
+  html[data-locale="bn"] .nav-links a:not(.btn),
+  html[data-locale="bn"] .site-navigation .nav-links a:not(.btn) {
+    padding: 0 4px;
+  }
+  html[data-locale="bn"] .nav-links a[aria-current="page"]::after {
+    inset: auto 4px 6px;
+  }
+}
+@media (min-width: 1150.99px) and (max-width: 1230.98px) {
+  html[data-locale="bn"] .nav {
+    column-gap: 8px;
+    padding: 0 10px 0 16px;
+    height: 64px;
+    margin-top: 16px;
+  }
+  html[data-locale="bn"] .nav .brand {
+    font-size: 1.125rem;
+  }
+  html[data-locale="bn"] .nav-links a:not(.btn) {
+    padding: 0 4px;
+  }
+  html[data-locale="bn"] .nav-links a[aria-current="page"]::after {
+    inset: auto 4px 6px;
+  }
+  html[data-locale="bn"] .site-nav-pages {
+    gap: 0;
+  }
+  html[data-locale="bn"] .site-nav-actions {
+    gap: 2px;
+  }
+  html[data-locale="bn"] .site-nav-actions .lang-switch {
+    padding: 0 8px;
+  }
+  html[data-locale="bn"] .site-nav-actions .nav-cta {
+    padding: 0 14px;
+  }
 }
 .site-footer-asis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
   margin: 0;
   font-size: var(--text-caption);
   line-height: 1.4;
   color: var(--text-secondary);
   opacity: 0.8;
 }
-@media (min-width: 56.25em) and (max-width: 60em) {
-  /* The older 960 px menu rules (still used by the app's own pages) would hide the link row here. */
+.site-footer-asis a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  color: inherit;
+  text-decoration: underline;
+}
+@media (min-width: 900px) and (max-width: 960px) {
+  /* The older 960 px menu rules (still used by the app's own pages) would hide or stack the link row here; undo each of them. */
+  .site-navigation {
+    flex: initial;
+  }
   .site-navigation .nav-links {
     display: flex;
     position: static;
@@ -23798,16 +23842,14 @@ html body:has(.auth-shell) > .footer {
     align-items: center;
     margin: 0;
   }
-  .site-nav-pages {
-    gap: 0;
-  }
-  .site-nav-actions {
-    gap: 2px;
-  }
   .site-navigation .nav-links a:not(.btn),
   .site-navigation .site-nav-actions .lang-switch {
     display: inline-flex;
     padding: 0 7px;
+    font-size: var(--text-small);
+  }
+  html[data-locale="bn"] .site-navigation .nav-links a:not(.btn) {
+    padding: 0 4px;
   }
   .site-navigation .site-nav-actions .nav-cta {
     padding: 0 14px;

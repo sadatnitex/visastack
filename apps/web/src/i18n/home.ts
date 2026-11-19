@@ -44,7 +44,7 @@ export const homeCatalog = defineCatalog({
     'home.layout.language': 'Language',
     'home.layout.noticePilot': 'VisaStack Private Pilot',
     'home.layout.noticePilotShort': 'Test version. Made-up details only.',
-    'home.layout.footerAsIs': 'Provided as is during the public beta. See Terms and Status.',
+    'home.layout.footerAsIs': 'Provided as is during the public beta.',
     'home.layout.noticePublicBeta': 'VisaStack Public Beta',
     'home.layout.privacy': 'Privacy',
     'home.layout.privacyAndControl': 'Privacy and Control',

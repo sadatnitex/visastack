@@ -12,6 +12,8 @@ export interface VersionNoticeCopy {
   readonly detail: string;
   /** Phone version: the same meaning in a few words, so the notice stays one or two lines. */
   readonly short: string;
+  /** False keeps the detail out of the top notice (the Status page card still shows it). */
+  readonly detailInBanner?: boolean;
 }
 
 /**
@@ -53,7 +55,9 @@ export function VersionNotice({
       {folded ? null : (
         <>
           {/* One of these two shows, by screen width; the link gives the full list either way. */}
-          {copy.detail ? <span className="pilot-banner-detail">{copy.detail}</span> : null}
+          {copy.detail && copy.detailInBanner !== false ? (
+            <span className="pilot-banner-detail">{copy.detail}</span>
+          ) : null}
           {copy.short ? <span className="pilot-banner-short">{copy.short}</span> : null}
         </>
       )}

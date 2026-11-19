@@ -195,7 +195,7 @@ for (const lang of LANGS) {
 
 test.describe('tablet header (PUBW1)', () => {
   for (const lang of LANGS) {
-    for (const width of [900, 1024, 1180]) {
+    for (const width of [900, 960, 1024, 1150, 1151, 1180, 1230, 1231]) {
       test(`${lang} at ${width} px: full links on one line, 44 px targets, no overlap`, async ({
         page,
       }) => {

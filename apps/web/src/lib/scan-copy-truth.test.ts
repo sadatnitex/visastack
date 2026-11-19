@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { EN } from '@visastack/i18n';
 import { describe, expect, it } from 'vitest';
 import { authCatalog } from '../i18n/auth';
+import { countriesPublicCatalog } from '../i18n/countries-public';
 import { homeCatalog } from '../i18n/home';
+import { trustCatalog } from '../i18n/trust';
 
 /**
  * Guard for the words about file checks. Until a trusted antivirus scan has recorded a pass for a
@@ -88,9 +90,18 @@ describe('words about file checks', () => {
       const text = read(SURFACES[name]).replace(/\s+/g, ' ');
       expect(text, name).not.toMatch(/own risk|virus scanning/i);
     }
-    for (const key of Object.keys(homeCatalog.en) as (keyof typeof homeCatalog.en)[])
-      expect(homeCatalog.en[key], key).not.toMatch(/own risk|virus scanning|unsafe/i);
-    for (const key of Object.keys(authCatalog.en) as (keyof typeof authCatalog.en)[])
-      expect(authCatalog.en[key], key).not.toMatch(/own risk|virus scanning|unsafe/i);
+    // Every public catalogue, English and Bengali (a Bengali refill must not bring the sentence back).
+    const PUBLIC = {
+      home: homeCatalog,
+      auth: authCatalog,
+      trust: trustCatalog,
+      countries: countriesPublicCatalog,
+    };
+    for (const [name, catalog] of Object.entries(PUBLIC))
+      for (const side of ['en', 'bn'] as const)
+        for (const [key, value] of Object.entries(catalog[side] as Record<string, string>))
+          expect(value, `${name}.${side} ${key}`).not.toMatch(
+            /own risk|virus scanning|unsafe|ঝুঁকি|ভাইরাস/i,
+          );
   });
 });

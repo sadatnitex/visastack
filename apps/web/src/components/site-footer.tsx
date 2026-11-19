@@ -152,7 +152,12 @@ export function SiteFooter({
           </p>
         ) : null}
         {notice && !notice.short ? (
-          <p className="site-footer-asis">{t.node('home.layout.footerAsIs')}</p>
+          <p className="site-footer-asis">
+            {t.node('home.layout.footerAsIs')}{' '}
+            <Link href="/terms">{t.node('home.layout.terms')}</Link>
+            {' · '}
+            <Link href="/status">{t.node('home.layout.status')}</Link>
+          </p>
         ) : null}
       </div>
     </footer>

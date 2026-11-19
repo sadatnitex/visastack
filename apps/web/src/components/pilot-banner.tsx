@@ -50,8 +50,9 @@ export function versionNoticeCopy(
   return mode === 'controlled_pilot' && registrationOpen
     ? {
         label: 'VisaStack Public Beta',
-        detail: '',
+        detail: 'Some features are still being switched on. This page shows what works today.',
         short: '',
+        detailInBanner: false,
       }
     : PILOT_BANNER_COPY[mode];
 }
