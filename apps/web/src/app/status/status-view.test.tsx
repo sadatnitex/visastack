@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { I18nProvider } from '../../components/i18n-provider';
+import { PUBLIC_BETA_DETAIL } from '../../components/pilot-banner';
 import { textOf } from '../../lib/next-mocks.test-support';
 import { type ProbeResult, StatusView } from './status-view';
 
@@ -151,6 +153,25 @@ describe('the notice about this version stays reachable here (owner list item 17
     expect(textOf(html)).toContain(
       'VisaStack Public Beta. Some features are still being switched on. This page shows what works today.',
     );
+  });
+
+  it('says the public beta sentence and version name in Bangla (owner-requested draft)', () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider locale="bn" pageLang="bn">
+        <StatusView
+          live={null}
+          ready={null}
+          updatedAt=""
+          loading={false}
+          onRefresh={() => undefined}
+          versionNotice={{ label: 'VisaStack Public Beta', detail: PUBLIC_BETA_DETAIL, short: '' }}
+        />
+      </I18nProvider>,
+    );
+    const card = textOf(html);
+    expect(card).toContain('VisaStack পাবলিক বিটা');
+    expect(card).toContain('কিছু ফিচার এখনো চালু করা হচ্ছে। আজ কী কাজ করছে, তা এই পাতায় দেখা যায়।');
+    expect(card).not.toContain('Some features are still being switched on');
   });
 
   it('shows no such section when there is no notice (commercial mode)', () => {
