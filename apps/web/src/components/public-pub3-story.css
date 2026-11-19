@@ -93,30 +93,22 @@
   min-width: 0;
 }
 
-/* PUBFIX2: every step of the share picture sits in one grid cell; the hidden ones keep the cell as
-   tall as the tallest step, the live one rests at the top of it. */
+/* PUBFIX2 P2-6: the picture's box is as tall as its tallest step (Access Ended: 390 px on a phone, 422 px
+   from 760 px up, measured), so the hero never changes height while the five steps play (it grew and
+   shrank by 66 px and shifted the page by 0.04). The picture rests at the top of its box. */
 .tr-share-art {
   display: grid;
   justify-items: center;
+  align-content: start;
   min-width: 0;
   width: 100%;
+  min-height: 390px;
 }
 
-.tr-share-art > * {
-  grid-area: 1 / 1;
-  min-width: 0;
-  width: 100%;
-  display: grid;
-  justify-items: center;
-}
-
-.tr-share-ghost {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.tr-share-live {
-  align-self: start;
+@media (min-width: 760px) {
+  .tr-share-art {
+    min-height: 422px;
+  }
 }
 
 /* PUBFIX2: the Where We Are Today heading and its paragraph rise together, so the heading never

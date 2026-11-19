@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { PublicTrustRoute } from '@visastack/services';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -195,19 +197,19 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
     act(() => root.unmount());
   });
 
-  it('holds the height of the tallest step (PUBFIX2 P2-6)', () => {
+  it('draws the live picture inside a box that holds the height of the tallest step (PUBFIX2 P2-6)', () => {
     const { host, root } = mount(true);
     const art = host.querySelector('.tr-share-art');
-    // Five hidden copies share the cell with the live one, so the hero never changes height, and
-    // only the live picture is reachable by a screen reader.
-    const ghosts = [...(art?.querySelectorAll('.tr-share-ghost') ?? [])];
-    expect(ghosts).toHaveLength(5);
-    for (const ghost of ghosts) expect(ghost.getAttribute('aria-hidden')).toBe('true');
-    expect(art?.querySelector('.tr-share-live')?.closest('[aria-hidden="true"]')).toBeNull();
-    expect(art?.querySelectorAll('.tr-share-live')).toHaveLength(1);
-    // The Pause button stays outside the hidden picture, in reach of every visitor.
+    expect(art?.querySelectorAll('.kit-fixed')).toHaveLength(1);
+    // The Pause button stays outside the picture's box, in reach of every visitor.
     expect(art?.contains(host.querySelector('button'))).toBe(false);
     act(() => root.unmount());
+    const css = readFileSync(
+      join(__dirname, '..', '..', 'components', 'public-pub3-story.css'),
+      'utf8',
+    );
+    expect(css).toMatch(/\.tr-share-art \{[^}]*min-height: 390px;/);
+    expect(css).toMatch(/min-width: 760px\) \{\s*\.tr-share-art \{\s*min-height: 422px;/);
   });
 
   it('keeps the same picture elements from step to step so the parts can fade (no hard swap)', () => {
