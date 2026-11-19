@@ -252,6 +252,10 @@ test.describe('Home on a phone: the bottom action', () => {
     await scrollToId(page, 'how-it-works');
     await expect(bar).toHaveAttribute('data-shown', 'true');
     await expect(bar).toBeVisible();
+    // One link, the same words and the same address as the hero's main button.
+    await expect(bar.locator('a')).toHaveCount(1);
+    const heroPrimary = page.locator('#hs-hero a.pub-button-primary');
+    await expect(bar.locator('a')).toHaveText((await heroPrimary.innerText()).trim());
     const link = bar.locator('a.pub-button-primary');
     const box = await link.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);

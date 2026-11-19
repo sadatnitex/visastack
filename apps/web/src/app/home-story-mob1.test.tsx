@@ -159,6 +159,63 @@ describe('SwipeRow', () => {
   });
 });
 
+describe('SwipeRow and the 760 px line', () => {
+  type Listener = () => void;
+
+  it('drops its focus stop when the window widens past 760 px and takes it back when it narrows', () => {
+    const listeners = new Set<Listener>();
+    const phone = { matches: true };
+    const removed: string[] = [];
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      get matches() {
+        return phone.matches;
+      },
+      media: query,
+      addEventListener: (_type: string, fn: Listener) => listeners.add(fn),
+      removeEventListener: (_type: string, fn: Listener) => {
+        listeners.delete(fn);
+        removed.push(query);
+      },
+    })) as unknown as typeof window.matchMedia;
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
+    Object.defineProperty(proto, 'scrollWidth', { configurable: true, value: 600 });
+    Object.defineProperty(proto, 'clientWidth', { configurable: true, value: 360 });
+    try {
+      act(() =>
+        root.render(
+          <SwipeRow labelledBy="title">
+            <ul />
+          </SwipeRow>,
+        ),
+      );
+      const row = host.querySelector('.hs-swipe') as HTMLElement;
+      expect(row.getAttribute('tabindex')).toBe('0');
+      // Widened: the row is a plain wrapper again, so it is no focus stop and has no role.
+      phone.matches = false;
+      act(() => {
+        for (const fn of listeners) fn();
+      });
+      expect(row.hasAttribute('tabindex')).toBe(false);
+      expect(row.hasAttribute('role')).toBe(false);
+      // Narrowed again.
+      phone.matches = true;
+      act(() => {
+        for (const fn of listeners) fn();
+      });
+      expect(row.getAttribute('tabindex')).toBe('0');
+      act(() => root.unmount());
+      expect(removed).toEqual(['(max-width: 759px)']);
+      expect(listeners.size).toBe(0);
+    } finally {
+      window.matchMedia = original;
+      Reflect.deleteProperty(proto, 'scrollWidth');
+      Reflect.deleteProperty(proto, 'clientWidth');
+      root = createRoot(host);
+    }
+  });
+});
+
 describe('PhoneActionBar', () => {
   type Callback = (entries: Partial<IntersectionObserverEntry>[]) => void;
   const watchers: Callback[] = [];
@@ -225,5 +282,32 @@ describe('PhoneActionBar', () => {
       ),
     );
     expect(host.querySelector('.hs-bar')?.getAttribute('data-shown')).toBe('false');
+  });
+  it('measures the sticky header instead of assuming its height', () => {
+    const margins: string[] = [];
+    (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = class {
+      constructor(_callback: unknown, options?: { rootMargin?: string }) {
+        margins.push(options?.rootMargin ?? '');
+      }
+      observe() {}
+      disconnect() {}
+    };
+    const header = document.createElement('header');
+    header.className = 'nav';
+    header.style.top = '6px';
+    Object.defineProperty(header, 'offsetHeight', { configurable: true, value: 58 });
+    document.body.append(header);
+    try {
+      act(() =>
+        root.render(
+          <PhoneActionBar afterId="first" beforeId="last" href="/app">
+            Open your workspace
+          </PhoneActionBar>,
+        ),
+      );
+      expect(margins[0]).toBe('-64px 0px 0px 0px');
+    } finally {
+      header.remove();
+    }
   });
 });

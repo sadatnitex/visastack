@@ -40,7 +40,11 @@ export function ShareSheetBody({
       <div className="kit-sheet-main">
         <b className="kit-sheet-title">Share with Agency</b>
         {ROWS.map((row) => (
-          <div className="kit-share-row" key={row.kind}>
+          <div
+            className="kit-share-row"
+            key={row.kind}
+            {...(row.from >= 99 ? { 'data-phone-extra': '' } : {})}
+          >
             <span className="kit-row-pic">
               <DocumentPicture type={DOC_TYPE[row.kind]} size={34} />
             </span>

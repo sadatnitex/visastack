@@ -9,6 +9,17 @@ import { PublicButton } from './public-button';
  * draws exactly what it drew before.
  */
 
+/** Used when the header cannot be measured (it is 56 to 64 px high on a phone). */
+const FALLBACK_HEADER_OFFSET = 72;
+
+/** Where the sticky header ends, measured: its own height plus the gap it keeps from the top. */
+function headerOffset(): number {
+  const header = document.querySelector('header.nav');
+  if (!(header instanceof HTMLElement)) return FALLBACK_HEADER_OFFSET;
+  const top = Number.parseFloat(getComputedStyle(header).top) || 0;
+  return Math.ceil(top + header.offsetHeight) || FALLBACK_HEADER_OFFSET;
+}
+
 export interface PhoneActionBarProps {
   /** The chapter the bar waits behind: it appears once this chapter has scrolled off the top. */
   readonly afterId: string;
@@ -41,17 +52,18 @@ export function PhoneActionBar({ afterId, beforeId, href, children }: PhoneActio
     let past = false;
     let reached = false;
     const update = () => setShown(past && !reached);
+    const offset = headerOffset();
     const watchAfter = new IntersectionObserver(
       (entries) => {
         const entry = entries[entries.length - 1];
         if (!entry) return;
         // The position decides, not isIntersecting: edge to edge counts as on screen for the observer.
-        past = entry.boundingClientRect.bottom <= 72;
+        past = entry.boundingClientRect.bottom <= offset;
         update();
       },
-      // The hero counts as gone once its bottom edge is under the sticky header (72 px), which is where
-      // a link to the next chapter lands it.
-      { rootMargin: '-72px 0px 0px 0px' },
+      // The hero counts as gone once its bottom edge is under the sticky header, which is where a
+      // link to the next chapter lands it.
+      { rootMargin: `-${offset}px 0px 0px 0px` },
     );
     // Leaves as the closing chapter comes into view (and stays gone through the footer).
     const watchBefore = new IntersectionObserver((entries) => {
@@ -129,12 +141,20 @@ export function SwipeRow({
   useEffect(() => {
     const row = ref.current;
     if (!row) return;
-    const check = () => setScrolls(row.scrollWidth > row.clientWidth + 1);
+    // The row is a plain wrapper from 760 px up (display: contents, so it has no size to watch): the
+    // media query tells it when the window crosses that line in either direction.
+    const phone =
+      typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 759px)') : null;
+    const check = () =>
+      setScrolls((phone?.matches ?? true) && row.scrollWidth > row.clientWidth + 1);
     check();
-    if (typeof ResizeObserver === 'undefined') return;
-    const watch = new ResizeObserver(check);
-    watch.observe(row);
-    return () => watch.disconnect();
+    phone?.addEventListener('change', check);
+    const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(check);
+    watch?.observe(row);
+    return () => {
+      phone?.removeEventListener('change', check);
+      watch?.disconnect();
+    };
   }, []);
 
   return (

@@ -66,3 +66,7 @@ Vocabulary taken from register rows SG-57e8fee4 (free to use, status page, what 
 ## Not verified
 
 Safari and Firefox, real phones and their safe-area insets, screen readers on the bottom bar and the swipe row, Bengali beyond the first-screen check and the axe run (the Bengali lines are drafts the owner has not reviewed), the Bengali wording of the passport picture text alternative, and how the page behaves on a phone with data saver on.
+
+## Review G18 (19 Nov 2026)
+
+Review G18: 3 fixes + 2 nits applied. (1) the spec checks exactly one link in the bottom bar with the same words and address as the hero button; (2) the swipe row follows the 760 px line (media query listener, cleaned up) so a widened window drops its focus stop and role, with a unit test; (3) the swipe row has an inset focus ring; nits: the share row hides through a data attribute instead of position, the header offset is measured (fallback 72 px). Desktop byte identity is proven only locally: the CI copy of that test is skipped without baselines. Not done on purpose (follow-ups): header Sign In style on phones, Bengali pilot-banner-short, hero reassurance line, viewport-fit.
