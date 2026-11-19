@@ -23,7 +23,7 @@ it('offers readable notices and an unchecked acknowledgement with a valid signed
   expect(document.querySelector('a[href="/privacy"]')?.textContent).toBe('privacy notice');
   const token = document.querySelector<HTMLInputElement>('input[name="signupForm"]')?.value;
   expect(token && readSignupForm(token)).toBeTruthy();
-  expect(document.body.textContent).toContain('you do so at your own risk');
+  expect(document.body.textContent).not.toContain('own risk');
   expect(document.querySelector('input[name="website"]')?.closest('[hidden]')).not.toBeNull();
 });
 
@@ -49,10 +49,10 @@ it('asks only for what creating the account needs, and keeps every notice and sa
   expect(document.querySelector('label[for="name"]')?.textContent).toContain(
     'Your Name (Optional)',
   );
-  // Safeguards kept: the signed form, the hidden trap field, the own-risk notice and the consent.
+  // Safeguards kept: the signed form, the hidden trap field, the consent to the terms.
   expect(form?.querySelector('input[name="signupForm"]')).not.toBeNull();
   expect(form?.querySelector('input[name="website"]')).not.toBeNull();
-  expect(document.body.textContent).toContain('you do so at your own risk');
+  expect(document.body.textContent).not.toContain('own risk');
   expect(document.querySelector<HTMLInputElement>('input[name="acceptNotices"]')?.required).toBe(
     true,
   );

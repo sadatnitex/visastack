@@ -44,8 +44,8 @@ export const homeCatalog = defineCatalog({
     'home.layout.language': 'Language',
     'home.layout.noticePilot': 'VisaStack Private Pilot',
     'home.layout.noticePilotShort': 'Test version. Made-up details only.',
+    'home.layout.footerAsIs': 'Provided as is during the public beta. See Terms and Status.',
     'home.layout.noticePublicBeta': 'VisaStack Public Beta',
-    'home.layout.noticePublicBetaShort': 'Free, at your own risk.',
     'home.layout.privacy': 'Privacy',
     'home.layout.privacyAndControl': 'Privacy and Control',
     'home.layout.product': 'Product',
@@ -61,7 +61,7 @@ export const homeCatalog = defineCatalog({
     'home.page.howItWorks': 'How It Works',
     'home.page.inviteOnlyPilot': 'Invite-Only Pilot',
     'home.page.itIsFreeToUseAt':
-      'It is free to use at your own risk while we finish switching on protections such as virus scanning of uploads. The status page shows exactly what works today.',
+      'It is free to use. The status page shows exactly what works today.',
     'home.page.openYourWorkspace': 'Open your workspace',
     'home.page.pleaseUseMadeUpDetailsOr':
       'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.',
@@ -97,7 +97,6 @@ export const homeCatalog = defineCatalog({
     'home.layout.noticePilot': 'VisaStack প্রাইভেট পাইলট',
     'home.layout.noticePilotShort': 'পরীক্ষামূলক সংস্করণ। শুধু বানানো তথ্য।',
     'home.layout.noticePublicBeta': 'VisaStack পাবলিক বিটা',
-    'home.layout.noticePublicBetaShort': 'বিনামূল্যে, আপনার নিজের ঝুঁকিতে।',
     'home.layout.privacy': 'গোপনীয়তা',
     'home.layout.privacyAndControl': 'গোপনীয়তা ও নিয়ন্ত্রণ',
     'home.layout.product': 'প্রোডাক্ট',
@@ -108,8 +107,6 @@ export const homeCatalog = defineCatalog({
     'home.page.forAgencies': 'এজেন্সির জন্য',
     'home.page.howItWorks': 'এটি যেভাবে কাজ করে',
     'home.page.inviteOnlyPilot': 'শুধু আমন্ত্রিতদের জন্য পাইলট',
-    'home.page.itIsFreeToUseAt':
-      'আপলোড করা ডকুমেন্টের ভাইরাস স্ক্যানের মতো সুরক্ষা চালু করা শেষ না হওয়া পর্যন্ত এটি বিনামূল্যে, নিজের ঝুঁকিতে ব্যবহার করা যায়। আজ ঠিক কোনটি কাজ করছে তা স্ট্যাটাস পাতায় দেখা যায়।',
     'home.page.pleaseUseMadeUpDetailsOr':
       'অনুগ্রহ করে বানানো তথ্য ব্যবহার করুন, অথবা এমন ডকুমেন্ট ব্যবহার করুন যাতে সব ব্যক্তিগত তথ্য স্থায়ীভাবে কালো করে ঢেকে দেওয়া হয়েছে। আসল আবেদনকারীর তথ্য এখনো গ্রহণ করা হয় না।',
     'home.page.seeWhatWorksToday': 'আজ কী কাজ করছে তা দেখুন',

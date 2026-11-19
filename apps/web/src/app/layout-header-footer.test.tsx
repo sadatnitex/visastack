@@ -183,7 +183,7 @@ describe('the footer (NAV2)', () => {
       'One private profile for every visa.',
     );
     expect(doc.querySelector('.site-footer-beta')?.textContent).toBe(
-      'VisaStack Public Beta. Free, at your own risk.',
+      'VisaStack Public Beta',
     );
     state.beta = false;
     expect((await page()).querySelector('.site-footer-beta')?.textContent).toBe(
@@ -237,14 +237,14 @@ describe('the stylesheet block (NAV2)', () => {
     const css = readFileSync(join(APP, 'globals.css'), 'utf8');
     const block = css.slice(css.indexOf('/* WP-NAV2 '), css.indexOf('/* end WP-NAV2 */'));
     const rules = (width: string, guard: string) => {
-      const start = block.indexOf(`@media (max-width: ${width}) {`);
+      const start = block.indexOf(`@media (max-width: ${width}) {\n  ${guard} .nav {`);
       expect(start, width).toBeGreaterThan(-1);
       // The media block ends at the first line that closes it at column zero.
       const body = block.slice(start, block.indexOf('\n}\n', start));
       return body.replaceAll(`${guard} `, '').split('\n').slice(1).join('\n');
     };
-    const english = rules('71.875em', 'html:not([data-locale="bn"])');
-    const bengali = rules('76.875em', 'html[data-locale="bn"]');
+    const english = rules('56.1875em', 'html:not([data-locale="bn"])');
+    const bengali = rules('56.1875em', 'html[data-locale="bn"]');
     expect(english.length).toBeGreaterThan(1500);
     expect(bengali).toBe(english);
     // And each rule really carries its own language guard.

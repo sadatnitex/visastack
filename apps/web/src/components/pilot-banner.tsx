@@ -50,9 +50,8 @@ export function versionNoticeCopy(
   return mode === 'controlled_pilot' && registrationOpen
     ? {
         label: 'VisaStack Public Beta',
-        detail:
-          'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
-        short: 'Free, at your own risk.',
+        detail: 'Some features are still being switched on.',
+        short: '',
       }
     : PILOT_BANNER_COPY[mode];
 }
