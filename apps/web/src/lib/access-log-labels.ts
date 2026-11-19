@@ -57,6 +57,9 @@ const ACCESS_LOG_LABELS: ReadonlyMap<string, string> = new Map([
   ['SHARING_INVITATION_CREATED', 'Sharing Invitation Sent'],
   ['SHARING_INVITATION_ACCEPTED', 'Sharing Invitation Accepted'],
   ['SHARING_INVITATION_REVOKED', 'Sharing Invitation Withdrawn'],
+  // DECL1: the invited person said no (a refused try reads the same, with its result)
+  ['SHARING_INVITATION_DECLINED', 'Sharing Invitation Declined'],
+  ['CONTRIBUTOR_REQUEST_DECLINED', 'Document Request Declined'],
   // People, cases and requests
   ['APPLICANT_CREATED', 'Person Added'],
   ['APPLICANT_ARCHIVED', 'Person Archived'],

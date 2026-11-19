@@ -1521,6 +1521,7 @@ export {
   type OrganizationInvitation,
   type OrganizationInvitationPreview,
   acceptOrganizationInvitation,
+  declineOrganizationInvitation,
   addMemberByEmail,
   createOrganizationInvitation,
   listOrganizationInvitations,
@@ -1542,6 +1543,7 @@ export {
   DEFAULT_CLIENT_GRANT_ACTIONS,
   type PublicClientInvitationView,
   acceptClientInvitation,
+  declineClientInvitation,
   createClientInvitation,
   getClientsJoined,
   getPublicClientInvitationView,
@@ -1591,6 +1593,7 @@ export {
   createContributorRequest,
   listContributorRequests,
   previewContributorRequest,
+  declineContributorRequest,
   revokeContributorRequest,
 } from './contributor-requests';
 export {
@@ -1664,6 +1667,7 @@ export {
   sharingInvitationSender,
   previewSharingInvitation,
   acceptSharingInvitation,
+  declineSharingInvitation,
   listSharingInvitations,
   listInvitationCaseExceptions,
   revokeSharingInvitation,
@@ -2332,6 +2336,7 @@ export type { RefundGatewayView } from './refunds';
 // S22: agency AI connectors (ADR 0021 S22 amendment). The scope, the member standing, the
 // organization feature context and the code issuer stay inside the services.
 export { agencyAiAvailable, aiAssistAvailable } from './agency-ai-ready';
+export { invitationDeclineAvailable } from './invitation-decline-ready';
 export {
   AGENCY_AI_CONNECTION_MAX_MS,
   AGENCY_AI_ROLES,

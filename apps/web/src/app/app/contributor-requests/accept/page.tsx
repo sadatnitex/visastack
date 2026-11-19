@@ -1,11 +1,17 @@
-import { getRetentionPolicies, previewContributorRequest } from '@visastack/services';
+import {
+  getRetentionPolicies,
+  invitationDeclineAvailable,
+  previewContributorRequest,
+} from '@visastack/services';
 import type { Metadata } from 'next';
+import { DeclineInvitation } from '../../../../components/decline-invitation';
 import { appContributorRequestsCatalog } from '../../../../i18n/app-contributor-requests';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
 import { AcceptFold, PersonPicture, TravellerRow } from '../../u7-rows';
+import { declineContributorRequestAction } from './actions';
 import { SubmitEvidenceForm } from './submit-evidence-form';
 
 export const metadata: Metadata = { title: 'Add Evidence for a Request' };
@@ -50,7 +56,9 @@ export default async function AcceptContributorRequestPage({
   const data = await withSession(async ({ db, email }) => {
     const preview = await previewContributorRequest(db, { rawToken: token, actorEmail: email });
     const policies = await getRetentionPolicies(db);
-    return { preview, policies };
+    // DECL1: Decline is offered only once the update that stores it is in place.
+    const declineReady = preview.ok && (await invitationDeclineAvailable(db));
+    return { preview, policies, declineReady };
   });
 
   const requestedDocType = data.preview.ok ? data.preview.value.docType : null;
@@ -153,7 +161,21 @@ export default async function AcceptContributorRequestPage({
                 )}
               </p>
             ) : (
-              <SubmitEvidenceForm token={token} docType={data.preview.value.docType} />
+              <>
+                <SubmitEvidenceForm token={token} docType={data.preview.value.docType} />
+                {data.declineReady ? (
+                  <DeclineInvitation
+                    token={token}
+                    action={declineContributorRequestAction}
+                    labels={{
+                      decline: t.node('appContributorRequests.appContributorRequestsDecl1.decline'),
+                      explain: t.node('appContributorRequests.appContributorRequestsDecl1.explain'),
+                      confirm: t.node('appContributorRequests.appContributorRequestsDecl1.confirm'),
+                      busy: t.node('appContributorRequests.appContributorRequestsDecl1.busy'),
+                    }}
+                  />
+                ) : null}
+              </>
             )}
           </>
         )}

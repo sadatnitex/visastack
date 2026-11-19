@@ -70,15 +70,19 @@ export const organizationStatus = pgEnum('organization_status', ORGANIZATION_STA
 export const membershipRole = pgEnum('membership_role', MEMBERSHIP_ROLES);
 export const consentType = pgEnum('consent_type', CONSENT_TYPES);
 export const permissionAction = pgEnum('permission_action', PERMISSION_ACTIONS);
+// DECLINED (DECL1, migration 0138): the invited person said no on the accept screen. It ends the
+// invitation like REVOKED does, but the sender reads "Declined".
 export const organizationInvitationStatus = pgEnum('organization_invitation_status', [
   'PENDING',
   'ACCEPTED',
   'REVOKED',
+  'DECLINED',
 ]);
 export const clientInvitationStatus = pgEnum('client_invitation_status', [
   'PENDING',
   'ACCEPTED',
   'REVOKED',
+  'DECLINED',
 ]);
 // CAS-08: unlike the two invitation statuses above, there is no separate
 // "accepted, standing created" state before the one action that matters --
@@ -89,6 +93,7 @@ export const contributorRequestStatus = pgEnum('contributor_request_status', [
   'PENDING',
   'SUBMITTED',
   'REVOKED',
+  'DECLINED',
 ]);
 export const applicantRelationship = pgEnum('applicant_relationship', [
   'SELF',
@@ -803,7 +808,7 @@ export const sharingInvitations = pgTable(
     index('sharing_invitations_applicant_idx').on(table.applicantId, table.status),
     check(
       'sharing_invitations_status_check',
-      sql`${table.status} in ('PENDING', 'ACCEPTED', 'REVOKED')`,
+      sql`${table.status} in ('PENDING', 'ACCEPTED', 'REVOKED', 'DECLINED')`,
     ),
     // Tenant integrity anchor for grant_case_exclusions (see missions above).
     unique('sharing_invitations_id_applicant_unique').on(table.id, table.applicantId),

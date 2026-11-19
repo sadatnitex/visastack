@@ -1,6 +1,6 @@
 import type { MembershipRole } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, gt, lt, or } from 'drizzle-orm';
 import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
 import { AGENCY_AI_ROLES } from './access/agency-ai-scope';
 import { getAccountByEmail } from './accounts';
@@ -12,6 +12,13 @@ import {
   checkSeatEntitlement,
 } from './entitlement-enforcement';
 import { type ServiceError, keyedError, refusal, serviceError } from './errors';
+import {
+  INVITATION_DECLINE_EVENTS,
+  declineMayProceed,
+  declineRefusedEvent,
+  invitationDeclineAvailable,
+  unusableInvitationTokenHash,
+} from './invitation-decline-ready';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { enqueueNotificationBothChannels } from './notifications';
@@ -498,6 +505,99 @@ export async function acceptOrganizationInvitation(
   });
 }
 
+/**
+ * DECL1: records a refused decline; a failure never changes the refusal. When the link names a
+ * real invitation sent to another address, its id goes in the record (never the token or an
+ * address), so tries of one forwarded link can be traced.
+ */
+async function recordDeclineRefused(
+  db: Db,
+  actorAccountId: string,
+  tokenHash?: string,
+  actorEmail?: string,
+): Promise<void> {
+  try {
+    const named =
+      tokenHash && actorEmail
+        ? first(
+            await db
+              .select({
+                id: schema.organizationInvitations.id,
+                email: schema.organizationInvitations.email,
+              })
+              .from(schema.organizationInvitations)
+              .where(eq(schema.organizationInvitations.tokenHash, tokenHash))
+              .limit(1),
+          )
+        : undefined;
+    const forwarded = named && named.email !== actorEmail ? named.id : undefined;
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, declineRefusedEvent('organization', actorAccountId, forwarded));
+    });
+  } catch {
+    // The refusal stands either way; only the record of it is missing.
+  }
+}
+
+/**
+ * DECL1: the invited person says no to joining an agency. Only the account whose own signed-in
+ * email the invitation was sent to may do it, while it is pending and unexpired; every other case
+ * (unknown link, someone else's, used, withdrawn, expired, already declined, too many tries, the
+ * update not yet in place) is the same one answer. One conditional update ends it, so a decline
+ * racing an accept or a withdrawal ends one way only. No membership is made, the seat it held is
+ * free again, and the link stops matching anything at once.
+ */
+export async function declineOrganizationInvitation(
+  db: Db,
+  input: AcceptOrganizationInvitationInput,
+): Promise<Result<{ readonly declined: true }, ServiceError>> {
+  const unavailable = () => err(keyedError('not_found', 'invitations.invitation_not_found'));
+  if (!(await declineMayProceed(db, input.actorAccountId))) return unavailable();
+  const tokenHash = hashInvitationToken(input.rawToken);
+  const invitations = schema.organizationInvitations;
+  const declined = await db.transaction(async (tx) => {
+    const changed = first(
+      await tx
+        .update(invitations)
+        .set({
+          status: 'DECLINED',
+          tokenHash: unusableInvitationTokenHash(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(invitations.tokenHash, tokenHash),
+            eq(invitations.email, input.actorEmail.trim().toLowerCase()),
+            eq(invitations.status, 'PENDING'),
+            gt(invitations.expiresAt, new Date()),
+          ),
+        )
+        .returning({ id: invitations.id, organizationId: invitations.organizationId }),
+    );
+    if (!changed) return false;
+    await appendAuditEvent(tx, {
+      eventType: INVITATION_DECLINE_EVENTS.organization.eventType,
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: INVITATION_DECLINE_EVENTS.organization.resourceType,
+      resourceId: changed.id,
+      metadata: { organizationId: changed.organizationId },
+    });
+    return true;
+  });
+  if (!declined) {
+    await recordDeclineRefused(
+      db,
+      input.actorAccountId,
+      tokenHash,
+      input.actorEmail.trim().toLowerCase(),
+    );
+    return unavailable();
+  }
+  return ok({ declined: true as const });
+}
+
 /** Revoke a still-pending invitation (org OWNER/ADMIN only). */
 export async function revokeOrganizationInvitation(
   db: Db,
@@ -577,6 +677,7 @@ export async function sweepAbandonedOrganizationInvitations(
   limit = DEFAULT_ABANDONED_INVITATION_SWEEP_LIMIT,
 ): Promise<AbandonedOrganizationInvitationSweepResult> {
   const cutoff = new Date(Date.now() - ABANDONED_INVITATION_AGE_MS);
+  const declineReady = await invitationDeclineAvailable(db);
   const stale = await db
     .select({ id: schema.organizationInvitations.id })
     .from(schema.organizationInvitations)
@@ -590,6 +691,14 @@ export async function sweepAbandonedOrganizationInvitations(
           eq(schema.organizationInvitations.status, 'REVOKED'),
           lt(schema.organizationInvitations.revokedAt, cutoff),
         ),
+        // DECL1: a declined invitation has no revokedAt; the day it was declined is its updatedAt.
+        // Before migration 0138 the value does not exist (comparing with it would fail the query).
+        declineReady
+          ? and(
+              eq(schema.organizationInvitations.status, 'DECLINED'),
+              lt(schema.organizationInvitations.updatedAt, cutoff),
+            )
+          : undefined,
       ),
     )
     .limit(limit);

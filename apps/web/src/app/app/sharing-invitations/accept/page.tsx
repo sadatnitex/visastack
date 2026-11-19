@@ -1,11 +1,13 @@
 import {
   getConsents,
+  invitationDeclineAvailable,
   previewSharingInvitation,
   sharingInvitationSender,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DeclineInvitation } from '../../../../components/decline-invitation';
 import { appSharingInvitationsCatalog } from '../../../../i18n/app-sharing-invitations';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { getServerLocale, getServerT, primeLocale } from '../../../../lib/i18n-server';
@@ -17,6 +19,7 @@ import { withSession } from '../../../../lib/session';
 import { ConsentGate } from '../../client-invitations/accept/consent-gate';
 import { AcceptFold, AreaPicture, PersonPicture, TravellerRow } from '../../u7-rows';
 import { AcceptSharingInvitationForm } from './accept-form';
+import { declineSharingInvitationAction } from './actions';
 
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
 
@@ -65,9 +68,11 @@ export default async function SharingInvitationPage({
     const invite = result.value;
     // Who is sharing (friction F3): their email, so the invited person can recognise the sender.
     // Nothing extra is shown if it cannot be found, never a guess.
-    const [consent, sender] = await Promise.all([
+    // DECL1: Decline is offered only once the update that stores it is in place.
+    const [consent, sender, declineReady] = await Promise.all([
       getConsents(db, accountId),
       sharingInvitationSender(db, { actorAccountId: accountId, invitation: invite }),
+      invitationDeclineAvailable(db),
     ]);
     return (
       <section className="section container">
@@ -174,6 +179,18 @@ export default async function SharingInvitationPage({
               <Link href="/privacy">Read the Privacy Notice</Link>.
             </p>
           )}
+          {declineReady ? (
+            <DeclineInvitation
+              token={token}
+              action={declineSharingInvitationAction}
+              labels={{
+                decline: t.node('appSharingInvitations.appSharingInvitationsDecl1.decline'),
+                explain: t.node('appSharingInvitations.appSharingInvitationsDecl1.explain'),
+                confirm: t.node('appSharingInvitations.appSharingInvitationsDecl1.confirm'),
+                busy: t.node('appSharingInvitations.appSharingInvitationsDecl1.busy'),
+              }}
+            />
+          ) : null}
           <Link href="/app">
             {t.node('appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting')}
           </Link>

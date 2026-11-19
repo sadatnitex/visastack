@@ -1,6 +1,7 @@
-import { previewOrganizationInvitation } from '@visastack/services';
+import { invitationDeclineAvailable, previewOrganizationInvitation } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { DeclineInvitation } from '../../../../components/decline-invitation';
 import { appInvitationsCatalog } from '../../../../i18n/app-invitations';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { membershipRoleLabel } from '../../../../lib/labels';
@@ -8,6 +9,7 @@ import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
 import { AreaPicture, TravellerRow } from '../../u7-rows';
 import { AcceptInvitationForm } from './accept-form';
+import { declineInvitationAction } from './actions';
 
 export const metadata: Metadata = {
   title: 'Team Invitation',
@@ -45,9 +47,11 @@ export default async function AcceptInvitationPage({
     );
   }
 
-  const preview = await withSession(async ({ db, email }) =>
-    previewOrganizationInvitation(db, { rawToken: token, actorEmail: email }),
-  );
+  const { preview, declineReady } = await withSession(async ({ db, email }) => {
+    const found = await previewOrganizationInvitation(db, { rawToken: token, actorEmail: email });
+    // DECL1: Decline is offered only once the update that stores it is in place.
+    return { preview: found, declineReady: found.ok && (await invitationDeclineAvailable(db)) };
+  });
 
   return (
     <section className="section container">
@@ -79,7 +83,21 @@ export default async function AcceptInvitationPage({
               <strong>{membershipRoleLabel(preview.value.role).toLowerCase()}</strong>.
             </p>
             {preview.value.emailMatches ? (
-              <AcceptInvitationForm token={token} />
+              <>
+                <AcceptInvitationForm token={token} />
+                {declineReady ? (
+                  <DeclineInvitation
+                    token={token}
+                    action={declineInvitationAction}
+                    labels={{
+                      decline: t.node('appInvitations.appInvitationsDecl1.decline'),
+                      explain: t.node('appInvitations.appInvitationsDecl1.explain'),
+                      confirm: t.node('appInvitations.appInvitationsDecl1.confirm'),
+                      busy: t.node('appInvitations.appInvitationsDecl1.busy'),
+                    }}
+                  />
+                ) : null}
+              </>
             ) : (
               <p className="field-msg field-msg-err">
                 This invitation was sent to {preview.value.invitedEmail}, but you&apos;re signed in

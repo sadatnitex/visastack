@@ -206,6 +206,9 @@ export const RATE_LIMITS = {
   COMPANION_INVITE_EMAIL_DAY: { limit: 5, windowMs: 24 * HOUR_MS },
   COMPANION_RESEND_TRIP: { limit: 10, windowMs: HOUR_MS },
   COMPANION_ACCEPT_ACCOUNT: { limit: 30, windowMs: HOUR_MS },
+  // Saying no to a sharing, client, contributor or agency invitation (DECL1), per signed-in account:
+  // each try is counted before the link is looked up, so links cannot be tried in bulk this way.
+  INVITATION_DECLINE_ACCOUNT: { limit: 30, windowMs: HOUR_MS },
   // Delete My File (owner decision of 3 Nov 2026), per account: each one destroys a document for
   // good, so a stolen session cannot empty a record in a burst; a person tidying up has room.
   DOCUMENT_SELF_DELETE: { limit: 10, windowMs: HOUR_MS },
