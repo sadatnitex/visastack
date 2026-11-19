@@ -53,8 +53,8 @@ export function VersionNotice({
       {folded ? null : (
         <>
           {/* One of these two shows, by screen width; the link gives the full list either way. */}
-          <span className="pilot-banner-detail">{copy.detail}</span>
-          <span className="pilot-banner-short">{copy.short}</span>
+          {copy.detail ? <span className="pilot-banner-detail">{copy.detail}</span> : null}
+          {copy.short ? <span className="pilot-banner-short">{copy.short}</span> : null}
         </>
       )}
       <a className="pilot-banner-link" href="/status" ref={link}>

@@ -51,7 +51,7 @@ describe('public beta notice audience', () => {
     state.signedIn = true;
     const html = await renderServer(RootLayout({ children: <p>Signed-in page</p> }));
     expect(html).not.toContain('pilot-banner');
-    expect(textOf(html)).not.toContain('Some features are still being switched on.');
+    expect(textOf(html)).not.toContain('own risk');
   });
 });
 describe('the notice is shown in full once per visitor (owner list item 17)', () => {
@@ -66,7 +66,7 @@ describe('the notice is shown in full once per visitor (owner list item 17)', ()
     // Every page still says which version this is, as a slim label with the link.
     expect(html).toContain('class="pilot-banner pilot-banner-slim"');
     expect(textOf(html)).toContain('VisaStack Public Beta');
-    expect(textOf(html)).not.toContain('Some features are still being switched on.');
+    expect(textOf(html)).not.toContain('own risk');
     expect(html).toContain('href="/status#about-this-version"');
     expect(textOf(html)).toContain('About This Version');
     state.noticeSeen = false;
@@ -208,7 +208,6 @@ describe('the public site frame (WP-PUB1)', () => {
       state.beta = true;
       const beta = textOf(await renderServer(RootLayout({ children: <p>Page</p> })));
       expect(beta, pathname).toContain('VisaStack Public Beta');
-      expect(beta, pathname).toContain('Some features are still being switched on.');
     }
     expect(pilot.detail).toBe(
       'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',

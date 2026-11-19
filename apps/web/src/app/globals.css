@@ -23355,7 +23355,7 @@ a.passport-page-value:hover {
   color: var(--text);
   text-decoration: none;
 }
-@media (max-width: 56.1875em) {
+@media (max-width: 56.2499em) {
   html:not([data-locale="bn"]) .nav {
     display: flex;
     flex-wrap: wrap;
@@ -23452,7 +23452,7 @@ a.passport-page-value:hover {
     border-top: 1px solid var(--hairline-soft);
   }
 }
-@media (max-width: 56.1875em) {
+@media (max-width: 56.2499em) {
   html[data-locale="bn"] .nav {
     display: flex;
     flex-wrap: wrap;

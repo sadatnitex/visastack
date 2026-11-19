@@ -4,12 +4,12 @@ import { renderServer, textOf } from '../lib/next-mocks.test-support';
 import { PILOT_BANNER_COPY, PilotBanner } from './pilot-banner';
 
 describe('the banner every page carries', () => {
-  it('names the public beta and says only that some features are still being switched on', async () => {
+  it('names the public beta and shows nothing else but the What Works Today link', async () => {
     const text = textOf(
       await renderServer(<PilotBanner mode="controlled_pilot" registrationOpen />),
     );
     expect(text).toContain('VisaStack Public Beta');
-    expect(text).toContain('Some features are still being switched on.');
+    expect(text).toContain('What Works Today');
     expect(text).not.toContain('own risk');
     expect(text).not.toContain('virus');
     expect(text).not.toContain('made-up details');
@@ -52,7 +52,7 @@ describe('the banner every page carries', () => {
 
   it('keeps the same meaning in its short phone wording', async () => {
     const beta = await renderServer(<PilotBanner mode="controlled_pilot" registrationOpen />);
-    expect(beta).toContain('<span class="pilot-banner-short"></span>');
+    expect(beta).not.toContain('pilot-banner-short');
     const pilot = await renderServer(<PilotBanner mode="controlled_pilot" />);
     expect(pilot).toContain(
       '<span class="pilot-banner-short">Test version. Made-up details only.</span>',
@@ -60,7 +60,7 @@ describe('the banner every page carries', () => {
     const dev = await renderServer(<PilotBanner mode="development" />);
     expect(dev).toContain('<span class="pilot-banner-short">Not for real personal data.</span>');
     // The full sentence stays in the page for wider screens, and the link to the full list stays everywhere.
-    expect(beta).toContain('Some features are still being switched on.');
+    expect(beta).not.toContain('pilot-banner-detail');
     expect(beta).toContain('href="/status"');
   });
 
