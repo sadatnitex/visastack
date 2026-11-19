@@ -21,6 +21,7 @@ import {
   anthropicEffortFor,
   anthropicFailure,
   anthropicInvalidShape,
+  anthropicUsageUnits,
   callStructured,
   matchEnumValue,
   structuredRequestBody,
@@ -65,7 +66,12 @@ import {
  *   Sonnet 5.5) have no way to turn thinking off; effort is the dial.
  */
 
-const DEFAULT_MODEL = 'claude-sonnet-5';
+/**
+ * Used only when no model is configured (the eval runner without a model, tests). Production
+ * passes the admin-stored model. Claude Sonnet 5.5 (`claude-sonnet-5-5`) is the current Sonnet
+ * on https://platform.claude.com/docs/en/about-claude/models/overview, checked 2026-11-19.
+ */
+const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const DEFAULT_PROMPT_VERSION = '2026-10-30-v1';
 const SCHEMA_VERSION = 'field_proposals_v1';
 /** Part 8 AI-01 item 2 -- tracked independently of extraction's own prompt/schema version, matching `OpenAiExtractionAdapter`'s identical separation. */
@@ -258,10 +264,7 @@ export class AnthropicExtractionAdapter
   /** Usage shared by every task's result; the caller adds its own prompt and schema versions. */
   private usage(answer: StructuredAnswer) {
     return {
-      costUnits: answer.inputTokens + answer.outputTokens,
-      inputUnits: answer.inputTokens,
-      outputUnits: answer.outputTokens,
-      cachedUnits: answer.cachedTokens,
+      ...anthropicUsageUnits(answer),
       modelVersion: this.model,
       provider: PROVIDER,
       ...(answer.messageId ? { providerRequestId: answer.messageId } : {}),
