@@ -291,7 +291,7 @@ describe('AnthropicOcrAdapter', () => {
           input_tokens: 1200,
           output_tokens: 50,
           cache_read_input_tokens: 600,
-          cache_creation_input_tokens: 0,
+          cache_creation_input_tokens: 300,
         },
       }),
     );
@@ -300,8 +300,8 @@ describe('AnthropicOcrAdapter', () => {
     );
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
-    expect(outcome.result.usage.inputUnits).toBe(1800);
-    expect(outcome.result.usage.costUnits).toBe(1850);
+    expect(outcome.result.usage.inputUnits).toBe(2100);
+    expect(outcome.result.usage.costUnits).toBe(2150);
   });
 
   it('caches only the fixed instruction: two different pages send a byte-identical system block', async () => {

@@ -36,12 +36,37 @@ function caseFor(userContent: string): EvalCase {
   return best;
 }
 
-/** A fake Messages API: answers each request with its case's perfect proposals. */
+/** The instruction text a request carries, whether sent as a plain string or as text blocks. */
+function instructionText(system: unknown): string {
+  if (typeof system === 'string') return system;
+  if (!Array.isArray(system)) return '';
+  return system
+    .map((block: { type?: unknown; text?: unknown }) =>
+      block.type === 'text' && typeof block.text === 'string' ? block.text : '',
+    )
+    .join('');
+}
+
+/**
+ * A fake Messages API: refuses (400) a request with no extraction instruction or no answer
+ * schema, as the real one would misbehave, and otherwise answers with the case's perfect
+ * proposals. It reads the instruction from either request shape, so the same answers come back
+ * before and after caching: what differs is billing only.
+ */
 function fakeMessagesApi() {
   return vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(init?.body as string) as {
+      system?: unknown;
       messages: Array<{ content: string }>;
+      output_config?: { format?: { type?: unknown; schema?: unknown } };
     };
+    const wellFormed =
+      instructionText(body.system).includes('extract structured field proposals') &&
+      body.output_config?.format?.type === 'json_schema' &&
+      typeof body.output_config.format.schema === 'object';
+    if (!wellFormed) {
+      return new Response(JSON.stringify({ type: 'error' }), { status: 400 });
+    }
     const evalCase = caseFor(body.messages[0]?.content ?? '');
     return new Response(
       JSON.stringify({
