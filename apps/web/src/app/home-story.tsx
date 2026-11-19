@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icon } from '../components/icons';
 import { DocumentPicture } from '../components/pictures/document-picture';
+import { PassportCover } from '../components/pictures/passport-cover';
 import {
   CasesTable,
   ClosingBand,
@@ -17,11 +18,14 @@ import {
   SegmentRing,
   ShareSheet,
 } from '../components/public-site/kit';
+import { PhoneActionBar, PhoneMore, SwipeRow } from '../components/public-site/phone-actions';
 import { PublicButton } from '../components/public-site/public-button';
 import { publicText } from '../components/public-site/public-text';
 import { Chapter, Scene } from '../components/public-site/scene';
 import { ScenesRuntime } from '../components/public-site/scenes-runtime';
 import { ExampleTag, HeadlineWords } from '../components/public-site/story';
+import { homeCatalog } from '../i18n/home';
+import { getServerT } from '../lib/i18n-server';
 import './home-story.css';
 
 /**
@@ -120,6 +124,8 @@ function FlightArcs() {
 
 export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStoryProps) {
   const say = (text: string) => publicText(text, pageLang);
+  // The phone's own words (MOB1). `getServerT` needs the locale primed, which the page does first.
+  const t = getServerT(homeCatalog);
   const buttons = (
     <>
       <PublicButton href={actions.start.href} variant="primary">
@@ -133,7 +139,7 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
   return (
     <div className="hs">
       <ScenesRuntime />
-      <Chapter tone="dark" className="hs-chapter">
+      <Chapter tone="dark" className="hs-chapter" id="hs-hero">
         <Scene
           name="hero"
           len={2}
@@ -160,6 +166,18 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
               </p>
               <div className="kit-actions">{buttons}</div>
             </div>
+            {/* MOB1: a phone shows the passport alone with one Example tag; the five-paper fan and the
+                ring below are for larger screens (home-story.css hides each where it does not belong). */}
+            <figure className="hs-phone-passport" {...englishOn(pageLang)}>
+              <div
+                className="hs-phone-passport-art"
+                role="img"
+                aria-label="Example: the type of Bangladesh passport cover, not anyone’s own."
+              >
+                <PassportCover nationality="BD" width={112} decorative />
+              </div>
+              <ExampleTag pageLang={pageLang} />
+            </figure>
             <DocumentDeck
               docs={HERO_DOCS}
               label="Example: five papers fanned around a passport, 5 of 8 ready. Completeness only. Not an approval."
@@ -246,15 +264,23 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
                 <HeadlineWords>{say('every trip.')}</HeadlineWords>
               </h2>
               <p className="kit-sub">
-                {say('Each country has its own checklist. What you already added is reused.')}
+                <span className="hs-wide-only">
+                  {say('Each country has its own checklist. What you already added is reused.')}
+                </span>
+                <span className="hs-phone-only">{say('Each country has its own checklist.')}</span>
               </p>
             </div>
             <div className="hs-visual">
-              <CountryChecklistPanel
-                countries={FIXTURE_COUNTRIES}
-                items={FIXTURE_ITEMS}
-                pageLang={pageLang}
-              />
+              <PhoneMore
+                seeAll={t.node('home.phone.seeAll', { count: FIXTURE_ITEMS.length })}
+                fewer={t.node('home.phone.showFewer')}
+              >
+                <CountryChecklistPanel
+                  countries={FIXTURE_COUNTRIES}
+                  items={FIXTURE_ITEMS}
+                  pageLang={pageLang}
+                />
+              </PhoneMore>
             </div>
           </div>
         </Scene>
@@ -333,21 +359,23 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
               <HeadlineWords>{say('its source.')}</HeadlineWords>
             </h2>
           </RiseIn>
-          <ul className="hs-cards">
-            {RULE_CARDS.map((card, index) => (
-              <RiseIn as="li" delay={index * 0.1} className="hs-card" key={card.title}>
-                <span className="hs-card-art">
-                  <DocumentPicture type={card.type} size={44} />
-                </span>
-                <b className="hs-card-title">{say(card.title)}</b>
-                <span className="hs-card-body">{say(card.body)}</span>
-                <span className="hs-card-chip" {...englishOn(pageLang)}>
-                  <Icon name={card.icon} size={16} />
-                  {card.chip}
-                </span>
-              </RiseIn>
-            ))}
-          </ul>
+          <SwipeRow labelledBy="hs-rules-title">
+            <ul className="hs-cards">
+              {RULE_CARDS.map((card, index) => (
+                <RiseIn as="li" delay={index * 0.1} className="hs-card" key={card.title}>
+                  <span className="hs-card-art">
+                    <DocumentPicture type={card.type} size={44} />
+                  </span>
+                  <b className="hs-card-title">{say(card.title)}</b>
+                  <span className="hs-card-body">{say(card.body)}</span>
+                  <span className="hs-card-chip" {...englishOn(pageLang)}>
+                    <Icon name={card.icon} size={16} />
+                    {card.chip}
+                  </span>
+                </RiseIn>
+              ))}
+            </ul>
+          </SwipeRow>
           <p className="hs-example">
             <ExampleTag pageLang={pageLang} />
             <span>{say('Illustration of how a rule is shown.')}</span>
@@ -372,9 +400,13 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
             </RiseIn>
             <RiseIn delay={0.1}>
               <p className="kit-sub">
-                {say(
-                  'Clients keep their own record. You see only what they share, and who is missing what.',
-                )}
+                {/* One text node on a computer (a split sentence shifts a glyph by a pixel); a phone gets its own short line. */}
+                <span className="hs-wide-only">
+                  {say(
+                    'Clients keep their own record. You see only what they share, and who is missing what.',
+                  )}
+                </span>
+                <span className="hs-phone-only">{say('Clients keep their own record.')}</span>
               </p>
             </RiseIn>
             <RiseIn delay={0.2} className="kit-actions">
@@ -383,7 +415,7 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
               </PublicButton>
             </RiseIn>
           </div>
-          <div className="hs-visual">
+          <div className="hs-visual hs-cases">
             <CasesTable rows={FIXTURE_CASES} pageLang={pageLang} />
           </div>
         </div>
@@ -403,6 +435,9 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
         note={notice}
         pageLang={pageLang}
       />
+      <PhoneActionBar afterId="hs-hero" beforeId="start" href={actions.start.href}>
+        {actions.start.label}
+      </PhoneActionBar>
     </div>
   );
 }
