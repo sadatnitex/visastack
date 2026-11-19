@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import postcss, { type AtRule, type Rule } from 'postcss';
+import postcss, { type AtRule, type Declaration, type Rule } from 'postcss';
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -31,18 +31,34 @@ describe('the MOB1 stylesheet block', () => {
     expect(mob1Nodes().start).toBeGreaterThan(0);
   });
 
-  it('draws nothing new on a computer: outside the phone query it only hides or flattens', () => {
+  it('draws nothing new on a computer: outside the phone query only phone-only parts hide and wrappers flatten', () => {
+    // Exactly these selectors, each with exactly this display: anything else outside the query could
+    // change what a computer shows (for example hiding the cases list everywhere).
+    const allowed = new Map<string, string>([
+      ['.hs-phone-passport', 'none'],
+      ['.hs-phone-only', 'none'],
+      ['.hs-bar', 'none'],
+      ['.hs .hs-more-button', 'none'],
+      ['.hs-more', 'contents'],
+      ['.hs-more-body', 'contents'],
+      ['.hs-swipe', 'contents'],
+    ]);
     const { nodes } = mob1Nodes();
     const bad: string[] = [];
     for (const node of nodes) {
       if (node.type === 'rule') {
-        for (const decl of (node as Rule).nodes ?? []) {
-          if (
-            decl.type === 'decl' &&
-            !(decl.prop === 'display' && ['none', 'contents'].includes(decl.value))
-          ) {
-            bad.push(`${(node as Rule).selector} { ${decl.prop}: ${decl.value} }`);
-          }
+        const rule = node as Rule;
+        const selectors = rule.selector.split(',').map((x) => x.trim());
+        const decls = (rule.nodes ?? []).filter((d) => d.type === 'decl') as Declaration[];
+        for (const selector of selectors) {
+          const display = allowed.get(selector);
+          const ok =
+            display !== undefined &&
+            decls.length === 1 &&
+            decls[0]?.prop === 'display' &&
+            decls[0]?.value === display;
+          if (!ok)
+            bad.push(`${selector} { ${decls.map((d) => `${d.prop}: ${d.value}`).join('; ')} }`);
         }
       } else if (node.type === 'atrule') {
         if (!PHONE_ONLY.test((node as AtRule).params)) {
