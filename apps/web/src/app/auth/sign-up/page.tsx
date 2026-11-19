@@ -64,7 +64,6 @@ export default async function SignUpPage({
         <li>{t.node('auth.authSignUpPage.2ConfirmYourEmail')}</li>
         <li>{t.node('auth.authSignUpPage.3SignIn')}</li>
       </ol>
-      <p className="notice u-mb-100">{t.node('auth.authSignUpPage.visastackIsAFreePublicBeta')}</p>
       <ErrorLine id="signup-error" message={error} />
       {e === 'exists' && (
         <p className="card-body">

@@ -29,8 +29,8 @@ export default function PrivacyPage() {
         protect your account and send confirmation or recovery messages. Security controls record
         registration attempts and notice versions.{' '}
         {isPublicBetaOpen()
-          ? 'During the free public beta you may add your own information and documents at your own risk; some protections, such as virus scanning of uploads, are not switched on yet.'
-          : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet. Some protections, such as virus scanning of uploads, are not switched on yet.'}
+          ? 'During the free public beta you may add your own information and documents. The Terms of Use say what to expect while the beta runs.'
+          : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.'}
       </p>
       <h2>Services That Process Information</h2>
       <p>

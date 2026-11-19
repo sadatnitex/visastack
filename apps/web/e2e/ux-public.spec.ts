@@ -2122,7 +2122,8 @@ test.describe('sign-up on a phone asks only for what the account needs (owner li
     await expect(form.locator('input:visible')).toHaveCount(4);
     await expect(form.getByLabel('Your Name (Optional)')).toBeVisible();
     await expect(form.locator('input[name="acceptNotices"]')).not.toBeChecked();
-    await expect(page.getByText('you do so at your own risk')).toBeVisible();
+    await expect(page.getByText('own risk')).toHaveCount(0);
+    await expect(form.getByRole('link', { name: 'terms of use' })).toBeVisible();
   });
 });
 

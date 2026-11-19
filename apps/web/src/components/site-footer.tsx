@@ -21,14 +21,13 @@ type AuthText = PartsTranslator<CatalogKey<typeof authCatalog>>;
 export interface FooterNotice {
   /** The version name, from the same words the page's notice shows ("VisaStack Public Beta"). */
   readonly label: string;
-  /** What it means in a few words ("Free, at your own risk."). */
+  /** What it means in a few words (empty for the public beta, which has only its name). */
   readonly short: string;
 }
 
 /** The version line's words, as catalogue keys (the English words come from the page's own notice). */
 const NOTICE_KEYS: Readonly<Record<string, FooterKey>> = {
   'VisaStack Public Beta': 'home.layout.noticePublicBeta',
-  'Free, at your own risk.': 'home.layout.noticePublicBetaShort',
   'VisaStack Private Pilot': 'home.layout.noticePilot',
   'Test version. Made-up details only.': 'home.layout.noticePilotShort',
 };
@@ -152,7 +151,16 @@ export function SiteFooter({
         <span>{copyright}</span>
         {notice ? (
           <p className="site-footer-beta">
-            {noticeWord(notice.label)}. {noticeWord(notice.short)}
+            {noticeWord(notice.label)}
+            {notice.short ? <>. {noticeWord(notice.short)}</> : null}
+          </p>
+        ) : null}
+        {notice && !notice.short ? (
+          <p className="site-footer-asis">
+            {t.node('home.layout.footerAsIs')}{' '}
+            <Link href="/terms">{t.node('home.layout.terms')}</Link>
+            {' · '}
+            <Link href="/status">{t.node('home.layout.status')}</Link>
           </p>
         ) : null}
       </div>

@@ -18,8 +18,8 @@ it('discloses the configured R2 document and archive processor with the updated 
   expect(html).toContain('encrypted backup archives when backups are configured');
   expect(html).toContain(SIGNUP_PRIVACY_VERSION);
   expect(SIGNUP_PRIVACY_VERSION).not.toBe('2026-10-10.1');
-  expect(html).toContain('at your own risk');
-  expect(html).toContain('virus scanning of uploads, are not switched on yet');
+  expect(html).not.toContain('own risk');
+  expect(html).not.toContain('virus');
   expect(html).toContain('awaits legal review');
 });
 it('retains the alternate file provider without claiming that all deployments use R2 documents', () => {
@@ -43,10 +43,11 @@ it('does not invent a document provider when selection is absent', () => {
   expect(html).not.toContain('Vercel stores private files');
 });
 
-it('in public beta mode keeps the own-risk wording and not the made-up-details rule', () => {
+it('in public beta mode points to the Terms and not the made-up-details rule', () => {
   beta.open = true;
   const html = renderToStaticMarkup(<PrivacyPage />);
-  expect(html).toContain('you may add your own information and documents at your own risk');
+  expect(html).toContain('you may add your own information and documents.');
+  expect(html).not.toContain('own risk');
   expect(html).not.toContain('Real applicant details are not accepted yet');
 });
 

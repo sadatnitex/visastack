@@ -180,14 +180,22 @@ describe('the footer (NAV2)', () => {
     }
   });
 
+  it('adds one quiet line that links Terms and Status in the public beta only', async () => {
+    const doc = await page();
+    const line = doc.querySelector('.site-footer-asis');
+    expect(line?.textContent).toContain('Provided as is during the public beta.');
+    expect(line?.querySelector('a[href="/terms"]')?.textContent).toBe('Terms');
+    expect(line?.querySelector('a[href="/status"]')?.textContent).toBe('Status');
+    state.beta = false;
+    expect((await page()).querySelector('.site-footer-asis')).toBeNull();
+  });
+
   it('says what VisaStack is in one line and shows the version line from the page notice, word for word', async () => {
     const doc = await page();
     expect(doc.querySelector('.site-footer-about')?.textContent).toBe(
       'One private profile for every visa.',
     );
-    expect(doc.querySelector('.site-footer-beta')?.textContent).toBe(
-      'VisaStack Public Beta. Free, at your own risk.',
-    );
+    expect(doc.querySelector('.site-footer-beta')?.textContent).toBe('VisaStack Public Beta');
     state.beta = false;
     expect((await page()).querySelector('.site-footer-beta')?.textContent).toBe(
       'VisaStack Private Pilot. Test version. Made-up details only.',
@@ -240,14 +248,14 @@ describe('the stylesheet block (NAV2)', () => {
     const css = readFileSync(join(APP, 'globals.css'), 'utf8');
     const block = css.slice(css.indexOf('/* WP-NAV2 '), css.indexOf('/* end WP-NAV2 */'));
     const rules = (width: string, guard: string) => {
-      const start = block.indexOf(`@media (max-width: ${width}) {`);
+      const start = block.indexOf(`@media (max-width: ${width}) {\n  ${guard} .nav {`);
       expect(start, width).toBeGreaterThan(-1);
       // The media block ends at the first line that closes it at column zero.
       const body = block.slice(start, block.indexOf('\n}\n', start));
       return body.replaceAll(`${guard} `, '').split('\n').slice(1).join('\n');
     };
-    const english = rules('71.875em', 'html:not([data-locale="bn"])');
-    const bengali = rules('76.875em', 'html[data-locale="bn"]');
+    const english = rules('899.98px', 'html:not([data-locale="bn"])');
+    const bengali = rules('899.98px', 'html[data-locale="bn"]');
     expect(english.length).toBeGreaterThan(1500);
     expect(bengali).toBe(english);
     // And each rule really carries its own language guard.

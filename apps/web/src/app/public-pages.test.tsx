@@ -129,19 +129,14 @@ describe('public and entry pages today', () => {
     expect(document.body.textContent).not.toContain('Opening this link');
   });
 
-  it('sign-up shows where you are, puts the own-risk notice before the fields, and leaves consent unticked', async () => {
+  it('sign-up shows where you are, has no own-risk notice, and leaves consent to the terms unticked', async () => {
     const { default: SignUp } = await import('./auth/sign-up/page');
     const document = dom(renderToStaticMarkup(await SignUp(SEARCH())));
     const steps = document.querySelector('ol.auth-steps');
     expect(steps?.querySelector('[aria-current="step"]')?.textContent).toContain(
       'Create Your Account',
     );
-    const notice = [...document.querySelectorAll('.notice')].find((n) =>
-      n.textContent?.includes('at your own risk'),
-    );
-    const firstField = document.querySelector('input[name="name"]');
-    expect(notice).toBeDefined();
-    expect(notice && firstField && notice.compareDocumentPosition(firstField) & 4).toBeTruthy();
+    expect(document.body.textContent).not.toContain('own risk');
     const box = document.querySelector<HTMLInputElement>('input[name="acceptNotices"]');
     expect(box?.checked).toBe(false);
     expect(box?.required).toBe(true);

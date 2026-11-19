@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { EN } from '@visastack/i18n';
 import { describe, expect, it } from 'vitest';
 import { authCatalog } from '../i18n/auth';
+import { countriesPublicCatalog } from '../i18n/countries-public';
 import { homeCatalog } from '../i18n/home';
+import { trustCatalog } from '../i18n/trust';
 
 /**
  * Guard for the words about file checks. Until a trusted antivirus scan has recorded a pass for a
@@ -27,6 +29,8 @@ const SURFACES = {
   terms: '../app/terms/page.tsx',
   privacy: '../app/privacy/page.tsx',
   home: '../app/page.tsx',
+  trustStory: '../components/public-trust-story.tsx',
+  footer: '../components/site-footer.tsx',
 } as const;
 
 /** Blanket claims that a file was scanned or is fine, whatever the platform really did. */
@@ -68,32 +72,36 @@ describe('words about file checks', () => {
     expect(source).not.toContain('SAFETY_BADGE_KEYS');
   });
 
-  it('the public pages keep saying plainly that virus scanning of uploads is not switched on yet', () => {
-    const BETA_NOTICE_KEY = 'auth.authSignUpPage.visastackIsAFreePublicBeta';
-    for (const name of ['pilotBanner', 'signUp', 'terms', 'privacy'] as const) {
-      let text = read(SURFACES[name]);
-      if (name === 'signUp') {
-        // The sign-up wording lives in the auth message catalogue. The page must still use the
-        // key, and the key's English must hold the exact words, so dropping either turns this red.
-        expect(text, 'sign-up page uses the beta notice key').toMatch(
-          new RegExp(`t(\\.node)?\\('${BETA_NOTICE_KEY}'\\)`),
-        );
-        const english = authCatalog.en[BETA_NOTICE_KEY as keyof typeof authCatalog.en];
-        expect(english, 'beta notice key has English text').toBeTruthy();
-        text = english;
-      }
-      const flat = text.replace(/\s+/g, ' ');
-      expect(flat, name).toContain('virus scanning of uploads');
-      expect(flat, name).toContain('not switched on yet');
+  it('only the Terms carries the virus scanning sentence; the other public pages stay quiet about it', () => {
+    // Owner decision, 19 Nov 2026: the public pages and the top notice name only the Public Beta.
+    // The full disclaimer, including the scanning sentence, stays on /terms, and the truthful
+    // "not scanned for viruses yet" lines stay inside the app at the upload moment.
+    const terms = read(SURFACES.terms).replace(/\s+/g, ' ');
+    expect(terms).toContain('virus scanning of uploads');
+    expect(terms).toContain('not switched on yet');
+    for (const name of [
+      'pilotBanner',
+      'signUp',
+      'privacy',
+      'home',
+      'trustStory',
+      'footer',
+    ] as const) {
+      const text = read(SURFACES[name]).replace(/\s+/g, ' ');
+      expect(text, name).not.toMatch(/own risk|virus scanning/i);
     }
-    // The home wording lives in the home message catalogue: the page must still use the key, and
-    // the key's English must hold the exact words.
-    const HOME_NOTICE_KEY = 'home.page.itIsFreeToUseAt';
-    expect(read(SURFACES.home), 'home page uses the risk notice key').toMatch(
-      new RegExp(`t(\\.node)?\\('${HOME_NOTICE_KEY}'\\)`),
-    );
-    expect(homeCatalog.en[HOME_NOTICE_KEY].replace(/\s+/g, ' ')).toContain(
-      'protections such as virus scanning of uploads',
-    );
+    // Every public catalogue, English and Bengali (a Bengali refill must not bring the sentence back).
+    const PUBLIC = {
+      home: homeCatalog,
+      auth: authCatalog,
+      trust: trustCatalog,
+      countries: countriesPublicCatalog,
+    };
+    for (const [name, catalog] of Object.entries(PUBLIC))
+      for (const side of ['en', 'bn'] as const)
+        for (const [key, value] of Object.entries(catalog[side] as Record<string, string>))
+          expect(value, `${name}.${side} ${key}`).not.toMatch(
+            /own risk|virus scanning|unsafe|ঝুঁকি|ভাইরাস/i,
+          );
   });
 });

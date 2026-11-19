@@ -13,8 +13,9 @@ const { PilotBanner } = await import('./pilot-banner');
 
 const COPY = {
   label: 'VisaStack Public Beta',
-  detail: 'Free to use at your own risk.',
-  short: 'Free, at your own risk.',
+  detail: 'Some features are still being switched on. This page shows what works today.',
+  short: '',
+  detailInBanner: false,
 } as const;
 
 let root: Root;
@@ -53,7 +54,8 @@ describe('the notice about this version shows in full once, then as a slim label
   it('shows in full on the first page and remembers that it has been seen', () => {
     mount();
     expect(notice()?.classList.contains('pilot-banner-slim')).toBe(false);
-    expect(notice()?.textContent).toContain('Free, at your own risk.');
+    expect(notice()?.textContent).toContain('What Works Today');
+    expect(notice()?.textContent).not.toContain('Some features are still being switched on');
     expect(written).toEqual(['visastack_notice=seen; path=/; max-age=15724800; SameSite=Lax']);
   });
 

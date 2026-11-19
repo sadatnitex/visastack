@@ -42,12 +42,17 @@ describe('landing page, banner, Terms and Privacy Notice share one public-beta s
     for (const text of Object.values(s)) expect(text).not.toContain('at your own risk');
   });
 
-  it('registration open: every one says own risk and none says real details are refused', async () => {
+  it('registration open: none says own risk or that real details are refused, and the Terms keep the full notice', async () => {
     setMode(true);
     const s = await surfaces();
     for (const text of Object.values(s)) {
-      expect(text).toContain('at your own risk');
       expect(text).not.toContain('Real applicant details are not accepted yet');
+      if (text !== s.terms) {
+        expect(text).not.toContain('own risk');
+        expect(text).not.toContain('virus');
+      }
     }
+    expect(s.terms).toContain('virus scanning of uploads');
+    expect(s.banner).toContain('VisaStack Public Beta');
   });
 });
