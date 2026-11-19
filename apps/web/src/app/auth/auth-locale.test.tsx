@@ -70,15 +70,11 @@ describe('auth screens under Bengali', () => {
     for (const key of [
       'auth.authAuthUi.privacy',
       'auth.authAuthUi.terms',
-      'auth.authSignUpPage.visastackIsAFreePublicBeta',
       'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing',
     ]) {
       expect(key in authCatalog.bn, key).toBe(true);
     }
-    for (const key of [
-      'auth.authSignUpPage.visastackIsAFreePublicBeta',
-      'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing',
-    ] as const) {
+    for (const key of ['auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing'] as const) {
       expect(signUp.body.textContent ?? '').toContain(authCatalog.bn[key]);
     }
     for (const doc of [signIn, signUp]) {

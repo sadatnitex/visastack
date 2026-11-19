@@ -23748,7 +23748,6 @@ html body:has(.auth-shell) > .footer {
   }
   .nav-links a:not(.btn) {
     padding: 0 7px;
-    font-size: 0.875rem;
   }
   .nav-links a[aria-current="page"]::after {
     inset: auto 7px 6px;
@@ -23761,11 +23760,9 @@ html body:has(.auth-shell) > .footer {
   }
   .site-nav-actions .lang-switch {
     padding: 0 8px;
-    font-size: 0.875rem;
   }
   .site-nav-actions .nav-cta {
     padding: 0 14px;
-    font-size: 0.875rem;
   }
 }
 .site-footer-asis {
