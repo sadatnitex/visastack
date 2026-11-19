@@ -81,7 +81,19 @@ test.describe('Home page (R1)', () => {
     await expect(page.locator('#hs-hero-title')).toBeInViewport({ ratio: 1 });
     await expect(page.locator('#hs-hero-title')).toHaveText(/One record\.\s*Every visa\./);
     await expect(page.locator('.hs-hero .pub-button-primary')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.hs-hero .hs-nudge')).toBeInViewport({ ratio: 1 });
+    // MOB1 (19 Nov 2026): a phone drops the pill inside the hero; the availability wording stays on
+    // the first screen in the banner above the header.
+    await expect(page.locator('.hs-hero .hs-nudge')).toBeHidden();
+    await expect(page.locator('.pilot-banner')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.pilot-banner')).toHaveText(/public beta|pilot/i);
+  });
+
+  test('a computer still shows the availability pill inside the hero at 1440x900', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('.hs-hero .hs-nudge')).toBeVisible();
     await expect(page.locator('.hs-hero .hs-nudge')).toHaveText(/public beta|pilot/i);
   });
 });
