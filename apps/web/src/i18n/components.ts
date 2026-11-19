@@ -156,8 +156,6 @@ export const componentsCatalog = defineCatalog({
     'components.toast.dismiss': 'Dismiss',
     'components.versionNotice.aboutThisVersion': 'About this version',
     'components.versionNotice.hideThisNotice': 'Hide This Notice',
-    'components.versionNotice.publicBetaDetail':
-      'Some features are still being switched on. This page shows what works today.',
     'components.versionNotice.whatWorksToday': 'What Works Today',
     'components.visaPhotoSizes.backgroundBackgroundrule': 'Background: {backgroundRule}',
     'components.visaPhotoSizes.checkingYourPhoto': 'Checking your photo...',
@@ -276,8 +274,6 @@ export const componentsCatalog = defineCatalog({
     'components.toast.dismiss': 'বন্ধ করুন',
     'components.versionNotice.aboutThisVersion': 'এই সংস্করণ সম্পর্কে',
     'components.versionNotice.hideThisNotice': 'এই নোটিশ লুকান',
-    'components.versionNotice.publicBetaDetail':
-      'কিছু ফিচার এখনো চালু করা হচ্ছে। আজ কী কাজ করছে, তা এই পাতায় দেখা যায়।',
     'components.visaPhotoSizes.checkingYourPhoto': 'আপনার ছবি পরীক্ষা করা হচ্ছে...',
     'components.visaPhotoSizes.chooseTheSizeYourApplicationAsks':
       'আপনার আবেদনে যে মাপ চাওয়া হয়েছে তা বেছে নিন, তারপর মাথা ও কাঁধ মাঝখানে না আসা পর্যন্ত সরান ও জুম করুন। ছবিটি নিজে কখনো এডিট করা হয় না।',

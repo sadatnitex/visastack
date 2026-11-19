@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 import { useT } from '../../components/i18n-provider';
 import { PUBLIC_BETA_DETAIL } from '../../components/pilot-banner';
 import type { VersionNoticeCopy } from '../../components/version-notice';
-import { componentsCatalog } from '../../i18n/components';
 import { homeCatalog } from '../../i18n/home';
 import { statusCatalog } from '../../i18n/status';
 import { VERDICT_WORDS, capabilityRows, verdictOf } from './capability-names';
@@ -67,7 +66,6 @@ export function StatusView({
 }) {
   const t = useT(statusCatalog);
   const tHome = useT(homeCatalog);
-  const tComponents = useT(componentsCatalog);
   // The About This Version card says the same version name the footer says, and the public beta
   // sentence in the page's language; any other words stay as the page's notice gives them.
   const noticeLabel = (label: string): ReactNode =>
@@ -77,9 +75,7 @@ export function StatusView({
         ? tHome.node('home.layout.noticePilot')
         : label;
   const noticeDetail = (detail: string): ReactNode =>
-    detail === PUBLIC_BETA_DETAIL
-      ? tComponents.node('components.versionNotice.publicBetaDetail')
-      : detail;
+    detail === PUBLIC_BETA_DETAIL ? t.node('status.statusStatusView.publicBetaDetail') : detail;
   const verdict = VERDICT_WORDS[verdictOf(live, ready)];
   const rows = capabilityRows(ready?.data.platform).map((row) =>
     row.key === 'payments' && paymentsNote ? { ...row, label: 'Partly Live' } : row,
