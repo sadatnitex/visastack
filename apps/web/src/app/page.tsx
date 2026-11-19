@@ -1,6 +1,7 @@
 import { homeCatalog } from '../i18n/home';
 import { getPageLanguage, getServerT, primeLocale } from '../lib/i18n-server';
 import { isPublicBetaOpen } from '../lib/public-beta';
+import { ownDetailsWelcome } from '../lib/real-data-wording';
 import { isSignedIn } from '../lib/signed-in';
 import { HomeStory } from './home-story';
 
@@ -44,7 +45,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {betaOpen
         ? t.node('home.page.registrationIsOpenForPublicBeta')
         : t.node('home.page.thisIsAPrivatePilotFor')}{' '}
-      {betaOpen
+      {ownDetailsWelcome()
         ? t.node('home.page.itIsFreeToUseAt')
         : t.node('home.page.pleaseUseMadeUpDetailsOr')}
     </>

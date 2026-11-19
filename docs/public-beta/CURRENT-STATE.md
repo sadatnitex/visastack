@@ -244,3 +244,5 @@ Merged and checked live (Vercel, Deploy Smoke, Playwright Deploy Smoke, live sig
 Live lanes: TIDY1 (removes unused Home wording keys and dead stylesheet rules, no visible change; docs) and PUB5 pass 2 (public-site verification). PR #581 (Bengali refill 7) is stale.
 
 Not verified: real-device behaviour of the switched-off features; a signed-in human click-through of the Wallet and My Profile screens (what is checked is the CI guard on made-up people).
+
+**19 Nov 2026, real personal data (OPEN1):** owner decision to go live publicly with real data now, without the key service, the scanner or other added security work. The code now lets the owner defer each operational gate still unmet (register H29 and H33 to H42); with every deferral set, `realApplicantData` is available in the controlled pilot, the AI data mode is `real_applicant_data`, and no page asks for made-up details. Each deferred gate shows as "Deferred by Owner (Hxx)" on the admin page, never as passed. Not live until the owner sets the settings in `docs/operations/current-platform.md` (update 2026-11-19) and redeploys. Not verified: production readiness after those settings.

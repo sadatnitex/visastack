@@ -1,7 +1,7 @@
 import { SIGNUP_TERMS_VERSION } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { isPublicBetaOpen } from '../../lib/public-beta';
+import { ownDetailsWelcome } from '../../lib/real-data-wording';
 
 export const metadata: Metadata = { title: 'Terms of Use' };
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export default function TermsPage() {
       <p className="card-body">
         Version {SIGNUP_TERMS_VERSION}. These beta terms await legal review.
       </p>
-      {isPublicBetaOpen() ? (
+      {ownDetailsWelcome() ? (
         <>
           <h2>Free Public Beta</h2>
           <p>
@@ -21,6 +21,10 @@ export default function TermsPage() {
             documents, at your own risk: some protections, such as virus scanning of uploads, are
             not switched on yet, and the status page lists what works today. Creating an account
             does not grant access to an agency workspace.
+          </p>
+          <p className="muted">
+            Uploads are not checked for viruses yet, so open files shared with you with care.
+            VisaStack is provided as it is, and you use it at your own risk.
           </p>
         </>
       ) : (

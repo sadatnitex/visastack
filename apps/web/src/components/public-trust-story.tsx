@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ShareHero } from '../app/trust/share-hero';
 import { trustCatalog } from '../i18n/trust';
 import { getPageLanguage, getServerT } from '../lib/i18n-server';
+import { ownDetailsWelcome } from '../lib/real-data-wording';
 import { Icon, type IconName } from './icons';
 import { DocumentPicture } from './pictures/document-picture';
 // Imported by file, never through the kit's index: the index also names the client-side timed sheet, and
@@ -79,6 +80,8 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
   const t = getServerT(trustCatalog);
   const lang = getPageLanguage();
   const say = (text: string) => publicText(text, lang);
+  // Owner, 19 Nov 2026: no practice-record words once own details are welcome.
+  const ownWelcome = ownDetailsWelcome();
 
   return (
     <>
@@ -240,7 +243,7 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
         id="today"
       >
         <div className="tr-wrap">
-          <p className="p3-eyebrow">{say('Controlled Pilot')}</p>
+          <p className="p3-eyebrow">{say(ownWelcome ? 'Free Public Beta' : 'Controlled Pilot')}</p>
           <RiseIn className="tr-today-copy">
             <h2 className="kit-h2" id="trust-today-title">
               {say('Where we are')}
@@ -249,7 +252,9 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
             </h2>
             <p className="kit-sub tr-today-text">
               {say(
-                'VisaStack is in a controlled pilot. Only practice records are used. Independent checks will be listed here as they are completed, and nothing before.',
+                ownWelcome
+                  ? 'VisaStack is a free public beta, provided as it is. You may use your own details and documents, at your own risk. Independent checks will be listed here as they are completed, and nothing before.'
+                  : 'VisaStack is in a controlled pilot. Only practice records are used. Independent checks will be listed here as they are completed, and nothing before.',
               )}
             </p>
           </RiseIn>
@@ -275,7 +280,7 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
             <HeadlineWords>{say('the first document.')}</HeadlineWords>
           </>
         }
-        sub={say('Start with a practice record.')}
+        sub={say(ownWelcome ? 'Start with your own record.' : 'Start with a practice record.')}
         actions={
           <PublicButton href="/app" variant="primary">
             {t.node('trust.publicTrustStory.startWithYourOwnProfile')}

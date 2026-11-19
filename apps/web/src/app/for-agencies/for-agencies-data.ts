@@ -56,3 +56,5 @@ export const PLANS_LINE = 'Pricing is shown here when selling opens.';
 export const PLANS_ACCESS_CLOSED =
   'Agency access is by invitation while we test with practice records.';
 export const PLANS_ACCESS_OPEN = 'Accounts are free during the public beta.';
+/** Registration closed while real personal data is on (owner, 19 Nov 2026): no practice-record words. */
+export const PLANS_ACCESS_INVITED = 'Agency access is by invitation.';

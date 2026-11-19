@@ -53,6 +53,24 @@ beforeEach(() => {
 });
 
 describe('the Privacy and Trust chapters', () => {
+  it('drops the practice-record words once own details are welcome, and keeps them otherwise (owner, 19 Nov 2026)', async () => {
+    try {
+      vi.stubEnv('PUBLIC_BETA_OPEN', 'false');
+      const closed = text((await page([])).body);
+      expect(closed).toContain('Only practice records are used.');
+      expect(closed).toContain('Start with a practice record.');
+      vi.stubEnv('PUBLIC_BETA_OPEN', 'true');
+      vi.stubEnv('NEON_AUTH_BASE_URL', 'https://auth.placeholder.invalid/neondb/auth');
+      vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(64));
+      const open = text((await page([])).body);
+      expect(open).not.toMatch(/practice record|controlled pilot/i);
+      expect(open).toContain('You may use your own details and documents, at your own risk.');
+      expect(open).toContain('Start with your own record.');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('runs the six chapters of the reference in order, each named by one heading', async () => {
     const doc = await page([route(1)]);
     const chapters = [...doc.querySelectorAll('.pub-chapter')];

@@ -17,8 +17,8 @@ import {
  * actually being true, never by a convenience flag that bypasses the check
  * itself. The one exception is narrow and owner-only: a gate in
  * `DEFERRABLE_GATES` may be deferred under its named register entry (S27,
- * see `applyOwnerDeferral` below), and that allowlist holds the external
- * penetration test and the virus scanner alone.
+ * see `applyOwnerDeferral` below); that allowlist names each gate with its
+ * register id, and a deferred gate is always reported as deferred, never as passed.
  *
  * Two kinds of gate:
  *  - LIVE: computed from real, current signals (env presence, configured
@@ -191,13 +191,34 @@ function attested(gateKey: AttestedGateKey): boolean {
 
 /**
  * The only gates an owner may defer, each with the register entry
- * (docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md) that records the decision. It holds the
- * external penetration test (H01) and the virus scanner (H29, owner decision of 31 Oct 2026,
- * ADR 0024) and nothing else; a guard test pins it and proves no other gate can be deferred.
+ * (docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md) that records the decision. A guard test pins
+ * this exact set and proves every other gate stays not deferrable.
+ *
+ * - H01 the external penetration test and H29 the virus scanner (owner, 31 Oct 2026, ADR 0024).
+ * - H33 to H42, owner decision of 19 Nov 2026, exact words: "dont conplciate. we will publicly
+ *   use it with all things open state, stop telling madeup details etc, the site must be ready
+ *   and live with all that's requires being open, witthiut any other security neasures" and,
+ *   earlier the same day, "i said, we go live and ready wihtout kms, scanner, etc now." These are
+ *   the operational gates not met on production that day, so real personal data can be switched
+ *   on. Each stays visible as "Deferred by Owner (Hxx)", never as passed.
+ *
+ * Live safety gates (sign-in, database, private storage, step-up, the AI provider's data terms,
+ * safe conversion, retention and deletion) are deliberately absent: they are met or fixable in
+ * place, so they are never deferred.
  */
 export const DEFERRABLE_GATES: ReadonlyMap<string, string> = new Map([
   ['externalPenetrationTest', 'H01'],
   ['realMalwareScanner', 'H29'],
+  ['realKeyManagement', 'H33'],
+  ['incidentOwner', 'H34'],
+  ['termsAndPrivacyNotice', 'H35'],
+  ['backupRestoreVerification', 'H36'],
+  ['authenticatedProductionE2e', 'H37'],
+  ['tenantIsolationSuite', 'H38'],
+  ['permissionMatrix', 'H39'],
+  ['externalObjectDeletionVerification', 'H40'],
+  ['noCriticalHighFindings', 'H41'],
+  ['privacyConsentConfiguration', 'H42'],
 ]);
 
 /** `externalPenetrationTest` -> `COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST`. */
@@ -250,6 +271,20 @@ export function gateStatus(gate: ReadinessGate): {
   return gate.satisfied
     ? { label: 'satisfied', tone: 'success' }
     : { label: 'unmet', tone: 'danger' };
+}
+
+/**
+ * Counts for a gate list. A deferred gate lets readiness proceed but is counted apart and never
+ * as passed, so no summary can present an owner deferral as a check that was met.
+ */
+export function countGates(gates: readonly ReadinessGate[]): {
+  readonly passed: number;
+  readonly deferred: number;
+  readonly total: number;
+} {
+  const deferred = gates.filter((gate) => gate.deferral?.status === 'deferred').length;
+  const met = gates.filter((gate) => gate.satisfied).length;
+  return { passed: met - deferred, deferred, total: gates.length };
 }
 
 interface GateCheck {

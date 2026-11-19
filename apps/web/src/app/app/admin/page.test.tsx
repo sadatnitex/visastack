@@ -398,7 +398,9 @@ describe('Platform > Operations', () => {
       const html = await renderServer(Page({}));
       const text = textOf(html);
       expect(text).toContain('Deferred by Owner (H01)');
-      expect(text).toContain('1 of them deferred by the owner');
+      // Counts keep a deferred gate apart (owner decision of 19 Nov 2026: a deferral is never shown as passed).
+      expect(text).toContain('1 more deferred by the owner');
+      expect(text).not.toContain('1 of them deferred by the owner');
       expect(text).toContain('real key management (KMS) (Deferral Not Accepted)');
       expect(text).toContain('step-up (Deferral Not Accepted)');
       expect(html).not.toContain(MARK);
@@ -406,6 +408,38 @@ describe('Platform > Operations', () => {
       vi.unstubAllEnvs();
     }
   }, 15_000);
+
+  it('shows the real personal data gates in the controlled pilot, each owner deferral as deferred and never as satisfied (19 Nov 2026)', async () => {
+    try {
+      vi.stubEnv('VERCEL_ENV', 'production');
+      vi.stubEnv('COMMERCIAL_READINESS_DEFER_REAL_KEY_MANAGEMENT', 'H33');
+      vi.stubEnv('COMMERCIAL_READINESS_DEFER_INCIDENT_OWNER', 'H01');
+      const { evaluateOperationalReadiness, countGates } = await vi.importActual<
+        typeof import('../../../lib/commercial-readiness')
+      >('../../../lib/commercial-readiness');
+      const operational = evaluateOperationalReadiness({
+        databaseReady: true,
+        signals: { aiProvider: { kind: 'none_active' }, scannerEvidenceFresh: false },
+      });
+      const counts = countGates(operational.gates);
+      mocks.evaluateReadiness.mockResolvedValue({ ...readiness, operational });
+      const text = textOf(await renderServer(Page({})));
+      expect(text).toContain('Real Personal Data Readiness');
+      expect(text).toContain('real key management (KMS) Deferred by Owner (H33)');
+      expect(text).toContain('incident owner (Deferral Not Accepted)');
+      expect(text).toContain(
+        `${counts.passed} of ${counts.total} gates satisfied, 1 more deferred by the owner`,
+      );
+      expect(text).not.toContain('real key management (KMS) satisfied');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 15_000);
+
+  it('says real personal data readiness could not be evaluated when the report has no breakdown', async () => {
+    const text = textOf(await renderServer(Page({})));
+    expect(text).toContain('Real personal data readiness could not be evaluated');
+  });
 
   it('refuses anyone who is not a platform administrator, without reading a figure', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);

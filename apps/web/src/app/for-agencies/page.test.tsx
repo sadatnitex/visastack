@@ -7,9 +7,13 @@ import { renderServer } from '../../lib/next-mocks.test-support';
  * ratings or partner names; every illustrative figure tagged Example; today's button labels.
  */
 
-const state = vi.hoisted(() => ({ signedIn: false, beta: false }));
+const state = vi.hoisted(() => ({ signedIn: false, beta: false, realData: false }));
 vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }));
 vi.mock('../../lib/public-beta', () => ({ isPublicBetaOpen: () => state.beta }));
+vi.mock('../../lib/real-data-wording', () => ({
+  realDataOpen: () => state.realData,
+  ownDetailsWelcome: () => state.beta || state.realData,
+}));
 vi.mock('server-only', () => ({}));
 
 const { default: ForAgenciesPage, metadata } = await import('./page');
@@ -25,6 +29,7 @@ const words = (el: Element | null | undefined) =>
 beforeEach(() => {
   state.signedIn = false;
   state.beta = false;
+  state.realData = false;
 });
 
 describe('the public For Agencies page', () => {
@@ -98,6 +103,12 @@ describe('the public For Agencies page', () => {
     expect(closed).toContain('by invitation while we test with practice records');
     state.beta = true;
     expect(await render()).toContain('Accounts are free during the public beta.');
+    // Owner, 19 Nov 2026: with real personal data on, no practice-record words even when closed.
+    state.beta = false;
+    state.realData = true;
+    const invited = await render();
+    expect(invited).toContain('Agency access is by invitation.');
+    expect(invited).not.toContain('practice records');
     expect(closed).not.toMatch(
       /[$\u00a3\u20ac]\s?\d|\bper (month|seat|user)\b|\b(starter|pro|enterprise)\b/i,
     );

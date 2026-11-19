@@ -2,7 +2,7 @@ import { SIGNUP_PRIVACY_VERSION } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { readEnv } from '../../lib/env';
-import { isPublicBetaOpen } from '../../lib/public-beta';
+import { ownDetailsWelcome } from '../../lib/real-data-wording';
 
 export const metadata: Metadata = { title: 'Privacy Notice' };
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         Account registration uses your name, email address and sign-in information to create and
         protect your account and send confirmation or recovery messages. Security controls record
         registration attempts and notice versions.{' '}
-        {isPublicBetaOpen()
+        {ownDetailsWelcome()
           ? 'During the free public beta you may add your own information and documents. The Terms of Use say what to expect while the beta runs.'
           : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.'}
       </p>

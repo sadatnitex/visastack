@@ -26,7 +26,11 @@ import {
 } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
-import { gateStatus } from '../../../lib/commercial-readiness';
+import {
+  type CommercialReadinessResult,
+  countGates,
+  gateStatus,
+} from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
 import { type SearchParamsRecord, parseCursor } from '../../../lib/paging';
@@ -277,12 +281,6 @@ export default async function AdminOperationsPage({
     // report above (S27): one read of the database-backed gates (AI provider
     // settings, scan runner proof), so the page and the report cannot differ.
     const commercial = deploymentMode === 'commercial' ? readiness?.commercial : undefined;
-    const commercialCounts = commercial
-      ? {
-          satisfied: commercial.gates.filter((gate) => gate.satisfied).length,
-          deferred: commercial.gates.filter((gate) => gate.deferral?.status === 'deferred').length,
-        }
-      : undefined;
     return {
       admin: true as const,
       mayRetry,
@@ -297,7 +295,6 @@ export default async function AdminOperationsPage({
       aiLimits,
       deploymentMode,
       commercial,
-      commercialCounts,
       quota: loadUploadQuotaConfig(),
       signals,
       readiness,
@@ -869,43 +866,23 @@ export default async function AdminOperationsPage({
                       <code>commercial</code> - this guard does not apply yet.
                     </p>
                   ) : (
-                    <>
-                      <div className="toolbar u-mb-100">
-                        <span className="muted u-fs-085">
-                          {data.commercialCounts?.satisfied ?? 0} of {data.commercial.gates.length}{' '}
-                          gates satisfied
-                          {data.commercialCounts && data.commercialCounts.deferred > 0
-                            ? `, ${data.commercialCounts.deferred} of them deferred by the owner`
-                            : ''}
-                        </span>
-                        <span
-                          className={
-                            data.commercial.ready ? 'badge badge-success' : 'badge badge-danger'
-                          }
-                        >
-                          {data.commercial.ready ? 'ready' : 'not ready'}
-                        </span>
-                      </div>
-                      <div className="rows rows-grid">
-                        {data.commercial.gates.map((gate) => {
-                          const status = gateStatus(gate);
-                          return (
-                            <div className="row" key={gate.key}>
-                              <span className="row-key">
-                                {gate.label}
-                                {gate.deferral?.status === 'not_deferred' ? (
-                                  <span className="muted u-fs-085"> ({gate.deferral.label})</span>
-                                ) : null}
-                                {gate.detail ? (
-                                  <span className="muted u-fs-085"> {gate.detail}</span>
-                                ) : null}
-                              </span>
-                              <span className={`badge badge-${status.tone}`}>{status.label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
+                    <GateBreakdown result={data.commercial} />
+                  )}
+                </article>
+                <article className="card" id="admin-real-data-readiness">
+                  <p className="card-kicker">Operational Posture</p>
+                  <h2 className="card-title">Real Personal Data Readiness</h2>
+                  <p className="card-body u-mb-100">
+                    Every gate that must pass, or be deferred by the owner under its register entry,
+                    before real personal data is switched on, in any deployment mode. A deferred
+                    gate is listed as deferred, never as passed.
+                  </p>
+                  {data.readiness?.operational ? (
+                    <GateBreakdown result={data.readiness.operational} />
+                  ) : (
+                    <p className="card-body">
+                      Real personal data readiness could not be evaluated; see the notice above.
+                    </p>
                   )}
                 </article>
               </div>
@@ -1038,5 +1015,43 @@ export default async function AdminOperationsPage({
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * One readiness guard's per-gate breakdown. Counts come from `countGates`, so a gate the owner
+ * deferred is counted apart and its row says "Deferred by Owner (Hxx)", never "satisfied".
+ */
+function GateBreakdown({ result }: { readonly result: CommercialReadinessResult }) {
+  const counts = countGates(result.gates);
+  return (
+    <>
+      <div className="toolbar u-mb-100">
+        <span className="muted u-fs-085">
+          {counts.passed} of {counts.total} gates satisfied
+          {counts.deferred > 0 ? `, ${counts.deferred} more deferred by the owner` : ''}
+        </span>
+        <span className={result.ready ? 'badge badge-success' : 'badge badge-danger'}>
+          {result.ready ? 'ready' : 'not ready'}
+        </span>
+      </div>
+      <div className="rows rows-grid">
+        {result.gates.map((gate) => {
+          const status = gateStatus(gate);
+          return (
+            <div className="row" key={gate.key}>
+              <span className="row-key">
+                {gate.label}
+                {gate.deferral?.status === 'not_deferred' ? (
+                  <span className="muted u-fs-085"> ({gate.deferral.label})</span>
+                ) : null}
+                {gate.detail ? <span className="muted u-fs-085"> {gate.detail}</span> : null}
+              </span>
+              <span className={`badge badge-${status.tone}`}>{status.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }

@@ -12,21 +12,20 @@ import {
   loadAiProviderDataTerms,
   unknownAiProviderDataTerms,
 } from '@visastack/services';
-import { getPlatformCapabilities } from './capabilities';
 import { getDeploymentMode } from './deployment-mode';
+import { realDataOpen } from './real-data-wording';
 
 /**
  * Whether the platform may be holding real applicant data right now: a
  * commercial deployment, or any deployment where the real-applicant-data
  * capability ("All Protections for Real Personal Data in Place") is
- * available. Controlled pilot and development without that capability hold
- * made-up data only. Read per call, never cached.
+ * available (`realDataOpen`, which also holds on a server that has not yet
+ * read the database facts behind it). Controlled pilot and development
+ * without it hold made-up data only. Read per call, never cached.
  */
 export function currentAiDataMode(): AiDataMode {
   if (getDeploymentMode() === 'commercial') return 'real_applicant_data';
-  return getPlatformCapabilities().realApplicantData === 'available'
-    ? 'real_applicant_data'
-    : 'synthetic_only';
+  return realDataOpen() ? 'real_applicant_data' : 'synthetic_only';
 }
 
 /** Stands in for the configuration-less environment-variable path, which has no terms of its own. */

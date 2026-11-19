@@ -9,9 +9,10 @@ import type { ReadinessSignals } from './readiness-signals';
  * an explicit `COMMERCIAL_READINESS_ATTEST_*` flag. "No normal administrator
  * may override this guard" is the property under test throughout: no single
  * flag, and no combination of the other gates, may substitute for a gate
- * whose own condition is not actually met. The one owner deferral (the
- * external penetration test, register H01) is pinned and every other gate is
- * proved not deferrable.
+ * whose own condition is not actually met. The owner deferrals (register ids
+ * H01, H29 and, by the owner's decision of 19 Nov 2026, H33 to H42) are pinned
+ * exactly, every other gate is proved not deferrable, and a deferred gate is
+ * never reported as passed.
  */
 
 const ATTEST_FLAGS = [
@@ -417,7 +418,11 @@ describe('evaluateCommercialReadiness', () => {
 });
 
 describe('owner deferrals', () => {
-  /** The safety gates the S27 contract names, by key. Each must exist and never be deferrable. */
+  /**
+   * The safety gates the S27 contract names, by key. Each must exist. Superseded in part by the
+   * owner decision of 19 Nov 2026 ("we go live and ready wihtout kms, scanner, etc now"): some of
+   * these may now be deferred, but only under the exact ids pinned below.
+   */
   const SAFETY_GATES = [
     'realKeyManagement',
     'realMalwareScanner',
@@ -441,12 +446,88 @@ describe('owner deferrals', () => {
     ];
   }
 
-  it('allows exactly two deferrable gates: the external penetration test (H01) and the virus scanner (H29)', async () => {
+  /**
+   * Replaces the earlier pin of exactly H01 and H29 ("realKeyManagement is never deferrable").
+   * Owner decision, 19 Nov 2026, exact words: "dont conplciate. we will publicly use it with all
+   * things open state, stop telling madeup details etc, the site must be ready and live with all
+   * that's requires being open, witthiut any other security neasures" and "i said, we go live and
+   * ready wihtout kms, scanner, etc now." Adding any other gate, or changing an id, fails here.
+   */
+  it('allows exactly the owner-deferred gates, each with its own register id', async () => {
     const { DEFERRABLE_GATES } = await import('./commercial-readiness');
     expect([...DEFERRABLE_GATES]).toEqual([
       ['externalPenetrationTest', 'H01'],
       ['realMalwareScanner', 'H29'],
+      ['realKeyManagement', 'H33'],
+      ['incidentOwner', 'H34'],
+      ['termsAndPrivacyNotice', 'H35'],
+      ['backupRestoreVerification', 'H36'],
+      ['authenticatedProductionE2e', 'H37'],
+      ['tenantIsolationSuite', 'H38'],
+      ['permissionMatrix', 'H39'],
+      ['externalObjectDeletionVerification', 'H40'],
+      ['noCriticalHighFindings', 'H41'],
+      ['privacyConsentConfiguration', 'H42'],
     ]);
+  });
+
+  it('keeps every live safety gate out of the deferral list', async () => {
+    const { DEFERRABLE_GATES } = await import('./commercial-readiness');
+    for (const key of [
+      'authentication',
+      'hosting',
+      'signInProduction',
+      'productionDatabase',
+      'privateProductionStorage',
+      'realEmailProvider',
+      'safeConversion',
+      'stepUp',
+      'productionAiProvider',
+      'retentionDeletionWorkflow',
+    ]) {
+      expect(DEFERRABLE_GATES.has(key)).toBe(false);
+    }
+  });
+
+  it.each([
+    ['realKeyManagement', 'H33'],
+    ['incidentOwner', 'H34'],
+    ['termsAndPrivacyNotice', 'H35'],
+    ['backupRestoreVerification', 'H36'],
+    ['authenticatedProductionE2e', 'H37'],
+    ['tenantIsolationSuite', 'H38'],
+    ['permissionMatrix', 'H39'],
+    ['externalObjectDeletionVerification', 'H40'],
+    ['noCriticalHighFindings', 'H41'],
+    ['privacyConsentConfiguration', 'H42'],
+  ])('defers %s only with exactly %s, shown as deferred and never as passed', async (key, id) => {
+    const { evaluateOperationalReadiness, gateStatus, countGates } = await import(
+      './commercial-readiness'
+    );
+    const find = () => evaluateOperationalReadiness(input(true)).gates.find((g) => g.key === key);
+    expect(find()?.satisfied).toBe(false);
+    expect(find()?.deferral).toBeUndefined();
+    setEnv(deferEnv(key), 'H01');
+    expect(find()).toMatchObject({
+      satisfied: false,
+      deferral: { status: 'not_deferred', reason: 'register_id_mismatch' },
+    });
+    setEnv(deferEnv(key), id.toLowerCase());
+    expect(find()?.deferral).toMatchObject({ reason: 'register_id_mismatch' });
+    setEnv(deferEnv(key), id);
+    const gate = find();
+    expect(gate?.deferral).toEqual({
+      status: 'deferred',
+      registerId: id,
+      label: `Deferred by Owner (${id})`,
+    });
+    expect(gate && gateStatus(gate)).toEqual({
+      label: `Deferred by Owner (${id})`,
+      tone: 'warning',
+    });
+    expect(gate && gateStatus(gate).label).not.toBe('satisfied');
+    expect(gate && countGates([gate])).toEqual({ passed: 0, deferred: 1, total: 1 });
+    unsetEnv(deferEnv(key));
   });
 
   it('defers the virus scanner with exactly H29, and a wrong id or an unset variable does not count', async () => {
@@ -490,7 +571,7 @@ describe('owner deferrals', () => {
       deferral: { status: 'deferred', registerId: 'H01', label: 'Deferred by Owner (H01)' },
     });
     expect(gate && gateStatus(gate)).toEqual({ label: 'Deferred by Owner (H01)', tone: 'warning' });
-    // The only gate still failing is the one no deferral can touch.
+    // The only gate still failing is the key service, whose own deferral (H33) is not set here.
     expect(result.gates.filter((g) => !g.satisfied).map((g) => g.key)).toEqual([
       'realKeyManagement',
     ]);
@@ -548,8 +629,27 @@ describe('owner deferrals', () => {
       const keys = [...new Set(baseline.map((g) => g.key))].filter(
         (key) => !DEFERRABLE_GATES.has(key),
       );
-      expect(keys.length).toBeGreaterThan(19);
-      for (const value of ['H01', 'H29', 'true', ...keys]) {
+      expect(keys.sort()).toEqual([
+        'authentication',
+        'hosting',
+        'privateProductionStorage',
+        'productionAiProvider',
+        'productionDatabase',
+        'realEmailProvider',
+        'retentionDeletionWorkflow',
+        'safeConversion',
+        'signInProduction',
+        'stepUp',
+      ]);
+      for (const value of [
+        'H01',
+        'H29',
+        'H33',
+        'H42',
+        'true',
+        ...DEFERRABLE_GATES.values(),
+        ...keys,
+      ]) {
         for (const key of keys) setEnv(deferEnv(key), value);
         const deferred = await everyGate(databaseReady);
         for (const key of keys) unsetEnv(deferEnv(key));

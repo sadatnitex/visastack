@@ -9,11 +9,13 @@ import { HeadlineWords } from '../../components/public-site/story';
 import { homeCatalog } from '../../i18n/home';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
 import { isPublicBetaOpen } from '../../lib/public-beta';
+import { realDataOpen } from '../../lib/real-data-wording';
 import { isSignedIn } from '../../lib/signed-in';
 import {
   DESK_CARDS,
   EXAMPLE_CASES,
   PLANS_ACCESS_CLOSED,
+  PLANS_ACCESS_INVITED,
   PLANS_ACCESS_OPEN,
   PLANS_LINE,
 } from './for-agencies-data';
@@ -95,7 +97,14 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
             {say('Plans.')}
           </h2>
           <p className="r5-plans-line">
-            {say(PLANS_LINE)} {say(betaOpen ? PLANS_ACCESS_OPEN : PLANS_ACCESS_CLOSED)}
+            {say(PLANS_LINE)}{' '}
+            {say(
+              betaOpen
+                ? PLANS_ACCESS_OPEN
+                : realDataOpen()
+                  ? PLANS_ACCESS_INVITED
+                  : PLANS_ACCESS_CLOSED,
+            )}
           </p>
         </div>
       </Chapter>
