@@ -531,6 +531,7 @@ html[data-scenes="reveal"]
    the parts that exist for phones (the passport picture, the bottom bar, the See All button) and flatten
    the wrappers around the parts a phone trims (display: contents adds no box). */
 .hs-phone-passport,
+.hs-phone-only,
 .hs-bar,
 .hs .hs-more-button {
   display: none;
@@ -699,6 +700,19 @@ html[data-scenes="reveal"]
   /* 8. agencies: one line and the button; the cases list is for larger screens. */
   .hs-wide-only,
   .hs-cases {
+    display: none;
+  }
+
+  .hs-phone-only {
+    display: inline;
+  }
+
+  /* 9. words: the lines that only repeat what a picture already says. The Example tag stays in every
+     chapter, and the Public Beta and Completeness wording is never trimmed. */
+  .hs-captions,
+  .hs-example > span:not(.pub-example),
+  .hs-journey .kit-note > span:not(.pub-example),
+  .hs .kit-panel-count .kit-sw > span {
     display: none;
   }
 

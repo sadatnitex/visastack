@@ -41,23 +41,25 @@ export function PhoneActionBar({ afterId, beforeId, href, children }: PhoneActio
     let past = false;
     let reached = false;
     const update = () => setShown(past && !reached);
-    const watchAfter = new IntersectionObserver((entries) => {
-      const entry = entries[entries.length - 1];
-      if (!entry) return;
-      past = !entry.isIntersecting && entry.boundingClientRect.bottom <= 0;
-      update();
-    });
-    // Leaves a little before the closing chapter arrives, so the last button of the chapter above
-    // is never left under the bar.
-    const watchBefore = new IntersectionObserver(
+    const watchAfter = new IntersectionObserver(
       (entries) => {
         const entry = entries[entries.length - 1];
         if (!entry) return;
-        reached = entry.isIntersecting || entry.boundingClientRect.top < 0;
+        // The position decides, not isIntersecting: edge to edge counts as on screen for the observer.
+        past = entry.boundingClientRect.bottom <= 72;
         update();
       },
-      { rootMargin: '0px 0px 80px 0px' },
+      // The hero counts as gone once its bottom edge is under the sticky header (72 px), which is where
+      // a link to the next chapter lands it.
+      { rootMargin: '-72px 0px 0px 0px' },
     );
+    // Leaves as the closing chapter comes into view (and stays gone through the footer).
+    const watchBefore = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      if (!entry) return;
+      reached = entry.isIntersecting || entry.boundingClientRect.top < 0;
+      update();
+    });
     watchAfter.observe(after);
     watchBefore.observe(before);
     return () => {

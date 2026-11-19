@@ -264,7 +264,10 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
                 <HeadlineWords>{say('every trip.')}</HeadlineWords>
               </h2>
               <p className="kit-sub">
-                {say('Each country has its own checklist. What you already added is reused.')}
+                <span className="hs-wide-only">
+                  {say('Each country has its own checklist. What you already added is reused.')}
+                </span>
+                <span className="hs-phone-only">{say('Each country has its own checklist.')}</span>
               </p>
             </div>
             <div className="hs-visual">
@@ -397,10 +400,13 @@ export function HomeStory({ actions, nudge, notice, alert, pageLang }: HomeStory
             </RiseIn>
             <RiseIn delay={0.1}>
               <p className="kit-sub">
-                {say('Clients keep their own record.')}{' '}
+                {/* One text node on a computer (a split sentence shifts a glyph by a pixel); a phone gets its own short line. */}
                 <span className="hs-wide-only">
-                  {say('You see only what they share, and who is missing what.')}
+                  {say(
+                    'Clients keep their own record. You see only what they share, and who is missing what.',
+                  )}
                 </span>
+                <span className="hs-phone-only">{say('Clients keep their own record.')}</span>
               </p>
             </RiseIn>
             <RiseIn delay={0.2} className="kit-actions">
