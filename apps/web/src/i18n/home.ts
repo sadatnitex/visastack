@@ -74,6 +74,8 @@ export const homeCatalog = defineCatalog({
     'home.page.thisIsAPrivatePilotFor':
       'This is a private pilot for invited users, and some features are not switched on yet.',
     'home.page.whatWorksToday': 'What Works Today',
+    'home.phone.seeAll': 'See All {count}',
+    'home.phone.showFewer': 'Show Fewer',
   },
   bn: {
     'home.countryChecklistPicker.forExampleJapan': 'যেমন: জাপান',
@@ -87,6 +89,7 @@ export const homeCatalog = defineCatalog({
       'এটি আমাদের দিকের সমস্যা, আপনার নয়। আপনি আগে যা সংরক্ষণ করেছেন তা নিরাপদ আছে। কিছু লিখতে থাকলে হয়তো আবার লিখতে হতে পারে। একটু পরে আবার চেষ্টা করুন; সমস্যা চলতে থাকলে সাইন আউট করে আবার সাইন ইন করুন।',
     'home.layout.aboutThisVersion': 'এই সংস্করণ সম্পর্কে',
     'home.layout.footer': 'ফুটার',
+    'home.layout.footerAsIs': 'পাবলিক বিটা চলাকালে যেমন আছে তেমনভাবেই দেওয়া হয়।',
     'home.layout.footerAbout': 'প্রতিটি ভিসার জন্য একটি ব্যক্তিগত প্রোফাইল।',
     'home.layout.footerAccount': 'অ্যাকাউন্ট',
     'home.layout.footerTrust': 'আস্থা',
@@ -107,10 +110,14 @@ export const homeCatalog = defineCatalog({
     'home.page.forAgencies': 'এজেন্সির জন্য',
     'home.page.howItWorks': 'এটি যেভাবে কাজ করে',
     'home.page.inviteOnlyPilot': 'শুধু আমন্ত্রিতদের জন্য পাইলট',
+    'home.page.itIsFreeToUseAt':
+      'এটি বিনামূল্যে ব্যবহার করা যায়। আজ ঠিক কোনটি কাজ করছে তা স্ট্যাটাস পাতায় দেখা যায়।',
     'home.page.pleaseUseMadeUpDetailsOr':
       'অনুগ্রহ করে বানানো তথ্য ব্যবহার করুন, অথবা এমন ডকুমেন্ট ব্যবহার করুন যাতে সব ব্যক্তিগত তথ্য স্থায়ীভাবে কালো করে ঢেকে দেওয়া হয়েছে। আসল আবেদনকারীর তথ্য এখনো গ্রহণ করা হয় না।',
     'home.page.seeWhatWorksToday': 'আজ কী কাজ করছে তা দেখুন',
     'home.page.signInToGetStarted': 'শুরু করতে সাইন ইন করুন',
     'home.page.whatWorksToday': 'আজ যা কাজ করছে',
+    'home.phone.seeAll': 'সব {count}টি দেখুন',
+    'home.phone.showFewer': 'কম দেখান',
   },
 });

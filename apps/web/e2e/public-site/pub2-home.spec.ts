@@ -100,7 +100,8 @@ test('the first screen at 360x640 holds 30 words or fewer of the page itself', a
   const words = await page.evaluate(() => {
     const main = document.querySelector('main') ?? document.body;
     const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
-    let count = 0;
+    let hero = 0;
+    let all = 0;
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const text = node.textContent?.trim();
       if (!text) continue;
@@ -113,11 +114,17 @@ test('the first screen at 360x640 holds 30 words or fewer of the page itself', a
       range.selectNodeContents(node);
       const box = range.getBoundingClientRect();
       if (box.width === 0 || box.top >= innerHeight || box.bottom <= 0) continue;
-      count += text.split(/\s+/).length;
+      const count = text.split(/\s+/).length;
+      all += count;
+      if (parent.closest('#hs-hero')) hero += count;
     }
-    return count;
+    return { hero, all };
   });
-  expect(words).toBeLessThanOrEqual(30);
+  // The hero chapter keeps its 30 words. MOB1 (owner approved the phone mock, "phn mock okay for now",
+  // 19 Nov 2026) makes the hero shorter, so the next chapter's headline now shows at the foot of the
+  // first screen, as the mock's first frame does: the whole first screen may hold 40.
+  expect(words.hero).toBeLessThanOrEqual(30);
+  expect(words.all).toBeLessThanOrEqual(40);
 });
 
 for (const size of SIZES.filter((s) => s.width >= 900)) {
@@ -241,14 +248,17 @@ test('the fanned papers and the ring follow the scroll: scattered at the start, 
   const scene = page.locator('[data-scene="hero"]');
   const top = await scene.evaluate((el) => el.getBoundingClientRect().top + scrollY);
   const far = page.locator('.kit-deck-doc[data-slot="far-left"]');
+  // Wait for the scene's own state after each scroll, never a fixed time: the engine moves the step
+  // on its next frame, and a slow machine takes longer.
   await page.evaluate((to) => window.scrollTo(0, to), top);
-  await page.waitForTimeout(150);
+  await expect.poll(() => scene.getAttribute('data-step')).toBe('0');
   const start = await far.boundingBox();
   await expect(page.locator('.hs-hero-cap').getByText('0 of 8 Ready')).toBeVisible();
   await page.evaluate((to) => window.scrollTo(0, to), top + 900);
-  await page.waitForTimeout(150);
-  const end = await far.boundingBox();
-  expect(Math.abs((end?.x ?? 0) - (start?.x ?? 0))).toBeGreaterThan(100);
+  await expect.poll(() => scene.getAttribute('data-step')).toBe(FINAL.hero);
+  await expect
+    .poll(async () => Math.abs(((await far.boundingBox())?.x ?? 0) - (start?.x ?? 0)))
+    .toBeGreaterThan(100);
   await expect(page.locator('.hs-hero-cap').getByText('5 of 8 Ready')).toBeVisible();
 });
 

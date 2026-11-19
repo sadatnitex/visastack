@@ -525,3 +525,248 @@ html[data-scenes="reveal"]
   visibility: visible;
   transition: opacity 0.35s ease;
 }
+
+/* WP-MOB1 phone density (19 Nov 2026). Everything that changes what a phone shows sits inside the
+   max-width 759px query, so a computer draws what it drew before. The few rules outside it only hide
+   the parts that exist for phones (the passport picture, the bottom bar, the See All button) and flatten
+   the wrappers around the parts a phone trims (display: contents adds no box). */
+.hs-phone-passport,
+.hs-phone-only,
+.hs-bar,
+.hs .hs-more-button {
+  display: none;
+}
+
+.hs-more,
+.hs-more-body,
+.hs-swipe {
+  display: contents;
+}
+
+@media (max-width: 759px) {
+  /* 1. hero: one button, one text link, the passport alone with one Example tag. */
+  .hs-nudge,
+  .hs-hero .kit-deck,
+  .hs-hero-cap {
+    display: none;
+  }
+
+  .hs-phone-passport {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+  }
+
+  .hs-phone-passport-art {
+    display: block;
+    line-height: 0;
+  }
+
+  .hs-hero .kit-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .hs-hero .kit-actions .pub-button-secondary {
+    border-color: transparent;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  /* 3. add it once: the three steps in one row, the lit step's line under them, two fields. */
+  .hs-steps {
+    grid-template-columns: repeat(3, minmax(0, auto));
+    justify-content: space-between;
+    align-items: center;
+    column-gap: var(--space-2);
+    row-gap: var(--space-2);
+  }
+
+  .hs-step,
+  .hs-step-text {
+    display: contents;
+  }
+
+  .hs-step[data-at="0"] .hs-step-num {
+    grid-area: 1 / 1;
+    justify-self: start;
+  }
+
+  .hs-step[data-at="1"] .hs-step-num {
+    grid-area: 1 / 2;
+    justify-self: start;
+  }
+
+  .hs-step[data-at="2"] .hs-step-num {
+    grid-area: 1 / 3;
+    justify-self: start;
+  }
+
+  .hs-steps .hs-step-text > b {
+    align-self: center;
+  }
+
+  .hs-step[data-at="0"] .hs-step-text > b {
+    grid-area: 1 / 1;
+    margin-inline-start: 42px;
+  }
+
+  .hs-step[data-at="1"] .hs-step-text > b {
+    grid-area: 1 / 2;
+    margin-inline-start: 42px;
+  }
+
+  .hs-step[data-at="2"] .hs-step-text > b {
+    grid-area: 1 / 3;
+    margin-inline-start: 42px;
+  }
+
+  .hs-steps .hs-step-body {
+    grid-area: 2 / 1 / 3 / -1;
+  }
+
+  .hs .kit-field:nth-child(n + 3),
+  .hs .kit-phone-note > span:not(.pub-example) {
+    display: none;
+  }
+
+  /* 4. ready for every trip: four papers, the rest one tap away, in place. */
+  .hs-more {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .hs-more-body {
+    display: block;
+    width: 100%;
+  }
+
+  .hs .hs-more[data-ready] .hs-more-button {
+    display: inline-flex;
+  }
+
+  .hs-more[data-ready][data-open="false"] .kit-rows .kit-row:nth-child(n + 5) {
+    display: none;
+  }
+
+  /* 6. you decide who sees what: two rows. */
+  .hs .kit-share-row[data-phone-extra] {
+    display: none;
+  }
+
+  /* 7. every rule shows its source: one row you swipe sideways, the next card peeking in. */
+  .hs-swipe {
+    display: block;
+    margin-inline: calc(var(--space-4) * -1);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--space-4);
+    scrollbar-width: none;
+  }
+
+  .hs-swipe::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* The ring sits inside the row, so the screen edge never clips it. */
+  .hs-swipe:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -4px;
+  }
+
+  .hs-swipe .hs-cards {
+    display: flex;
+    gap: var(--space-3);
+    width: max-content;
+    margin-block: var(--space-3);
+    padding-inline: var(--space-4);
+  }
+
+  .hs-swipe .hs-card {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    width: min(262px, 74vw);
+    padding: var(--space-4);
+    scroll-snap-align: start;
+  }
+
+  .hs-swipe .hs-card-art {
+    grid-row: auto;
+    width: 36px;
+  }
+
+  /* 8. agencies: one line and the button; the cases list is for larger screens. */
+  .hs-wide-only,
+  .hs-cases {
+    display: none;
+  }
+
+  .hs-phone-only {
+    display: inline;
+  }
+
+  /* 9. words: the lines that only repeat what a picture already says. The Example tag stays in every
+     chapter, and the Public Beta and Completeness wording is never trimmed. */
+  .hs-captions,
+  .hs-example > span:not(.pub-example),
+  .hs-journey .kit-note > span:not(.pub-example),
+  .hs .kit-panel-count .kit-sw > span {
+    display: none;
+  }
+
+  /* 2. the bottom action: appears after the first screen, leaves for the closing call and footer. */
+  .hs-bar {
+    display: block;
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hairline);
+    background-color: var(--bg-elevated);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(100%);
+    transition: transform 0.28s ease, opacity 0.28s ease, visibility 0s linear 0.28s;
+  }
+
+  .hs-bar[data-shown="true"] {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition: transform 0.28s ease, opacity 0.28s ease;
+  }
+
+  .hs-bar .pub-button {
+    width: 100%;
+  }
+
+  /* A focused control scrolls into view clear of the bar. */
+  :root:has(.hs-bar) {
+    scroll-padding-bottom: 72px;
+  }
+}
+
+/* Reduced motion keeps a gentle fade only (owner, 19 Nov 2026). */
+@media (max-width: 759px) and (prefers-reduced-motion: reduce) {
+  .hs-bar,
+  .hs-bar[data-shown="true"] {
+    transform: none;
+  }
+
+  .hs-bar {
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .hs-bar[data-shown="true"] {
+    transition: opacity 0.2s ease;
+  }
+}
