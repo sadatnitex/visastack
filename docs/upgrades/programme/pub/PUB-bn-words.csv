@@ -1,0 +1,134 @@
+unit,file,suggested_key,english,note
+PUB1,apps/web/src/components/public-site/public-nav.ts,home.layout.home,"Home",header link
+PUB1,apps/web/src/components/public-site/public-nav.ts,home.layout.howItWorks,"How It Works",header link; also /how-it-works tab title and /trust link
+PUB1,apps/web/src/components/public-site/public-nav.ts,home.layout.privacyAndTrust,"Privacy and Trust",header link; also /trust tab title and heading link on /how-it-works
+PUB1,apps/web/src/components/public-site/public-nav.ts,home.layout.countries,"Countries",header link; also /countries heading word and list name
+PUB1,apps/web/src/components/public-site/public-nav.ts,home.layout.forAgencies,"For Agencies",header link; also /for-agencies tab title
+PUB1,apps/web/src/components/public-site/story.tsx,public.example,"Example",tag on every illustrative figure
+PUB1,apps/web/src/components/public-site/story.tsx,public.status.received,"Received",status chip; must stay distinct from Reviewed
+PUB1,apps/web/src/components/public-site/story.tsx,public.status.reviewed,"Reviewed",status chip
+PUB1,apps/web/src/components/public-site/story.tsx,public.status.suggested,"Suggested",status chip; must stay distinct from Confirmed
+PUB1,apps/web/src/components/public-site/story.tsx,public.status.confirmed,"Confirmed",status chip
+PUB1,apps/web/src/components/public-site/story.tsx,public.status.saved,"Saved",status chip; must stay distinct from Shared
+PUB1,apps/web/src/components/public-site/story.tsx,public.status.shared,"Shared",status chip
+PUB1,apps/web/src/components/public-site/story.tsx,public.status.accessEnded,"Access Ended",status chip
+PUB1,apps/web/src/components/public-site/readiness-ring.tsx,public.ring.caption,"Completeness only. Not an approval.",exact owner wording; translate meaning not words
+PUB2,apps/web/src/app/landing-scenes.tsx,home.page.onePrivateFileForEveryVisa,"One private file for every visa application.",home first screen below 480 px
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.dropInADocument,"Drop In a Document.",intake heading
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.checkWhatItFinds,"Check What It Finds.",intake heading tinted words
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.intakeLead,"Document reading is being switched on step by step. This is an example of how it will work.",intake lead
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.intakeLabel,"Example of a document being read",accessible name of the intake picture
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.received,"Your documents arrive in your private place.",Received line
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.suggested,"Reading proposes the values. Nothing is saved yet.",Suggested line
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.confirmed,"You check each value, and it joins your file.",Confirmed line
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.intakeCaption,"Illustration with sample documents.",intake caption
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.docPassport,"Passport",example document name
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.docBankStatement,"Bank Statement",example document name
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.docEmploymentLetter,"Employment Letter",example document name
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.docPhoto,"Photo",example case item
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.docTravelPlan,"Travel Plan",example case item
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.seeHowComplete,"See How Complete",ready heading
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.yourFileIs,"Your File Is.",ready heading tinted words
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.readyLead,"Completeness is how much of the list is in your file.",ready lead
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.readyLabel,"Example of a file filling up",accessible name of the ready picture
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.notAddedYet,"Not Added Yet",accessible name of the empty mark
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.itemsReady,"Items Ready",ring count label
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.readyCaption,"Illustration with a sample case.",ready caption
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.passportAlt,"Bangladesh Passport Cover",picture name
+PUB2,apps/web/src/app/landing-scenes.tsx,home.scene.passportCaption,"The type of cover, not anyone's own passport.",closing caption (source uses a typographic apostrophe)
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.headline,"Your Case, / Step by Step",headline in two lines
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.lead,"Add your documents once. See what each case needs next.",opening
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.sceneEyebrow,"Follow a Case",scene eyebrow
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.sceneTitle,"Every Case Has a Clear Next Step",scene heading
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage1,"You pick a country and a route.",stage line (stage name itself is the product's own catalogue word)
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage2,"Documents join the case from your vault.",stage line
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage3,"You look over the case before it moves on.",stage line
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage4,"If something is missing, the case comes back to you.",stage line
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.stage5,"You confirm it, and the case is ready.",stage line
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.exampleCase,"Example Case: Japan Visit",drawn case title
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.documentsReady,"Documents Ready",ring count label
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.chargeTitle,"You Stay in Charge",dark chapter heading
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.card1Title,"Suggested Is Not Confirmed",card title
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.card1Body,"What we read from your document is only a suggestion. Nothing changes until you confirm it.",card body
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.card2Title,"Saved Is Not Shared",card title; also /for-agencies
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.card2Body,"A document you save stays yours. Agencies and other people see it only when you share it.",card body
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.card3Title,"Received Is Not Reviewed",card title
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.card3Body,"Your agency is told when a file arrives. That is not a review. You are told when it is accepted.",card body
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.closingTitle,"Ready When You Are",closing heading
+PUB3,apps/web/src/app/how-it-works/page.tsx,pub3.howItWorks.closingBody,"Readiness shows how complete a case is. It is never an approval.",closing line
+PUB3,apps/web/src/components/public-trust-story.tsx,pub3.trust.headline,"Your documents. / Your decisions.",/trust headline in two lines
+PUB3,apps/web/src/components/public-trust-story.tsx,pub3.trust.lead,"Share only what you choose, for as long as you choose.",/trust opening
+PUB3,apps/web/src/components/public-trust-story.tsx,pub3.trust.moment1,"Saved stays yours. Agencies and other people see it only when you share it.",share scene line
+PUB3,apps/web/src/components/public-trust-story.tsx,pub3.trust.moment2,"You switch on the items an agency may see.",share scene line
+PUB3,apps/web/src/components/public-trust-story.tsx,pub3.trust.moment3,"You end access whenever you choose.",share scene line
+PUB3,apps/web/src/components/public-trust-story.tsx,pub3.trust.until,"Access ends when you choose.",share scene line
+PUB3,apps/web/src/components/public-trust-story.tsx,pub3.trust.promisesTitle,"How Your Records Are Protected",heading above the four promises
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.routesTitle,"Maintained Route Information",English before PUB3 too (moved from trust/page.tsx)
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.routesLead,"Official fees, where to apply and scam warnings for visa routes, each with its source. This is information only: never a promise of approval, an embassy endorsement or a ranking of agencies.",English before PUB3 too
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.searchLabel,"Search Routes",English before PUB3 too
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.searchHint,"For example: Japan",English before PUB3 too (other catalogues already hold this phrase)
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.search,"Search",button
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.clearSearch,"Clear Search",button
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.route,"Route",row label
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.publicTrust,"Public Trust",eyebrow
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.noRoutes,"No routes are currently published here.",empty state
+PUB3,apps/web/src/components/public-trust-routes.tsx,pub3.trust.noMatch,"No routes match your search. Try another country or route.",empty search
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.tabTitle,"Countries and Sources",tab title
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.headline,"Countries, / With Their Sources",headline in two lines
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.lead,"Visa facts for Bangladeshi passports, with sources. Always confirm on the official page.",opening
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.ringLabel,"Countries We Hold",flag ring name
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.listTitle,"All Countries",list heading
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.start,"Start",row button
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.startWith,"With {country}",hidden end of the row button name
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.source,"Source: {name}",row source
+PUB4,apps/web/src/app/countries/countries-data.ts,pub4.countries.noSource,"No Source Given",row source missing
+PUB4,apps/web/src/app/countries/countries-data.ts,pub4.countries.checkedOn,"Checked On {date}",row date; date format must follow page language
+PUB4,apps/web/src/app/countries/countries-data.ts,pub4.countries.dateNotRecorded,"Date Not Recorded",row date missing
+PUB4,apps/web/src/app/countries/countries-data.ts,pub4.countries.notResearched,"Not Researched Yet",row state and card title
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.readTitle,"How to Read These Facts",scene heading
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.cardSource,"Source",card title
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.cardSourceBody,"Each fact we list names the page it came from, where one is given.",card body
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.cardChecked,"Checked On",card title
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.cardCheckedBody,"The latest day we checked anything for this country. Check the official page before you pay or travel.",card body
+PUB4,apps/web/src/app/countries/page.tsx,pub4.countries.cardNotResearchedBody,"We have not checked this country yet. Use the official page. No date, and no claim.",card body
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.headline,"Stop Chasing Documents / by Message",headline in two lines
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.lead,"Ask for a document, then see when it arrives, all in one place.",opening
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.getsTitle,"What an Agency Gets",section heading
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.card1Title,"Ask for One Document",card title
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.card1Body,"Ask a client for a specific document and see when it arrives.",card body
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.card2Title,"See What Is Missing",card title
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.card2Body,"Open a case and see at once what is missing or overdue.",card body
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.card3Title,"Keep a Clear Record",card title
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.card3Body,"Keep a clear record of who did what, and when.",card body
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.lineTitle,"One Case, One Clear Line",example heading
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.itemPassport,"Passport Scan",example item
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.itemPassportNote,"Arrived from the client. Nobody has checked it yet.",example note
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.itemDob,"Date of Birth",example item
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.itemDobNote,"Read from the scan. It waits for the client to confirm.",example note
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.itemPhoto,"Visa Photo",example item
+PUB4,apps/web/src/app/for-agencies/for-agencies-data.ts,pub4.agencies.itemPhotoNote,"The client checked it and confirmed it.",example note
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.itemsComplete,"Items Complete",ring count label
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.sharedTitle,"You See Only What Is Shared",section heading
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.savedBody,"A client's record is private. Sharing starts with their permission, and every sharing decision is recorded.",card body under Saved Is Not Shared
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.accessTitle,"Access Can End",card title
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.accessBody,"Access can end on a date the client sets, and the change is recorded.",card body
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.exampleStates,"Example States",chip list name
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.closing,"One Traveller Profile, Fewer Repeat Requests",closing heading
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.freeBeta,"Free Public Beta",eyebrow while public beta is open (check catalogue: may already exist on Home)
+PUB4,apps/web/src/app/for-agencies/page.tsx,pub4.agencies.invitePilot,"Invite-Only Pilot",eyebrow in pilot (check catalogue: may already exist on Home)
+HOT1,apps/web/src/app/landing-c1.css,none,(no new words),layout only
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.home,"Home",header and footer link still English on Bengali pages (PUB5 pass 2, P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.privacyAndTrust,"Privacy and Trust",header and footer link still English on Bengali pages (P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.countries,"Countries",header and footer link still English on Bengali pages (P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.status,"Status",footer Trust group link still English on Bengali pages (P2-8)
+PUBFIX2,apps/web/src/i18n/home.ts,home.layout.noticePilotShort,"Test version. Made-up details only.","Bengali base line ends the pilot sentence with a Latin full stop; it needs the danda (P2-8). No catalogue Bengali edited by PUBFIX2"
+PUBW1,apps/web/src/i18n/home.ts,home.page.itIsFreeToUseAt,"It is free to use. The status page shows exactly what works today.","Changed English (own-risk and virus scanning words removed). The old Bengali was deleted and home.sources.json maps the key to null, so a Bengali refill cannot bring the old sentence back; Bengali pages showed English until translated. Superseded by MOB1 (owner "2-Do", 19 Nov 2026): Bengali drafted, awaiting owner review (register row SG-392e925a, not reviewed, not released)."
+PUBW1,apps/web/src/i18n/home.ts,home.layout.footerAsIs,"Provided as is during the public beta.","New quiet footer line, followed by the existing Terms and Status footer link names; public beta only; no Bengali at first. Superseded by MOB1 (owner "2-Do", 19 Nov 2026): Bengali drafted, awaiting owner review (register row SG-b87f6d55, not reviewed, not released)"
+PUBW1,apps/web/src/components/pilot-banner.tsx,public beta notice detail (Status page About This Version card only),"Some features are still being switched on. This page shows what works today.","Not shown in the top notice (owner words: name and What Works Today link only); shown on /status under About This Version. Goes through the public notice words, no catalogue key yet"
+PUBW1,apps/web/src/app/privacy/page.tsx,privacy public beta sentence,"During the free public beta you may add your own information and documents. The Terms of Use say what to expect while the beta runs.","Changed English on /privacy (own-risk and virus scanning words removed)"
+PUBW1,apps/web/src/app/privacy/page.tsx,privacy pilot sentence,"Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.","Trailing virus scanning sentence removed from the pilot wording"
+PUBW1,apps/web/src/components/public-trust-story.tsx,trust today paragraph,"VisaStack is in a controlled pilot. Only practice records are used. Independent checks will be listed here as they are completed, and nothing before.","Virus scanning sentence removed from the /trust Where we are paragraph"
+PUBW1,apps/web/src/app/terms/page.tsx,terms public beta heading,"Free Public Beta","Heading retitled from Free Public Beta, at Your Own Risk; the body (including the virus scanning sentence) stays on /terms"
+MOB1,apps/web/src/components/public-site/phone-actions.tsx,home.phone.seeAll,"See All {count}",phone only button that opens the other papers of the checklist; Bengali already in home.ts (সব {count}টি দেখুন) for review
+MOB1,apps/web/src/components/public-site/phone-actions.tsx,home.phone.showFewer,"Show Fewer",same button once opened; Bengali already in home.ts (কম দেখান) for review
+MOB1,apps/web/src/app/home-story.tsx,(none yet),"Example: the type of Bangladesh passport cover, not anyone’s own.",phone passport picture text alternative (English marked as English on a Bengali page)

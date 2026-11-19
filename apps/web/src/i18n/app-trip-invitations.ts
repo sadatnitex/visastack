@@ -47,6 +47,9 @@ export const appTripInvitationsCatalog = defineCatalog({
     'appTripInvitations.appTripInvitationsIdPage.where': 'Where',
     'appTripInvitations.appTripInvitationsIdPage.why': 'Why',
     'appTripInvitations.appTripInvitationsIdPage.youJoinedThisTrip': 'You joined this trip.',
+    // WP-U7 traveller screens on the Wallet foundation (18 Nov 2026): English only until the localization lane writes Bengali (docs/upgrades/programme/wal/U7-records.md).
+    'appTripInvitations.appTripInvitationsU7.aboutThisTrip': 'About This Trip',
+    // end WP-U7
   },
   bn: {
     'appTripInvitations.appTripInvitationsAcceptAcceptForm.shareMore': 'আরও শেয়ার করুন',

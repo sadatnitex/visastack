@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PUBLIC_NAV } from '../components/public-site/public-nav';
+import { homeCatalog } from '../i18n/home';
 
 /**
  * WCAG 2.4.2 (Page Titled, level A): every page names itself, so a person with a
@@ -79,17 +80,25 @@ describe('page titles', () => {
     // D3: the page is "Notifications", as the menu and the finder name it (CCD-7).
     expect(titleOf('app/notifications/page.tsx')).toBe('Notifications');
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
-    // VS-010: /trust opens on the privacy and control story; its title stays until PUB3 renames it.
-    expect(titleOf('trust/page.tsx')).toBe('Privacy and Control');
+    // WP-PUB3 (owner, 17 Nov 2026; approved guard correction): the tab is named as the menu names it.
+    expect(titleOf('trust/page.tsx')).toBe('Privacy and Trust');
     expect(readFileSync(join(APP_DIR, '../i18n/home.ts'), 'utf8')).toContain(
       "'home.layout.privacyAndControl': 'Privacy and Control'",
     );
     // WP-PUB1 (owner, 17 Nov 2026; approved guard correction): the header names /trust
-    // "Privacy and Trust" from the one public list, and the footer keeps its own /trust link.
+    // "Privacy and Trust" from the one public list. WP-NAV2 (Guardian, 18 Nov 2026; approved guard
+    // correction): the footer draws /trust from the same list, so it carries the same name.
     expect(PUBLIC_NAV.find((entry) => entry.route === '/trust')?.label).toBe('Privacy and Trust');
     const layout = readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8');
     expect(layout).toContain('publicNavLinks(');
-    expect(layout).toContain('<Link href="/trust">{t.node(\'home.layout.publicTrust\')}</Link>');
+    // The header (not only the footer) draws its pages from that one list.
+    expect(layout).toContain('const links = publicNavLinks(undefined, { signedIn });');
+    expect(layout).toMatch(/<SiteNavigation[\s\S]*?pages=\{links\.map\(/);
+    expect(layout).toMatch(/<SiteFooter[\s\S]*?pages=\{links\}/);
+    expect(layout).not.toContain('home.layout.publicTrust');
+    // WP-PUB4 (Guardian, 18 Nov 2026): the public page is told apart from the signed-in "Countries" by its tab title.
+    expect(titleOf('countries/page.tsx')).toBe('Countries and Sources');
+    expect(titleOf('for-agencies/page.tsx')).toBe('For Agencies');
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');
   });
@@ -105,14 +114,15 @@ describe('landmarks', () => {
   const read = (file: string) => readFileSync(join(APP_DIR, file), 'utf8');
 
   it('tells public and workspace navigation landmarks apart', () => {
-    expect(read('layout.tsx')).toContain('<SiteNavigation>');
+    // WP-NAV2 (approved guard correction): the header hands its pages and actions to the component.
+    expect(read('layout.tsx')).toContain('<SiteNavigation');
     // The label comes from the message catalogue; its English text is still "Site".
     expect(read('../components/site-navigation.tsx')).toContain(
       "aria-label={t('components.siteNavigation.site')}",
     );
     expect(read('../i18n/components.ts')).toContain("'components.siteNavigation.site': 'Site'");
     // The label comes from the message catalogue; its English text is still "Footer".
-    expect(read('layout.tsx')).toContain("aria-label={t('home.layout.footer')}");
+    expect(read('../components/site-footer.tsx')).toContain("aria-label={t('home.layout.footer')}");
     expect(read('../i18n/home.ts')).toContain("'home.layout.footer': 'Footer'");
     // The label now comes from the message catalogue; its English text is still "Workspace".
     expect(read('app/app-nav.tsx')).toContain("aria-label={t('appHome.appAppNav.workspace')}");
@@ -121,5 +131,16 @@ describe('landmarks', () => {
 
   it('says in which language the language switch is written', () => {
     expect(read('layout.tsx')).toMatch(/lang=\{locale === 'en' \? 'bn' : 'en'\}/);
+  });
+});
+
+describe('the home wording and its register sources', () => {
+  // TIDY1 (18 Nov 2026): a key left out of home.sources.json drops out of the held-back wording
+  // check in rest-locale.test.tsx without any test failing, so the two files must name the same keys.
+  it('has one sources entry for every English key, and no entry without a key', () => {
+    const sources = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../i18n/home.sources.json', import.meta.url)), 'utf8'),
+    ) as Record<string, string | null>;
+    expect(Object.keys(sources).sort()).toEqual(Object.keys(homeCatalog.en).sort());
   });
 });

@@ -1,0 +1,114 @@
+/* R5 for-agencies page, rebuilt to the approved reference. Flat: tokens only, no gradient, no shadow, no new hue.
+   Every colour reads a --pub-* tone token with the light value as its fallback (a chapter sets the tone). */
+.r5-hero-grid {
+  display: grid;
+  /* On a phone the case list starts below the first screen (the PUB4 guard allows 30 words there). */
+  gap: 5rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.r5-hero-copy {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+  min-width: 0;
+}
+
+.r5-kicker {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--pub-accent, var(--accent));
+}
+
+.r5-title {
+  margin: 0;
+  font-size: clamp(2.25rem, 6vw, 4rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  color: var(--pub-ink, var(--text));
+  overflow-wrap: anywhere;
+}
+
+.r5-lede {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r5-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.r5-h2 {
+  margin: 0 0 var(--space-6);
+  font-size: clamp(1.75rem, 4.5vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--pub-ink, var(--text));
+}
+
+.r5-cards {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.r5-cards > article {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge, var(--edge-card));
+  border-radius: var(--radius-lg);
+  background-color: var(--pub-card, var(--bg-elevated));
+}
+
+.r5-card-picture {
+  display: inline-flex;
+  min-height: 80px;
+}
+
+.r5-card-title {
+  margin: 0;
+  font-size: 1.1875rem;
+}
+
+.r5-card-body {
+  margin: 0;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+.r5-plans-inner {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  min-width: 0;
+}
+
+.r5-plans-inner .r5-h2 {
+  margin-bottom: var(--space-3);
+}
+
+.r5-plans-line {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 1.125rem;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+@media (min-width: 860px) {
+  .r5-hero-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-7, var(--space-6));
+  }
+
+  .r5-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

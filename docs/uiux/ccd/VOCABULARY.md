@@ -136,10 +136,10 @@ Added 3 Nov 2026 (UMPE P13, three traveller entry points; locked contract sectio
 
 | Thing | Canonical name | Retire | Status |
 |---|---|---|---|
-| The traveller's documents entry point (opens Documents; lit on All Records, My Profile, Dates & Expiry and History) | My Documents (phone bar: Documents) | "Record" as the second tab, "Vault", "Wallet" | **New (P13)**; the Record hub stays under More Tools as Record, its pages keep their names |
+| The traveller's documents entry point (opens Documents; lit on All Records, My Profile, Dates & Expiry and History) | ~~My Documents~~ (superseded, replaced 17 Nov 2026 by My Record, phone bar: Record) | "Record" as the second tab, "Vault", "Wallet" | **New (P13)**; the Record hub stays under More Tools as Record, its pages keep their names |
 | The traveller's trips entry point (opens Cases; lit on case pages, Start a Trip and Group Trips) | My Trips (phone bar: Trips) | "Cases" as the third tab, "Missions" | **New (P13)**; the Cases page keeps its heading "Cases" (owner may later rename the page itself) |
 | The traveller's sharing entry point (opens Sharing; lit on Evidence Requests and Shared with Me) | Sharing & Requests (phone bar: Sharing) | "Sharing" as the fourth tab, "Sharing & Access" | **New (P13)**; the Sharing page keeps its heading "Sharing" |
-| The task under My Documents | Add Documents (opens the upload on Documents) | "Upload", "Import Files" in the menu | **New (P13)** |
+| The task under My Record (was My Documents) | Add Documents (opens the upload on Documents) | "Upload", "Import Files" in the menu | **New (P13)** |
 | The task under My Trips | Start a Trip (the existing P4 page) | "New Trip", "Plan Trip" | **New (P13)**: first menu entry for this page |
 | More Tools entries added | Group Trips (P5 page), Answers to Agencies (P7 page "Your Answers to Agencies") | "Agency Responses" | **New (P13)**: first menu entry for both pages |
 | Home's task row | Start Here: Add Documents, Start a Trip, Answer a Request (or See Sharing & Requests) | "Quick Start", "Get Started" | **New (P13)** |
@@ -200,7 +200,7 @@ Added 10 Nov 2026 (Lane 1, the traveller's first journey, plain words for a grad
 | Starting a case from the Cases list | The main button is Start a Trip (the three-question flow, with that traveller already ticked); the by-name form stays under "Not Sure Where Yet? Add a Case by Name". With processing off the button stays Start a Case and points at the card that says what to turn on | A typed title as the only way in | **Done (Lane 1)** |
 | A trip form where the country is not known | A plain link, Start a Case by Name | A refusal with no way forward | **Done (Lane 1)** |
 | The one-time copies a traveller prepares | Summary (page Summaries, button Prepare a Summary, step Choose a Summary, last step Check and Copy); not "Brief", and never labelled Share (Sharing is its own section) | "Brief", "Briefs and Summaries", "Prepare a Brief", "Preview and Share", eyebrow "Share" | **Done (Lane 1)** |
-| Where a saved value stands (display words; stored codes unchanged) | Entered, Suggested, Confirmed, Backed by a Document, Reviewed by an Agency, Does Not Match, No Longer Current, Replaced. Suggested is never Confirmed; Reviewed is only for a real agency review | "Declared", "Extracted (Pending)", "Document-supported", "Agency-reviewed", "Conflicted", "Stale", "Superseded" | **Done (Lane 1)**; `lib/field-state-words.ts`, the one map that History, the profile pages and Application Memory (compare page) all read; Application Memory's older words (Entered by Hand, Marked as Not Matching, Out of Date, Replaced by a Newer Version) are retired |
+| Where a saved value stands (display words; stored codes unchanged) | Entered, Suggested, Confirmed, Backed by a Document, Reviewed by an Agency, Does Not Match, No Longer Current, Replaced. Suggested is never Confirmed; Reviewed is only for a real agency review | "Declared", "Extracted (Pending)", "Document-supported", "Agency-reviewed", "Conflicted", "Stale", "Superseded" | **Done (Lane 1)**; `lib/field-state-words.ts`, the one map that History, the profile pages and Application Memory (compare page) all read; Application Memory's older words (Entered by Hand, Marked as Not Matching, Out of Date, Replaced by a Newer Version) are retired; the status pictures (`components/pictures/status-picture.tsx`, WAL1, ADR 0030) read their names from the same map |
 | How a saved value was recorded | Typed In, From a Document, From a Connected App, Added by VisaStack | "Manual", "API", "System", the raw code | **Done (Lane 1)** |
 | The three dates cards on Dates & Expiry | Document Expiry, Route Date Rules, Confirmation Dates; the card Confirmations from Issuers | "Intrinsic Expiry", "Case-Specific Freshness", "Verification Expiry", "Issuer Confirmations" | **Done (Lane 1)** |
 | The profile page counts and notes | Fields Backed by a Document, Fields That Do Not Match, "Every save keeps the earlier value", "How This Was Checked" (no internal tier shown) | "Document-supported fields", "Conflicting fields", "immutable version", "Assurance (E2)" | **Done (Lane 1)** |
@@ -222,3 +222,9 @@ Send on WhatsApp, everywhere a person sends something (10 Nov 2026). Owner decis
 
 | The stage of a case on the Trips list | Getting Started, Gathering Documents, Being Checked, Needs You, Ready to Submit, Submitted, Closed, Cancelled (`CASE_STATUS`); older stages read as the nearest word | "Draft", "Intake", "In Review", "Awaiting Traveller", "Submission Ready", "Approved" (never used for Submitted) | **Done (P12)** |
 | The two groups on the Trips list | Active (N) and Past Trips (N) | "Active Cases", "Past Cases", "All Past Cases" | **Done (P12)** |
+
+Added 17 Nov 2026 (owner decision, WAL9; overrides D6 for this tab only):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The traveller's documents entry point (opens Documents; lit on All Records, My Profile, Dates & Expiry and History) | My Record (phone bar: Record) | "My Documents" as the tab name | **New (WAL9)**. The consent wording "Let AI Read Details from My Documents" and its siblings name a stored consent scope, not the tab, and stay as they are. The More Tools entry Record keeps its name. |

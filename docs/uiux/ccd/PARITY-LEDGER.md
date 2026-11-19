@@ -352,8 +352,8 @@ Guard: `apps/web/src/lib/experience-parity.test.ts` over the map in `apps/web/sr
 | Before P13 (traveller sidebar) | After P13 | Address |
 |---|---|---|
 | Home (tab) | Home (tab, unchanged) | `/app/applicant/{id}` |
-| Record (tab) | More Tools: Record; its sections light up My Documents | `/app/applicant/{id}/record` |
-| (Record section) Documents | My Documents (tab), with the task Add Documents | `/app/applicant/{id}/documents` |
+| Record (tab) | More Tools: Record; its sections light up My Record | `/app/applicant/{id}/record` |
+| (Record section) Documents | My Record (tab, renamed from My Documents 17 Nov 2026), with the task Add Documents | `/app/applicant/{id}/documents` |
 | Cases (tab) | My Trips (tab), with the task Start a Trip | `/app/applicant/{id}/missions` |
 | Sharing (tab) | Sharing & Requests (tab) | `/app/applicant/{id}/sharing` |
 | Notifications, Countries | unchanged (under More on a phone) | `/app/notifications`, `/app/countries` |
@@ -613,3 +613,71 @@ Held by `parity-case.test.tsx` through three approved changes in `approved-chang
 | Stage names Draft, Intake, In Review, Awaiting Traveller, Submission Ready (and older ones) | Getting Started, Gathering Documents, Being Checked, Needs You, Ready to Submit, Submitted, Closed, Cancelled | Cases, glance line |
 
 Held by `parity-cases.test.tsx` through the approved changes in `approved-changes.ts`, by `page.test.tsx` and by `components/case-list-row.test.tsx`.
+
+## Trip Package as a journey line with gaps (WAL3, 18 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| Outside VisaStack: a bullet list of full sentences | One row of four pictures (Form, Book, Bring, Pay), each with its full sentence in an Explain popup; a step the checklist adds stays a plain line | Case, Trip Package |
+| The paragraphs "This shows what you have ready ...", the file-choice hint, "VisaStack does not do these for you ..." and "Travelling with others? ..." | The same sentences in the Explain popup of the Trip Package heading; "Nothing is sent until you share it yourself." stays as a visible line; Start a Trip is a button in the heading | Case, Trip Package |
+| A gap in the package was told only in a list of reasons | Stones on one line (solid ring and tick is ready, dashed ring and cross is a gap), at most five in view, the rest scroll inside the card; each gap has one line and one button that opens the item's own panel | Case, above Trip Package, at every depth |
+| Case Details and Trip Date Checks: a native fold with a summary row on a phone, the card on a wide screen | The same behaviour as an Expandable Section with a one-line summary (the date check status is now said in the summary line, not a separate chip) | Case rail |
+
+Held by `trip-journey-line.test.tsx`, `case-rail.test.tsx`, `case-structure.test.tsx` and `e2e/scroll-budget/WAL3.spec.ts`. "This shows what you have ready ... nothing is sent until you share it yourself" and every id (#trip-package, #trip-checks) and link are unchanged.
+
+## Wallet upgrade, signed-in screens (WAL1 to WAL10, 17 and 18 Nov 2026)
+
+Source: `docs/upgrades/programme/wal/WAL*-records.md`. Every unit is presentation only: no service, policy, database, route or server action changed. WAL3 (Trip Package) has its own section above.
+
+| Before | Now | Where |
+|---|---|---|
+| Each screen built its own open-and-close boxes and status marks | One Expandable Section and six status pictures that read one status map (WAL1, #631); nothing changed on screen when it merged | Shared, used by the units below |
+| Profile: a long list of open boxes | A Passport Page Card with protected details masked and value rows for the rest (WAL4, #637; the later ESS1 section below moves the protected values out of the page) | Profile |
+| Document detail: a plain page | A pass card first with compact review rows; one-at-a-time review only for sensitive or conflicting details (WAL2, #639) | Document detail |
+| AI Connections: a list per connection | One tile per connection, traveller and agency; access and scopes unchanged (WAL5, #636) | AI Connections |
+| Bottom tab "My Documents" and More Tools "Record" | "My Record" and "All Records" (WAL9, #633) | Tab bar, More Tools |
+| People without the account photo; Needs Attention as a stacked list | The signed-in person's own account photo; Needs Attention as Wallet rows (WAL10, #643) | Home |
+
+Held by the unit tests named in each record, the layout guards, and the signed-in route guard (CI signs a made-up traveller and a made-up agency in and opens 50 pages at 390, 400 and 1280 wide).
+
+## All Records and traveller screens on the Wallet foundation (U6 and U7, 18 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| All Records: group cards with a filter strip clipped at the corners | Compact rows with plain status wording; five separate filter chips so a press at the edge reaches the button (U6, #647). Search, Category, count, paging and the empty lines are unchanged and search finds exactly what it found before | All Records |
+| Notifications, Account, Privacy, Help, People, invitation accept screens, Trips and shared files as separate card styles | Wallet rows (U7, #650). Notifications: one row each, Mark All Read, depth levels and Show More unchanged. Privacy: every confirm step, consequence wording and server action stays; an address such as `#delete-account` opens its row on arrival. Invitations: a row says who is asking, what is agreed sits in an open fold; Join and Decline are equal weight on the trip invitation | Notifications, Privacy, Help, Invitations, Trips |
+
+Known gap kept on record: the sharing, client, contributor and agency invitation accept screens have no Decline action.
+
+## Agency screens on Wallet rows (U8, 18 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| Team, Clients, Cases, Plan and Usage as cards; the Time Zone list drawn about 240 px tall | Wallet rows; Plan shows one row per limit with a ring and the count in words ("1 of 5 used"), no ring arc for a limit with no ceiling; the Time Zone box fixed (U8, #644) | Agency Team, Clients, Cases, Plan and Usage |
+| Activity and AI Connections empty states without an action | One real action each: Open Cases, Open Settings | Agency Activity, AI Connections |
+
+## Public header and footer (NAV2, 18 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| Header link text wrapped to two lines below about 1180 px | One row: brand, five pages, language switch, quiet Sign In and one filled Get Started; the pages and language move into the phone menu where the row does not fit (breakpoints measured: English 1150 px, Bengali 1230 px). The menu button name, `aria-expanded`, Escape and focus return are unchanged | Public header |
+| Footer with the older `.footer-inner` and `.footer-links` rules | Brand line, three groups (Product, Trust, Account) and a base line with the copyright and version line, drawn from the one public page list (NAV2, #653). The older rules were unused and are removed by TIDY1 | Public footer |
+
+Held by `layout-header-footer.test.tsx`, `layout.test.tsx` and `e2e/public-site/nav2-header-footer.spec.ts`.
+
+## Motion on every screen and for every visitor (MOT1, 18 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| Public scenes ran only on a screen at least 760 px wide and 600 px high; phones and short windows showed stills | Phones, small and zoomed windows play each scene once as it comes into view ("reveal"); big screens keep pinned scenes; devices asking for less motion get gentle fades of opacity and colour; data saver no longer stops motion; no JavaScript still shows finished pictures (MOT1, #651) | Public pages |
+
+Held by the guard tests named in `docs/upgrades/programme/pub/MOT1-records.md` (the one mode rule and its early-paint mirror, the gentle-mode stylesheet override) and `pub2-home.spec.ts` ("pins nothing below 900 px").
+
+## My Profile shows each detail once (ESS1, 18 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| About 10 essentials drawn twice (card and Essentials First list); every saved detail an open box; Date of Birth and Passport Number masked on the card but in clear below and in the page's data | Essentials First lists only what the Passport Page Card does not show; a saved detail is a read row with Edit; protected values are loaded only when Show is pressed, through an owner-only, audited action; one date style (ESS1, #654) | Profile |
+
+What did not change: `saveFactAction`, section actions, services, policy, schema, stored values, history, provenance, completeness and readiness counts. Held by the parity tests in `passport-page-card.test.tsx` and `profile/protected-access.test.ts`.
+

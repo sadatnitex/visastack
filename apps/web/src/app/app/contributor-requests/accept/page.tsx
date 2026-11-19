@@ -1,10 +1,17 @@
-import { getRetentionPolicies, previewContributorRequest } from '@visastack/services';
+import {
+  getRetentionPolicies,
+  invitationDeclineAvailable,
+  previewContributorRequest,
+} from '@visastack/services';
 import type { Metadata } from 'next';
+import { DeclineInvitation } from '../../../../components/decline-invitation';
 import { appContributorRequestsCatalog } from '../../../../i18n/app-contributor-requests';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { serviceErrorNode } from '../../../../lib/service-error-node';
 import { withSession } from '../../../../lib/session';
+import { AcceptFold, PersonPicture, TravellerRow } from '../../u7-rows';
+import { declineContributorRequestAction } from './actions';
 import { SubmitEvidenceForm } from './submit-evidence-form';
 
 export const metadata: Metadata = { title: 'Add Evidence for a Request' };
@@ -49,7 +56,9 @@ export default async function AcceptContributorRequestPage({
   const data = await withSession(async ({ db, email }) => {
     const preview = await previewContributorRequest(db, { rawToken: token, actorEmail: email });
     const policies = await getRetentionPolicies(db);
-    return { preview, policies };
+    // DECL1: Decline is offered only once the update that stores it is in place.
+    const declineReady = preview.ok && (await invitationDeclineAvailable(db));
+    return { preview, policies, declineReady };
   });
 
   const requestedDocType = data.preview.ok ? data.preview.value.docType : null;
@@ -77,57 +86,67 @@ export default async function AcceptContributorRequestPage({
           </p>
         ) : (
           <>
-            <p className="card-body">
+            <TravellerRow
+              headingLevel={2}
+              title={data.preview.value.applicantName}
+              picture={<PersonPicture name={data.preview.value.applicantName} />}
+              chip={{ label: documentTypeLabel(data.preview.value.docType), tone: 'info' }}
+            />
+            <p className="card-body u-mt-100">
               <strong>{data.preview.value.applicantName}</strong> is asking you for a document to
               support their <strong>{data.preview.value.missionTitle}</strong> case:{' '}
               <strong>{documentTypeLabel(data.preview.value.docType).toLowerCase()}</strong>.
             </p>
-            <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t.node('appContributorRequests.appContributorRequestsAcceptPage.why')}
-            </p>
-            <p className="card-body u-mb-100">{data.preview.value.purpose}</p>
-            {data.preview.value.message ? (
-              <>
-                <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-                  {t.node('appContributorRequests.appContributorRequestsAcceptPage.message')}
-                </p>
-                <p className="card-body u-mb-100">{data.preview.value.message}</p>
-              </>
-            ) : null}
+            <AcceptFold
+              title={t.node('appContributorRequests.appContributorRequestsU7.aboutThisRequest')}
+            >
+              <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+                {t.node('appContributorRequests.appContributorRequestsAcceptPage.why')}
+              </p>
+              <p className="card-body u-mb-100">{data.preview.value.purpose}</p>
+              {data.preview.value.message ? (
+                <>
+                  <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+                    {t.node('appContributorRequests.appContributorRequestsAcceptPage.message')}
+                  </p>
+                  <p className="card-body u-mb-100">{data.preview.value.message}</p>
+                </>
+              ) : null}
 
-            <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t.node('appContributorRequests.appContributorRequestsAcceptPage.whoWillSeeThis')}
-            </p>
-            <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-              <li className="muted u-fs-085">
-                {t.node(
-                  'appContributorRequests.appContributorRequestsAcceptPage.applicantnameTheTraveller',
-                  { applicantName: data.preview.value.applicantName },
-                )}
-              </li>
-              {data.preview.value.recipientOrganizationNames.map((name) => (
-                <li className="muted u-fs-085" key={name}>
+              <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+                {t.node('appContributorRequests.appContributorRequestsAcceptPage.whoWillSeeThis')}
+              </p>
+              <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                <li className="muted u-fs-085">
                   {t.node(
-                    'appContributorRequests.appContributorRequestsAcceptPage.nameHelpingWithThisCase',
-                    { name },
+                    'appContributorRequests.appContributorRequestsAcceptPage.applicantnameTheTraveller',
+                    { applicantName: data.preview.value.applicantName },
                   )}
                 </li>
-              ))}
-            </ul>
+                {data.preview.value.recipientOrganizationNames.map((name) => (
+                  <li className="muted u-fs-085" key={name}>
+                    {t.node(
+                      'appContributorRequests.appContributorRequestsAcceptPage.nameHelpingWithThisCase',
+                      { name },
+                    )}
+                  </li>
+                ))}
+              </ul>
 
-            <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t.node('appContributorRequests.appContributorRequestsAcceptPage.howLongItSKept')}
-            </p>
-            <p className="card-body u-mb-100">
-              {retentionDays !== null
-                ? t.node(
-                    'appContributorRequests.appContributorRequestsAcceptPage.retentiondaysDaysFromUploadUnderThis',
-                    { retentionDays },
-                  )
-                : t.node(
-                    'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentTypeDoesnTHave',
-                  )}
-            </p>
+              <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+                {t.node('appContributorRequests.appContributorRequestsAcceptPage.howLongItSKept')}
+              </p>
+              <p className="card-body u-mb-100">
+                {retentionDays !== null
+                  ? t.node(
+                      'appContributorRequests.appContributorRequestsAcceptPage.retentiondaysDaysFromUploadUnderThis',
+                      { retentionDays },
+                    )
+                  : t.node(
+                      'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentTypeDoesnTHave',
+                    )}
+              </p>
+            </AcceptFold>
 
             <div className="notice notice-warn u-mb-125">
               {t.node(
@@ -142,7 +161,21 @@ export default async function AcceptContributorRequestPage({
                 )}
               </p>
             ) : (
-              <SubmitEvidenceForm token={token} docType={data.preview.value.docType} />
+              <>
+                <SubmitEvidenceForm token={token} docType={data.preview.value.docType} />
+                {data.declineReady ? (
+                  <DeclineInvitation
+                    token={token}
+                    action={declineContributorRequestAction}
+                    labels={{
+                      decline: t.node('appContributorRequests.appContributorRequestsDecl1.decline'),
+                      explain: t.node('appContributorRequests.appContributorRequestsDecl1.explain'),
+                      confirm: t.node('appContributorRequests.appContributorRequestsDecl1.confirm'),
+                      busy: t.node('appContributorRequests.appContributorRequestsDecl1.busy'),
+                    }}
+                  />
+                ) : null}
+              </>
             )}
           </>
         )}

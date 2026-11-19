@@ -35,11 +35,16 @@ export function inventory(html: string): InventoryEntry[] {
   const main = doc.querySelector('main') ?? doc.body;
   const entries: InventoryEntry[] = [];
   for (const el of main.querySelectorAll(
-    'h1,h2,h3,h4,h5,h6,a[href],button,summary,input,select,textarea,p,li',
+    'h1,h2,h3,h4,h5,h6,a[href],button,summary,input,select,textarea,p,li,[data-parity-text]',
   )) {
     const tag = el.tagName.toLowerCase();
     if (el.closest('noscript') || el.closest('.depth-switch')) continue;
-    if (/^h[1-6]$/.test(tag)) {
+    if (el.hasAttribute('data-parity-text')) {
+      // A sentence a compact row keeps in its one-line summary (U7). Only elements that carry real
+      // visible text wear the mark, so it adds text entries and never counts a wrapper.
+      const text = clean(el.textContent);
+      if (text && !el.closest('noscript')) entries.push({ kind: 'text', name: text });
+    } else if (/^h[1-6]$/.test(tag)) {
       entries.push({ kind: 'heading', name: clean(el.textContent), detail: tag.slice(1) });
     } else if (tag === 'a') {
       entries.push({

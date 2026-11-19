@@ -1,0 +1,1759 @@
+/* R1 kit: step switches. GENERATED for steps 0 to 11 (kit.test.tsx checks every step has its rules).
+   A scene writes data-step on itself; a part used on its own writes data-kit-step on a .kit-fixed root
+   (a .kit-fixed part never sits inside a Scene). Anything inside marks when it shows with data-at="K"
+   (only at step K), data-from="K" (from step K on) or data-upto="K" (until step K). A match sets --on
+   to 1, and a .kit-sw element is also shown (display), so one markup serves every step. */
+:is(.pub-scene, .kit-fixed) :is([data-at], [data-from], [data-upto]) {
+  --on: 0;
+}
+
+:is(.pub-scene, .kit-fixed) .kit-sw {
+  display: none;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="0"], [data-kit-step="0"]) [data-at="0"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="0"], [data-kit-step="0"]) .kit-sw[data-at="0"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="1"], [data-kit-step="1"]) [data-at="1"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="1"], [data-kit-step="1"]) .kit-sw[data-at="1"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="2"], [data-kit-step="2"]) [data-at="2"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="2"], [data-kit-step="2"]) .kit-sw[data-at="2"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="3"], [data-kit-step="3"]) [data-at="3"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="3"], [data-kit-step="3"]) .kit-sw[data-at="3"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="4"], [data-kit-step="4"]) [data-at="4"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="4"], [data-kit-step="4"]) .kit-sw[data-at="4"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="5"], [data-kit-step="5"]) [data-at="5"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="5"], [data-kit-step="5"]) .kit-sw[data-at="5"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="6"], [data-kit-step="6"]) [data-at="6"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="6"], [data-kit-step="6"]) .kit-sw[data-at="6"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="7"], [data-kit-step="7"]) [data-at="7"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="7"], [data-kit-step="7"]) .kit-sw[data-at="7"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="8"], [data-kit-step="8"]) [data-at="8"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="8"], [data-kit-step="8"]) .kit-sw[data-at="8"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="9"], [data-kit-step="9"]) [data-at="9"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="9"], [data-kit-step="9"]) .kit-sw[data-at="9"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="10"], [data-kit-step="10"]) [data-at="10"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="10"], [data-kit-step="10"]) .kit-sw[data-at="10"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="11"], [data-kit-step="11"]) [data-at="11"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="11"], [data-kit-step="11"]) .kit-sw[data-at="11"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="0"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="0"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="1"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="1"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="2"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="2"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="3"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="3"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="4"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="4"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="5"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="5"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="6"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="6"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="7"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="7"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="8"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="8"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="9"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="9"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-from="10"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-from="10"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="11"], [data-kit-step="11"]) [data-from="11"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="11"], [data-kit-step="11"]) .kit-sw[data-from="11"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="0"], [data-kit-step="0"]) [data-upto="0"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is([data-step="0"], [data-kit-step="0"]) .kit-sw[data-upto="0"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"]
+  )
+  [data-upto="1"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"]
+  )
+  .kit-sw[data-upto="1"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"]
+  )
+  [data-upto="2"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"]
+  )
+  .kit-sw[data-upto="2"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"]
+  )
+  [data-upto="3"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"]
+  )
+  .kit-sw[data-upto="3"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"]
+  )
+  [data-upto="4"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"]
+  )
+  .kit-sw[data-upto="4"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"]
+  )
+  [data-upto="5"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"]
+  )
+  .kit-sw[data-upto="5"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"]
+  )
+  [data-upto="6"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"]
+  )
+  .kit-sw[data-upto="6"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"]
+  )
+  [data-upto="7"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"]
+  )
+  .kit-sw[data-upto="7"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"]
+  )
+  [data-upto="8"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"]
+  )
+  .kit-sw[data-upto="8"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"]
+  )
+  [data-upto="9"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"]
+  )
+  .kit-sw[data-upto="9"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"]
+  )
+  [data-upto="10"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"]
+  )
+  .kit-sw[data-upto="10"] {
+  display: var(--kit-show, block);
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  [data-upto="11"] {
+  --on: 1;
+}
+
+:is(.pub-scene, .kit-fixed):is(
+    [data-step="0"],
+    [data-kit-step="0"],
+    [data-step="1"],
+    [data-kit-step="1"],
+    [data-step="2"],
+    [data-kit-step="2"],
+    [data-step="3"],
+    [data-kit-step="3"],
+    [data-step="4"],
+    [data-kit-step="4"],
+    [data-step="5"],
+    [data-kit-step="5"],
+    [data-step="6"],
+    [data-kit-step="6"],
+    [data-step="7"],
+    [data-kit-step="7"],
+    [data-step="8"],
+    [data-kit-step="8"],
+    [data-step="9"],
+    [data-kit-step="9"],
+    [data-step="10"],
+    [data-kit-step="10"],
+    [data-step="11"],
+    [data-kit-step="11"]
+  )
+  .kit-sw[data-upto="11"] {
+  display: var(--kit-show, block);
+}
+
+/* MOT1 reveal and gentle modes (phones, short or zoomed windows, less motion): which alternative words show is decided by the
+   scene's finished step (data-rest, written by <Scene>), never by the step being played. Showing and
+   hiding words changes layout, and these modes may move only transform and opacity, so the words stay
+   as the finished picture has them while --on (opacity and transform) plays through the steps.
+   GENERATED for steps 0 to 11, like the rules above (kit.test.tsx checks every step is covered). */
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="0"])
+  .kit-sw[data-at="0"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="0"]
+  .kit-sw[data-at="0"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="1"])
+  .kit-sw[data-at="1"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="1"]
+  .kit-sw[data-at="1"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="2"])
+  .kit-sw[data-at="2"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="2"]
+  .kit-sw[data-at="2"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="3"])
+  .kit-sw[data-at="3"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="3"]
+  .kit-sw[data-at="3"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="4"])
+  .kit-sw[data-at="4"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="4"]
+  .kit-sw[data-at="4"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="5"])
+  .kit-sw[data-at="5"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="5"]
+  .kit-sw[data-at="5"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="6"])
+  .kit-sw[data-at="6"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="6"]
+  .kit-sw[data-at="6"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="7"])
+  .kit-sw[data-at="7"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="7"]
+  .kit-sw[data-at="7"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="8"])
+  .kit-sw[data-at="8"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="8"]
+  .kit-sw[data-at="8"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="9"])
+  .kit-sw[data-at="9"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="9"]
+  .kit-sw[data-at="9"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="10"])
+  .kit-sw[data-at="10"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="10"]
+  .kit-sw[data-at="10"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not([data-rest="11"])
+  .kit-sw[data-at="11"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene[data-rest="11"]
+  .kit-sw[data-at="11"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-from="0"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="0"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-from="1"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="1"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-from="2"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="2"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-from="3"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="3"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-from="4"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="4"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-from="5"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="5"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-from="6"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="6"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is([data-rest="7"], [data-rest="8"], [data-rest="9"], [data-rest="10"], [data-rest="11"])
+  )
+  .kit-sw[data-from="7"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-from="7"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="8"], [data-rest="9"], [data-rest="10"], [data-rest="11"]))
+  .kit-sw[data-from="8"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="8"], [data-rest="9"], [data-rest="10"], [data-rest="11"])
+  .kit-sw[data-from="8"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="9"], [data-rest="10"], [data-rest="11"]))
+  .kit-sw[data-from="9"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="9"], [data-rest="10"], [data-rest="11"])
+  .kit-sw[data-from="9"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="10"], [data-rest="11"]))
+  .kit-sw[data-from="10"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="10"], [data-rest="11"])
+  .kit-sw[data-from="10"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="11"]))
+  .kit-sw[data-from="11"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="11"])
+  .kit-sw[data-from="11"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="0"]))
+  .kit-sw[data-upto="0"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="0"])
+  .kit-sw[data-upto="0"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="0"], [data-rest="1"]))
+  .kit-sw[data-upto="1"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="0"], [data-rest="1"])
+  .kit-sw[data-upto="1"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="0"], [data-rest="1"], [data-rest="2"]))
+  .kit-sw[data-upto="2"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="0"], [data-rest="1"], [data-rest="2"])
+  .kit-sw[data-upto="2"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(:is([data-rest="0"], [data-rest="1"], [data-rest="2"], [data-rest="3"]))
+  .kit-sw[data-upto="3"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="0"], [data-rest="1"], [data-rest="2"], [data-rest="3"])
+  .kit-sw[data-upto="3"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is([data-rest="0"], [data-rest="1"], [data-rest="2"], [data-rest="3"], [data-rest="4"])
+  )
+  .kit-sw[data-upto="4"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is([data-rest="0"], [data-rest="1"], [data-rest="2"], [data-rest="3"], [data-rest="4"])
+  .kit-sw[data-upto="4"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"]
+      )
+  )
+  .kit-sw[data-upto="5"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"]
+  )
+  .kit-sw[data-upto="5"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"]
+      )
+  )
+  .kit-sw[data-upto="6"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"]
+  )
+  .kit-sw[data-upto="6"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"]
+      )
+  )
+  .kit-sw[data-upto="7"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"]
+  )
+  .kit-sw[data-upto="7"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"]
+      )
+  )
+  .kit-sw[data-upto="8"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"]
+  )
+  .kit-sw[data-upto="8"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"]
+      )
+  )
+  .kit-sw[data-upto="9"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"]
+  )
+  .kit-sw[data-upto="9"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"]
+      )
+  )
+  .kit-sw[data-upto="10"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"]
+  )
+  .kit-sw[data-upto="10"] {
+  display: var(--kit-show, block);
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:not(
+    :is(
+        [data-rest="0"],
+        [data-rest="1"],
+        [data-rest="2"],
+        [data-rest="3"],
+        [data-rest="4"],
+        [data-rest="5"],
+        [data-rest="6"],
+        [data-rest="7"],
+        [data-rest="8"],
+        [data-rest="9"],
+        [data-rest="10"],
+        [data-rest="11"]
+      )
+  )
+  .kit-sw[data-upto="11"] {
+  display: none;
+}
+
+html:is([data-scenes="reveal"], [data-scenes="gentle"])
+  .pub-scene:is(
+    [data-rest="0"],
+    [data-rest="1"],
+    [data-rest="2"],
+    [data-rest="3"],
+    [data-rest="4"],
+    [data-rest="5"],
+    [data-rest="6"],
+    [data-rest="7"],
+    [data-rest="8"],
+    [data-rest="9"],
+    [data-rest="10"],
+    [data-rest="11"]
+  )
+  .kit-sw[data-upto="11"] {
+  display: var(--kit-show, block);
+}

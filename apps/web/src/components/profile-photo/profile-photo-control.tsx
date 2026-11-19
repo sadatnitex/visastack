@@ -77,12 +77,15 @@ export function ProfilePhotoControl({
   const canvas = useRef<HTMLCanvasElement>(null);
   const area = useRef<HTMLButtonElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const chooseButton = useRef<HTMLButtonElement>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
   const headingId = useId();
+  const fileId = useId();
   const helpId = useId();
   const zoomId = useId();
   const busy = phase === 'saving' || phase === 'removing';
+  const chooseKey = photoUrl
+    ? ('componentsProfilePhoto.profilePhotoProfilePhotoControl.replacePhoto' as const)
+    : ('componentsProfilePhoto.profilePhotoProfilePhotoControl.addPhoto' as const);
 
   useEffect(() => setPhotoUrl(initialUrl), [initialUrl]);
   useEffect(() => () => photo.current?.close(), []);
@@ -108,7 +111,7 @@ export function ProfilePhotoControl({
   useEffect(() => {
     if (phase !== 'idle' || !returnFocus.current) return;
     returnFocus.current = false;
-    chooseButton.current?.focus();
+    fileInput.current?.focus();
   }, [phase]);
 
   const closeCrop = useCallback(() => {
@@ -328,19 +331,21 @@ export function ProfilePhotoControl({
         </section>
       ) : (
         <div className="profile-photo-actions">
-          <button
-            ref={chooseButton}
-            type="button"
-            className="btn btn-secondary"
-            aria-disabled={busy || undefined}
-            onClick={() => {
-              if (!busy) fileInput.current?.click();
-            }}
-          >
-            {photoUrl
-              ? t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.replacePhoto')
-              : t.node('componentsProfilePhoto.profilePhotoProfilePhotoControl.addPhoto')}
-          </button>
+          {/* The picker is a real field kept out of sight; its drawn name is the label beside it,
+              so a tap on the label opens the picker and the keyboard reaches the field itself. */}
+          <input
+            id={fileId}
+            ref={fileInput}
+            className="sr-only file-pick-input"
+            type="file"
+            accept={ACCEPT}
+            // Native disabled, not aria-disabled: aria-disabled would still open the chooser.
+            disabled={busy}
+            onChange={(event) => void onFile(event.target.files?.[0])}
+          />
+          <label htmlFor={fileId} className="btn btn-secondary" {...t.lang(chooseKey)}>
+            {t.node(chooseKey)}
+          </label>
           {photoUrl ? (
             <button
               type="button"
@@ -355,17 +360,6 @@ export function ProfilePhotoControl({
           ) : null}
         </div>
       )}
-      <input
-        ref={fileInput}
-        className="sr-only"
-        type="file"
-        accept={ACCEPT}
-        tabIndex={-1}
-        aria-hidden="true"
-        aria-label={t('componentsProfilePhoto.profilePhotoProfilePhotoControl.photoFile')}
-        onChange={(event) => void onFile(event.target.files?.[0])}
-        {...t.lang('componentsProfilePhoto.profilePhotoProfilePhotoControl.photoFile')}
-      />
       <FormMessage
         result={result}
         pending={busy}

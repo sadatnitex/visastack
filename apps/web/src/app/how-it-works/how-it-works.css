@@ -1,0 +1,271 @@
+/* R2 How It Works rebuild. Flat: solid surfaces, edges by tone, colours from globals.css tokens only.
+   Every class starts with hk-. Pictures come from the shared kit (components/public-site/kit). */
+.hk-inner {
+  display: grid;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: var(--space-5);
+  min-width: 0;
+}
+
+.hk-chapter {
+  padding-block: var(--space-8);
+}
+
+.hk-h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 9vw, 5.4rem);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.hk-h2 {
+  margin: 0;
+  font-size: clamp(1.9rem, 5vw, 3.2rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.hk-lead {
+  margin: 0;
+  max-width: 34ch;
+  font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+  line-height: 1.4;
+  color: var(--pub-ink-soft, var(--text-secondary));
+}
+
+/* Chapter 1: the dark opening with the four numbered chips. */
+.hk-hero {
+  padding-block: var(--space-8) var(--space-7);
+}
+
+.hk-hero {
+  display: grid;
+  align-content: center;
+  /* The opening fills the first screen, so the first row starts on the next one. */
+  min-height: calc(100svh - var(--header-height) - var(--space-5));
+}
+
+.hk-hero .hk-inner {
+  justify-items: center;
+  text-align: center;
+}
+
+.hk-hero .hk-lead {
+  margin-inline: auto;
+}
+
+.hk-hero .hk-chips {
+  justify-content: center;
+}
+
+/* The headline breaks after "How It", as the reference does. */
+.hk-h1 .pub-words,
+.hk-h2 .pub-words {
+  display: block;
+}
+
+.hk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hk-step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4) 0 var(--space-2);
+  border: 1px solid var(--pub-edge, var(--edge-card));
+  border-radius: var(--radius-pill);
+  color: var(--pub-ink, var(--text));
+  font-weight: 700;
+}
+
+.hk-step-num,
+.hk-num {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  color: var(--bg-elevated);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+/* Chapter 2: four rows, text on one side and the picture on the other, swapping sides. */
+.hk-rows .hk-inner {
+  gap: var(--space-8);
+}
+
+.hk-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+  align-items: center;
+}
+
+.hk-row > * {
+  min-width: 0;
+}
+
+.hk-row-text {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.hk-num {
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+}
+
+.hk-body {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.hk-row-art {
+  display: grid;
+  justify-items: center;
+}
+
+@media (min-width: 900px) {
+  /* PUBFIX2 P2-5: a computer shows the page in 6 screens or fewer in both languages (it was 6.05
+     in English and 6.13 in Bengali at 1280 x 800): a little less air between the rows and chapters. */
+  .hk-rows .hk-inner {
+    gap: var(--space-7);
+  }
+
+  .hk-chapter:not(.hk-hero) {
+    padding-block: 3rem;
+  }
+
+  .hk-row {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-7);
+  }
+
+  .hk-row:nth-child(even) > :first-child {
+    order: 2;
+  }
+}
+
+/* Chapter 3: the words band and its flip tiles. */
+.hk-hint {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.hk-flip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 900px) {
+  .hk-flip-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.hk-flip-grid > li {
+  min-width: 0;
+}
+
+.hk-flip {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 120px;
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  color: var(--text);
+  text-align: center;
+}
+
+.hk-flip-button {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.hk-flip-front {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.hk-flip-not {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.hk-flip-means {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.hk-flip-static {
+  gap: 2px;
+}
+
+/* Opened: the accent fills the tile, and every word on it is the light ink (well above 4.5:1). */
+.hk-flip[data-open] {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  color: var(--bg-elevated);
+}
+
+.hk-flip[data-open] .hk-flip-not,
+.hk-flip[data-open] .hk-flip-means {
+  color: var(--bg-elevated);
+}
+
+@media (max-width: 899px) {
+  .hk-rows .hk-inner {
+    gap: var(--space-5);
+  }
+
+  .hk-row {
+    gap: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .hk-chapter:not(.hk-hero) {
+    padding-block: var(--space-5);
+  }
+}

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import type { PublicTrustRoute } from '@visastack/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../lib/next-mocks.test-support';
@@ -17,7 +18,7 @@ vi.mock('../../lib/public-db', () => ({
   withPublicDb: async (fn: (db: unknown) => Promise<unknown>) => fn({}),
 }));
 
-const { default: PublicTrustCatalogPage } = await import('./page');
+const { default: PublicTrustCatalogPage, metadata } = await import('./page');
 
 function route(n: number): PublicTrustRoute {
   return {
@@ -41,6 +42,7 @@ function route(n: number): PublicTrustRoute {
 const routes = (count: number) => Array.from({ length: count }, (_, n) => route(n));
 const render = (params: Record<string, string> = {}) =>
   renderServer(PublicTrustCatalogPage({ searchParams: Promise.resolve(params) }));
+const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html');
 const cards = (html: string) => html.match(/<a href="\/trust\/route-\d+" class="card"/g) ?? [];
 
 beforeEach(() => {
@@ -56,8 +58,10 @@ describe('the public route list', () => {
     expect(html).toContain('href="/trust?show=24#trust-route-12"');
     expect(html).toContain('id="trust-route-11"');
     // More than 12 routes, so the search is offered, as a plain form that needs no script.
-    expect(html).toMatch(/<form class="trust-search" action="\/trust" method="get">/);
-    expect(html).toContain('name="q"');
+    const form = parse(html).querySelector('form.trust-search');
+    expect(form?.getAttribute('action')).toBe('/trust#today');
+    expect(form?.getAttribute('method')).toBe('get');
+    expect(form?.querySelector('input[name="q"]')).not.toBeNull();
   });
 
   it('reaches every route by Show More alone, past the 100 a capped list would stop at', async () => {
@@ -74,7 +78,7 @@ describe('the public route list', () => {
     expect(cards(japan)).toEqual([expect.stringContaining('href="/trust/route-150"')]);
     expect(textOf(japan)).toContain('Showing the only route.');
     expect(japan).toContain('value="japan"');
-    expect(japan).toContain('href="/trust">Clear Search');
+    expect(japan).toContain('href="/trust#today">Clear Search');
     const page = await render({ q: 'route number 1', show: '12' });
     expect(page).toContain('href="/trust?q=route+number+1&amp;show=24#trust-route-12"');
     const none = await render({ q: 'atlantis' });
@@ -101,5 +105,58 @@ describe('the public route list', () => {
   it('still works when called without an address, as the older checks do', async () => {
     listPublicTrustPublished.mockResolvedValue(routes(3));
     expect(cards(await renderServer(PublicTrustCatalogPage()))).toHaveLength(3);
+  });
+});
+
+/**
+ * WP-PUB3: the trust page opens on a timed share sheet (switches, then Access Ended). The route
+ * list below it keeps every behaviour above, and the page stays readable when the database is down.
+ */
+describe('the Privacy and Trust story', () => {
+  it('is named Privacy and Trust and keeps one top heading with its id', async () => {
+    expect(metadata.title).toBe('Privacy and Trust');
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    expect(parse(html).querySelectorAll('h1')).toHaveLength(1);
+    expect(html).toContain('id="trust-story-title"');
+  });
+
+  it('shows the timed share sheet finished without script: Saved is not Shared, then Access Ended', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    expect(html).toContain('Share with Agency');
+    expect(textOf(html)).toContain('Access Ended');
+    expect(textOf(html)).toContain('Not Shared');
+    expect(parse(html).querySelectorAll('.pub-example').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('runs the chapters in the order of tones the reference shows', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    const tones = [...parse(html).querySelectorAll('.pub-chapter')].map((chapter) =>
+      chapter.getAttribute('data-tone'),
+    );
+    // The reference runs dark, dark, dark, light, light, dark (R3 records): never light then dark then light.
+    expect(tones).toEqual(['dark', 'dark', 'dark', 'light', 'light', 'dark']);
+  });
+
+  it('keeps the route cards linked to their pack pages next to the story', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    const html = await render();
+    expect(html).toContain('href="/trust/route-0"');
+    expect(html).toContain('Maintained Route Information');
+  });
+
+  it('says so plainly, under the story, when the database is down', async () => {
+    listPublicTrustPublished.mockRejectedValue(new Error('synthetic outage'));
+    const html = await render();
+    expect(html).toContain('id="trust-story-title"');
+    expect(textOf(html)).toContain('Route Information Is Not Available Right Now');
+    expect(html).not.toContain('href="/trust/route-');
+  });
+
+  it('has no em dash', async () => {
+    listPublicTrustPublished.mockResolvedValue(routes(3));
+    expect(await render()).not.toContain('\u2014');
   });
 });

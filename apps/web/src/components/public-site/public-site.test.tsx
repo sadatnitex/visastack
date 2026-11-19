@@ -33,6 +33,40 @@ describe('Scene', () => {
     expect(out).toContain('aria-labelledby="add-title"');
     expect(out).toContain('class="pub-scene-stage"');
   });
+  it('writes data-play-to only when a scene has its own end, kept inside its steps (PUBFIX2 P2-7)', () => {
+    const play = (value: number) =>
+      renderToStaticMarkup(
+        <Scene name="y" len={2} steps={4} finalStep={0} playTo={value}>
+          <p>x</p>
+        </Scene>,
+      );
+    expect(play(3)).toContain('data-play-to="3"');
+    expect(play(9)).toContain('data-play-to="3"');
+    expect(
+      renderToStaticMarkup(
+        <Scene name="z" len={2} steps={4}>
+          <p>x</p>
+        </Scene>,
+      ),
+    ).not.toContain('data-play-to');
+  });
+
+  it('repeats the finished step as data-rest, which reveal mode lays words out by (MOT1)', () => {
+    expect(
+      html(
+        <Scene name="y" len={2} steps={4} finalStep={1}>
+          y
+        </Scene>,
+      ),
+    ).toContain('data-rest="1"');
+    expect(
+      html(
+        <Scene name="z" len={2} steps={3}>
+          z
+        </Scene>,
+      ),
+    ).toContain('data-rest="2"');
+  });
   it('keeps the length, the steps and the finished step inside their range', () => {
     const out = html(
       <Scene name="x" len={9 as 4} steps={0} finalStep={7}>
@@ -236,8 +270,10 @@ describe('public nav list', () => {
     }
   });
   it('sends a signed-in person to the full country list, since the home picker is for visitors', () => {
+    // While /countries is not live (the fallback the header used before PUB4 shipped it).
+    const beforePub4 = new Set(['/', '/how-it-works', '/trust']);
     const countries = (signedIn: boolean) =>
-      publicNavLinks(undefined, { signedIn }).find((link) => link.label === 'Countries')?.href;
+      publicNavLinks(beforePub4, { signedIn }).find((link) => link.label === 'Countries')?.href;
     expect(countries(false)).toBe('/#start');
     expect(countries(true)).toBe('/app/countries');
     expect(existsSync(join(APP, 'app', 'countries', '(list)', 'page.tsx'))).toBe(true);
@@ -258,10 +294,10 @@ describe('public nav list', () => {
     ]);
     expect(publicNavLinks().map((link) => link.href)).toEqual([
       '/',
-      '/#how-it-works',
+      '/how-it-works',
       '/trust',
-      '/#start',
-      '/#for-agencies',
+      '/countries',
+      '/for-agencies',
     ]);
   });
 });
@@ -301,33 +337,69 @@ describe('ScenesRuntime', () => {
     expect(live()).toBe(null);
     expect(document.querySelector('[data-scene]')?.getAttribute('data-step')).toBe('1');
   });
-  for (const [name, set] of [
-    [
-      'reduced motion',
-      () => {
-        media.reduce = true;
-      },
-    ],
-    [
-      'a phone-width screen',
-      () => {
-        media.wide = false;
-      },
-    ],
-    ['data saver', () => document.documentElement.setAttribute('data-save-data', '')],
-  ] as const)
-    it(`keeps every scene finished and still with ${name}`, () => {
-      set();
+  for (const wide of [true, false])
+    it(`is gentle with reduced motion on a ${wide ? 'wide' : 'phone-width'} screen, and still ends finished`, () => {
+      media.reduce = true;
+      media.wide = wide;
       act(() => root.render(<ScenesRuntime />));
-      expect(live()).toBe(null);
+      expect(live()).toBe('gentle');
+      expect(document.documentElement.getAttribute('data-scene-mode')).toBe('gentle');
       expect(document.querySelector('[data-scene]')?.getAttribute('data-step')).toBe('1');
+      act(() => root.render(null));
+      expect(live()).toBe(null);
     });
-  it('stops when data saver comes on while the page is open', async () => {
+  it('keeps motion on with data saver: the mode is the same as without it', () => {
+    document.documentElement.setAttribute('data-save-data', '');
+    act(() => root.render(<ScenesRuntime />));
+    expect(live()).toBe('live');
+    media.wide = false;
+    act(() => root.render(null));
+    act(() => root.render(<ScenesRuntime />));
+    expect(live()).toBe('reveal');
+  });
+  it('reveals instead of pinning on a phone-width or short screen, and marks the mode (MOT1)', () => {
+    media.wide = false;
+    act(() => root.render(<ScenesRuntime />));
+    expect(live()).toBe('reveal');
+    expect(document.documentElement.getAttribute('data-scene-mode')).toBe('reveal');
+    act(() => root.render(null));
+    expect(live()).toBe(null);
+    expect(document.documentElement.getAttribute('data-scene-mode')).toBe(null);
+    expect(document.querySelector('[data-scene]')?.getAttribute('data-step')).toBe('1');
+  });
+  it('switches between pinned and reveal on resize or rotation without a reload, never replaying or half drawing a scene', () => {
+    const listeners: Array<() => void> = [];
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      get matches() {
+        return query.includes('reduce') ? media.reduce : media.wide;
+      },
+      addEventListener: (_: string, fn: () => void) => listeners.push(fn),
+      removeEventListener: () => undefined,
+    }));
+    const fire = () => {
+      for (const fn of listeners) fn();
+    };
+    const element = document.querySelector('[data-scene]');
+    act(() => root.render(<ScenesRuntime />));
+    expect(live()).toBe('live');
+    media.wide = false;
+    act(fire);
+    expect(live()).toBe('reveal');
+    expect(document.documentElement.getAttribute('data-scene-mode')).toBe('reveal');
+    expect(element?.getAttribute('data-step')).toBe('1');
+    expect(element?.getAttribute('data-reveal')).toBe('done');
+    media.wide = true;
+    act(fire);
+    expect(live()).toBe('live');
+    expect(document.documentElement.getAttribute('data-scene-mode')).toBe('pinned');
+    expect(element?.hasAttribute('data-reveal')).toBe(false);
+  });
+  it('does not stop when data saver comes on while the page is open', async () => {
     act(() => root.render(<ScenesRuntime />));
     expect(live()).toBe('live');
     document.documentElement.setAttribute('data-save-data', '');
     await act(async () => await Promise.resolve());
-    expect(live()).toBe(null);
+    expect(live()).toBe('live');
   });
   it('treats screens narrower than 760 px or lower than 600 px as phones', () => {
     expect(SCENE_MIN_WIDTH).toBe(760);

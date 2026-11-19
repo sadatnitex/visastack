@@ -9,6 +9,7 @@ import {
   isTrustedFactStatus,
 } from '@visastack/services';
 import type { AiProposalViewModel } from '../app/app/applicant/[id]/ai-review';
+import { isProtectedDetail } from '../app/app/applicant/[id]/profile-protected';
 import { humanizeFieldKey } from './field-key-label';
 import { fieldLabel, savableField } from './master-profile';
 import { profileField } from './profile-fields';
@@ -49,13 +50,25 @@ export function confirmedValues(
  * server: the page only learns that a sensitive or protected detail differs, never its value.
  */
 export function findingViewModel(
-  { proposal, evidence, fromApp, issueDate }: ProposalWithEvidence,
+  reading: ProposalWithEvidence,
   confirmed: ReadonlyMap<string, ConfirmedValue>,
   /** Where the reading came from (decided from the records); omitted when it is not known. */
   source?: ReadingSource,
+  options: {
+    /**
+     * ESS1, My Profile: a suggestion about a protected detail carries none of its words (value,
+     * reason, quoted phrases) and no sign of whether it equals the saved value; Show opens them for
+     * the owner through the reveal action.
+     */
+    readonly withholdProtected?: boolean;
+  } = {},
 ): AiProposalViewModel {
+  const { proposal, evidence, fromApp, issueDate } = reading;
   const key = proposal.fieldKey;
   const field = key ? savableField(key) : undefined;
+  if (options.withholdProtected && key && isProtectedDetail(key, field?.sensitivity)) {
+    return withheldViewModel(reading, confirmed, source);
+  }
   const sensitive = field !== undefined && field.sensitivity !== 'STANDARD';
   const current = key ? confirmed.get(key) : undefined;
   const differs =
@@ -90,5 +103,41 @@ export function findingViewModel(
     // The document's own issue date: only a hint for the date a changed detail took effect.
     ...(issueDate ? { issueDate } : {}),
     ...(issueDate && key && isIssueDateKey(key) ? { ownIssueDate: true } : {}),
+  };
+}
+
+/**
+ * A suggestion about a protected detail, as My Profile sends it (ESS1): the field, how it is
+ * edited, where it came from, and nothing of its words. When the profile already holds a value for
+ * it, the choice is always offered, worded so it never says whether the two are the same.
+ */
+function withheldViewModel(
+  { proposal, fromApp, issueDate }: ProposalWithEvidence,
+  confirmed: ReadonlyMap<string, ConfirmedValue>,
+  source?: ReadingSource,
+): AiProposalViewModel {
+  const key = proposal.fieldKey as string;
+  const field = savableField(key);
+  return {
+    id: proposal.id,
+    type: proposal.type,
+    fieldKey: key,
+    fieldLabel: fieldLabel(key) ?? humanizeFieldKey(key),
+    value: null,
+    // Plain text or a date: a fixed list could not show a value it does not know yet.
+    ...(field?.type === 'date' ? { editor: { kind: 'date' as const } } : {}),
+    confidence: proposal.confidence,
+    rationale: null,
+    evidence: [],
+    clear: false,
+    sensitive: true,
+    withheld: true,
+    ...(isFixedFieldKey(key) ? { fixed: true } : {}),
+    ...(isRepeatingFieldKey(key) ? { repeating: true } : {}),
+    ...(source ? { source } : {}),
+    ...(fromApp ? { app: aiAppLabel(fromApp) } : {}),
+    ...(confirmed.has(key) ? { difference: { current: null, undisclosed: true as const } } : {}),
+    ...(issueDate ? { issueDate } : {}),
+    ...(issueDate && isIssueDateKey(key) ? { ownIssueDate: true } : {}),
   };
 }

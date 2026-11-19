@@ -59,6 +59,8 @@ export const INVITATION_STATUS: Readonly<Record<string, StatusWord>> = {
   ACCEPTED: { word: 'Accepted', tone: 'success' },
   REVOKED: { word: 'Revoked', tone: 'neutral' },
   EXPIRED: { word: 'Expired', tone: 'neutral' },
+  // DECL1: the invited person said no on the accept screen.
+  DECLINED: { word: 'Declined', tone: 'neutral' },
 };
 
 /**

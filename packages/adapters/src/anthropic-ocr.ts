@@ -10,6 +10,7 @@ import {
   anthropicEffortFor,
   anthropicFailure,
   anthropicInvalidShape,
+  anthropicUsageUnits,
   callStructured,
   matchEnumValue,
   structuredRequestBody,
@@ -58,7 +59,12 @@ import {
  *   to models that take it, and is then part of the cache key.
  */
 
-const DEFAULT_MODEL = 'claude-sonnet-5';
+/**
+ * Used only when no model is configured (the eval runner without a model, tests). Production
+ * passes the admin-stored model. Claude Sonnet 5.5 (`claude-sonnet-5-5`) is the current Sonnet
+ * on https://platform.claude.com/docs/en/about-claude/models/overview, checked 2026-11-19.
+ */
+const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const DEFAULT_PROMPT_VERSION = '2026-10-30-v1';
 /** Part 8 §11's named default request timeout, matching every other adapter's own. */
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -171,15 +177,15 @@ export class AnthropicOcrAdapter implements AiOcrPort {
       .map((v) => matchEnumValue(REVIEW_ISSUE_CODES, v))
       .filter((v): v is OcrReviewIssueCode => v !== undefined);
 
+    // The OCR record has no cached column: cache reads still count inside inputUnits.
+    const { cachedUnits: _cachedUnits, ...units } = anthropicUsageUnits(answer);
     return {
       ok: true,
       result: {
         text: raw.text,
         reviewIssues,
         usage: {
-          costUnits: answer.inputTokens + answer.outputTokens,
-          inputUnits: answer.inputTokens,
-          outputUnits: answer.outputTokens,
+          ...units,
           modelVersion: this.model,
           promptVersion: this.promptVersion,
           provider: PROVIDER,

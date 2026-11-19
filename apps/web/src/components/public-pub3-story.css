@@ -1,0 +1,431 @@
+.p3-eyebrow {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pub-accent, var(--accent));
+}
+
+.p3-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  font-weight: 700;
+  color: var(--pub-accent, var(--accent));
+}
+
+/* R3: the route list as compact rows, inside the Where We Are Today chapter. One column on a phone,
+   two from 900 px; every row stays a 44 px target and shows its country and route, name and a short
+   summary. */
+
+.tr-catalog .grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+@media (min-width: 900px) {
+  .tr-catalog .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tr-catalog .grid .card {
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  gap: 0;
+}
+
+.tr-catalog .grid .card-body {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* R3 Privacy and Trust (owner, 18 Nov 2026): the page as the approved reference tells it. Flat; every
+   colour comes from the --pub-* tokens of the chapter a part sits in. Nothing here moves except the
+   shared rise-in and the hero share picture, which has its own pause button). */
+
+.pub-chapter.tr-chapter {
+  padding-block: 0;
+}
+
+.pub-chapter.tr-section {
+  padding-block: clamp(32px, 4vw, 48px);
+}
+
+.tr-wrap {
+  display: grid;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: var(--space-4);
+  min-width: 0;
+}
+
+.pub-chapter.tr-hero {
+  padding-block: clamp(32px, 4.5vw, 56px);
+}
+
+.tr-hero-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.tr-hero-copy {
+  display: grid;
+  gap: var(--space-4);
+  align-content: center;
+  min-width: 0;
+}
+
+.tr-hero-visual,
+.tr-share {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* PUBFIX2 P2-6: the picture's box is as tall as its tallest step (Access Ended: 390 px on a phone, 422 px
+   from 760 px up, measured), so the hero never changes height while the five steps play (it grew and
+   shrank by 66 px and shifted the page by 0.04). The picture rests at the top of its box. */
+.tr-share-art {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-width: 0;
+  width: 100%;
+  min-height: 390px;
+}
+
+@media (min-width: 760px) {
+  .tr-share-art {
+    min-height: 422px;
+  }
+}
+
+/* The live picture keeps the box's full width, so it never changes width (and slides sideways) as the
+   steps change; the sheet inside is centred in it. */
+.tr-share-live {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/* PUBFIX2: the Where We Are Today heading and its paragraph rise together, so the heading never
+   passes over the paragraph while it settles. */
+.tr-today-copy {
+  display: grid;
+  gap: inherit;
+}
+
+/* PUBFIX2 P2-6: the wrapper keeps the column's full width, so it does not change width (and slide) with the step. */
+.tr-share {
+  width: 100%;
+}
+
+.tr-pause {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--pub-edge-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--pub-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tr-promises {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-promise {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge);
+  border-radius: 24px;
+  color: var(--pub-ink);
+}
+
+.tr-promise-art {
+  display: block;
+  width: 56px;
+}
+
+.tr-promise-art .pic,
+.tr-promise-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tr-promise-title {
+  font-size: 1.15rem;
+}
+
+.tr-promise-body {
+  color: var(--pub-ink-soft);
+}
+
+.tr-history {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 640px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-history::before {
+  content: "";
+  position: absolute;
+  inset-block: 20px;
+  inset-inline-start: 19px;
+  width: 2px;
+  background-color: var(--pub-edge-strong);
+  opacity: 0.5;
+}
+
+.tr-event {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: 44px;
+}
+
+.tr-event-icon {
+  position: relative;
+  z-index: 1;
+  background-color: var(--pub-canvas);
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--pub-accent);
+  border-radius: 50%;
+  color: var(--pub-accent);
+}
+
+.tr-event-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: var(--pub-ink);
+}
+
+.tr-event-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--pub-ink-soft);
+  font-size: var(--text-caption);
+}
+
+.tr-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.tr-col {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  padding: var(--space-5);
+  border: 1px solid var(--pub-edge);
+  border-radius: 24px;
+  background-color: var(--bg-elevated);
+  min-width: 0;
+}
+
+.tr-col-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.tr-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  font-weight: 600;
+}
+
+.tr-list svg {
+  flex: none;
+  color: var(--ok);
+}
+
+.tr-list-not svg {
+  color: var(--pub-ink-soft);
+}
+
+.tr-today-text {
+  max-width: 52ch;
+}
+
+.tr-today-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.tr-catalog {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.tr-catalog-head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tr-catalog-title {
+  margin: 0;
+  font-size: var(--text-display);
+}
+
+.tr-catalog-sub {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--pub-ink-soft);
+}
+
+@media (max-width: 759px) {
+  .tr-hero-grid,
+  .tr-two,
+  .tr-promises {
+    grid-template-columns: 1fr;
+  }
+
+  .pub-chapter.tr-hero {
+    padding-block: var(--space-5);
+  }
+
+  .tr-hero .kit-h1 {
+    font-size: 2.3rem;
+  }
+
+  .tr-hero-copy {
+    gap: var(--space-3);
+  }
+
+  /* The same link sits in the Where We Are Today chapter; a phone opens on the one start button. */
+
+  .tr-hero-more {
+    display: none;
+  }
+
+  /* PUBFIX2 P2-3: the first phone screen holds 30 words or fewer. The line under the headline moves
+     below the share picture and above its Pause button (every word stays, and the hero keeps its
+     height and the Pause button its place), so a phone opens on the headline, the start button and
+     the picture. The boxes around them stop drawing, so each part is a row of the hero grid. */
+  .tr-hero-copy,
+  .tr-hero-visual,
+  .tr-share {
+    display: contents;
+  }
+
+  .tr-hero .kit-h1 {
+    order: 0;
+  }
+
+  .tr-hero .kit-actions {
+    order: 1;
+  }
+
+  .tr-share-art {
+    order: 2;
+  }
+
+  .tr-hero .kit-sub {
+    order: 3;
+  }
+
+  .tr-pause {
+    order: 4;
+    justify-self: center;
+  }
+
+  .tr-hero-grid,
+  .tr-wrap {
+    gap: var(--space-3);
+  }
+
+  .tr-promises {
+    gap: var(--space-3);
+  }
+
+  .tr-promise {
+    padding: var(--space-3);
+    grid-template-columns: 44px minmax(0, 1fr);
+    column-gap: var(--space-3);
+    row-gap: 2px;
+  }
+
+  .tr-promise-art {
+    grid-row: span 2;
+    width: 44px;
+  }
+
+  .tr-col {
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-1);
+  }
+
+  .tr-list li {
+    min-height: 36px;
+  }
+
+  .tr-today-links {
+    gap: var(--space-3);
+  }
+
+  .pub-chapter.tr-section {
+    padding-block: var(--space-5);
+  }
+
+  /* Twelve route cards must not run the page past its six screens on a phone. */
+
+  .tr-catalog .card-kicker,
+  .tr-catalog .card-title {
+    margin-bottom: 2px;
+  }
+
+  .tr-catalog .grid .card-body {
+    -webkit-line-clamp: 1;
+  }
+}

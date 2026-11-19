@@ -44,14 +44,14 @@ describe('public beta notice audience', () => {
   it('retains the public notice for a signed-out visitor', async () => {
     state.signedIn = false;
     expect(textOf(await renderServer(RootLayout({ children: <p>Public page</p> })))).toContain(
-      'Free to use at your own risk.',
+      'VisaStack Public Beta',
     );
   });
   it('does not render the notice for a signed-in user', async () => {
     state.signedIn = true;
     const html = await renderServer(RootLayout({ children: <p>Signed-in page</p> }));
     expect(html).not.toContain('pilot-banner');
-    expect(textOf(html)).not.toContain('Free to use at your own risk.');
+    expect(textOf(html)).not.toContain('own risk');
   });
 });
 describe('the notice is shown in full once per visitor (owner list item 17)', () => {
@@ -66,7 +66,7 @@ describe('the notice is shown in full once per visitor (owner list item 17)', ()
     // Every page still says which version this is, as a slim label with the link.
     expect(html).toContain('class="pilot-banner pilot-banner-slim"');
     expect(textOf(html)).toContain('VisaStack Public Beta');
-    expect(textOf(html)).not.toContain('Free to use at your own risk.');
+    expect(textOf(html)).not.toContain('own risk');
     expect(html).toContain('href="/status#about-this-version"');
     expect(textOf(html)).toContain('About This Version');
     state.noticeSeen = false;
@@ -161,23 +161,26 @@ describe('the public site frame (WP-PUB1)', () => {
         PUBLIC_NAV.map((entry) => entry.label.replace(/\s+/g, '')).join(''),
       );
       expect(nav).toContain(signedIn ? 'href="/app">Workspace</a>' : 'href="/app">Sign In</a>');
-      // The home page's country picker is only drawn for visitors.
-      expect(nav).toContain(
-        signedIn ? 'href="/app/countries">Countries</a>' : 'href="/#start">Countries</a>',
-      );
+      // WP-PUB4: the public Countries page is live, so everyone's header opens it (a signed-in person
+      // starts a country from there straight into the app).
+      expect(nav).toContain('href="/countries">Countries</a>');
     }
   });
 
-  it('keeps every footer link it had before', async () => {
+  it('keeps every footer destination it had, under the one name each page has (NAV2)', async () => {
     const foot = footer(await renderServer(RootLayout({ children: <p>Page</p> })));
     for (const fragment of [
-      'href="/#capabilities">Features</a>',
-      'href="/trust">Public Trust</a>',
+      // The public pages, named as the header names them (owner, 17 Nov 2026).
+      'href="/how-it-works">How It Works</a>',
+      'href="/trust">Privacy and Trust</a>',
+      'href="/countries">Countries</a>',
+      'href="/for-agencies">For Agencies</a>',
       'href="/status">Status</a>',
       'href="/status#about-this-version">About This Version</a>',
       'href="/privacy">Privacy</a>',
       'href="/terms">Terms</a>',
       'href="/app">Sign In</a>',
+      'href="/auth/sign-up">Get Started</a>',
     ])
       expect(foot, fragment).toContain(fragment);
   });
@@ -205,9 +208,6 @@ describe('the public site frame (WP-PUB1)', () => {
       state.beta = true;
       const beta = textOf(await renderServer(RootLayout({ children: <p>Page</p> })));
       expect(beta, pathname).toContain('VisaStack Public Beta');
-      expect(beta, pathname).toContain(
-        'Free to use at your own risk. Some protections, such as virus scanning of uploads, are not switched on yet.',
-      );
     }
     expect(pilot.detail).toBe(
       'Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.',

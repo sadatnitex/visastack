@@ -148,7 +148,7 @@ describe('account page under Bengali', () => {
     expect(shown).toContain(bn['appAccount.appAccountPage.exportYourDataReviewConsentHistory']);
     expect(shown).toContain(bn['appAccount.appAccountPage.yourPlanWhatItIncludesAnd']);
     // The switch: its card text and its button are the English the page always had.
-    expect(shown).toContain('Preferences Language Applies immediately across the whole product.');
+    expect(shown).toContain('Language Preferences Applies immediately across the whole product.');
     expect(shown).toContain('Switch to English');
     expect(shown).toMatch(BENGALI);
   });

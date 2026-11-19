@@ -758,13 +758,6 @@ main {
   font-size: var(--text-small);
   background: var(--bg-elevated);
 }
-.footer-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
 
 /* App shell: the signed-in product. On a laptop or larger it is a sidebar listing every
    destination, with the switch controls underneath. On a phone or tablet it is a bar at the
@@ -1988,15 +1981,6 @@ a.checklist-item:hover .checklist-label {
 }
 
 /* Public footer and the home page's promises, with a tick beside each. */
-.footer-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
-}
-.footer-links a {
-  color: var(--text-secondary);
-  padding: 0.25rem 0;
-}
 .promise-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
@@ -2045,406 +2029,6 @@ a.checklist-item:hover .checklist-label {
   text-underline-offset: 0.2em;
 }
 
-/* Public page geometry follows the authoritative ten-screen reference. Navy is confined to intentional accent panels. */
-.land {
-  --land-wrap: 1448px;
-  overflow-x: clip;
-}
-.land-wrap {
-  max-width: var(--land-wrap);
-  margin: 0 auto;
-  padding: 0;
-  width: calc(100% - clamp(40px, 9.5vw, 152px));
-}
-.land-section {
-  padding-block: clamp(3.5rem, 9vw, 6.5rem);
-}
-.land-tint {
-  background: var(--bg-subtle);
-  border-block: 1px solid var(--hairline-soft);
-}
-.land-head {
-  max-width: 44rem;
-  margin-bottom: clamp(2rem, 5vw, 3.25rem);
-}
-.land-kicker {
-  margin: 0 0 0.75rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--brand) 70%, var(--text));
-}
-.land-h2 {
-  margin: 0 0 0.9rem;
-  font-size: clamp(1.9rem, 4.4vw, 3rem);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  font-weight: 750;
-  text-wrap: balance;
-}
-.land-h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.15rem;
-  line-height: 1.3;
-  letter-spacing: -0.015em;
-  font-weight: 650;
-  text-wrap: balance;
-}
-.land-sub {
-  margin: 0;
-  max-width: 54ch;
-  font-size: clamp(1.02rem, 1.8vw, 1.2rem);
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-.land-body {
-  margin: 0;
-  font-size: var(--text-body);
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-.land-btn {
-  padding: 0 21px;
-  font-size: var(--text-small);
-  border-radius: 24px;
-  min-height: 52px;
-}
-.land-btn .icon {
-  transition: transform var(--motion-state) var(--motion-ease);
-}
-.land-btn:hover .icon {
-  transform: translateX(3px);
-}
-
-/* Hero */
-.land-hero {
-  position: relative;
-  overflow: clip;
-  padding-block: 0;
-  background: var(--bg);
-}
-
-/* Before and after */
-.land-versus {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-.land-versus-col {
-  padding: clamp(1.4rem, 3vw, 2rem);
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  background: var(--bg-elevated);
-}
-.land-versus-after {
-  background: var(--bg-elevated);
-  border-color: color-mix(in srgb, var(--brand) 45%, var(--hairline));
-}
-.land-versus-label {
-  margin: 0 0 1.1rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.land-versus-after .land-versus-label {
-  color: var(--brand);
-}
-.land-versus ul {
-  display: grid;
-  gap: 0.95rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-versus li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
-  font-size: var(--text-body);
-  line-height: 1.45;
-}
-.land-versus .icon {
-  flex: none;
-  margin-top: 0.15rem;
-}
-.land-versus-before .icon {
-  color: var(--danger);
-}
-.land-versus-before li {
-  color: var(--text-secondary);
-}
-.land-versus-after .icon {
-  color: var(--brand);
-}
-
-/* Steps joined by a line */
-.land-steps {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: none;
-}
-.land-step {
-  position: relative;
-  padding: 1.75rem 1.5rem 1.6rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  overflow: hidden;
-}
-.land-step-icon,
-.land-tile-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  margin-bottom: 1.1rem;
-  border-radius: 12px;
-  background: var(--brand-bg);
-  color: var(--brand);
-}
-.land-step-kicker {
-  margin: 0 0 0.35rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-/* Feature bento */
-
-.land-tile {
-  grid-column: span 2;
-  padding: 1.6rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  transition: border-color var(--motion-press) var(--motion-ease);
-}
-
-.land-tile:hover {
-  border-color: color-mix(in srgb, var(--brand) 40%, var(--hairline));
-}
-
-/* Audiences */
-.land-who {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
-}
-.land-who-card {
-  padding: clamp(1.6rem, 3vw, 2.25rem);
-  background: var(--bg-elevated);
-  border: 1px solid var(--hairline);
-  border-radius: 24px;
-}
-.land-who-card:first-child {
-  background: var(--bg-elevated);
-}
-.land-who-card .land-h3 {
-  font-size: clamp(1.3rem, 2.4vw, 1.6rem);
-  margin-bottom: 1.25rem;
-}
-.land-ticks {
-  display: grid;
-  gap: 0.8rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-ticks li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-.land-ticks .icon {
-  flex: none;
-  margin-top: 0.2rem;
-  color: var(--brand);
-}
-
-/* Trust content retains the reference public paper surface. */
-.land-trust {
-  background: var(--bg);
-  color: var(--text);
-}
-.land-trust .land-kicker {
-  color: var(--accent);
-}
-.land-trust .land-sub {
-  color: var(--text-secondary);
-}
-.land-promises {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-promises li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.9rem;
-  padding: 1.15rem 1.2rem;
-  border: 1px solid var(--hairline-soft);
-  border-radius: 16px;
-  background: #ffffff;
-  font-size: var(--text-small);
-  line-height: 1.45;
-}
-.land-promise-icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 10px;
-  background: var(--brand-bg);
-  color: var(--accent);
-}
-.land-trust-link {
-  margin: 1.75rem 0 0;
-}
-.land-trust-link a {
-  color: var(--accent);
-  font-weight: 650;
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-.land-trust-link a:hover {
-  color: var(--accent-hover);
-}
-
-/* Where we are going */
-.land-horizons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.land-horizon {
-  position: relative;
-  padding: 1.6rem 1.5rem;
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  background: var(--bg-elevated);
-}
-.land-horizon::before {
-  content: "";
-  position: absolute;
-  left: 1.5rem;
-  right: 1.5rem;
-  top: 0;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: var(--hairline);
-}
-.land-horizon-now::before {
-  background: var(--brand);
-}
-.land-horizon-next::before {
-  background: var(--bg-elevated);
-}
-.land-horizon-later {
-  border-style: dashed;
-}
-.land-horizon-label {
-  margin: 0 0 0.6rem;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.land-horizon-now .land-horizon-label {
-  color: var(--brand);
-}
-
-/* Closing call to action */
-.land-final {
-  padding-block: 0 clamp(3.5rem, 9vw, 6.5rem);
-}
-.land-final-card {
-  padding: clamp(2.5rem, 7vw, 5rem) clamp(1.5rem, 5vw, 4rem);
-  border-radius: 24px;
-  text-align: center;
-  color: var(--text);
-  background: var(--brand-bg);
-}
-.land-final-title {
-  margin: 0 0 0.8rem;
-  font-size: clamp(2.2rem, 6vw, 3.8rem);
-  line-height: 1.04;
-  letter-spacing: -0.04em;
-  font-weight: 800;
-}
-.land-final-sub {
-  margin: 0 auto 2rem;
-  max-width: 40ch;
-  font-size: clamp(1.05rem, 2vw, 1.25rem);
-  color: var(--text-secondary);
-}
-.land-final-cta {
-  justify-content: center;
-}
-.land-btn-light {
-  background: #ffffff;
-  color: var(--text);
-}
-.land-btn-light:hover {
-  background: var(--brand-bg);
-}
-.land-btn-ghost {
-  background: #ffffff;
-  color: var(--accent);
-  border-color: var(--hairline);
-}
-.land-btn-ghost:hover {
-  background: var(--brand-bg);
-}
-
-@media (max-width: 960px) {
-  .land-steps,
-  .land-horizons,
-  .land-promises {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .land-tile {
-    grid-column: span 1;
-  }
-}
-@media (max-width: 640px) {
-  .land-versus,
-  .land-who {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .land-btn {
-    width: 100%;
-  }
-}
-@media print {
-  .land-trust,
-  .land-final-card {
-    background: #fff;
-    color: #000;
-  }
-}
-
 /* Shared geometry for public, identity and authorized workspaces. */
 
 .auth-introduction em {
@@ -2453,19 +2037,6 @@ a.checklist-item:hover .checklist-label {
   font-weight: inherit;
   font-style: normal;
   letter-spacing: -0.04em;
-}
-
-.land-trust-link a {
-  color: var(--accent);
-}
-.land-final-sub {
-  color: var(--text-secondary);
-}
-.land-trust .land-kicker {
-  color: var(--accent);
-}
-.land-final-card .land-kicker {
-  color: var(--selected-text);
 }
 .nav-links .btn-primary {
   color: #ffffff;
@@ -4975,26 +4546,6 @@ body:has(.auth-shell) > .footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-
-.profile-read-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem 2rem;
-  margin: 1.25rem 0;
-}
-.profile-read-summary dt {
-  color: var(--text-tertiary);
-  font-size: var(--text-caption);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.profile-read-summary dd {
-  margin: 0.3rem 0 0;
-  font-size: var(--text-small);
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
 .profile-edit-section {
   border-top: 1px solid var(--hairline-soft);
   margin-top: 1rem;
@@ -5005,11 +4556,6 @@ body:has(.auth-shell) > .footer {
   cursor: pointer;
   padding: 0.85rem 0;
   min-height: 44px;
-}
-@media (max-width: 479px) {
-  .profile-read-summary {
-    gap: 1rem;
-  }
 }
 
 .case-manual-notice {
@@ -6151,12 +5697,10 @@ body:has(.auth-shell) > .footer {
   margin-top: 8px;
 }
 /* WP-V3 part 2: four-tab shell and the Personal Record hub. The Record sections use the shared
-   .subnav tabs. The hub has its own five-cell filter strip (one hairline between cells, never two),
-   reuses the wallet's Category and Search controls and pagination, and keeps every control at
-   least 44px tall. Everything wraps, so nothing scrolls sideways on a 320px phone. */
+   .subnav tabs. The hub reuses the wallet's Category and Search controls and pagination (its rows and filter
+   chips are in record/u6-records.css, WP-U6), and keeps every control at least 44px tall. Everything wraps, so nothing scrolls sideways on a 320px phone. */
 .record-hub,
-.record-hub-group,
-.record-hub-item {
+.record-hub-group {
   min-width: 0;
 }
 .record-hub-filter-set {
@@ -6164,45 +5708,6 @@ body:has(.auth-shell) > .footer {
   margin: 0;
   padding: 0;
   border: 0;
-}
-/* The cells sit on the strip's own background with a 1px gap, so each divider is one hairline
-   whatever the number of columns. */
-.record-hub-filters {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  margin: var(--space-5) 0;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  background: var(--hairline-soft);
-  overflow: hidden;
-}
-.record-hub-filters button {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-  min-width: 0;
-  min-height: 44px;
-  padding: var(--space-4);
-  border: 0;
-  border-radius: 0;
-  background: var(--bg-elevated);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  overflow-wrap: anywhere;
-  cursor: pointer;
-}
-.record-hub-filters button[aria-pressed="true"] {
-  background: var(--brand-bg);
-}
-.record-hub-filters button:disabled {
-  color: var(--text-secondary);
-  cursor: default;
-}
-.record-hub-filters strong {
-  font-size: var(--text-title);
 }
 .record-hub-filter-unavailable {
   font-size: var(--text-small);
@@ -6219,27 +5724,6 @@ body:has(.auth-shell) > .footer {
   margin: 0 0 var(--space-3);
   font-size: var(--text-lead);
 }
-.record-hub-list,
-.record-hub-facts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.record-hub-item {
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--hairline-soft);
-}
-.record-hub-item:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-.record-hub-item-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
 .record-hub-item-title {
   display: inline-flex;
   align-items: center;
@@ -6248,54 +5732,8 @@ body:has(.auth-shell) > .footer {
   font-weight: 650;
   overflow-wrap: anywhere;
 }
-.record-hub-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin-top: var(--space-2);
-  color: var(--text-secondary);
-  font-size: var(--text-small);
-}
-.record-hub-facts li {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.record-hub-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-.record-hub-actions .btn {
-  min-height: 44px;
-  white-space: normal;
-  text-align: center;
-}
 .record-hub-note {
   max-width: 68ch;
-}
-/* A group's empty profile sections: one quiet line of links at the end of the group. Inline
-   links in a sentence, so they wrap with the text. */
-.record-hub-nothing-saved {
-  margin: var(--space-3) 0 0;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--hairline-soft);
-  font-size: var(--text-small);
-  overflow-wrap: anywhere;
-}
-.record-hub-group h2 + .record-hub-nothing-saved,
-.record-hub-group h3 + .record-hub-nothing-saved {
-  padding-top: 0;
-  border-top: 0;
-}
-@media (max-width: 760px) {
-  .record-hub-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  /* Five cells in two columns: the last one spans the row, so no empty cell shows. */
-  .record-hub-filters button:last-child {
-    grid-column: 1 / -1;
-  }
 }
 
 /* WP-AI2 insights (AI data plan Phase 2): Document Insights page (applicant/[id]/insights). Marked
@@ -9362,7 +8800,7 @@ summary.visa-photo-title {
    pointer can make the button cover the words. After the first page the notice is a slim label
    (the version name and the link), one line, with no button. */
 .pilot-banner {
-  --notice-hide: 2rem;
+  --notice-hide: 44px;
   position: relative;
   padding-inline-start: calc(var(--notice-hide) + var(--space-2));
   padding-inline-end: calc(var(--notice-hide) + var(--space-2));
@@ -9831,20 +9269,6 @@ summary.visa-photo-title {
 .ai-connection-name .ai-consent-host {
   color: var(--text-secondary);
   font-size: var(--text-small);
-}
-.ai-connection-facts {
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: var(--space-2) var(--space-4);
-}
-.ai-connection-facts dt {
-  color: var(--text-secondary);
-  font-size: var(--text-small);
-}
-.ai-connection-facts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 .ai-connection-actions {
   align-items: flex-start;
@@ -19533,14 +18957,6 @@ article.card:has(> .trip-start-form) {
 }
 /* end WP-PLAIN-SCREENS */
 
-/* WP-PLAIN-DECIDED Owner decisions of 6 Nov 2026 that need a style: the landing proof line sits under the audience cards, in ink, one line of weight, no number. */
-.land-proof {
-  margin-top: var(--space-4);
-  color: var(--text);
-  font-weight: 600;
-}
-/* end WP-PLAIN-DECIDED */
-
 /* WP-LP1 One list pattern: the row, the folder, and the side panel that is a full screen on a narrow screen. Flat, tokens only, 44 px targets, rows at least 56 px tall on every width. */
 .lp-root {
   display: contents;
@@ -21195,20 +20611,6 @@ body:lang(bn),
 [data-locale="bn"] .data-table thead th,
 .data-table thead th:lang(bn),
 [data-locale="bn"] .data-table td::before,
-[data-locale="bn"] .land-kicker,
-.land-kicker:lang(bn),
-[data-locale="bn"] .land-h2,
-.land-h2:lang(bn),
-[data-locale="bn"] .land-h3,
-.land-h3:lang(bn),
-[data-locale="bn"] .land-versus-label,
-.land-versus-label:lang(bn),
-[data-locale="bn"] .land-step-kicker,
-.land-step-kicker:lang(bn),
-[data-locale="bn"] .land-horizon-label,
-.land-horizon-label:lang(bn),
-[data-locale="bn"] .land-final-title,
-.land-final-title:lang(bn),
 [data-locale="bn"] .auth-introduction em,
 .auth-introduction em:lang(bn),
 [data-locale="bn"] .auth-introduction h2,
@@ -21233,8 +20635,6 @@ body:lang(bn),
 .trust-story .card-title:lang(bn),
 [data-locale="bn"] .profile-area-picker-label,
 .profile-area-picker-label:lang(bn),
-[data-locale="bn"] .profile-read-summary dt,
-.profile-read-summary dt:lang(bn),
 [data-locale="bn"] .agency-mark-letters,
 .agency-mark-letters:lang(bn),
 [data-locale="bn"] .agency-preview-name,
@@ -21367,88 +20767,6 @@ body:lang(bn),
   border-bottom: 0;
 }
 /* end WP-RT2 */
-
-/* WP-P18 Bengali type for the home page headings (13 Nov 2026). The Harbor sizes are drawn for short Latin words; Bengali words are longer and taller, so at those sizes the hero headline broke onto four very large lines with wide gaps. For a visitor who chose Bangla (data-locale on the html element) the hero headline, the dark section heading and the closing title, which are Bengali, get a Bengali size and a taller line, so vowel signs above and below the letters never clip, and the lines balance. The product card titles and the phone heading sit next to English fallbacks, so only the Bengali ones (marked lang="bn") change; an English card keeps its English look. The landing styles set tight or wide letter spacing and capitals for Latin; Bengali letters are never spaced apart (see WP-P17), so Bengali text in these places is reset, and English fallback text keeps its spacing. English pages are untouched. */
-.c1
-  :is(
-    .c1-nudge,
-    .c1-headline,
-    .c1-subline,
-    .c1-tinycap,
-    .c1-phonename,
-    .c1-fileinfo b,
-    .c1-next-title,
-    .c1-sectionhead,
-    .c1-feature h3,
-    .c1-small-label
-  ):lang(bn),
-.c1
-  :is(
-    .c1-nudge,
-    .c1-headline,
-    .c1-subline,
-    .c1-tinycap,
-    .c1-phonename,
-    .c1-fileinfo b,
-    .c1-next-title,
-    .c1-sectionhead,
-    .c1-feature h3,
-    .c1-small-label
-  )
-  :lang(bn) {
-  letter-spacing: normal;
-  text-transform: none;
-}
-/* A Bengali part inside a heading is a span marked lang="bn"; the general :lang(bn) line height
-   (1.75, made for body text) would stretch each heading line, so the span follows its heading. */
-.c1 :is(.c1-headline, .c1-sectionhead, .c1-feature h3, .c1-phonename) [lang],
-.land-final-title [lang] {
-  line-height: inherit;
-}
-[data-locale="bn"] .c1 .c1-headline {
-  font-size: clamp(40px, 4.6vw, 64px);
-  line-height: 1.3;
-  font-weight: 760;
-  text-wrap: balance;
-  overflow-wrap: break-word;
-}
-[data-locale="bn"] .c1 .c1-sectionhead {
-  font-size: clamp(34px, 3.6vw, 48px);
-  line-height: 1.3;
-  text-wrap: balance;
-}
-.c1 .c1-feature h3:lang(bn) {
-  font-size: 28px;
-  line-height: 1.35;
-  text-wrap: balance;
-}
-.c1 .c1-phonename:lang(bn) {
-  font-size: 24px;
-  line-height: 1.3;
-}
-[data-locale="bn"] .land-final-title {
-  font-size: clamp(1.8rem, 4.4vw, 3rem);
-  line-height: 1.3;
-  text-wrap: balance;
-}
-@media (max-width: 760px) {
-  /* On a phone the two halves of the headline wrap anyway, so the set break goes and the whole
-     sentence balances over three lines instead of four. */
-  [data-locale="bn"] .c1 .c1-headline {
-    font-size: clamp(28px, 9vw, 40px);
-    line-height: 1.35;
-  }
-  [data-locale="bn"] .c1 .c1-headline br {
-    display: none;
-  }
-  [data-locale="bn"] .c1 .c1-sectionhead {
-    font-size: 32px;
-  }
-  .c1 .c1-feature h3:lang(bn) {
-    font-size: 24px;
-  }
-}
-/* end WP-P18 */
 
 /* WP-CI What This Change Affects */
 /* The review a traveller reads when a document is replaced or a confirmed detail changes, its short notice under a saved detail, and the state shown when it did not load. A list to read, with links to the screens that own each step. Flat: 1px edges, no shadow, gradient or translucency; tokens only; every link and the fold are 44 px or taller; nothing can push a phone screen wider. */
@@ -22740,3 +22058,1901 @@ button.wallet-stack-card {
   }
 }
 /* end WP-WAL0 */
+/* WP-WAL1 Expandable Section and status pictures (18 Nov 2026, ADR 0030): one open-and-close section for every screen (components/ui-lift/expandable-section.tsx) and the six status pictures of the one status language (components/pictures/status-picture.tsx). Flat: a solid card, a hairline, brand tokens only, no shadow, no gradient. The row is at least 56 px with a 44 px picture, status and chevron, all pinned to the top so a wrapping summary moves nothing. The status picture sits beside the toggle in its own reserved column, never inside it. Only the chevron turns, and only without reduced motion. */
+.expandable-section {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.expandable-section + .expandable-section {
+  margin-top: var(--space-2);
+}
+.expandable-section-details {
+  min-width: 0;
+}
+.expandable-section-details > summary {
+  --expandable-status-space: 0px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) var(--expandable-status-space) 44px;
+  grid-template-rows: auto 1fr;
+  align-items: start;
+  row-gap: 2px;
+  min-height: 56px;
+  padding-block: 6px;
+  padding-inline: var(--space-3) var(--space-2);
+  border-radius: var(--radius);
+  list-style: none;
+  cursor: pointer;
+}
+.expandable-section-details > summary::-webkit-details-marker {
+  display: none;
+}
+.expandable-section-details > summary::marker {
+  content: "";
+}
+.expandable-section[data-has-status] .expandable-section-details > summary {
+  --expandable-status-space: 48px;
+}
+.expandable-section-details > summary:hover {
+  background: var(--bg-subtle);
+}
+.expandable-section-details > summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.expandable-section-picture {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-inline-end: var(--space-3);
+  overflow: hidden;
+}
+.expandable-section-picture > svg,
+.expandable-section-picture > img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.expandable-section-title {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  min-width: 0;
+  margin: 0;
+  padding-top: 2px;
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.expandable-section-summary {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.expandable-section-chevron {
+  grid-column: 4;
+  grid-row: 1;
+  justify-self: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 12px;
+  color: var(--text-tertiary);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.expandable-section-details[open] > summary .expandable-section-chevron {
+  transform: rotate(90deg);
+}
+/* Right-to-left: the closed chevron points the reading way. :dir() follows the language the page inherits; the attribute rule covers browsers without :dir(). */
+[dir="rtl"] .expandable-section-chevron {
+  transform: scaleX(-1);
+}
+.expandable-section-chevron:dir(rtl) {
+  transform: scaleX(-1);
+}
+[dir="rtl"] .expandable-section-details[open] > summary .expandable-section-chevron {
+  transform: rotate(90deg);
+}
+.expandable-section-details[open] > summary .expandable-section-chevron:dir(rtl) {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .expandable-section-chevron {
+    transition: transform var(--motion-state) var(--motion-ease);
+  }
+}
+.expandable-section-status {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: calc(var(--space-2) + 44px + 4px);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+.expandable-section-status .explain-tip {
+  margin-block: 0;
+}
+.expandable-section-body {
+  padding: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.expandable-section-body > :first-child {
+  margin-top: 0;
+}
+.expandable-section-body > :last-child {
+  margin-bottom: 0;
+}
+.status-picture {
+  --status-ink: var(--brand);
+  --status-fill: var(--brand-bg);
+  display: block;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--status-ink);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.status-picture[data-tone="ok"] {
+  --status-ink: var(--success);
+  --status-fill: var(--success-bg);
+}
+.status-picture[data-tone="bad"] {
+  --status-ink: var(--danger);
+  --status-fill: var(--danger-bg);
+}
+.status-picture[data-tone="ink"] {
+  --status-ink: var(--text-tertiary);
+  --status-fill: var(--bg-subtle);
+}
+.status-picture-ring {
+  fill: var(--status-fill);
+}
+.status-picture-ring-inner {
+  fill: none;
+}
+.status-picture-fill {
+  fill: currentColor;
+  stroke: none;
+}
+/* High-contrast mode: the system colours replace the tints, so ring shape and mark carry the meaning. */
+@media (forced-colors: active) {
+  .status-picture {
+    color: CanvasText;
+  }
+  .status-picture-ring {
+    fill: Canvas;
+  }
+}
+/* A key of status pictures, one per line or wrapped on a wide screen: each item is a full 44 px row, so the Explain buttons never overlap. */
+.status-picture-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.status-picture-key > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+}
+.status-picture-key .explain-tip {
+  margin-block: 0;
+}
+/* end WP-WAL1 */
+
+/* WP-PUBFIX 44 px targets for the shared header links, the language switch, the footer links and
+   the pilot notice. The links grow their own box and pull the extra height back with a negative
+   margin, so nothing around them moves. The phone menu (960 px and below) already has 44 px rows. */
+@media (min-width: 961px) {
+  .nav-links a:not(.btn),
+  .lang-switch {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-block: 0;
+  }
+  .lang-switch {
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+.pilot-banner:not(.pilot-banner-slim) {
+  min-height: 44px;
+}
+.pilot-banner-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 0;
+  margin-block: -0.75rem;
+}
+/* end WP-PUBFIX */
+
+/* WP-WAL5 AI connection tiles (18 Nov 2026, owner decision 17 Nov 2026, Wallet board Pattern 4 option A): one tile per AI connection on the traveller Sharing page and the agency AI Connections page (components/ai-connection-tile.tsx). Who, Connected, what it can read as small pictures that explain themselves, a clock ring for the time left with the end date, Last Used, and the existing Change Access and Turn Off. Flat: tokens only, a hairline, no shadow, no gradient. The ring is drawn at its final state and nothing moves, so reduced motion has nothing to switch off. Every picture is a full 44 px row item (the shared WAL1 key), so wrapped rows never overlap. */
+.ai-tile {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ai-tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ai-tile-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.ai-tile-name {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.ai-tile-name .ai-consent-host {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 400;
+}
+.ai-tile-reads {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ai-tile-term {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-tile-read-none {
+  margin: 0;
+  color: var(--text-secondary);
+}
+/* The list is the shared WAL1 key of pictures (.status-picture-key: full 44 px rows, the Explain
+   button's reach past the line turned off); the tile adds a row gap and a hairline per item. */
+.ai-tile-read-list {
+  row-gap: var(--space-1);
+  min-width: 0;
+}
+.ai-tile-read {
+  min-width: 0;
+  max-width: 100%;
+  padding-inline-end: var(--space-2);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.ai-tile-read .explain-tip {
+  flex: none;
+  color: var(--brand);
+}
+.ai-tile-read-word {
+  min-width: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ai-tile-read-value {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.ai-tile-clock {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.ai-tile-ring {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--brand);
+}
+.ai-tile-ring svg:first-child {
+  position: absolute;
+  inset: 0;
+}
+.ai-tile-ring-track {
+  stroke: var(--hairline-soft);
+  stroke-width: 4;
+}
+.ai-tile-ring-fill {
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.ai-tile-ring[data-state="open"] {
+  color: var(--success);
+}
+.ai-tile-ring[data-state="ending_soon"] {
+  color: var(--warning);
+}
+.ai-tile-ring[data-state="ended"] {
+  color: var(--text-tertiary);
+}
+/* Without colour the ring still reads: ending soon draws a thicker arc, ended a dashed track. */
+.ai-tile-ring[data-state="ending_soon"] .ai-tile-ring-fill {
+  stroke-width: 6;
+}
+.ai-tile-ring[data-state="ended"] .ai-tile-ring-track {
+  stroke: currentColor;
+  stroke-dasharray: 3 4;
+}
+.ai-tile-when {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+.ai-tile-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 650;
+}
+.ai-tile-soon {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px var(--space-2);
+  border-radius: 980px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.ai-tile-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-1) var(--space-4);
+}
+.ai-tile-facts dt {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.ai-tile-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ai-tile-actions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ai-tile-actions .btn {
+  min-height: 44px;
+}
+@media (forced-colors: active) {
+  .ai-tile-ring-fill,
+  .ai-tile-ring[data-state="ended"] .ai-tile-ring-track {
+    stroke: CanvasText;
+  }
+  .ai-tile-ring-track {
+    stroke: GrayText;
+  }
+}
+/* end WP-WAL5 */
+
+/* WP-WAL4 Passport Page Card and value rows (18 Nov 2026, owner decision option B): My Profile prints the profile's own values for the eleven passport details on a schematic, flat data page (never a photo or a real document), and every other single detail is one value row (Expandable Section: name, value, one status picture). Brand tokens only, no shadow, no gradient, no motion. Every control is at least 44 px. */
+.passport-page-card {
+  min-width: 0;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.passport-page-head h3 {
+  margin: 0;
+}
+.passport-page-head p {
+  margin: var(--space-1) 0 var(--space-3);
+  font-size: var(--text-small);
+}
+.passport-page-sheet {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-areas:
+    "art lines"
+    "zone zone";
+  gap: var(--space-3) var(--space-4);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+}
+.passport-page-art {
+  grid-area: art;
+  display: block;
+  width: 96px;
+  height: 120px;
+}
+.passport-page-art-paper {
+  fill: var(--bg-elevated);
+  stroke: var(--edge-card);
+  stroke-width: 1.5;
+}
+.passport-page-art-band {
+  fill: var(--brand);
+}
+.passport-page-art-line {
+  fill: none;
+  stroke: var(--bg-elevated);
+  stroke-width: 1.5;
+}
+.passport-page-art-ink {
+  fill: var(--brand-tint-4);
+}
+.passport-page-art-band + .passport-page-art-line + .passport-page-art-ink {
+  fill: var(--bg-elevated);
+}
+.passport-page-art-frame {
+  fill: var(--brand-tint-2);
+  stroke: var(--hairline);
+  stroke-width: 1.5;
+}
+.passport-page-lines {
+  grid-area: lines;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  column-gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+}
+.passport-page-line {
+  min-width: 0;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--hairline-soft);
+}
+.passport-page-label {
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.passport-page-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+}
+.passport-page-value {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  color: var(--text);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-decoration-color: var(--text-tertiary);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+a.passport-page-value {
+  min-inline-size: 44px;
+}
+a.passport-page-value:hover {
+  text-decoration-color: var(--accent);
+}
+.passport-page-value:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.passport-page-line[data-state="note"] .passport-page-value,
+.passport-page-empty {
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.passport-page-add,
+.passport-page-show {
+  min-height: 44px;
+}
+.passport-page-status {
+  margin-inline-start: auto;
+}
+.passport-page-zone {
+  grid-area: zone;
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+.passport-page-zone-mark {
+  fill: none;
+  stroke: var(--brand-tint-5);
+  stroke-width: 1.5;
+}
+@media (max-width: 560px) {
+  .passport-page-card {
+    padding: var(--space-3);
+  }
+  .passport-page-sheet {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "art"
+      "lines"
+      "zone";
+  }
+  .passport-page-art {
+    width: 64px;
+    height: 80px;
+  }
+}
+@media (forced-colors: active) {
+  .passport-page-art-paper,
+  .passport-page-art-frame {
+    fill: Canvas;
+  }
+  .passport-page-art-paper,
+  .passport-page-art-frame,
+  .passport-page-zone-mark {
+    stroke: CanvasText;
+  }
+  .passport-page-art-band,
+  .passport-page-art-ink {
+    fill: CanvasText;
+  }
+}
+.profile-value-rows {
+  margin-block: var(--space-3);
+}
+/* end WP-WAL4 */
+
+/* WP-WAL2 Document detail and Check What We Found (18 Nov 2026, owner decision: Preview Card First, no tabs). Layout of the document's pass front (its dark look is in components/pictures/pictures-depth.css), the details and dates as Expandable Section rows, the compact review rows, the one-at-a-time review, large choice tiles for a difference, and the accept bar that rests at the bottom of a phone screen while the details are in view (the Add button is already gone while a document is open, WP-WAL0). Flat: tokens only, no shadow or gradient here. Every target is at least 44 px. Nothing moves. */
+.doc-hero {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+.doc-hero-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.doc-hero-art {
+  flex: none;
+}
+.doc-hero-text {
+  min-width: 0;
+}
+.doc-hero-name {
+  margin: 0;
+  font-size: var(--text-lead);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.doc-hero-kind,
+.doc-hero-facts {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.doc-hero-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-hero-mark {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.doc-hero-mark .ci-step {
+  margin-left: var(--space-2);
+}
+.doc-hero-glyph {
+  display: block;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.doc-hero-glyph[data-tone="ok"] .doc-hero-glyph-ring {
+  fill: var(--success-bg);
+  stroke: var(--success);
+}
+.doc-hero-glyph[data-tone="ok"] .doc-hero-glyph-mark {
+  stroke: var(--success);
+}
+.doc-hero-glyph[data-tone="warn"] .doc-hero-glyph-ring {
+  fill: var(--warning-bg);
+  stroke: var(--warning);
+}
+.doc-hero-glyph[data-tone="warn"] .doc-hero-glyph-mark {
+  stroke: var(--warning);
+}
+.doc-hero-glyph[data-tone="bad"] .doc-hero-glyph-ring {
+  fill: var(--danger-bg);
+  stroke: var(--danger);
+  stroke-dasharray: 3 2.4;
+}
+.doc-hero-glyph[data-tone="bad"] .doc-hero-glyph-mark {
+  stroke: var(--danger);
+}
+.doc-hero-glyph[data-tone="neutral"] .doc-hero-glyph-ring {
+  fill: var(--bg-elevated);
+  stroke: var(--edge-control);
+  stroke-dasharray: 3 2.4;
+}
+.doc-hero-glyph[data-tone="neutral"] .doc-hero-glyph-mark {
+  stroke: var(--text-secondary);
+}
+.doc-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.doc-hero-actions .btn {
+  min-height: 44px;
+}
+.doc-detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.doc-detail-section .field-inline {
+  flex-wrap: wrap;
+}
+.doc-detail-issuer {
+  margin: 0 0 var(--space-1);
+}
+
+/* Check What We Found */
+.document-findings-metric {
+  margin: 0;
+  font-weight: 600;
+}
+.finding-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.finding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+.finding-row[data-quick="true"] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.finding-row-accept {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: 6px;
+}
+.finding-row-accept .btn {
+  min-height: 44px;
+}
+/* An opened row shows its card, whose Accept is the one to use: the row's own Accept steps aside, so one detail is never sent twice. */
+.finding-row:has(> .expandable-section details[open]) > .finding-row-accept {
+  display: none;
+}
+.finding-row-check {
+  display: block;
+  color: var(--warning);
+  font-weight: 600;
+}
+.finding-steps {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.finding-steps-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.finding-steps-head h4 {
+  margin: 0;
+}
+.finding-steps-count {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.finding-steps-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.finding-steps-list > li:focus {
+  outline: none;
+}
+.finding-steps-list > li:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.finding-steps-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.finding-steps-nav .btn {
+  min-height: 44px;
+}
+.finding-steps-nav .btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.finding-masked {
+  margin-block: var(--space-2);
+}
+.finding-choice-tiles {
+  display: grid;
+  gap: var(--space-2);
+}
+.finding-choice-tiles > label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border: 1.5px solid var(--edge-control);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-weight: 600;
+  cursor: pointer;
+}
+.finding-choice-tiles > label:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.finding-choice-tiles > label input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0;
+}
+.finding-choice-tiles > .finding-value {
+  padding-inline: var(--space-2);
+}
+.finding-accept-bar {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--edge-card);
+  background: var(--bg);
+}
+.finding-accept-bar .btn {
+  min-height: 44px;
+}
+/* On a phone the open document fills the screen (over the bottom bar), so the accept bar rests at the bottom edge of the screen, clear of the phone's own bottom edge, while the details are in view; anything scrolled to stops above it. */
+@media (max-width: 760px) {
+  .wallet-selected-document[data-sheet="open"] .finding-accept-bar {
+    position: sticky;
+    /* A sticky item stops above its scroll box's bottom padding (WP-WAL0 gives the open sheet 61 px plus the safe area plus one space): this offset takes it back to the screen's edge. */
+    bottom: calc(-1 * (61px + env(safe-area-inset-bottom, 0px) + var(--space-4)));
+    z-index: 2;
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .wallet-selected-document[data-sheet="open"] {
+    scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 9rem);
+  }
+}
+/* end WP-WAL2 */
+
+/* WP-WAL3 Trip Package as a journey line with gaps (18 Nov 2026, owner decision 17 Nov, Trip Package "-A"): what the trip needs is a line of stones (solid ring and tick is ready, dashed ring and cross is a gap), at most five visible and the rest scroll inside the card, one line and one button for each gap, the four Outside VisaStack steps as pictures with an Explain popup, and Case Details and Trip Date Checks as Expandable Sections that stay open on a wide screen. Flat: hairlines and brand tokens only, no shadow, no gradient. Ring style, tick or cross and a word say each state, never colour alone. Nothing here animates. */
+.trip-journey {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.trip-journey-count {
+  margin: 0 0 var(--space-2);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.trip-journey-list {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.trip-journey-list:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.trip-stone {
+  position: relative;
+  display: flex;
+  flex: 0 0 20%;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding-inline: 2px;
+  text-align: center;
+}
+.trip-stone:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 22px;
+  inset-inline-start: calc(50% + 24px);
+  inset-inline-end: calc(-50% + 24px);
+  height: 0;
+  border-top: 3px solid var(--success);
+}
+.trip-stone-gap:not(:last-child)::after {
+  border-top: 3px dashed var(--danger);
+}
+.trip-stone-todo:not(:last-child)::after {
+  border-top: 3px dotted var(--edge-strong, var(--edge-card));
+}
+.trip-stone-ring {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  background: var(--success-bg);
+  color: var(--success);
+}
+.trip-stone-gap .trip-stone-ring {
+  border: 2px dashed var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.trip-stone-todo .trip-stone-ring {
+  border: 2px dotted var(--text-secondary);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+.trip-stone-name {
+  max-width: 100%;
+  hyphens: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.trip-stone-word {
+  max-width: 100%;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.trip-gaps {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 7.5rem;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.trip-gaps:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.trip-gap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px dashed var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+}
+.trip-gap-line {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.trip-gap-action {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+}
+.trip-package-head,
+.trip-outside-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.trip-package-start {
+  min-height: 44px;
+  margin-inline-start: auto;
+}
+.trip-outside-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0;
+}
+.trip-outside-row > .trip-outside-extra {
+  flex: 1 0 100%;
+}
+.trip-outside-head .package-subheading {
+  margin: 0;
+}
+.trip-outside {
+  display: flex;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.trip-outside-tile {
+  display: flex;
+  min-width: 44px;
+}
+.trip-outside-extra {
+  margin: var(--space-2) 0 0;
+}
+.rail-section-body {
+  min-width: 0;
+  scroll-margin-top: 6rem;
+}
+.rail-section .expandable-section-body {
+  padding: 0;
+}
+/* The row keeps its 56px height: the summary is one line that ends in an ellipsis, as the rail's own rows do. */
+.rail-section .expandable-section-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-section-body .lift-card {
+  position: relative;
+  border: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: transparent;
+}
+.rail-section-body .lift-card-head {
+  display: none;
+}
+@supports selector(::details-content) {
+  @media (min-width: 761px) {
+    .rail-section .expandable-section {
+      border: none;
+      border-radius: 0;
+      background: transparent;
+    }
+    .rail-section .expandable-section-details > summary {
+      display: none;
+    }
+    .rail-section .expandable-section-details::details-content {
+      content-visibility: visible;
+    }
+    .rail-section .expandable-section-body {
+      border-top: none;
+    }
+    .rail-section-body .lift-card {
+      position: static;
+      border: 1px solid var(--edge-card);
+      border-radius: var(--radius-lg);
+      background: var(--bg-elevated);
+    }
+    .rail-section-body .lift-card-head {
+      display: block;
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0 0 var(--space-4);
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+    }
+  }
+}
+/* end WP-WAL3 */
+
+/* WP-WAL10 Home People photo and Needs Attention rows (18 Nov 2026, owner request): the account's own photo fills the round Home avatar (initials stay for everyone else and when the photo cannot load), and each Needs Attention item is one Expandable Section row (picture, title, the reason as one clamped line, the full sentence inside) with the urgency word, person and date under it and the item's one action. Flat: tokens only, a hairline, no shadow, no gradient, no motion. Every control is at least 44 px. */
+.home-avatar[data-photo="true"] {
+  overflow: hidden;
+  background: var(--brand-bg);
+}
+.home-person:nth-child(even) .home-avatar[data-photo="true"] {
+  background: var(--brand-bg);
+}
+.home-attention-row {
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+.home-attention-section {
+  min-width: 0;
+}
+.home-attention-section .expandable-section-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+}
+.home-attention-section .expandable-section-details > summary {
+  min-height: 56px;
+}
+.home-attention-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--brand-bg);
+  color: var(--accent);
+}
+.home-attention-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.home-attention-meta .do-next-context {
+  min-width: 0;
+}
+/* end WP-WAL10 */
+
+/* WP-U8 time zone in a column row (18 Nov 2026). The shared .tz-select asks for a 15rem flex basis, meant for a row of fields. Inside a form field (.field-row is a flex column) that basis became the list's HEIGHT, a 240 px empty box. In a column the list keeps the height of every other control and takes the width of its field. Used by every form that draws a Time Zone list in a field. */
+.field-row > .tz-select {
+  flex: 0 0 auto;
+  max-width: none;
+  min-width: 0;
+  width: 100%;
+}
+/* end WP-U8 */
+
+/* WP-FIX9 signed-in layout faults (18 Nov 2026). (1) On a phone the navigation bar is pinned to the bottom of the screen, 3.5rem tall plus its hairline and the home-indicator space. The pinned action bar of a form (Create Case, Preview, Start Trip) stuck at bottom 0 of the screen, so the navigation bar sat on top of its buttons. It now sticks just above the navigation bar. The navigation bar's own height is one place: --fix9-nav-height. The case page's own next-step bar keeps its rules. (2) A hidden file picker is a real field kept out of sight beside its drawn label: keyboard focus on the field draws the focus ring on the label. */
+@media (max-width: 1023px) {
+  :root {
+    --fix9-nav-height: calc(3.5rem + 1px + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(.app-shell-nav) .sticky-action-bar:not(.case-sticky-next .sticky-action-bar) {
+    bottom: var(--fix9-nav-height);
+    padding-bottom: var(--space-3);
+  }
+  html:has(.app-shell-nav):has(.sticky-action-bar) {
+    scroll-padding-bottom: calc(5.5rem + var(--fix9-nav-height));
+  }
+  /* A message strip stays above the lifted bar and the navigation bar under it. */
+  html:has(.app-shell-nav):has(.sticky-action-bar) .toast-region {
+    bottom: calc(9.5rem + var(--fix9-nav-height));
+  }
+}
+@media (max-width: 640px) {
+  /* On a phone the bar's note and full-width buttons stack, so the bar is taller (as in WP-SB0). */
+  html:has(.app-shell-nav):has(.sticky-action-bar) {
+    scroll-padding-bottom: calc(8rem + var(--fix9-nav-height));
+  }
+}
+.file-pick-input:focus-visible + .btn {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.file-pick-input:disabled + .btn {
+  cursor: default;
+  opacity: 0.6;
+}
+/* end WP-FIX9 */
+
+/* WP-NAV2 header and footer (18 Nov 2026). One calm header row: the brand on the left, the five pages in the middle, the actions on the right, every item on one line at every width. When the row would not fit (the width is measured per language, see docs/upgrades/programme/pub/NAV2-records.md) the pages, the language switch and the quiet sign-in move into the menu and the one action that matters stays in the bar. The two menu rule sets below are the same rules under two language guards (and two widths): change both together. The bar stays solid white with a hairline edge, so it reads over light and dark sections alike. The current page has a marker bar as well as a darker colour. The footer is a quiet closing in three groups; on a phone the groups stack with 44 px targets. */
+.nav {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  align-items: center;
+  column-gap: 20px;
+  flex-wrap: nowrap;
+  padding: 0 20px 0 26px;
+}
+.nav .brand,
+.site-footer .brand {
+  min-height: 44px;
+}
+.nav .brand {
+  justify-self: start;
+  white-space: nowrap;
+}
+.site-navigation,
+.site-menu-panel {
+  display: contents;
+}
+.site-menu-extras {
+  display: none;
+}
+.nav-links {
+  grid-column: 2;
+  justify-content: center;
+  width: auto;
+  gap: 0;
+}
+.site-nav-pages {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+}
+.nav-links a:not(.btn) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: 620;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.nav-links a:not(.btn):hover {
+  background: var(--bg-subtle);
+}
+.nav-links a[aria-current="page"] {
+  color: var(--text);
+}
+.nav-links a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 10px 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.site-nav-actions {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.site-nav-actions > * {
+  flex: none;
+}
+.site-nav-actions form {
+  margin: 0;
+}
+.site-nav-actions .lang-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: 560;
+  white-space: nowrap;
+}
+.site-nav-actions .lang-switch:hover {
+  background: var(--bg-subtle);
+  text-decoration: none;
+  color: var(--text);
+}
+.site-nav-actions .nav-cta {
+  padding: 0 20px;
+  font-size: var(--text-small);
+  white-space: nowrap;
+}
+.site-nav-actions .btn-primary {
+  color: #ffffff;
+}
+.site-nav-actions .nav-signin {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+}
+.site-nav-actions .nav-signin:hover {
+  background: var(--bg-subtle);
+  border-color: transparent;
+}
+.site-menu-toggle {
+  display: none;
+  white-space: nowrap;
+}
+.menu-lang,
+.menu-signin {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 620;
+  text-align: start;
+  cursor: pointer;
+}
+.menu-lang:hover,
+.menu-signin:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+  text-decoration: none;
+}
+@media (max-width: 899.98px) {
+  html:not([data-locale="bn"]) .nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    height: auto;
+    min-height: 64px;
+    margin-top: 16px;
+    padding: 8px 10px 8px 18px;
+    border-radius: 28px;
+    position: sticky;
+    column-gap: 8px;
+    row-gap: 4px;
+  }
+  html:not([data-locale="bn"]) .nav .brand {
+    margin-inline-end: auto;
+    font-size: 1.25rem;
+  }
+  html:not([data-locale="bn"]) .site-navigation {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-bar-only,
+  html:not([data-locale="bn"]) .site-navigation .site-nav-actions .lang-form {
+    display: none;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-toggle {
+    display: inline-flex;
+    order: 3;
+    min-height: 44px;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(340px, calc(100vw - 32px));
+    padding: 10px;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--edge-control);
+    border-radius: 20px;
+    background: #ffffff;
+    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  html:not([data-locale="bn"]) .site-navigation[data-open="true"] .site-menu-panel {
+    display: flex;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-panel .nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    position: static;
+    background: none;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-pages {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin: 0;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-pages a:not(.btn) {
+    display: flex;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: var(--text-body);
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-nav-pages a[aria-current="page"]::after {
+    inset: 12px auto 12px 0;
+    width: 3px;
+    height: auto;
+  }
+  html:not([data-locale="bn"]) .site-navigation .site-menu-extras {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hairline-soft);
+  }
+}
+@media (max-width: 899.98px) {
+  html[data-locale="bn"] .nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    height: auto;
+    min-height: 64px;
+    margin-top: 16px;
+    padding: 8px 10px 8px 18px;
+    border-radius: 28px;
+    position: sticky;
+    column-gap: 8px;
+    row-gap: 4px;
+  }
+  html[data-locale="bn"] .nav .brand {
+    margin-inline-end: auto;
+    font-size: 1.25rem;
+  }
+  html[data-locale="bn"] .site-navigation {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+  html[data-locale="bn"] .site-navigation .site-bar-only,
+  html[data-locale="bn"] .site-navigation .site-nav-actions .lang-form {
+    display: none;
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-toggle {
+    display: inline-flex;
+    order: 3;
+    min-height: 44px;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(340px, calc(100vw - 32px));
+    padding: 10px;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--edge-control);
+    border-radius: 20px;
+    background: #ffffff;
+    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  html[data-locale="bn"] .site-navigation[data-open="true"] .site-menu-panel {
+    display: flex;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-panel .nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    position: static;
+    background: none;
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-pages {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin: 0;
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-pages a:not(.btn) {
+    display: flex;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: var(--text-body);
+  }
+  html[data-locale="bn"] .site-navigation .site-nav-pages a[aria-current="page"]::after {
+    inset: 12px auto 12px 0;
+    width: 3px;
+    height: auto;
+  }
+  html[data-locale="bn"] .site-navigation .site-menu-extras {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hairline-soft);
+  }
+}
+@media (max-width: 400px) {
+  html[data-locale] .site-navigation .site-menu-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  html[data-locale] .site-navigation .site-menu-toggle {
+    min-width: 44px;
+    padding: 0;
+  }
+  html[data-locale] .nav {
+    width: calc(100% - 16px);
+    padding-inline: 14px 8px;
+  }
+  html[data-locale] .nav .brand {
+    font-size: 1.125rem;
+    gap: 7px;
+  }
+  html[data-locale] .site-navigation .site-nav-actions .nav-cta {
+    padding: 0 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  html[data-locale] .nav .brand {
+    font-size: 1.0625rem;
+    gap: 6px;
+  }
+  html[data-locale] .site-navigation {
+    gap: 6px;
+  }
+  html[data-locale] .site-navigation .site-nav-actions .nav-cta {
+    padding: 0 12px;
+  }
+}
+
+.site-footer {
+  padding: clamp(40px, 6vw, 72px) 0 0;
+  border-top: 1px solid var(--hairline);
+  background: var(--brand-tint-1);
+  color: var(--text-secondary);
+}
+.site-footer-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: start;
+  justify-content: normal;
+}
+.site-footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.site-footer-about {
+  max-width: 34ch;
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.site-footer-beta {
+  display: flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 620;
+  line-height: 1.4;
+  color: var(--text);
+}
+.site-footer-beta::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.site-footer-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.site-footer-heading {
+  margin: 0 0 6px;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+.site-footer-group ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.site-footer-group a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: var(--text-small);
+  font-weight: 560;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.site-footer-group a:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.site-footer-base {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 24px;
+  margin-top: clamp(24px, 4vw, 40px);
+  padding-block: 20px;
+  border-top: 1px solid var(--hairline);
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+/* On a phone the footer has to stay about as short as it was (the page height budgets): the three
+   groups keep their lists and their names for a screen reader, and their links flow in rows of
+   44 px targets (the rows overlap by the extra height, as the old footer links did). */
+@media (max-width: 760px) {
+  .site-footer {
+    padding-top: 4px;
+  }
+  .site-footer-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .site-footer-brand {
+    gap: 0;
+  }
+  .site-footer-about {
+    font-size: var(--text-small);
+    line-height: 1.3;
+  }
+  .site-footer-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 14px;
+  }
+  .site-footer-group,
+  .site-footer-group ul {
+    display: contents;
+  }
+  .site-footer-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .site-footer-group a {
+    margin-block: -9px;
+  }
+  .site-footer-base {
+    margin-top: 0;
+    padding-block: 4px;
+  }
+}
+/* The public header and footer never show inside the signed-in app or the sign-in frame (the rule near the top of the file, kept above the header's own display rules). */
+html body:has(.app-frame) > .nav,
+html body:has(.auth-shell) > .nav,
+html body:has(.app-frame) > .footer,
+html body:has(.auth-shell) > .footer {
+  display: none;
+}
+@media (forced-colors: active) {
+  .nav-links a[aria-current="page"]::after {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}
+/* PUBW1 (inside the NAV2 block) public header from 900 px, the quiet footer line (19 Nov 2026). The full link row starts at 900 px in both languages (the menu rules above apply below 900 px, written as 899.98px because the build rounds em values). English had a full row from 1151 px and keeps its NAV2 spacing from there; Bengali had one from 1231 px. So the compaction (less padding, a smaller gap and brand, the same 64 px bar and 16 px top margin the menu bar had, so the Home first screen still fits) covers 900 to 1150 px in English and Bengali, and 1151 to 1230 px in Bengali only. */
+@media (min-width: 900px) and (max-width: 1150.98px) {
+  .nav {
+    column-gap: 8px;
+    padding: 0 10px 0 16px;
+    height: 64px;
+    margin-top: 16px;
+  }
+  .nav .brand {
+    font-size: 1.125rem;
+  }
+  .nav-links a:not(.btn) {
+    padding: 0 7px;
+  }
+  .nav-links a[aria-current="page"]::after {
+    inset: auto 7px 6px;
+  }
+  .site-nav-pages {
+    gap: 0;
+  }
+  .site-nav-actions {
+    gap: 2px;
+  }
+  .site-nav-actions .lang-switch {
+    padding: 0 8px;
+  }
+  .site-nav-actions .nav-cta {
+    padding: 0 14px;
+  }
+  html[data-locale="bn"] .nav-links a:not(.btn),
+  html[data-locale="bn"] .site-navigation .nav-links a:not(.btn) {
+    padding: 0 4px;
+  }
+  html[data-locale="bn"] .nav-links a[aria-current="page"]::after {
+    inset: auto 4px 6px;
+  }
+}
+@media (min-width: 1150.99px) and (max-width: 1230.98px) {
+  html[data-locale="bn"] .nav {
+    column-gap: 8px;
+    padding: 0 10px 0 16px;
+    height: 64px;
+    margin-top: 16px;
+  }
+  html[data-locale="bn"] .nav .brand {
+    font-size: 1.125rem;
+  }
+  html[data-locale="bn"] .nav-links a:not(.btn) {
+    padding: 0 4px;
+  }
+  html[data-locale="bn"] .nav-links a[aria-current="page"]::after {
+    inset: auto 4px 6px;
+  }
+  html[data-locale="bn"] .site-nav-pages {
+    gap: 0;
+  }
+  html[data-locale="bn"] .site-nav-actions {
+    gap: 2px;
+  }
+  html[data-locale="bn"] .site-nav-actions .lang-switch {
+    padding: 0 8px;
+  }
+  html[data-locale="bn"] .site-nav-actions .nav-cta {
+    padding: 0 14px;
+  }
+}
+.site-footer-asis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+.site-footer-asis a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  color: inherit;
+  text-decoration: underline;
+}
+@media (min-width: 900px) and (max-width: 960px) {
+  /* The older 960 px menu rules (still used by the app's own pages) would hide or stack the link row here; undo each of them. */
+  .site-navigation {
+    flex: initial;
+  }
+  .site-navigation .nav-links {
+    display: flex;
+    position: static;
+    width: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .site-nav-pages,
+  .site-nav-actions {
+    flex-direction: row;
+    align-items: center;
+    margin: 0;
+  }
+  .site-navigation .nav-links a:not(.btn),
+  .site-navigation .site-nav-actions .lang-switch {
+    display: inline-flex;
+    padding: 0 7px;
+    font-size: var(--text-small);
+  }
+  html[data-locale="bn"] .site-navigation .nav-links a:not(.btn) {
+    padding: 0 4px;
+  }
+  .site-navigation .site-nav-actions .nav-cta {
+    padding: 0 14px;
+  }
+}
+/* end WP-NAV2 */
+
+/* WP-ESS1 Profile read rows (18 Nov 2026, owner question on Essentials First): a saved detail reads as one row (name, value, Show for a protected one, Edit) and its box opens only on Edit; the history tools (the date it became true, last confirmed, where it came from, how it was checked, No Longer Current) sit behind one closed Details per row. Essentials First lists only the essentials the Passport Page Card does not show, so the top of the page draws each detail once. Flat: tokens and a hairline only, no shadow, no gradient, no motion. Every control is at least 44 px. */
+.profile-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.profile-read-row {
+  gap: 0.25rem;
+}
+.profile-read-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.profile-read-value {
+  flex: 1 1 10rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--text);
+}
+.profile-read-value[data-masked="true"] {
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.profile-read-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.profile-read-actions .btn,
+.profile-field-row .field-control .btn {
+  min-height: 44px;
+}
+/* The "could not be shown" regions stay in the page empty, so their words are announced when they
+   arrive; empty, they take no room (kept in the accessibility tree, out of the layout). */
+.profile-row-problem:empty,
+.passport-page-problem:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.profile-row-details > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+.profile-row-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.25rem 0 0.5rem 0.75rem;
+  border-left: 2px solid var(--hairline-soft);
+}
+.profile-row-details-body .field-backdate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0;
+}
+.profile-row-details-title {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.profile-row-assurance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.profile-row-assurance-item {
+  margin: 0 0 0 0.75rem;
+  font-size: var(--text-caption);
+}
+.profile-essentials-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+.profile-essentials-bar > p {
+  margin: 0;
+}
+.passport-page-problem:not(:empty) {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0.5rem 0 0;
+  font-size: var(--text-small);
+}
+/* end WP-ESS1 */

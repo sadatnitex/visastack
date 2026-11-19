@@ -1,8 +1,6 @@
 'use client';
-import Link from 'next/link';
 import { useId, useState } from 'react';
 import { useT } from '../../../../components/i18n-provider';
-import { StatusBadge } from '../../../../components/ui';
 import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import {
   RECORD_FILTERS,
@@ -12,6 +10,7 @@ import {
   layoutRecordPage,
   recordFilterCount,
 } from './record-hub';
+import { NotStartedRows, RecordRow } from './record/record-row';
 
 /** The same page length as the documents wallet. */
 const PAGE_SIZE = 12;
@@ -44,6 +43,7 @@ export function RecordBrowser({
   const matches = filterRecordItems(items, { query, group, filter });
   const {
     groups: shownGroups,
+    notStarted,
     rowCount,
     pageCount,
     activePage,
@@ -63,7 +63,7 @@ export function RecordBrowser({
         <legend className="sr-only">
           {t.node('appApplicant.appApplicantIdRecordBrowser.recordFilters')}
         </legend>
-        <div className="record-hub-filters">
+        <div className="u6-filters">
           {RECORD_FILTERS.map(({ key, label }) => (
             <button
               key={key}
@@ -130,7 +130,7 @@ export function RecordBrowser({
             })}
         {pageCount > 1 ? ` Page ${activePage + 1} of ${pageCount}.` : null}
       </output>
-      {shownGroups.length === 0 ? (
+      {shownGroups.length === 0 && notStarted.length === 0 ? (
         // When documents did not load, the alert above already explains the short list.
         documentsLoaded ? (
           <p className="notice record-hub-empty">
@@ -138,57 +138,33 @@ export function RecordBrowser({
           </p>
         ) : null
       ) : (
-        shownGroups.map(({ name, rows, nothingSaved }, index) => (
-          <section
-            key={name}
-            className="card record-hub-group"
-            aria-labelledby={`${groupsId}-${index}`}
-          >
-            <h2 id={`${groupsId}-${index}`}>{name}</h2>
-            {rows.length ? (
-              <ul className="record-hub-list">
+        <>
+          {shownGroups.map(({ name, rows }, index) => (
+            <section
+              key={name}
+              className="record-hub-group u6-group"
+              aria-labelledby={`${groupsId}-${index}`}
+            >
+              <h2 id={`${groupsId}-${index}`}>{name}</h2>
+              <ul className="u6-rows">
                 {rows.map((item) => (
-                  <li key={item.id} className="record-hub-item" data-kind={item.kind}>
-                    <div className="record-hub-item-head">
-                      <Link className="record-hub-item-title" href={item.href} dir="auto">
-                        {item.title}
-                      </Link>
-                      <StatusBadge tone={item.status.tone}>{item.status.label}</StatusBadge>
-                    </div>
-                    {item.type ? <p className="muted">{item.type}</p> : null}
-                    <ul className="record-hub-facts">
-                      {item.facts.map((fact) => (
-                        <li key={fact}>{fact}</li>
-                      ))}
-                    </ul>
-                    {item.action ? (
-                      <div className="record-hub-actions">
-                        <Link
-                          className="btn btn-secondary"
-                          href={item.action.href}
-                          aria-label={`${item.action.label}: ${item.title}`}
-                        >
-                          {item.action.label}
-                        </Link>
-                      </div>
-                    ) : null}
-                  </li>
+                  <RecordRow key={item.id} item={item} />
                 ))}
               </ul>
-            ) : null}
-            {nothingSaved.length ? (
-              <p className="muted record-hub-nothing-saved">
-                Nothing saved yet:{' '}
-                {nothingSaved.map((item, position) => (
-                  <span key={item.id}>
-                    {position > 0 ? ', ' : null}
-                    <Link href={item.href}>{item.title}</Link>
-                  </span>
-                ))}
-              </p>
-            ) : null}
-          </section>
-        ))
+            </section>
+          ))}
+          {notStarted.length ? (
+            <section
+              className="record-hub-group u6-group"
+              aria-labelledby={`${groupsId}-not-started`}
+            >
+              <h2 id={`${groupsId}-not-started`}>
+                {t.node('appApplicant.appApplicantIdRecordRow.notStarted')}
+              </h2>
+              <NotStartedRows groups={notStarted} />
+            </section>
+          ) : null}
+        </>
       )}
       {pageCount > 1 ? (
         <div

@@ -36,6 +36,16 @@ export const appSharingInvitationsCatalog = defineCatalog({
     'appSharingInvitations.appSharingInvitationsAcceptPage.sharedBy': 'Shared By',
     'appSharingInvitations.appSharingInvitationsAcceptPage.signInWithTheInvitedEmail':
       'Sign In with the Invited Email',
+    // WP-U7 traveller screens on the Wallet foundation (18 Nov 2026): English only until the localization lane writes Bengali (docs/upgrades/programme/wal/U7-records.md).
+    'appSharingInvitations.appSharingInvitationsU7.whatIsShared': 'What Is Shared',
+    // end WP-U7
+    // DECL1: saying no on the accept screen (Bengali through the register only).
+    'appSharingInvitations.appSharingInvitationsDecl1.decline': 'Decline',
+    'appSharingInvitations.appSharingInvitationsDecl1.explain':
+      'Say no to this invitation? Nothing is shared, and this link stops working.',
+    'appSharingInvitations.appSharingInvitationsDecl1.confirm': 'Decline Invitation',
+    'appSharingInvitations.appSharingInvitationsDecl1.busy': 'Declining…',
+    // end DECL1
   },
   bn: {
     'appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds': 'অ্যাক্সেস শেষ হবে',

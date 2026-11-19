@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
@@ -95,5 +96,38 @@ describe('Consent history in a fixed log (WP-SB1)', () => {
     const text = textOf(await page());
     expect(text).toContain('No Changes Yet');
     expect(text).not.toContain('Show Older Entries');
+  });
+});
+
+describe('Privacy rows (U7)', () => {
+  const job = (status: string) => ({
+    id: 'j1',
+    status,
+    createdAt: new Date(Date.UTC(2026, 10, 1)),
+    readyAt: null,
+    expiresAt: null,
+    lastError: null,
+  });
+  const exportRow = async () =>
+    new JSDOM(await page()).window.document.querySelector('#export-data details');
+
+  it('opens Export Your Data by itself while a large export is waiting, running or ready', async () => {
+    for (const status of ['PENDING', 'CLAIMED', 'READY']) {
+      service.listAccountExportJobsForAccount.mockResolvedValue([job(status)]);
+      expect((await exportRow())?.hasAttribute('open'), status).toBe(true);
+    }
+  });
+
+  it('leaves Export Your Data closed when there is nothing to collect', async () => {
+    expect((await exportRow())?.hasAttribute('open')).toBe(false);
+    service.listAccountExportJobsForAccount.mockResolvedValue([job('EXPIRED')]);
+    expect((await exportRow())?.hasAttribute('open')).toBe(false);
+  });
+
+  it('gives the empty consent history one working control, worded through the catalogue', async () => {
+    const doc = new JSDOM(await page()).window.document;
+    const action = doc.querySelector('#consent-history .empty-state a');
+    expect(action?.getAttribute('href')).toBe('/app#permissions');
+    expect(action?.textContent).toBe('Open Permissions');
   });
 });

@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
 import { FormGroup } from './form-group';
-import { openRequestAddress } from './open-request-from-link';
+import { openRequestAddress, openRequestRow } from './open-request-from-link';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -91,5 +91,22 @@ describe('FormGroup as the pending invitations group (WP-SB11)', () => {
     expect(host.querySelector('details')?.open).toBe(true);
     await act(async () => root.unmount());
     host.remove();
+  });
+});
+
+describe('openRequestRow (U8)', () => {
+  const ID = '33333333-3333-4333-8333-333333333333';
+
+  it('opens the closed request row a link points at, and leaves other hashes alone', () => {
+    document.body.innerHTML = `<div id="request-${ID}"><details><summary>Row</summary>body</details></div>`;
+    const details = document.querySelector('details');
+    expect(details?.open).toBe(false);
+    expect(openRequestRow('#ask-for-evidence')).toBe(false);
+    expect(details?.open).toBe(false);
+    expect(openRequestRow(`#request-${ID.toUpperCase()}`)).toBe(true);
+    expect(details?.open).toBe(true);
+    // A request that is not on the page opens nothing.
+    expect(openRequestRow('#request-44444444-4444-4444-8444-444444444444')).toBe(false);
+    document.body.innerHTML = '';
   });
 });

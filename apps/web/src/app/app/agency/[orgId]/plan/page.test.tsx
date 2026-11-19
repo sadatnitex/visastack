@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationState, renderServer, textOf } from '../../../../../lib/next-mocks.test-support';
 
@@ -94,5 +95,51 @@ describe('Plan and Usage (S29)', () => {
     // Said once, not twice.
     expect(text.match(/Complimentary/g)).toHaveLength(1);
     expect(text).not.toContain('BDT 2,500.00');
+  });
+
+  const limitRows = (html: string) => [
+    ...new JSDOM(`<body>${html}</body>`).window.document.querySelectorAll('.u8-limit'),
+  ];
+
+  it('U8: one compact row per limit, a ring for a ceiling and the shared words, with no bar at all', async () => {
+    mocks.usage.mockResolvedValue(usage({}));
+    const html = await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) }));
+    const rows = limitRows(html);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.textContent).toContain('1 of 5 used');
+    expect(rows[0]?.querySelector('.u8-ring-arc')).not.toBeNull();
+    // No ceiling: the shared words, a plain disc and no arc.
+    expect(rows[2]?.textContent).toContain('1 used (unlimited)');
+    expect(rows[2]?.querySelector('.u8-ring-arc')).toBeNull();
+    const doc = new JSDOM(`<body>${html}</body>`).window.document;
+    expect(doc.querySelector('.meter, .meter-fill')).toBeNull();
+  });
+
+  it('U8: AI Features is one section whose rows sit inside it', async () => {
+    mocks.usage.mockResolvedValue(usage({}));
+    const doc = new JSDOM(
+      `<body>${await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) }))}</body>`,
+    ).window.document;
+    const titles = [...doc.querySelectorAll('.expandable-section-title')].filter(
+      (h) => h.textContent === 'AI Features',
+    );
+    expect(titles).toHaveLength(1);
+    expect(titles[0]?.closest('.expandable-section')?.textContent).toContain('Agency AI Tools');
+  });
+
+  it('U8: a limit of none in use draws a full ring, one with nothing allowed or used stays neutral, and an informational meter opens at first', async () => {
+    const base = usage({});
+    base.value.meters = [
+      { ...meter('seats', 'seats', 'Team Members', 0), used: 2 },
+      { ...meter('invitations', 'invitations', 'Invitations', 0), used: 0 },
+      meter('aiAllowanceUnits', 'ai_allowance_units', 'AI Allowance', 5),
+    ];
+    mocks.usage.mockResolvedValue(base);
+    const rows = limitRows(await renderServer(Page({ params: Promise.resolve({ orgId: 'o1' }) })));
+    expect(rows[0]?.querySelector('.u8-ring-full .u8-ring-arc, .u8-ring-arc')).not.toBeNull();
+    expect(rows[0]?.querySelector('.u8-ring')?.classList.contains('u8-ring-full')).toBe(true);
+    expect(rows[1]?.querySelector('.u8-ring')?.classList.contains('u8-ring-full')).toBe(false);
+    expect(rows[0]?.querySelector('details')?.hasAttribute('open')).toBe(false);
+    expect(rows[2]?.querySelector('details')?.hasAttribute('open')).toBe(true);
   });
 });

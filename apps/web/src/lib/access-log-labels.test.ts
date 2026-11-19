@@ -15,6 +15,8 @@ describe('access log event labels (VS-015)', () => {
     expect(accessLogEventLabel('AI_EXTRACTION_RUN')).toBe('AI Read Document Details');
     expect(accessLogEventLabel('AI_CONTEXT_SERVED')).toBe('AI App Read Details');
     expect(accessLogEventLabel('GRANT_CREATED')).toBe('Access Granted');
+    expect(accessLogEventLabel('SHARING_INVITATION_DECLINED')).toBe('Sharing Invitation Declined');
+    expect(accessLogEventLabel('CONTRIBUTOR_REQUEST_DECLINED')).toBe('Document Request Declined');
   });
 
   it('falls back to the generic words for an event it has no entry for', () => {

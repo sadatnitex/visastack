@@ -129,19 +129,14 @@ describe('public and entry pages today', () => {
     expect(document.body.textContent).not.toContain('Opening this link');
   });
 
-  it('sign-up shows where you are, puts the own-risk notice before the fields, and leaves consent unticked', async () => {
+  it('sign-up shows where you are, has no own-risk notice, and leaves consent to the terms unticked', async () => {
     const { default: SignUp } = await import('./auth/sign-up/page');
     const document = dom(renderToStaticMarkup(await SignUp(SEARCH())));
     const steps = document.querySelector('ol.auth-steps');
     expect(steps?.querySelector('[aria-current="step"]')?.textContent).toContain(
       'Create Your Account',
     );
-    const notice = [...document.querySelectorAll('.notice')].find((n) =>
-      n.textContent?.includes('at your own risk'),
-    );
-    const firstField = document.querySelector('input[name="name"]');
-    expect(notice).toBeDefined();
-    expect(notice && firstField && notice.compareDocumentPosition(firstField) & 4).toBeTruthy();
+    expect(document.body.textContent).not.toContain('own risk');
     const box = document.querySelector<HTMLInputElement>('input[name="acceptNotices"]');
     expect(box?.checked).toBe(false);
     expect(box?.required).toBe(true);
@@ -185,27 +180,33 @@ describe('the public home page with its scroll story (WP-PUB2)', () => {
     const { default: Home } = await import('./page');
     const document = dom(renderToStaticMarkup(await Home(SEARCH())));
     expect(document.querySelectorAll('h1')).toHaveLength(1);
-    for (const id of ['how-it-works', 'for-agencies', 'start']) {
+    for (const id of ['how-it-works', 'for-agencies', 'start', 'capabilities']) {
       expect(document.querySelectorAll(`[id="${id}"]`), id).toHaveLength(1);
     }
-    expect(document.querySelector('a.c1-pill[href="/app"]')?.textContent).toContain(
+    expect(document.querySelector('a.pub-button[href="/app"]')?.textContent).toContain(
       'Sign in to get started',
     );
     expect(document.body.textContent).toContain('Invite-Only Pilot');
   });
 
-  it('runs three scenes in order, each with a finished step the server already wrote', async () => {
+  it('runs five scenes in order, each with a finished step the server already wrote', async () => {
     const { default: Home } = await import('./page');
     const document = dom(renderToStaticMarkup(await Home(SEARCH())));
     const scenes = [...document.querySelectorAll('[data-scene]')];
     expect(scenes.map((scene) => scene.getAttribute('data-scene'))).toEqual([
-      'intake',
+      'hero',
+      'add',
       'ready',
-      'closing',
+      'journey',
+      'share',
     ]);
+    // The finished step is the last, except the sharing scene, which rests before `Access Ended`,
+    // and the journey, which rests on its first stage like the approved reference (PUBFIX2 P2-7).
     for (const scene of scenes) {
       const last = Number(scene.getAttribute('data-steps')) - 1;
-      expect(Number(scene.getAttribute('data-step'))).toBe(last);
+      const name = scene.getAttribute('data-scene');
+      const finished = name === 'share' ? last - 1 : name === 'journey' ? 0 : last;
+      expect(Number(scene.getAttribute('data-step'))).toBe(finished);
     }
   });
 });

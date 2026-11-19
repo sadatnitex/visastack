@@ -2,9 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
 
 /**
- * WP-PUB2: the Home page's scroll story. Scenes pin only on a screen 900 px wide or more; below that
- * (and with reduced motion, data saver or no JavaScript) every scene shows finished and still.
- * Page heights: at most 12 screens on a computer, 6 on a phone.
+ * The Home page's scroll story (WP-PUB2, rebuilt by R1 on the approved reference). Scenes pin only
+ * on a screen 900 px wide or more; below that (and with reduced motion, data saver or no
+ * JavaScript) every scene shows finished and still. Page heights: at most 12 screens on a
+ * computer, 6 on a phone.
  */
 
 const SIZES = [
@@ -14,11 +15,20 @@ const SIZES = [
   { name: 'desktop', width: 1440, height: 900 },
 ] as const;
 
-const SCENES = ['intake', 'ready', 'closing'] as const;
+const SCENES = ['hero', 'add', 'ready', 'journey', 'share'] as const;
+
+/** The step each scene rests on, finished (the sharing scene rests before `Access Ended`; the journey rests on its first stage, PUBFIX2 P2-7). */
+const FINAL: Record<(typeof SCENES)[number], string> = {
+  hero: '5',
+  add: '2',
+  ready: '2',
+  journey: '0',
+  share: '3',
+};
 
 async function wait(page: Page): Promise<void> {
   await page.goto('/');
-  await expect(page.locator('#land-hero-title')).toBeVisible();
+  await expect(page.locator('#hs-hero-title')).toBeVisible();
 }
 
 for (const size of SIZES) {
@@ -46,14 +56,10 @@ for (const size of SIZES) {
       expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
     });
 
-    test('keeps every scene control at 44 px or more', async ({ page }) => {
+    test('keeps every control at 44 px or more', async ({ page }) => {
       await wait(page);
       const small = await page.evaluate(() =>
-        [
-          ...document.querySelectorAll<HTMLElement>(
-            '[data-scene] a, [data-scene] button, .pub-button',
-          ),
-        ]
+        [...document.querySelectorAll<HTMLElement>('main a, main button, .pub-button')]
           .map((el) => ({ el, box: el.getBoundingClientRect() }))
           .filter(({ box }) => box.width > 0 && (box.height < 44 || box.width < 44))
           .map(({ el }) => el.textContent?.trim().slice(0, 30) ?? ''),
@@ -94,7 +100,8 @@ test('the first screen at 360x640 holds 30 words or fewer of the page itself', a
   const words = await page.evaluate(() => {
     const main = document.querySelector('main') ?? document.body;
     const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
-    let count = 0;
+    let hero = 0;
+    let all = 0;
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const text = node.textContent?.trim();
       if (!text) continue;
@@ -107,58 +114,87 @@ test('the first screen at 360x640 holds 30 words or fewer of the page itself', a
       range.selectNodeContents(node);
       const box = range.getBoundingClientRect();
       if (box.width === 0 || box.top >= innerHeight || box.bottom <= 0) continue;
-      count += text.split(/\s+/).length;
+      const count = text.split(/\s+/).length;
+      all += count;
+      if (parent.closest('#hs-hero')) hero += count;
     }
-    return count;
+    return { hero, all };
   });
-  expect(words).toBeLessThanOrEqual(30);
+  // The hero chapter keeps its 30 words. MOB1 (owner approved the phone mock, "phn mock okay for now",
+  // 19 Nov 2026) makes the hero shorter, so the next chapter's headline now shows at the foot of the
+  // first screen, as the mock's first frame does: the whole first screen may hold 40.
+  expect(words.hero).toBeLessThanOrEqual(30);
+  expect(words.all).toBeLessThanOrEqual(40);
 });
 
 for (const size of SIZES.filter((s) => s.width >= 900)) {
-  test(`pins every scene on a ${size.width}px screen, one screen high`, async ({ page }) => {
+  test(`pins every scene on a ${size.width}px screen`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await wait(page);
     await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-    // The two long scenes pin; the closing scene is one screen, so it has nothing to pin.
-    for (const name of ['intake', 'ready']) {
+    for (const name of SCENES) {
       const stage = page.locator(`[data-scene="${name}"] .pub-scene-stage`);
-      await expect(stage).toHaveCSS('position', 'sticky');
+      await expect(stage, name).toHaveCSS('position', 'sticky');
     }
   });
 }
 
-test('pins nothing below 900 px, so a scene is a still picture', async ({ page }) => {
-  // 820 is above the engine's own floor (760), so this proves the page's own rule, not the engine's.
+test('pins nothing below 900 px: phones reveal, and a scene never pins, stretches or runs tall', async ({
+  page,
+}) => {
+  // 820 is above the engine's own floor (760): the scenes carry data-min-width="900" themselves.
   for (const width of [360, 400, 820]) {
     await page.setViewportSize({ width, height: 860 });
     await wait(page);
+    // Phones (below 760 px) are in reveal mode, never the pinned mode.
+    if (width < 760) {
+      await expect(page.locator('html'), `mode at ${width}`).toHaveAttribute(
+        'data-scenes',
+        'reveal',
+      );
+      await expect(page.locator('html'), `mode at ${width}`).not.toHaveAttribute(
+        'data-scenes',
+        'live',
+      );
+    }
     for (const name of SCENES) {
-      const stage = page.locator(`[data-scene="${name}"] .pub-scene-stage`);
-      await expect(stage, `${name} at ${width}`).not.toHaveCSS('position', 'sticky');
-      const box = await page.locator(`[data-scene="${name}"]`).boundingBox();
+      const scene = page.locator(`[data-scene="${name}"]`);
+      const stage = scene.locator('.pub-scene-stage');
+      // Neither sticky nor fixed, and no pinned scroll runway: the stage is never taller than
+      // one screen, and the scene is not stretched to its pinned length.
+      for (const position of ['sticky', 'fixed'])
+        await expect(stage, `${name} at ${width}`).not.toHaveCSS('position', position);
+      // The finished step the server wrote (a reveal scene is briefly at an earlier step).
+      await expect(scene, `${name} at ${width}`).toHaveAttribute('data-rest', FINAL[name]);
+      const box = await scene.boundingBox();
       expect(box?.height ?? 0, `${name} at ${width}`).toBeLessThan(860 * 1.6);
+      const stageBox = await stage.boundingBox();
+      expect(stageBox?.height ?? 0, `${name} stage at ${width}`).toBeLessThanOrEqual(860);
     }
   }
 });
 
 test.describe('reduced motion', () => {
-  test('shows every scene finished and still', async ({ page }) => {
+  test('is the gentle mode: nothing pins and every scene ends on its finished step', async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1280, height: 800 });
     await wait(page);
-    await expect(page.locator('html')).not.toHaveAttribute('data-scenes', /.*/);
-    const final: Record<string, string | null> = {
-      intake: '3',
-      ready: '1',
-      closing: '0',
-    };
+    await expect(page.locator('html')).toHaveAttribute('data-scenes', 'gentle');
+    await expect(page.locator('html')).toHaveAttribute('data-scene-mode', 'gentle');
     for (const name of SCENES) {
       const scene = page.locator(`[data-scene="${name}"]`);
-      await expect(scene).toHaveAttribute('data-step', final[name] ?? '0');
-      await expect(scene.locator('.pub-scene-stage')).not.toHaveCSS('position', 'sticky');
+      await scene.scrollIntoViewIfNeeded();
+      await expect(scene).toHaveAttribute('data-rest', FINAL[name]);
+      // Finished means the playing step reaches data-rest.
+      await expect(scene).toHaveAttribute('data-step', FINAL[name]);
+      for (const position of ['sticky', 'fixed'])
+        await expect(scene.locator('.pub-scene-stage')).not.toHaveCSS('position', position);
     }
     await expect(page.getByText('Confirmed', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Completeness only. Not an approval.')).toBeVisible();
+    await expect(page.getByText('Completeness only. Not an approval.').first()).toBeVisible();
+    await expect(page.getByText('5 of 8 Ready').first()).toBeVisible();
   });
 });
 
@@ -169,8 +205,8 @@ test.describe('without JavaScript', () => {
     await page.goto('/');
     for (const name of SCENES) await expect(page.locator(`[data-scene="${name}"]`)).toBeVisible();
     await expect(page.getByText('Confirmed', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Completeness only. Not an approval.')).toBeVisible();
-    await expect(page.locator('.pub-passport-tilt img')).toBeVisible();
+    await expect(page.getByText('Completeness only. Not an approval.').first()).toBeVisible();
+    await expect(page.locator('.kit-closing-passport img')).toBeVisible();
   });
 });
 
@@ -192,41 +228,85 @@ test('the scenes move while scrolling on a computer: the step changes, the page 
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await wait(page);
-  const scene = page.locator('[data-scene="intake"]');
+  const scene = page.locator('[data-scene="share"]');
   await scene.scrollIntoViewIfNeeded();
   const top = await scene.evaluate((el) => el.getBoundingClientRect().top + scrollY);
   const steps = new Set<string>();
-  for (let y = top; y < top + 800 * 3; y += 200) {
+  for (let y = top; y < top + 800 * 2; y += 100) {
     await page.evaluate((to) => window.scrollTo(0, to), y);
     await page.waitForTimeout(60);
     steps.add((await scene.getAttribute('data-step')) ?? '');
   }
-  expect(steps.size).toBeGreaterThanOrEqual(3);
+  expect(steps.size).toBeGreaterThanOrEqual(4);
+});
+
+test('the fanned papers and the ring follow the scroll: scattered at the start, fanned and counted at the end', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await wait(page);
+  const scene = page.locator('[data-scene="hero"]');
+  const top = await scene.evaluate((el) => el.getBoundingClientRect().top + scrollY);
+  const far = page.locator('.kit-deck-doc[data-slot="far-left"]');
+  // Wait for the scene's own state after each scroll, never a fixed time: the engine moves the step
+  // on its next frame, and a slow machine takes longer.
+  await page.evaluate((to) => window.scrollTo(0, to), top);
+  await expect.poll(() => scene.getAttribute('data-step')).toBe('0');
+  const start = await far.boundingBox();
+  await expect(page.locator('.hs-hero-cap').getByText('0 of 8 Ready')).toBeVisible();
+  await page.evaluate((to) => window.scrollTo(0, to), top + 900);
+  await expect.poll(() => scene.getAttribute('data-step')).toBe(FINAL.hero);
+  await expect
+    .poll(async () => Math.abs(((await far.boundingBox())?.x ?? 0) - (start?.x ?? 0)))
+    .toBeGreaterThan(100);
+  await expect(page.locator('.hs-hero-cap').getByText('5 of 8 Ready')).toBeVisible();
 });
 
 test('no pinned scene clips its words on a short computer screen (1024x600)', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 600 });
   await wait(page);
   await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-  const clipped = await page.evaluate(() =>
-    [
-      ...document.querySelectorAll<HTMLElement>(
-        '[data-scene="intake"] .pub-scene-stage, [data-scene="ready"] .pub-scene-stage',
-      ),
-    ]
-      .filter((stage) => stage.scrollHeight > stage.clientHeight + 1)
-      .map((stage) => stage.closest('[data-scene]')?.getAttribute('data-scene')),
-  );
+  // Words are measured per line, as the overlap check does: a pinned stage may let a decorative
+  // picture run past its edge, but never a word.
+  const clipped = await page.evaluate(() => {
+    const found: string[] = [];
+    for (const stage of document.querySelectorAll<HTMLElement>('[data-scene] .pub-scene-stage')) {
+      const box = stage.getBoundingClientRect();
+      const walker = document.createTreeWalker(stage, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const parent = node.parentElement;
+        if (!parent || !node.textContent?.trim()) continue;
+        if (!parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const r of range.getClientRects()) {
+          if (r.width < 1 || r.height < 1) continue;
+          if (r.top < box.top - 1 || r.bottom > box.bottom + 1)
+            found.push(
+              `${stage.closest('[data-scene]')?.getAttribute('data-scene')}: ${node.textContent.trim().slice(0, 24)}`,
+            );
+        }
+      }
+    }
+    return found;
+  });
   expect(clipped).toEqual([]);
 });
 
-test('the passport rests flat between 760 and 899 px, where the engine runs but no scene is pinned', async ({
+test('the closing passport rests flat, and is the real Bangladesh cover from this site', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 820, height: 860 });
   await wait(page);
-  await expect(page.locator('html')).toHaveAttribute('data-scenes', 'live');
-  const tilt = page.locator('.land-passport-frame .pub-passport-tilt');
+  const tilt = page.locator('.kit-closing-frame .pub-passport-tilt');
   await tilt.scrollIntoViewIfNeeded();
-  await expect(tilt).toHaveCSS('transform', 'none');
+  // Flat: no turn at all (a bare perspective with no rotation is the same as none).
+  await expect(tilt).toHaveCSS(
+    'transform',
+    /^(none|matrix3d\(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, [^,]+, 0, 0, 0, 1\))$/,
+  );
+  await expect(page.locator('.kit-closing-passport img')).toHaveAttribute(
+    'src',
+    '/pictures/passport-bd.png',
+  );
 });

@@ -57,40 +57,19 @@ test.describe('responsive layout', () => {
   }
 });
 
-/** Programme X WP-L1 acceptance: Harbor landing with the signed corrections D4 and D15. */
-test.describe('Harbor landing (WP-L1)', () => {
+/**
+ * R1: the Home page rebuilt on the approved reference. No sideways scroll at any width, and the
+ * headline, the main action and the pilot line show without scrolling on a small phone.
+ */
+test.describe('Home page (R1)', () => {
   for (const width of [320, 360, 390, 768, 1024, 1440]) {
-    test(`no sideways scroll and no card over the phone text at ${width}px`, async ({ page }) => {
+    test(`no sideways scroll and no words cut off at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/');
-      const result = await page.evaluate(() => {
-        const phone = document.querySelector('.c1-phone')?.getBoundingClientRect();
-        const covered: string[] = [];
-        if (phone) {
-          const texts = [
-            ...document.querySelectorAll('.c1-phone .c1-phonename, .c1-phone .c1-phonepanel'),
-          ];
-          for (const card of document.querySelectorAll('.c1-floatcard')) {
-            const c = card.getBoundingClientRect();
-            if (c.width === 0) continue;
-            for (const text of texts) {
-              const r = text.getBoundingClientRect();
-              // Only the part inside the phone frame is visible; the frame hides the rest.
-              const top = Math.max(r.top, phone.top);
-              const bottom = Math.min(r.bottom, phone.bottom);
-              const left = Math.max(r.left, phone.left);
-              const right = Math.min(r.right, phone.right);
-              if (c.left < right && left < c.right && c.top < bottom && top < c.bottom)
-                covered.push(card.className);
-            }
-          }
-        }
-        return {
-          overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
-          covered,
-        };
-      });
-      expect(result).toEqual({ overflow: false, covered: [] });
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth + 1,
+      );
+      expect(overflow).toBe(false);
     });
   }
 
@@ -99,12 +78,23 @@ test.describe('Harbor landing (WP-L1)', () => {
   }) => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/');
-    await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
-    // Growth G1: the owner's promise, read as one sentence.
-    await expect(page.locator('#land-hero-title')).toHaveText('A clean file you can stand behind.');
-    await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.c1-hero .c1-nudge')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.c1-hero .c1-nudge')).toHaveText(/public beta|pilot/i);
+    await expect(page.locator('#hs-hero-title')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('#hs-hero-title')).toHaveText(/One record\.\s*Every visa\./);
+    await expect(page.locator('.hs-hero .pub-button-primary')).toBeInViewport({ ratio: 1 });
+    // MOB1 (19 Nov 2026): a phone drops the pill inside the hero; the availability wording stays on
+    // the first screen in the banner above the header.
+    await expect(page.locator('.hs-hero .hs-nudge')).toBeHidden();
+    await expect(page.locator('.pilot-banner')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.pilot-banner')).toHaveText(/public beta|pilot/i);
+  });
+
+  test('a computer still shows the availability pill inside the hero at 1440x900', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('.hs-hero .hs-nudge')).toBeVisible();
+    await expect(page.locator('.hs-hero .hs-nudge')).toHaveText(/public beta|pilot/i);
   });
 });
 
@@ -811,14 +801,9 @@ test.describe('flat UI reference geometry and interaction', () => {
         const effects = await page.locator('body').evaluate((body) =>
           [...body.querySelectorAll('*')]
             .filter((element) => {
-              // Owner decision D1: only the Harbor hero and product chapter on the landing may
-              // use soft shadows and gradients. Everything else stays flat, on every page.
+              // Everything is flat, on every page, except what the depth stylesheet marks itself.
               // ADR 0029: on the public site only an element that carries data-pub-depth itself.
-              if (
-                element.closest('.c1-hero, .c1-darkstage') ||
-                element.hasAttribute('data-pub-depth')
-              )
-                return false;
+              if (element.hasAttribute('data-pub-depth')) return false;
               const css = getComputedStyle(element);
               return (
                 css.boxShadow !== 'none' ||
@@ -837,6 +822,66 @@ test.describe('flat UI reference geometry and interaction', () => {
   });
 });
 
+/**
+ * Invalidates the whole page and draws it again, so a capture is a full paint (see the /status note
+ * in the appearance test). The Privacy and Trust page needs it too since PUBFIX2 made its hero keep
+ * one height: a page that no longer shifts while the picture plays keeps the raster of its first
+ * paint, and a page resized after it opened (the light capture) and one opened at the final size
+ * (the dark capture) then differ by one level on a card edge. Both are exact pixel captures still.
+ */
+async function paintWhole(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
+    const body = document.body;
+    body.style.backgroundColor = 'rgb(1, 2, 3)';
+    await frame();
+    await frame();
+    body.style.backgroundColor = '';
+    await frame();
+    await frame();
+  });
+}
+
+/**
+ * MOT1 (owner, 18 Nov 2026): reduced motion is the gentle mode, so a scene in view plays once and a
+ * rise fades in. Wait (on attributes, never a fixed time) until everything in view rests, so a
+ * capture never lands mid-fade.
+ */
+async function motionRests(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const share = (el: Element) => {
+      const box = el.getBoundingClientRect();
+      const shown = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0);
+      return box.height > 0 ? Math.max(0, shown) / box.height : 0;
+    };
+    // A rise starts once 12 percent of it shows (RiseIn), so only those must have risen.
+    const rises = [...document.querySelectorAll('.kit-rise:not(.is-in)')].filter(
+      (el) => share(el) >= 0.12,
+    );
+    // A scene near the screen is armed (ready, at its first step); once a quarter of it (or 40
+    // percent of the screen height) shows, it plays, then rests on done or snapped. A scene that
+    // is playing, not yet armed, or ready but already showing enough to play is still moving.
+    const moving = [...document.querySelectorAll('[data-scene]')].filter((el) => {
+      if (share(el) === 0) return false;
+      const state = el.getAttribute('data-reveal');
+      if (state === null || state === 'playing') return true;
+      if (state === 'ready') {
+        const box = el.getBoundingClientRect();
+        const shown = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0);
+        return share(el) >= 0.25 || shown >= window.innerHeight * 0.4;
+      }
+      return el.getAttribute('data-step') !== el.getAttribute('data-rest');
+    });
+    return rises.length === 0 && moving.length === 0;
+  });
+  // A page with a looping picture (the Privacy and Trust hero) is stopped on its finished step
+  // with its own Pause button, so both captures show the same frame.
+  if ((await page.locator('.tr-share').count()) > 0) {
+    await page.locator('.tr-share .tr-pause').click();
+    await expect(page.locator('.tr-share-live .kit-fixed')).toHaveAttribute('data-kit-step', '4');
+  }
+}
+
 /** The approved appearance is independent of the device preference. */
 test.describe('authoritative appearance on public routes', () => {
   for (const width of [1600, 390]) {
@@ -854,75 +899,101 @@ test.describe('authoritative appearance on public routes', () => {
         browser,
         baseURL,
       }) => {
-        await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
-        if (route === '/status') {
-          // Compare the same completed health state and timestamp across fresh renders.
-          // The live clock and unfinished requests must not become appearance differences.
-          await page.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
-        }
-        await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
-        await page.goto(route);
-        if (route === '/status') {
-          await expect(page.getByRole('button', { name: 'Check Now', exact: true })).toBeVisible();
-          await expect(
-            page.getByRole('button', { name: 'Check Now', exact: true }),
-          ).not.toHaveAttribute('aria-disabled', 'true');
-          await expect(page.getByText(/^Updated /)).toBeVisible();
-        }
-        await page.evaluate(() => document.fonts.ready);
-        const light = await page.screenshot({
-          path: test.info().outputPath('appearance-light.png'),
-          animations: 'disabled',
-          caret: 'hide',
-        });
-        await page.emulateMedia({ colorScheme: 'dark' });
-        expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
-          'light',
-        );
-        // Render the second OS preference in a fresh context. Native appearance
-        // emulation can retain rounded-edge raster caches across page reloads.
-        // Both complete renders still have to match every pixel exactly.
         if (!baseURL) throw new Error('A deployment URL is required');
-        const darkPage = await browser.newPage({
-          baseURL,
-          colorScheme: 'dark',
-          reducedMotion: 'reduce',
-          viewport: { width, height: width === 1600 ? 1000 : 844 },
-        });
-        let dark: Buffer;
-        try {
-          if (route === '/status') {
-            await darkPage.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
-          }
-          await darkPage.goto(route);
-          if (route === '/status') {
-            await expect(
-              darkPage.getByRole('button', { name: 'Check Now', exact: true }),
-            ).toBeVisible();
-            await expect(
-              darkPage.getByRole('button', { name: 'Check Now', exact: true }),
-            ).not.toHaveAttribute('aria-disabled', 'true');
-            await expect(darkPage.getByText(/^Updated /)).toBeVisible();
-          }
-          await darkPage.evaluate(() => document.fonts.ready);
-          expect(
-            await darkPage.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
-          ).toBe('light');
-          dark = await darkPage.screenshot({
-            path: test.info().outputPath('appearance-dark.png'),
-            animations: 'disabled',
-            caret: 'hide',
+        const size = { width, height: width === 1600 ? 1000 : 844 };
+        await page.setViewportSize(size);
+        await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+        /**
+         * One complete render in a brand-new page opened at the final size, so both appearances are
+         * rasterised the same way. /status is compared on the same completed health state and
+         * timestamp: the live clock and unfinished requests must not become appearance differences.
+         */
+        const capture = async (colorScheme: 'light' | 'dark', file: string): Promise<Buffer> => {
+          const fresh = await browser.newPage({
+            baseURL,
+            colorScheme,
+            reducedMotion: 'reduce',
+            viewport: size,
           });
-        } finally {
-          await darkPage.close();
+          try {
+            if (route === '/status') {
+              await fresh.clock.setFixedTime(new Date('2026-10-11T05:00:00.000Z'));
+            }
+            await fresh.goto(route);
+            if (route === '/status') {
+              const check = fresh.getByRole('button', { name: 'Check Now', exact: true });
+              await expect(check).toBeVisible();
+              await expect(check).not.toHaveAttribute('aria-disabled', 'true');
+              await expect(fresh.getByText(/^Updated /)).toBeVisible();
+            }
+            await fresh.evaluate(() => document.fonts.ready);
+            if (route === '/status') {
+              // The page is painted in steps (the empty list, then the answers), and Chromium
+              // redraws only the changed part each time. The rounded edge of a card redrawn that way
+              // can end one level off a card drawn whole, depending only on timing under load.
+              // Invalidating the whole page and drawing it again makes every capture a full paint.
+              await fresh.evaluate(async () => {
+                const frame = () =>
+                  new Promise<void>((done) => requestAnimationFrame(() => done()));
+                const body = document.body;
+                body.style.backgroundColor = 'rgb(1, 2, 3)';
+                await frame();
+                await frame();
+                body.style.backgroundColor = '';
+                await frame();
+                await frame();
+              });
+            }
+            expect(
+              await fresh.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
+            ).toBe('light');
+            await motionRests(fresh);
+            if (route === '/trust') await paintWhole(fresh);
+            return await fresh.screenshot({
+              path: test.info().outputPath(file),
+              animations: 'disabled',
+              caret: 'hide',
+            });
+          } finally {
+            await fresh.close();
+          }
+        };
+        // Native appearance emulation can retain rounded-edge raster caches across reloads, and a
+        // page resized after it opened rasterises its tiles differently from one opened at the
+        // final size (a one-level difference on a card edge, seen only under load). So /status
+        // captures both appearances in fresh pages; both renders still match every pixel exactly.
+        const light =
+          route === '/status'
+            ? await capture('light', 'appearance-light.png')
+            : await (async () => {
+                await page.goto(route);
+                await page.evaluate(() => document.fonts.ready);
+                await motionRests(page);
+                if (route === '/trust') await paintWhole(page);
+                return page.screenshot({
+                  path: test.info().outputPath('appearance-light.png'),
+                  animations: 'disabled',
+                  caret: 'hide',
+                });
+              })();
+        // The first page only holds the appearance switch, so it has a document only off /status.
+        const firstPageLoaded = route !== '/status';
+        await page.emulateMedia({ colorScheme: 'dark' });
+        if (firstPageLoaded) {
+          expect(
+            await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
+          ).toBe('light');
         }
+        const dark = await capture('dark', 'appearance-dark.png');
         expect(
           dark.equals(light),
           'changing the device preference changes no approved surface',
         ).toBe(true);
-        expect(await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme)).toBe(
-          'light',
-        );
+        if (firstPageLoaded) {
+          expect(
+            await page.locator('html').evaluate((el) => getComputedStyle(el).colorScheme),
+          ).toBe('light');
+        }
         await test.info().attach('approved-light', { body: light, contentType: 'image/png' });
         await test.info().attach('approved-dark-device', { body: dark, contentType: 'image/png' });
       });
@@ -945,9 +1016,13 @@ test.describe('authoritative appearance on public routes', () => {
     await expect(menu).toBeFocused();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
-    await page.getByRole('link', { name: 'How It Works', exact: true }).click();
-    await expect(menu).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#how-it-works')).toBeInViewport();
+    await page
+      .getByRole('navigation', { name: 'Site', exact: true })
+      .getByRole('link', { name: 'How It Works', exact: true })
+      .click();
+    // WP-PUB3 (approved guard correction): the menu link opens the How It Works page.
+    await expect(page).toHaveURL(/\/how-it-works$/);
+    await expect(page.locator('main h1')).toHaveCount(1);
   });
   test('homepage anchors resolve and desktop header follows the reference geometry', async ({
     page,
@@ -957,12 +1032,15 @@ test.describe('authoritative appearance on public routes', () => {
     const box = await page.locator('header.nav').boundingBox();
     expect(box?.width).toBe(1448);
     expect(box?.height).toBe(72);
-    // Harbor C1 geometry and colour (WP-L1): headline weight and size, and the navy stage.
-    await expect(page.locator('.c1-headline')).toHaveCSS('font-weight', '820');
-    await expect(page.locator('.c1-headline')).toHaveCSS('font-size', '97px');
-    // Legibility (G1b): loose enough that the "c" and "l" of "clean" never touch (-0.04em of 97px).
-    await expect(page.locator('.c1-headline')).toHaveCSS('letter-spacing', '-3.88px');
-    await expect(page.locator('.c1-darkstage')).toHaveCSS('background-color', 'rgb(11, 26, 48)');
+    // R1 Home geometry and colour: the headline weight and size, and the navy chapter.
+    await expect(page.locator('.kit-h1')).toHaveCSS('font-weight', '800');
+    await expect(page.locator('.kit-h1')).toHaveCSS('font-size', '80px');
+    // Legibility (G1b): loose enough that letters never touch (-0.04em of 80px).
+    await expect(page.locator('.kit-h1')).toHaveCSS('letter-spacing', '-3.2px');
+    await expect(page.locator('.pub-chapter-dark').first()).toHaveCSS(
+      'background-color',
+      'rgb(11, 26, 48)',
+    );
     const missing = await page
       .locator('a[href^="/#"]')
       .evaluateAll((links) =>
@@ -971,16 +1049,48 @@ test.describe('authoritative appearance on public routes', () => {
           .filter((id) => id && !document.getElementById(id)),
       );
     expect(missing).toEqual([]);
+    // WP-PUB3 (approved guard correction, owner PUB decision 17 Nov 2026: rebuilt /trust): the pixel
+    // position of the old two-column opening is retired with that opening. What it protected stays:
+    // one top heading, #trust-story-title, first heading in main, fully inside the first screen
+    // below the pilot notice and the header and not covered, and a caption no smaller than 12px.
+    for (const [width, height] of [
+      [1440, 900],
+      [360, 640],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto('/trust');
+      await expect(page.locator('main h1')).toHaveCount(1);
+      await expect(page.locator('main h1')).toHaveAttribute('id', 'trust-story-title');
+      expect(await page.locator('main h1, main h2, main h3').first().getAttribute('id')).toBe(
+        'trust-story-title',
+      );
+      const facts = await page.evaluate(() => {
+        const title = document.querySelector('#trust-story-title');
+        const box = title?.getBoundingClientRect();
+        const banner = document.querySelector('.pilot-banner')?.getBoundingClientRect();
+        const header = document.querySelector('header')?.getBoundingClientRect();
+        const top = box
+          ? document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+          : null;
+        return {
+          top: box?.top ?? -1,
+          bottom: box?.bottom ?? -1,
+          bannerBottom: banner?.bottom ?? 0,
+          headerBottom: header?.bottom ?? 0,
+          reached: Boolean(title && top && (top === title || title.contains(top))),
+          viewport: window.innerHeight,
+        };
+      });
+      expect(facts.top, `${width}x${height}`).toBeGreaterThanOrEqual(
+        Math.max(facts.bannerBottom, facts.headerBottom) - 1,
+      );
+      expect(facts.bottom, `${width}x${height}`).toBeLessThanOrEqual(facts.viewport);
+      expect(facts.reached, `${width}x${height}: the title is not covered`).toBe(true);
+    }
     await page.goto('/trust');
-    // The 12px caption size (owner list item 14), on the same 12px line, so the title stays put.
-    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('font-size', '12px');
-    await expect(page.locator('.trust-hero .eyebrow')).toHaveCSS('line-height', '12px');
-    const trustTitle = await page.locator('#trust-story-title').boundingBox();
-    // The notice shows in full on a visitor's first page only (owner list item 17), so on this
-    // second page it may already be the slim label; the title sits under it either way.
-    const banner = await page.locator('.pilot-banner').boundingBox();
-    expect(trustTitle?.x).toBe(116);
-    expect(trustTitle?.y).toBeCloseTo(206 + (banner?.height ?? 0), 0);
+    await expect(page.locator('.p3-eyebrow').first()).toHaveCSS('font-size', '12px');
+    await expect(page.locator('.p3-eyebrow').first()).toHaveCSS('line-height', '15px');
+    await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto('/auth/sign-up');
     expect((await page.locator('.auth-introduction').boundingBox())?.width).toBe(740);
     expect((await page.locator('.auth-form-panel').boundingBox())?.width).toBe(480);
@@ -1472,7 +1582,7 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
     expect(scroll.page).toBe(0);
     expect(scroll.rail).toBeLessThanOrEqual(1);
     // Every destination is still there by name, the words are gone, and the footer note is hidden.
-    await expect(page.getByRole('link', { name: 'My Documents' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'My Record' })).toBeVisible();
     await expect(page.getByText('You Control Access')).toBeHidden();
     await expect(page.locator('.app-shell-nav .app-link-label').first()).toBeHidden();
     // Keyboard: every control reached by Tab inside the rail really is inside the rail.
@@ -1528,14 +1638,14 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
   test('Escape puts a rail label away until another control is reached', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
-    const record = page.getByRole('link', { name: 'My Documents' });
+    const record = page.getByRole('link', { name: 'My Record' });
     const cases = page.getByRole('link', { name: 'My Trips' });
     const label = (link: typeof record) =>
       link.evaluate((el) => getComputedStyle(el, '::after').content);
     await record.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    expect(await label(record)).toBe('"My Documents"');
+    expect(await label(record)).toBe('"My Record"');
     await page.keyboard.press('Escape');
     expect(await label(record)).toBe('none');
     await page.keyboard.press('Tab');
@@ -1548,7 +1658,7 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
   }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
-    const link = page.getByRole('link', { name: 'My Documents' });
+    const link = page.getByRole('link', { name: 'My Record' });
     const label = () =>
       link.evaluate((element) => {
         const style = getComputedStyle(element, '::after');
@@ -1557,13 +1667,13 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
     expect((await label()).content).toBe('none');
     await link.hover();
     const hovered = await label();
-    expect(hovered.content).toBe('"My Documents"');
+    expect(hovered.content).toBe('"My Record"');
     expect(hovered.position).toBe('fixed');
     await page.mouse.move(800, 500);
     await link.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    expect((await label()).content).toBe('"My Documents"');
+    expect((await label()).content).toBe('"My Record"');
   });
 
   test('beside the rail, the workspace list and More Tools open inside the screen', async ({
@@ -1673,112 +1783,6 @@ test('password recovery confirms the request and offers an explicit resend witho
     page.getByText('We could not request a link right now.', { exact: false }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send Me a Link' })).toBeVisible();
-});
-
-/** Growth G2: pick a country on the landing page and the checklist fills in at once. */
-test.describe('country checklist on the landing page (Growth G2)', () => {
-  const sizes = [
-    { name: 'phone', width: 390, height: 844 },
-    { name: 'desktop', width: 1440, height: 900 },
-  ] as const;
-
-  for (const size of sizes) {
-    test(`picking a country fills in its checklist at ${size.name} width`, async ({ page }) => {
-      await page.setViewportSize({ width: size.width, height: size.height });
-      await page.goto('/');
-      const box = page.getByLabel('Which Country Do You Want to Visit?');
-      await expect(box).toBeVisible();
-      // A comfortable target for a thumb, and nothing chosen yet.
-      expect((await box.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-      await expect(
-        page.getByText('Your checklist appears here as soon as you pick a country.'),
-      ).toBeVisible();
-
-      // Half a name picks nothing.
-      await box.fill('Germ');
-      await expect(page.locator('.country-pick-result')).toHaveCount(0);
-
-      // A whole name shows the checklist with no waiting and no spinner.
-      await box.fill('Germany');
-      await expect(page.getByRole('heading', { name: 'Germany', level: 3 })).toBeVisible();
-      const items = page.locator('.country-pick-item');
-      expect(await items.count()).toBeGreaterThanOrEqual(5);
-      await expect(items.first()).toBeVisible();
-      await expect(
-        page.getByText('not a decision and not a promise', { exact: false }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('status').filter({ hasText: 'Showing the checklist for Germany' }),
-      ).toBeVisible();
-
-      // A short list says so.
-      await box.fill('Canada');
-      await expect(page.getByRole('heading', { name: 'Canada', level: 3 })).toBeVisible();
-      await expect(
-        page.getByText('This list may not be complete.', { exact: false }),
-      ).toBeVisible();
-
-      // The button carries the country on to sign-up (or sign-in while sign-up is closed).
-      const start = page.locator('.country-pick-action a');
-      await expect(start).toBeVisible();
-      expect((await start.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-      await expect(start).toHaveAttribute(
-        'href',
-        /^\/auth\/sign-(up|in)\?next=%2Fapp%3Fcountry%3DCA$/,
-      );
-
-      // No sideways scroll, and the picker passes the automated accessibility rules.
-      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-        scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
-      }));
-      expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
-      // The checklist items fade in; scan only once they have finished, so no colour is measured
-      // half way through the reveal.
-      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
-        .include('.country-start')
-        .analyze();
-      const blocking = results.violations.filter(
-        (v) => v.impact === 'critical' || v.impact === 'serious',
-      );
-      expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
-    });
-  }
-
-  test('the chosen country survives the trip to the account page', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
-    await page.getByLabel('Which Country Do You Want to Visit?').fill('Japan');
-    await page.locator('.country-pick-action a').click();
-    await expect(page).toHaveURL(/\/auth\/sign-(up|in)\?next=%2Fapp%3Fcountry%3DJP$/);
-    // The return path is kept in the form, so first run opens on Japan after sign-in.
-    await expect(page.locator('input[name="next"]')).toHaveValue('/app?country=JP');
-  });
-
-  test('a device that asks for less motion gets the list with no reveal', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
-    await page.getByLabel('Which Country Do You Want to Visit?').fill('Germany');
-    const name = await page
-      .locator('.country-pick-item')
-      .first()
-      .evaluate((element) => getComputedStyle(element).animationName);
-    expect(name).toBe('none');
-  });
-
-  test('a device that allows motion reveals the items one after another', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.goto('/');
-    await page.getByLabel('Which Country Do You Want to Visit?').fill('Germany');
-    const delays = await page
-      .locator('.country-pick-item')
-      .evaluateAll((elements) =>
-        elements.slice(0, 3).map((element) => getComputedStyle(element).animationDelay),
-      );
-    expect(delays).toEqual(['0s', '0.045s', '0.09s']);
-  });
 });
 
 /*
@@ -2130,7 +2134,8 @@ test.describe('sign-up on a phone asks only for what the account needs (owner li
     await expect(form.locator('input:visible')).toHaveCount(4);
     await expect(form.getByLabel('Your Name (Optional)')).toBeVisible();
     await expect(form.locator('input[name="acceptNotices"]')).not.toBeChecked();
-    await expect(page.getByText('you do so at your own risk')).toBeVisible();
+    await expect(page.getByText('own risk')).toHaveCount(0);
+    await expect(form.getByRole('link', { name: 'terms of use' })).toBeVisible();
   });
 });
 
@@ -2274,7 +2279,7 @@ test.describe('public invitation page on a phone (UX-G)', () => {
 });
 
 test.describe('the three traveller entry points (UMPE P13)', () => {
-  const ENTRY = ['My Documents', 'My Trips', 'Sharing & Requests'] as const;
+  const ENTRY = ['My Record', 'My Trips', 'Sharing & Requests'] as const;
   // Home carries a count of new notices when there are any ("Home, 2 new").
   const HOME_TAB = /^Home(, \d+ new)?$/;
 
@@ -2297,7 +2302,7 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
       }
       // The phone copy of the tasks stays out of the sidebar.
       await expect(page.getByRole('navigation', { name: 'Quick actions' })).toBeHidden();
-      // Keyboard: Tab walks Home, My Documents, Add Documents, My Trips, Start a Trip, Sharing.
+      // Keyboard: Tab walks Home, My Record, Add Documents, My Trips, Start a Trip, Sharing.
       await sidebar.getByRole('link', { name: HOME_TAB }).focus();
       const names: string[] = [];
       for (let step = 0; step < 5; step++) {
@@ -2312,7 +2317,7 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
         );
       }
       expect(names).toEqual([
-        'My Documents',
+        'My Record',
         'Add Documents',
         'My Trips',
         'Start a Trip',
@@ -2325,7 +2330,7 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
     });
   }
 
-  for (const width of [390, 768] as const) {
+  for (const width of [320, 360, 390, 768] as const) {
     test(`the bottom bar holds Home and the three entry points; the tasks lead More, at ${width}px`, async ({
       page,
     }) => {

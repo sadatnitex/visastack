@@ -5,6 +5,7 @@ import { renderServer, stub, textOf } from '../../../../lib/next-mocks.test-supp
 const state = vi.hoisted(() => ({
   preview: { ok: true } as unknown,
   consents: { CORE_PROCESSING: true, SHARING: true } as Record<string, boolean>,
+  declineReady: true,
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -14,6 +15,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listApplicants: async () => [],
   getOrganizationBrandingForDisplay: async () => undefined,
   aiAssistAvailable: async () => false,
+  invitationDeclineAvailable: async () => state.declineReady,
 }));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -41,6 +43,7 @@ const render = () =>
 beforeEach(() => {
   state.preview = preview;
   state.consents = { CORE_PROCESSING: true, SHARING: true };
+  state.declineReady = true;
 });
 
 describe('how long an agency keeps access, said where the traveller accepts (friction F2)', () => {
@@ -63,5 +66,31 @@ describe('how long an agency keeps access, said where the traveller accepts (fri
   it('shows no duration when the invitation itself cannot be shown', async () => {
     state.preview = { ok: false, error: { code: 'not_found', message: 'x' } };
     expect(textOf(await render())).not.toContain('Access lasts');
+  });
+});
+
+describe('saying no on the accept screen (DECL1)', () => {
+  it('offers Decline after the accept form, with its confirm step', async () => {
+    const html = await render();
+    expect(html).toContain('data-testid="decline-invitation"');
+    expect(textOf(html)).toContain(
+      'Say no to this agency? They get no access to your records, and this link stops working.',
+    );
+    expect(html.indexOf('AcceptClientInvitationForm')).toBeLessThan(
+      html.indexOf('data-testid="decline-invitation"'),
+    );
+  });
+
+  it('still offers Decline while consents are off, since saying no needs none', async () => {
+    state.consents = { CORE_PROCESSING: false, SHARING: false };
+    expect(await render()).toContain('data-testid="decline-invitation"');
+  });
+
+  it('offers no Decline before the update is in place, or when the invitation cannot be used', async () => {
+    state.declineReady = false;
+    expect(await render()).not.toContain('data-testid="decline-invitation"');
+    state.declineReady = true;
+    state.preview = { ok: false, error: { code: 'not_found', message: 'invitation not found' } };
+    expect(await render()).not.toContain('data-testid="decline-invitation"');
   });
 });

@@ -31,6 +31,16 @@ export const appClientInvitationsCatalog = defineCatalog({
     'appClientInvitations.appClientInvitationsAcceptPage.turnTheseOnBeforeAcceptingBoth':
       'Turn these on before accepting (both are required):',
     'appClientInvitations.appClientInvitationsAcceptPage.workWithAnAgency': 'Work with an Agency',
+    // WP-U7 traveller screens on the Wallet foundation (18 Nov 2026): English only until the localization lane writes Bengali (docs/upgrades/programme/wal/U7-records.md).
+    'appClientInvitations.appClientInvitationsU7.whatYouAgreeTo': 'What You Agree To',
+    // end WP-U7
+    // DECL1: saying no on the accept screen (Bengali through the register only).
+    'appClientInvitations.appClientInvitationsDecl1.decline': 'Decline',
+    'appClientInvitations.appClientInvitationsDecl1.explain':
+      'Say no to this agency? They get no access to your records, and this link stops working.',
+    'appClientInvitations.appClientInvitationsDecl1.confirm': 'Decline Invitation',
+    'appClientInvitations.appClientInvitationsDecl1.busy': 'Declining…',
+    // end DECL1
   },
   bn: {
     'appClientInvitations.appClientInvitationsAcceptAcceptForm.aiTools': 'এআই টুল',
