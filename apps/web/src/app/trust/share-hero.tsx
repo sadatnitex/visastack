@@ -64,11 +64,11 @@ export function ShareHero({
   }, [running, steps.length]);
 
   return (
-    <div className="tr-share" ref={box}>
+    <div className="tr-share">
       {/* PUBFIX2 P2-6: all five steps sit in one cell, four of them hidden and only there to hold the
           height of the tallest, so the hero never grows or shrinks while the steps change (before:
           66 px on a phone, a layout shift of 0.04). */}
-      <div className="tr-share-art">
+      <div className="tr-share-art" ref={box}>
         {steps.map((ghost, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: the five steps are fixed and never reorder
           <div className="tr-share-ghost" aria-hidden="true" key={index}>
