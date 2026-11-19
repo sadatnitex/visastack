@@ -241,8 +241,8 @@ describe('the stylesheet block (NAV2)', () => {
       const body = block.slice(start, block.indexOf('\n}\n', start));
       return body.replaceAll(`${guard} `, '').split('\n').slice(1).join('\n');
     };
-    const english = rules('56.2499em', 'html:not([data-locale="bn"])');
-    const bengali = rules('56.2499em', 'html[data-locale="bn"]');
+    const english = rules('899.98px', 'html:not([data-locale="bn"])');
+    const bengali = rules('899.98px', 'html[data-locale="bn"]');
     expect(english.length).toBeGreaterThan(1500);
     expect(bengali).toBe(english);
     // And each rule really carries its own language guard.
