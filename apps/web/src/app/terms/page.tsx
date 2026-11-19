@@ -15,7 +15,7 @@ export default function TermsPage() {
       </p>
       {isPublicBetaOpen() ? (
         <>
-          <h2>Free Public Beta, at Your Own Risk</h2>
+          <h2>Free Public Beta</h2>
           <p>
             VisaStack is a free public beta, provided as it is. You may use your own details and
             documents, at your own risk: some protections, such as virus scanning of uploads, are
