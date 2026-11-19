@@ -18,7 +18,7 @@ import { realDataOpen } from './real-data-wording';
 /**
  * Whether the platform may be holding real applicant data right now: a
  * commercial deployment, or any deployment where the real-applicant-data
- * capability ("All Protections for Real Personal Data in Place") is
+ * capability ("Real Personal Data Accepted" on the status page) is
  * available (`realDataOpen`, which also holds on a server that has not yet
  * read the database facts behind it). Controlled pilot and development
  * without it hold made-up data only. Read per call, never cached.

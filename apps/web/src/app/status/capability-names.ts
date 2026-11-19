@@ -28,7 +28,10 @@ export const CAPABILITY_NAMES: { readonly [K in keyof PlatformCapabilities]: str
   publicSignup: 'Open Sign-Up for Anyone',
   payments: 'Payments',
   aiConnector: 'AI App Connections',
-  realApplicantData: 'All Protections for Real Personal Data in Place',
+  // Owner, 19 Nov 2026: real personal data may be on with some protections deferred by the owner
+  // (register H29, H33 to H42), so the name says only that real data is accepted, never that every
+  // protection is in place. Was "All Protections for Real Personal Data in Place".
+  realApplicantData: 'Real Personal Data Accepted',
   commercialClaims: null,
 };
 

@@ -64,6 +64,24 @@ describe('the banner every page carries', () => {
     expect(beta).toContain('href="/status"');
   });
 
+  it('never asks for made-up details once real personal data is on, and keeps the smoke label (owner, 19 Nov 2026)', async () => {
+    // Owner decision, 19 Nov 2026: "stop telling madeup details etc". The pilot keeps its name, which
+    // the deployment smoke check looks for, and loses the made-up-details sentence and short line.
+    const html = await renderServer(<PilotBanner mode="controlled_pilot" realData />);
+    const text = textOf(html);
+    expect(text).toContain('VisaStack Private Pilot');
+    expect(text).toContain('What Works Today');
+    expect(text).not.toMatch(/made-up|Made-up|test version|Test version|blacked out/);
+    expect(html).not.toContain('pilot-banner-short');
+    const open = textOf(
+      await renderServer(<PilotBanner mode="controlled_pilot" registrationOpen realData />),
+    );
+    expect(open).toContain('VisaStack Public Beta');
+    // A development build never takes real data, whatever is passed.
+    const dev = textOf(await renderServer(<PilotBanner mode="development" realData />));
+    expect(dev).toContain('Not for real personal data.');
+  });
+
   it('shows nothing in commercial mode', async () => {
     expect(await renderServer(<PilotBanner mode="commercial" />)).toBe('');
   });

@@ -23,6 +23,7 @@ import { signedInPerson } from '../lib/public-account';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { ClearShareInboxOnSubmit } from '../lib/pwa/clear-share-inbox-on-submit';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
+import { realDataOpen } from '../lib/real-data-wording';
 import { signOutCurrentUser } from '../lib/sign-out';
 import { isSignedIn } from '../lib/signed-in';
 import { hasSeenVersionNotice } from '../lib/version-notice-state';
@@ -103,7 +104,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
   const noticeSeen = signedIn || (await hasSeenVersionNotice());
   const registrationOpen = isPublicBetaOpen();
   // The words of this version's notice, so the footer says the same and nothing more.
-  const notice = versionNoticeCopy(deploymentMode, registrationOpen);
+  // Owner, 19 Nov 2026: once real personal data is on, no notice asks for made-up details.
+  const realData = realDataOpen();
+  const notice = versionNoticeCopy(deploymentMode, registrationOpen, realData);
   const links = publicNavLinks(undefined, { signedIn });
   // The sign-up button shows to a visitor while registration is open; it is the bar's one filled
   // action, and Sign In turns quiet beside it. Otherwise Sign In (or Workspace) is the action.
@@ -210,6 +213,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             <PilotBanner
               mode={deploymentMode}
               registrationOpen={registrationOpen}
+              realData={realData}
               seen={noticeSeen}
             />
           ) : null}

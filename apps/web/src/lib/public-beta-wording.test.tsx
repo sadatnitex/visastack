@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PilotBanner } from '../components/pilot-banner';
 import { renderServer, textOf } from './next-mocks.test-support';
 import { isPublicBetaOpen } from './public-beta';
+import { realDataOpen } from './real-data-wording';
 
 vi.mock('./signed-in', () => ({ isSignedIn: async () => false }));
 vi.mock('./identity-selection', () => ({ selectedIdentityProvider: () => 'neon_auth' }));
@@ -23,7 +24,11 @@ async function surfaces() {
   const landing = textOf(await renderServer(HomePage({ searchParams: Promise.resolve({}) })));
   const banner = textOf(
     await renderServer(
-      <PilotBanner mode="controlled_pilot" registrationOpen={isPublicBetaOpen()} />,
+      <PilotBanner
+        mode="controlled_pilot"
+        registrationOpen={isPublicBetaOpen()}
+        realData={realDataOpen()}
+      />,
     ),
   );
   const terms = textOf(await renderServer(<TermsPage />));
@@ -68,8 +73,8 @@ describe('landing page, banner, Terms and Privacy Notice share one public-beta s
     vi.stubEnv('STEP_UP_SIGNING_SECRET', 'x');
     for (const [name, id] of REAL_DATA_DEFERRALS) vi.stubEnv(name, id);
     const on = await surfaces();
-    for (const text of [on.landing, on.terms, on.privacy]) {
-      expect(text).not.toContain('made-up');
+    for (const text of Object.values(on)) {
+      expect(text).not.toMatch(/made-up|Made-up|test version|Test version/);
       expect(text).not.toContain('Real applicant details are not accepted yet');
     }
     expect(on.terms).toContain('Uploads are not checked for viruses yet');
@@ -80,6 +85,7 @@ describe('landing page, banner, Terms and Privacy Notice share one public-beta s
     expect(off.terms).toContain('Real applicant details are not accepted yet');
     expect(off.privacy).toContain('Real applicant details are not accepted yet');
     expect(off.terms).not.toContain('Uploads are not checked for viruses yet');
+    expect(off.banner).toContain('made-up details');
   });
 });
 

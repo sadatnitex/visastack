@@ -3,6 +3,7 @@ import { versionNoticeCopy } from '../../components/pilot-banner';
 import { getDeploymentMode } from '../../lib/deployment-mode';
 import { mixedPaymentsNote } from '../../lib/payment-providers';
 import { isPublicBetaOpen } from '../../lib/public-beta';
+import { realDataOpen } from '../../lib/real-data-wording';
 import { StatusClient } from './status-client';
 
 export const metadata: Metadata = { title: 'What Works Today' };
@@ -15,7 +16,7 @@ export const metadata: Metadata = { title: 'What Works Today' };
 export default function StatusPage() {
   return (
     <StatusClient
-      versionNotice={versionNoticeCopy(getDeploymentMode(), isPublicBetaOpen())}
+      versionNotice={versionNoticeCopy(getDeploymentMode(), isPublicBetaOpen(), realDataOpen())}
       paymentsNote={mixedPaymentsNote(process.env)}
     />
   );

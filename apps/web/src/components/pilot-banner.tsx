@@ -49,33 +49,51 @@ export const PILOT_BANNER_COPY = {
 export const PUBLIC_BETA_DETAIL =
   'Some features are still being switched on. This page shows what works today.';
 
-/** The words the notice shows in a deployment mode, or null in commercial mode (no notice). */
+/**
+ * The words the notice shows in a deployment mode, or null in commercial mode (no notice).
+ * `realData` is `realDataOpen()` (lib/real-data-wording.ts), the realApplicantData capability:
+ * owner decision of 19 Nov 2026 ("stop telling madeup details etc"), so once real personal data is
+ * on, an invite-only pilot keeps its name but never asks for made-up details.
+ */
 export function versionNoticeCopy(
   mode: DeploymentMode,
   registrationOpen = false,
+  realData = false,
 ): BannerCopy | null {
   if (mode === 'commercial') return null;
-  return mode === 'controlled_pilot' && registrationOpen
+  if (mode !== 'controlled_pilot') return PILOT_BANNER_COPY[mode];
+  if (registrationOpen) {
+    return {
+      label: 'VisaStack Public Beta',
+      detail: PUBLIC_BETA_DETAIL,
+      short: '',
+      detailInBanner: false,
+    };
+  }
+  return realData
     ? {
-        label: 'VisaStack Public Beta',
+        label: PILOT_BANNER_COPY.controlled_pilot.label,
         detail: PUBLIC_BETA_DETAIL,
         short: '',
         detailInBanner: false,
       }
-    : PILOT_BANNER_COPY[mode];
+    : PILOT_BANNER_COPY.controlled_pilot;
 }
 
 export function PilotBanner({
   mode,
   registrationOpen = false,
+  realData = false,
   seen = false,
 }: {
   readonly mode: DeploymentMode;
   readonly registrationOpen?: boolean;
+  /** Real personal data is switched on (`realDataOpen()`): no made-up-details words. */
+  readonly realData?: boolean;
   /** This device has already seen the notice (or hid it), so only the slim label shows. */
   readonly seen?: boolean;
 }) {
-  const copy = versionNoticeCopy(mode, registrationOpen);
+  const copy = versionNoticeCopy(mode, registrationOpen, realData);
   if (!copy) return null;
   return <VersionNotice copy={copy} folded={seen} />;
 }
