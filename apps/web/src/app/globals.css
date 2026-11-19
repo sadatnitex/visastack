@@ -23772,6 +23772,38 @@ html body:has(.auth-shell) > .footer {
   color: var(--text-secondary);
   opacity: 0.8;
 }
+@media (min-width: 56.25em) and (max-width: 60em) {
+  /* The older 960 px menu rules (still used by the app's own pages) would hide the link row here. */
+  .site-navigation .nav-links {
+    display: flex;
+    position: static;
+    width: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .site-nav-pages,
+  .site-nav-actions {
+    flex-direction: row;
+    align-items: center;
+    margin: 0;
+  }
+  .site-nav-pages {
+    gap: 0;
+  }
+  .site-nav-actions {
+    gap: 2px;
+  }
+  .site-navigation .nav-links a:not(.btn),
+  .site-navigation .site-nav-actions .lang-switch {
+    display: inline-flex;
+    padding: 0 7px;
+  }
+  .site-navigation .site-nav-actions .nav-cta {
+    padding: 0 14px;
+  }
+}
 /* end WP-NAV2 */
 
 /* WP-ESS1 Profile read rows (18 Nov 2026, owner question on Essentials First): a saved detail reads as one row (name, value, Show for a protected one, Edit) and its box opens only on Edit; the history tools (the date it became true, last confirmed, where it came from, how it was checked, No Longer Current) sit behind one closed Details per row. Essentials First lists only the essentials the Passport Page Card does not show, so the top of the page draws each detail once. Flat: tokens and a hairline only, no shadow, no gradient, no motion. Every control is at least 44 px. */
