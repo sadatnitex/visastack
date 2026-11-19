@@ -2,10 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PilotBanner } from '../components/pilot-banner';
 import { renderServer, textOf } from './next-mocks.test-support';
 import { isPublicBetaOpen } from './public-beta';
-import { realDataOpen } from './real-data-wording';
+import { resolveRealDataOpen } from './real-data-wording';
 
 vi.mock('./signed-in', () => ({ isSignedIn: async () => false }));
 vi.mock('./identity-selection', () => ({ selectedIdentityProvider: () => 'neon_auth' }));
+// The database facts behind the real-data capability, as a recent readiness read left them.
+vi.mock('./readiness-signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./readiness-signals')>()),
+  rememberedReadinessSignals: () => ({
+    aiProvider: { kind: 'none_active' },
+    scannerEvidenceFresh: false,
+  }),
+}));
 
 const { default: HomePage } = await import('../app/page');
 const { default: TermsPage } = await import('../app/terms/page');
@@ -27,12 +35,12 @@ async function surfaces() {
       <PilotBanner
         mode="controlled_pilot"
         registrationOpen={isPublicBetaOpen()}
-        realData={realDataOpen()}
+        realData={await resolveRealDataOpen()}
       />,
     ),
   );
-  const terms = textOf(await renderServer(<TermsPage />));
-  const privacy = textOf(await renderServer(<PrivacyPage />));
+  const terms = textOf(await renderServer(TermsPage()));
+  const privacy = textOf(await renderServer(PrivacyPage()));
   return { landing, banner, terms, privacy };
 }
 
@@ -79,6 +87,9 @@ describe('landing page, banner, Terms and Privacy Notice share one public-beta s
     }
     expect(on.terms).toContain('Uploads are not checked for viruses yet');
     expect(on.terms).toContain('you use it at your own risk');
+    // Registration is closed, so no page calls it a public beta.
+    for (const text of Object.values(on)) expect(text).not.toContain('public beta');
+    expect(on.terms).toContain('Invited Use, at Your Own Risk');
     for (const [name] of REAL_DATA_DEFERRALS) vi.stubEnv(name, undefined);
     const off = await surfaces();
     expect(off.landing).toContain('Real applicant details are not accepted yet');

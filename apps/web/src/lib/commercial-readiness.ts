@@ -62,8 +62,11 @@ export type GateDeferral =
     }
   | {
       readonly status: 'not_deferred';
-      /** The gate is not in `DEFERRABLE_GATES`, or the value is not its register id. */
-      readonly reason: 'gate_not_deferrable' | 'register_id_mismatch';
+      /**
+       * The gate is not in `DEFERRABLE_GATES`, the value is not its register id, or the deferral
+       * covers real personal data in the pilot only and this is the commercial guard.
+       */
+      readonly reason: 'gate_not_deferrable' | 'register_id_mismatch' | 'real_data_only';
       readonly label: string;
     };
 
@@ -221,6 +224,24 @@ export const DEFERRABLE_GATES: ReadonlyMap<string, string> = new Map([
   ['privacyConsentConfiguration', 'H42'],
 ]);
 
+/**
+ * The 19 Nov 2026 deferrals (H33 to H42) open real personal data in the controlled pilot only. They
+ * never count for the commercial guard (commercial claims, commercial sign-up, commercial
+ * readiness), which still needs each of these gates met for real.
+ */
+export const REAL_DATA_ONLY_DEFERRALS: ReadonlySet<string> = new Set([
+  'realKeyManagement',
+  'incidentOwner',
+  'termsAndPrivacyNotice',
+  'backupRestoreVerification',
+  'authenticatedProductionE2e',
+  'tenantIsolationSuite',
+  'permissionMatrix',
+  'externalObjectDeletionVerification',
+  'noCriticalHighFindings',
+  'privacyConsentConfiguration',
+]);
+
 /** `externalPenetrationTest` -> `COMMERCIAL_READINESS_DEFER_EXTERNAL_PENETRATION_TEST`. */
 export function deferralEnvName(gateKey: string): string {
   return `COMMERCIAL_READINESS_DEFER_${gateKey.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase()}`;
@@ -238,7 +259,7 @@ export function deferredByOwnerLabel(registerId: string): string {
  * anything else is ignored and reported as not deferred. The value itself is never copied
  * into the result. A gate whose own condition already holds needs no deferral.
  */
-function applyOwnerDeferral(gate: ReadinessGate): ReadinessGate {
+function applyOwnerDeferral(gate: ReadinessGate, guard: Guard): ReadinessGate {
   const requested = readEnv(deferralEnvName(gate.key));
   if (requested === undefined || requested === '') return gate;
   const registerId = DEFERRABLE_GATES.get(gate.key);
@@ -250,6 +271,12 @@ function applyOwnerDeferral(gate: ReadinessGate): ReadinessGate {
         reason: registerId === undefined ? 'gate_not_deferrable' : 'register_id_mismatch',
         label: NOT_DEFERRED_LABEL,
       },
+    };
+  }
+  if (guard === 'commercial' && REAL_DATA_ONLY_DEFERRALS.has(gate.key)) {
+    return {
+      ...gate,
+      deferral: { status: 'not_deferred', reason: 'real_data_only', label: NOT_DEFERRED_LABEL },
     };
   }
   if (gate.satisfied) return gate;
@@ -360,7 +387,10 @@ function realMalwareScannerCheck(signals: ReadinessSignals): GateCheck {
   return { satisfied: false };
 }
 
-function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
+/** Which guard a gate list is built for: the deferrals of 19 Nov 2026 count for `operational` only. */
+type Guard = 'commercial' | 'operational';
+
+function buildGates(input: CommercialReadinessInput, guard: Guard): readonly ReadinessGate[] {
   const gates: readonly ReadinessGate[] = [
     {
       key: 'hosting',
@@ -502,14 +532,14 @@ function buildGates(input: CommercialReadinessInput): readonly ReadinessGate[] {
       satisfied: attested('externalPenetrationTest'),
     },
   ];
-  return gates.map(applyOwnerDeferral);
+  return gates.map((gate) => applyOwnerDeferral(gate, guard));
 }
 
 /** The full guard — every gate, including live DB connectivity. This is what `/api/health/ready` evaluates. */
 export function evaluateCommercialReadiness(
   input: CommercialReadinessInput,
 ): CommercialReadinessResult {
-  const gates = buildGates(input);
+  const gates = buildGates(input, 'commercial');
   return { ready: gates.every((gate) => gate.satisfied), gates };
 }
 
@@ -529,7 +559,7 @@ export function evaluateCommercialReadiness(
  * whenever the full guard fails, regardless of what this function reports.
  */
 export function commercialConfigurationReady(): boolean {
-  return buildGates({ databaseReady: true, signals: rememberedReadinessSignals() })
+  return buildGates({ databaseReady: true, signals: rememberedReadinessSignals() }, 'commercial')
     .filter((gate) => gate.key !== 'productionDatabase')
     .every((gate) => gate.satisfied);
 }
@@ -560,12 +590,15 @@ export function evaluateOperationalReadiness(
   input: CommercialReadinessInput,
 ): CommercialReadinessResult {
   const gates = [
-    applyOwnerDeferral({
-      key: 'authentication',
-      label: 'configured identity provider',
-      satisfied: isSignInConfigured(),
-    }),
-    ...buildGates(input).filter((gate) => OPERATIONAL_GATE_KEYS.has(gate.key)),
+    applyOwnerDeferral(
+      {
+        key: 'authentication',
+        label: 'configured identity provider',
+        satisfied: isSignInConfigured(),
+      },
+      'operational',
+    ),
+    ...buildGates(input, 'operational').filter((gate) => OPERATIONAL_GATE_KEYS.has(gate.key)),
   ];
   return { ready: gates.every((gate) => gate.satisfied), gates };
 }

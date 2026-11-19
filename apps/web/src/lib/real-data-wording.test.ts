@@ -33,13 +33,31 @@ const LIVE: Record<string, string> = {
   STEP_UP_SIGNING_SECRET: 'x',
 };
 
+/** Stands in for the database read: resolves to (and remembers) `fromDatabase`, after `delayMs`. */
+const fromDatabase: { value: ReadinessSignals; delayMs: number } = {
+  value: { aiProvider: { kind: 'none_active' }, scannerEvidenceFresh: false },
+  delayMs: 0,
+};
+const read = vi.fn(
+  () =>
+    new Promise<ReadinessSignals>((resolve) =>
+      setTimeout(() => {
+        remembered.value = fromDatabase.value;
+        resolve(fromDatabase.value);
+      }, fromDatabase.delayMs),
+    ),
+);
+
 const remembered: { value: ReadinessSignals } = {
   value: { aiProvider: { kind: 'none_active' }, scannerEvidenceFresh: false },
 };
 
 async function load() {
   vi.resetModules();
-  vi.doMock('./readiness-signals', () => ({ rememberedReadinessSignals: () => remembered.value }));
+  vi.doMock('./readiness-signals', () => ({
+    rememberedReadinessSignals: () => remembered.value,
+    readReadinessSignals: read,
+  }));
   const wording = await import('./real-data-wording');
   const { currentAiDataMode } = await import('./ai-data-rule');
   const { getPlatformCapabilities } = await import('./capabilities');
@@ -71,6 +89,9 @@ beforeEach(() => {
     if (name.startsWith('COMMERCIAL_READINESS_')) vi.stubEnv(name, undefined);
   }
   remembered.value = { aiProvider: { kind: 'none_active' }, scannerEvidenceFresh: false };
+  fromDatabase.value = { aiProvider: { kind: 'none_active' }, scannerEvidenceFresh: false };
+  fromDatabase.delayMs = 0;
+  read.mockClear();
 });
 
 afterEach(() => {
@@ -126,15 +147,33 @@ describe('real personal data after the owner decision of 19 Nov 2026', () => {
     expect(m.realDataOpen()).toBe(false);
   }, 20_000);
 
-  it('keeps the words steady on a server that has not read the database facts yet, and only then', async () => {
+  it('never guesses unknown database facts: the words stay closed until they are read', async () => {
     stub({ ...LIVE, ...DEFERRALS, DEPLOYMENT_MODE: 'controlled_pilot' });
     remembered.value = { aiProvider: { kind: 'unknown' }, scannerEvidenceFresh: false };
-    let m = await load();
-    // The capability itself fails closed on unknown facts; the words do not flip back.
+    const m = await load();
     expect(m.capability()).toBe('disabled');
-    expect(m.realDataOpen()).toBe(true);
-    // Known facts that fail the AI gate are never overridden.
-    remembered.value = {
+    expect(m.realDataOpen()).toBe(false);
+    expect(m.ownDetailsWelcome()).toBe(false);
+    // No database address: nothing to read, still closed.
+    expect(await m.resolveRealDataOpen()).toBe(false);
+    expect(read).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it('reads the facts once when unknown, then follows them; a failing AI gate keeps the words closed', async () => {
+    stub({
+      ...LIVE,
+      ...DEFERRALS,
+      DEPLOYMENT_MODE: 'controlled_pilot',
+      DATABASE_URL: 'postgresql://user:pass@db.placeholder.invalid/neondb',
+    });
+    remembered.value = { aiProvider: { kind: 'unknown' }, scannerEvidenceFresh: false };
+    let m = await load();
+    expect(await m.resolveRealDataOpen()).toBe(true);
+    expect(await m.resolveOwnDetailsWelcome()).toBe(true);
+    // Known now, so no second read.
+    expect(read).toHaveBeenCalledTimes(1);
+    remembered.value = { aiProvider: { kind: 'unknown' }, scannerEvidenceFresh: false };
+    fromDatabase.value = {
       aiProvider: {
         kind: 'active',
         primary: { hasKey: true, termsRecorded: false },
@@ -143,7 +182,22 @@ describe('real personal data after the owner decision of 19 Nov 2026', () => {
       scannerEvidenceFresh: false,
     };
     m = await load();
-    expect(m.realDataOpen()).toBe(false);
+    expect(await m.resolveRealDataOpen()).toBe(false);
+  }, 20_000);
+
+  it('waits at most a moment for a slow read, then shows the closed words', async () => {
+    stub({
+      ...LIVE,
+      ...DEFERRALS,
+      DEPLOYMENT_MODE: 'controlled_pilot',
+      DATABASE_URL: 'postgresql://user:pass@db.placeholder.invalid/neondb',
+    });
+    remembered.value = { aiProvider: { kind: 'unknown' }, scannerEvidenceFresh: false };
+    const m = await load();
+    fromDatabase.delayMs = m.REAL_DATA_FACTS_WAIT_MS + 2000;
+    const started = Date.now();
+    expect(await m.resolveRealDataOpen()).toBe(false);
+    expect(Date.now() - started).toBeLessThan(m.REAL_DATA_FACTS_WAIT_MS + 1000);
   }, 20_000);
 
   it('welcomes own details during the open public beta even before real data is switched on', async () => {

@@ -29,6 +29,19 @@ const ATTEST_FLAGS = [
   'EXTERNAL_PENTEST',
 ] as const;
 
+/** The attestation each real-data-only gate reads (none for the key service, a live gate). */
+const ATTEST_FOR: Record<string, (typeof ATTEST_FLAGS)[number] | undefined> = {
+  incidentOwner: 'INCIDENT_OWNER',
+  termsAndPrivacyNotice: 'TERMS_AND_PRIVACY_NOTICE',
+  backupRestoreVerification: 'BACKUP_RESTORE_VERIFIED',
+  authenticatedProductionE2e: 'PRODUCTION_E2E',
+  tenantIsolationSuite: 'TENANT_ISOLATION_SUITE',
+  permissionMatrix: 'PERMISSION_MATRIX',
+  externalObjectDeletionVerification: 'EXTERNAL_DELETION_VERIFIED',
+  noCriticalHighFindings: 'NO_CRITICAL_HIGH_FINDINGS',
+  privacyConsentConfiguration: 'PRIVACY_CONSENT_CONFIG',
+};
+
 const GATE_KEYS = [
   'hosting',
   'signInProduction',
@@ -471,6 +484,50 @@ describe('owner deferrals', () => {
     ]);
   });
 
+  it('counts the 19 Nov 2026 deferrals for real personal data only, never for the commercial guard', async () => {
+    const {
+      DEFERRABLE_GATES,
+      REAL_DATA_ONLY_DEFERRALS,
+      evaluateCommercialReadiness,
+      evaluateOperationalReadiness,
+    } = await import('./commercial-readiness');
+    expect([...REAL_DATA_ONLY_DEFERRALS].map((key) => DEFERRABLE_GATES.get(key))).toEqual([
+      'H33',
+      'H34',
+      'H35',
+      'H36',
+      'H37',
+      'H38',
+      'H39',
+      'H40',
+      'H41',
+      'H42',
+    ]);
+    satisfyEveryGate();
+    for (const key of REAL_DATA_ONLY_DEFERRALS) {
+      const attest = ATTEST_FOR[key];
+      if (attest) unsetEnv(`COMMERCIAL_READINESS_ATTEST_${attest}`);
+      setEnv(deferEnv(key), DEFERRABLE_GATES.get(key) ?? '');
+    }
+    const commercial = evaluateCommercialReadiness(input(true));
+    const operational = evaluateOperationalReadiness(input(true));
+    for (const key of REAL_DATA_ONLY_DEFERRALS) {
+      expect(commercial.gates.find((g) => g.key === key)).toMatchObject({
+        satisfied: false,
+        deferral: {
+          status: 'not_deferred',
+          reason: 'real_data_only',
+          label: 'Deferral Not Accepted',
+        },
+      });
+      expect(operational.gates.find((g) => g.key === key)?.deferral).toMatchObject({
+        status: 'deferred',
+      });
+    }
+    expect(commercial.ready).toBe(false);
+    expect(operational.ready).toBe(true);
+  });
+
   it('keeps every live safety gate out of the deferral list', async () => {
     const { DEFERRABLE_GATES } = await import('./commercial-readiness');
     for (const key of [
@@ -501,33 +558,36 @@ describe('owner deferrals', () => {
     ['noCriticalHighFindings', 'H41'],
     ['privacyConsentConfiguration', 'H42'],
   ])('defers %s only with exactly %s, shown as deferred and never as passed', async (key, id) => {
-    const { evaluateOperationalReadiness, gateStatus, countGates } = await import(
-      './commercial-readiness'
-    );
-    const find = () => evaluateOperationalReadiness(input(true)).gates.find((g) => g.key === key);
-    expect(find()?.satisfied).toBe(false);
-    expect(find()?.deferral).toBeUndefined();
-    setEnv(deferEnv(key), 'H01');
-    expect(find()).toMatchObject({
-      satisfied: false,
-      deferral: { status: 'not_deferred', reason: 'register_id_mismatch' },
-    });
-    setEnv(deferEnv(key), id.toLowerCase());
-    expect(find()?.deferral).toMatchObject({ reason: 'register_id_mismatch' });
-    setEnv(deferEnv(key), id);
-    const gate = find();
-    expect(gate?.deferral).toEqual({
-      status: 'deferred',
-      registerId: id,
-      label: `Deferred by Owner (${id})`,
-    });
-    expect(gate && gateStatus(gate)).toEqual({
-      label: `Deferred by Owner (${id})`,
-      tone: 'warning',
-    });
-    expect(gate && gateStatus(gate).label).not.toBe('satisfied');
-    expect(gate && countGates([gate])).toEqual({ passed: 0, deferred: 1, total: 1 });
-    unsetEnv(deferEnv(key));
+    try {
+      const { evaluateOperationalReadiness, gateStatus, countGates } = await import(
+        './commercial-readiness'
+      );
+      const find = () => evaluateOperationalReadiness(input(true)).gates.find((g) => g.key === key);
+      expect(find()?.satisfied).toBe(false);
+      expect(find()?.deferral).toBeUndefined();
+      setEnv(deferEnv(key), 'H01');
+      expect(find()).toMatchObject({
+        satisfied: false,
+        deferral: { status: 'not_deferred', reason: 'register_id_mismatch' },
+      });
+      setEnv(deferEnv(key), id.toLowerCase());
+      expect(find()?.deferral).toMatchObject({ reason: 'register_id_mismatch' });
+      setEnv(deferEnv(key), id);
+      const gate = find();
+      expect(gate?.deferral).toEqual({
+        status: 'deferred',
+        registerId: id,
+        label: `Deferred by Owner (${id})`,
+      });
+      expect(gate && gateStatus(gate)).toEqual({
+        label: `Deferred by Owner (${id})`,
+        tone: 'warning',
+      });
+      expect(gate && gateStatus(gate).label).not.toBe('satisfied');
+      expect(gate && countGates([gate])).toEqual({ passed: 0, deferred: 1, total: 1 });
+    } finally {
+      unsetEnv(deferEnv(key));
+    }
   });
 
   it('defers the virus scanner with exactly H29, and a wrong id or an unset variable does not count', async () => {

@@ -3,7 +3,7 @@ import { versionNoticeCopy } from '../../components/pilot-banner';
 import { getDeploymentMode } from '../../lib/deployment-mode';
 import { mixedPaymentsNote } from '../../lib/payment-providers';
 import { isPublicBetaOpen } from '../../lib/public-beta';
-import { realDataOpen } from '../../lib/real-data-wording';
+import { resolveRealDataOpen } from '../../lib/real-data-wording';
 import { StatusClient } from './status-client';
 
 export const metadata: Metadata = { title: 'What Works Today' };
@@ -13,10 +13,11 @@ export const metadata: Metadata = { title: 'What Works Today' };
  * the notice about this version (decided here, never in the browser); the live checks run in the
  * browser (`status-client.tsx`).
  */
-export default function StatusPage() {
+export default async function StatusPage() {
+  const realData = await resolveRealDataOpen();
   return (
     <StatusClient
-      versionNotice={versionNoticeCopy(getDeploymentMode(), isPublicBetaOpen(), realDataOpen())}
+      versionNotice={versionNoticeCopy(getDeploymentMode(), isPublicBetaOpen(), realData)}
       paymentsNote={mixedPaymentsNote(process.env)}
     />
   );

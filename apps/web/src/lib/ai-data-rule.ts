@@ -13,15 +13,15 @@ import {
   unknownAiProviderDataTerms,
 } from '@visastack/services';
 import { getDeploymentMode } from './deployment-mode';
-import { realDataOpen } from './real-data-wording';
+import { realDataOpen, refreshRealDataFacts } from './real-data-wording';
 
 /**
  * Whether the platform may be holding real applicant data right now: a
  * commercial deployment, or any deployment where the real-applicant-data
  * capability ("Real Personal Data Accepted" on the status page) is
- * available (`realDataOpen`, which also holds on a server that has not yet
- * read the database facts behind it). Controlled pilot and development
- * without it hold made-up data only. Read per call, never cached.
+ * available (`realDataOpen`). Controlled pilot and development without it
+ * hold made-up data only. Read per call, never cached; `checkAiDataTerms`
+ * reads the database facts behind it first when they are unknown.
  */
 export function currentAiDataMode(): AiDataMode {
   if (getDeploymentMode() === 'commercial') return 'real_applicant_data';
@@ -51,6 +51,8 @@ export async function checkAiDataTerms(
   /** The setting when the caller has already read it, so it is read once. */
   knownSetting?: AiDataRuleSetting,
 ): Promise<AiDataCheck> {
+  // Unknown database facts close the capability; read them first so the mode is not a guess.
+  await refreshRealDataFacts();
   const mode = currentAiDataMode();
   const setting = knownSetting ?? (await loadAiDataRuleSetting(db));
   const terms = config

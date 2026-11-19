@@ -7,6 +7,7 @@ import { TrustUnavailable } from '../../components/trust-unavailable';
 import { primeLocale } from '../../lib/i18n-server';
 import type { SearchParamsRecord } from '../../lib/paging';
 import { withPublicDb } from '../../lib/public-db';
+import { refreshRealDataFacts } from '../../lib/real-data-wording';
 import { reportServerError } from '../../lib/server-error';
 
 // WP-PUB3 (owner, 17 Nov 2026): the tab is named as the menu names the page. The footer link keeps
@@ -37,6 +38,8 @@ export default async function PublicTrustCatalogPage(
 ): Promise<ReactElement> {
   // The trust story and the unavailable notice read the visitor's language.
   await primeLocale();
+  // The Where We Are words follow real personal data (owner, 19 Nov 2026).
+  await refreshRealDataFacts();
   const params: SearchParamsRecord = (await props?.searchParams) ?? {};
   let routes: PublicTrustRoute[];
   try {

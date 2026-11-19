@@ -1,31 +1,41 @@
 import { SIGNUP_TERMS_VERSION } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ownDetailsWelcome } from '../../lib/real-data-wording';
+import { getPlatformCapabilities } from '../../lib/capabilities';
+import { isPublicBetaOpen } from '../../lib/public-beta';
+import { resolveOwnDetailsWelcome } from '../../lib/real-data-wording';
 
 export const metadata: Metadata = { title: 'Terms of Use' };
 export const dynamic = 'force-dynamic';
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const ownWelcome = await resolveOwnDetailsWelcome();
+  const betaOpen = isPublicBetaOpen();
+  // The quiet as-is line (owner, 19 Nov 2026) says uploads are unscanned only while that is true.
+  const scanning = getPlatformCapabilities().malwareScanning === 'available';
   return (
     <section className="section container" style={{ maxWidth: '48rem' }}>
       <h1 className="page-title">Terms of Use</h1>
       <p className="card-body">
         Version {SIGNUP_TERMS_VERSION}. These beta terms await legal review.
       </p>
-      {ownDetailsWelcome() ? (
+      {ownWelcome ? (
         <>
-          <h2>Free Public Beta</h2>
+          <h2>{betaOpen ? 'Free Public Beta' : 'Invited Use, at Your Own Risk'}</h2>
           <p>
-            VisaStack is a free public beta, provided as it is. You may use your own details and
-            documents, at your own risk: some protections, such as virus scanning of uploads, are
-            not switched on yet, and the status page lists what works today. Creating an account
-            does not grant access to an agency workspace.
+            {betaOpen
+              ? 'VisaStack is a free public beta, provided as it is.'
+              : 'VisaStack is open to invited users, provided as it is.'}{' '}
+            You may use your own details and documents, at your own risk: some protections, such as
+            virus scanning of uploads, are not switched on yet, and the status page lists what works
+            today. Creating an account does not grant access to an agency workspace.
           </p>
-          <p className="muted">
-            Uploads are not checked for viruses yet, so open files shared with you with care.
-            VisaStack is provided as it is, and you use it at your own risk.
-          </p>
+          {scanning ? null : (
+            <p className="muted">
+              Uploads are not checked for viruses yet, so open files shared with you with care.
+              VisaStack is provided as it is, and you use it at your own risk.
+            </p>
+          )}
         </>
       ) : (
         <>

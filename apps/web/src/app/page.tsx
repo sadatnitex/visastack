@@ -1,7 +1,7 @@
 import { homeCatalog } from '../i18n/home';
 import { getPageLanguage, getServerT, primeLocale } from '../lib/i18n-server';
 import { isPublicBetaOpen } from '../lib/public-beta';
-import { ownDetailsWelcome } from '../lib/real-data-wording';
+import { resolveOwnDetailsWelcome } from '../lib/real-data-wording';
 import { isSignedIn } from '../lib/signed-in';
 import { HomeStory } from './home-story';
 
@@ -31,6 +31,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // Someone already signed in is taken straight to their workspace, never asked to sign in again.
   const signedIn = await isSignedIn();
   const betaOpen = isPublicBetaOpen();
+  const ownWelcome = await resolveOwnDetailsWelcome();
   const startLabel = signedIn
     ? t.node('home.page.openYourWorkspace')
     : betaOpen
@@ -45,7 +46,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {betaOpen
         ? t.node('home.page.registrationIsOpenForPublicBeta')
         : t.node('home.page.thisIsAPrivatePilotFor')}{' '}
-      {ownDetailsWelcome()
+      {ownWelcome
         ? t.node('home.page.itIsFreeToUseAt')
         : t.node('home.page.pleaseUseMadeUpDetailsOr')}
     </>

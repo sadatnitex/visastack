@@ -12,7 +12,10 @@ vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }
 vi.mock('../../lib/public-beta', () => ({ isPublicBetaOpen: () => state.beta }));
 vi.mock('../../lib/real-data-wording', () => ({
   realDataOpen: () => state.realData,
+  resolveRealDataOpen: async () => state.realData,
+  refreshRealDataFacts: async () => undefined,
   ownDetailsWelcome: () => state.beta || state.realData,
+  resolveOwnDetailsWelcome: async () => state.beta || state.realData,
 }));
 vi.mock('server-only', () => ({}));
 

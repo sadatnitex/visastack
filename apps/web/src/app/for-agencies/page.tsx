@@ -9,7 +9,7 @@ import { HeadlineWords } from '../../components/public-site/story';
 import { homeCatalog } from '../../i18n/home';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
 import { isPublicBetaOpen } from '../../lib/public-beta';
-import { realDataOpen } from '../../lib/real-data-wording';
+import { resolveRealDataOpen } from '../../lib/real-data-wording';
 import { isSignedIn } from '../../lib/signed-in';
 import {
   DESK_CARDS,
@@ -37,6 +37,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
   const t = getServerT(homeCatalog);
   const signedIn = await isSignedIn();
   const betaOpen = isPublicBetaOpen();
+  const realData = await resolveRealDataOpen();
   const startLabel = signedIn
     ? t.node('home.page.openYourWorkspace')
     : betaOpen
@@ -99,11 +100,7 @@ export default async function ForAgenciesPage(): Promise<ReactElement> {
           <p className="r5-plans-line">
             {say(PLANS_LINE)}{' '}
             {say(
-              betaOpen
-                ? PLANS_ACCESS_OPEN
-                : realDataOpen()
-                  ? PLANS_ACCESS_INVITED
-                  : PLANS_ACCESS_CLOSED,
+              betaOpen ? PLANS_ACCESS_OPEN : realData ? PLANS_ACCESS_INVITED : PLANS_ACCESS_CLOSED,
             )}
           </p>
         </div>

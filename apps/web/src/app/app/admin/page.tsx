@@ -877,6 +877,12 @@ export default async function AdminOperationsPage({
                     before real personal data is switched on, in any deployment mode. A deferred
                     gate is listed as deferred, never as passed.
                   </p>
+                  {data.deploymentMode === 'development' ? (
+                    <p className="card-body u-mb-100">
+                      This is a development build: real personal data never switches on here,
+                      whatever the gates below say.
+                    </p>
+                  ) : null}
                   {data.readiness?.operational ? (
                     <GateBreakdown result={data.readiness.operational} />
                   ) : (
