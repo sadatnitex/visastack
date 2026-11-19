@@ -431,6 +431,9 @@ describe('Platform > Operations', () => {
         `${counts.passed} of ${counts.total} gates satisfied, 1 more deferred by the owner`,
       );
       expect(text).not.toContain('real key management (KMS) satisfied');
+      // Guardian 18: what still blocks real data is named plainly, deferred gates excluded.
+      expect(text).toMatch(/Still blocking: [^.]*step-up/);
+      expect(text).not.toMatch(/Still blocking: [^.]*real key management/);
     } finally {
       vi.unstubAllEnvs();
     }

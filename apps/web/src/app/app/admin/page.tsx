@@ -1024,6 +1024,9 @@ export default async function AdminOperationsPage({
  */
 function GateBreakdown({ result }: { readonly result: CommercialReadinessResult }) {
   const counts = countGates(result.gates);
+  // Unmet and not deferred: what the owner still has to fix in place (for example step-up or the
+  // AI provider's recorded data terms, which can never be deferred).
+  const blocking = result.gates.filter((gate) => !gate.satisfied);
   return (
     <>
       <div className="toolbar u-mb-100">
@@ -1035,6 +1038,11 @@ function GateBreakdown({ result }: { readonly result: CommercialReadinessResult 
           {result.ready ? 'ready' : 'not ready'}
         </span>
       </div>
+      {blocking.length > 0 ? (
+        <p className="card-body u-mb-100">
+          <strong>Still blocking:</strong> {blocking.map((gate) => gate.label).join(', ')}.
+        </p>
+      ) : null}
       <div className="rows rows-grid">
         {result.gates.map((gate) => {
           const status = gateStatus(gate);
