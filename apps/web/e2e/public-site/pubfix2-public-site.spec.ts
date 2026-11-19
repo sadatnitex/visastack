@@ -109,6 +109,8 @@ test('P2-3 Privacy and Trust first screen 360x640 holds 30 visible words or fewe
       return count;
     });
     expect(words, lang).toBeLessThanOrEqual(30);
+    // Nothing is removed: the line under the headline still shows, below the picture.
+    await expect(page.locator('.tr-hero .kit-sub'), lang).toBeVisible();
     await context.close();
   }
 });
