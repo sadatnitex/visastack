@@ -74,6 +74,8 @@ export const homeCatalog = defineCatalog({
     'home.page.thisIsAPrivatePilotFor':
       'This is a private pilot for invited users, and some features are not switched on yet.',
     'home.page.whatWorksToday': 'What Works Today',
+    'home.phone.seeAll': 'See All {count}',
+    'home.phone.showFewer': 'Show Fewer',
   },
   bn: {
     'home.countryChecklistPicker.forExampleJapan': 'যেমন: জাপান',
@@ -115,5 +117,7 @@ export const homeCatalog = defineCatalog({
     'home.page.seeWhatWorksToday': 'আজ কী কাজ করছে তা দেখুন',
     'home.page.signInToGetStarted': 'শুরু করতে সাইন ইন করুন',
     'home.page.whatWorksToday': 'আজ যা কাজ করছে',
+    'home.phone.seeAll': 'সব {count}টি দেখুন',
+    'home.phone.showFewer': 'কম দেখান',
   },
 });
