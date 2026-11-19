@@ -15,6 +15,7 @@ import {
 import { useT } from '../../components/i18n-provider';
 import { Icon, type IconName } from '../../components/icons';
 import { appHomeCatalog } from '../../i18n/app-home';
+import { accountInitials } from '../../lib/account-initials';
 import { placePopover } from '../../lib/popover-placement';
 import { useCloseOnOutsidePress } from '../../lib/use-popover';
 
@@ -56,16 +57,7 @@ export const ACCOUNT_MENU_GROUPS: readonly AccountMenuGroup[] = [
   },
 ];
 
-/** Up to two letters, the same rule as the workspace selector, so a person reads the same everywhere. */
-export function accountInitials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0))
-    .join('')
-    .toUpperCase();
-}
+export { accountInitials };
 
 const stripSlash = (path: string) => (path.length > 1 ? path.replace(/\/+$/, '') : path);
 
@@ -78,6 +70,9 @@ export function AccountMenu({
   photoUrl,
   plan,
   signOut,
+  variant = 'app',
+  links,
+  initials: initialsOverride,
 }: {
   readonly name: string;
   /** The signed-in address, already held by the session; shown only when present. */
@@ -87,14 +82,25 @@ export function AccountMenu({
   readonly plan?: { readonly name: string; readonly href: string } | null | undefined;
   /** The existing server action form; the menu only places and styles it. */
   readonly signOut: ReactNode;
+  /**
+   * `public` is the small form on the public pages (NAV3): a round button that opens first name,
+   * the given `links` and Sign Out. It keeps this menu's keyboard model, phone sheet and focus
+   * rules, and shows no email or plan. The default is the workspace's full menu, unchanged.
+   */
+  readonly variant?: 'app' | 'public';
+  /** The rows of the public form; the workspace's full menu draws its own groups. */
+  readonly links?: readonly AccountMenuLink[] | undefined;
+  /** The letters for the round button when the shown name is shorter than the full name (public form). */
+  readonly initials?: string | undefined;
 }) {
+  const isPublic = variant === 'public';
   const t = useT(appHomeCatalog);
   const pathname = usePathname();
   const account = useRef<HTMLDetailsElement>(null);
   const panel = useRef<HTMLElement>(null);
   const panelId = useId();
   const groupId = useId();
-  const initials = accountInitials(name);
+  const initials = initialsOverride ?? accountInitials(name);
   const current = stripSlash(pathname.split(/[?#]/)[0] ?? pathname);
 
   const close = useCallback((returnFocus: boolean) => {
@@ -215,27 +221,37 @@ export function AccountMenu({
 
   return (
     <details
-      className="record-account"
+      className={isPublic ? 'record-account record-account-public' : 'record-account'}
       ref={account}
       onKeyDown={onKeyDown}
       onBlur={onBlur}
       onToggle={onToggle}
     >
       <summary
-        aria-label={t('appHome.appAccountMenu.nameAccountMenu', { name })}
+        aria-label={t('appHome.appAccountMenu.nameAccountMenu', {
+          name: name.trim() || t('appHome.appAccountMenu.account'),
+        })}
         aria-controls={panelId}
       >
-        <b className="account-name-desktop" dir="auto">
-          {name}
-        </b>
-        <b className="account-name-mobile" dir="auto">
-          {name.trim().split(/\s+/)[0] || t.node('appHome.appAccountMenu.account')}
-        </b>
-        {/* WP-X3: on the narrowest phones the account shows as an icon, leaving room for the context chip. */}
-        <span className="account-icon-mobile" aria-hidden="true">
-          <Icon name="user" size={20} />
-        </span>
-        <Icon name="chevronDown" size={14} />
+        {isPublic ? (
+          <span className="workspace-avatar account-public-avatar" aria-hidden="true">
+            {initials || <Icon name="user" size={20} />}
+          </span>
+        ) : (
+          <>
+            <b className="account-name-desktop" dir="auto">
+              {name}
+            </b>
+            <b className="account-name-mobile" dir="auto">
+              {name.trim().split(/\s+/)[0] || t.node('appHome.appAccountMenu.account')}
+            </b>
+            {/* WP-X3: on the narrowest phones the account shows as an icon, leaving room for the context chip. */}
+            <span className="account-icon-mobile" aria-hidden="true">
+              <Icon name="user" size={20} />
+            </span>
+            <Icon name="chevronDown" size={14} />
+          </>
+        )}
       </summary>
       <nav
         id={panelId}
@@ -252,9 +268,9 @@ export function AccountMenu({
           </span>
           <div className="account-menu-who">
             <p className="account-menu-name" dir="auto">
-              {name}
+              {name.trim() || t.node('appHome.appAccountMenu.account')}
             </p>
-            {email ? (
+            {!isPublic && email ? (
               <p className="account-menu-email" dir="auto">
                 {email}
               </p>
@@ -270,22 +286,36 @@ export function AccountMenu({
             <Icon name="close" size={20} />
           </button>
         </div>
-        <div className="account-menu-plan">
-          {plan ? (
-            <p className="account-menu-plan-name">
-              <span className="sr-only">{t.node('appHome.appAccountMenu.yourPlan')} </span>
-              <span className="account-menu-chip">{plan.name}</span>
-            </p>
-          ) : null}
-          <Link className="account-menu-plan-link" href={plan?.href ?? '/app/account/plan'}>
-            {t.node('appHome.appAccountMenu.viewPlan')}
-            <Icon name="chevron" size={16} />
-          </Link>
-        </div>
+        {isPublic ? null : (
+          <div className="account-menu-plan">
+            {plan ? (
+              <p className="account-menu-plan-name">
+                <span className="sr-only">{t.node('appHome.appAccountMenu.yourPlan')} </span>
+                <span className="account-menu-chip">{plan.name}</span>
+              </p>
+            ) : null}
+            <Link className="account-menu-plan-link" href={plan?.href ?? '/app/account/plan'}>
+              {t.node('appHome.appAccountMenu.viewPlan')}
+              <Icon name="chevron" size={16} />
+            </Link>
+          </div>
+        )}
         {/* Plain rows, not list items: the product underlines links inside lists and sentences. */}
-        {ACCOUNT_MENU_GROUPS.map((group) => (
+        {(isPublic
+          ? [
+              {
+                id: 'public',
+                label: t('appHome.appAccountMenu.account'),
+                links: links ?? [],
+              },
+            ]
+          : ACCOUNT_MENU_GROUPS
+        ).map((group) => (
           <div className="account-menu-group" key={group.id}>
-            <p className="account-menu-label" id={`${groupId}-${group.id}`}>
+            <p
+              className={isPublic ? 'account-menu-label sr-only' : 'account-menu-label'}
+              id={`${groupId}-${group.id}`}
+            >
               {group.label}
             </p>
             <div
@@ -294,17 +324,31 @@ export function AccountMenu({
               role="group"
               aria-labelledby={`${groupId}-${group.id}`}
             >
-              {group.links.map((link) => (
-                <Link
-                  key={link.href}
-                  className="account-menu-row"
-                  href={link.href}
-                  aria-current={current === link.href ? 'page' : undefined}
-                >
-                  <Icon name={link.icon} size={20} />
-                  <span>{link.label}</span>
-                </Link>
-              ))}
+              {group.links.map((link) =>
+                // The public form uses plain links: /app sends a signed-out person on to sign in, and
+                // a prefetch of it would be a blocked cross-origin request.
+                isPublic ? (
+                  <a
+                    key={link.href}
+                    className="account-menu-row"
+                    href={link.href}
+                    aria-current={current === link.href ? 'page' : undefined}
+                  >
+                    <Icon name={link.icon} size={20} />
+                    <span>{link.label}</span>
+                  </a>
+                ) : (
+                  <Link
+                    key={link.href}
+                    className="account-menu-row"
+                    href={link.href}
+                    aria-current={current === link.href ? 'page' : undefined}
+                  >
+                    <Icon name={link.icon} size={20} />
+                    <span>{link.label}</span>
+                  </Link>
+                ),
+              )}
             </div>
           </div>
         ))}

@@ -110,7 +110,10 @@ describe('the header (NAV2)', () => {
     state.signedIn = true;
     const doc = await page();
     expect(texts(doc.querySelectorAll('header .btn-primary'))).toEqual(['Workspace']);
-    expect(texts(doc.querySelectorAll('header a[href="/app"]'))).toEqual(['Workspace']);
+    // NAV3: the account menu and the phone menu repeat Workspace as a row; the bar has one action.
+    expect(texts(doc.querySelectorAll('.site-nav-actions > a[href="/app"]'))).toEqual([
+      'Workspace',
+    ]);
     expect(doc.querySelectorAll('.site-nav-pages a').length).toBe(5);
   });
 

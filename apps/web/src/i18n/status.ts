@@ -18,6 +18,8 @@ export const statusCatalog = defineCatalog({
     'status.statusStatusView.live': 'Live',
     'status.statusStatusView.loading': 'Loading…',
     'status.statusStatusView.notSwitchedOnYet': 'Not Switched On Yet',
+    'status.statusStatusView.publicBetaDetail':
+      'Some features are still being switched on. This page shows what works today.',
     'status.statusStatusView.theListOfFeaturesIsNot':
       'The list of features is not available right now.',
     'status.statusStatusView.updatedUpdatedatThisPageChecksAgain':
@@ -36,6 +38,8 @@ export const statusCatalog = defineCatalog({
     'status.statusStatusView.live': 'লাইভ',
     'status.statusStatusView.loading': 'লোড হচ্ছে…',
     'status.statusStatusView.notSwitchedOnYet': 'এখনো চালু হয়নি',
+    'status.statusStatusView.publicBetaDetail':
+      'কিছু ফিচার এখনো চালু করা হচ্ছে। আজ কী কাজ করছে, তা এই পাতায় দেখা যায়।',
     'status.statusStatusView.theListOfFeaturesIsNot': 'ফিচারের তালিকা এখন পাওয়া যাচ্ছে না।',
     'status.statusStatusView.updatedUpdatedatThisPageChecksAgain':
       'আপডেট করা হয়েছে {updatedAt}। এই পাতাটি নিজে থেকেই আবার দেখে নেয়।',

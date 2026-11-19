@@ -41,6 +41,14 @@ export const PILOT_BANNER_COPY = {
   },
 } as const satisfies Partial<Record<DeploymentMode, BannerCopy>>;
 
+/**
+ * What the public beta notice means, shown under About This Version on the Status page. Exported
+ * so that page can show it in Bangla (it looks the sentence up by these English words, the way the
+ * footer looks up the version name) and so the words live in one place.
+ */
+export const PUBLIC_BETA_DETAIL =
+  'Some features are still being switched on. This page shows what works today.';
+
 /** The words the notice shows in a deployment mode, or null in commercial mode (no notice). */
 export function versionNoticeCopy(
   mode: DeploymentMode,
@@ -50,7 +58,7 @@ export function versionNoticeCopy(
   return mode === 'controlled_pilot' && registrationOpen
     ? {
         label: 'VisaStack Public Beta',
-        detail: 'Some features are still being switched on. This page shows what works today.',
+        detail: PUBLIC_BETA_DETAIL,
         short: '',
         detailInBanner: false,
       }

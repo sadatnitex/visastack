@@ -44,6 +44,7 @@ export function SiteFooter({
   pageLang,
   pages,
   signedIn,
+  signOut,
   registrationOpen,
   notice,
   copyright,
@@ -54,6 +55,8 @@ export function SiteFooter({
   /** The public list as the header draws it now (addresses already settled). */
   readonly pages: readonly PublicNavLink[];
   readonly signedIn: boolean;
+  /** The sign-out form for a signed-in person (the same server action form as the header's). */
+  readonly signOut?: ReactNode;
   readonly registrationOpen: boolean;
   /** The words of this version's notice, or null when none is shown. */
   readonly notice: FooterNotice | null;
@@ -134,6 +137,7 @@ export function SiteFooter({
                   provider, and a prefetch of it would be a blocked cross-origin request. */}
                 <a href="/app">{accountWord}</a>
               </li>
+              {signedIn && signOut ? <li>{signOut}</li> : null}
               {!signedIn && registrationOpen ? (
                 <li>
                   <Link href="/auth/sign-up">{t.node('home.layout.getStarted')}</Link>
