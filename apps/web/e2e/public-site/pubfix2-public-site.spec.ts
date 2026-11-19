@@ -77,6 +77,9 @@ for (const size of [
       expect(box.top, `${box.name} top`).toBeGreaterThanOrEqual(0);
       expect(box.right, `${box.name} right`).toBeLessThanOrEqual(box.width);
       expect(box.bottom, `${box.name} bottom`).toBeLessThanOrEqual(box.height);
+      // The Example line keeps 16 px of clearance below it (a build machine's fonts run a little taller).
+      if (box.name.includes('hs-hero-note'))
+        expect(box.bottom, 'Example line clearance').toBeLessThanOrEqual(box.height - 16);
     }
   });
 }
