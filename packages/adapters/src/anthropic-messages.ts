@@ -11,6 +11,17 @@
  * Claude Fable 5.1 refuse forced tool calls with a 400, while JSON outputs are available on
  * every model. Thinking, which those models always do first, is unaffected: the schema governs
  * only the final answer, and thinking blocks are skipped when the reply is read.
+ *
+ * Prompt caching (checked against
+ * https://platform.claude.com/docs/en/build-with-claude/prompt-caching on 2026-11-19): the
+ * prefix is built in the order tools, system, messages, and one explicit breakpoint
+ * (`cache_control: {type: "ephemeral"}`, the default 5-minute lifetime) sits on the last system
+ * block. Each task's system prompt is a fixed constant, so the cached prefix never holds a date,
+ * an id, document text or a profile fact; the per-document user content always comes after the
+ * breakpoint. No request-level automatic breakpoint is set, since that would move the breakpoint
+ * onto the last block, which is the document. A prefix shorter than the model's minimum
+ * cacheable length is processed without caching and without an error, so the breakpoint is
+ * safe to send on every request whatever its size.
  */
 
 import { withTimeout } from './timeout';
@@ -25,6 +36,9 @@ export const ANTHROPIC_VERSION = '2023-06-01';
  * not a target: only what the model actually writes is billed.
  */
 export const ANTHROPIC_DEFAULT_MAX_TOKENS = 16_000;
+
+/** The one cache breakpoint every request carries, on its last stable block. */
+const CACHE_BREAKPOINT = { type: 'ephemeral' } as const;
 
 const EFFORT_LEVELS: ReadonlySet<string> = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
@@ -52,6 +66,7 @@ export function anthropicEffortFor(
 export interface StructuredRequestInput {
   readonly model: string;
   readonly maxTokens: number;
+  /** A fixed instruction, the same for every request of a task: it is the cached prefix, so nothing per-request may go here. */
   readonly system: string;
   readonly content: string | readonly unknown[];
   /** A JSON Schema: every object needs `additionalProperties: false` and no number or length limits. */
@@ -64,7 +79,7 @@ export function structuredRequestBody(input: StructuredRequestInput): object {
   return {
     model: input.model,
     max_tokens: input.maxTokens,
-    system: input.system,
+    system: [{ type: 'text', text: input.system, cache_control: CACHE_BREAKPOINT }],
     messages: [{ role: 'user', content: input.content }],
     output_config: {
       format: { type: 'json_schema', schema: input.schema },
@@ -74,10 +89,35 @@ export function structuredRequestBody(input: StructuredRequestInput): object {
 }
 
 export interface StructuredUsage {
+  /** Input after the last cache breakpoint: Anthropic's `input_tokens` leaves out cache reads and writes. */
   readonly inputTokens: number;
   readonly outputTokens: number;
+  /** Input read from the prompt cache (`cache_read_input_tokens`). */
   readonly cachedTokens: number;
+  /** Input written to the prompt cache (`cache_creation_input_tokens`). */
+  readonly cacheWriteTokens: number;
   readonly messageId?: string;
+}
+
+/**
+ * The usage record's token figures for one answer. Input counts every input token the request
+ * processed (uncached, written to the cache, read from it), with the cache reads reported as a
+ * part of it: the same meaning OpenAI and Gemini already give, and what the platform budget sums
+ * through `costUnits`. Without a cache hit or write this equals the earlier input + output count.
+ */
+export function anthropicUsageUnits(
+  usage: Pick<
+    StructuredUsage,
+    'inputTokens' | 'outputTokens' | 'cachedTokens' | 'cacheWriteTokens'
+  >,
+) {
+  const inputUnits = usage.inputTokens + usage.cacheWriteTokens + usage.cachedTokens;
+  return {
+    costUnits: inputUnits + usage.outputTokens,
+    inputUnits,
+    outputUnits: usage.outputTokens,
+    cachedUnits: usage.cachedTokens,
+  };
 }
 
 export type StructuredReading =
@@ -106,10 +146,12 @@ interface RawUsage {
   readonly input_tokens?: unknown;
   readonly output_tokens?: unknown;
   readonly cache_read_input_tokens?: unknown;
+  readonly cache_creation_input_tokens?: unknown;
 }
 
+/** A provider token count, or 0 for anything that is not a finite, non-negative whole number. */
 function tokenCount(value: unknown): number {
-  return typeof value === 'number' ? value : 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 /**
@@ -166,6 +208,7 @@ export function readStructuredReply(payload: unknown): StructuredReading {
     inputTokens: tokenCount(usage?.input_tokens),
     outputTokens: tokenCount(usage?.output_tokens),
     cachedTokens: tokenCount(usage?.cache_read_input_tokens),
+    cacheWriteTokens: tokenCount(usage?.cache_creation_input_tokens),
     ...(typeof record.id === 'string' ? { messageId: record.id } : {}),
   };
 }
