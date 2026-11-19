@@ -64,7 +64,9 @@ describe('the Privacy and Trust chapters', () => {
       vi.stubEnv('NEON_AUTH_COOKIE_SECRET', 'x'.repeat(64));
       const open = text((await page([])).body);
       expect(open).not.toMatch(/practice record|controlled pilot/i);
-      expect(open).toContain('You may use your own details and documents, at your own risk.');
+      expect(open).toContain('You may use your own details and documents.');
+      // Owner, 19 Nov 2026 (PUBW1): only the Terms says own risk.
+      expect(open).not.toMatch(/own risk|virus scanning/i);
       expect(open).toContain('Start with your own record.');
     } finally {
       vi.unstubAllEnvs();

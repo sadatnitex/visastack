@@ -257,9 +257,9 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
             <p className="kit-sub tr-today-text">
               {say(
                 betaOpen
-                  ? 'VisaStack is a free public beta, provided as it is. You may use your own details and documents, at your own risk. Independent checks will be listed here as they are completed, and nothing before.'
+                  ? 'VisaStack is a free public beta, provided as it is. You may use your own details and documents. Independent checks will be listed here as they are completed, and nothing before.'
                   : ownWelcome
-                    ? 'VisaStack is open to invited users, provided as it is. You may use your own details and documents, at your own risk. Independent checks will be listed here as they are completed, and nothing before.'
+                    ? 'VisaStack is open to invited users, provided as it is. You may use your own details and documents. Independent checks will be listed here as they are completed, and nothing before.'
                     : 'VisaStack is in a controlled pilot. Only practice records are used. Independent checks will be listed here as they are completed, and nothing before.',
               )}
             </p>

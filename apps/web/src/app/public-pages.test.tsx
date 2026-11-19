@@ -39,7 +39,7 @@ const dom = (html: string) => new JSDOM(html).window.document;
 describe('public and entry pages today', () => {
   it('terms of use keeps one top heading, the free-account line and the visa decisions section', async () => {
     const { default: Terms } = await import('./terms/page');
-    const document = dom(renderToStaticMarkup(<Terms />));
+    const document = dom(renderToStaticMarkup(await Terms()));
     expect(document.querySelectorAll('h1')).toHaveLength(1);
     expect(document.querySelector('h1')?.textContent).toBe('Terms of Use');
     expect(document.body.textContent).toContain('Account creation is free');
