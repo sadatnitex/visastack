@@ -24082,7 +24082,10 @@ html body:has(.auth-shell) > .footer {
   html[data-locale="bn"] .site-navigation:has(.nav-account) .nav-links a:not(.btn) {
     padding: 0 2px;
   }
-  html[data-locale="bn"] .site-navigation:has(.nav-account) .nav-links a[aria-current="page"]::after {
+  html[data-locale="bn"]
+    .site-navigation:has(.nav-account)
+    .nav-links
+    a[aria-current="page"]::after {
     inset: auto 2px 6px;
   }
   .site-navigation:has(.nav-account) .site-nav-actions .nav-cta {
