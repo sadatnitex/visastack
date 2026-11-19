@@ -23,7 +23,6 @@ import { signedInPerson } from '../lib/public-account';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { ClearShareInboxOnSubmit } from '../lib/pwa/clear-share-inbox-on-submit';
 import { isServiceWorkerEnabled } from '../lib/pwa/service-worker';
-import { requestedPath } from '../lib/request-path';
 import { signOutCurrentUser } from '../lib/sign-out';
 import { isSignedIn } from '../lib/signed-in';
 import { hasSeenVersionNotice } from '../lib/version-notice-state';
@@ -77,17 +76,6 @@ export const viewport: Viewport = {
   themeColor: '#f7f9fe',
   colorScheme: 'light',
 };
-
-/** The pages the signed-in workspace frames: the app, and the signed-in answers page. */
-function isWorkspaceFramed(path: string | null): boolean {
-  if (!path) return false;
-  return (
-    path === '/app' ||
-    path.startsWith('/app/') ||
-    path === '/collect/account/answers' ||
-    path.startsWith('/collect/account/answers/')
-  );
-}
 
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
   // Read-only check of the Neon Auth session, so the nav reflects the real session. It never
@@ -163,18 +151,17 @@ export default async function RootLayout({ children }: { readonly children: Reac
   // NAV3: a signed-in visitor's own controls on the public pages. The first name only (never the
   // address), from the session read the page already made; the words are the workspace's own, so
   // the two places never drift. Sign Out is the workspace menu's own server action form, a POST.
-  // Not on a page the workspace frames (it carries its own account menu and Sign Out, and the
-  // stylesheet hides this header and footer there), so those pages do not draw a second copy.
-  const framed = isWorkspaceFramed(await requestedPath());
-  const person = signedIn && !framed ? await signedInPerson() : null;
-  const account =
-    signedIn && !framed
-      ? {
-          firstName: person?.firstName ?? '',
-          initials: person?.initials ?? '',
-          tApp: await getT(appHomeCatalog),
-        }
-      : null;
+  // The root layout does not draw again when a person moves between pages in the browser, so the
+  // markup cannot depend on the page: it is always here for a signed-in visitor, and the
+  // stylesheet hides this whole header and footer inside the workspace (body:has(.app-frame)).
+  const person = signedIn ? await signedInPerson() : null;
+  const account = signedIn
+    ? {
+        firstName: person?.firstName ?? '',
+        initials: person?.initials ?? '',
+        tApp: await getT(appHomeCatalog),
+      }
+    : null;
   const signOutForm = (className: string) =>
     account ? (
       <form
@@ -250,9 +237,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
                       <a className="menu-signin" href="/app">
                         {t.node('home.layout.workspace')}
                       </a>
-                      <Link className="menu-signin" href="/app/account">
+                      <a className="menu-signin" href="/app/account">
                         {account.tApp.node('appHome.appAppNav.yourAccount')}
-                      </Link>
+                      </a>
                       {signOutForm('menu-signin menu-signout')}
                     </div>
                   ) : null}

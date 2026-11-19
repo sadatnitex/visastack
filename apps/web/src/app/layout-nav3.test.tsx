@@ -46,18 +46,28 @@ describe('the signed-in public header (NAV3)', () => {
     expect(nav).not.toContain('Rahman');
   });
 
+  // The root layout does not draw again when a person moves between pages in the browser: after
+  // opening /app directly and clicking the logo, the public page still has to carry the account
+  // menu, phone rows and footer Sign Out. So the markup never depends on the page, and the
+  // stylesheet hides the whole public header and footer inside the workspace.
   it.each(['/app', '/app/account', '/collect/account/answers'])(
-    'draws no second account menu or Sign Out where the workspace frames the page (%s)',
+    'draws the account menu, phone rows and footer Sign Out whatever page it first loads on (%s)',
     async (path) => {
       state.signedIn = true;
       state.pathname = path;
       const html = await render();
-      expect(html).not.toContain('record-account-public');
-      expect(html).not.toContain('menu-account');
-      expect(textOf(footer(html))).not.toContain('Sign Out');
-      expect(html).not.toContain('account-signout-form');
+      expect(header(html)).toContain('record-account-public');
+      expect(header(html)).toContain('menu-account');
+      expect(textOf(footer(html))).toContain('Sign Out');
     },
   );
+
+  it('is hidden inside the workspace by the stylesheet rule that hides the whole public bar', () => {
+    const css = readFileSync(new URL('./globals.css', import.meta.url), 'utf8');
+    expect(css).toMatch(
+      /body:has\(\.app-frame\) > \.nav,[\s\S]*?body:has\(\.app-frame\) > \.footer[\s\S]*?\{\s*display: none;/,
+    );
+  });
 
   it('keeps the account menu on a public page', async () => {
     state.signedIn = true;

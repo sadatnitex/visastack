@@ -324,17 +324,31 @@ export function AccountMenu({
               role="group"
               aria-labelledby={`${groupId}-${group.id}`}
             >
-              {group.links.map((link) => (
-                <Link
-                  key={link.href}
-                  className="account-menu-row"
-                  href={link.href}
-                  aria-current={current === link.href ? 'page' : undefined}
-                >
-                  <Icon name={link.icon} size={20} />
-                  <span>{link.label}</span>
-                </Link>
-              ))}
+              {group.links.map((link) =>
+                // The public form uses plain links: /app sends a signed-out person on to sign in, and
+                // a prefetch of it would be a blocked cross-origin request.
+                isPublic ? (
+                  <a
+                    key={link.href}
+                    className="account-menu-row"
+                    href={link.href}
+                    aria-current={current === link.href ? 'page' : undefined}
+                  >
+                    <Icon name={link.icon} size={20} />
+                    <span>{link.label}</span>
+                  </a>
+                ) : (
+                  <Link
+                    key={link.href}
+                    className="account-menu-row"
+                    href={link.href}
+                    aria-current={current === link.href ? 'page' : undefined}
+                  >
+                    <Icon name={link.icon} size={20} />
+                    <span>{link.label}</span>
+                  </Link>
+                ),
+              )}
             </div>
           </div>
         ))}
