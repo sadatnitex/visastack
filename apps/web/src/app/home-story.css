@@ -729,19 +729,14 @@ html[data-scenes="reveal"]
     opacity: 0;
     visibility: hidden;
     transform: translateY(100%);
-    transition:
-      transform 0.28s ease,
-      opacity 0.28s ease,
-      visibility 0s linear 0.28s;
+    transition: transform 0.28s ease, opacity 0.28s ease, visibility 0s linear 0.28s;
   }
 
   .hs-bar[data-shown="true"] {
     opacity: 1;
     visibility: visible;
     transform: none;
-    transition:
-      transform 0.28s ease,
-      opacity 0.28s ease;
+    transition: transform 0.28s ease, opacity 0.28s ease;
   }
 
   .hs-bar .pub-button {
@@ -762,9 +757,7 @@ html[data-scenes="reveal"]
   }
 
   .hs-bar {
-    transition:
-      opacity 0.2s ease,
-      visibility 0s linear 0.2s;
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
   }
 
   .hs-bar[data-shown="true"] {

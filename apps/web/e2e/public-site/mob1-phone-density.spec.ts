@@ -447,17 +447,18 @@ for (const size of [PHONES[0], PHONES[1]]) {
 
     test('no serious or critical problem, in English and (where the preview runs) Bengali', async ({
       page,
-      baseURL,
     }) => {
       for (const lang of ['en', 'bn'] as const) {
         if (lang === 'bn') {
-          // Ask for Bengali with the language cookie (the server honours it only in a local preview,
-          // so in the ordinary run this repeats the English check).
-          await page
-            .context()
-            .addCookies([
-              { name: 'visastack_locale', value: 'bn', url: baseURL ?? 'http://localhost:3100' },
-            ]);
+          // Ask for Bengali the way a visitor does: the language form (on a phone it sits in the closed
+          // menu, so it is submitted directly). The server honours it only in a local preview, so in
+          // the ordinary run this repeats the English check.
+          await page.goto('/');
+          await page.evaluate(() => {
+            const form = document.querySelector('form:has(input[name="locale"][value="bn"])');
+            if (form instanceof HTMLFormElement) form.requestSubmit();
+          });
+          await page.waitForLoadState('networkidle');
         }
         await openHome(page);
         // With the bar showing, and the opened papers, so every state is checked.
