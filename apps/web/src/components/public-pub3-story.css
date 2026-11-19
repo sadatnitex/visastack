@@ -111,11 +111,25 @@
   }
 }
 
+/* The live picture keeps the box's full width, so it never changes width (and slides sideways) as the
+   steps change; the sheet inside is centred in it. */
+.tr-share-live {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
 /* PUBFIX2: the Where We Are Today heading and its paragraph rise together, so the heading never
    passes over the paragraph while it settles. */
 .tr-today-copy {
   display: grid;
   gap: inherit;
+}
+
+/* PUBFIX2 P2-6: the wrapper keeps the column's full width, so it does not change width (and slide) with the step. */
+.tr-share {
+  width: 100%;
 }
 
 .tr-pause {

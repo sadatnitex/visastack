@@ -210,6 +210,7 @@ describe('the hero pause control (WCAG 2.2.2)', () => {
     );
     expect(css).toMatch(/\.tr-share-art \{[^}]*min-height: 390px;/);
     expect(css).toMatch(/min-width: 760px\) \{\s*\.tr-share-art \{\s*min-height: 422px;/);
+    expect(css).toMatch(/\.tr-share-live \{[^}]*width: 100%;/);
   });
 
   it('keeps the same picture elements from step to step so the parts can fade (no hard swap)', () => {
