@@ -9,7 +9,13 @@ import { Icon } from '../components/icons';
 import { SaveDataFlag } from '../components/pictures/save-data-flag';
 import { requestSavesData } from '../components/pictures/save-data-request';
 import { PilotBanner, versionNoticeCopy } from '../components/pilot-banner';
-import { publicNavLinks } from '../components/public-site/public-nav';
+import {
+  HEADER_PAGE_ROUTES,
+  HOW_MENU,
+  HOW_MENU_ROUTES,
+  PHONE_MENU_EXTRAS,
+  publicNavLinks,
+} from '../components/public-site/public-nav';
 import { publicText } from '../components/public-site/public-text';
 import { ScenesBoot, requestNonce } from '../components/public-site/scenes-boot';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
@@ -223,13 +229,30 @@ export default async function RootLayout({ children }: { readonly children: Reac
               A narrow screen moves the pages, the language switch and the quiet sign-in into the
               menu; the single action that matters stays in the bar. */}
             <SiteNavigation
-              pages={links.map((link) => ({
-                href: link.href,
-                route: link.route,
-                label: link.key ? t.node(link.key) : publicText(link.label, htmlLang),
-              }))}
+              group={{
+                label: t.node('home.page.howItWorks'),
+                currentRoutes: HOW_MENU_ROUTES,
+                items: HOW_MENU.map((entry) => ({
+                  href: entry.href,
+                  label: entry.key ? t.node(entry.key) : publicText(entry.label, htmlLang),
+                  description: publicText(entry.description, htmlLang),
+                  ...(entry.wideOnly ? { wideOnly: true } : {}),
+                })),
+              }}
+              pages={links
+                .filter((link) => HEADER_PAGE_ROUTES.includes(link.route))
+                .map((link) => ({
+                  href: link.href,
+                  route: link.route,
+                  label: link.key ? t.node(link.key) : publicText(link.label, htmlLang),
+                }))}
               menuExtras={
                 <>
+                  {PHONE_MENU_EXTRAS.map((extra) => (
+                    <a className="menu-link" href={extra.href} key={extra.href}>
+                      {publicText(extra.label, htmlLang)}
+                    </a>
+                  ))}
                   {languageForm('menu-lang', false)}
                   {showGetStarted ? signInLink('menu-signin') : null}
                   {account ? (

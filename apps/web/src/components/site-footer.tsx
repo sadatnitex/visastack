@@ -8,7 +8,6 @@ import { BrandMark } from './brand-mark';
 import {
   ABOUT_VERSION_HREF,
   FOOTER_LEGAL,
-  FOOTER_PRODUCT_ROUTES,
   FOOTER_TRUST_ROUTES,
   type PublicNavLink,
 } from './public-site/public-nav';
@@ -33,8 +32,9 @@ const NOTICE_KEYS: Readonly<Record<string, FooterKey>> = {
 };
 
 /**
- * The public footer (NAV2): the brand with one truthful line, three groups of links (Product,
- * Trust, Account), the version line and the copyright. It claims nothing the product does not do:
+ * The public footer (NAV2, regrouped by the approved homepage in LAND1): the brand with one truthful
+ * line, three groups of links (Travellers, Workspaces, Trust and Support), the version line and the
+ * copyright. It claims nothing the product does not do:
  * the version line is the page's own notice, word for word, and every link opens a page that
  * exists. On a phone the groups stack in one column with 44 px targets.
  */
@@ -84,17 +84,30 @@ export function SiteFooter({
             <BrandMark />
             VisaStack
           </Link>
-          <p className="site-footer-about">{t.node('home.layout.footerAbout')}</p>
+          <p className="site-footer-about">
+            {publicText(
+              'Visa preparation for travellers, families and the agencies that help them.',
+              pageLang,
+            )}
+          </p>
         </div>
         <nav className="site-footer-nav" aria-label={t('home.layout.footer')}>
           <div className="site-footer-group">
-            <p className="site-footer-heading" id="footer-product">
-              {t.node('home.layout.product')}
+            <p className="site-footer-heading" id="footer-travellers">
+              {publicText('Travellers', pageLang)}
             </p>
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
             {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
-            <ul role="list" aria-labelledby="footer-product">
-              {pick(FOOTER_PRODUCT_ROUTES).map((link) => (
+            <ul role="list" aria-labelledby="footer-travellers">
+              {pick(['/how-it-works']).map((link) => (
+                <li key={link.route}>
+                  <Link href={link.href}>{word(link)}</Link>
+                </li>
+              ))}
+              <li>
+                <Link href="/#your-record">{publicText('Your Reusable Record', pageLang)}</Link>
+              </li>
+              {pick(['/countries']).map((link) => (
                 <li key={link.route}>
                   <Link href={link.href}>{word(link)}</Link>
                 </li>
@@ -102,36 +115,17 @@ export function SiteFooter({
             </ul>
           </div>
           <div className="site-footer-group">
-            <p className="site-footer-heading" id="footer-trust">
-              {t.node('home.layout.footerTrust')}
+            <p className="site-footer-heading" id="footer-workspaces">
+              {publicText('Workspaces', pageLang)}
             </p>
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
             {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
-            <ul role="list" aria-labelledby="footer-trust">
-              {pick(FOOTER_TRUST_ROUTES).map((link) => (
+            <ul role="list" aria-labelledby="footer-workspaces">
+              {pick(['/for-agencies']).map((link) => (
                 <li key={link.route}>
                   <Link href={link.href}>{word(link)}</Link>
                 </li>
               ))}
-              {FOOTER_LEGAL.map((entry) => (
-                <li key={entry.route}>
-                  <Link href={entry.route}>{t.node(entry.key)}</Link>
-                </li>
-              ))}
-              {notice ? (
-                <li>
-                  <Link href={ABOUT_VERSION_HREF}>{t.node('home.layout.aboutThisVersion')}</Link>
-                </li>
-              ) : null}
-            </ul>
-          </div>
-          <div className="site-footer-group">
-            <p className="site-footer-heading" id="footer-account">
-              {t.node('home.layout.footerAccount')}
-            </p>
-            {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
-            {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
-            <ul role="list" aria-labelledby="footer-account">
               <li>
                 {/* A plain link, like the header's: `/app` sends a visitor on to the sign-in
                   provider, and a prefetch of it would be a blocked cross-origin request. */}
@@ -145,10 +139,42 @@ export function SiteFooter({
               ) : null}
             </ul>
           </div>
+          <div className="site-footer-group">
+            <p className="site-footer-heading" id="footer-trust">
+              {publicText('Trust and Support', pageLang)}
+            </p>
+            {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
+            {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
+            <ul role="list" aria-labelledby="footer-trust">
+              {pick(FOOTER_TRUST_ROUTES).map((link) => (
+                <li key={link.route}>
+                  <Link href={link.href}>{word(link)}</Link>
+                </li>
+              ))}
+              <li>
+                <Link href="/status">{t.node('home.layout.status')}</Link>
+              </li>
+              <li>
+                <Link href="/#questions">{publicText('Common Questions', pageLang)}</Link>
+              </li>
+              {notice ? (
+                <li>
+                  <Link href={ABOUT_VERSION_HREF}>{t.node('home.layout.aboutThisVersion')}</Link>
+                </li>
+              ) : null}
+            </ul>
+          </div>
         </nav>
       </div>
       <div className="container site-footer-base">
         <span>{copyright}</span>
+        <nav className="site-footer-legal" aria-label="Legal">
+          {FOOTER_LEGAL.filter((entry) => entry.route !== '/status').map((entry) => (
+            <Link href={entry.route} key={entry.route}>
+              {t.node(entry.key)}
+            </Link>
+          ))}
+        </nav>
         {notice ? (
           <p className="site-footer-beta">
             {noticeWord(notice.label)}

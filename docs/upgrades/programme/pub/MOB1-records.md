@@ -70,3 +70,6 @@ Safari and Firefox, real phones and their safe-area insets, screen readers on th
 ## Review G18 (19 Nov 2026)
 
 Review G18: 3 fixes + 2 nits applied. (1) the spec checks exactly one link in the bottom bar with the same words and address as the hero button; (2) the swipe row follows the 760 px line (media query listener, cleaned up) so a widened window drops its focus stop and role, with a unit test; (3) the swipe row has an inset focus ring; nits: the share row hides through a data attribute instead of position, the header offset is measured (fallback 72 px). Desktop byte identity is proven only locally: the CI copy of that test is skipped without baselines. Not done on purpose (follow-ups): header Sign In style on phones, Bengali pilot-banner-short, hero reassurance line, viewport-fit.
+
+
+Superseded, replaced by `docs/upgrades/programme/pub/LAND1-records.md` (26 Nov 2026): the Home page this record describes is replaced by the approved homepage; the text above stays as history.

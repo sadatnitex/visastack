@@ -29,8 +29,8 @@ type Problem = { kind: string; detail: string };
  */
 const LAYERED_PICTURES = ['.kit-deck'] as const;
 
-/** The deck fans out past the hero's edge while it flies in; that edge may crop it, no other box. */
-const BLEED_FRAMES = ['.hs-hero'] as const;
+/** A layered picture may fan out past its frame's edge; that edge may crop it, no other box. None today (the Home hero's fan is retired). */
+const BLEED_FRAMES: readonly string[] = [];
 
 /** Runs in the page: returns every overlap, clipped line and sideways overflow it finds. */
 async function measure(page: Page): Promise<Problem[]> {
@@ -107,7 +107,8 @@ async function measure(page: Page): Promise<Problem[]> {
           node = node.parentElement
         ) {
           // The crop of an excluded picture by a part of itself is by design.
-          if (fig && (fig.contains(node) || node.matches(bleed.join(',')))) continue;
+          if (fig && (fig.contains(node) || (bleed.length > 0 && node.matches(bleed.join(',')))))
+            continue;
           const style = getComputedStyle(node);
           // A box the person scrolls (a swipe row) holds its words: what lies beyond is reachable.
           if (['auto', 'scroll'].includes(style.overflowX)) break;

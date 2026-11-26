@@ -7,7 +7,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FLAG_RING_MAX, FlagRing, flagRingCodes } from './flag-ring';
 import { PublicButton } from './public-button';
-import { LIVE_ROUTES, PUBLIC_NAV, publicNavLinks } from './public-nav';
+import {
+  HEADER_PAGE_ROUTES,
+  HOW_MENU,
+  HOW_MENU_ROUTES,
+  LIVE_ROUTES,
+  PHONE_MENU_EXTRAS,
+  PUBLIC_NAV,
+  publicNavLinks,
+} from './public-nav';
 import { PassportTilt, PublicPicture, isSelfHosted } from './public-picture';
 import { publicText } from './public-text';
 import { READINESS_NOTE, ReadinessRing } from './readiness-ring';
@@ -254,7 +262,7 @@ describe('public nav list', () => {
       ['/', 'Home'],
       ['/how-it-works', 'How It Works'],
       ['/trust', 'Privacy and Trust'],
-      ['/countries', 'Countries'],
+      ['/countries', 'Country Guides'],
       ['/for-agencies', 'For Agencies'],
     ]);
   });
@@ -262,7 +270,7 @@ describe('public nav list', () => {
     const pageFile = (route: string) =>
       route === '/' ? join(APP, 'page.tsx') : join(APP, route.slice(1), 'page.tsx');
     for (const route of LIVE_ROUTES) expect(existsSync(pageFile(route)), route).toBe(true);
-    const home = readFileSync(join(APP, 'page.tsx'), 'utf8');
+    const home = readFileSync(join(APP, 'home-landing.tsx'), 'utf8');
     for (const link of publicNavLinks()) {
       const [path, anchor] = link.href.split('#');
       expect(existsSync(pageFile(path || '/')), link.href).toBe(true);
@@ -273,15 +281,47 @@ describe('public nav list', () => {
     // While /countries is not live (the fallback the header used before PUB4 shipped it).
     const beforePub4 = new Set(['/', '/how-it-works', '/trust']);
     const countries = (signedIn: boolean) =>
-      publicNavLinks(beforePub4, { signedIn }).find((link) => link.label === 'Countries')?.href;
+      publicNavLinks(beforePub4, { signedIn }).find((link) => link.label === 'Country Guides')
+        ?.href;
     expect(countries(false)).toBe('/#start');
     expect(countries(true)).toBe('/app/countries');
     expect(existsSync(join(APP, 'app', 'countries', '(list)', 'page.tsx'))).toBe(true);
     expect(
       publicNavLinks(new Set(['/countries']), { signedIn: true }).find(
-        (link) => link.label === 'Countries',
+        (link) => link.label === 'Country Guides',
       )?.href,
     ).toBe('/countries');
+  });
+  it('arranges the header as the approved homepage does: a menu, then two pages, every target real (LAND1)', () => {
+    const home = readFileSync(join(APP, 'home-landing.tsx'), 'utf8');
+    const pageFile = (route: string) =>
+      route === '/' ? join(APP, 'page.tsx') : join(APP, route.slice(1), 'page.tsx');
+    expect(HEADER_PAGE_ROUTES).toEqual(['/countries', '/for-agencies']);
+    for (const route of HEADER_PAGE_ROUTES) {
+      expect(
+        PUBLIC_NAV.some((entry) => entry.route === route),
+        route,
+      ).toBe(true);
+      expect(LIVE_ROUTES.has(route), route).toBe(true);
+    }
+    for (const entry of [...HOW_MENU, ...PHONE_MENU_EXTRAS]) {
+      const [path, anchor] = entry.href.split('#');
+      expect(existsSync(pageFile(path || '/')), entry.href).toBe(true);
+      // A part of Home exists on the home page (and is reached from every page by the leading slash).
+      if (anchor) {
+        expect(entry.href.startsWith('/#'), entry.href).toBe(true);
+        expect(home, entry.href).toContain(`id="${anchor}"`);
+      }
+    }
+    // The menu stands for the pages it leads to, so the bar can mark it.
+    for (const route of HOW_MENU_ROUTES) expect(LIVE_ROUTES.has(route), route).toBe(true);
+    // Every entry is named in Title Case with one plain line under it, and the phone menu repeats
+    // the one entry it leaves out (the trust page) in its own words further down.
+    for (const entry of HOW_MENU) expect(entry.description.endsWith('.'), entry.label).toBe(true);
+    expect(HOW_MENU.filter((entry) => entry.wideOnly).map((entry) => entry.href)).toEqual([
+      '/trust',
+    ]);
+    expect(PHONE_MENU_EXTRAS.map((entry) => entry.href)).toContain('/trust');
   });
   it('follows a page once its unit marks it live', () => {
     const all = new Set(PUBLIC_NAV.map((entry) => entry.route));

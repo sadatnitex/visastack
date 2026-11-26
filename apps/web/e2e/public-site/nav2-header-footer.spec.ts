@@ -148,12 +148,17 @@ for (const lang of LANGS) {
         const bar = await measureHeader(page);
         expectOneLine(bar, `${lang} ${width}`);
         expect(bar.toggle, 'the menu button shows exactly when the row does not fit').toBe(!full);
-        const pages = page.locator('header .site-nav-pages a');
+        // LAND1: the bar holds one menu button and two page links; the menu's own entries stay
+        // closed until it is opened, and on a narrow screen all of it lives in the menu panel.
+        const pages = page.locator('header .site-nav-pages > a, header .site-nav-group-toggle');
+        await expect(pages).toHaveCount(3);
         if (full) {
-          await expect(pages).toHaveCount(5);
           for (const link of await pages.all()) await expect(link).toBeVisible();
+          await expect(page.locator('header .site-nav-group-panel')).toBeHidden();
         } else {
-          for (const link of await pages.all()) await expect(link).toBeHidden();
+          for (const link of await pages.all()) {
+            if ((await link.evaluate((el) => el.tagName)) === 'A') await expect(link).toBeHidden();
+          }
         }
         // The one action that matters is in the bar at every width.
         const primary = page.locator('header .site-nav-actions .btn-primary');
@@ -169,7 +174,7 @@ for (const lang of LANGS) {
           const panel = await page.locator('.site-menu-panel').boundingBox();
           expect(panel?.x ?? -1).toBeGreaterThanOrEqual(0);
           expect((panel?.x ?? 0) + (panel?.width ?? 0)).toBeLessThanOrEqual(width + 0.5);
-          for (const name of ['Home', 'How It Works', 'Countries']) {
+          for (const name of ['Prepare a Case', 'Your Reusable Record', 'Country Guides']) {
             if (lang === 'en')
               await expect(page.getByRole('link', { name, exact: true }).first()).toBeVisible();
           }
@@ -203,8 +208,9 @@ test.describe('tablet header (PUBW1)', () => {
         const bar = await measureHeader(page);
         expectOneLine(bar, `${lang} ${width}`);
         expect(bar.toggle, 'no menu button on a tablet').toBe(false);
-        await expect(page.locator('header .site-nav-pages a')).toHaveCount(5);
-        for (const link of await page.locator('header .site-nav-pages a').all()) {
+        const row = page.locator('header .site-nav-pages > a, header .site-nav-group-toggle');
+        await expect(row).toHaveCount(3);
+        for (const link of await row.all()) {
           await expect(link).toBeVisible();
           expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
         }
@@ -239,24 +245,27 @@ test.describe('header behaviour', () => {
     await expect(
       page
         .getByRole('navigation', { name: 'Site', exact: true })
-        .getByRole('link', { name: 'Home', exact: true }),
+        .getByRole('link', { name: 'Prepare a Case', exact: true }),
     ).toBeFocused();
-    // The menu holds the five pages, then the language switch and the quiet sign-in.
-    const order = await page
-      .locator('.site-menu-panel')
-      .evaluate((panel) =>
-        [...panel.querySelectorAll('a, button')].map((el) =>
-          (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        ),
-      );
-    expect(order.slice(0, 5)).toEqual([
-      'Home',
-      'How It Works',
-      'Privacy and Trust',
-      'Countries',
+    // The phone menu holds the How It Works entries, the two pages, the trust page and the
+    // questions, then the language switch and the quiet sign-in.
+    const order = await page.locator('.site-menu-panel').evaluate((panel) =>
+      [...panel.querySelectorAll('a, button')]
+        .filter((el) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 0 && box.height > 0;
+        })
+        .map((el) => ((el as HTMLElement).innerText ?? '').replace(/\s+/g, ' ').trim()),
+    );
+    expect(order.slice(0, 6)).toEqual([
+      'Prepare a Case',
+      'Your Reusable Record',
+      'Country Guides',
       'For Agencies',
+      'Privacy and Trust',
+      'Common Questions',
     ]);
-    expect(order[5]).toBe('বাংলা');
+    expect(order[6]).toBe('বাংলা');
     await page.keyboard.press('Escape');
     await expect(button).toBeFocused();
     await expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -265,9 +274,21 @@ test.describe('header behaviour', () => {
   test('the current page has a marker that is not colour alone, in the row and in the menu', async ({
     page,
   }) => {
+    // The How It Works menu is marked while one of its pages (here Privacy and Trust) is open.
     await openPage(page, 1344, 'en', '/trust');
+    const menu = page.locator('.site-nav-group-toggle');
+    await expect(menu).toHaveAttribute('data-current', 'true');
+    await expect(page.locator('.site-nav-pages a[aria-current]')).toHaveCount(0);
+    const mark = await menu.evaluate((el) => {
+      const before = getComputedStyle(el, '::before');
+      return { content: before.content, height: before.height, background: before.backgroundColor };
+    });
+    expect(mark.content).toBe('""');
+    expect(mark.height).toBe('2px');
+    expect(mark.background).not.toBe('rgba(0, 0, 0, 0)');
+    await openPage(page, 1344, 'en', '/countries');
     const current = page.locator('.site-nav-pages a[aria-current="page"]');
-    await expect(current).toHaveText('Privacy and Trust');
+    await expect(current).toHaveText('Country Guides');
     await expect(page.locator('.site-nav-pages a[aria-current]')).toHaveCount(1);
     const marker = await current.evaluate((el) => {
       const after = getComputedStyle(el, '::after');
@@ -279,7 +300,7 @@ test.describe('header behaviour', () => {
     await openPage(page, 390, 'en', '/countries');
     await page.locator('button.site-menu-toggle').click();
     const phone = page.locator('.site-nav-pages a[aria-current="page"]');
-    await expect(phone).toHaveText('Countries');
+    await expect(phone).toHaveText('Country Guides');
     const bar = await phone.evaluate((el) => getComputedStyle(el, '::after').width);
     expect(bar).toBe('3px');
   });
@@ -288,7 +309,7 @@ test.describe('header behaviour', () => {
     await openPage(page, 1344, 'en');
     const controls = page.locator('header.nav a:visible, header.nav button:visible');
     const count = await controls.count();
-    expect(count).toBeGreaterThanOrEqual(8);
+    expect(count).toBeGreaterThanOrEqual(5);
     for (let index = 0; index < count; index += 1) {
       const control = controls.nth(index);
       const box = await control.boundingBox();
@@ -376,9 +397,9 @@ test.describe('header at the edges', () => {
     await expect(button).toHaveAttribute('aria-expanded', 'true');
     await page
       .getByRole('navigation', { name: 'Site', exact: true })
-      .getByRole('link', { name: 'How It Works', exact: true })
+      .getByRole('link', { name: 'Country Guides', exact: true })
       .click();
-    await expect(page).toHaveURL(/\/how-it-works$/);
+    await expect(page).toHaveURL(/\/countries$/);
   });
 
   for (const lang of LANGS) {
@@ -453,9 +474,11 @@ test.describe('footer', () => {
                 ),
               ).size,
           );
-          expect(rows).toBeLessThanOrEqual(4);
+          // LAND1 added two links (Your Reusable Record, Common Questions) and a legal row, so the
+          // phone footer may take one more row than NAV2's four.
+          expect(rows).toBeLessThanOrEqual(5);
           const height = await page.locator('footer.site-footer').evaluate((el) => el.clientHeight);
-          expect(height, 'the phone footer stays short').toBeLessThanOrEqual(240);
+          expect(height, 'the phone footer stays short').toBeLessThanOrEqual(320);
         } else {
           // Side by side on a laptop.
           const lefts = new Set(facts.groups.map((group) => group.left));

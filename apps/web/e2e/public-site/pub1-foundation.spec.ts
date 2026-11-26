@@ -3,21 +3,30 @@ import { join } from 'node:path';
 import { type Page, expect, test } from '@playwright/test';
 
 /**
- * WP-PUB1: the frame every public page shares. The header lists the five public pages, none of its
+ * WP-PUB1: the frame every public page shares. The header (as the approved homepage arranges it,
+ * LAND1: the How It Works menu, Country Guides, For Agencies) leads nowhere false: none of its
  * links leads nowhere, the pilot notice stays on every public page, and nothing scrolls sideways
  * or loads from another site.
  */
 
 const PUBLIC_ROUTES = ['/', '/trust', '/privacy', '/terms', '/status', '/auth/sign-in'];
-const NAV = ['Home', 'How It Works', 'Privacy and Trust', 'Countries', 'For Agencies'];
+const PAGES = ['Country Guides', 'For Agencies'];
+const MENU = ['Prepare a Case', 'Your Reusable Record', 'Privacy and Control'];
 
-test('the header lists the five public pages, in order, and each one opens', async ({ page }) => {
+test('the header is a How It Works menu, then two pages, and each target opens', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
-  const links = page
-    .getByRole('navigation', { name: 'Site', exact: true })
-    .locator('.site-nav-pages a');
-  await expect(links).toHaveText(NAV);
+  const nav = page.getByRole('navigation', { name: 'Site', exact: true });
+  await expect(nav.locator('.site-nav-pages > a')).toHaveText(PAGES);
+  const toggle = nav.getByRole('button', { name: 'How It Works', exact: true });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  const entries = nav.locator('.site-nav-group-panel a strong');
+  await expect(entries).toHaveText(MENU);
+  const links = nav.locator('.site-nav-pages a');
   for (const href of await links.evaluateAll((all) =>
     all.map((a) => a.getAttribute('href') ?? ''),
   )) {
@@ -31,12 +40,18 @@ test('the header lists the five public pages, in order, and each one opens', asy
   }
 });
 
-test('the phone menu offers the same five pages', async ({ page }) => {
+test('the phone menu offers the same pages and the trust page and the questions', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Menu', exact: true }).click();
   const nav = page.getByRole('navigation', { name: 'Site', exact: true });
-  for (const name of NAV) await expect(nav.getByRole('link', { name, exact: true })).toBeVisible();
+  for (const name of ['Prepare a Case', 'Your Reusable Record', ...PAGES])
+    await expect(nav.getByRole('link', { name, exact: true })).toBeVisible();
+  const panel = page.locator('.site-menu-panel');
+  for (const name of ['Privacy and Trust', 'Common Questions'])
+    await expect(panel.getByRole('link', { name, exact: true })).toBeVisible();
 });
 
 for (const width of [320, 400, 1280]) {

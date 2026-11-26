@@ -38,7 +38,7 @@ export const PUBLIC_NAV: readonly PublicNavEntry[] = Object.freeze([
     route: '/countries',
     fallback: '/#start',
     memberFallback: '/app/countries',
-    label: 'Countries',
+    label: 'Country Guides',
   },
   {
     route: '/for-agencies',
@@ -100,10 +100,56 @@ export const FOOTER_LEGAL: readonly FooterPage[] = Object.freeze([
 /** Where the full words about this version are, and its anchor on the status page. */
 export const ABOUT_VERSION_HREF = '/status#about-this-version';
 
-/** The footer's three groups of links, by the public list they draw from. */
-export const FOOTER_PRODUCT_ROUTES: readonly string[] = Object.freeze([
-  '/how-it-works',
-  '/countries',
-  '/for-agencies',
+/**
+ * The header as the approved homepage arranges it (LAND1): one disclosure menu, "How It Works",
+ * then two plain pages. The other public pages stay one step away (Privacy and Trust and the common
+ * questions in the phone menu, every page in the footer). The menu's first two entries are parts of
+ * the home page, so they carry the home address and work from every page.
+ */
+export interface HowMenuEntry {
+  readonly href: string;
+  /** The words in English (Title Case). */
+  readonly label: string;
+  /** One line under the name, shown in the open menu on a wide screen. */
+  readonly description: string;
+  /** Left out of the phone menu, which lists this page once, in its own words, further down. */
+  readonly wideOnly?: boolean;
+  /** The catalogue key with the same words, when one exists, so Bangla visitors read them. */
+  readonly key?: 'home.layout.privacyAndControl';
+}
+
+export const HOW_MENU: readonly HowMenuEntry[] = Object.freeze([
+  {
+    href: '/#prepare',
+    label: 'Prepare a Case',
+    description: 'See what to review before you share.',
+  },
+  {
+    href: '/#your-record',
+    label: 'Your Reusable Record',
+    description: 'Carry the right documents into a new trip.',
+  },
+  {
+    href: '/trust',
+    label: 'Privacy and Control',
+    description: 'See what agencies can access.',
+    wideOnly: true,
+    key: 'home.layout.privacyAndControl',
+  },
 ]);
+
+/** The pages the "How It Works" menu stands for, so the bar can mark it when one of them is open. */
+export const HOW_MENU_ROUTES: readonly string[] = Object.freeze(['/how-it-works', '/trust']);
+
+/** The header's plain page links after the menu, by route. */
+export const HEADER_PAGE_ROUTES: readonly string[] = Object.freeze(['/countries', '/for-agencies']);
+
+/** What the phone menu adds after the pages: the trust page and the questions part of Home. */
+export const PHONE_MENU_EXTRAS: readonly { readonly href: string; readonly label: string }[] =
+  Object.freeze([
+    { href: '/trust', label: 'Privacy and Trust' },
+    { href: '/#questions', label: 'Common Questions' },
+  ]);
+
+/** The footer's Trust and Support group takes these from the public list (LAND1). */
 export const FOOTER_TRUST_ROUTES: readonly string[] = Object.freeze(['/trust']);

@@ -74,7 +74,8 @@ describe('selected identity in the application shell', () => {
   it('shows Sign in for an unsigned-in visitor without a provider fallback', async () => {
     const html = await renderServer(RootLayout({ children: null }));
     expect(html).toContain('Sign In');
-    expect(html).not.toContain('Workspace');
+    // The footer's "Workspaces" group name is not the signed-in Workspace link.
+    expect(html).not.toContain('>Workspace<');
   });
 
   it('keeps public navigation signed out and reports a selected-provider outage', async () => {
@@ -82,7 +83,7 @@ describe('selected identity in the application shell', () => {
     mocks.currentIdentity.mockRejectedValue(error);
     const html = await renderServer(RootLayout({ children: null }));
     expect(html).toContain('Sign In');
-    expect(html).not.toContain('Workspace');
+    expect(html).not.toContain('>Workspace<');
     expect(mocks.reportServerError).toHaveBeenCalledWith('public navigation identity', error);
   });
 

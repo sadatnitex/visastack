@@ -244,3 +244,8 @@ Merged and checked live (Vercel, Deploy Smoke, Playwright Deploy Smoke, live sig
 Live lanes: TIDY1 (removes unused Home wording keys and dead stylesheet rules, no visible change; docs) and PUB5 pass 2 (public-site verification). PR #581 (Bengali refill 7) is stale.
 
 Not verified: real-device behaviour of the switched-off features; a signed-in human click-through of the Wallet and My Profile screens (what is checked is the CI guard on made-up people).
+
+## Update, 2026-11-26 (LAND1): the approved homepage
+
+The Home page is replaced by the owner-approved homepage (the Harbor Blue folio, English first): a Bangladesh-focused first screen with a destination picker that opens a short general preparation plan, a row about sources, privacy and the product's state, a sample family case, the reusable record, the agency request workflow, five common questions and one closing action. The public header (a "How It Works" menu, Country Guides, For Agencies) and footer (Travellers, Workspaces, Trust and Support) change on every public page. What it says about the product's state comes from the deployment mode and whether registration is open, the same facts the banner, status and legal pages use. Details, differences from the design and what is not covered: `docs/upgrades/programme/pub/LAND1-records.md`. Not live until the pull request is merged and deployed; the Bangla words of the new page are not drafted (the sections are marked English on a Bangla page).
+

@@ -37,12 +37,8 @@ async function render(locale: 'en' | 'bn') {
   return textOf(await renderServer(HomePage({ searchParams: Promise.resolve({}) })));
 }
 
-/** The Home page keeps three catalogued messages; every other word is English until localized (R1). */
-const KEPT_KEYS = [
-  'home.page.inviteOnlyPilot',
-  'home.page.seeWhatWorksToday',
-  'home.page.forAgencies',
-] as const;
+/** The Home page keeps one catalogued label (the status link) and the two notice sentences; every other word is English until localized (LAND1). */
+const KEPT_KEYS = ['home.page.seeWhatWorksToday', 'home.page.pleaseUseMadeUpDetailsOr'] as const;
 
 describe('the home page words that have a catalogue entry', () => {
   it('reads in English under en, with no Bengali and no raw keys', async () => {
@@ -66,7 +62,12 @@ describe('the home page words that have a catalogue entry', () => {
 
   it('leaves the chapter words in English under bn (no draft yet), never a raw key', async () => {
     const text = await render('bn');
-    for (const words of ['One record.', 'Add it once.', 'Know where', 'Start with']) {
+    for (const words of [
+      'Your visa paperwork',
+      'See what’s ready.',
+      'Give your next trip a head start.',
+      'Where’s your next trip?',
+    ]) {
       expect(text, words).toContain(words);
     }
   });
@@ -80,7 +81,7 @@ describe('the home page words that have a catalogue entry', () => {
   it('shows the risk notice in Bengali while the public beta is open', async () => {
     current.betaOpen = true;
     try {
-      const key = 'home.page.freePublicBeta' as const;
+      const key = 'home.page.itIsFreeToUseAt' as const;
       const text = await render('bn');
       expect(text).toContain(homeCatalog.bn[key] ?? homeCatalog.en[key]);
     } finally {

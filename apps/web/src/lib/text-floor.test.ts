@@ -12,7 +12,7 @@ const APP = join(__dirname, '..', 'app');
 const globals = readFileSync(join(APP, 'globals.css'), 'utf8');
 const KIT = join(__dirname, '..', 'components', 'public-site', 'kit');
 const homeSheets = [
-  readFileSync(join(APP, 'home-story.css'), 'utf8'),
+  readFileSync(join(APP, 'home-landing.css'), 'utf8'),
   readFileSync(join(KIT, 'kit.css'), 'utf8'),
 ].join('\n');
 

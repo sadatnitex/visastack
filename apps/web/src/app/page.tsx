@@ -1,20 +1,37 @@
+import { destinationByIso2 } from '@visastack/core/destinations';
 import { homeCatalog } from '../i18n/home';
+import { getDeploymentMode } from '../lib/deployment-mode';
 import { getPageLanguage, getServerT, primeLocale } from '../lib/i18n-server';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
-import { HomeStory } from './home-story';
+import { HomeLanding } from './home-landing';
 
 /**
- * The public home page, rebuilt on the owner-approved reference (R1, 18 Nov 2026): eight chapters
- * (the record, adding a document, the country checklist, the case journey, sharing, sources,
- * agencies and the closing call) and nothing else between the header and the footer. The pictures
- * and chapter parts live in `components/public-site/kit`; the story in `home-story.tsx`.
+ * The public home page, the owner-approved homepage (Harbor Blue folio, English first): a
+ * Bangladesh-focused first screen with the destination planner, the plan it opens, sources and
+ * status, a sample family case, the reusable record, the agency workflow, the common questions and
+ * one closing action. The body is `home-landing.tsx`; the planner's choice state is the one small
+ * client part (`components/landing/planner.tsx`).
  *
  * Written for a traveller or an agency who has never heard of the product: plain words, and every
- * drawn example says it is an example. No engineering vocabulary and no tool names (guarded by
- * `lib/plain-language.test.ts`). The buttons keep today's labels and links: which one leads depends
- * on whether the visitor is signed in and whether the public beta is open.
+ * drawn example says it is an example (guarded by `lib/plain-language.test.ts`). The account button
+ * keeps today's labels and links: which one leads depends on whether the visitor is signed in and
+ * whether the public beta is open.
  */
+
+/**
+ * The destinations the planner suggests first, by their two-letter codes. Each name comes from the
+ * country catalogue, so it is the very name the country guides search for (`/countries?q=`); a code
+ * the catalogue does not hold is left out rather than guessed.
+ */
+const SUGGESTED_DESTINATIONS = ['JP', 'SG', 'GB', 'CA', 'DE', 'AU'] as const;
+
+function suggestedDestinations(): string[] {
+  return SUGGESTED_DESTINATIONS.flatMap((iso2) => {
+    const destination = destinationByIso2(iso2);
+    return destination ? [destination.country] : [];
+  });
+}
 
 interface HomePageProps {
   readonly searchParams: Promise<{ readonly auth_error?: string }>;
@@ -51,22 +68,21 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   );
 
   return (
-    <HomeStory
-      notice={notice}
+    <HomeLanding
       pageLang={getPageLanguage()}
-      nudge={betaOpen ? t.node('home.page.freePublicBeta') : t.node('home.page.inviteOnlyPilot')}
+      destinations={suggestedDestinations()}
+      deploymentMode={getDeploymentMode()}
+      registrationOpen={betaOpen}
+      start={{ label: startLabel, href: startHref }}
+      notice={notice}
+      statusLabel={t.node('home.page.seeWhatWorksToday')}
       alert={
         authError ? (
-          <p className="notice notice-warn hs-alert" role="alert">
+          <p className="notice notice-warn lp-alert" role="alert">
             {t.node('home.page.signInDidnTCompletePlease')} <strong>{authError}</strong>.
           </p>
         ) : null
       }
-      actions={{
-        start: { label: startLabel, href: startHref },
-        status: { label: t.node('home.page.seeWhatWorksToday'), href: '/status' },
-        forAgencies: t.node('home.page.forAgencies'),
-      }}
     />
   );
 }

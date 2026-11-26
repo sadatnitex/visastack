@@ -140,7 +140,6 @@ describe('the page language (WCAG 3.1.2)', () => {
 });
 
 const { PILOT_BANNER_COPY } = await import('../components/pilot-banner');
-const { PUBLIC_NAV } = await import('../components/public-site/public-nav');
 
 describe('the public site frame (WP-PUB1)', () => {
   afterEach(() => {
@@ -152,18 +151,27 @@ describe('the public site frame (WP-PUB1)', () => {
   const header = (html: string) => html.slice(html.indexOf('<header'), html.indexOf('</header>'));
   const footer = (html: string) => html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
 
-  it('lists the five public pages in the header, for visitors and signed-in people alike', async () => {
+  it('draws the header as the approved homepage arranges it: the How It Works menu, Country Guides, For Agencies (LAND1)', async () => {
     for (const signedIn of [false, true]) {
       state.signedIn = signedIn;
       const nav = header(await renderServer(RootLayout({ children: <p>Page</p> })));
-      const labels = [...nav.matchAll(/<div class="site-nav-pages">(.*?)<\/div>/g)][0]?.[1] ?? '';
-      expect(textOf(labels).replace(/\s+/g, '')).toBe(
-        PUBLIC_NAV.map((entry) => entry.label.replace(/\s+/g, '')).join(''),
+      // The disclosure menu: one button, three entries; the first two are parts of the home page.
+      expect(nav).toMatch(
+        /<button type="button" class="site-nav-group-toggle"[^>]*aria-expanded="false"/,
       );
+      expect(textOf(nav.slice(nav.indexOf('site-nav-group-toggle')))).toContain('How It Works');
+      for (const fragment of [
+        'href="/#prepare"><strong>Prepare a Case</strong>',
+        'href="/#your-record"><strong>Your Reusable Record</strong>',
+        'href="/trust" class="site-nav-wide-only"><strong>Privacy and Control</strong>',
+        'href="/countries">Country Guides</a>',
+        'href="/for-agencies">For Agencies</a>',
+      ])
+        expect(nav, fragment).toContain(fragment);
       expect(nav).toContain(signedIn ? 'href="/app">Workspace</a>' : 'href="/app">Sign In</a>');
-      // WP-PUB4: the public Countries page is live, so everyone's header opens it (a signed-in person
-      // starts a country from there straight into the app).
-      expect(nav).toContain('href="/countries">Countries</a>');
+      // The phone menu adds the trust page and the questions part of Home after the pages.
+      expect(nav).toContain('class="menu-link" href="/trust">Privacy and Trust</a>');
+      expect(nav).toContain('class="menu-link" href="/#questions">Common Questions</a>');
     }
   });
 
@@ -173,8 +181,10 @@ describe('the public site frame (WP-PUB1)', () => {
       // The public pages, named as the header names them (owner, 17 Nov 2026).
       'href="/how-it-works">How It Works</a>',
       'href="/trust">Privacy and Trust</a>',
-      'href="/countries">Countries</a>',
+      'href="/countries">Country Guides</a>',
       'href="/for-agencies">For Agencies</a>',
+      'href="/#your-record">Your Reusable Record</a>',
+      'href="/#questions">Common Questions</a>',
       'href="/status">Status</a>',
       'href="/status#about-this-version">About This Version</a>',
       'href="/privacy">Privacy</a>',

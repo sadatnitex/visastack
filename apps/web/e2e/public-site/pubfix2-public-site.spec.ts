@@ -37,52 +37,8 @@ async function open(
   });
 }
 
-// P2-2: nothing of the Home first screen is cut by the screen edges or the fold.
-for (const size of [
-  { width: 1280, height: 800 },
-  { width: 1440, height: 900 },
-  { width: 1280, height: 720 },
-  { width: 1920, height: 1080 },
-  { width: 1024, height: 768 },
-  { width: 1100, height: 700 },
-]) {
-  test(`P2-2 Home first screen ${size.width}x${size.height}: every picture and the readiness note sit inside the screen`, async ({
-    page,
-    baseURL,
-  }) => {
-    await open(page, baseURL, '/', size);
-    await expect(page.locator('html')).toHaveAttribute('data-scene-mode', 'pinned');
-    const boxes = await page.evaluate(() =>
-      [
-        ...document.querySelectorAll<HTMLElement>(
-          '[data-scene="hero"] .kit-deck-doc, [data-scene="hero"] .hs-hero-chip, [data-scene="hero"] .hs-hero-note',
-        ),
-      ].map((el) => {
-        const box = el.getBoundingClientRect();
-        return {
-          name: el.getAttribute('data-slot') ?? el.className,
-          left: box.left,
-          top: box.top,
-          right: box.right,
-          bottom: box.bottom,
-          width: innerWidth,
-          height: innerHeight,
-        };
-      }),
-    );
-    // Four side pictures, the hero passport, the readiness pill and its Example line.
-    expect(boxes).toHaveLength(7);
-    for (const box of boxes) {
-      expect(box.left, `${box.name} left`).toBeGreaterThanOrEqual(0);
-      expect(box.top, `${box.name} top`).toBeGreaterThanOrEqual(0);
-      expect(box.right, `${box.name} right`).toBeLessThanOrEqual(box.width);
-      expect(box.bottom, `${box.name} bottom`).toBeLessThanOrEqual(box.height);
-      // The Example line keeps 16 px of clearance below it (a build machine's fonts run a little taller).
-      if (box.name.includes('hs-hero-note'))
-        expect(box.bottom, 'Example line clearance').toBeLessThanOrEqual(box.height - 16);
-    }
-  });
-}
+// P2-2 (the Home first screen's pictures) and P2-7 (the Home journey) were retired with the scroll
+// story they checked; the approved homepage (LAND1) has its own checks in land1-homepage.spec.ts.
 
 // P2-3: the first phone screen of Privacy and Trust holds at most 30 words of the page itself.
 test('P2-3 Privacy and Trust first screen 360x640 holds 30 visible words or fewer (English and Bengali)', async ({
@@ -209,91 +165,6 @@ test('P2-6 the Where We Are Today heading never passes over its paragraph while 
     await page.waitForTimeout(80);
   }
   for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(0);
-});
-
-// P2-7: the journey starts on its first stage everywhere; on a phone it then plays through the stages
-// and the card follows; with reduced motion and without script it rests on Getting Started.
-test('P2-7 the Home journey rests on Getting Started with reduced motion and without script', async ({
-  browser,
-  baseURL,
-}) => {
-  const cases = [
-    {
-      name: 'reduced motion',
-      options: { viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' as const },
-    },
-    {
-      name: 'reduced motion, computer',
-      options: { viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' as const },
-    },
-    {
-      name: 'no script',
-      options: { viewport: { width: 390, height: 844 }, javaScriptEnabled: false },
-    },
-  ];
-  for (const one of cases) {
-    const context = await browser.newContext({ ...one.options, ...(baseURL ? { baseURL } : {}) });
-    const page = await context.newPage();
-    await page.goto('/');
-    await page.locator('[data-scene="journey"]').scrollIntoViewIfNeeded();
-    await page.waitForTimeout(one.name === 'no script' ? 0 : 5000);
-    const journey = page.locator('[data-scene="journey"]');
-    await expect(journey, one.name).toHaveAttribute('data-rest', '0');
-    await expect(journey, one.name).toHaveAttribute('data-step', '0');
-    await expect(
-      journey.locator('.kit-stage-title:visible'),
-      `${one.name}: the card words`,
-    ).toHaveText('Getting Started');
-    await context.close();
-  }
-});
-
-test('P2-7 on a phone the journey starts on Getting Started, plays through every stage with the card following, and rests on the last', async ({
-  browser,
-  baseURL,
-}) => {
-  const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    ...(baseURL ? { baseURL } : {}),
-  });
-  const page = await context.newPage();
-  await page.goto('/');
-  const journey = page.locator('[data-scene="journey"]');
-  await expect(journey).toHaveAttribute('data-step', '0');
-  await expect(journey.locator('.kit-stage-title:visible')).toHaveText('Getting Started');
-  const height = (await journey.boundingBox())?.height ?? 0;
-  const seen: string[] = [];
-  const titles = new Set<string>();
-  await page.evaluate(() => {
-    const el = document.querySelector('[data-scene="journey"]') as HTMLElement;
-    window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 120);
-  });
-  for (let i = 0; i < 60; i += 1) {
-    const state = await journey.evaluate((el) => ({
-      step: el.getAttribute('data-step') ?? '',
-      title: (
-        [...el.querySelectorAll<HTMLElement>('.kit-stage')]
-          .find((stage) => getComputedStyle(stage).visibility === 'visible')
-          ?.querySelector('.kit-stage-title')?.textContent ?? ''
-      ).trim(),
-      height: el.getBoundingClientRect().height,
-    }));
-    if (seen[seen.length - 1] !== state.step) seen.push(state.step);
-    if (state.title) titles.add(state.title);
-    // The scene never changes height while it plays.
-    expect(Math.abs(state.height - height)).toBeLessThanOrEqual(1);
-    if (state.step === '6' && (await journey.getAttribute('data-reveal')) === 'done') break;
-    await page.waitForTimeout(150);
-  }
-  expect(seen[0]).toBe('0');
-  expect(seen).toContain('3');
-  expect(seen[seen.length - 1]).toBe('6');
-  // The card followed the stages: first, a middle one and the last were each shown.
-  expect(titles.has('Getting Started')).toBe(true);
-  expect(titles.size).toBeGreaterThanOrEqual(5);
-  await expect(journey.locator('.kit-stage-title:visible')).toHaveCount(1);
-  await expect(journey.locator('.kit-stage-title:visible')).toHaveText('Closed');
-  await context.close();
 });
 
 // P2-9: the footer's Terms, Status and pilot notice are at least 44 x 44.

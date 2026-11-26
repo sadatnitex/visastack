@@ -165,6 +165,7 @@
     "apps/web/src/components/ui-lift/next-step-panel.tsx": 1,
     "apps/web/src/components/ui-lift/step-bar.tsx": 1,
     "apps/web/src/components/ui.tsx": 4,
-    "apps/web/src/components/visa-photo-sizes.tsx": 1
+    "apps/web/src/components/visa-photo-sizes.tsx": 1,
+    "apps/web/src/components/landing/accordion.tsx": 1
   }
 }
