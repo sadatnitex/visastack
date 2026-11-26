@@ -32,6 +32,9 @@ export function guideHref(country: string): string {
 export type Party = 'self' | 'family';
 
 interface PlannerState {
+  /** What the list shows now (not yet planned for). */
+  readonly choice: string;
+  /** The destination the open plan is for: set only when the form is submitted. */
   readonly country: string;
   readonly open: boolean;
   readonly party: Party;
@@ -58,6 +61,7 @@ export function LandingPlanner({
   /** The words announced when the preparation mode changes (one per mode). */
   readonly statusWords: Readonly<Record<Party, string>>;
 }) {
+  const [choice, setChoice] = useState('');
   const [country, setCountry] = useState('');
   const [open, setOpen] = useState(false);
   const [party, setPartyState] = useState<Party>('self');
@@ -91,8 +95,18 @@ export function LandingPlanner({
   );
 
   const value = useMemo<PlannerState>(
-    () => ({ country, open, party, choose: setCountry, submit, setParty, headingRef, status }),
-    [country, open, party, submit, setParty, status],
+    () => ({
+      choice,
+      country,
+      open,
+      party,
+      choose: setChoice,
+      submit,
+      setParty,
+      headingRef,
+      status,
+    }),
+    [choice, country, open, party, submit, setParty, status],
   );
   return <PlannerContext.Provider value={value}>{children}</PlannerContext.Provider>;
 }
@@ -113,7 +127,7 @@ export function PlannerForm({
   readonly destinations: readonly string[];
   readonly footer: ReactNode;
 }) {
-  const { country, choose, submit } = usePlanner();
+  const { choice, choose, submit } = usePlanner();
   return (
     <form
       className="lp-planner"
@@ -130,7 +144,7 @@ export function PlannerForm({
             id="lp-destination"
             name="q"
             required
-            value={country}
+            value={choice}
             onChange={(event) => choose(event.target.value)}
           >
             <option value="" disabled>

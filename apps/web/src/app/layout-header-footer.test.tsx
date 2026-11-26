@@ -168,10 +168,12 @@ describe('the header (NAV2)', () => {
 describe('the footer (NAV2)', () => {
   const groups = async () => {
     const doc = await page();
-    const out: Partial<Record<string, string[]>> = {};
+    const out: Partial<Record<'Travellers' | 'Workspaces' | 'Trust and Support', string[]>> = {};
     for (const group of doc.querySelectorAll('footer .site-footer-group')) {
       const name = group.querySelector('.site-footer-heading')?.textContent ?? '';
-      out[name] = texts(group.querySelectorAll('a'));
+      out[name as 'Travellers' | 'Workspaces' | 'Trust and Support'] = texts(
+        group.querySelectorAll('a'),
+      );
     }
     return { doc, out };
   };

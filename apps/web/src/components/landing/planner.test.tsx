@@ -62,7 +62,7 @@ function mount() {
           family: 'Family preparation steps shown.',
         }}
       >
-        <main>
+        <div>
           <h1>Your visa paperwork</h1>
           <PlannerForm
             words={{
@@ -74,7 +74,7 @@ function mount() {
             footer={<span>Start without an account.</span>}
           />
           <PlannerPlan words={PLAN} />
-        </main>
+        </div>
       </LandingPlanner>,
     ),
   );
@@ -135,8 +135,9 @@ describe('the destination planner', () => {
       '/countries?q=United%20Kingdom',
     );
     expect(plan.querySelector('h2')?.textContent).toBe('Getting ready for United Kingdom');
-    // Choosing again updates the same plan.
+    // Choosing again changes nothing until the form is sent, then updates the same plan.
     choose(select, 'Japan');
+    expect(plan.querySelector('h2')?.textContent).toBe('Getting ready for United Kingdom');
     submit(form);
     expect(plan.querySelector('h2')?.textContent).toBe('Getting ready for Japan');
   });
@@ -171,9 +172,9 @@ describe('the destination planner', () => {
 
   it('has no accessibility problems open or closed', async () => {
     const { form, select } = mount();
-    expect(await axeViolations(container)).toEqual([]);
+    expect(await axeViolations(container.innerHTML)).toEqual([]);
     choose(select, 'Japan');
     submit(form);
-    expect(await axeViolations(container)).toEqual([]);
+    expect(await axeViolations(container.innerHTML)).toEqual([]);
   });
 });

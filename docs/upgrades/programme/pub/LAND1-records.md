@@ -29,6 +29,10 @@ This replaces the Home page of R1 (eight scroll chapters), MOB1 (phone density) 
 | One extra link under the closing action: the established account action (sign up, sign in or workspace) | keeps today's destinations on Home |
 | Studio-only "Compare designs" is left out | studio navigation |
 
+## Deliberate ratchet change
+
+`scripts/ui-ratchet.baseline.json` gains one entry: `apps/web/src/components/landing/accordion.tsx` (one raw disclosure, the approved design's plus and minus row, used eight times). The product's Expandable Section is a card row with a heading and a chevron and would change the approved look; the homepage keeps its one small component instead of eight raw disclosures.
+
 ## Not covered
 
 - The Bangla words of the new page: the approved copy has no translation yet, so on a Bangla page each section is marked English (WCAG 3.1.2), as R1 did. The header menu name, the status link and the notice keep their Bangla words.

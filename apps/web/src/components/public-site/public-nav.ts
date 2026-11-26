@@ -114,6 +114,8 @@ export interface HowMenuEntry {
   readonly description: string;
   /** Left out of the phone menu, which lists this page once, in its own words, further down. */
   readonly wideOnly?: boolean;
+  /** The catalogue key with the same words, when one exists, so Bangla visitors read them. */
+  readonly key?: 'home.layout.privacyAndControl';
 }
 
 export const HOW_MENU: readonly HowMenuEntry[] = Object.freeze([
@@ -132,6 +134,7 @@ export const HOW_MENU: readonly HowMenuEntry[] = Object.freeze([
     label: 'Privacy and Control',
     description: 'See what agencies can access.',
     wideOnly: true,
+    key: 'home.layout.privacyAndControl',
   },
 ]);
 

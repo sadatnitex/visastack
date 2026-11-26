@@ -234,7 +234,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
                 currentRoutes: HOW_MENU_ROUTES,
                 items: HOW_MENU.map((entry) => ({
                   href: entry.href,
-                  label: publicText(entry.label, htmlLang),
+                  label: entry.key ? t.node(entry.key) : publicText(entry.label, htmlLang),
                   description: publicText(entry.description, htmlLang),
                   ...(entry.wideOnly ? { wideOnly: true } : {}),
                 })),
