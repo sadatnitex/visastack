@@ -110,7 +110,7 @@ export function publicSentence(
   );
   const seen = new Map<string, number>();
   const pieces = text.split(/(\{\w+\})/g).map((piece) => {
-    const name = /^\{(\w+)\}$/.exec(piece)?.[1];
+    const name = piece.match(/^\{(\w+)\}$/)?.[1];
     if (name === undefined || !(name in parts)) return piece;
     // A token used twice gets its own key each time (the count so far, not the array position).
     const turn = seen.get(name) ?? 0;
