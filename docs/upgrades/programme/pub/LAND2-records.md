@@ -51,3 +51,7 @@ Branch `claude/nifty-meitner-iso6vc`. Draft pull request; not merged, not deploy
 ## Review round (26 Nov 2026, /code-review high)
 
 Five findings, all fixed: the message files no longer ship to the browser (the server passes the few live keyed lines through the provider, the status list and the sharing picture are worded on the server; `public-lookup.test.ts` guards client components against importing the lookup); figure labels that had lost their English mark now go through the lookup; a Bengali tab title appears only on a page marked Bengali; the Home planner reuses the Countries page's country-name fallback; repeated sentence tokens get unique keys.
+
+## CI round (26 Nov 2026)
+
+First push: the static scan read a regex `.exec(` as shell execution (fixed with `String.match`). Second push: `WP-SB8` (`/countries` in Bengali, phone) measured 5,248 px against a 4,962 px limit. The guard was not touched; the Bengali list now keeps Latin line heights for its English official lines, a tighter line for country names and the note, and 1.6 for the closing paragraphs (`apps/web/src/app/countries/countries.css`, block marked LAND2). Local measure after: 4,885 px in the spec (budget 4,962 px), English 4,689 px.
