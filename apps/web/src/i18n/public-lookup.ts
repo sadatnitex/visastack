@@ -1,3 +1,7 @@
+import { AGENCIES_MESSAGES } from './agencies-messages';
+import { COUNTRIES_MESSAGES } from './countries-messages';
+import { HOW_MESSAGES } from './how-messages';
+import { LEGAL_MESSAGES } from './legal-messages';
 import type { PublicMessage } from './message-kit';
 import { SHELL_MESSAGES } from './shell-messages';
 import { TITLES_MESSAGES } from './titles-messages';
@@ -9,7 +13,14 @@ import { TITLES_MESSAGES } from './titles-messages';
  * messages are found; a held message is simply not here, so the English stays, exactly as for any
  * message with no Bengali.
  */
-const FILES: readonly Readonly<Record<string, PublicMessage>>[] = [SHELL_MESSAGES, TITLES_MESSAGES];
+const FILES: readonly Readonly<Record<string, PublicMessage>>[] = [
+  SHELL_MESSAGES,
+  TITLES_MESSAGES,
+  HOW_MESSAGES,
+  AGENCIES_MESSAGES,
+  COUNTRIES_MESSAGES,
+  LEGAL_MESSAGES,
+];
 
 const byEnglish = new Map<string, PublicMessage>();
 const byKey = new Map<string, PublicMessage>();

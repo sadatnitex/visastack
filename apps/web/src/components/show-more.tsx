@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { type SearchParamsRecord, pagingHref } from '../lib/paging';
 
 /** How to name the rows in the count, for example `{ one: 'case', other: 'cases' }`. */
@@ -57,6 +57,9 @@ export function ShowMore({
   noun,
   landOn,
   label = 'Show More',
+  labelText,
+  labelNote,
+  countText,
 }: {
   /** Unique on the page. */
   readonly id: string;
@@ -74,6 +77,12 @@ export function ShowMore({
   readonly total?: number;
   readonly noun: RowNoun;
   readonly label?: 'Show More' | 'Show Older Entries';
+  /** The button's words in the visitor's language (the public pages); absent means `label`. */
+  readonly labelText?: ReactNode;
+  /** What a screen reader adds after a Show More button, in the visitor's language. */
+  readonly labelNote?: ReactNode;
+  /** The count line in the visitor's language; absent means the English count. */
+  readonly countText?: ReactNode;
 }) {
   const target = landOn ?? id;
   const href = next ? pagingHref(pathname, searchParams, next, target) : null;
@@ -101,12 +110,14 @@ export function ShowMore({
   return (
     <div className="show-more" id={id}>
       <output className="show-more-count muted u-fs-085">
-        {showMoreCount({ shown, total, noun, more: href !== null })}
+        {countText ?? showMoreCount({ shown, total, noun, more: href !== null })}
       </output>
       {href ? (
         <Link className="btn btn-secondary u-btn-sm show-more-link" href={href}>
-          {label}
-          {label === 'Show More' ? <span className="sr-only"> {noun.other}</span> : null}
+          {labelText ?? label}
+          {label === 'Show More' ? (
+            <span className="sr-only"> {labelNote ?? noun.other}</span>
+          ) : null}
         </Link>
       ) : null}
     </div>

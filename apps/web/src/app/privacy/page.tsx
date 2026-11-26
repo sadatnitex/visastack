@@ -1,13 +1,31 @@
 import { SIGNUP_PRIVACY_VERSION } from '@visastack/services';
 import Link from 'next/link';
+import {
+  messageLang,
+  publicMessage,
+  publicSentence,
+} from '../../components/public-site/public-text';
+import { LEGAL_MESSAGES as M } from '../../i18n/legal-messages';
 import { readEnv } from '../../lib/env';
+import { getPageLanguage, primeLocale } from '../../lib/i18n-server';
 import { localizedMetadata } from '../../lib/localized-metadata';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 
 export const generateMetadata = localizedMetadata({ title: 'Privacy Notice' });
 export const dynamic = 'force-dynamic';
 
-export default function PrivacyPage() {
+/**
+ * The Privacy Notice. Every paragraph is legal wording: the Bengali is written out in full in
+ * `i18n/legal-messages.ts` and held until signed off, so a Bengali visitor reads the English (marked
+ * English) today; the link texts are live. English is exactly as before.
+ */
+export default async function PrivacyPage() {
+  const locale = await primeLocale();
+  const lang = getPageLanguage();
+  const say = (
+    message: Parameters<typeof publicMessage>[0],
+    params?: Record<string, string | number>,
+  ) => publicMessage(message, lang, locale, params);
   const storage = readEnv('STORAGE_PROVIDER');
   const fileStorage =
     storage === 'r2'
@@ -16,54 +34,64 @@ export default function PrivacyPage() {
         ? 'Vercel'
         : storage === 'neon'
           ? 'Neon'
-          : 'The configured private storage service';
+          : null;
+  // A named service keeps its name in every language; the generic words are a message of their own.
+  const storageWords = fileStorage ?? publicMessage(M['privacy.storage.generic'], lang, locale);
+  // A link inside a sentence names its own language whenever Bengali is chosen (the sentence around
+  // it may be held English), and carries no mark at all in English.
+  const linkMark = (key: 'privacy.access.link' | 'legal.termsLink' | 'legal.signupLink') =>
+    locale === 'bn' ? { lang: messageLang(M[key], locale) } : {};
   return (
     <section className="section container" style={{ maxWidth: '48rem' }}>
-      <h1 className="page-title">Privacy Notice</h1>
-      <p className="card-body">
-        Version {SIGNUP_PRIVACY_VERSION}. This beta notice awaits legal review.
-      </p>
-      <h2>Information and Purpose</h2>
+      <h1 className="page-title">{say(M['privacy.title'])}</h1>
+      <p className="card-body">{say(M['privacy.version'], { version: SIGNUP_PRIVACY_VERSION })}</p>
+      <h2>{say(M['privacy.info.heading'])}</h2>
       <p>
-        Account registration uses your name, email address and sign-in information to create and
-        protect your account and send confirmation or recovery messages. Security controls record
-        registration attempts and notice versions.{' '}
-        {isPublicBetaOpen()
-          ? 'During the free public beta you may add your own information and documents. The Terms of Use say what to expect while the beta runs.'
-          : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.'}
+        {say(M['privacy.info.body'])}{' '}
+        {isPublicBetaOpen() ? say(M['privacy.info.open']) : say(M['legal.madeUp'])}
       </p>
-      <h2>Services That Process Information</h2>
+      <h2>{say(M['privacy.services.heading'])}</h2>
+      <p>{publicSentence(M['privacy.services.body'], { storage: storageWords }, lang, locale)}</p>
+      <h2>{say(M['privacy.choices.heading'])}</h2>
+      <p>{say(M['privacy.choices.body'])}</p>
+      <h2>{say(M['privacy.access.heading'])}</h2>
       <p>
-        Vercel hosts the application. {fileStorage} stores private files. Cloudflare R2 stores
-        encrypted backup archives when backups are configured. Neon stores application records. Neon
-        Auth handles sign-in. Resend handles application email when configured. Authentication email
-        uses the configured sign-in provider's mail service. These services can process information
-        outside your country. This notice does not claim a particular data location or a completed
-        compliance review.
+        {publicSentence(
+          M['privacy.access.body'],
+          {
+            link: (
+              <Link href="/app/privacy" {...linkMark('privacy.access.link')}>
+                {publicMessage(
+                  M['privacy.access.link'],
+                  messageLang(M['privacy.access.link'], locale),
+                )}
+              </Link>
+            ),
+          },
+          lang,
+          locale,
+        )}
       </p>
-      <h2>Separate Choices</h2>
+      <h2>{say(M['privacy.storage.heading'])}</h2>
+      <p>{say(M['privacy.storage.body'])}</p>
       <p>
-        Acknowledging this notice does not grant marketing permission, enable optional AI processing
-        or share records with an agency. Sharing and optional processing require their own choices
-        and applicable permissions. We do not request marketing consent during registration.
-      </p>
-      <h2>Access, Export and Deletion</h2>
-      <p>
-        Signed-in users can use <Link href="/app/privacy">privacy controls</Link> to review
-        available consent choices, export their account information or request deletion. Deletion is
-        a process, not an immediate promise to erase every record: legal holds and required audit
-        retention can restrict it. Revoking sharing stops future permitted access; it cannot recall
-        copies someone has already downloaded.
-      </p>
-      <h2>Storage and Recovery</h2>
-      <p>
-        Independent backup and restore protections are still being completed. Do not use this pilot
-        as the only copy of important records. Keep your own originals until real-data safeguards
-        and their acceptance checks are complete.
-      </p>
-      <p>
-        <Link href="/terms">Read the Terms of Use</Link> or{' '}
-        <Link href="/auth/sign-up">return to account creation</Link>.
+        {publicSentence(
+          M['privacy.footer'],
+          {
+            terms: (
+              <Link href="/terms" {...linkMark('legal.termsLink')}>
+                {publicMessage(M['legal.termsLink'], messageLang(M['legal.termsLink'], locale))}
+              </Link>
+            ),
+            signup: (
+              <Link href="/auth/sign-up" {...linkMark('legal.signupLink')}>
+                {publicMessage(M['legal.signupLink'], messageLang(M['legal.signupLink'], locale))}
+              </Link>
+            ),
+          },
+          lang,
+          locale,
+        )}
       </p>
     </section>
   );
