@@ -93,7 +93,7 @@ describe('page titles', () => {
     expect(layout).toContain('publicNavLinks(');
     // The header (not only the footer) draws its pages from that one list.
     expect(layout).toContain('const links = publicNavLinks(undefined, { signedIn });');
-    expect(layout).toMatch(/<SiteNavigation[\s\S]*?pages=\{links\.map\(/);
+    expect(layout).toMatch(/<SiteNavigation[\s\S]*?pages=\{links\s*\.filter\([\s\S]*?\.map\(/);
     expect(layout).toMatch(/<SiteFooter[\s\S]*?pages=\{links\}/);
     expect(layout).not.toContain('home.layout.publicTrust');
     // WP-PUB4 (Guardian, 18 Nov 2026): the public page is told apart from the signed-in "Countries" by its tab title.

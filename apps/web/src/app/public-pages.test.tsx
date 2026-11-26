@@ -174,39 +174,27 @@ describe('public and entry pages today', () => {
   });
 });
 
-/** WP-PUB2: the Home page's scroll story sits inside the page that was already there. */
-describe('the public home page with its scroll story (WP-PUB2)', () => {
-  it('keeps one top heading, the three anchors other pages use, and the sign-in action as it was', async () => {
+/** LAND1: the Home page's anchors and account action sit inside the page that was already there. */
+describe('the public home page (LAND1)', () => {
+  it('keeps one top heading, the anchors other pages use, and the sign-in action as it was', async () => {
     const { default: Home } = await import('./page');
     const document = dom(renderToStaticMarkup(await Home(SEARCH())));
     expect(document.querySelectorAll('h1')).toHaveLength(1);
-    for (const id of ['how-it-works', 'for-agencies', 'start', 'capabilities']) {
+    for (const id of ['how-it-works', 'for-agencies', 'start', 'capabilities', 'sources']) {
       expect(document.querySelectorAll(`[id="${id}"]`), id).toHaveLength(1);
     }
-    expect(document.querySelector('a.pub-button[href="/app"]')?.textContent).toContain(
+    expect(document.querySelector('a.lp-button[href="/app"]')?.textContent).toContain(
       'Sign in to get started',
     );
-    expect(document.body.textContent).toContain('Invite-Only Pilot');
+    expect(document.body.textContent).toContain('This is a private pilot for invited users');
   });
 
-  it('runs five scenes in order, each with a finished step the server already wrote', async () => {
+  it('is one still page: the sections the header menus point at are all there, each once', async () => {
     const { default: Home } = await import('./page');
     const document = dom(renderToStaticMarkup(await Home(SEARCH())));
-    const scenes = [...document.querySelectorAll('[data-scene]')];
-    expect(scenes.map((scene) => scene.getAttribute('data-scene'))).toEqual([
-      'hero',
-      'add',
-      'ready',
-      'journey',
-      'share',
-    ]);
-    // The finished step is the last, except the sharing scene, which rests before `Access Ended`,
-    // and the journey, which rests on its first stage like the approved reference (PUBFIX2 P2-7).
-    for (const scene of scenes) {
-      const last = Number(scene.getAttribute('data-steps')) - 1;
-      const name = scene.getAttribute('data-scene');
-      const finished = name === 'share' ? last - 1 : name === 'journey' ? 0 : last;
-      expect(Number(scene.getAttribute('data-step'))).toBe(finished);
+    expect(document.querySelectorAll('[data-scene]')).toHaveLength(0);
+    for (const id of ['planner', 'prepare', 'your-record', 'for-agencies', 'questions', 'start']) {
+      expect(document.querySelectorAll(`[id="${id}"]`), id).toHaveLength(1);
     }
   });
 });

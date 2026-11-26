@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 describe('the header (NAV2)', () => {
-  it('draws the brand, the five pages and the actions in one bar, in that order', async () => {
+  it('draws the brand, the menu and two pages, and the actions in one bar, in that order', async () => {
     const doc = await page();
     const bar = doc.querySelector('header.nav');
     expect(bar).not.toBeNull();
@@ -57,24 +57,55 @@ describe('the header (NAV2)', () => {
       (el) => el.className.split(' ')[0],
     );
     expect(inner).toEqual(['site-menu-panel', 'site-nav-actions', 'site-menu-toggle']);
-    expect(texts(doc.querySelectorAll('.site-nav-pages a'))).toEqual(
-      PUBLIC_NAV.map((entry) => entry.label),
-    );
+    // LAND1: one disclosure menu ("How It Works", three entries), then Country Guides and For Agencies.
+    const pages = doc.querySelector('.site-nav-pages');
+    expect(pages?.children[0]?.className).toBe('site-nav-group');
+    expect(texts(pages?.querySelectorAll(':scope > .site-nav-group > button') ?? [])).toEqual([
+      'How It Works',
+    ]);
+    expect(texts(pages?.querySelectorAll('.site-nav-group-panel a strong') ?? [])).toEqual([
+      'Prepare a Case',
+      'Your Reusable Record',
+      'Privacy and Control',
+    ]);
+    expect(texts(pages?.querySelectorAll(':scope > a') ?? [])).toEqual([
+      'Country Guides',
+      'For Agencies',
+    ]);
   });
 
-  it('marks the current page with aria-current and no other page', async () => {
-    for (const entry of PUBLIC_NAV) {
-      navigationState.pathname = entry.route;
+  it('opens its menu from a labelled button that starts closed and names the panel it controls', async () => {
+    const doc = await page();
+    const button = doc.querySelector('button.site-nav-group-toggle');
+    expect(button?.getAttribute('aria-expanded')).toBe('false');
+    const panel = doc.getElementById(button?.getAttribute('aria-controls') ?? '');
+    expect(panel?.classList.contains('site-nav-group-panel')).toBe(true);
+    expect(doc.querySelector('.site-nav-group')?.getAttribute('data-open')).toBe('false');
+  });
+
+  it('marks the current page with aria-current, and the menu while one of its pages is open', async () => {
+    for (const route of ['/countries', '/for-agencies']) {
+      navigationState.pathname = route;
       const doc = await page();
-      const current = doc.querySelectorAll('.site-nav-pages a[aria-current="page"]');
-      expect(texts(current), entry.route).toEqual([entry.label]);
+      const label = PUBLIC_NAV.find((entry) => entry.route === route)?.label;
+      expect(
+        texts(doc.querySelectorAll('.site-nav-pages > a[aria-current="page"]')),
+        route,
+      ).toEqual([label]);
+      expect(doc.querySelector('.site-nav-group-toggle[data-current]'), route).toBeNull();
     }
-    navigationState.pathname = '/trust/uk.standard-visitor';
-    expect(
-      texts((await page()).querySelectorAll('.site-nav-pages a[aria-current="page"]')),
-    ).toEqual(['Privacy and Trust']);
+    for (const route of ['/how-it-works', '/trust', '/trust/uk.standard-visitor']) {
+      navigationState.pathname = route;
+      const doc = await page();
+      expect(doc.querySelectorAll('.site-nav-pages a[aria-current="page"]').length, route).toBe(0);
+      expect(doc.querySelector('.site-nav-group-toggle')?.getAttribute('data-current'), route).toBe(
+        'true',
+      );
+    }
     navigationState.pathname = '/privacy';
-    expect((await page()).querySelectorAll('.site-nav-pages a[aria-current]').length).toBe(0);
+    const doc = await page();
+    expect(doc.querySelectorAll('.site-nav-pages a[aria-current]').length).toBe(0);
+    expect(doc.querySelector('.site-nav-group-toggle[data-current]')).toBeNull();
   });
 
   it('has one filled action: Get Started, with Sign In quiet beside it and repeated in the menu', async () => {
@@ -137,29 +168,42 @@ describe('the header (NAV2)', () => {
 describe('the footer (NAV2)', () => {
   const groups = async () => {
     const doc = await page();
-    const out: Partial<Record<'Product' | 'Trust' | 'Account', string[]>> = {};
+    const out: Partial<Record<string, string[]>> = {};
     for (const group of doc.querySelectorAll('footer .site-footer-group')) {
       const name = group.querySelector('.site-footer-heading')?.textContent ?? '';
-      out[name as 'Product' | 'Trust' | 'Account'] = texts(group.querySelectorAll('a'));
+      out[name] = texts(group.querySelectorAll('a'));
     }
     return { doc, out };
   };
 
-  it('groups its links as Product, Trust and Account, with the names the header uses', async () => {
+  it('groups its links as Travellers, Workspaces and Trust and Support, with the names the header uses (LAND1)', async () => {
     const { out } = await groups();
     expect(out).toEqual({
-      Product: ['How It Works', 'Countries', 'For Agencies'],
-      Trust: ['Privacy and Trust', 'Privacy', 'Terms', 'Status', 'About This Version'],
-      Account: ['Sign In', 'Get Started'],
+      Travellers: ['How It Works', 'Your Reusable Record', 'Country Guides'],
+      Workspaces: ['For Agencies', 'Sign In', 'Get Started'],
+      'Trust and Support': [
+        'Privacy and Trust',
+        'Status',
+        'Common Questions',
+        'About This Version',
+      ],
     });
+  });
+
+  it('keeps the legal links in a quiet row under the groups', async () => {
+    const doc = await page();
+    expect(texts(doc.querySelectorAll('.site-footer-base .site-footer-legal a'))).toEqual([
+      'Privacy',
+      'Terms',
+    ]);
   });
 
   it('offers Workspace, and no Get Started, to a signed-in person, and none while sign-up is closed', async () => {
     state.signedIn = true;
-    expect((await groups()).out.Account).toEqual(['Workspace']);
+    expect((await groups()).out.Workspaces).toEqual(['For Agencies', 'Workspace']);
     state.signedIn = false;
     state.beta = false;
-    expect((await groups()).out.Account).toEqual(['Sign In']);
+    expect((await groups()).out.Workspaces).toEqual(['For Agencies', 'Sign In']);
   });
 
   it('points every link at a page that exists', async () => {
@@ -176,7 +220,8 @@ describe('the footer (NAV2)', () => {
       if (PUBLIC_NAV.some((entry) => entry.route === route)) {
         expect(LIVE_ROUTES.has(route), route).toBe(true);
       }
-      if (anchor) expect(anchor).toBe('about-this-version');
+      // Parts of Home (the reusable record, the questions) and the status page's version notice.
+      if (anchor) expect(['about-this-version', 'your-record', 'questions']).toContain(anchor);
     }
   });
 
@@ -193,7 +238,7 @@ describe('the footer (NAV2)', () => {
   it('says what VisaStack is in one line and shows the version line from the page notice, word for word', async () => {
     const doc = await page();
     expect(doc.querySelector('.site-footer-about')?.textContent).toBe(
-      'One private profile for every visa.',
+      'Visa preparation for travellers, families and the agencies that help them.',
     );
     expect(doc.querySelector('.site-footer-beta')?.textContent).toBe('VisaStack Public Beta');
     state.beta = false;

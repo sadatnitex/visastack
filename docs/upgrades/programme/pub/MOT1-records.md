@@ -64,3 +64,6 @@ Done as a manual checklist by the builder (the design review skill was not avail
 - Moving between pages without a reload: a page with no scenes still gets the mode marks while its runtime is mounted; `/trust` (R3) no longer mounts the scenes runtime, so after a client-side visit from a scene page its rises start un-lowered (visible, just not animated) until a full load. Same behaviour as before this unit on big screens.
 - Generated CSS: `kit/kit-steps.css` gains a generated block (steps 0 to 11 only, like the block above it) and `kit/kit.css` 12 tab rules; both are kept in step by `kit/kit.test.tsx`. Inline custom properties would shrink them but the security policy forbids inline styles.
 - The scroll engine budget check measures `scene-engine.ts` only; `scene-reveal.ts` is covered by the per-route growth limit.
+
+
+Superseded, replaced by `docs/upgrades/programme/pub/LAND1-records.md` (26 Nov 2026): the Home page this record describes is replaced by the approved homepage; the text above stays as history.

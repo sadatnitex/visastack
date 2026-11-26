@@ -31,23 +31,18 @@ test.describe('WP-SB8 landing page', () => {
   }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     await page.goto('/');
-    await expect(page.locator('#hs-hero-title')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.hs-hero .pub-button-primary')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('#lp-title')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.lp-planner .lp-primary')).toBeInViewport({ ratio: 1 });
     await expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'enforce' });
-    // Desktop: 12 screens since WP-PUB2 (owner decision, 17 Nov 2026), for the pinned scroll scenes.
+    // Desktop: 12 screens since WP-PUB2 (owner decision, 17 Nov 2026); the approved homepage is a
+    // still page of about four.
     await expectWithinBudget(page, { screens: 12, viewport: 'desktop' });
   });
 
-  test('the page keeps its pictures finished and still on a phone, with no sideways scroll', async ({
-    page,
-  }) => {
+  test('the page is still on a phone, with no scene and no sideways scroll', async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     await page.goto('/');
-    await expect(page.locator('details')).toHaveCount(0);
-    for (const name of ['hero', 'add', 'ready', 'journey', 'share']) {
-      const stage = page.locator(`[data-scene="${name}"] .pub-scene-stage`);
-      await expect(stage, name).not.toHaveCSS('position', 'sticky');
-    }
+    await expect(page.locator('[data-scene]')).toHaveCount(0);
     const sideways = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );

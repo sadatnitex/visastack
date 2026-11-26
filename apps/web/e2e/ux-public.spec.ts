@@ -58,10 +58,10 @@ test.describe('responsive layout', () => {
 });
 
 /**
- * R1: the Home page rebuilt on the approved reference. No sideways scroll at any width, and the
- * headline, the main action and the pilot line show without scrolling on a small phone.
+ * LAND1: the Home page rebuilt on the approved homepage. No sideways scroll at any width, and the
+ * headline, the planner and the pilot line show without scrolling on a small phone.
  */
-test.describe('Home page (R1)', () => {
+test.describe('Home page (LAND1)', () => {
   for (const width of [320, 360, 390, 768, 1024, 1440]) {
     test(`no sideways scroll and no words cut off at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -73,28 +73,31 @@ test.describe('Home page (R1)', () => {
     });
   }
 
-  test('headline, one primary action and the availability line show without scrolling at 360x640', async ({
+  test('headline, the planner and the availability line show without scrolling at 360x640', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/');
-    await expect(page.locator('#hs-hero-title')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('#hs-hero-title')).toHaveText(/One record\.\s*Every visa\./);
-    await expect(page.locator('.hs-hero .pub-button-primary')).toBeInViewport({ ratio: 1 });
-    // MOB1 (19 Nov 2026): a phone drops the pill inside the hero; the availability wording stays on
-    // the first screen in the banner above the header.
-    await expect(page.locator('.hs-hero .hs-nudge')).toBeHidden();
+    await expect(page.locator('#lp-title')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('#lp-title')).toHaveText(/Your visa paperwork,\s*in order\./);
+    // LAND1: the one first-screen action is the planner's button, below the pilot banner and the header.
+    await expect(page.getByRole('button', { name: 'See My First Steps' })).toBeInViewport({
+      ratio: 1,
+    });
     await expect(page.locator('.pilot-banner')).toBeInViewport({ ratio: 1 });
     await expect(page.locator('.pilot-banner')).toHaveText(/public beta|pilot/i);
   });
 
-  test('a computer still shows the availability pill inside the hero at 1440x900', async ({
+  test('a computer shows the availability line above the header and the reassurance row about the same state', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.locator('.hs-hero .hs-nudge')).toBeVisible();
-    await expect(page.locator('.hs-hero .hs-nudge')).toHaveText(/public beta|pilot/i);
+    await expect(page.locator('.pilot-banner')).toBeVisible();
+    await expect(page.locator('.pilot-banner')).toHaveText(/public beta|pilot/i);
+    await expect(page.locator('.lp-assurance')).toContainText(
+      /public beta|controlled pilot|test build/i,
+    );
   });
 });
 
@@ -1007,21 +1010,18 @@ test.describe('authoritative appearance on public routes', () => {
     const menu = page.getByRole('button', { name: 'Menu', exact: true });
     await expect(page.locator('header.nav')).toHaveCSS('height', '64px');
     await menu.click();
-    await expect(
-      page
-        .getByRole('navigation', { name: 'Site', exact: true })
-        .getByRole('link', { name: 'Home', exact: true }),
-    ).toBeFocused();
+    await expect(page.getByRole('link', { name: 'Prepare a Case', exact: true })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
     await page
       .getByRole('navigation', { name: 'Site', exact: true })
-      .getByRole('link', { name: 'How It Works', exact: true })
+      .getByRole('link', { name: 'Country Guides', exact: true })
       .click();
-    // WP-PUB3 (approved guard correction): the menu link opens the How It Works page.
-    await expect(page).toHaveURL(/\/how-it-works$/);
+    // LAND1 (approved guard correction): the menu opens the Country Guides page; How It Works is a
+    // menu of parts of Home now, and its own page is one step further (the footer and Home).
+    await expect(page).toHaveURL(/\/countries$/);
     await expect(page.locator('main h1')).toHaveCount(1);
   });
   test('homepage anchors resolve and desktop header follows the reference geometry', async ({
@@ -1030,14 +1030,14 @@ test.describe('authoritative appearance on public routes', () => {
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto('/');
     const box = await page.locator('header.nav').boundingBox();
-    expect(box?.width).toBe(1448);
+    // LAND1: the approved header is one flat bar the width of the page, 72 px tall.
+    expect(box?.width).toBe(1600);
     expect(box?.height).toBe(72);
-    // R1 Home geometry and colour: the headline weight and size, and the navy chapter.
-    await expect(page.locator('.kit-h1')).toHaveCSS('font-weight', '800');
-    await expect(page.locator('.kit-h1')).toHaveCSS('font-size', '80px');
-    // Legibility (G1b): loose enough that letters never touch (-0.04em of 80px).
-    await expect(page.locator('.kit-h1')).toHaveCSS('letter-spacing', '-3.2px');
-    await expect(page.locator('.pub-chapter-dark').first()).toHaveCSS(
+    // The approved Home geometry and colour: the serif headline at 7vw, the navy caption plate.
+    await expect(page.locator('#lp-title')).toHaveCSS('font-weight', '400');
+    await expect(page.locator('#lp-title')).toHaveCSS('font-size', '112px');
+    await expect(page.locator('#lp-title')).toHaveCSS('font-family', /Instrument Serif/);
+    await expect(page.locator('.lp-photo-caption')).toHaveCSS(
       'background-color',
       'rgb(11, 26, 48)',
     );

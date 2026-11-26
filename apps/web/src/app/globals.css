@@ -24154,3 +24154,211 @@ html body:has(.auth-shell) > .footer {
   }
 }
 /* end WP-NAV3 */
+
+/* WP-LAND1 header and footer of the approved homepage (26 Nov 2026). The public header becomes one flat bar the width of the page with a hairline under it, the brand on the left and the actions on the right, as the approved design draws it: this replaces the floating rounded bar of NAV2 on every public page (the grid, the menu and the two language rules above are unchanged). It holds one disclosure menu, "How It Works", then Country Guides and For Agencies. On a phone the same links sit in the one menu, the disclosure's entries first, in 44 px rows. The footer keeps NAV2's layout with its three groups renamed (Travellers, Workspaces, Trust and Support) and a quiet legal row. Flat: no shadow, gradient or translucency. */
+html {
+  scroll-padding-top: 88px;
+}
+html[data-locale] .nav {
+  top: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-block: 0;
+  padding-inline: max(clamp(20px, 4.2vw, 68px), calc((100% - 1232px) / 2));
+  border: 0;
+  border-bottom: 1px solid var(--hairline-soft);
+  border-radius: 0;
+}
+@media (min-width: 900px) {
+  html[data-locale] .nav {
+    height: auto;
+    min-height: 72px;
+  }
+}
+.site-nav-group {
+  position: relative;
+}
+.site-nav-group-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 620;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.site-nav-group-toggle::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-top: -4px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+.site-nav-group-toggle:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.site-nav-group[data-open="true"] > .site-nav-group-toggle {
+  color: var(--accent);
+}
+.site-nav-group[data-open="true"] > .site-nav-group-toggle::after {
+  margin-top: 3px;
+  transform: rotate(225deg);
+}
+.site-nav-group-toggle[data-current="true"] {
+  color: var(--text);
+}
+.site-nav-group-toggle[data-current="true"]::before {
+  content: "";
+  position: absolute;
+  inset: auto 10px 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.site-nav-group-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 7px);
+  left: -8px;
+  z-index: 60;
+  width: min(325px, 80vw);
+  padding: 7px;
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  background: #ffffff;
+}
+.site-nav-group[data-open="true"] .site-nav-group-panel {
+  display: block;
+}
+.nav-links .site-nav-group-panel a:not(.btn) {
+  display: block;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  color: var(--text);
+  white-space: normal;
+}
+.nav-links .site-nav-group-panel a:not(.btn):hover {
+  background: var(--brand-bg);
+  color: var(--accent);
+}
+.site-nav-group-panel strong,
+.site-nav-group-panel span {
+  display: block;
+}
+.site-nav-group-panel strong {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.site-nav-group-panel span {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.menu-link {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  color: var(--text-secondary);
+  font-size: var(--text-body);
+  font-weight: 620;
+}
+.menu-link:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+  text-decoration: none;
+}
+@media (max-width: 899.98px) {
+  html[data-locale] .site-navigation .site-menu-panel {
+    right: clamp(12px, 4vw, 24px);
+  }
+  html[data-locale] .site-nav-group-toggle {
+    display: none;
+  }
+  html[data-locale] .site-nav-group-panel {
+    display: flex;
+    position: static;
+    flex-direction: column;
+    gap: 2px;
+    width: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  html[data-locale] .nav-links .site-nav-group-panel a:not(.btn) {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    border-radius: 14px;
+    color: var(--text-secondary);
+    font-size: var(--text-body);
+    font-weight: 620;
+  }
+  html[data-locale] .nav-links .site-nav-group-panel a:not(.btn):hover {
+    background: var(--bg-subtle);
+    color: var(--text);
+  }
+  html[data-locale] .site-nav-group-panel span,
+  html[data-locale] .nav-links .site-nav-group-panel a.site-nav-wide-only:not(.btn) {
+    display: none;
+  }
+}
+.site-footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+.site-footer-legal a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  font-weight: 560;
+}
+.site-footer-legal a:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@media (forced-colors: active) {
+  .site-nav-group-toggle[data-current="true"]::before {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}
+@media (min-width: 1151px) {
+  html[data-locale] .nav .brand {
+    font-size: 1.28rem;
+    letter-spacing: -0.05em;
+  }
+}
+html[data-locale] .nav-links a:not(.btn),
+html[data-locale] .site-nav-group-toggle {
+  color: var(--text);
+}
+html[data-locale] .nav-links a:not(.btn):hover,
+html[data-locale] .site-nav-group-toggle:hover {
+  color: var(--accent);
+}
+/* end WP-LAND1 */

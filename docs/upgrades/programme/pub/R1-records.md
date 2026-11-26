@@ -46,3 +46,6 @@ Independent fresh-context review (read-only) raised 12 findings; fixed: dimmed s
 ## Not verified
 
 Real devices and real visitors; Bangla layout beyond the page-height budget; the WP-SB2 case-page checks (`WP-LIFT-B the real case page`, page height 3368 against 3350) failed in my local run and I could not tell whether main fails them too (the Home change does not load that page); keyboard and screen-reader use by a person; CodeQL and CI on the pushed head.
+
+
+Superseded, replaced by `docs/upgrades/programme/pub/LAND1-records.md` (26 Nov 2026): the Home page this record describes is replaced by the approved homepage; the text above stays as history.
