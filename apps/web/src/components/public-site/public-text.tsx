@@ -105,10 +105,10 @@ export function publicSentence(
     params,
     lang === 'bn' ? 'bn-BD' : 'en',
   );
-  const pieces = text.split(/(\{\w+\})/g).map((piece, index) => {
+  const pieces = text.split(/(\{\w+\})/g).map((piece) => {
     const name = /^\{(\w+)\}$/.exec(piece)?.[1];
     return name !== undefined && name in parts ? (
-      <Fragment key={`${name}-${index}`}>{parts[name]}</Fragment>
+      <Fragment key={name}>{parts[name]}</Fragment>
     ) : (
       piece
     );

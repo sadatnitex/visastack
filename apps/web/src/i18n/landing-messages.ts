@@ -168,7 +168,7 @@ export const LANDING_MESSAGES = {
     'বেছে নেওয়া তথ্য নিয়ে কপি করার মতো একটি শিট বানান, যা অন্য ফর্ম পূরণের সময় কাজে লাগবে।',
   ),
   'landing.history.name': o('A passport renewal', 'পাসপোর্ট নবায়ন'),
-  'landing.history.example': o('Example', 'উদাহরণ'),
+  'landing.history.example': held('example', 'Example', 'উদাহরণ'),
   'landing.history.previousTerm': o('Previous Case', 'আগের ভিসা ফাইল'),
   'landing.history.previousName': o('Earlier Passport', 'আগের পাসপোর্ট'),
   'landing.history.previousBody': o(

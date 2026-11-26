@@ -11,7 +11,7 @@ const legal = (en: string, bn: string) => held('legal', en, bn);
 
 export const LEGAL_MESSAGES = {
   // Privacy Notice
-  'privacy.title': legal('Privacy Notice', 'গোপনীয়তা নোটিশ'),
+  'privacy.title': o('Privacy Notice', 'গোপনীয়তা নোটিশ'),
   'privacy.version': legal(
     'Version {version}. This beta notice awaits legal review.',
     'সংস্করণ {version}। এই বিটা নোটিশ আইনি পর্যালোচনার অপেক্ষায় আছে।',
@@ -60,7 +60,7 @@ export const LEGAL_MESSAGES = {
   'legal.privacyLink': o('Read the Privacy Notice', 'গোপনীয়তা নোটিশ পড়ুন'),
 
   // Terms of Use
-  'terms.title': legal('Terms of Use', 'ব্যবহারের শর্তাবলি'),
+  'terms.title': o('Terms of Use', 'ব্যবহারের শর্তাবলি'),
   'terms.version': legal(
     'Version {version}. These beta terms await legal review.',
     'সংস্করণ {version}। এই বিটা শর্তাবলি আইনি পর্যালোচনার অপেক্ষায় আছে।',

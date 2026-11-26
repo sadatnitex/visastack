@@ -165,9 +165,12 @@ describe('story parts', () => {
   });
   it('publicText leaves English pages alone', () => {
     expect(html(<p>{publicText('Countries', 'en')}</p>)).toBe('<p>Countries</p>');
-    expect(html(<p>{publicText('Countries', 'bn')}</p>)).toBe(
-      '<p><span lang="en">Countries</span></p>',
+    // Words with no drafted Bengali stay English, marked English on a Bengali page (LAND2).
+    expect(html(<p>{publicText('Not drafted anywhere', 'bn')}</p>)).toBe(
+      '<p><span lang="en">Not drafted anywhere</span></p>',
     );
+    // Drafted, live words read in Bengali.
+    expect(html(<p>{publicText('Countries', 'bn')}</p>)).toMatch(/^<p>[\u0980-\u09FF ]+<\/p>$/);
   });
 });
 

@@ -8,7 +8,7 @@ describe('pageLanguage', () => {
 
   it('is English for a Bangla visitor on a route that is not ready', () => {
     expect(pageLanguage('bn', '/status', ['/trust'])).toBe('en');
-    expect(pageLanguage('bn', '/status')).toBe('en');
+    expect(pageLanguage('bn', '/invitation')).toBe('en');
   });
 
   it('is Bangla for a Bangla visitor on a ready route', () => {
@@ -22,14 +22,15 @@ describe('pageLanguage', () => {
     expect(pageLanguage('bn', '', ['/'])).toBe('en');
   });
 
-  it('lists only the translated screens today: the auth screens and Home', () => {
+  it('lists the translated screens today: the auth screens, Home and the public pages', () => {
     expect(BN_READY_ROUTES).toContain('/auth/sign-in');
     expect(pageLanguage('bn', '/auth/confirmed')).toBe('en');
-    expect(pageLanguage('bn', '/auth/account-recovery')).toBe('en');
+    expect(pageLanguage('bn', '/auth/account-recovery')).toBe('bn');
     expect(pageLanguage('bn', '/')).toBe('bn');
-    expect(pageLanguage('bn', '/how-it-works')).toBe('en');
-    expect(pageLanguage('bn', '/countries')).toBe('en');
-    expect(pageLanguage('bn', '/status')).toBe('en');
+    expect(pageLanguage('bn', '/how-it-works')).toBe('bn');
+    expect(pageLanguage('bn', '/countries')).toBe('bn');
+    expect(pageLanguage('bn', '/status')).toBe('bn');
+    expect(pageLanguage('bn', '/invitation')).toBe('en');
     expect(pageLanguage('bn', '/auth/sign-in')).toBe('bn');
     expect(pageLanguage('en', '/auth/sign-in')).toBe('en');
   });

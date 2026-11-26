@@ -26,8 +26,8 @@ describe('404 screens (VS-010)', () => {
     expect(text).not.toMatch(/permission|denied|forbidden|not allowed|access/i);
   });
 
-  it('keeps the public 404 a way home, with Title Case words', () => {
-    const text = textOf(renderToStaticMarkup(<RootNotFound />));
+  it('keeps the public 404 a way home, with Title Case words', async () => {
+    const text = textOf(renderToStaticMarkup(await RootNotFound()));
     expect(text).toContain('Not Found');
     expect(text).toContain('Go to Workspace');
     expect(text).toContain('Back to Home');

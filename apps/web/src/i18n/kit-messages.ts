@@ -3,10 +3,10 @@
  * country checklist, the share sheet, the agency case list) and the document names they use. The
  * people, countries and dates in them are made up. Not approved by a person (message-kit.ts).
  */
-import { o } from './message-kit';
+import { held, o } from './message-kit';
 
 export const KIT_MESSAGES = {
-  'kit.example': o('Example', 'উদাহরণ'),
+  'kit.example': held('example', 'Example', 'উদাহরণ'),
   'kit.cases': o('Cases', 'ভিসা ফাইল'),
   'kit.shareTitle': o('Share with Agency', 'এজেন্সির সঙ্গে শেয়ার'),
   'kit.notShared': o('Not Shared', 'শেয়ার করা হয়নি'),

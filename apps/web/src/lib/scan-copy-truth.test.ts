@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { EN } from '@visastack/i18n';
 import { describe, expect, it } from 'vitest';
 import { authCatalog } from '../i18n/auth';
@@ -76,7 +76,8 @@ describe('words about file checks', () => {
     // Owner decision, 19 Nov 2026: the public pages and the top notice name only the Public Beta.
     // The full disclaimer, including the scanning sentence, stays on /terms, and the truthful
     // "not scanned for viruses yet" lines stay inside the app at the upload moment.
-    const terms = read(SURFACES.terms).replace(/\s+/g, ' ');
+    // The Terms wording lives in i18n/legal-messages.ts (LAND2: held for sign-off in Bengali).
+    const terms = (read(SURFACES.terms) + read('../i18n/legal-messages.ts')).replace(/\s+/g, ' ');
     expect(terms).toContain('virus scanning of uploads');
     expect(terms).toContain('not switched on yet');
     for (const name of [
@@ -90,6 +91,15 @@ describe('words about file checks', () => {
       const text = read(SURFACES[name]).replace(/\s+/g, ' ');
       expect(text, name).not.toMatch(/own risk|virus scanning/i);
     }
+    // (The status page names the feature in its own list of what works today, as its English always did.)
+    // The drafted Bengali for the other public pages never brings the sentence back either.
+    for (const file of readdirSync(new URL('../i18n/', import.meta.url)))
+      if (
+        file.endsWith('-messages.ts') &&
+        file !== 'legal-messages.ts' &&
+        file !== 'status-messages.ts'
+      )
+        expect(read(`../i18n/${file}`), file).not.toMatch(/own risk|virus scanning|ভাইরাস/i);
     // Every public catalogue, English and Bengali (a Bengali refill must not bring the sentence back).
     const PUBLIC = {
       home: homeCatalog,

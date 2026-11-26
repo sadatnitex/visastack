@@ -88,7 +88,13 @@ export function CountryChecklistPanel({
             const have = countOf(country, total);
             return (
               <span className="kit-sw" data-at={index} key={country.code}>
-                <b>{publicFormat('{name}: {have} of {total} Ready', { name: publicString(country.name, pageLang).text, have, total }, pageLang)}</b>
+                <b>
+                  {publicFormat(
+                    '{name}: {have} of {total} Ready',
+                    { name: publicString(country.name, pageLang).text, have, total },
+                    pageLang,
+                  )}
+                </b>
                 <span>{say(`${have} reused from your record. ${total - have} to add.`)}</span>
               </span>
             );

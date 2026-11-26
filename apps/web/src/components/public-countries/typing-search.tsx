@@ -183,7 +183,11 @@ export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: Typi
             spellCheck={false}
             maxLength={SEARCH_MAX}
             placeholder={tc('components.countryBrowser.searchCountries')}
-            {...(demoWord ? (pageLang === 'en' ? {} : { lang: 'en' }) : tc.lang('components.countryBrowser.searchCountries'))}
+            {...(demoWord
+              ? pageLang === 'en'
+                ? {}
+                : { lang: 'en' }
+              : tc.lang('components.countryBrowser.searchCountries'))}
             value={text}
             onChange={onChange}
             onFocus={stopDemo}
@@ -202,7 +206,11 @@ export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: Typi
       >
         {results.map((entry) => (
           <li key={entry.c}>
-            <a className="r4-result" href={hrefFor(entry.c)} {...(pageLang === 'en' ? {} : { lang: 'en' })}>
+            <a
+              className="r4-result"
+              href={hrefFor(entry.c)}
+              {...(pageLang === 'en' ? {} : { lang: 'en' })}
+            >
               {entry.f ? (
                 <img
                   src={`/flags/${entry.f}.svg`}

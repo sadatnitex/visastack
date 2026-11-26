@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../components/i18n-provider';
 import { renderServer } from '../lib/next-mocks.test-support';
 

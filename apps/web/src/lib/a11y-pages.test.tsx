@@ -239,7 +239,7 @@ const PAGES: readonly Page[] = [
     build: async () => <AgencyNotReviewed agencyName="Acme Visas" />,
   },
   { name: 'client invitation that is no longer open', build: async () => <ClosedInvitation /> },
-  { name: 'page not found', build: async () => <NotFound /> },
+  { name: 'page not found', build: async () => await NotFound() },
   {
     name: 'something went wrong',
     build: async () => (
