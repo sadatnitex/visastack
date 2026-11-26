@@ -152,7 +152,8 @@ test('.ts files are walked for folds (createElement), and only for folds', () =>
  * scripts/ui-ratchet.baseline.json needs the Guardian's approval written in the pull request.
  * When a count goes down, lower both this table and the baseline in the same change.
  */
-const PINNED_TOTALS = { inlineStyles: 279, rawCodes: 0, emDashes: 0, folds: 183 };
+const PINNED_TOTALS = { inlineStyles: 279, rawCodes: 0, emDashes: 0, folds: 184 };
+// 184: LAND1 (26 Nov 2026) adds components/landing/accordion.tsx, the approved homepage's one plus and minus disclosure (see docs/upgrades/programme/pub/LAND1-records.md, "Deliberate ratchet change"). Raised on purpose, named in the pull request.
 
 test('the baseline totals are pinned, so the baseline cannot be raised quietly', () => {
   const baseline = JSON.parse(
