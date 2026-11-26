@@ -753,3 +753,65 @@ html:has(.lp) {
     gap: 2px;
   }
 }
+
+/* Bengali (the page is marked bn): the display faces have no Bengali letters, so headings use the
+   site's Bengali face; Bengali needs no negative tracking (it breaks joined letters), a taller line,
+   no synthetic italic, and slightly smaller display sizes so long Bengali headings fit. Held English
+   fragments keep Latin glyphs from the fallback stack and their own `lang="en"`. */
+html:lang(bn) .lp {
+  --lp-serif: var(--font-bengali), var(--font-inter), sans-serif;
+  --lp-grotesk: var(--font-bengali), var(--font-inter), sans-serif;
+}
+html:lang(bn) .lp :is(h1, h2, .lp-photo-caption strong) {
+  letter-spacing: 0;
+  line-height: 1.25;
+  font-weight: 700;
+}
+html:lang(bn) .lp :is(h1, h2) em {
+  font-style: normal;
+}
+html:lang(bn) .lp h1 {
+  max-width: 18ch;
+  font-size: clamp(2.4rem, min(4.2vw, 9vh), 4.2rem);
+}
+html:lang(bn) .lp .lp-hero h1 em {
+  white-space: normal;
+}
+html:lang(bn) .lp :is(.lp-start h2, .lp-faq h2, .lp-agency h2, .lp-record h2, .lp-close h2) {
+  font-size: clamp(1.7rem, 3.6vw, 3.2rem);
+}
+html:lang(bn) .lp .lp-process h2 {
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  max-width: none;
+}
+html:lang(bn) .lp .lp-record h2,
+html:lang(bn) .lp .lp-agency h2 {
+  max-width: none;
+}
+html:lang(bn) .lp .lp-photo-caption strong {
+  font-size: clamp(1.25rem, 2.1vw, 2rem);
+  max-width: 22ch;
+}
+html:lang(bn) .lp p,
+html:lang(bn) .lp li,
+html:lang(bn) .lp dd {
+  line-height: 1.75;
+}
+html:lang(bn) .lp .lp-lead {
+  max-width: 44ch;
+}
+html:lang(bn) .lp :is(.lp-button, summary, .lp-pill) {
+  line-height: 1.5;
+}
+@media (max-width: 700px) {
+  html:lang(bn) .lp h1 {
+    max-width: none;
+    font-size: clamp(2.2rem, 9vw, 3.4rem);
+  }
+  html:lang(bn) .lp :is(.lp-start h2, .lp-faq h2, .lp-agency h2, .lp-record h2, .lp-close h2) {
+    font-size: clamp(1.6rem, 7vw, 2.4rem);
+  }
+  html:lang(bn) .lp .lp-process h2 {
+    font-size: clamp(1.8rem, 7.6vw, 2.6rem);
+  }
+}

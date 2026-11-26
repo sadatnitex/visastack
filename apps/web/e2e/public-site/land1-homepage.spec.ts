@@ -457,3 +457,158 @@ test('the page is still: nothing on it animates or is pinned', async ({ page }) 
   expect(running).toBe(0);
   await expect(page.locator('header.nav')).toHaveCSS('position', 'sticky');
 });
+
+test.describe('Home in Bengali (LAND2)', () => {
+  const BENGALI = /[ঀ-৿]/;
+
+  /** Opens Home and chooses Bengali the way a visitor does, with the language switch. */
+  async function openBengali(
+    browser: import('@playwright/test').Browser,
+    _baseURL: string | undefined,
+    size = { width: 390, height: 844 },
+    javaScriptEnabled = true,
+  ) {
+    const context = await browser.newContext({ viewport: size, javaScriptEnabled });
+    const page = await context.newPage();
+    await page.goto('/');
+    const bar = page.locator('.lang-switch');
+    if (await bar.isVisible()) await bar.click();
+    else {
+      await page.locator('button.site-menu-toggle').click();
+      await page.locator('.menu-lang').click();
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-locale', 'bn');
+    await expect(page.locator('#lp-title')).toBeVisible();
+    return { page, context };
+  }
+
+  test('is a Bengali page: lang, headline, planner words, no English left unmarked', async ({
+    browser,
+    baseURL,
+  }) => {
+    const { page, context } = await openBengali(browser, baseURL);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    await expect(page.locator('#lp-title')).toContainText('আপনার ভিসার কাগজপত্র');
+    await expect(page.getByLabel('আপনি কোথায় যাচ্ছেন?')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'আমার প্রথম ধাপগুলো দেখুন' })).toBeVisible();
+    // Every Latin-letter text in the page body is the product name or sits in a lang="en" part.
+    const loose = await page.evaluate(() => {
+      const found: string[] = [];
+      const walker = document.createTreeWalker(document.querySelector('main') as Node, 4);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const text = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const el = n.parentElement;
+        if (!text || !el || el.closest('script, style')) continue;
+        if (!/[A-Za-z]{2,}/.test(text.replaceAll('VisaStack', ''))) continue;
+        if (/[ঀ-৿]/.test(text) || el.closest('[lang="en"]')) continue;
+        found.push(text);
+      }
+      return found;
+    });
+    expect(loose).toEqual([]);
+    await context.close();
+  });
+
+  test('the planner names countries in Bengali, sends the English name, and plans in Bengali', async ({
+    browser,
+    baseURL,
+  }) => {
+    const { page, context } = await openBengali(browser, baseURL);
+    const select = page.getByLabel('আপনি কোথায় যাচ্ছেন?');
+    await expect(select.locator('option')).toHaveText([
+      'গন্তব্য বেছে নিন',
+      'জাপান',
+      'সিঙ্গাপুর',
+      'যুক্তরাজ্য',
+      'কানাডা',
+      'জার্মানি',
+      'অস্ট্রেলিয়া',
+    ]);
+    await select.selectOption('United Kingdom');
+    await page.getByRole('button', { name: 'আমার প্রথম ধাপগুলো দেখুন' }).click();
+    const heading = page.getByRole('heading', { name: 'যুক্তরাজ্য যাওয়ার প্রস্তুতি' });
+    await expect(heading).toBeFocused();
+    const guide = page.getByRole('link', { name: 'দেশের গাইডে যুক্তরাজ্য খুঁজুন' });
+    await expect(guide).toHaveAttribute('href', '/countries?q=United%20Kingdom');
+    await page.getByRole('button', { name: 'পরিবারের জন্য' }).click();
+    await expect(page.locator('.lp-start output')).toHaveText(
+      'পরিবারের জন্য প্রস্তুতির ধাপগুলো দেখানো হচ্ছে।',
+    );
+    await expect(page.getByText('প্রত্যেক ভ্রমণকারীর কপি দেখে নিন')).toBeVisible();
+    await guide.click();
+    await expect(page).toHaveURL(/\/countries\?q=United(%20|\+)Kingdom$/);
+    await expect(page.locator('input[name="q"]')).toHaveValue('United Kingdom');
+    await context.close();
+  });
+
+  test('without JavaScript the form still sends the English country name to the guides', async ({
+    browser,
+    baseURL,
+  }) => {
+    const { page, context } = await openBengali(
+      browser,
+      baseURL,
+      { width: 1440, height: 900 },
+      false,
+    );
+    await page.getByLabel('আপনি কোথায় যাচ্ছেন?').selectOption('United Kingdom');
+    await page.getByRole('button', { name: 'আমার প্রথম ধাপগুলো দেখুন' }).click();
+    await expect(page).toHaveURL(/\/countries\?q=United(%20|\+)Kingdom$/);
+    await expect(page.locator('input[name="q"]')).toHaveValue('United Kingdom');
+    await context.close();
+  });
+
+  for (const [width, height] of [
+    [360, 740],
+    [390, 844],
+    [768, 1024],
+    [1440, 900],
+  ] as const) {
+    test(`fits ${width}x${height}: no sideways scroll, nothing cut off, no serious accessibility problem`, async ({
+      browser,
+      baseURL,
+    }) => {
+      const { page, context } = await openBengali(browser, baseURL, { width, height });
+      await settle(page);
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways).toBeLessThanOrEqual(0);
+      // Long Bengali headings stay inside their column.
+      const cut = await page.evaluate(() =>
+        [...document.querySelectorAll('main h1, main h2, main .lp-button')]
+          .filter((el) => el.scrollWidth > el.clientWidth + 1)
+          .map((el) => (el.textContent ?? '').slice(0, 30)),
+      );
+      expect(cut).toEqual([]);
+      const results = await new AxeBuilder({ page })
+        .include('main')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+        .analyze();
+      expect(
+        results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious'),
+        JSON.stringify(results.violations, null, 2),
+      ).toEqual([]);
+      await context.close();
+    });
+  }
+
+  test('the choice stays through a reload and a trip to another page, and English comes back', async ({
+    browser,
+    baseURL,
+  }) => {
+    const { page, context } = await openBengali(browser, baseURL);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
+    await page.goto('/how-it-works');
+    await page.goto('/');
+    await expect(page.locator('#lp-title')).toContainText('আপনার ভিসার কাগজপত্র');
+    // The switch in the menu names the other language and sends the visitor back to English.
+    await page.locator('button.site-menu-toggle').click();
+    await page.locator('.menu-lang').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('#lp-title')).toContainText('Your visa paperwork');
+    expect(await page.locator('main').innerText()).not.toMatch(BENGALI);
+    await context.close();
+  });
+});

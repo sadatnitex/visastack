@@ -1,35 +1,74 @@
 // @vitest-environment jsdom
+import { catalogResolve } from '@visastack/i18n';
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { landingCatalog } from '../../i18n/landing';
+import type { LandingKey } from '../../i18n/landing-messages';
 import { axeViolations } from '../../lib/axe.test-support';
-import { GUIDES_PATH, LandingPlanner, PlannerForm, PlannerPlan, guideHref } from './planner';
+import {
+  GUIDES_PATH,
+  LandingPlanner,
+  type Msg,
+  type PlanWords,
+  PlannerForm,
+  PlannerPlan,
+  guideHref,
+} from './planner';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const PLAN = {
-  kicker: 'Your Starting Plan',
-  titleBefore: 'Getting ready for',
-  fallbackTitle: 'Your first steps',
-  intro: 'Use this plan to organise your work.',
-  partyLabel: 'Who are you preparing for?',
-  self: 'Myself',
-  family: 'My Family',
-  steps: {
-    self: [
-      { lead: 'Find the official source', body: 'Check the guide.' },
-      { lead: 'Check your saved copies', body: 'Keep what still applies.' },
-      { lead: 'Decide how you’ll prepare', body: 'On your own or with an agency.' },
-    ],
-    family: [
-      { lead: 'Find the official source', body: 'Check the guide.' },
-      { lead: 'Check each traveller’s copies', body: 'Keep each person’s documents apart.' },
-      { lead: 'Decide how you’ll prepare', body: 'On your own or with an agency.' },
-    ],
-  },
-  guideBefore: 'Find',
-  guideAfter: 'in Country Guides',
-  guideFallback: 'Open Country Guide',
+/** The words the server hands the planner, resolved the way the home page does it, for one locale. */
+function words(locale: 'en' | 'bn') {
+  const m = (key: LandingKey): Msg => {
+    const { text, lang } = catalogResolve(landingCatalog, locale, key);
+    // The page is Bengali when the visitor chose Bengali on a ready route; mark only what differs.
+    return lang === locale ? { text } : { text, lang };
+  };
+  const step = (lead: LandingKey, body: LandingKey) => ({ lead: m(lead), body: m(body) });
+  const plan: PlanWords = {
+    kicker: m('landing.plan.kicker'),
+    title: m('landing.plan.title'),
+    fallbackTitle: m('landing.plan.titleFallback'),
+    intro: m('landing.plan.intro'),
+    partyLabel: m('landing.plan.partyLabel'),
+    self: m('landing.plan.self'),
+    family: m('landing.plan.family'),
+    steps: {
+      self: [
+        step('landing.plan.sourceLead', 'landing.plan.sourceBody'),
+        step('landing.plan.selfCopiesLead', 'landing.plan.selfCopiesBody'),
+        step('landing.plan.howLead', 'landing.plan.howBody'),
+      ],
+      family: [
+        step('landing.plan.sourceLead', 'landing.plan.sourceBody'),
+        step('landing.plan.familyCopiesLead', 'landing.plan.familyCopiesBody'),
+        step('landing.plan.howLead', 'landing.plan.howBody'),
+      ],
+    },
+    guide: m('landing.plan.guide'),
+    guideFallback: m('landing.plan.guideFallback'),
+  };
+  return {
+    plan,
+    form: {
+      label: m('landing.planner.label'),
+      placeholder: m('landing.planner.placeholder'),
+      submit: m('landing.planner.submit'),
+    },
+    status: { self: m('landing.plan.announceSelf'), family: m('landing.plan.announceFamily') },
+  };
+}
+
+const DESTINATIONS = {
+  en: [
+    { value: 'Japan', label: 'Japan' },
+    { value: 'United Kingdom', label: 'United Kingdom' },
+  ],
+  bn: [
+    { value: 'Japan', label: 'জাপান' },
+    { value: 'United Kingdom', label: 'যুক্তরাজ্য' },
+  ],
 } as const;
 
 let root: Root;
@@ -53,27 +92,16 @@ afterEach(() => {
   container.remove();
 });
 
-function mount() {
+function mount(locale: 'en' | 'bn' = 'en') {
+  const w = words(locale);
+  const destinations = DESTINATIONS[locale];
   act(() =>
     root.render(
-      <LandingPlanner
-        statusWords={{
-          self: 'Individual preparation steps shown.',
-          family: 'Family preparation steps shown.',
-        }}
-      >
+      <LandingPlanner statusWords={w.status}>
         <div>
-          <h1>Your visa paperwork</h1>
-          <PlannerForm
-            words={{
-              label: 'Where are you going?',
-              placeholder: 'Choose a destination',
-              submit: 'See My First Steps',
-            }}
-            destinations={['Japan', 'United Kingdom']}
-            footer={<span>Start without an account.</span>}
-          />
-          <PlannerPlan words={PLAN} />
+          <h1>{locale === 'bn' ? 'আপনার ভিসার কাগজপত্র' : 'Your visa paperwork'}</h1>
+          <PlannerForm words={w.form} destinations={destinations} footer={<span>footer</span>} />
+          <PlannerPlan words={w.plan} destinations={destinations} />
         </div>
       </LandingPlanner>,
     ),
@@ -176,5 +204,55 @@ describe('the destination planner', () => {
     choose(select, 'Japan');
     submit(form);
     expect(await axeViolations(container.innerHTML)).toEqual([]);
+  });
+
+  describe('in Bengali', () => {
+    it('shows Bengali names but sends the catalogue name, so the guides still find the country', () => {
+      const { form, select, plan } = mount('bn');
+      const options = [...select.querySelectorAll('option')].map((o) => [o.value, o.textContent]);
+      expect(options).toEqual([
+        ['', 'গন্তব্য বেছে নিন'],
+        ['Japan', 'জাপান'],
+        ['United Kingdom', 'যুক্তরাজ্য'],
+      ]);
+      expect(select.name).toBe('q');
+      expect(form.getAttribute('action')).toBe(GUIDES_PATH);
+      choose(select, 'United Kingdom');
+      // What the browser would send without script: the English value, never the label.
+      expect(new FormData(form).get('q')).toBe('United Kingdom');
+      submit(form);
+      expect(plan.querySelector('h2')?.textContent).toBe('যুক্তরাজ্য যাওয়ার প্রস্তুতি');
+      const guide = plan.querySelector('a.lp-button') as HTMLAnchorElement;
+      expect(guide.getAttribute('href')).toBe('/countries?q=United%20Kingdom');
+      expect(guide.textContent).toBe('দেশের গাইডে যুক্তরাজ্য খুঁজুন');
+    });
+
+    it('words the steps and the announcements in Bengali, and marks held English as English', () => {
+      const { form, select, plan } = mount('bn');
+      choose(select, 'Japan');
+      submit(form);
+      expect(plan.textContent).toContain('আপনার সংরক্ষিত কপিগুলো দেখে নিন');
+      const family = container.querySelectorAll('.lp-party button')[1] as HTMLButtonElement;
+      expect(family.textContent).toBe('পরিবারের জন্য');
+      act(() => family.click());
+      expect(plan.textContent).toContain('প্রত্যেক ভ্রমণকারীর কপি দেখে নিন');
+      expect(container.querySelector('output')?.textContent).toBe(
+        'পরিবারের জন্য প্রস্তুতির ধাপগুলো দেখানো হচ্ছে।',
+      );
+      // The sentence about the issuing authority is held for review: English, and said to be English.
+      const held = [...plan.querySelectorAll('p[lang="en"]')].map((p) => p.textContent);
+      expect(held).toEqual([expect.stringContaining('issuing authority')]);
+      // Nothing Bengali is marked as English.
+      for (const marked of plan.querySelectorAll('[lang="en"]'))
+        expect(marked.textContent).not.toMatch(/[\u0980-\u09FF]/);
+    });
+
+    it('has no accessibility problems open or closed', async () => {
+      const { form, select } = mount('bn');
+      expect(await axeViolations(container.innerHTML)).toEqual([]);
+      choose(select, 'Japan');
+      submit(form);
+      expect(await axeViolations(container.innerHTML)).toEqual([]);
+    });
   });
 });

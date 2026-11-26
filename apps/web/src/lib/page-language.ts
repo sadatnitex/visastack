@@ -21,6 +21,9 @@ export const BN_READY_ROUTES: readonly string[] = [
   '/auth/reset-password',
   '/auth/reauth',
   '/auth/verify-email',
+  // LAND2: the home page. Every message on it has Bengali, or is held for review and shown as English
+  // with its own lang="en" (i18n/landing-messages.ts); the header and footer mark their English the same way.
+  '/',
 ];
 
 function stripTrailingSlash(path: string): string {
