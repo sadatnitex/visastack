@@ -1,11 +1,11 @@
-import type { Metadata } from 'next';
 import { versionNoticeCopy } from '../../components/pilot-banner';
 import { getDeploymentMode } from '../../lib/deployment-mode';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import { mixedPaymentsNote } from '../../lib/payment-providers';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { StatusClient } from './status-client';
 
-export const metadata: Metadata = { title: 'What Works Today' };
+export const generateMetadata = localizedMetadata({ title: 'What Works Today' });
 
 /**
  * The public status page. The page itself is a server component so it can name itself and word

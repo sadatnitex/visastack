@@ -1,4 +1,3 @@
-import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { FlagRibbon } from '../../components/public-countries/flag-ribbon';
 import { TypingSearch } from '../../components/public-countries/typing-search';
@@ -18,6 +17,7 @@ import { componentsCatalog } from '../../i18n/components';
 import { homeCatalog } from '../../i18n/home';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import type { SearchParamsRecord } from '../../lib/paging';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
@@ -34,7 +34,7 @@ import {
 import './countries.css';
 
 // The signed-in list at /app/countries is titled "Countries"; the public page's tab says what it adds.
-export const metadata: Metadata = { title: 'Countries and Sources' };
+export const generateMetadata = localizedMetadata({ title: 'Countries and Sources' });
 
 const COUNTRY_NOUN = { one: 'country', other: 'countries' } as const;
 

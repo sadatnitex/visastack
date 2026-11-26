@@ -1,12 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { textOf } from '../../lib/next-mocks.test-support';
-import RootNotFound, { metadata as rootMetadata } from '../not-found';
+import RootNotFound, { generateMetadata as rootGenerateMetadata } from '../not-found';
 import WorkspaceNotFound, { metadata } from './not-found';
 
 describe('404 screens (VS-010)', () => {
-  it('name the page in the browser tab, for both the public and the signed-in 404', () => {
-    expect(rootMetadata.title).toBe('Page Not Found');
+  it('name the page in the browser tab, for both the public and the signed-in 404', async () => {
+    expect((await rootGenerateMetadata()).title).toBe('Page Not Found');
     expect(metadata.title).toBe('Page Not Found');
   });
 

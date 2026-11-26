@@ -1,8 +1,8 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
+import { localizedMetadata } from '../lib/localized-metadata';
 
 /** The browser tab and history name this page (WCAG 2.4.2); the layout adds the product name. */
-export const metadata: Metadata = { title: 'Page Not Found' };
+export const generateMetadata = localizedMetadata({ title: 'Page Not Found' });
 
 /**
  * Global 404. Without this, Next.js falls back to its bare, unstyled default

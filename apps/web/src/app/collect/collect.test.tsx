@@ -65,7 +65,8 @@ vi.mock('next/headers', () => ({
 
 const { collectCatalog } = await import('../../i18n/collect');
 const { GET } = await import('./open/route');
-const { default: CollectPage, metadata } = await import('./page');
+const { default: CollectPage, generateMetadata } = await import('./page');
+const metadata = await generateMetadata();
 const actions = await import('./actions');
 
 const TOKEN = 'A'.repeat(43);

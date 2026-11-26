@@ -1,10 +1,10 @@
 import { SIGNUP_PRIVACY_VERSION } from '@visastack/services';
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { readEnv } from '../../lib/env';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 
-export const metadata: Metadata = { title: 'Privacy Notice' };
+export const generateMetadata = localizedMetadata({ title: 'Privacy Notice' });
 export const dynamic = 'force-dynamic';
 
 export default function PrivacyPage() {

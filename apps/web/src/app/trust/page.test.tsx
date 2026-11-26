@@ -18,7 +18,8 @@ vi.mock('../../lib/public-db', () => ({
   withPublicDb: async (fn: (db: unknown) => Promise<unknown>) => fn({}),
 }));
 
-const { default: PublicTrustCatalogPage, metadata } = await import('./page');
+const { default: PublicTrustCatalogPage, generateMetadata } = await import('./page');
+const metadata = await generateMetadata();
 
 function route(n: number): PublicTrustRoute {
   return {

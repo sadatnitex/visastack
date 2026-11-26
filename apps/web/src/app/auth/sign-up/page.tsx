@@ -1,7 +1,7 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { createSignupForm } from '../../../lib/signup-form';
@@ -9,7 +9,7 @@ import { signUpAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 import { GoogleButton } from '../google-button';
 
-export const metadata: Metadata = { title: 'Create an Account' };
+export const generateMetadata = localizedMetadata({ title: 'Create an Account' });
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {

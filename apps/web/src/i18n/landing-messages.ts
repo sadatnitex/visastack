@@ -19,23 +19,9 @@
  * `{token}` placeholders are the same in both languages. `{link}` marks where the page puts a link
  * inside a sentence; the sentence stays one message so a translator can order the words.
  */
-export type LandingClass = 'ordinary' | 'claim' | 'authority' | 'status' | 'example';
+import { type PublicMessage, held, o } from './message-kit';
 
-export interface LandingMessage {
-  readonly en: string;
-  readonly bn: string;
-  readonly cls: LandingClass;
-  /** True when the Bengali is shown to a visitor who chose Bengali. False: held for review. */
-  readonly live: boolean;
-}
-
-const o = (en: string, bn: string): LandingMessage => ({ en, bn, cls: 'ordinary', live: true });
-const held = (cls: Exclude<LandingClass, 'ordinary'>, en: string, bn: string): LandingMessage => ({
-  en,
-  bn,
-  cls,
-  live: false,
-});
+export type LandingMessage = PublicMessage;
 
 export const LANDING_MESSAGES = {
   // First screen
@@ -273,6 +259,6 @@ export const LANDING_MESSAGES = {
   'landing.close.choose': o('Choose a Destination', 'গন্তব্য বেছে নিন'),
   'landing.account.create': o('Create your free account', 'বিনা মূল্যে অ্যাকাউন্ট তৈরি করুন'),
   'landing.account.workspace': o('Open your workspace', 'আপনার ওয়ার্কস্পেস খুলুন'),
-} as const satisfies Record<string, LandingMessage>;
+} as const satisfies Record<string, PublicMessage>;
 
 export type LandingKey = keyof typeof LANDING_MESSAGES;

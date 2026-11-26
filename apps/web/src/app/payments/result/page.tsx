@@ -4,14 +4,17 @@ import {
   type PaymentResultView,
   getPaymentResultView,
 } from '@visastack/services';
-import type { Metadata } from 'next';
 import { paymentsCatalog } from '../../../i18n/payments';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { verifyPaymentResultParams } from '../../../lib/payment-result';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
 
-export const metadata: Metadata = { title: 'Payment Result', robots: { index: false } };
+export const generateMetadata = localizedMetadata({
+  title: 'Payment Result',
+  robots: { index: false },
+});
 export const dynamic = 'force-dynamic';
 
 interface ResultCopy {

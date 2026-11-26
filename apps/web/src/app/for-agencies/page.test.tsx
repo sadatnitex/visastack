@@ -12,7 +12,8 @@ vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => state.signedIn }
 vi.mock('../../lib/public-beta', () => ({ isPublicBetaOpen: () => state.beta }));
 vi.mock('server-only', () => ({}));
 
-const { default: ForAgenciesPage, metadata } = await import('./page');
+const { default: ForAgenciesPage, generateMetadata } = await import('./page');
+const metadata = await generateMetadata();
 const { homeCatalog } = await import('../../i18n/home');
 const { documentPicture } = await import('../../lib/document-picture');
 const { DESK_CARDS } = await import('./for-agencies-data');

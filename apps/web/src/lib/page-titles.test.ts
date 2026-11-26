@@ -33,7 +33,9 @@ const pages = pageFiles(APP_DIR).map((file) => ({
   source: readFileSync(file, 'utf8'),
 }));
 
-const staticTitle = /export const metadata:\s*Metadata\s*=\s*\{\s*title:\s*'((?:[^'\\]|\\.)+)'/;
+// A static title, or the same title handed to localizedMetadata (which gives a Bengali visitor the drafted Bengali title).
+const staticTitle =
+  /export const (?:metadata:\s*Metadata|generateMetadata)\s*=\s*(?:localizedMetadata\()?\{\s*title:\s*'((?:[^'\\]|\\.)+)'/;
 
 describe('page titles', () => {
   it('finds the pages it is meant to check', () => {
@@ -106,7 +108,9 @@ describe('page titles', () => {
   it('puts the product name after the page name through the layout template', () => {
     const layout = readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8');
     expect(layout).toContain("template: '%s | VisaStack'");
-    expect(layout).toContain("default: 'VisaStack - one profile, every visa'");
+    // The default title is a constant handed to the language lookup (LAND2), so a Bengali visitor reads
+    // the Bengali title and an English visitor exactly this one.
+    expect(layout).toContain("const DEFAULT_TITLE = 'VisaStack - one profile, every visa'");
   });
 });
 

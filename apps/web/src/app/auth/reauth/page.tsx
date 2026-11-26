@@ -1,6 +1,6 @@
-import type { Metadata } from 'next';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { reauthChoices } from '../../../lib/passkey-offer';
 import {
@@ -13,7 +13,7 @@ import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 import { GoogleButton } from '../google-button';
 import { PasskeyConfirm } from '../passkey-confirm';
 
-export const metadata: Metadata = { title: 'Confirm it is you' };
+export const generateMetadata = localizedMetadata({ title: 'Confirm it is you' });
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {

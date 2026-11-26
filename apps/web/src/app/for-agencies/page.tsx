@@ -1,4 +1,3 @@
-import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { DocumentPicture } from '../../components/pictures/document-picture';
 import { CasesTable, ClosingBand, RiseIn } from '../../components/public-site/kit';
@@ -8,6 +7,7 @@ import { Chapter } from '../../components/public-site/scene';
 import { HeadlineWords } from '../../components/public-site/story';
 import { homeCatalog } from '../../i18n/home';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
 import {
@@ -19,7 +19,7 @@ import {
 } from './for-agencies-data';
 import './for-agencies.css';
 
-export const metadata: Metadata = { title: 'For Agencies' };
+export const generateMetadata = localizedMetadata({ title: 'For Agencies' });
 
 /**
  * Public For Agencies page (R5 rebuild to the approved reference). Four chapters: the dark hero with

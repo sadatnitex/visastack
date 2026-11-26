@@ -5,22 +5,22 @@ import {
   listOwnCollectionResponses,
   requireAccess,
 } from '@visastack/services';
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DestinationLabel } from '../../../../components/destination-label';
 import { StatusBadge } from '../../../../components/ui';
 import { collectCatalog } from '../../../../i18n/collect';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../../lib/i18n-server';
+import { localizedMetadata } from '../../../../lib/localized-metadata';
 import { withSession } from '../../../../lib/session';
 import { destinationName } from '../../../app/agency/[orgId]/collection/terms';
 import { WithdrawAnswerButton } from '../response-form';
 
-export const metadata: Metadata = {
+export const generateMetadata = localizedMetadata({
   title: 'Your Answers to Agencies',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
-};
+});
 export const dynamic = 'force-dynamic';
 
 interface PersonAnswers {

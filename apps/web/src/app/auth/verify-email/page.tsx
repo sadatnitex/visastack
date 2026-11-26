@@ -1,8 +1,8 @@
-import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import {
   PENDING_CONFIRMATION_COOKIE,
@@ -12,7 +12,7 @@ import {
 import { resendConfirmationAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Confirm Your Email Address' };
+export const generateMetadata = localizedMetadata({ title: 'Confirm Your Email Address' });
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {

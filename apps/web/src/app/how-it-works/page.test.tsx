@@ -10,7 +10,8 @@ import { renderServer } from '../../lib/next-mocks.test-support';
 
 vi.mock('server-only', () => ({}));
 
-const { default: HowItWorksPage, metadata } = await import('./page');
+const { default: HowItWorksPage, generateMetadata } = await import('./page');
+const metadata = await generateMetadata();
 const render = async () => new JSDOM(await renderServer(await HowItWorksPage())).window.document;
 /** The words of a node, each text piece separated by a space (jsdom has no innerText). */
 function words(node: Element | Document): string {

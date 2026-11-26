@@ -7,6 +7,7 @@ import {
   catalogTranslator,
 } from '@visastack/i18n';
 import { type ReactNode, createElement } from 'react';
+import { publicBnByKey } from '../i18n/public-lookup';
 import type { PageLanguage } from './page-language';
 
 /**
@@ -26,15 +27,36 @@ export function partsTranslator<K extends string>(
   locale: Locale,
   pageLang: PageLanguage,
 ): PartsTranslator<K> {
-  const plain = catalogTranslator(catalog, locale);
+  // A key with no reviewed Bengali may have a live draft in the public message files (keyed by
+  // catalogue key, so a screen outside the public pages is never touched).
+  const withDrafts = withPublicDrafts(catalog);
+  const plain = catalogTranslator(withDrafts, locale);
   return Object.assign((key: K, params?: MessageParams) => plain(key, params), {
     node(key: K, params?: MessageParams): ReactNode {
-      const { text, lang } = catalogResolve(catalog, locale, key, params);
+      const { text, lang } = catalogResolve(withDrafts, locale, key, params);
       return lang === pageLang ? text : createElement('span', { lang }, text);
     },
     lang(key: K): { lang?: Locale } {
-      const { lang } = catalogResolve(catalog, locale, key);
+      const { lang } = catalogResolve(withDrafts, locale, key);
       return lang === pageLang ? {} : { lang };
     },
   });
+}
+
+const draftedCatalogs = new WeakMap<object, unknown>();
+
+/** The catalogue plus the live drafts for its keys that have no Bengali (cached per catalogue). */
+function withPublicDrafts<K extends string>(catalog: Catalog<K>): Catalog<K> {
+  const cached = draftedCatalogs.get(catalog);
+  if (cached) return cached as Catalog<K>;
+  const extra: Partial<Record<K, string>> = {};
+  for (const key of Object.keys(catalog.en) as K[]) {
+    if (catalog.bn[key] !== undefined) continue;
+    const draft = publicBnByKey(key);
+    if (draft !== undefined) extra[key] = draft;
+  }
+  const result: Catalog<K> =
+    Object.keys(extra).length === 0 ? catalog : { en: catalog.en, bn: { ...catalog.bn, ...extra } };
+  draftedCatalogs.set(catalog, result);
+  return result;
 }

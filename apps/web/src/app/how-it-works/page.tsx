@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { HowClosing, HowHero, HowRows, WordsBand } from '../../components/public-how/how-sections';
 import { ScenesRuntime } from '../../components/public-site/scenes-runtime';
 import { trustCatalog } from '../../i18n/trust';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import './how-it-works.css';
 
-export const metadata: Metadata = { title: 'How It Works' };
+export const generateMetadata = localizedMetadata({ title: 'How It Works' });
 
 /**
  * The How It Works page (R2 rebuild): a dark opening with the four steps, four rows that each show

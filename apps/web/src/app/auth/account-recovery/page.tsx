@@ -1,10 +1,10 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { signOutCurrentUser } from '../../../lib/sign-out';
 import { AuthShell } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Account Access Needs Verification' };
+export const generateMetadata = localizedMetadata({ title: 'Account Access Needs Verification' });
 
 export default async function AccountRecoveryPage() {
   await primeLocale();

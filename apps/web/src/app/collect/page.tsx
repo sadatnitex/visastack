@@ -1,11 +1,11 @@
 import { GUEST_CONSENT_TEXT, GUEST_RETENTION_DAYS } from '@visastack/services';
-import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { collectCatalog } from '../../i18n/collect';
 import { agencyBrand } from '../../lib/agency-brand';
 import { getServerT, primeLocale } from '../../lib/i18n-server';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import { pdfUploadsAccepted } from '../../lib/upload-preflight';
 import { AgencyBrandScope, AgencyMark } from '../app/agency/[orgId]/org-branding-header';
 import { GuestChecklist, suggestedOnlyIds } from './checklist';
@@ -24,11 +24,11 @@ import {
   loadGuestUploads,
 } from './load';
 
-export const metadata: Metadata = {
+export const generateMetadata = localizedMetadata({
   title: 'Document Request',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
-};
+});
 export const dynamic = 'force-dynamic';
 
 type Params = {
