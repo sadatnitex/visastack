@@ -139,24 +139,59 @@ test.describe('language choice', () => {
     // The switch label is Bangla, so it says so (WCAG 3.1.2).
     await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'bn');
     await page.locator('.lang-switch').click();
-    // No route is fully in Bangla yet, so the page stays marked English; the switch now offers English.
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    // Home is written in Bangla (LAND2), so the page is marked Bangla; the switch now offers English.
+    await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
     await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
     await page.locator('.lang-switch').click();
     await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'bn');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   });
 
-  test('a saved Bangla choice is followed on the next page', async ({ page, context, baseURL }) => {
+  test('a saved Bangla choice is followed on every public page it is written for', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
     await context.addCookies([
       { name: 'visastack_locale', value: 'bn', url: baseURL ?? page.url() },
     ]);
-    await page.goto('/status');
-    // The choice is kept (the switch offers English) but the page is marked English until /status is translated.
-    await expect(page.locator('.lang-switch')).toHaveAttribute('lang', 'en');
+    for (const route of [
+      '/status',
+      '/how-it-works',
+      '/for-agencies',
+      '/countries',
+      '/trust',
+      '/privacy',
+      '/terms',
+    ]) {
+      await page.goto(route);
+      await expect(page.locator('html'), route).toHaveAttribute('lang', 'bn');
+      await expect(page.locator('html'), route).toHaveAttribute('data-locale', 'bn');
+      // The switch offers English, and the page carries Bangla text (some headings are held in English for sign-off).
+      await expect(page.locator('.lang-switch'), route).toHaveAttribute('lang', 'en');
+      await expect(page.locator('main'), route).toContainText(/[\u0980-\u09FF]/);
+    }
+    // A page that is not written yet stays marked English, with the choice kept.
+    await page.goto('/invitation');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    // The choice itself is still Bangla: the status screen now carries Bangla headings.
     await expect(page.locator('html')).toHaveAttribute('data-locale', 'bn');
+  });
+
+  test('the header and footer are in Bangla on a Bangla page, at phone width too', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await context.addCookies([
+      { name: 'visastack_locale', value: 'bn', url: baseURL ?? page.url() },
+    ]);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/how-it-works');
+    await expect(page.locator('footer')).toContainText(/[\u0980-\u09FF]/);
+    await expect(page.locator('header')).toContainText(/[\u0980-\u09FF]/);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
   });
 });
 

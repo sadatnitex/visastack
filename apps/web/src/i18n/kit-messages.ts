@@ -9,7 +9,7 @@ export const KIT_MESSAGES = {
   'kit.example': held('example', 'Example', 'উদাহরণ'),
   'kit.cases': o('Cases', 'ভিসা ফাইল'),
   'kit.shareTitle': o('Share with Agency', 'এজেন্সির সঙ্গে শেয়ার'),
-  'kit.notShared': o('Not Shared', 'শেয়ার করা হয়নি'),
+  'kit.notShared': o('Not Shared', 'শেয়ার হয়নি'),
   'kit.shared': o('Shared', 'শেয়ার করা হয়েছে'),
   'kit.reviewed': o('Reviewed', 'পর্যালোচনা করা হয়েছে'),
   'kit.accessEnded': o('Access Ended', 'অ্যাক্সেস শেষ'),
