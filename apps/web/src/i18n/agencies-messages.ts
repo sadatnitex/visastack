@@ -64,7 +64,7 @@ export const AGENCIES_MESSAGES = {
   'agencies.example.complete': o('Complete', 'সম্পূর্ণ'),
   'agencies.example.twoMissing': o('2 missing', '২টি বাকি'),
   'agencies.example.fiveMissing': o('5 missing', '৫টি বাকি'),
-  'agencies.example.alt': o('Example of an agency’s cases', 'একটি এজেন্সির ভিসা ফাইলের উদাহরণ'),
+  'agencies.example.alt': o("Example of an agency's cases", 'একটি এজেন্সির ভিসা ফাইলের উদাহরণ'),
   'agencies.example.note': held(
     'example',
     'Example names and counts. Completeness only. Not an approval.',

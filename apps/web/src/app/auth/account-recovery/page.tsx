@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { primeLocale } from '../../../lib/i18n-server';
+import { publicMessage, publicText } from '../../../components/public-site/public-text';
+import { MISC_MESSAGES as X } from '../../../i18n/misc-messages';
+import { getPageLanguage, primeLocale } from '../../../lib/i18n-server';
 import { localizedMetadata } from '../../../lib/localized-metadata';
 import { signOutCurrentUser } from '../../../lib/sign-out';
 import { AuthShell } from '../auth-ui';
@@ -7,20 +9,13 @@ import { AuthShell } from '../auth-ui';
 export const generateMetadata = localizedMetadata({ title: 'Account Access Needs Verification' });
 
 export default async function AccountRecoveryPage() {
-  await primeLocale();
+  const locale = await primeLocale();
+  const lang = getPageLanguage();
+  const pm = (message: Parameters<typeof publicMessage>[0]) => publicMessage(message, lang, locale);
   return (
-    <AuthShell title="Account Access Needs Verification">
-      <p className="card-body">
-        We could not safely connect this sign-in to an account. Your records have not been changed.
-        If you already have another sign-in for VisaStack, sign out and use that one. If your
-        account was made before VisaStack changed how people sign in, contact VisaStack support or
-        the person who invited you: once they have checked with you, sign in again with the email
-        and password you just used.
-      </p>
-      <p className="card-body">
-        Resetting a password confirms access to your email. It does not transfer existing records to
-        another account.
-      </p>
+    <AuthShell title={publicText('Account Access Needs Verification', lang, locale)}>
+      <p className="card-body">{pm(X['misc.recovery.one'])}</p>
+      <p className="card-body">{pm(X['misc.recovery.two'])}</p>
       <div className="cta-row">
         <form
           action={async () => {
@@ -29,11 +24,11 @@ export default async function AccountRecoveryPage() {
           }}
         >
           <button type="submit" className="btn btn-primary">
-            Sign Out
+            {pm(X['misc.signOut'])}
           </button>
         </form>
         <Link className="btn btn-secondary" href="/">
-          Back to Home
+          {pm(X['misc.backHome'])}
         </Link>
       </div>
     </AuthShell>

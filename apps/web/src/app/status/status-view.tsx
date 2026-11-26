@@ -1,8 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useT } from '../../components/i18n-provider';
+import { useLocale, usePageLanguage, useT } from '../../components/i18n-provider';
 import { PUBLIC_BETA_DETAIL } from '../../components/pilot-banner';
+import { publicText } from '../../components/public-site/public-text';
 import type { VersionNoticeCopy } from '../../components/version-notice';
 import { homeCatalog } from '../../i18n/home';
 import { statusCatalog } from '../../i18n/status';
@@ -66,6 +67,10 @@ export function StatusView({
 }) {
   const t = useT(statusCatalog);
   const tHome = useT(homeCatalog);
+  const locale = useLocale();
+  const pageLang = usePageLanguage();
+  // Feature names and states: the drafted Bengali when live, else the English, marked.
+  const say = (text: string): ReactNode => publicText(text, pageLang, locale);
   // The About This Version card says the same version name the footer says, and the public beta
   // sentence in the page's language; any other words stay as the page's notice gives them.
   const noticeLabel = (label: string): ReactNode =>
@@ -73,9 +78,11 @@ export function StatusView({
       ? tHome.node('home.layout.noticePublicBeta')
       : label === 'VisaStack Private Pilot'
         ? tHome.node('home.layout.noticePilot')
-        : label;
+        : say(label);
   const noticeDetail = (detail: string): ReactNode =>
-    detail === PUBLIC_BETA_DETAIL ? t.node('status.statusStatusView.publicBetaDetail') : detail;
+    detail === PUBLIC_BETA_DETAIL
+      ? t.node('status.statusStatusView.publicBetaDetail')
+      : say(detail);
   const verdict = VERDICT_WORDS[verdictOf(live, ready)];
   const rows = capabilityRows(ready?.data.platform).map((row) =>
     row.key === 'payments' && paymentsNote ? { ...row, label: 'Partly Live' } : row,
@@ -88,8 +95,8 @@ export function StatusView({
     <div className="rows u-mt-050">
       {list.map((row) => (
         <div className="row" key={row.key}>
-          <span className="row-key">{row.name}</span>
-          <span className={badgeClass(row.tone)}>{row.label}</span>
+          <span className="row-key">{say(row.name)}</span>
+          <span className={badgeClass(row.tone)}>{say(row.label)}</span>
         </div>
       ))}
     </div>
@@ -101,7 +108,9 @@ export function StatusView({
         <span className="eyebrow">{t.node('status.statusStatusView.live')}</span>
         <h1 className="section-title u-m-0">{t.node('status.statusStatusView.whatWorksToday')}</h1>
         {/* The answer comes first. <output> is what a screen reader announces when it changes. */}
-        <output className={`${badgeClass(verdict.tone)} status-verdict`}>{verdict.label}</output>
+        <output className={`${badgeClass(verdict.tone)} status-verdict`}>
+          {say(verdict.label)}
+        </output>
         <p className="section-sub u-m-0">
           {t.node('status.statusStatusView.featuresThatAreNotSwitchedOn')}
         </p>

@@ -38,7 +38,7 @@ export function ShareSheetBody({
     >
       <ExampleTag pageLang={pageLang} />
       <div className="kit-sheet-main">
-        <b className="kit-sheet-title">Share with Agency</b>
+        <b className="kit-sheet-title">{say('Share with Agency')}</b>
         {ROWS.map((row) => (
           <div
             className="kit-share-row"
@@ -49,7 +49,7 @@ export function ShareSheetBody({
               <DocumentPicture type={DOC_TYPE[row.kind]} size={34} />
             </span>
             <div className="kit-share-text">
-              <b>{row.name}</b>
+              <b>{say(row.name)}</b>
               {row.from < 99 ? (
                 <>
                   <span className="kit-sw kit-share-part" data-upto={row.from - 1}>

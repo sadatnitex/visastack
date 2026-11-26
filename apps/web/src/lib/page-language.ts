@@ -24,6 +24,16 @@ export const BN_READY_ROUTES: readonly string[] = [
   // LAND2: the home page. Every message on it has Bengali, or is held for review and shown as English
   // with its own lang="en" (i18n/landing-messages.ts); the header and footer mark their English the same way.
   '/',
+  // LAND2: the public pages. What each still shows in English (legal wording, claims, official
+  // visa rules, statuses) is written out in Bengali and held for sign-off, and is marked lang="en".
+  '/how-it-works',
+  '/for-agencies',
+  '/countries',
+  '/trust',
+  '/status',
+  '/privacy',
+  '/terms',
+  '/auth/account-recovery',
 ];
 
 function stripTrailingSlash(path: string): string {

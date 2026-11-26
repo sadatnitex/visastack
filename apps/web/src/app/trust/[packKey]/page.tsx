@@ -77,7 +77,9 @@ export default async function PublicTrustRoutePage({
   }));
 
   return (
-    <section className="section container">
+    // Route information is official content that stays English by the owner's decision (12 Nov 2026):
+    // under Bengali the page is marked Bengali (it sits under /trust), so this part names its own language.
+    <section className="section container" {...(locale === 'bn' ? { lang: 'en' } : {})}>
       <PageHeader
         back={{ href: '/trust', label: 'Public Trust' }}
         eyebrow={t('trust.trustPackkeyPage.publicTrustVVersion', { version: route.version })}

@@ -1,10 +1,14 @@
 import { AGENCIES_MESSAGES } from './agencies-messages';
 import { COUNTRIES_MESSAGES } from './countries-messages';
 import { HOW_MESSAGES } from './how-messages';
+import { KIT_MESSAGES } from './kit-messages';
 import { LEGAL_MESSAGES } from './legal-messages';
 import type { PublicMessage } from './message-kit';
+import { MISC_MESSAGES } from './misc-messages';
 import { SHELL_MESSAGES } from './shell-messages';
+import { STATUS_MESSAGES } from './status-messages';
 import { TITLES_MESSAGES } from './titles-messages';
+import { TRUST_MESSAGES } from './trust-messages';
 
 /**
  * Finds the drafted Bengali for a public message. Every `*-messages.ts` file feeds this one table.
@@ -20,6 +24,10 @@ const FILES: readonly Readonly<Record<string, PublicMessage>>[] = [
   AGENCIES_MESSAGES,
   COUNTRIES_MESSAGES,
   LEGAL_MESSAGES,
+  TRUST_MESSAGES,
+  STATUS_MESSAGES,
+  MISC_MESSAGES,
+  KIT_MESSAGES,
 ];
 
 const byEnglish = new Map<string, PublicMessage>();

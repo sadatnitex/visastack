@@ -1,5 +1,5 @@
 import { DocumentPicture } from '../../pictures/document-picture';
-import { publicText } from '../public-text';
+import { publicFormat, publicString, publicText } from '../public-text';
 import { ExampleTag } from '../story';
 import { DOC_TYPE, type DocKind, englishOn } from './doc-kinds';
 import { SegmentRing } from './segment-ring';
@@ -72,7 +72,7 @@ export function CountryChecklistPanel({
               loading="lazy"
               decoding="async"
             />
-            <span>{country.name}</span>
+            <span>{say(country.name)}</span>
           </span>
         ))}
       </div>
@@ -88,7 +88,7 @@ export function CountryChecklistPanel({
             const have = countOf(country, total);
             return (
               <span className="kit-sw" data-at={index} key={country.code}>
-                <b>{say(`${country.name}: ${have} of ${total} Ready`)}</b>
+                <b>{publicFormat('{name}: {have} of {total} Ready', { name: publicString(country.name, pageLang).text, have, total }, pageLang)}</b>
                 <span>{say(`${have} reused from your record. ${total - have} to add.`)}</span>
               </span>
             );
@@ -101,7 +101,7 @@ export function CountryChecklistPanel({
             <span className="kit-row-pic">
               <DocumentPicture type={DOC_TYPE[item.kind]} size={28} />
             </span>
-            <span className="kit-row-name">{item.label}</span>
+            <span className="kit-row-name">{say(item.label)}</span>
             {countries.map((country, index) => {
               const reused = country.have[row] === true;
               return (

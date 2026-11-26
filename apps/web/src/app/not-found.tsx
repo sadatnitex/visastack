@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { publicMessage } from '../components/public-site/public-text';
+import { MISC_MESSAGES as X } from '../i18n/misc-messages';
+import { getPageLanguage, primeLocale } from '../lib/i18n-server';
 import { localizedMetadata } from '../lib/localized-metadata';
 
 /** The browser tab and history name this page (WCAG 2.4.2); the layout adds the product name. */
@@ -11,16 +14,18 @@ export const generateMetadata = localizedMetadata({ title: 'Page Not Found' });
  * `error.tsx`'s recoverable-error framing but for "not found" rather than
  * "something broke," with a real way back into the app.
  */
-export default function NotFound() {
+export default async function NotFound() {
+  const locale = await primeLocale();
+  const lang = getPageLanguage();
+  const pm = (message: Parameters<typeof publicMessage>[0]) => publicMessage(message, lang, locale);
   return (
     <section className="section container center">
-      <span className="eyebrow">Not Found</span>
+      <span className="eyebrow">{pm(X['misc.notFound.eyebrow'])}</span>
       <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
-        We Couldn't Find That Page
+        {pm(X['misc.notFound.heading'])}
       </h1>
       <p className="section-sub" style={{ margin: '0.75rem auto 1.5rem', maxWidth: '34rem' }}>
-        The link may be out of date, or the record may have been removed or revoked. Check the
-        address, or head back to your workspace.
+        {pm(X['misc.notFound.body'])}
       </p>
       <div className="cta-row" style={{ justifyContent: 'center' }}>
         {/* A plain anchor, like the landing page and the nav: `/app` answers a
@@ -28,10 +33,10 @@ export default function NotFound() {
             prefetch it with a script request that the redirect breaks.
             Crossing into the signed-in area is a full navigation. */}
         <a className="btn btn-primary" href="/app">
-          Go to Workspace
+          {pm(X['misc.goWorkspace'])}
         </a>
         <Link className="btn btn-secondary" href="/">
-          Back to Home
+          {pm(X['misc.backHome'])}
         </Link>
       </div>
     </section>

@@ -39,7 +39,12 @@ export const DOC_NAME: Readonly<Record<DocKind, string>> = {
   invitation: 'Invitation',
 };
 
-/** `lang="en"` on a figure whose words are English while the page is not (WCAG 3.1.2). */
-export function englishOn(pageLang: string): { lang?: string } {
-  return pageLang === 'en' ? {} : { lang: 'en' };
+/**
+ * Marks a figure whose words are English while the page is not (WCAG 3.1.2). Since the public pages
+ * are Bengali pages (LAND2) every word in a figure goes through `publicText`, which marks its own
+ * English, so no whole figure is marked English any more and this adds nothing. Kept so the kit's
+ * call sites need no change.
+ */
+export function englishOn(_pageLang: string): { lang?: string } {
+  return {};
 }
