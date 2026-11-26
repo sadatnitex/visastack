@@ -9,7 +9,7 @@ describe('the drafted Bengali for the public pages', () => {
     for (const [key, m] of Object.entries(ALL_PUBLIC_MESSAGES)) {
       expect(m.bn.trim(), key).not.toBe('');
       expect(m.bn, key).toMatch(/[ঀ-৿]/);
-      expect(m.bn + m.en, key).not.toContain('—');
+      expect(m.bn + m.en, key).not.toContain(String.fromCharCode(0x2014));
       // Every {token} in the English is in the Bengali, so no value is dropped.
       const tokens = (text: string) => [...text.matchAll(/\{(\w+)[,}]/g)].map((x) => x[1]).sort();
       expect(tokens(m.bn), key).toEqual(tokens(m.en));
