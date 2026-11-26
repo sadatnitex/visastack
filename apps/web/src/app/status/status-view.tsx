@@ -1,9 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useLocale, usePageLanguage, useT } from '../../components/i18n-provider';
+import { usePublicText, useT } from '../../components/i18n-provider';
 import { PUBLIC_BETA_DETAIL } from '../../components/pilot-banner';
-import { publicText } from '../../components/public-site/public-text';
 import type { VersionNoticeCopy } from '../../components/version-notice';
 import { homeCatalog } from '../../i18n/home';
 import { statusCatalog } from '../../i18n/status';
@@ -67,10 +66,8 @@ export function StatusView({
 }) {
   const t = useT(statusCatalog);
   const tHome = useT(homeCatalog);
-  const locale = useLocale();
-  const pageLang = usePageLanguage();
   // Feature names and states: the drafted Bengali when live, else the English, marked.
-  const say = (text: string): ReactNode => publicText(text, pageLang, locale);
+  const say = usePublicText();
   // The About This Version card says the same version name the footer says, and the public beta
   // sentence in the page's language; any other words stay as the page's notice gives them.
   const noticeLabel = (label: string): ReactNode =>

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import { unstable_rethrow } from 'next/navigation';
 import { publicBnByEnglish } from '../i18n/public-lookup';
-import { getLocale } from './locale';
+import { primePage } from './i18n-server';
 
 /**
  * A public page's tab title in the visitor's language. Pages call it in place of a static
@@ -14,15 +13,10 @@ export function localizedMetadata<M extends Metadata & { readonly title: string 
   base: M,
 ): () => Promise<Metadata> {
   return async () => {
-    let locale: string;
-    try {
-      locale = await getLocale();
-    } catch (error) {
-      // Next's own signals travel on; anything else (no request to read, as in a unit test) is English.
-      unstable_rethrow(error);
-      return base;
-    }
-    if (locale !== 'bn') return base;
+    // A tab title is Bengali only on a page that is itself marked Bengali (it can never be Bengali
+    // over an English page). With no request to read (a unit test) the page is English.
+    const { pageLang } = await primePage();
+    if (pageLang !== 'bn') return base;
     const title = publicBnByEnglish(base.title);
     return title === undefined ? base : { ...base, title };
   };

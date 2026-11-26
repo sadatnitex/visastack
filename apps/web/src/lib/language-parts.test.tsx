@@ -77,7 +77,9 @@ describe('root layout wiring', () => {
   it('takes <html lang> from the primed page language and hands the same value to the provider', () => {
     expect(layout).toContain('const { locale, pageLang: htmlLang } = await primePage();');
     expect(layout).toContain('<html lang={htmlLang}');
-    expect(layout).toContain('<I18nProvider locale={locale} pageLang={htmlLang}>');
+    expect(layout).toMatch(/<I18nProvider\s+locale=\{locale\}\s+pageLang=\{htmlLang\}/);
+    // The few live keyed lines the browser needs come from the server (the message files stay out of the client bundle).
+    expect(layout).toContain('liveClientDrafts()');
     expect(layout).not.toMatch(/pageLanguage\(/);
   });
 });

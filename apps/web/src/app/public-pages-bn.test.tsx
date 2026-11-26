@@ -2,6 +2,7 @@ import { JSDOM } from 'jsdom';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../components/i18n-provider';
+import { liveClientDrafts } from '../i18n/public-lookup';
 import { renderServer } from '../lib/next-mocks.test-support';
 
 /**
@@ -60,7 +61,11 @@ async function render(
   const element = await make();
   // The root layout gives the client components the visitor's locale; the page alone has no provider.
   const html = await renderServer(
-    <I18nProvider locale={locale} pageLang={locale}>
+    <I18nProvider
+      locale={locale}
+      pageLang={locale}
+      drafts={locale === 'bn' ? liveClientDrafts() : {}}
+    >
       {element as ReactNode}
     </I18nProvider>,
   );

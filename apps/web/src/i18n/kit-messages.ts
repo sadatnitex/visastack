@@ -7,6 +7,18 @@ import { held, o } from './message-kit';
 
 export const KIT_MESSAGES = {
   'kit.example': held('example', 'Example', 'উদাহরণ'),
+  'kit.alt.journey': o(
+    'Example of a case moving through its stages',
+    'একটি ভিসা ফাইলের ধাপগুলো পার হওয়ার উদাহরণ',
+  ),
+  'kit.alt.share': o(
+    'Example of sharing papers with an agency',
+    'এজেন্সির সঙ্গে ডকুমেন্ট শেয়ার করার উদাহরণ',
+  ),
+  'kit.alt.checklist': o('Example of a country checklist', 'একটি দেশের চেকলিস্টের উদাহরণ'),
+  'kit.now': o('Now:', 'এখন:'),
+  'kit.cover.bd': o('Bangladesh Passport Cover', 'বাংলাদেশের পাসপোর্ট কভার'),
+  'kit.cover': o('Passport Cover', 'পাসপোর্ট কভার'),
   'kit.cases': o('Cases', 'ভিসা ফাইল'),
   'kit.shareTitle': o('Share with Agency', 'এজেন্সির সঙ্গে শেয়ার'),
   'kit.notShared': o('Not Shared', 'শেয়ার হয়নি'),

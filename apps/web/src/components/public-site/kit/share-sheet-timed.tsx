@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { publicText } from '../public-text';
-import { SHARE_STEPS, ShareSheetBody, type ShareStep } from './share-sheet-body';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { SHARE_STEPS, type ShareStep } from './share-steps';
 import { useOnScreen } from './use-on-screen';
 
 /** How long each step rests, in milliseconds. */
@@ -16,7 +15,16 @@ export const SHARE_TICK_MS = 2200;
  * visible Pause button (WCAG 2.2.2: the loop is longer than 5 seconds) stops it where it is; Play
  * carries on from there.
  */
-export function ShareSheetTimed({ pageLang = 'en' }: { readonly pageLang?: string }) {
+export function ShareSheetTimed({
+  bodies,
+  playLabel,
+  pauseLabel,
+}: {
+  /** The picture at each step, drawn on the server in the visitor's language (the browser holds no wording). */
+  readonly bodies: readonly ReactNode[];
+  readonly playLabel: ReactNode;
+  readonly pauseLabel: ReactNode;
+}) {
   const [step, setStep] = useState<ShareStep>(4);
   const [moves, setMoves] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -40,7 +48,7 @@ export function ShareSheetTimed({ pageLang = 'en' }: { readonly pageLang?: strin
 
   return (
     <div className="kit-timed" ref={box}>
-      <ShareSheetBody step={step} pageLang={pageLang} />
+      {bodies[step]}
       {/* Always in the markup so its space is reserved before hydration (no layout shift); idle,
           invisible and out of the tab order until the picture really moves. */}
       <button
@@ -49,7 +57,7 @@ export function ShareSheetTimed({ pageLang = 'en' }: { readonly pageLang?: strin
         {...(moves ? {} : { 'data-idle': '', 'aria-hidden': true, tabIndex: -1 })}
         onClick={() => setPaused((value) => !value)}
       >
-        {publicText(paused ? 'Play the Animation' : 'Pause the Animation', pageLang)}
+        {paused ? playLabel : pauseLabel}
       </button>
     </div>
   );

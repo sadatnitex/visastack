@@ -3,6 +3,7 @@ import type { Locale } from '@visastack/i18n';
 import type { Destination } from '../components/landing/planner';
 import { homeCatalog } from '../i18n/home';
 import { landingCatalog } from '../i18n/landing';
+import { localizedCountryName } from '../lib/country-name';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getServerT, primeLocale } from '../lib/i18n-server';
 import { isPublicBetaOpen } from '../lib/public-beta';
@@ -35,11 +36,15 @@ const SUGGESTED_DESTINATIONS = ['JP', 'SG', 'GB', 'CA', 'DE', 'AU'] as const;
  * in English, the standard Bengali region name from the platform's locale data in Bengali).
  */
 function suggestedDestinations(locale: Locale): Destination[] {
-  const names = locale === 'bn' ? new Intl.DisplayNames(['bn-BD'], { type: 'region' }) : null;
   return SUGGESTED_DESTINATIONS.flatMap((iso2) => {
     const destination = destinationByIso2(iso2);
     if (!destination) return [];
-    return [{ value: destination.country, label: names?.of(iso2) ?? destination.country }];
+    return [
+      {
+        value: destination.country,
+        label: localizedCountryName(iso2, destination.country, locale).text,
+      },
+    ];
   });
 }
 

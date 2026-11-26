@@ -23,11 +23,10 @@ import { NOTICE_KEYS } from '../components/site-footer';
 import { SiteFooter } from '../components/site-footer';
 import { SiteNavigation } from '../components/site-navigation';
 import { appHomeCatalog } from '../i18n/app-home';
-import { publicBnByEnglish } from '../i18n/public-lookup';
+import { liveClientDrafts, publicBnByEnglish } from '../i18n/public-lookup';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getT, primePage } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
-import { getLocale } from '../lib/locale';
 import { signedInPerson } from '../lib/public-account';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { ClearShareInboxOnSubmit } from '../lib/pwa/clear-share-inbox-on-submit';
@@ -74,8 +73,7 @@ const DESCRIPTION =
 
 export async function generateMetadata(): Promise<Metadata> {
   // The visitor's language for the title and description (a held description stays English).
-  const locale = await getLocale();
-  const bn = locale === 'bn';
+  const bn = (await primePage()).pageLang === 'bn';
   return {
     // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
     title: {
@@ -222,7 +220,11 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <ScenesBoot nonce={scenesNonce} />
       </head>
       <body>
-        <I18nProvider locale={locale} pageLang={htmlLang}>
+        <I18nProvider
+          locale={locale}
+          pageLang={htmlLang}
+          drafts={locale === 'bn' ? liveClientDrafts() : {}}
+        >
           <a className="skip-link" href="#main">
             {t.node('home.layout.skipToContent')}
           </a>

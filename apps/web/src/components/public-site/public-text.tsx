@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { publicBnByEnglish } from '../../i18n/public-lookup';
+import { renderPublic } from './public-text-core';
 
 /**
  * Words on the public site that are not in a message catalogue. Under English they are plain text.
@@ -10,10 +11,12 @@ import { publicBnByEnglish } from '../../i18n/public-lookup';
  * their own mark and English stays plain.
  */
 export function publicText(text: string, pageLang: string, locale: string = pageLang): ReactNode {
-  if (locale !== 'bn') return pageLang === 'en' ? text : <span lang="en">{text}</span>;
-  const bn = publicBnByEnglish(text);
-  if (bn === undefined) return pageLang === 'bn' ? <span lang="en">{text}</span> : text;
-  return pageLang === 'bn' ? bn : <span lang="bn">{bn}</span>;
+  return renderPublic(
+    text,
+    locale === 'bn' ? publicBnByEnglish(text) : undefined,
+    pageLang,
+    locale,
+  );
 }
 
 /** The same words as a plain string for an attribute, and the language to mark when it differs from the page's. */
@@ -105,13 +108,14 @@ export function publicSentence(
     params,
     lang === 'bn' ? 'bn-BD' : 'en',
   );
+  const seen = new Map<string, number>();
   const pieces = text.split(/(\{\w+\})/g).map((piece) => {
     const name = /^\{(\w+)\}$/.exec(piece)?.[1];
-    return name !== undefined && name in parts ? (
-      <Fragment key={name}>{parts[name]}</Fragment>
-    ) : (
-      piece
-    );
+    if (name === undefined || !(name in parts)) return piece;
+    // A token used twice gets its own key each time (the count so far, not the array position).
+    const turn = seen.get(name) ?? 0;
+    seen.set(name, turn + 1);
+    return <Fragment key={`${name}-${turn}`}>{parts[name]}</Fragment>;
   });
   return lang === pageLang ? <>{pieces}</> : <span lang={lang}>{pieces}</span>;
 }

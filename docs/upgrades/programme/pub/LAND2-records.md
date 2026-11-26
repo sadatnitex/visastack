@@ -23,8 +23,8 @@ Branch `claude/nifty-meitner-iso6vc`. Draft pull request; not merged, not deploy
 | Privacy and Trust | 17 | 25 | claim 21, authority 2, status 2 |
 | Status | 20 | 10 | status 10 |
 | Account, errors, invitations, payments | 9 | 8 | claim 2, status 2, legal 4 |
-| Shared pictures (example figures) | 16 | 1 | example 1 |
-| Total | 281 | 113 | |
+| Shared pictures (example figures) | 22 | 1 | example 1 |
+| Total | 287 | 113 | |
 
 ## Exceptions
 
@@ -47,3 +47,7 @@ Branch `claude/nifty-meitner-iso6vc`. Draft pull request; not merged, not deploy
 - The production site was not re-crawled after this change (not deployed).
 - Real-device rendering of Bengali conjuncts at small sizes.
 - Bengali on signed-in screens.
+
+## Review round (26 Nov 2026, /code-review high)
+
+Five findings, all fixed: the message files no longer ship to the browser (the server passes the few live keyed lines through the provider, the status list and the sharing picture are worded on the server; `public-lookup.test.ts` guards client components against importing the lookup); figure labels that had lost their English mark now go through the lookup; a Bengali tab title appears only on a page marked Bengali; the Home planner reuses the Countries page's country-name fallback; repeated sentence tokens get unique keys.

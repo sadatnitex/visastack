@@ -1,3 +1,6 @@
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ALL_PUBLIC_MESSAGES, publicBnByEnglish, publicBnByKey } from './public-lookup';
 
@@ -50,5 +53,26 @@ describe('the drafted Bengali for the public pages', () => {
       ([, m]) => m.live && m.cls !== 'ordinary',
     );
     expect(live.map(([key]) => key)).toEqual([]);
+  });
+});
+
+describe('the browser bundle', () => {
+  const SRC = fileURLToPath(new URL('..', import.meta.url));
+  const files = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) return files(full);
+      return /\.tsx?$/.test(name) && !/\.test\./.test(name) ? [full] : [];
+    });
+
+  it('never pulls the message files into a client component (they are worded on the server)', () => {
+    const offenders = files(SRC).filter((file) => {
+      const source = readFileSync(file, 'utf8');
+      if (!/^['"]use client['"]/m.test(source.slice(0, 200))) return false;
+      return /from '(?:\.\.?\/)+(?:i18n\/public-lookup|(?:components\/public-site\/|\.\/|\.\.\/)?public-text)'/.test(
+        source,
+      );
+    });
+    expect(offenders.map((file) => file.slice(SRC.length))).toEqual([]);
   });
 });

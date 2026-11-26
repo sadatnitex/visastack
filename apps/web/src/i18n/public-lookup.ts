@@ -52,3 +52,19 @@ export const publicBnByKey = (key: string): string | undefined => byKey.get(key)
 export const ALL_PUBLIC_MESSAGES: readonly PublicMessage[] = FILES.flatMap((file) =>
   Object.values(file),
 );
+
+/**
+ * What the browser needs from the lookup, as one small table: every live keyed line (catalogue key to
+ * Bengali) and, as `en:<English>`, the live lines the two client components read by their English
+ * (the status list and the animation button). Everything else is worded on the server.
+ */
+export const liveClientDrafts = (): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const [key, message] of byKey) out[key] = message.bn;
+  for (const message of [...Object.values(STATUS_MESSAGES), ...ALL_PUBLIC_MESSAGES]) {
+    if (!message.live || message.key) continue;
+    if (message.cls === 'status' || /the Animation$/.test(message.en))
+      out[`en:${message.en}`] = message.bn;
+  }
+  return out;
+};

@@ -1,6 +1,7 @@
 import { type Catalog, DEFAULT_LOCALE, type Locale } from '@visastack/i18n';
 import { unstable_rethrow } from 'next/navigation';
 import { cache } from 'react';
+import { publicBnByKey } from '../i18n/public-lookup';
 import { type PartsTranslator, partsTranslator } from './language-parts';
 import { getLocale } from './locale';
 import { type PageLanguage, pageLanguage } from './page-language';
@@ -65,9 +66,9 @@ export function getServerT<K extends string>(catalog: Catalog<K>): PartsTranslat
         'getServerT called before primeLocale(): add `await primeLocale()` to the page default export',
       );
     }
-    return partsTranslator(catalog, 'en', 'en');
+    return partsTranslator(catalog, 'en', 'en', publicBnByKey);
   }
-  return partsTranslator(catalog, locale, pageLang);
+  return partsTranslator(catalog, locale, pageLang, publicBnByKey);
 }
 
 /**
@@ -81,5 +82,5 @@ export function getServerLocale(): Locale {
 /** Async translator: primes the locale, then translates. */
 export async function getT<K extends string>(catalog: Catalog<K>): Promise<PartsTranslator<K>> {
   const locale = await primeLocale();
-  return partsTranslator(catalog, locale, localeHolder().pageLang);
+  return partsTranslator(catalog, locale, localeHolder().pageLang, publicBnByKey);
 }

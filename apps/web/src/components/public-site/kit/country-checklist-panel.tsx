@@ -46,6 +46,7 @@ export function CountryChecklistPanel({
   pageLang = 'en',
 }: CountryChecklistPanelProps) {
   const say = (text: string) => publicText(text, pageLang);
+  const caption = publicString('Example of a country checklist', pageLang);
   const total = items.length;
   const fixed =
     active === undefined
@@ -55,7 +56,8 @@ export function CountryChecklistPanel({
     <figure
       className={active === undefined ? 'kit-panel' : 'kit-panel kit-fixed'}
       data-pub-depth=""
-      aria-label="Example of a country checklist"
+      aria-label={caption.text}
+      {...(caption.lang ? { lang: caption.lang } : {})}
       {...fixed}
       {...englishOn(pageLang)}
     >
