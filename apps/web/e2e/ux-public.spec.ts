@@ -886,6 +886,23 @@ async function motionRests(page: Page): Promise<void> {
 }
 
 /** The approved appearance is independent of the device preference. */
+/**
+ * Waits until every picture on the page is loaded and decoded. A page with a photograph (the Home
+ * folio comes through the image route, which is slow the first time) is otherwise captured half drawn
+ * in one appearance and whole in the other, which is a timing difference and not an appearance one.
+ */
+async function picturesReady(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      [...document.images].map((image) =>
+        image.complete && image.naturalWidth > 0
+          ? undefined
+          : image.decode().catch(() => undefined),
+      ),
+    ),
+  );
+}
+
 test.describe('authoritative appearance on public routes', () => {
   for (const width of [1600, 390]) {
     for (const route of [
@@ -930,6 +947,7 @@ test.describe('authoritative appearance on public routes', () => {
               await expect(fresh.getByText(/^Updated /)).toBeVisible();
             }
             await fresh.evaluate(() => document.fonts.ready);
+            await picturesReady(fresh);
             if (route === '/status') {
               // The page is painted in steps (the empty list, then the answers), and Chromium
               // redraws only the changed part each time. The rounded edge of a card redrawn that way
@@ -971,6 +989,7 @@ test.describe('authoritative appearance on public routes', () => {
             : await (async () => {
                 await page.goto(route);
                 await page.evaluate(() => document.fonts.ready);
+                await picturesReady(page);
                 await motionRests(page);
                 if (route === '/trust') await paintWhole(page);
                 return page.screenshot({
