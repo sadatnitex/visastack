@@ -97,7 +97,7 @@ describe('the page language (WCAG 3.1.2)', () => {
   const htmlLang = (html: string) => /<html[^>]*\blang="([^"]*)"/.exec(html)?.[1];
   it('stays English for a Bangla visitor on a page that is not translated yet', async () => {
     state.locale = 'bn';
-    state.pathname = '/status';
+    state.pathname = '/invitation';
     const html = await renderServer(RootLayout({ children: <p>Page</p> }));
     expect(htmlLang(html)).toBe('en');
   });
@@ -107,7 +107,7 @@ describe('the page language (WCAG 3.1.2)', () => {
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
   });
   it('is English for an English visitor', async () => {
-    state.pathname = '/status';
+    state.pathname = '/invitation';
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
   });
   it('follows the real list: the sign-in screen is Bangla for a Bangla visitor and English for an English one', async () => {
@@ -119,7 +119,7 @@ describe('the page language (WCAG 3.1.2)', () => {
   });
   it('records the chosen language for typography even when the page is marked English', async () => {
     state.locale = 'bn';
-    state.pathname = '/status';
+    state.pathname = '/invitation';
     const html = await renderServer(RootLayout({ children: <p>Page</p> }));
     expect(htmlLang(html)).toBe('en');
     expect(/<html[^>]*\bdata-locale="bn"/.test(html)).toBe(true);
@@ -134,7 +134,7 @@ describe('the page language (WCAG 3.1.2)', () => {
     state.locale = 'bn';
     state.pathname = '/trust/uk';
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('bn');
-    state.pathname = '/status';
+    state.pathname = '/invitation';
     expect(htmlLang(await renderServer(RootLayout({ children: <p>Page</p> })))).toBe('en');
   });
 });

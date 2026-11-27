@@ -11,7 +11,6 @@ import {
   listMissions,
   requireAccess,
 } from '@visastack/services';
-import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { oauthCatalog } from '../../../i18n/oauth';
 import { aiConnectorEnabled } from '../../../lib/ai-connector';
@@ -28,6 +27,7 @@ import {
   rememberedAiFilePicks,
 } from '../../../lib/ai-file-picks-retry';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import {
   type AuthorizeParams,
   checkAuthorizeRequest,
@@ -39,7 +39,7 @@ import { AuthShell } from '../../auth/auth-ui';
 import { AgencyConsentForm } from './agency-consent-form';
 import { ConsentForm } from './consent-form';
 
-export const metadata: Metadata = { title: 'Connect an AI App' };
+export const generateMetadata = localizedMetadata({ title: 'Connect an AI App' });
 
 export const dynamic = 'force-dynamic';
 

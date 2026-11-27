@@ -428,3 +428,29 @@
 html[data-r4-motion="paused"] .r4-ribbon-track {
   animation-play-state: paused;
 }
+
+/* LAND2 The list holds Bengali names beside official English lines (held for sign-off). The page-wide Bengali line height (1.75, WP-P16) is for running Bengali text; here the mixed rows use a tighter one so the list stays within the phone page budget (WP-PUBFIX). */
+[data-locale="bn"] .pub4c-note,
+[data-locale="bn"] .pub4c-rows + .show-more,
+[data-locale="bn"] .pub4c-rows + .show-more * {
+  line-height: 1.4;
+}
+
+/* The official lines are English (marked lang="en"): they keep the Latin line height they have in English. */
+[data-locale="bn"] .pub4c-facts,
+[data-locale="bn"] .pub4c-facts [lang="en"],
+[data-locale="bn"] .pub4c-facts span {
+  line-height: 1.3;
+}
+
+/* LAND2 The two closing sections keep Bengali at 1.6 here (still clear of the line above) so the whole page stays within the phone page budget with a margin in Bengali (WP-PUBFIX). */
+[data-locale="bn"] .r4-rules p,
+[data-locale="bn"] .r4-rules li,
+[data-locale="bn"] .kit-closing-in p {
+  line-height: 1.6;
+}
+
+/* LAND2 A country name is one short line; it keeps 1.5 so twelve rows do not add a screen in Bengali. */
+[data-locale="bn"] .pub4c-name {
+  line-height: 1.5;
+}

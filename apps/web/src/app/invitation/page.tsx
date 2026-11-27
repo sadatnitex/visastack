@@ -1,10 +1,10 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { invitationCatalog } from '../../i18n/invitation';
 import { clientInvitationTerms } from '../../lib/client-invitation-terms';
 import { getServerT, primeLocale } from '../../lib/i18n-server';
 import { loadClientInvitationPage } from '../../lib/invitation-preview';
 import { INVITATION_TOKEN_PATTERN } from '../../lib/invitation-token';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import { isSignedIn } from '../../lib/signed-in';
 import { type InvitationKind, isInvitationKind } from './accept-paths';
 import {
@@ -18,11 +18,11 @@ import {
   InvitationSteps,
 } from './client-invitation-offer';
 
-export const metadata: Metadata = {
+export const generateMetadata = localizedMetadata({
   title: 'Your Invitation',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
-};
+});
 export const dynamic = 'force-dynamic';
 
 /** What each kind of invitation says in its hero and in its list of what to expect. */

@@ -1,6 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderServer } from '../lib/next-mocks.test-support';
 
 vi.mock('@neondatabase/auth/next/server', () => ({ createNeonAuth: vi.fn() }));
 // The client invitation page looks its link up in the database; these tests are about the handoff.
@@ -39,7 +40,7 @@ const dom = (html: string) => new JSDOM(html).window.document;
 describe('public and entry pages today', () => {
   it('terms of use keeps one top heading, the free-account line and the visa decisions section', async () => {
     const { default: Terms } = await import('./terms/page');
-    const document = dom(renderToStaticMarkup(<Terms />));
+    const document = dom(await renderServer(<Terms />));
     expect(document.querySelectorAll('h1')).toHaveLength(1);
     expect(document.querySelector('h1')?.textContent).toBe('Terms of Use');
     expect(document.body.textContent).toContain('Account creation is free');

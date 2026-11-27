@@ -1,0 +1,176 @@
+#!/usr/bin/env node
+/**
+ * Builds the Bengali review packet for the public pages from the message files that carry both
+ * languages and a review state: `apps/web/src/i18n/*-messages.ts` (one file per page family).
+ * One row per message: where it appears, the English, the proposed Bengali, what kind of wording
+ * it is, whether it is live or held, and its review state. Nothing here is approved: every row is
+ * a model draft waiting for the owner (editor and legal reviewer) or a qualified reader.
+ *
+ * usage: node --experimental-strip-types scripts/i18n/public-bn-packet.mjs [--check]
+ *   writes docs/localization/data/public-bn/REVIEW_PACKET.csv and REVIEW_PACKET.md;
+ *   --check exits 1 when the committed files are not what the sources produce (run by test:node).
+ */
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { register } from 'node:module';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+// The message files import each other without an extension (the web app's bundler allows it); Node needs the .ts.
+register(
+  `data:text/javascript,${encodeURIComponent(
+    `export async function resolve(specifier, context, next) {
+      try { return await next(specifier, context); }
+      catch (error) {
+        if (specifier.startsWith('.') && !/\\.\\w+$/.test(specifier)) return next(specifier + '.ts', context);
+        throw error;
+      }
+    }`,
+  )}`,
+  import.meta.url,
+);
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const I18N = join(ROOT, 'apps/web/src/i18n');
+const OUT = join(ROOT, 'docs/localization/data/public-bn');
+
+/** Where each message family is drawn (the first part of its key). */
+export const SURFACES = {
+  'landing-messages.ts': { route: '/', page: 'Home and planner' },
+  'shell-messages.ts': { route: 'every page', page: 'Header, footer and notice banner' },
+  'titles-messages.ts': { route: 'every public page', page: 'Browser tab titles' },
+  'how-messages.ts': { route: '/how-it-works', page: 'How It Works' },
+  'agencies-messages.ts': { route: '/for-agencies', page: 'For Agencies' },
+  'countries-messages.ts': { route: '/countries', page: 'Countries and Sources' },
+  'legal-messages.ts': { route: '/privacy and /terms', page: 'Privacy and Terms' },
+  'trust-messages.ts': { route: '/trust', page: 'Privacy and Trust' },
+  'status-messages.ts': { route: '/status', page: 'Status' },
+  'misc-messages.ts': {
+    route: '/auth/*, 404, invitations, payments',
+    page: 'Account, errors and invitations',
+  },
+  'kit-messages.ts': { route: 'several pages', page: 'Shared pictures (example figures)' },
+};
+
+/** What each kind of wording needs before it can go live. */
+export const NEEDS = {
+  ordinary: 'Interface wording. Owner or any fluent reader may sign off.',
+  claim: 'Says what happens to a person’s data or who can see it. Owner, with a privacy reader.',
+  authority: 'Says the issuing authority sets the rules and decides. Owner, with a legal reader.',
+  status:
+    'Says what stage the product is in or what may be uploaded. Owner; must match the real deployment.',
+  example: 'Says a drawn example is illustrative. Owner.',
+  legal:
+    'Legal wording (terms, privacy, consent). A qualified legal reader and the owner; the English stays authoritative until then.',
+};
+
+const csvCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
+
+export async function collect() {
+  const rows = [];
+  const files = readdirSync(I18N)
+    .filter((name) => name.endsWith('-messages.ts'))
+    .sort();
+  for (const file of files) {
+    const mod = await import(pathToFileURL(join(I18N, file)).href);
+    for (const [exportName, messages] of Object.entries(mod)) {
+      if (!exportName.endsWith('_MESSAGES')) continue;
+      for (const [key, m] of Object.entries(messages)) {
+        const surface = SURFACES[file] ?? { route: '?', page: file };
+        rows.push({
+          key,
+          route: surface.route,
+          page: surface.page,
+          english: m.en,
+          bengali: m.bn,
+          cls: m.cls,
+          release: m.live ? 'LIVE' : 'HELD',
+          state: 'DRAFT_NOT_REVIEWED',
+          needs: NEEDS[m.cls] ?? '',
+        });
+      }
+    }
+  }
+  return rows;
+}
+
+export function toCsv(rows) {
+  const head = [
+    'route',
+    'page',
+    'key',
+    'english',
+    'proposed_bengali',
+    'kind',
+    'release',
+    'review_state',
+    'sign_off_needed',
+  ];
+  const lines = rows.map((r) =>
+    [r.route, r.page, r.key, r.english, r.bengali, r.cls, r.release, r.state, r.needs]
+      .map(csvCell)
+      .join(','),
+  );
+  return `${[head.map(csvCell).join(','), ...lines].join('\n')}\n`;
+}
+
+export function toMarkdown(rows) {
+  const held = rows.filter((r) => r.release === 'HELD');
+  const live = rows.filter((r) => r.release === 'LIVE');
+  const table = (list) =>
+    list
+      .map(
+        (r) =>
+          `| \`${r.key}\` | ${r.english.replaceAll('|', '\\|')} | ${r.bengali.replaceAll('|', '\\|')} | ${r.cls} |`,
+      )
+      .join('\n');
+  return `# Bengali review packet: public pages
+
+Generated by \`scripts/i18n/public-bn-packet.mjs\` from \`apps/web/src/i18n/*-messages.ts\`. Every Bengali line is a model draft written for this change; none is approved by a person. Full data: \`REVIEW_PACKET.csv\`.
+
+- Messages: ${rows.length} (${live.length} shown in Bengali now, ${held.length} held in English until signed off).
+- Terms used (owner decisions, 12 Nov 2026): case is ভিসা ফাইল, document is ডকুমেন্ট, version of a document is কপি, box is বক্স, page is পাতা, prose digits are Bengali.
+
+## Held: needs sign-off before it can be shown (${held.length})
+
+Flip \`live: true\` on the message in its \`*-messages.ts\` file to show its Bengali; nothing else changes.
+
+| Key | English | Proposed Bengali | Kind |
+| --- | --- | --- | --- |
+${table(held)}
+
+## Live now, drafted and awaiting sign-off (${live.length})
+
+| Key | English | Proposed Bengali | Kind |
+| --- | --- | --- | --- |
+${table(live)}
+`;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const rows = await collect();
+  const csv = toCsv(rows);
+  const md = toMarkdown(rows);
+  const check = process.argv.includes('--check');
+  const files = [
+    [join(OUT, 'REVIEW_PACKET.csv'), csv],
+    [join(OUT, 'REVIEW_PACKET.md'), md],
+  ];
+  let stale = false;
+  for (const [path, text] of files) {
+    if (check) {
+      let current = '';
+      try {
+        current = readFileSync(path, 'utf8');
+      } catch {}
+      if (current !== text) stale = true;
+    } else writeFileSync(path, text);
+  }
+  if (check && stale) {
+    console.error(
+      'The review packet is out of date: run node --experimental-strip-types scripts/i18n/public-bn-packet.mjs',
+    );
+    process.exit(1);
+  }
+  // biome-ignore lint/suspicious/noConsoleLog: a command-line script reports its result
+  console.log(`${rows.length} messages, ${rows.filter((r) => r.release === 'HELD').length} held`);
+}

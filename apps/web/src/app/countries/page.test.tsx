@@ -11,7 +11,8 @@ const signedIn = vi.hoisted(() => ({ value: false }));
 vi.mock('server-only', () => ({}));
 vi.mock('../../lib/signed-in', () => ({ isSignedIn: async () => signedIn.value }));
 
-const { default: CountriesPage, metadata } = await import('./page');
+const { default: CountriesPage, generateMetadata } = await import('./page');
+const metadata = await generateMetadata();
 const { COUNTRIES_STEP, sourceLabel } = await import('./countries-data');
 const { needsChecking, isUnofficial } = await import('../../lib/country-view');
 const { startHrefForCountry, appHrefForCountry } = await import('../../lib/country-start-links');

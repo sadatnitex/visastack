@@ -1,7 +1,11 @@
 import { destinationByIso2 } from '@visastack/core/destinations';
+import type { Locale } from '@visastack/i18n';
+import type { Destination } from '../components/landing/planner';
 import { homeCatalog } from '../i18n/home';
+import { landingCatalog } from '../i18n/landing';
+import { localizedCountryName } from '../lib/country-name';
 import { getDeploymentMode } from '../lib/deployment-mode';
-import { getPageLanguage, getServerT, primeLocale } from '../lib/i18n-server';
+import { getServerT, primeLocale } from '../lib/i18n-server';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
 import { HomeLanding } from './home-landing';
@@ -26,10 +30,21 @@ import { HomeLanding } from './home-landing';
  */
 const SUGGESTED_DESTINATIONS = ['JP', 'SG', 'GB', 'CA', 'DE', 'AU'] as const;
 
-function suggestedDestinations(): string[] {
+/**
+ * Each destination as the guides search for it (`value`, the catalogue's English country name,
+ * which never changes with the language) and as the visitor reads it (`label`: the catalogue name
+ * in English, the standard Bengali region name from the platform's locale data in Bengali).
+ */
+function suggestedDestinations(locale: Locale): Destination[] {
   return SUGGESTED_DESTINATIONS.flatMap((iso2) => {
     const destination = destinationByIso2(iso2);
-    return destination ? [destination.country] : [];
+    if (!destination) return [];
+    return [
+      {
+        value: destination.country,
+        label: localizedCountryName(iso2, destination.country, locale).text,
+      },
+    ];
   });
 }
 
@@ -38,8 +53,9 @@ interface HomePageProps {
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  await primeLocale();
+  const locale = await primeLocale();
   const t = getServerT(homeCatalog);
+  const tl = getServerT(landingCatalog);
   // A failed sign-in sends the visitor back here with a short reference that holds no
   // personal information (see apps/web/src/app/callback/route.ts), so they get a way
   // forward instead of a blank error page.
@@ -48,9 +64,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const signedIn = await isSignedIn();
   const betaOpen = isPublicBetaOpen();
   const startLabel = signedIn
-    ? t.node('home.page.openYourWorkspace')
+    ? tl.node('landing.account.workspace')
     : betaOpen
-      ? t.node('home.page.createYourFreeAccount')
+      ? tl.node('landing.account.create')
       : t.node('home.page.signInToGetStarted');
   const startHref = !signedIn && betaOpen ? '/auth/sign-up' : '/app';
 
@@ -69,8 +85,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <HomeLanding
-      pageLang={getPageLanguage()}
-      destinations={suggestedDestinations()}
+      destinations={suggestedDestinations(locale)}
       deploymentMode={getDeploymentMode()}
       registrationOpen={betaOpen}
       start={{ label: startLabel, href: startHref }}

@@ -1,11 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { pilotAccessDeniedCatalog } from '../../i18n/pilot-access-denied';
 import { getServerT, primeLocale } from '../../lib/i18n-server';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import { createIdentityPort } from '../../lib/providers';
 import { reportServerError } from '../../lib/server-error';
 
-export const metadata: Metadata = { title: 'Invite-Only Pilot' };
+export const generateMetadata = localizedMetadata({ title: 'Invite-Only Pilot' });
 
 export const dynamic = 'force-dynamic';
 

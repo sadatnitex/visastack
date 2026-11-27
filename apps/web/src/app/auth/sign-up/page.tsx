@@ -1,7 +1,9 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
+import { publicMessage, publicText } from '../../../components/public-site/public-text';
 import { authCatalog } from '../../../i18n/auth';
-import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { MISC_MESSAGES as X } from '../../../i18n/misc-messages';
+import { getPageLanguage, getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { isPublicBetaOpen } from '../../../lib/public-beta';
 import { createSignupForm } from '../../../lib/signup-form';
@@ -9,7 +11,7 @@ import { signUpAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 import { GoogleButton } from '../google-button';
 
-export const metadata: Metadata = { title: 'Create an Account' };
+export const generateMetadata = localizedMetadata({ title: 'Create an Account' });
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
@@ -25,7 +27,9 @@ const ERRORS: Record<string, string> = {
 export default async function SignUpPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; next?: string }> }) {
-  await primeLocale();
+  const locale = await primeLocale();
+  const lang = getPageLanguage();
+  const pm = (message: Parameters<typeof publicMessage>[0]) => publicMessage(message, lang, locale);
   const t = getServerT(authCatalog);
   const { e, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
@@ -41,9 +45,9 @@ export default async function SignUpPage({
       }
       utility={
         <>
-          Already have an account?{' '}
+          {pm(X['misc.haveAccount'])}{' '}
           <Link href={`/auth/sign-in?next=${encodeURIComponent(safeReturnPath(next))}`}>
-            Sign In
+            {publicText('Sign In', lang, locale)}
           </Link>
         </>
       }
@@ -113,8 +117,9 @@ export default async function SignUpPage({
           />
           <label className="card-body signup-consent" htmlFor="accept-notices">
             <input id="accept-notices" type="checkbox" name="acceptNotices" value="yes" required />{' '}
-            I agree to the <Link href="/terms">terms of use</Link> and acknowledge the{' '}
-            <Link href="/privacy">privacy notice</Link>.
+            {pm(X['misc.consent.agree'])} <Link href="/terms">{pm(X['misc.consent.terms'])}</Link>{' '}
+            {pm(X['misc.consent.acknowledge'])}{' '}
+            <Link href="/privacy">{pm(X['misc.consent.privacy'])}</Link>.
           </label>
           <p className="card-body signup-notice-note">
             {t.node('auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing')}

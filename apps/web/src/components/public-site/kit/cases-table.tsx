@@ -1,4 +1,4 @@
-import { publicText } from '../public-text';
+import { publicString, publicText } from '../public-text';
 import { ExampleTag } from '../story';
 import { englishOn } from './doc-kinds';
 import { RiseIn } from './rise-in';
@@ -30,15 +30,17 @@ export interface CasesTableProps {
  */
 export function CasesTable({ rows, pageLang = 'en' }: CasesTableProps) {
   const say = (text: string) => publicText(text, pageLang);
+  const caption = publicString("Example of an agency's cases", pageLang);
   return (
     <figure
       className="kit-cases"
       data-pub-depth=""
-      aria-label="Example of an agency's cases"
+      aria-label={caption.text}
+      {...(caption.lang ? { lang: caption.lang } : {})}
       {...englishOn(pageLang)}
     >
       <div className="kit-cases-head">
-        <b>Cases</b>
+        <b>{say('Cases')}</b>
         <ExampleTag pageLang={pageLang} />
       </div>
       <ul className="kit-cases-list">
@@ -54,8 +56,8 @@ export function CasesTable({ rows, pageLang = 'en' }: CasesTableProps) {
               decoding="async"
             />
             <span className="kit-case-who">
-              <b>{row.name}</b>
-              <span>{row.country}</span>
+              <b>{say(row.name)}</b>
+              <span>{say(row.country)}</span>
             </span>
             <SegmentRing filled={row.filled} size={46} />
             <span className="kit-case-state">

@@ -7,7 +7,6 @@ import {
   proposeCollectionResponse,
   requireAccess,
 } from '@visastack/services';
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DestinationLabel } from '../../../components/destination-label';
@@ -15,6 +14,7 @@ import { collectCatalog } from '../../../i18n/collect';
 import { agencyBrand } from '../../../lib/agency-brand';
 import { formatTimestampDate } from '../../../lib/format-date';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { createKeyManagementPort } from '../../../lib/providers';
 import { withSession } from '../../../lib/session';
 import { destinationName } from '../../app/agency/[orgId]/collection/terms';
@@ -24,11 +24,11 @@ import { heldCollectionLink } from './link';
 import { ResponseForm } from './response-form';
 import { type ItemView, answerHref, itemViews, picksFrom } from './terms';
 
-export const metadata: Metadata = {
+export const generateMetadata = localizedMetadata({
   title: 'Answer a Document Request',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
-};
+});
 export const dynamic = 'force-dynamic';
 
 type Loaded =

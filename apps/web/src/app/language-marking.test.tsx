@@ -35,6 +35,7 @@ vi.mock('../lib/signed-in', () => ({ isSignedIn: async () => false }));
 import { I18nProvider } from '../components/i18n-provider';
 import { authCatalog } from '../i18n/auth';
 import { homeCatalog } from '../i18n/home';
+import { landingCatalog } from '../i18n/landing';
 import { statusCatalog } from '../i18n/status';
 import { type ProbeResult, StatusView } from './status/status-view';
 
@@ -56,7 +57,7 @@ async function pageHtml(
   const searchParams = Promise.resolve({});
   const element =
     page === 'home' ? await HomePage({ searchParams }) : await SignInPage({ searchParams });
-  const pageLang = locale === 'bn' && page === 'sign-in' ? 'bn' : 'en';
+  const pageLang = locale === 'bn' ? 'bn' : 'en';
   return { doc: new JSDOM(renderToStaticMarkup(element)).window.document, pageLang };
 }
 
@@ -122,19 +123,24 @@ afterEach(() => {
   current.path = '/';
 });
 
-describe('the home page under Bengali (an English page)', () => {
-  it('marks every Bengali message lang="bn" and leaves English text unmarked', async () => {
+describe('the home page under Bengali (a Bengali page, LAND2)', () => {
+  it('leaves Bengali unmarked and marks the held English fallbacks lang="en"', async () => {
     const { doc, pageLang } = await pageHtml('home', 'bn');
-    expect(pageLang).toBe('en');
+    expect(pageLang).toBe('bn');
     const r = wrongLanguage(doc, pageLang, homeCatalog as unknown as Catalogue);
-    // LAND1: the Home page keeps three catalogued messages (the status link, the account button and
-    // the notice sentence); the rest of its words are English text on an English page until the
-    // localization lane adds them.
-    expect(r.bengaliSeen.length).toBeGreaterThanOrEqual(3);
-    expect(r.bengaliNotBn).toEqual([]);
-    expect(r.anyBengaliScriptNotBn).toEqual([]);
-    expect(doc.querySelectorAll('span[lang="bn"]').length).toBeGreaterThanOrEqual(3);
-    expect(doc.querySelectorAll('[lang="en"]').length).toBe(0);
+    const own = wrongLanguage(doc, pageLang, landingCatalog as unknown as Catalogue);
+    // The status link, the notice sentence and the sign-in button come from the home catalogue;
+    // every other word is in the landing catalogue (i18n/landing.ts).
+    expect(r.bengaliSeen.length).toBeGreaterThanOrEqual(2);
+    expect(own.bengaliSeen.length).toBeGreaterThan(30);
+    for (const found of [r, own]) {
+      expect(found.bengaliNotBn).toEqual([]);
+      expect(found.anyBengaliScriptNotBn).toEqual([]);
+      expect(found.fallbackNotEn).toEqual([]);
+    }
+    // Held wording (claims, the issuing authority, status, examples) is English and says so.
+    expect(own.fallbackSeen.length).toBeGreaterThanOrEqual(3);
+    expect(doc.querySelectorAll('[lang="en"]').length).toBeGreaterThan(3);
   });
 
   it('adds no language markup at all under English', async () => {

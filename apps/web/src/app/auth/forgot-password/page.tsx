@@ -1,11 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { requestPasswordResetAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Reset Your Password' };
+export const generateMetadata = localizedMetadata({ title: 'Reset Your Password' });
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {

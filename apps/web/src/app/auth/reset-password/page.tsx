@@ -1,11 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { authCatalog } from '../../../i18n/auth';
 import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { resetPasswordAction } from '../actions';
 import { AuthShell, ErrorLine, TextField } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'Choose a New Password' };
+export const generateMetadata = localizedMetadata({ title: 'Choose a New Password' });
 // The email link carries a one-time code, so the form page tells the browser not to pass it on.
 export const dynamic = 'force-dynamic';
 

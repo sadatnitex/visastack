@@ -1,5 +1,5 @@
 import { DocumentPicture } from '../../pictures/document-picture';
-import { publicText } from '../public-text';
+import { publicString, publicText } from '../public-text';
 import { ExampleTag, StatusChip } from '../story';
 import { englishOn } from './doc-kinds';
 import './kit-steps.css';
@@ -29,18 +29,20 @@ export interface ScanPhoneProps {
  */
 export function ScanPhone({ fields, step, pageLang = 'en' }: ScanPhoneProps) {
   const say = (text: string) => publicText(text, pageLang);
+  const caption = publicString('Example of a document being read on a phone', pageLang);
   const fixed = step === undefined ? {} : { 'data-kit-step': step };
   return (
     <figure
       className={step === undefined ? 'kit-phone' : 'kit-phone kit-fixed'}
       data-pub-depth=""
-      aria-label="Example of a document being read on a phone"
+      aria-label={caption.text}
+      {...(caption.lang ? { lang: caption.lang } : {})}
       {...fixed}
       {...englishOn(pageLang)}
     >
       <span className="kit-phone-notch" aria-hidden="true" />
       <div className="kit-phone-screen">
-        <b className="kit-phone-title">Add Document</b>
+        <b className="kit-phone-title">{say('Add Document')}</b>
         <div className="kit-cam" aria-hidden="true">
           <span className="kit-cam-corner" data-corner="a" />
           <span className="kit-cam-corner" data-corner="b" />
@@ -54,8 +56,8 @@ export function ScanPhone({ fields, step, pageLang = 'en' }: ScanPhoneProps) {
         <ul className="kit-fields">
           {fields.map((field, index) => (
             <li className="kit-field" data-from="1" key={field.label} data-i={index}>
-              <span className="kit-field-label">{field.label}</span>
-              <b className="kit-field-value">{field.value}</b>
+              <span className="kit-field-label">{say(field.label)}</span>
+              <b className="kit-field-value">{say(field.value)}</b>
               <span className="kit-sw kit-chip-slot" data-upto="1">
                 <StatusChip status="suggested" pageLang={pageLang} />
               </span>

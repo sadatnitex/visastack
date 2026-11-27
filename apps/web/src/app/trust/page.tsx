@@ -1,17 +1,17 @@
 import { type PublicTrustRoute, listPublicTrustPublished } from '@visastack/services';
-import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { TrustCatalogSection } from '../../components/public-trust-routes';
 import { PublicTrustStory } from '../../components/public-trust-story';
 import { TrustUnavailable } from '../../components/trust-unavailable';
 import { primeLocale } from '../../lib/i18n-server';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import type { SearchParamsRecord } from '../../lib/paging';
 import { withPublicDb } from '../../lib/public-db';
 import { reportServerError } from '../../lib/server-error';
 
 // WP-PUB3 (owner, 17 Nov 2026): the tab is named as the menu names the page. The footer link keeps
 // its own catalogue words. The route list sits inside the Where We Are Today chapter and keeps its own heading.
-export const metadata: Metadata = { title: 'Privacy and Trust' };
+export const generateMetadata = localizedMetadata({ title: 'Privacy and Trust' });
 
 export const dynamic = 'force-dynamic';
 

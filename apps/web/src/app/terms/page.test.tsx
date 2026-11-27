@@ -1,5 +1,5 @@
-import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, expect, it, vi } from 'vitest';
+import { renderServer } from '../../lib/next-mocks.test-support';
 import TermsPage from './page';
 
 const beta = vi.hoisted(() => ({ open: true }));
@@ -8,9 +8,9 @@ afterEach(() => {
   beta.open = true;
 });
 
-it('in public beta mode keeps the own-risk wording and not the made-up-details rule', () => {
+it('in public beta mode keeps the own-risk wording and not the made-up-details rule', async () => {
   beta.open = true;
-  const html = renderToStaticMarkup(<TermsPage />);
+  const html = await renderServer(<TermsPage />);
   expect(html).toContain('<h2>Free Public Beta</h2>');
   // /terms is the one place that keeps the full disclaimer (owner decision, 19 Nov 2026).
   expect(html).toContain('You may use your own details and documents, at your own risk');
@@ -20,9 +20,9 @@ it('in public beta mode keeps the own-risk wording and not the made-up-details r
   expect(html).not.toContain('Real applicant details are not accepted yet');
 });
 
-it('in pilot mode repeats the made-up-details rule and does not invite real details', () => {
+it('in pilot mode repeats the made-up-details rule and does not invite real details', async () => {
   beta.open = false;
-  const html = renderToStaticMarkup(<TermsPage />);
+  const html = await renderServer(<TermsPage />);
   expect(html).toContain('Please use made-up details');
   expect(html).toContain('Real applicant details are not accepted yet');
   expect(html).not.toContain('You may use your own details and documents');

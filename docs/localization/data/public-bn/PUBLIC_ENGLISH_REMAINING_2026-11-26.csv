@@ -1,0 +1,421 @@
+kind,english_shown_under_bengali,routes,route_count,marked_lang
+meta-description,A clean file you can stand behind. Keep your passport and documents in one private profile and share only the part you choose.,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,
+text,Common Questions,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,Country Guides,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,English,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+aria-label,Legal,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,
+text,Privacy and Trust,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,Status,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,Travellers,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,Trust and Support,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,"Visa preparation for travellers, families and the agencies that help them.",/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,VisaStack Private Pilot,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,bn/en
+text,What Works Today,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,Workspaces,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,Your Reusable Record,/ /auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /oauth/authorize /payments/result /pilot-access-denied /privacy /status /terms /trust,25,en
+text,Prepare a Case,/ /auth/account-recovery /collect /countries /countries?q=Japan /for-agencies /how-it-works /invitation /no-such-page /payments/result /privacy /status /terms /trust,14,en
+text,A better way,/auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /oauth/authorize /pilot-access-denied,12,bn/en
+text,to prepare for,/auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /oauth/authorize /pilot-access-denied,12,bn/en
+text,what's next.,/auth/accept-terms /auth/account-recovery /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /oauth/authorize /pilot-access-denied,12,bn/en
+text,You stay in control of your records and every suggestion you approve.,/auth/accept-terms /auth/confirmed /auth/forgot-password /auth/reauth /auth/reset-password /auth/sign-in /auth/sign-up /auth/social-return /auth/verify-email /oauth/authorize /pilot-access-denied,11,en
+text,Create an Account,/auth/accept-terms /auth/confirmed /auth/reauth /auth/sign-in /auth/social-return /oauth/authorize /pilot-access-denied,7,bn
+text,New here?,/auth/accept-terms /auth/confirmed /auth/reauth /auth/sign-in /auth/social-return /oauth/authorize /pilot-access-denied,7,bn
+document-title,Sign In | VisaStack,/auth/accept-terms /auth/confirmed /auth/reauth /auth/sign-in /auth/social-return /oauth/authorize /pilot-access-denied,7,
+text,Example,/ /countries /countries?q=Japan /for-agencies /how-it-works /trust,6,en
+alt,Bangladesh Passport Cover,/countries /countries?q=Japan /for-agencies /how-it-works /trust,5,
+text,Germany,/ /countries /countries?q=Japan /for-agencies /how-it-works,5,en
+text,Japan,/ /countries /countries?q=Japan /for-agencies /how-it-works,5,en
+text,Singapore,/ /countries /countries?q=Japan /for-agencies /how-it-works,5,en
+text,"The type of cover, not anyone’s own passport.",/countries /countries?q=Japan /for-agencies /how-it-works /trust,5,en
+text,Passport,/countries /countries?q=Japan /how-it-works /trust,4,en
+text,Photo,/countries /countries?q=Japan /how-it-works /trust,4,en
+text,3 reused from your record. 5 to add.,/countries /countries?q=Japan /how-it-works,3,en
+text,5 reused from your record. 3 to add.,/countries /countries?q=Japan /how-it-works,3,en
+text,Australia,/ /countries /countries?q=Japan,3,en
+text,Back to Home,/auth/account-recovery /collect /no-such-page,3,en
+text,Bank Statement,/countries /countries?q=Japan /how-it-works,3,en
+text,Canada,/ /countries /countries?q=Japan,3,en
+text,Completeness only. Not an approval.,/countries /countries?q=Japan /how-it-works,3,en
+aria-label,Example of a country checklist,/countries /countries?q=Japan /how-it-works,3,
+text,Flights,/countries /countries?q=Japan /how-it-works,3,en
+text,Germany: 3 of 8 Ready,/countries /countries?q=Japan /how-it-works,3,en
+text,Hotel Booking,/countries /countries?q=Japan /how-it-works,3,en
+text,Insurance,/countries /countries?q=Japan /how-it-works,3,en
+text,Invitation,/countries /countries?q=Japan /how-it-works,3,en
+text,Itinerary,/countries /countries?q=Japan /how-it-works,3,en
+text,Japan: 5 of 8 Ready,/countries /countries?q=Japan /how-it-works,3,en
+text,Reused,/countries /countries?q=Japan /how-it-works,3,en
+text,Singapore: 5 of 8 Ready,/countries /countries?q=Japan /how-it-works,3,en
+text,To Add,/countries /countries?q=Japan /how-it-works,3,en
+text,United Kingdom,/ /countries /countries?q=Japan,3,en
+text,Access Ended,/how-it-works /trust,2,en
+text,Add one document and see what the trip still needs.,/countries /countries?q=Japan,2,en
+text,Albania,/countries /countries?q=Japan,2,en
+text,Algeria,/countries /countries?q=Japan,2,en
+text,All Countries,/countries /countries?q=Japan,2,en
+text,Andorra,/countries /countries?q=Japan,2,en
+text,Antigua and Barbuda,/countries /countries?q=Japan,2,en
+text,Argentina,/countries /countries?q=Japan,2,en
+text,Armenia,/countries /countries?q=Japan,2,en
+text,Austria,/countries /countries?q=Japan,2,en
+text,Azerbaijan,/countries /countries?q=Japan,2,en
+text,Bahamas,/countries /countries?q=Japan,2,en
+text,Bahrain,/countries /countries?q=Japan,2,en
+text,Bank,/how-it-works /trust,2,en
+text,Barbados,/countries /countries?q=Japan,2,en
+text,Checked On 14 Oct 2026,/countries /countries?q=Japan,2,en
+text,Checked On 15 Oct 2026,/countries /countries?q=Japan,2,en
+aria-label,Countries,/countries /countries?q=Japan,2,
+document-title,Countries and Sources | VisaStack,/countries /countries?q=Japan,2,
+text,E-Visa,/countries /countries?q=Japan,2,en
+text,Each line shows where it came from and when it was last checked. Check the official page before you pay or travel.,/countries /countries?q=Japan,2,en
+text,Ends 31 Dec. Turn it off any time.,/how-it-works /trust,2,en
+text,Every Country.,/countries /countries?q=Japan,2,en
+text,Everything is private again.,/how-it-works /trust,2,en
+aria-label,Example of sharing papers with an agency,/how-it-works /trust,2,
+text,For Agencies,/countries /countries?q=Japan,2,en
+text,France,/countries /countries?q=Japan,2,en
+text,Go to Workspace,/collect /no-such-page,2,en
+text,Italy,/countries /countries?q=Japan,2,en
+text,Malaysia,/countries /countries?q=Japan,2,en
+aria-label,Matching Countries,/countries /countries?q=Japan,2,
+text,Needs checking before you rely on it.,/countries /countries?q=Japan,2,en
+text,Netherlands,/countries /countries?q=Japan,2,en
+text,No Visa Needed,/countries /countries?q=Japan,2,en
+text,Not Found,/collect /no-such-page,2,en
+text,Not Guesses.,/countries /countries?q=Japan,2,en
+text,Not Shared,/how-it-works /trust,2,en
+text,Not from an official page.,/countries /countries?q=Japan,2,en
+text,Pause Motion,/countries /countries?q=Japan,2,en
+text,Pick a Country.,/countries /countries?q=Japan,2,en
+text,"Pick where you are going and see what you need, with the official page for each rule.",/countries /countries?q=Japan,2,en
+text,"Rules,",/countries /countries?q=Japan,2,en
+text,Saved,/ /how-it-works,2,en
+text,Search Countries,/countries /countries?q=Japan,2,en
+placeholder,Search Countries,/countries /countries?q=Japan,2,
+text,See the Gap.,/countries /countries?q=Japan,2,en
+text,Share,/how-it-works /trust,2,en
+text,Share with Agency,/how-it-works /trust,2,en
+text,Show More,/countries /countries?q=Japan,2,en
+text,Showing 12 of 156 countries.,/countries /countries?q=Japan,2,en
+text,Source: Barbados Immigration Department,/countries /countries?q=Japan,2,en
+text,"Source: Department of Home Affairs, Australian Government",/countries /countries?q=Japan,2,en
+text,"Source: Department of Immigration, Government of Antigua and Barbuda",/countries /countries?q=Japan,2,en
+text,Source: European Union (EUR-Lex / DG HOME),/countries /countries?q=Japan,2,en
+text,Source: European Union (EUR-Lex),/countries /countries?q=Japan,2,en
+text,"Source: Ministerio de Relaciones Exteriores, Comercio Internacional y Culto, Argentine Republic",/countries /countries?q=Japan,2,en
+text,"Source: Ministry for Europe and Foreign Affairs, Republic of Albania",/countries /countries?q=Japan,2,en
+text,Source: Ministry of Foreign Affairs of the Republic of Armenia,/countries /countries?q=Japan,2,en
+text,"Source: Ministry of Foreign Affairs, The Commonwealth of The Bahamas",/countries /countries?q=Japan,2,en
+text,Source: Peninsula Visa,/countries /countries?q=Japan,2,en
+text,"Source: State Agency for Public Service and Social Innovations (ASAN Visa), Azerbaijan",/countries /countries?q=Japan,2,en
+text,Source: evisas.io,/countries /countries?q=Japan,2,en
+text,Source: official page. Checked on an Example date.,/countries /countries?q=Japan,2,en
+text,Start,/countries /countries?q=Japan,2,en
+text,Start with Your Own Profile,/how-it-works /trust,2,en
+text,Sweden,/countries /countries?q=Japan,2,en
+text,Switzerland,/countries /countries?q=Japan,2,en
+text,Taiwan,/countries /countries?q=Japan,2,en
+text,"The link may be out of date, or the record may have been removed or revoked. Check the address, or head back to your workspace.",/collect /no-such-page,2,en
+text,United Arab Emirates,/countries /countries?q=Japan,2,en
+text,United States,/countries /countries?q=Japan,2,en
+text,Version,/privacy /terms,2,en
+text,Visa Needed,/countries /countries?q=Japan,2,en
+text,We Couldn't Find That Page,/collect /no-such-page,2,en
+text,With Albania,/countries /countries?q=Japan,2,en
+text,With Algeria,/countries /countries?q=Japan,2,en
+text,With Andorra,/countries /countries?q=Japan,2,en
+text,With Antigua and Barbuda,/countries /countries?q=Japan,2,en
+text,With Argentina,/countries /countries?q=Japan,2,en
+text,With Armenia,/countries /countries?q=Japan,2,en
+text,With Australia,/countries /countries?q=Japan,2,en
+text,With Austria,/countries /countries?q=Japan,2,en
+text,With Azerbaijan,/countries /countries?q=Japan,2,en
+text,With Bahamas,/countries /countries?q=Japan,2,en
+text,With Bahrain,/countries /countries?q=Japan,2,en
+text,With Barbados,/countries /countries?q=Japan,2,en
+text,With Its Sources.,/countries /countries?q=Japan,2,en
+text,countries,/countries /countries?q=Japan,2,en
+text,or,/privacy /terms,2,en
+text,return to account creation,/privacy /terms,2,en
+text,. These beta terms await legal review.,/terms,1,en
+text,. This beta notice awaits legal review.,/privacy,1,en
+text,1 country found.,/countries?q=Japan,1,en
+text,10 Nov,/trust,1,en
+text,12 Nov,/trust,1,en
+text,14 Mar 2031,/how-it-works,1,en
+text,2 missing,/for-agencies,1,en
+text,5 missing,/for-agencies,1,en
+text,A detail was read from your page. Nothing is true until you say so.,/how-it-works,1,en
+text,A file arrived. No one has checked it yet.,/how-it-works,1,en
+text,A passport renewal,/,1,en
+text,A saved file stays yours until you choose to share it.,/how-it-works,1,en
+text,A suggested detail is saved as a fact only when you confirm it. You can also type it yourself.,/trust,1,en
+text,AI App Connections,/status,1,en
+text,AI Suggestions from Documents,/status,1,en
+text,"Access, Export and Deletion",/privacy,1,en
+text,Account Access Needs Verification,/auth/account-recovery,1,en
+document-title,Account Access Needs Verification | VisaStack,/auth/account-recovery,1,
+text,"Account creation is free. Available features depend on your role, permissions, safety checks and capacity limits. Access may be restricted to prevent abuse or protect records. Features and availability may change while the beta is being completed.",/terms,1,en
+text,"Account registration uses your name, email address and sign-in information to create and protect your account and send confirmation or recovery messages. Security controls record registration attempts and notice versions.",/privacy,1,en
+text,"Acknowledging this notice does not grant marketing permission, enable optional AI processing or share records with an agency. Sharing and optional processing require their own choices and applicable permissions. We do not request marketing consent during registration.",/privacy,1,en
+text,Add,/how-it-works,1,en
+text,Add Document,/how-it-works,1,en
+text,Add a document by photo or file. Details are suggested for you to confirm.,/how-it-works,1,en
+text,Agencies and other people see it only when you share it.,/trust,1,en
+text,"Agencies and other people see it only when you share it. Support help is the one exception: it needs a reason and a second approval, lasts at most an hour, and is logged.",/trust,1,en
+text,Agency Request,/,1,en
+text,Agency Workspaces,/status,1,en
+text,Agency access is by invitation while we test with practice records.,/for-agencies,1,en
+text,Agency can see nothing.,/trust,1,en
+text,Agency can see:,/how-it-works,1,en
+text,Aisha K.,/for-agencies,1,en
+text,All Protections for Real Personal Data in Place,/status,1,en
+text,Already have an account?,/auth/sign-up,1,bn
+text,Approve or refuse a visa,/trust,1,en
+text,Ask the person who invited you for a new link.,/invitation,1,en
+text,Awaiting Reply,/,1,en
+text,Bangladeshi,/how-it-works,1,en
+text,Before you begin,/,1,en
+text,"Before you share, you see what goes and what stays private.",/trust,1,en
+text,Being Prepared,/for-agencies,1,en
+text,Bring Your Clients.,/for-agencies,1,en
+text,"Bring the documents and details for one trip into a case. See what you already have, what needs a newer copy, and what your agency is waiting for.",/,1,en
+text,Browse All Country Guides,/,1,en
+text,Build a copy-ready sheet of selected details to use when filling another form.,/,1,en
+text,Building Your Profile by Hand,/status,1,en
+text,Can I prepare for my family?,/,1,en
+text,Can I start before choosing an agency?,/,1,en
+text,Can I upload real documents today?,/,1,en
+text,Can an agency see my whole record?,/,1,en
+text,Cases,/for-agencies,1,en
+text,Check,/how-it-works,1,en
+text,"Check official sources, organise a case for yourself or your family, and share only the documents you choose.",/,1,en
+text,Check the country guide and follow its official links where available.,/,1,en
+text,Check your saved copies,/,1,en
+text,Checking Uploaded Files Are Valid,/status,1,en
+text,Choose a Destination,/,1,en
+document-title,Choose a New Password | VisaStack,/auth/reset-password,1,
+text,Choose a destination,/,1,en
+text,Choose the current copy for the next application.,/,1,en
+text,"Choose what leaves, for whom, until when. Turn it off any time.",/how-it-works,1,en
+text,Clients Arrive,/for-agencies,1,en
+text,"Clients choose what you see, and can end it.",/for-agencies,1,en
+text,Clients own their record. You see what they share.,/for-agencies,1,en
+text,"Compare the old letter with the current one, then choose which version belongs in this case.",/,1,en
+text,Complete,/for-agencies,1,en
+text,"Completeness, Not Approval",/for-agencies,1,en
+document-title,Confirm Your Email Address | VisaStack,/auth/verify-email,1,
+text,"Confirm, change or skip each suggestion. Nothing is assumed.",/how-it-works,1,en
+text,Confirmed,/how-it-works,1,en
+text,Controlled Pilot,/trust,1,en
+text,Countries,/for-agencies,1,en
+document-title,Create an Account | VisaStack,/auth/sign-up,1,
+text,Current Record,/,1,en
+text,Decide how you’ll prepare,/,1,en
+document-title,Document Request | VisaStack,/collect,1,
+text,Does VisaStack issue visas?,/,1,en
+text,Downloading Original Files,/status,1,en
+text,Downloading Safe Copies,/status,1,en
+text,Each row shows its ring and what is missing.,/for-agencies,1,en
+text,Earlier Passport,/,1,en
+text,Employment Letter,/,1,en
+text,"Every share ends on a date, and you can end it sooner. Copies already downloaded cannot be recalled.",/trust,1,en
+text,Example case,/,1,en
+text,Example names and counts. Completeness only. Not an approval.,/for-agencies,1,en
+aria-label,Example of a document being read on a phone,/how-it-works,1,
+aria-label,Example of an agency's cases,/for-agencies,1,
+text,Example record.,/how-it-works,1,en
+text,Explore Agency Workflows,/,1,en
+text,Exporting Records for Agencies,/status,1,en
+text,Find the official source,/,1,en
+text,Five promises.,/trust,1,en
+document-title,For Agencies | VisaStack,/for-agencies,1,
+text,For Visa Agencies,/,1,en
+text,For travellers applying from Bangladesh,/,1,en
+text,Four steps. Each one is yours.,/how-it-works,1,en
+text,Free Access and Availability,/terms,1,en
+text,Give your next trip a head start.,/,1,en
+text,How It,/how-it-works,1,en
+text,How It Works,/trust,1,en
+document-title,How It Works | VisaStack,/how-it-works,1,
+text,I agree to the,/auth/sign-up,1,bn
+text,Illustrative files. Requirements depend on the country and route.,/,1,en
+text,Independent backup and restore protections are still being completed. Do not use this pilot as the only copy of important records. Keep your own originals until real-data safeguards and their acceptance checks are complete.,/privacy,1,en
+text,Information and Purpose,/privacy,1,en
+text,"Invite-only test version. Please use made-up details, or documents with all personal information permanently blacked out.",/status,1,en
+text,"Keep confirmed details and document versions between trips. If your passport, address or employer changes, compare the old details with the new ones before you reuse them.",/,1,en
+text,Keep the new version in your own record.,/,1,en
+text,Keep what still applies and flag what has changed since your last case.,/,1,en
+text,Keep your documents private to you,/trust,1,en
+text,Know what to do next.,/,1,en
+text,My Family,/,1,en
+text,Myself,/,1,en
+text,Nadia S.,/for-agencies,1,en
+text,Nationality,/how-it-works,1,en
+text,Next Case,/,1,en
+text,Not Set Up Yet,/status,1,en
+text,One List of Cases,/for-agencies,1,en
+text,One record for this trip and the next.,/,1,en
+text,One request link. A clearer case file.,/,1,en
+text,Only What Is Shared,/for-agencies,1,en
+text,Only provide information and files you are authorized to use. Keep your sign-in details private. You control whom you share your records with; creating an account gives no agency automatic access. Do not try to access another person's records or misuse the service.,/terms,1,en
+text,Open Country Guide,/,1,en
+text,Open Sign-Up for Anyone,/status,1,en
+text,Own Passport.,/how-it-works,1,en
+document-title,Page Not Found | VisaStack,/no-such-page,1,
+text,Passport Copy,/,1,en
+text,Passport Ends,/how-it-works,1,en
+text,"Passport, details",/how-it-works,1,en
+text,Pause the Animation,/trust,1,en
+document-title,Payment Result | VisaStack,/payments/result,1,
+text,Payments,/status,1,en
+text,"Photo, details",/how-it-works,1,en
+text,Pick a country and purpose. The checklist fills from what you already have.,/how-it-works,1,en
+text,Plans.,/for-agencies,1,en
+text,"Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.",/privacy,1,en
+text,Prepare,/how-it-works,1,en
+text,Prepare on your own or choose which copies to share with an agency.,/,1,en
+text,Prepared.,/for-agencies,1,en
+text,Preparing Application Packs,/status,1,en
+text,Preparing a family visit,/,1,en
+text,Previewing Documents You Share with Others,/status,1,en
+text,Previewing Your Own Documents,/status,1,en
+text,Previous Case,/,1,en
+text,Pricing is shown here when selling opens.,/for-agencies,1,en
+text,Privacy Notice,/privacy,1,en
+document-title,Privacy Notice | VisaStack,/privacy,1,
+document-title,Privacy and Trust | VisaStack,/trust,1,
+text,"Private Pilot, Made-Up Details Only",/terms,1,en
+text,Private by Default,/trust,1,en
+text,Private from,/trust,1,en
+text,Rafi H.,/for-agencies,1,en
+text,Rahman,/how-it-works,1,en
+text,Read about privacy and access,/,1,en
+text,Read the Privacy Notice,/terms,1,en
+text,Read the Terms of Use,/privacy,1,en
+text,Reading Details from Documents,/status,1,en
+text,Ready,/how-it-works,1,en
+text,Ready counts what is complete. It never promises a visa.,/how-it-works,1,en
+text,Ready to Share,/for-agencies,1,en
+text,Received,/how-it-works,1,en
+text,"Record sharing, ending and access to your papers",/trust,1,en
+text,Renewed Passport,/,1,en
+document-title,Reset Your Password | VisaStack,/auth/forgot-password,1,
+text,Resetting a password confirms access to your email. It does not transfer existing records to another account.,/auth/account-recovery,1,en
+text,Review Update,/,1,en
+text,Review and Select,/,1,en
+text,Review the saved copy and its expiry date. Each family member has a separate record.,/,1,en
+text,Say a document is genuine,/trust,1,en
+text,See Country Guides and Sources,/,1,en
+text,See Document Details,/how-it-works,1,en
+text,See How Access Works,/,1,en
+text,See How VisaStack Works,/,1,en
+text,See It With Your,/how-it-works,1,en
+text,See My First Steps,/,1,en
+text,See What Leaves,/trust,1,en
+text,See what’s ready.,/,1,en
+text,See who asked and which copies they need. Review the exact items you selected before sending them.,/,1,en
+text,Select a word to read what it means.,/how-it-works,1,en
+text,"Send one link for the documents you need. Follow up on the specific items still missing and review the exact copies they sent, all in the same case.",/,1,en
+text,Separate Choices,/privacy,1,en
+text,Services That Process Information,/privacy,1,en
+text,Share your papers unless you choose to,/trust,1,en
+text,Sharing with Agencies,/status,1,en
+text,"Sharing, ending and access to your papers go into a history you can read.",/trust,1,en
+text,Show what every share contains,/trust,1,en
+text,Sign In,/auth/sign-up,1,bn
+text,Sign Out,/auth/account-recovery,1,en
+text,Signed-in users can use,/privacy,1,en
+text,Signing In,/status,1,en
+text,Skip the Chasing.,/for-agencies,1,en
+text,Some parts are having problems,/status,1,en
+aria-label,"Sources, privacy and product status",/,1,
+text,Start from the official source,/,1,en
+text,Start with a practice record.,/trust,1,en
+text,Start with one document.,/how-it-works,1,en
+text,Start with what works today.,/for-agencies,1,en
+text,Start without an account.,/,1,en
+text,Storage and Recovery,/privacy,1,en
+text,Suggested,/how-it-works,1,en
+text,Surname,/how-it-works,1,en
+text,Switched Off for Now,/status,1,en
+text,Terms of Use,/terms,1,en
+document-title,Terms of Use | VisaStack,/terms,1,
+text,Test version. Made-up details only.,/,1,en
+text,The configured private storage service,/privacy,1,en
+text,The link may have expired. Open VisaStack to see the latest state of your payment.,/payments/result,1,en
+text,The past case keeps the version used at the time.,/,1,en
+text,The ring counts what is complete. It never promises a visa.,/for-agencies,1,en
+text,This Payment Link Is No Longer Available,/payments/result,1,en
+text,"This is a private pilot for invited users, and some features are not switched on yet.",/,1,en
+text,Today,/trust,1,en
+text,Traveller View,/,1,en
+text,Turn Off,/how-it-works,1,en
+text,Turn Off Any Time,/trust,1,en
+text,Uploading Documents,/status,1,en
+text,Use sample data during the controlled pilot. Check the,/,1,en
+text,Use this plan to organise your work. Confirm the current requirements for your trip with the issuing authority.,/,1,en
+text,Vercel hosts the application.,/privacy,1,en
+text,View Privacy Details,/trust,1,en
+text,Virus Scanning of Uploads,/status,1,en
+text,Visa Case Workspaces,/status,1,en
+text,Visa Decisions,/terms,1,en
+document-title,"VisaStack - one profile, every visa",/,1,
+text,"VisaStack helps organize records and workflows. It does not guarantee a visa, certify a document's authenticity or replace advice from an appropriate professional. A readiness status describes the recorded workflow, not the likelihood of approval.",/terms,1,en
+text,VisaStack helps you prepare. The issuing authority sets the official requirements and decides your application.,/,1,en
+text,"VisaStack is a private pilot, provided as it is. Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet. Some protections, such as virus scanning of uploads, are not switched on yet, and the status page lists what works today. Creating an account does not grant access to an agency workspace.",/terms,1,en
+text,VisaStack is in a controlled pilot,/,1,en
+text,"VisaStack is in a controlled pilot. Only practice records are used. Independent checks will be listed here as they are completed, and nothing before.",/trust,1,en
+text,Waiting on Client,/for-agencies,1,en
+text,We Do,/trust,1,en
+text,We Do Not,/trust,1,en
+text,"We could not load this page. This is on our side, and nothing you entered anywhere is affected. Please try again in a few minutes. For an urgent question about a visa, use the official website of the country you are applying to.",/trust,1,en
+text,"We could not safely connect this sign-in to an account. Your records have not been changed. If you already have another sign-in for VisaStack, sign out and use that one. If your account was made before VisaStack changed how people sign in, contact VisaStack support or the person who invited you: once they have checked with you, sign in again with the email and password you just used.",/auth/account-recovery,1,en
+text,"We could not sign you in with Google. Try again, or use your email and password.",/auth/social-return,1,bn
+text,What Changes,/for-agencies,1,en
+text,What They Say.,/how-it-works,1,en
+document-title,What Works Today | VisaStack,/status,1,
+text,What we do not.,/trust,1,en
+text,What we do.,/trust,1,en
+text,Where are you going?,/,1,en
+text,Where we are,/trust,1,en
+text,Where’s your next trip?,/,1,en
+aria-label,Who are you preparing for?,/,1,
+text,Words Mean Exactly,/how-it-works,1,en
+text,Working,/status,1,en
+text,Works.,/how-it-works,1,en
+text,"Yes. Choose a destination to see where to start, or browse the country guides on your own.",/,1,en
+text,Yes. Keep each traveller’s documents separate and work within the permissions you have for that person.,/,1,en
+text,You Approve Suggestions,/trust,1,en
+text,You choose what to share,/,1,en
+text,You choose what to share. Review who is asking and the versions you’re including before you send.,/,1,en
+text,You confirmed Surname,/trust,1,en
+text,You decide,/trust,1,en
+text,You ended sharing with Agency,/trust,1,en
+text,You shared Passport with Agency,/trust,1,en
+text,Your Information and Access,/terms,1,en
+document-title,Your Invitation | VisaStack,/invitation,1,
+text,Your Starting Plan,/,1,en
+text,Your email address is confirmed. You can sign in now.,/auth/confirmed,1,bn
+text,Your first steps,/,1,en
+text,"Your history,",/trust,1,en
+text,"Your visa paperwork,",/,1,en
+text,and acknowledge the,/auth/sign-up,1,bn
+text,at Your Desk.,/for-agencies,1,en
+text,for what’s available.,/,1,en
+text,in order.,/,1,en
+text,in plain view.,/trust,1,en
+text,is not Approved,/how-it-works,1,en
+text,is not Confirmed,/how-it-works,1,en
+text,is not Reviewed,/how-it-works,1,en
+text,is not Shared,/how-it-works,1,en
+text,privacy controls,/privacy,1,en
+text,privacy notice,/auth/sign-up,1,bn
+text,product status page,/,1,en
+text,stores private files. Cloudflare R2 stores encrypted backup archives when backups are configured. Neon stores application records. Neon Auth handles sign-in. Resend handles application email when configured. Authentication email uses the configured sign-in provider's mail service. These services can process information outside your country. This notice does not claim a particular data location or a completed compliance review.,/privacy,1,en
+text,terms of use,/auth/sign-up,1,bn
+text,the first document.,/trust,1,en
+text,"to review available consent choices, export their account information or request deletion. Deletion is a process, not an immediate promise to erase every record: legal holds and required audit retention can restrict it. Revoking sharing stops future permitted access; it cannot recall copies someone has already downloaded.",/privacy,1,en
+text,today.,/trust,1,en
+text,who sees what.,/trust,1,en

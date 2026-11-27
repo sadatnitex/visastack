@@ -1,7 +1,11 @@
-import { ShareSheetBody, type ShareStep } from './share-sheet-body';
+import { publicText } from '../public-text';
+import { ShareSheetBody } from './share-sheet-body';
 import { ShareSheetTimed } from './share-sheet-timed';
+import { SHARE_STEPS, type ShareStep } from './share-steps';
 
-export { SHARE_STEPS, ShareSheetBody, type ShareStep } from './share-sheet-body';
+export { SHARE_STEPS, ShareSheetBody, type ShareStep };
+
+const STEP_NUMBERS: readonly ShareStep[] = [0, 1, 2, 3, 4];
 
 export interface ShareSheetProps {
   /**
@@ -17,6 +21,15 @@ export interface ShareSheetProps {
 
 export function ShareSheet({ mode, step, pageLang = 'en' }: ShareSheetProps) {
   if (step !== undefined) return <ShareSheetBody step={step} pageLang={pageLang} />;
-  if (mode === 'timed') return <ShareSheetTimed pageLang={pageLang} />;
+  if (mode === 'timed')
+    return (
+      <ShareSheetTimed
+        bodies={STEP_NUMBERS.map((number) => (
+          <ShareSheetBody key={number} step={number} pageLang={pageLang} />
+        ))}
+        playLabel={publicText('Play the Animation', pageLang)}
+        pauseLabel={publicText('Pause the Animation', pageLang)}
+      />
+    );
   return <ShareSheetBody pageLang={pageLang} />;
 }

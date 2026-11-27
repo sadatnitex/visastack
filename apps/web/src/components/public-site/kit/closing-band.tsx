@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { DepthGlow, PassportTilt } from '../public-picture';
-import { publicText } from '../public-text';
+import { publicString, publicText } from '../public-text';
 import { Chapter } from '../scene';
 import { ExampleTag } from '../story';
 import { englishOn } from './doc-kinds';
@@ -40,6 +40,10 @@ export function ClosingBand({
   titleId = 'pub-closing-title',
   pageLang = 'en',
 }: ClosingBandProps) {
+  const cover = publicString(
+    nationality === 'BD' ? 'Bangladesh Passport Cover' : 'Passport Cover',
+    pageLang,
+  );
   return (
     <Chapter tone="dark" className="kit-closing" labelledBy={titleId} {...(id ? { id } : {})}>
       <div className="kit-closing-in">
@@ -55,14 +59,14 @@ export function ClosingBand({
           {actions}
         </RiseIn>
         {passport ? (
-          <figure className="kit-closing-passport" {...englishOn(pageLang)}>
+          <figure
+            className="kit-closing-passport"
+            {...(cover.lang ? { lang: cover.lang } : {})}
+            {...englishOn(pageLang)}
+          >
             <div className="kit-closing-frame">
               <DepthGlow />
-              <PassportTilt
-                nationality={nationality}
-                width={200}
-                label={nationality === 'BD' ? 'Bangladesh Passport Cover' : 'Passport Cover'}
-              />
+              <PassportTilt nationality={nationality} width={200} label={cover.text} />
             </div>
             <figcaption>
               <ExampleTag pageLang={pageLang} />

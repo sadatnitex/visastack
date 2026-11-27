@@ -1,5 +1,5 @@
 import { Icon, type IconName } from '../../icons';
-import { publicText } from '../public-text';
+import { publicString, publicText } from '../public-text';
 import { ExampleTag } from '../story';
 import { englishOn } from './doc-kinds';
 import './kit-steps.css';
@@ -40,6 +40,7 @@ const ACTORS: readonly { readonly name: Actor; readonly icon: IconName }[] = [
  */
 export function JourneyTrack({ stages, current, pageLang = 'en' }: JourneyTrackProps) {
   const say = (text: string) => publicText(text, pageLang);
+  const caption = publicString('Example of a case moving through its stages', pageLang);
   const fixed =
     current === undefined
       ? {}
@@ -47,7 +48,8 @@ export function JourneyTrack({ stages, current, pageLang = 'en' }: JourneyTrackP
   return (
     <figure
       className={current === undefined ? 'kit-journey' : 'kit-journey kit-fixed'}
-      aria-label="Example of a case moving through its stages"
+      aria-label={caption.text}
+      {...(caption.lang ? { lang: caption.lang } : {})}
       {...fixed}
       {...englishOn(pageLang)}
     >
@@ -63,9 +65,9 @@ export function JourneyTrack({ stages, current, pageLang = 'en' }: JourneyTrackP
             </span>
             <span className="kit-node-name" data-at={index}>
               <span className="kit-sw sr-only" data-at={index}>
-                Now:{' '}
+                {say('Now:')}{' '}
               </span>
-              {stage.name}
+              {say(stage.name)}
             </span>
           </li>
         ))}
@@ -73,7 +75,7 @@ export function JourneyTrack({ stages, current, pageLang = 'en' }: JourneyTrackP
       <div className="kit-stage-card" data-pub-depth="">
         {stages.map((stage, index) => (
           <div className="kit-sw kit-stage" data-at={index} key={`${index}-${stage.name}`}>
-            <h3 className="kit-stage-title">{stage.name}</h3>
+            <h3 className="kit-stage-title">{say(stage.name)}</h3>
             <p className="kit-stage-note">{say(stage.note)}</p>
             <ul className="kit-who">
               {ACTORS.map((who) => (

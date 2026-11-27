@@ -1,4 +1,3 @@
-import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { FlagRibbon } from '../../components/public-countries/flag-ribbon';
 import { TypingSearch } from '../../components/public-countries/typing-search';
@@ -10,14 +9,16 @@ import {
   RiseIn,
 } from '../../components/public-site/kit';
 import { PublicButton } from '../../components/public-site/public-button';
-import { publicText } from '../../components/public-site/public-text';
+import { publicFormat, publicString, publicText } from '../../components/public-site/public-text';
 import { Chapter } from '../../components/public-site/scene';
 import { HeadlineWords } from '../../components/public-site/story';
 import { ShowMore } from '../../components/show-more';
 import { componentsCatalog } from '../../i18n/components';
 import { homeCatalog } from '../../i18n/home';
+import { localizedCountryName } from '../../lib/country-name';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
 import { getPageLanguage, getServerT, primeLocale } from '../../lib/i18n-server';
+import { localizedMetadata } from '../../lib/localized-metadata';
 import type { SearchParamsRecord } from '../../lib/paging';
 import { isPublicBetaOpen } from '../../lib/public-beta';
 import { isSignedIn } from '../../lib/signed-in';
@@ -34,7 +35,7 @@ import {
 import './countries.css';
 
 // The signed-in list at /app/countries is titled "Countries"; the public page's tab says what it adds.
-export const metadata: Metadata = { title: 'Countries and Sources' };
+export const generateMetadata = localizedMetadata({ title: 'Countries and Sources' });
 
 const COUNTRY_NOUN = { one: 'country', other: 'countries' } as const;
 
@@ -52,9 +53,12 @@ export default function CountriesPage(props: CountriesProps): Promise<ReactEleme
  * a plain `?show=` link, so the page works without script.
  */
 export default async function CountriesPage(props?: CountriesProps): Promise<ReactElement> {
-  await primeLocale();
+  const locale = await primeLocale();
   const lang = getPageLanguage();
   const say = (text: string) => publicText(text, lang);
+  const listLabel = publicString('Countries', lang, locale);
+  const name = (row: { readonly iso2: string; readonly name: string }) =>
+    localizedCountryName(row.iso2, row.name, locale);
   const t = getServerT(homeCatalog);
   const tc = getServerT(componentsCatalog);
   const params: SearchParamsRecord = (await props?.searchParams) ?? {};
@@ -105,7 +109,17 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
           <h2 id="countries-list-title" className="r4-h2">
             {say('All Countries')}
           </h2>
-          <ul className="pub4c-rows" aria-label="Countries">
+          {/* Official rule content stays English by the owner's decision; one short note says so. */}
+          {locale === 'bn' ? (
+            <p className="pub4c-note">
+              {say('Official country rules are shown in English, as published.')}
+            </p>
+          ) : null}
+          <ul
+            className="pub4c-rows"
+            aria-label={listLabel.text}
+            {...(listLabel.lang ? { lang: listLabel.lang } : {})}
+          >
             {view.rows.map((row) => (
               <li
                 key={row.iso2}
@@ -127,7 +141,12 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
                   <span className="pub4c-flag pub4c-flag-none" aria-hidden="true" />
                 )}
                 <div className="pub4c-row-text">
-                  <strong className="pub4c-name">{say(row.name)}</strong>
+                  <strong
+                    className="pub4c-name"
+                    {...(name(row).lang ? { lang: name(row).lang } : {})}
+                  >
+                    {name(row).text}
+                  </strong>
                   {row.researched ? (
                     <>
                       <span className="pub4c-facts">
@@ -151,7 +170,9 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
                 </div>
                 <a className="pub-button pub-button-secondary" href={startFor(row.iso2)}>
                   {say('Start')}
-                  <span className="sr-only">{say(` With ${row.name}`)}</span>
+                  <span className="sr-only">
+                    {publicFormat(' With {country}', { country: name(row).text }, lang)}
+                  </span>
                 </a>
               </li>
             ))}
@@ -163,6 +184,19 @@ export default async function CountriesPage(props?: CountriesProps): Promise<Rea
             shown={view.shown}
             total={view.total}
             noun={COUNTRY_NOUN}
+            labelText={say('Show More')}
+            labelNote={say(' countries')}
+            countText={
+              view.total <= view.shown
+                ? view.total === 1
+                  ? say('Showing the only country.')
+                  : publicFormat('Showing all {total} countries.', { total: view.total }, lang)
+                : publicFormat(
+                    'Showing {shown} of {total} countries.',
+                    { shown: view.shown, total: view.total },
+                    lang,
+                  )
+            }
             {...(landOn ? { landOn } : {})}
           />
         </div>

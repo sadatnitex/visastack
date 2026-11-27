@@ -65,17 +65,41 @@ export function versionNoticeCopy(
     : PILOT_BANNER_COPY[mode];
 }
 
+/** One notice word in the visitor's language: its text and its language when that differs from the page's. */
+export type NoticeWords = (english: string) => {
+  readonly text: string;
+  readonly lang?: 'en' | 'bn';
+};
+
 export function PilotBanner({
   mode,
   registrationOpen = false,
   seen = false,
+  words,
 }: {
   readonly mode: DeploymentMode;
   readonly registrationOpen?: boolean;
   /** This device has already seen the notice (or hid it), so only the slim label shows. */
   readonly seen?: boolean;
+  /** Words each part in the visitor's language; absent means English, as written. */
+  readonly words?: NoticeWords;
 }) {
-  const copy = versionNoticeCopy(mode, registrationOpen);
-  if (!copy) return null;
+  const english = versionNoticeCopy(mode, registrationOpen);
+  if (!english) return null;
+  if (!words) return <VersionNotice copy={english} folded={seen} />;
+  const label = words(english.label);
+  const detail = words(english.detail);
+  const short = words(english.short);
+  const copy: BannerCopy = {
+    label: label.text,
+    detail: detail.text,
+    short: short.text,
+    ...(english.detailInBanner === undefined ? {} : { detailInBanner: english.detailInBanner }),
+    langs: {
+      ...(label.lang ? { label: label.lang } : {}),
+      ...(detail.lang ? { detail: detail.lang } : {}),
+      ...(short.lang ? { short: short.lang } : {}),
+    },
+  };
   return <VersionNotice copy={copy} folded={seen} />;
 }

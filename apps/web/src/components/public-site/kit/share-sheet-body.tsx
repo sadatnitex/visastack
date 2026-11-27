@@ -1,15 +1,14 @@
 import { Icon } from '../../icons';
 import { DocumentPicture } from '../../pictures/document-picture';
-import { publicText } from '../public-text';
+import { publicString, publicText } from '../public-text';
 import { ExampleTag } from '../story';
 import { DOC_TYPE, englishOn } from './doc-kinds';
 import './kit-steps.css';
 import './kit.css';
 
-export type ShareStep = 0 | 1 | 2 | 3 | 4;
+import { SHARE_STEPS, type ShareStep } from './share-steps';
 
-/** Steps in the story: nothing leaves, one paper and its part, add another, an end date, ended. */
-export const SHARE_STEPS = 5;
+export { SHARE_STEPS, type ShareStep };
 
 const ROWS = [
   { kind: 'passport', name: 'Passport', part: 'See Document Details', from: 1 },
@@ -27,18 +26,20 @@ export function ShareSheetBody({
   pageLang = 'en',
 }: { readonly step?: ShareStep; readonly pageLang?: string }) {
   const say = (text: string) => publicText(text, pageLang);
+  const caption = publicString('Example of sharing papers with an agency', pageLang);
   const fixed = step === undefined ? {} : { 'data-kit-step': step };
   return (
     <figure
       className={step === undefined ? 'kit-sheet' : 'kit-sheet kit-fixed'}
       data-pub-depth=""
-      aria-label="Example of sharing papers with an agency"
+      aria-label={caption.text}
+      {...(caption.lang ? { lang: caption.lang } : {})}
       {...fixed}
       {...englishOn(pageLang)}
     >
       <ExampleTag pageLang={pageLang} />
       <div className="kit-sheet-main">
-        <b className="kit-sheet-title">Share with Agency</b>
+        <b className="kit-sheet-title">{say('Share with Agency')}</b>
         {ROWS.map((row) => (
           <div
             className="kit-share-row"
@@ -49,7 +50,7 @@ export function ShareSheetBody({
               <DocumentPicture type={DOC_TYPE[row.kind]} size={34} />
             </span>
             <div className="kit-share-text">
-              <b>{row.name}</b>
+              <b>{say(row.name)}</b>
               {row.from < 99 ? (
                 <>
                   <span className="kit-sw kit-share-part" data-upto={row.from - 1}>

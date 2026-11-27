@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { acceptNoticesAction } from '../actions';
 import { AuthShell, ErrorLine } from '../auth-ui';
 
-export const metadata: Metadata = { title: 'One Last Step' };
+export const generateMetadata = localizedMetadata({ title: 'One Last Step' });
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {

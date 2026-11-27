@@ -11,7 +11,7 @@ import {
   FOOTER_TRUST_ROUTES,
   type PublicNavLink,
 } from './public-site/public-nav';
-import { publicText } from './public-site/public-text';
+import { publicString, publicText } from './public-site/public-text';
 
 type HomeText = PartsTranslator<CatalogKey<typeof homeCatalog>>;
 type FooterKey = CatalogKey<typeof homeCatalog>;
@@ -25,7 +25,7 @@ export interface FooterNotice {
 }
 
 /** The version line's words, as catalogue keys (the English words come from the page's own notice). */
-const NOTICE_KEYS: Readonly<Record<string, FooterKey>> = {
+export const NOTICE_KEYS: Readonly<Record<string, FooterKey>> = {
   'VisaStack Public Beta': 'home.layout.noticePublicBeta',
   'VisaStack Private Pilot': 'home.layout.noticePilot',
   'Test version. Made-up details only.': 'home.layout.noticePilotShort',
@@ -42,6 +42,7 @@ export function SiteFooter({
   t,
   tAuth,
   pageLang,
+  locale,
   pages,
   signedIn,
   signOut,
@@ -52,6 +53,8 @@ export function SiteFooter({
   readonly t: HomeText;
   readonly tAuth: AuthText;
   readonly pageLang: string;
+  /** The visitor's language choice (differs from `pageLang` only on a route not yet marked Bengali). */
+  readonly locale: string;
   /** The public list as the header draws it now (addresses already settled). */
   readonly pages: readonly PublicNavLink[];
   readonly signedIn: boolean;
@@ -67,11 +70,12 @@ export function SiteFooter({
       .map((route) => pages.find((page) => page.route === route))
       .filter((page): page is PublicNavLink => page !== undefined);
   const word = (link: PublicNavLink): ReactNode =>
-    link.key ? t.node(link.key) : publicText(link.label, pageLang);
+    link.key ? t.node(link.key) : publicText(link.label, pageLang, locale);
   const noticeWord = (english: string): ReactNode => {
     const key = NOTICE_KEYS[english];
-    return key ? t.node(key) : publicText(english, pageLang);
+    return key ? t.node(key) : publicText(english, pageLang, locale);
   };
+  const legal = publicString('Legal', pageLang, locale);
   const accountWord = signedIn
     ? t.node('home.layout.workspace')
     : tAuth.node('auth.authSignInPage.signIn');
@@ -88,13 +92,14 @@ export function SiteFooter({
             {publicText(
               'Visa preparation for travellers, families and the agencies that help them.',
               pageLang,
+              locale,
             )}
           </p>
         </div>
         <nav className="site-footer-nav" aria-label={t('home.layout.footer')}>
           <div className="site-footer-group">
             <p className="site-footer-heading" id="footer-travellers">
-              {publicText('Travellers', pageLang)}
+              {publicText('Travellers', pageLang, locale)}
             </p>
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
             {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
@@ -105,7 +110,9 @@ export function SiteFooter({
                 </li>
               ))}
               <li>
-                <Link href="/#your-record">{publicText('Your Reusable Record', pageLang)}</Link>
+                <Link href="/#your-record">
+                  {publicText('Your Reusable Record', pageLang, locale)}
+                </Link>
               </li>
               {pick(['/countries']).map((link) => (
                 <li key={link.route}>
@@ -116,7 +123,7 @@ export function SiteFooter({
           </div>
           <div className="site-footer-group">
             <p className="site-footer-heading" id="footer-workspaces">
-              {publicText('Workspaces', pageLang)}
+              {publicText('Workspaces', pageLang, locale)}
             </p>
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
             {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
@@ -141,7 +148,7 @@ export function SiteFooter({
           </div>
           <div className="site-footer-group">
             <p className="site-footer-heading" id="footer-trust">
-              {publicText('Trust and Support', pageLang)}
+              {publicText('Trust and Support', pageLang, locale)}
             </p>
             {/* biome-ignore lint/a11y/noRedundantRoles: Safari and VoiceOver drop list semantics from a list with no markers; the role keeps them */}
             {/* biome-ignore lint/a11y/useSemanticElements: the same list, kept as a list for the same reason */}
@@ -155,7 +162,7 @@ export function SiteFooter({
                 <Link href="/status">{t.node('home.layout.status')}</Link>
               </li>
               <li>
-                <Link href="/#questions">{publicText('Common Questions', pageLang)}</Link>
+                <Link href="/#questions">{publicText('Common Questions', pageLang, locale)}</Link>
               </li>
               {notice ? (
                 <li>
@@ -168,7 +175,11 @@ export function SiteFooter({
       </div>
       <div className="container site-footer-base">
         <span>{copyright}</span>
-        <nav className="site-footer-legal" aria-label="Legal">
+        <nav
+          className="site-footer-legal"
+          aria-label={legal.text}
+          {...(legal.lang ? { lang: legal.lang } : {})}
+        >
           {FOOTER_LEGAL.filter((entry) => entry.route !== '/status').map((entry) => (
             <Link href={entry.route} key={entry.route}>
               {t.node(entry.key)}

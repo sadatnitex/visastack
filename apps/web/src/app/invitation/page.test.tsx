@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({ load: vi.fn(), signedIn: vi.fn() }));
 vi.mock('../../lib/invitation-preview', () => ({ loadClientInvitationPage: mocks.load }));
 vi.mock('../../lib/signed-in', () => ({ isSignedIn: mocks.signedIn }));
 
-const { default: InvitationPage, metadata } = await import('./page');
+const { default: InvitationPage, generateMetadata } = await import('./page');
+const metadata = await generateMetadata();
 
 const TOKEN = 'a'.repeat(43);
 const render = (searchParams: { kind?: string; token?: string }) =>

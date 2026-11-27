@@ -4,7 +4,7 @@ import { type ChangeEvent, type FormEvent, useCallback, useEffect, useRef, useSt
 import { componentsCatalog } from '../../i18n/components';
 import { countriesPublicCatalog } from '../../i18n/countries-public';
 import { appHrefForCountry, startHrefForCountry } from '../../lib/country-start-links';
-import { useT } from '../i18n-provider';
+import { usePageLanguage, useT } from '../i18n-provider';
 import { MotionToggle, useMotionPaused } from './motion-pause';
 import {
   DEMO_WORD,
@@ -42,6 +42,7 @@ export interface TypingSearchProps {
  * the count after typing pauses, never on every key, and never while the demo runs.
  */
 export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: TypingSearchProps) {
+  const pageLang = usePageLanguage();
   const tc = useT(componentsCatalog);
   const t = useT(countriesPublicCatalog);
   const searched = normaliseQuery(initialQuery).length > 0;
@@ -182,7 +183,11 @@ export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: Typi
             spellCheck={false}
             maxLength={SEARCH_MAX}
             placeholder={tc('components.countryBrowser.searchCountries')}
-            {...(demoWord ? { lang: 'en' } : tc.lang('components.countryBrowser.searchCountries'))}
+            {...(demoWord
+              ? pageLang === 'en'
+                ? {}
+                : { lang: 'en' }
+              : tc.lang('components.countryBrowser.searchCountries'))}
             value={text}
             onChange={onChange}
             onFocus={stopDemo}
@@ -201,7 +206,11 @@ export function TypingSearch({ index, initialQuery, signedIn, signUpOpen }: Typi
       >
         {results.map((entry) => (
           <li key={entry.c}>
-            <a className="r4-result" href={hrefFor(entry.c)} lang="en">
+            <a
+              className="r4-result"
+              href={hrefFor(entry.c)}
+              {...(pageLang === 'en' ? {} : { lang: 'en' })}
+            >
               {entry.f ? (
                 <img
                   src={`/flags/${entry.f}.svg`}

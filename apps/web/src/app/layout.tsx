@@ -19,9 +19,11 @@ import {
 import { publicText } from '../components/public-site/public-text';
 import { ScenesBoot, requestNonce } from '../components/public-site/scenes-boot';
 import { PwaRuntime } from '../components/pwa/pwa-runtime';
+import { NOTICE_KEYS } from '../components/site-footer';
 import { SiteFooter } from '../components/site-footer';
 import { SiteNavigation } from '../components/site-navigation';
 import { appHomeCatalog } from '../i18n/app-home';
+import { liveClientDrafts, publicBnByEnglish } from '../i18n/public-lookup';
 import { getDeploymentMode } from '../lib/deployment-mode';
 import { getT, primePage } from '../lib/i18n-server';
 import { LANGUAGE_CHOICE_ENABLED } from '../lib/language-choice';
@@ -65,17 +67,27 @@ const PRODUCT_NAME = 'VisaStack';
 const LANGUAGE_NAME = { en: 'English', bn: 'বাংলা' } as const;
 const COPYRIGHT_KEY = 'home.layout.getfullyearVisastackProprietaryAndConfidential';
 
-export const metadata: Metadata = {
-  // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
-  title: { default: 'VisaStack - one profile, every visa', template: '%s | VisaStack' },
-  description:
-    'A clean file you can stand behind. Keep your passport and documents in one private profile and share only the part you choose.',
-  applicationName: 'VisaStack',
-  // Home-screen app on iPhone and iPad (the manifest covers other devices).
-  appleWebApp: { capable: true, title: 'VisaStack', statusBarStyle: 'default' },
-  // Stop phones turning passport, reference and account numbers into call or map links.
-  formatDetection: { telephone: false, email: false, address: false },
-};
+const DEFAULT_TITLE = 'VisaStack - one profile, every visa';
+const DESCRIPTION =
+  'A clean file you can stand behind. Keep your passport and documents in one private profile and share only the part you choose.';
+
+export async function generateMetadata(): Promise<Metadata> {
+  // The visitor's language for the title and description (a held description stays English).
+  const bn = (await primePage()).pageLang === 'bn';
+  return {
+    // Every page names itself (WCAG 2.4.2): the page's own title, then the product.
+    title: {
+      default: (bn ? publicBnByEnglish(DEFAULT_TITLE) : undefined) ?? DEFAULT_TITLE,
+      template: '%s | VisaStack',
+    },
+    description: (bn ? publicBnByEnglish(DESCRIPTION) : undefined) ?? DESCRIPTION,
+    applicationName: 'VisaStack',
+    // Home-screen app on iPhone and iPad (the manifest covers other devices).
+    appleWebApp: { capable: true, title: 'VisaStack', statusBarStyle: 'default' },
+    // Stop phones turning passport, reference and account numbers into call or map links.
+    formatDetection: { telephone: false, email: false, address: false },
+  };
+}
 
 // The approved reference stays light, independently of the device appearance.
 export const viewport: Viewport = {
@@ -208,7 +220,11 @@ export default async function RootLayout({ children }: { readonly children: Reac
         <ScenesBoot nonce={scenesNonce} />
       </head>
       <body>
-        <I18nProvider locale={locale} pageLang={htmlLang}>
+        <I18nProvider
+          locale={locale}
+          pageLang={htmlLang}
+          drafts={locale === 'bn' ? liveClientDrafts() : {}}
+        >
           <a className="skip-link" href="#main">
             {t.node('home.layout.skipToContent')}
           </a>
@@ -217,6 +233,20 @@ export default async function RootLayout({ children }: { readonly children: Reac
               mode={deploymentMode}
               registrationOpen={registrationOpen}
               seen={noticeSeen}
+              words={(english) => {
+                // The reviewed words come from the catalogue; a draft comes from the public messages;
+                // anything else (or anything held) stays English, marked English on a Bengali page.
+                const key = NOTICE_KEYS[english];
+                if (key) {
+                  const { text, lang } = catalogResolve(homeCatalog, locale, key);
+                  return lang === htmlLang ? { text } : { text, lang };
+                }
+                const draft = locale === 'bn' ? publicBnByEnglish(english) : undefined;
+                const lang = draft === undefined ? 'en' : 'bn';
+                return lang === htmlLang
+                  ? { text: draft ?? english }
+                  : { text: draft ?? english, lang };
+              }}
             />
           ) : null}
           <header className="nav">
@@ -234,8 +264,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
                 currentRoutes: HOW_MENU_ROUTES,
                 items: HOW_MENU.map((entry) => ({
                   href: entry.href,
-                  label: entry.key ? t.node(entry.key) : publicText(entry.label, htmlLang),
-                  description: publicText(entry.description, htmlLang),
+                  label: entry.key ? t.node(entry.key) : publicText(entry.label, htmlLang, locale),
+                  description: publicText(entry.description, htmlLang, locale),
                   ...(entry.wideOnly ? { wideOnly: true } : {}),
                 })),
               }}
@@ -244,13 +274,13 @@ export default async function RootLayout({ children }: { readonly children: Reac
                 .map((link) => ({
                   href: link.href,
                   route: link.route,
-                  label: link.key ? t.node(link.key) : publicText(link.label, htmlLang),
+                  label: link.key ? t.node(link.key) : publicText(link.label, htmlLang, locale),
                 }))}
               menuExtras={
                 <>
                   {PHONE_MENU_EXTRAS.map((extra) => (
                     <a className="menu-link" href={extra.href} key={extra.href}>
-                      {publicText(extra.label, htmlLang)}
+                      {publicText(extra.label, htmlLang, locale)}
                     </a>
                   ))}
                   {languageForm('menu-lang', false)}
@@ -301,6 +331,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             t={t}
             tAuth={tAuth}
             pageLang={htmlLang}
+            locale={locale}
             pages={links}
             signedIn={signedIn}
             signOut={signOutForm('footer-signout')}

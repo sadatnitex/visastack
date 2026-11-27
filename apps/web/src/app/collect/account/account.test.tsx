@@ -55,7 +55,8 @@ vi.mock('next/headers', () => ({
 }));
 
 const { collectCatalog } = await import('../../../i18n/collect');
-const { default: AccountPage, metadata } = await import('./page');
+const { default: AccountPage, generateMetadata } = await import('./page');
+const metadata = await generateMetadata();
 const { default: AnswersPage } = await import('./answers/page');
 const { ResponseForm } = await import('./response-form');
 

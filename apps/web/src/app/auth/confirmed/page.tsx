@@ -1,8 +1,8 @@
-import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { confirmedLandingDecision } from '../../../lib/confirmed-landing';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 
-export const metadata: Metadata = { title: 'Email Confirmed' };
+export const generateMetadata = localizedMetadata({ title: 'Email Confirmed' });
 export const dynamic = 'force-dynamic';
 
 /**

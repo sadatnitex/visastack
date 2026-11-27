@@ -1,8 +1,10 @@
-import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import { publicMessage, publicText } from '../../../components/public-site/public-text';
 import { authCatalog } from '../../../i18n/auth';
-import { getServerT, primeLocale } from '../../../lib/i18n-server';
+import { MISC_MESSAGES as X } from '../../../i18n/misc-messages';
+import { getPageLanguage, getServerT, primeLocale } from '../../../lib/i18n-server';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import {
   PENDING_CONFIRMATION_COOKIE,
@@ -13,7 +15,7 @@ import { signInAction, signInLinkAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 import { GoogleButton } from '../google-button';
 
-export const metadata: Metadata = { title: 'Sign In' };
+export const generateMetadata = localizedMetadata({ title: 'Sign In' });
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
@@ -45,7 +47,8 @@ const NOTICES: Record<string, string> = {
 export default async function SignInPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; n?: string; next?: string }> }) {
-  await primeLocale();
+  const locale = await primeLocale();
+  const lang = getPageLanguage();
   const t = getServerT(authCatalog);
   const { e, n, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
@@ -116,9 +119,9 @@ export default async function SignInPage({
         <Link href="/auth/forgot-password">{t.node('auth.authSignInPage.forgotYourPassword')}</Link>
       </p>
       <p className="card-body">
-        New here?{' '}
+        {publicMessage(X['misc.newHere'], lang, locale)}{' '}
         <Link href={`/auth/sign-up?next=${encodeURIComponent(safeReturnPath(next))}`}>
-          Create an Account
+          {publicText('Create an Account', lang, locale)}
         </Link>
       </p>
     </AuthShell>

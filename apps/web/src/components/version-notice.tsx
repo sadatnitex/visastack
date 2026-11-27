@@ -14,6 +14,12 @@ export interface VersionNoticeCopy {
   readonly short: string;
   /** False keeps the detail out of the top notice (the Status page card still shows it). */
   readonly detailInBanner?: boolean;
+  /** The language of each part when it differs from the page's (a held English line on a Bengali page). */
+  readonly langs?: {
+    readonly label?: 'en' | 'bn';
+    readonly detail?: 'en' | 'bn';
+    readonly short?: 'en' | 'bn';
+  };
 }
 
 /**
@@ -51,14 +57,31 @@ export function VersionNotice({
       className={folded ? 'pilot-banner pilot-banner-slim' : 'pilot-banner'}
       aria-label={t('components.versionNotice.aboutThisVersion')}
     >
-      <span className="pilot-banner-label">{copy.label}</span>
+      <span
+        className="pilot-banner-label"
+        {...(copy.langs?.label ? { lang: copy.langs.label } : {})}
+      >
+        {copy.label}
+      </span>
       {folded ? null : (
         <>
           {/* One of these two shows, by screen width; the link gives the full list either way. */}
           {copy.detail && copy.detailInBanner !== false ? (
-            <span className="pilot-banner-detail">{copy.detail}</span>
+            <span
+              className="pilot-banner-detail"
+              {...(copy.langs?.detail ? { lang: copy.langs.detail } : {})}
+            >
+              {copy.detail}
+            </span>
           ) : null}
-          {copy.short ? <span className="pilot-banner-short">{copy.short}</span> : null}
+          {copy.short ? (
+            <span
+              className="pilot-banner-short"
+              {...(copy.langs?.short ? { lang: copy.langs.short } : {})}
+            >
+              {copy.short}
+            </span>
+          ) : null}
         </>
       )}
       <a className="pilot-banner-link" href="/status" ref={link}>

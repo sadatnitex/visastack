@@ -1,9 +1,9 @@
-import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { signInNextSuffix } from '../../../lib/confirmed-landing';
+import { localizedMetadata } from '../../../lib/localized-metadata';
 import { safeReturnPath } from '../../../lib/neon-recency';
 
-export const metadata: Metadata = { title: 'Signed In' };
+export const generateMetadata = localizedMetadata({ title: 'Signed In' });
 export const dynamic = 'force-dynamic';
 
 /**

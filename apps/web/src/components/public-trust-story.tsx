@@ -8,7 +8,6 @@ import { DocumentPicture } from './pictures/document-picture';
 // Imported by file, never through the kit's index: the index also names the client-side timed sheet, and
 // a page that imports the index would ship that sheet's code to every visitor (public JavaScript budget).
 import { ClosingBand } from './public-site/kit/closing-band';
-import { englishOn } from './public-site/kit/doc-kinds';
 import { RiseIn } from './public-site/kit/rise-in';
 import { ShareSheetBody, type ShareStep } from './public-site/kit/share-sheet-body';
 import { PublicButton } from './public-site/public-button';
@@ -180,7 +179,7 @@ export function PublicTrustStory({ catalog }: { readonly catalog?: ReactNode }) 
                   <b>{say(row.text)}</b>
                   <span className="tr-event-when">
                     <ExampleTag pageLang={lang} />
-                    <span {...englishOn(lang)}>{row.when}</span>
+                    <span>{say(row.when)}</span>
                   </span>
                 </span>
               </RiseIn>
